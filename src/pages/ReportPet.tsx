@@ -148,7 +148,9 @@ ${statusEmoji} en Sicardi/Garibaldi
 🎨 Color/Detalles: ${previewPet.description}
 📞 Contacto: ${previewPet.contact_info || previewPet.contactInfo}
 
-Sumate a la red vecinal en: ${window.location.origin}/perdidos`;
+🐾 Sigo Tu Huella — Red Vecinal
+${window.location.origin}/perdidos
+${window.location.origin}/sigotuhuella.jpg`;
   };
 
   const shareOnWhatsApp = () => {

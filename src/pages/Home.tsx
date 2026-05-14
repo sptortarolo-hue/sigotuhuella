@@ -50,12 +50,12 @@ export default function Home() {
             transition={{ duration: 1, delay: 0.2 }}
             className="relative"
           >
-            <div className="aspect-[4/5] bg-brand-accent rounded-[3rem] overflow-hidden rotate-3 shadow-2xl relative">
-               <img 
-                src="https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&q=80&w=1000" 
-                alt="Comunidad" 
-                className="w-full h-full object-cover grayscale-[20%] hover:grayscale-0 transition-all duration-700 hover:scale-105"
-              />
+             <div className="aspect-[4/5] bg-brand-accent rounded-[3rem] overflow-hidden rotate-3 shadow-2xl relative">
+                <img 
+                 src="/sigotuhuella.jpg" 
+                 alt="Sigo tu huella" 
+                 className="w-full h-full object-cover hover:scale-105 transition-all duration-700"
+               />
             </div>
             {/* Floating Stats */}
             <div className="absolute -bottom-6 -left-6 bg-white p-6 rounded-3xl shadow-xl border border-brand-accent -rotate-2">

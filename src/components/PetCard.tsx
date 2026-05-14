@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Info, Phone } from 'lucide-react';
+import { MapPin, Calendar, Info, Phone, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
@@ -11,6 +11,30 @@ interface PetCardProps {
   showAdminActions?: boolean;
   onEdit?: (pet: Pet) => void;
   onDelete?: (id: string) => void | Promise<void>;
+}
+
+function getWhatsAppMessage(pet: Pet): string {
+  const statusEmoji = pet.status === PetStatus.LOST ? '🚨 BUSCADO 🚨' : pet.status === PetStatus.FOUND ? '✅ ENCONTRADO ✅' : '🐾 EN ADOPCIÓN 🐾';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `¡DIFUNDIR POR FAVOR! 🙏
+
+${statusEmoji} en Sicardi/Garibaldi
+
+🐾 ${pet.name ? `Nombre: ${pet.name}` : 'Mascota sin identificar'}
+📍 ${pet.location}
+🔎 Especie: ${pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otra'}
+📞 Contacto: ${pet.contact_info || 'No disponible'}
+📝 ${pet.description || ''}
+
+🐾 Sigo Tu Huella — Red Vecinal
+${origin}/perdidos
+${origin}/sigotuhuella.jpg`;
+}
+
+function shareOnWhatsApp(pet: Pet) {
+  const text = getWhatsAppMessage(pet);
+  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank');
 }
 
 export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: PetCardProps) {
@@ -98,22 +122,31 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
           {pet.description}
         </p>
 
-        {showAdminActions && (
-          <div className="flex gap-2 pt-4 border-t border-brand-accent">
-            <button 
-              onClick={() => onEdit?.(pet)}
-              className="flex-1 px-4 py-2 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-bold hover:bg-brand-primary hover:text-white transition-colors"
-            >
-              Editar
-            </button>
-            <button 
-              onClick={() => onDelete?.(pet.id)}
-              className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-colors"
-            >
-              Borrar
-            </button>
-          </div>
-        )}
+        <div className="flex gap-2 pt-4 border-t border-brand-accent">
+          <button
+            onClick={() => shareOnWhatsApp(pet)}
+            className="flex-1 px-4 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-100 transition-colors"
+          >
+            <MessageCircle className="w-4 h-4" />
+            Compartir
+          </button>
+          {showAdminActions && (
+            <>
+              <button
+                onClick={() => onEdit?.(pet)}
+                className="flex-1 px-4 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-bold hover:bg-brand-primary hover:text-white transition-colors"
+              >
+                Editar
+              </button>
+              <button
+                onClick={() => onDelete?.(pet.id)}
+                className="px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-colors"
+              >
+                Borrar
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
