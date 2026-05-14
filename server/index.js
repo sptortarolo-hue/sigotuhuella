@@ -30,7 +30,7 @@ async function seedAdmin() {
   try {
     const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length === 0) {
-      const passwordHash = await hashPassword('1234');
+      const passwordHash = await hashPassword('123456');
       await pool.query(
         'INSERT INTO users (email, password_hash, display_name, role) VALUES ($1, $2, $3, $4)',
         [email, passwordHash, 'sptortarolo', 'admin']
