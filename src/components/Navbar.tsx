@@ -1,12 +1,27 @@
-import { Link, useLocation } from 'react-router-dom';
-import { PawPrint, Heart, Search, Monitor, Menu, X, PlusCircle, HandCoins, Users } from 'lucide-react';
-import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { PawPrint, Heart, Search, Monitor, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '@/src/hooks/useAuth';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const navItems = [
     { name: 'Inicio', path: '/', icon: PawPrint },
@@ -17,6 +32,12 @@ export default function Navbar() {
     { name: 'Publicar', path: '/reportar', icon: PlusCircle },
     { name: 'Admin', path: '/admin', icon: Monitor },
   ];
+
+  const handleLogout = () => {
+    logout();
+    setUserMenuOpen(false);
+    navigate('/');
+  };
 
   return (
     <nav className="sticky top-0 z-50 bg-brand-bg/80 backdrop-blur-md border-b border-brand-accent">
@@ -43,10 +64,48 @@ export default function Navbar() {
                 {item.name}
               </Link>
             ))}
+
+            {/* User Menu */}
+            {user && (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl hover:bg-brand-primary/20 transition-colors"
+                >
+                  <User className="w-5 h-5" />
+                </button>
+                <AnimatePresence>
+                  {userMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-brand-accent overflow-hidden"
+                    >
+                      <div className="px-4 py-3 border-b border-brand-accent bg-brand-bg/50">
+                        <p className="text-sm font-bold text-brand-primary truncate">{user.display_name || user.email}</p>
+                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                      </div>
+                      <div className="py-1">
+                        <button onClick={() => { setUserMenuOpen(false); navigate('/mis-publicaciones'); }} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                          <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
+                        </button>
+                        <button onClick={() => { setUserMenuOpen(false); navigate('/perfil'); }} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                          <Settings className="w-4 h-4 text-brand-primary" /> Configuración
+                        </button>
+                        <button onClick={handleLogout} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors">
+                          <LogOut className="w-4 h-4" /> Cerrar Sesión
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
 
           {/* Mobile Menu Toggle */}
-          <button 
+          <button
             className="md:hidden p-2 text-brand-primary"
             onClick={() => setIsOpen(!isOpen)}
           >
@@ -78,6 +137,22 @@ export default function Navbar() {
                 {item.name}
               </Link>
             ))}
+            {user && (
+              <>
+                <div className="border-t border-brand-accent pt-4 mt-2">
+                  <p className="text-xs text-gray-400 px-2 mb-2 font-bold uppercase tracking-widest">Mi Cuenta</p>
+                  <Link to="/mis-publicaciones" onClick={() => setIsOpen(false)} className="flex items-center gap-3 text-lg font-medium p-2 rounded-lg text-gray-600">
+                    <LayoutList className="w-5 h-5" /> Mis Publicaciones
+                  </Link>
+                  <Link to="/perfil" onClick={() => setIsOpen(false)} className="flex items-center gap-3 text-lg font-medium p-2 rounded-lg text-gray-600">
+                    <Settings className="w-5 h-5" /> Configuración
+                  </Link>
+                  <button onClick={() => { handleLogout(); setIsOpen(false); }} className="w-full flex items-center gap-3 text-lg font-medium p-2 rounded-lg text-red-600">
+                    <LogOut className="w-5 h-5" /> Cerrar Sesión
+                  </button>
+                </div>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

@@ -13,6 +13,8 @@ const Admin = lazy(() => import('@/src/pages/Admin'));
 const ReportPet = lazy(() => import('@/src/pages/ReportPet'));
 const Collaborate = lazy(() => import('@/src/pages/Collaborate'));
 const Join = lazy(() => import('@/src/pages/Join'));
+const Profile = lazy(() => import('@/src/pages/Profile'));
+const MyPets = lazy(() => import('@/src/pages/MyPets'));
 
 function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin: boolean }) {
   const { user, isAdmin: isUserAdmin, loading } = useAuth();
@@ -47,6 +49,8 @@ export default function App() {
               <Route path="/reportar" element={<ReportPet />} />
               <Route path="/colaborar" element={<Collaborate />} />
               <Route path="/sumate" element={<Join />} />
+              <Route path="/perfil" element={<Profile />} />
+              <Route path="/mis-publicaciones" element={<MyPets />} />
               <Route path="/login" element={<Login />} />
               <Route 
                 path="/admin" 

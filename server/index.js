@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.js';
 import petRoutes from './routes/pets.js';
 import collaborationRoutes from './routes/collaboration.js';
 import volunteerRoutes from './routes/volunteers.js';
+import userRoutes from './routes/users.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -20,6 +21,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/pets', petRoutes);
 app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/volunteers', volunteerRoutes);
+app.use('/api/users', userRoutes);
 
 app.get('*', (_req, res) => {
   res.sendFile(join(__dirname, '..', 'dist', 'index.html'));

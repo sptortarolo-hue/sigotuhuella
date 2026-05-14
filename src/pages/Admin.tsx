@@ -12,18 +12,19 @@ import {
   VolunteerRequest
 } from '@/src/lib/collaborationService';
 import { useAuth } from '@/src/hooks/useAuth';
+import { api } from '@/src/lib/api';
 import PetCard from '@/src/components/PetCard';
 import { 
   Plus, X, Loader2, Save, AlertCircle, Camera, 
   CreditCard, Users, LayoutDashboard, Trash2, 
-  Edit2, ExternalLink, Calendar, MapPin, Phone
+  Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'collab' | 'volunteers'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'collab' | 'volunteers' | 'users'>('pets');
   
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -62,13 +63,16 @@ export default function Admin() {
   // Volunteers State
   const [volunteers, setVolunteers] = useState<VolunteerRequest[]>([]);
 
+  // Users State
+  const [userList, setUserList] = useState<any[]>([]);
+
   useEffect(() => {
     fetchAll();
   }, []);
 
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchPets(), fetchAccounts(), fetchVolunteers()]);
+    await Promise.all([fetchPets(), fetchAccounts(), fetchVolunteers(), fetchUsers()]);
     setLoading(false);
   };
 
@@ -91,6 +95,26 @@ export default function Admin() {
       const data = await getVolunteerRequests();
       setVolunteers(data);
     } catch (e) { console.error(e); }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const data = await api.users.list();
+      setUserList(data.users || []);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (confirm('¿Eliminar este usuario definitivamente?')) {
+      await api.users.delete(id);
+      fetchUsers();
+    }
+  };
+
+  const handleToggleRole = async (id: string, currentRole: string) => {
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+    await api.users.update(id, { role: newRole });
+    fetchUsers();
   };
 
   // Pet Handlers
@@ -196,6 +220,7 @@ export default function Admin() {
           { id: 'pets', label: 'Mascotas', icon: LayoutDashboard },
           { id: 'collab', label: 'Cuentas de Ayuda', icon: CreditCard },
           { id: 'volunteers', label: 'Solicitudes Sumate', icon: Users },
+          { id: 'users', label: 'Usuarios', icon: UserCog },
         ].map(tab => (
           <button
             key={tab.id}
@@ -281,6 +306,45 @@ export default function Admin() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'users' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                      <th className="px-6 py-4">Email</th>
+                      <th className="px-6 py-4">Nombre</th>
+                      <th className="px-6 py-4">Rol</th>
+                      <th className="px-6 py-4">Registro</th>
+                      <th className="px-6 py-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-accent">
+                    {userList.map(u => (
+                      <tr key={u.id} className="hover:bg-brand-bg/50 transition-colors">
+                        <td className="px-6 py-4 font-bold text-brand-primary">{u.email}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{u.display_name || '-'}</td>
+                        <td className="px-6 py-4">
+                          <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold uppercase", u.role === 'admin' ? "bg-brand-primary/10 text-brand-primary" : "bg-gray-100 text-gray-500")}>{u.role}</span>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-gray-400">{new Date(u.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 text-right space-x-2">
+                          {u.email !== 'sptortarolo@gmail.com' && (
+                            <>
+                              <button onClick={() => handleToggleRole(u.id, u.role)} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors" title="Cambiar rol"><UserCog className="w-4 h-4" /></button>
+                              <button onClick={() => handleDeleteUser(u.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {userList.length === 0 && <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent"><p className="text-gray-400 font-medium">No hay usuarios registrados.</p></div>}
             </div>
           )}
 

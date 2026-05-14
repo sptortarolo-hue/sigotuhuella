@@ -52,4 +52,12 @@ export const api = {
     updateStatus: (id: string, status: string) =>
       request(`/volunteers/${id}`, { method: 'PUT', body: JSON.stringify({ status }) }),
   },
+  users: {
+    list: () => request('/users'),
+    update: (id: string, data: any) => request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/users/${id}`, { method: 'DELETE' }),
+    changePassword: (id: string, currentPassword: string, newPassword: string) =>
+      request(`/users/${id}/password`, { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) }),
+    myPets: (id: string) => request(`/users/${id}/pets`),
+  },
 };
