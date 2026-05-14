@@ -177,34 +177,38 @@ const handleSubmit = async (e: React.FormEvent) => {
              </div>
            )}
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                <Mail className="w-3 h-3" /> Email
-              </label>
-              <input
-                type="email"
-                required
-                className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
-                placeholder="email@ejemplo.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-              />
-            </div>
+{mode === 'login' && (
+             <>
+               <div className="space-y-2">
+                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                   <Mail className="w-3 h-3" /> Email
+                 </label>
+                 <input
+                   type="email"
+                   required
+                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                   placeholder="email@ejemplo.com"
+                   value={email}
+                   onChange={e => setEmail(e.target.value)}
+                 />
+               </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                <Lock className="w-3 h-3" /> Contraseña
-              </label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
-                placeholder="Min. 6 caracteres"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-              />
-            </div>
+               <div className="space-y-2">
+                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                   <Lock className="w-3 h-3" /> Contraseña
+                 </label>
+                 <input
+                   type="password"
+                   required
+                   minLength={6}
+                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                   placeholder="Min. 6 caracteres"
+                   value={password}
+                   onChange={e => setPassword(e.target.value)}
+                 />
+               </div>
+             </>
+           )}
 
             <button
               type="submit"
