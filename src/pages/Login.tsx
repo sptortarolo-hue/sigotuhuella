@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/src/lib/api';
-import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus } from 'lucide-react';
+import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as PhoneIcon, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Login() {
@@ -12,16 +12,23 @@ export default function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [phone, setPhone] = useState('');
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
     setError('');
     try {
       if (mode === 'register') {
-        const data = await api.auth.register(email, password, displayName);
+        if (password !== confirmPassword) {
+          setError('Las contraseñas no coinciden');
+          setAuthLoading(false);
+          return;
+        }
+        const data = await api.auth.register(email, password, displayName, phone);
         login(data.token, data.user);
       } else {
         const data = await api.auth.login(email, password);
@@ -97,19 +104,78 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && <p className="text-red-600 text-sm text-center font-medium bg-red-50 py-2 rounded-xl">{error}</p>}
 
-            {mode === 'register' && (
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre</label>
-                <input
-                  type="text"
-                  required
-                  className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
-                  placeholder="Tu nombre"
-                  value={displayName}
-                  onChange={e => setDisplayName(e.target.value)}
-                />
-              </div>
-            )}
+{mode === 'register' && (
+             <div className="space-y-5">
+               <div className="space-y-2">
+                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre</label>
+                 <input
+                   type="text"
+                   required
+                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                   placeholder="Tu nombre"
+                   value={displayName}
+                   onChange={e => setDisplayName(e.target.value)}
+                 />
+               </div>
+
+               <div className="space-y-2">
+                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                   <Mail className="w-3 h-3" /> Email
+                 </label>
+                 <input
+                   type="email"
+                   required
+                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                   placeholder="email@ejemplo.com"
+                   value={email}
+                   onChange={e => setEmail(e.target.value)}
+                 />
+               </div>
+
+               <div className="space-y-2">
+                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                   <PhoneIcon className="w-3 h-3" /> WhatsApp / Teléfono
+                 </label>
+                 <input
+                   type="tel"
+                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                   placeholder="+54 9 221 123456"
+                   value={phone}
+                   onChange={e => setPhone(e.target.value)}
+                 />
+               </div>
+
+               <div className="space-y-2">
+                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                   <Lock className="w-3 h-3" /> Contraseña
+                 </label>
+                 <input
+                   type="password"
+                   required
+                   minLength={6}
+                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                   placeholder="Min. 6 caracteres"
+                   value={password}
+                   onChange={e => setPassword(e.target.value)}
+                 />
+               </div>
+
+               <div className="space-y-2">
+                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                   <Lock className="w-3 h-3" /> Repetir Contraseña
+                 </label>
+                 <input
+                   type="password"
+                   required
+                   minLength={6}
+                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                   placeholder="Repetir contraseña"
+                   value={confirmPassword}
+                   onChange={e => setConfirmPassword(e.target.value)}
+                 />
+               </div>
+             </div>
+           )}
 
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">

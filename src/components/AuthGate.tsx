@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
-import { Loader2, AlertCircle, LogIn, UserPlus, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Loader2, AlertCircle, LogIn, UserPlus, Mail, Lock, User, Eye, EyeOff, Phone as PhoneIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface AuthGateProps {
@@ -18,12 +18,16 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  // Login
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
+  // Register
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
+  const [regPhone, setRegPhone] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,9 +47,19 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (regPassword !== regConfirmPassword) {
+      setError('Las contraseñas no coinciden');
+      return;
+    }
+    if (regPassword.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await api.auth.register(regEmail, regPassword, regName);
+      const res = await api.auth.register(regEmail, regPassword, regName, regPhone);
       login(res.token, res.user);
       onSuccess?.();
     } catch (err: any) {
@@ -200,6 +214,20 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
                 </div>
 
                 <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">WhatsApp / Teléfono</label>
+                  <div className="relative">
+                    <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="tel"
+                      className="w-full pl-12 pr-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+                      placeholder="Ej: +54 9 221 123456"
+                      value={regPhone}
+                      onChange={e => setRegPhone(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Contraseña</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -215,6 +243,22 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-primary">
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Repetir Contraseña</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      required
+                      type={showPassword ? 'text' : 'password'}
+                      className="w-full pl-12 pr-12 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+                      placeholder="Repetir contraseña"
+                      value={regConfirmPassword}
+                      onChange={e => setRegConfirmPassword(e.target.value)}
+                      minLength={6}
+                    />
                   </div>
                 </div>
 

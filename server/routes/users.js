@@ -17,7 +17,7 @@ router.get('/', requireAdmin, async (req, res) => {
 });
 
 router.put('/:id', requireAuth, async (req, res) => {
-  const { displayName, role } = req.body;
+   const { displayName, phone, role } = req.body;
   const isSelf = req.user.id === req.params.id;
   const isAdmin = req.user.role === 'admin';
   if (!isSelf && !isAdmin) {
@@ -27,11 +27,15 @@ router.put('/:id', requireAuth, async (req, res) => {
     const fields = [];
     const values = [];
     let idx = 1;
-    if (displayName !== undefined) {
-      fields.push(`display_name = $${idx++}`);
-      values.push(displayName);
-    }
-    if (role !== undefined && isAdmin) {
+if (displayName !== undefined) {
+       fields.push(`display_name = $${idx++}`);
+       values.push(displayName);
+     }
+     if (phone !== undefined) {
+       fields.push(`phone = $${idx++}`);
+       values.push(phone);
+     }
+     if (role !== undefined && isAdmin) {
       fields.push(`role = $${idx++}`);
       values.push(role);
     }
@@ -41,7 +45,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     fields.push(`updated_at = NOW()`);
     values.push(req.params.id);
     const result = await pool.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, role, created_at`,
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, phone, role, created_at`,
       values
     );
     if (result.rows.length === 0) {
