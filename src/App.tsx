@@ -16,6 +16,7 @@ const Join = lazy(() => import('@/src/pages/Join'));
 const Profile = lazy(() => import('@/src/pages/Profile'));
 const MyPets = lazy(() => import('@/src/pages/MyPets'));
 const Dashboard = lazy(() => import('@/src/pages/Dashboard'));
+const PetDetail = lazy(() => import('@/src/pages/PetDetail'));
 
 function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin?: boolean }) {
   const { user, isAdmin: isUserAdmin, loading } = useAuth();
@@ -45,9 +46,11 @@ export default function App() {
           }>
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/perdidos" element={<PetGallery type="lost" />} />
-              <Route path="/adopcion" element={<PetGallery type="adoption" />} />
-              <Route path="/reportar" element={<ReportPet />} />
+               <Route path="/perdidos" element={<PetGallery type="lost" />} />
+               <Route path="/adopcion" element={<PetGallery type="adoption" />} />
+               <Route path="/pet/:id" element={<PetDetail />} />
+               <Route path="/reportar" element={<ReportPet />} />
+
               <Route path="/colaborar" element={<Collaborate />} />
               <Route path="/sumate" element={<Join />} />
               <Route path="/perfil" element={<Profile />} />

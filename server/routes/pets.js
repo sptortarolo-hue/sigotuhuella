@@ -101,33 +101,54 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (pet.created_by !== req.user.id && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Not authorized' });
     }
-const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'description', 'location', 'contact_info'];
-     const updates = [];
-     const values = [];
-     let idx = 1;
-     for (const field of fields) {
-       const key = field === 'contact_info' ? 'contactInfo' : field;
-       if (req.body[key] !== undefined) {
-         updates.push(`${field} = $${idx++}`);
-         values.push(req.body[key]);
-       }
-     }
+    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'description', 'location', 'contact_info'];
+    const updates = [];
+    const values = [];
+    let idx = 1;
+    for (const field of fields) {
+      const key = field === 'contact_info' ? 'contactInfo' : field;
+      if (req.body[key] !== undefined) {
+        updates.push(`${field} = $${idx++}`);
+        values.push(req.body[key]);
+      }
+    }
     if (req.body.latitude !== undefined && req.body.longitude !== undefined) {
       updates.push(`latitude = $${idx++}`);
       values.push(req.body.latitude);
       updates.push(`longitude = $${idx++}`);
       values.push(req.body.longitude);
     }
-    if (updates.length === 0) {
+    if (updates.length === 0 && !req.body.images) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-    updates.push(`updated_at = NOW()`);
-    values.push(petId);
-    await pool.query(
-      `UPDATE pets SET ${updates.join(', ')} WHERE id = $${idx}`,
-      values
+    if (updates.length > 0) {
+      updates.push(`updated_at = NOW()`);
+      values.push(petId);
+      await pool.query(
+        `UPDATE pets SET ${updates.join(', ')} WHERE id = $${idx}`,
+        values
+      );
+    }
+    // Handle images: replace all if provided
+    if (req.body.images && req.body.images.length > 0) {
+      await pool.query('DELETE FROM pet_images WHERE pet_id = $1', [petId]);
+      for (const img of req.body.images) {
+        await pool.query(
+          'INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)',
+          [petId, img.data, img.mimeType || 'image/jpeg']
+        );
+      }
+    }
+    // Return pet with images
+    const updated = await pool.query(
+      `SELECT p.*, 
+        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+      FROM pets p
+      LEFT JOIN pet_images pi ON pi.pet_id = p.id
+      WHERE p.id = $1
+      GROUP BY p.id`,
+      [petId]
     );
-    const updated = await pool.query('SELECT * FROM pets WHERE id = $1', [petId]);
     res.json({ pet: updated.rows[0] });
   } catch (err) {
     console.error('Update pet error:', err);

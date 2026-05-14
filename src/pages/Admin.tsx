@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { getPets, createPet, updatePet, deletePet, Pet, PetStatus, getPetImageUrl } from '@/src/lib/petService';
 import { filesToBase64 } from '@/src/lib/storageService';
-import { 
-  getCollaborationAccounts, 
-  createCollaborationAccount, 
-  updateCollaborationAccount, 
+import {
+  getCollaborationAccounts,
+  createCollaborationAccount,
+  updateCollaborationAccount,
   deleteCollaborationAccount,
   getVolunteerRequests,
   updateVolunteerRequestStatus,
@@ -14,18 +14,18 @@ import {
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import PetCard from '@/src/components/PetCard';
-import { 
-Plus, X, Loader2, Save, AlertCircle, Camera,
-   CreditCard, Users, LayoutDashboard, Trash2,
-   Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog, Search
+import {
+  Plus, X, Loader2, Save, AlertCircle, Camera,
+  CreditCard, Users, LayoutDashboard, Trash2,
+  Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog, Search, RefreshCw, HeartHandshake
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'collab' | 'volunteers' | 'users'>('pets');
-  
+  const [activeTab, setActiveTab] = useState<'pets' | 'collab' | 'volunteers' | 'users' | 'highlights'>('pets');
+
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +118,18 @@ export default function Admin() {
     fetchUsers();
   };
 
+  // Reencuentro handler
+  const handleReencuentro = async (petId: string) => {
+    if (!confirm('¿Marcar esta mascota como "Hubo reencuentro"? Se moverá a Noticias Destacadas.')) return;
+    try {
+      await updatePet(petId, { status: PetStatus.REUNITED });
+      fetchPets();
+    } catch (e) {
+      console.error(e);
+      alert('Error al actualizar el estado.');
+    }
+  };
+
   // Pet Handlers
   const handlePetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,11 +155,11 @@ export default function Admin() {
 
       if (editingPet) await updatePet(editingPet.id, dataToSave);
       else await createPet(dataToSave);
-      
+
       setShowForm(false);
       resetPetForm();
       fetchPets();
-    } catch (e) { console.error(e); alert('Error al guardar'); } 
+    } catch (e) { console.error(e); alert('Error al guardar'); }
     finally { setFormLoading(false); }
   };
 
@@ -187,7 +199,6 @@ export default function Admin() {
       } else {
         await createCollaborationAccount(collabData);
       }
-      
       setShowCollabForm(false);
       setEditingAccount(null);
       setCollabData({ title: '', description: '', bankName: '', alias: '', cbu: '', cvu: '', displayOrder: accounts.length });
@@ -208,6 +219,9 @@ export default function Admin() {
     fetchVolunteers();
   };
 
+  // Datos para Noticias Destacadas
+  const highlightedPets = pets.filter(p => p.status === PetStatus.REUNITED);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="mb-12">
@@ -222,6 +236,7 @@ export default function Admin() {
           { id: 'collab', label: 'Cuentas de Ayuda', icon: CreditCard },
           { id: 'volunteers', label: 'Solicitudes Sumate', icon: Users },
           { id: 'users', label: 'Usuarios', icon: UserCog },
+          { id: 'highlights', label: 'Noticias Destacadas', icon: HeartHandshake },
         ].map(tab => (
           <button
             key={tab.id}
@@ -246,6 +261,7 @@ export default function Admin() {
         </div>
       ) : (
         <div className="space-y-8">
+          {/* ====== MASCOTAS ====== */}
           {activeTab === 'pets' && (
             <>
               <div className="flex justify-end mb-6">
@@ -257,17 +273,72 @@ export default function Admin() {
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {pets.map(pet => (
-                  <PetCard 
-                    key={pet.id} pet={pet} showAdminActions 
-                    onEdit={editPet}
-                    onDelete={async (id) => { if(confirm('Eliminar?')) { await deletePet(id); fetchPets(); } }} 
-                  />
+                {pets.filter(p => p.status !== PetStatus.REUNITED).map(pet => (
+                  <div key={pet.id} className="relative">
+                    <PetCard
+                      pet={pet}
+                      showAdminActions
+                      onEdit={editPet}
+                      onDelete={async (id) => { if (confirm('Eliminar?')) { await deletePet(id); fetchPets(); } }}
+                    />
+                    {/* Botón Hubo Reencuentro */}
+                    <button
+                      onClick={() => handleReencuentro(pet.id)}
+                      className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"
+                    >
+                      <HeartHandshake className="w-4 h-4" />
+                      Hubo reencuentro
+                    </button>
+                  </div>
                 ))}
               </div>
             </>
           )}
 
+          {/* ====== NOTICIAS DESTACADAS ====== */}
+          {activeTab === 'highlights' && (
+            <>
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden">
+                <table className="w-full text-left min-w-max">
+                  <thead>
+                    <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                      <th className="px-6 py-4">Nombre</th>
+                      <th className="px-6 py-4">Ubicación</th>
+                      <th className="px-6 py-4">Contacto</th>
+                      <th className="px-6 py-4">Fecha</th>
+                      <th className="px-6 py-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-accent">
+                    {highlightedPets.map(pet => (
+                      <tr key={pet.id} className="hover:bg-brand-bg/50 transition-colors">
+                        <td className="px-6 py-4 font-bold text-brand-primary">{pet.name || 'Sin nombre'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{pet.location}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{pet.contact_info || '-'}</td>
+                        <td className="px-6 py-4 text-xs text-gray-400">{new Date(pet.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 text-right space-x-2">
+                          <button
+                            onClick={() => { editPet(pet); setActiveTab('pets' as any); }}
+                            className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {highlightedPets.length === 0 && (
+                  <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
+                    <p className="text-gray-400 font-medium">No hay noticias destacadas aún. Marca mascotas como "Hubo reencuentro" desde la pestaña Mascotas.</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ====== CUENTAS DE AYUDA ====== */}
           {activeTab === 'collab' && (
             <div className="space-y-6">
               <div className="flex justify-end">
@@ -310,75 +381,77 @@ export default function Admin() {
             </div>
           )}
 
-{activeTab === 'users' && (
-             <div className="space-y-6">
-               <div className="relative max-w-md w-full">
-                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                 <input
-                   type="text"
-                   placeholder="Buscar por email, nombre o teléfono..."
-                   value={userSearch}
-                   onChange={e => setUserSearch(e.target.value)}
-                   className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
-                 />
-               </div>
-               <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-x-auto">
-                 <table className="w-full text-left min-w-max">
-                   <thead>
-                     <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
-                       <th className="px-6 py-4">Email</th>
-                       <th className="px-6 py-4">Nombre</th>
-                       <th className="px-6 py-4">Teléfono</th>
-                       <th className="px-6 py-4">Rol</th>
-                       <th className="px-6 py-4">Registro</th>
-                       <th className="px-6 py-4 text-right">Acciones</th>
-                     </tr>
-                   </thead>
-                   <tbody className="divide-y divide-brand-accent">
-                     {userList
-                       .filter(
-                         u =>
-                           !userSearch ||
-                           (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) ||
-                           (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) ||
-                           (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase()))
-                       )
-                       .map(u => (
-                         <tr key={u.id} className="hover:bg-brand-bg/50 transition-colors">
-                           <td className="px-6 py-4 font-bold text-brand-primary">{u.email}</td>
-                           <td className="px-6 py-4 text-sm text-gray-600">{u.display_name || '-'}</td>
-                           <td className="px-6 py-4 text-sm text-gray-600">{u.phone || '-'}</td>
-                           <td className="px-6 py-4">
-                             <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold uppercase", u.role === 'admin' ? "bg-brand-primary/10 text-brand-primary" : "bg-gray-100 text-gray-500")}>{u.role}</span>
-                           </td>
-                           <td className="px-6 py-4 text-xs text-gray-400">{new Date(u.created_at).toLocaleDateString()}</td>
-                           <td className="px-6 py-4 text-right space-x-2">
-                             {u.email !== 'sptortarolo@gmail.com' && (
-                               <>
-                                 <button onClick={() => handleToggleRole(u.id, u.role)} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors" title="Cambiar rol"><UserCog className="w-4 h-4" /></button>
-                                 <button onClick={() => handleDeleteUser(u.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
-                               </>
-                             )}
-                           </td>
-                         </tr>
-                       ))}
-                   </tbody>
-                 </table>
-                 {userList.filter(
-                   u =>
-                     !userSearch ||
-                     (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) ||
-                     (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) ||
-                     (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase()))
-                 ).length === 0 && (
-                   <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
-                     <p className="text-gray-400 font-medium">No hay usuarios que coincidan con la búsqueda.</p>
-                   </div>
-                 )}
-               </div>
-             </div>
-           )}
+          {/* ====== USUARIOS ====== */}
+          {activeTab === 'users' && (
+            <div className="space-y-6">
+              <div className="relative max-w-md w-full">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por email, nombre o teléfono..."
+                  value={userSearch}
+                  onChange={e => setUserSearch(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
+                />
+              </div>
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-x-auto">
+                <table className="w-full text-left min-w-max">
+                  <thead>
+                    <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                      <th className="px-6 py-4">Email</th>
+                      <th className="px-6 py-4">Nombre</th>
+                      <th className="px-6 py-4">Teléfono</th>
+                      <th className="px-6 py-4">Rol</th>
+                      <th className="px-6 py-4">Registro</th>
+                      <th className="px-6 py-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-accent">
+                    {userList
+                      .filter(
+                        u =>
+                          !userSearch ||
+                          (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) ||
+                          (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) ||
+                          (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase()))
+                      )
+                      .map(u => (
+                        <tr key={u.id} className="hover:bg-brand-bg/50 transition-colors">
+                          <td className="px-6 py-4 font-bold text-brand-primary">{u.email}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{u.display_name || '-'}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{u.phone || '-'}</td>
+                          <td className="px-6 py-4">
+                            <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold uppercase", u.role === 'admin' ? "bg-brand-primary/10 text-brand-primary" : "bg-gray-100 text-gray-500")}>{u.role}</span>
+                          </td>
+                          <td className="px-6 py-4 text-xs text-gray-400">{new Date(u.created_at).toLocaleDateString()}</td>
+                          <td className="px-6 py-4 text-right space-x-2">
+                            {u.email !== 'sptortarolo@gmail.com' && (
+                              <>
+                                <button onClick={() => handleToggleRole(u.id, u.role)} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors" title="Cambiar rol"><UserCog className="w-4 h-4" /></button>
+                                <button onClick={() => handleDeleteUser(u.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+                {userList.filter(
+                  u =>
+                    !userSearch ||
+                    (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) ||
+                    (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) ||
+                    (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase()))
+                ).length === 0 && (
+                  <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
+                    <p className="text-gray-400 font-medium">No hay usuarios que coincidan con la búsqueda.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
+          {/* ====== VOLUNTARIOS ====== */}
           {activeTab === 'volunteers' && (
             <div className="grid gap-4">
               {volunteers.map(vol => (
@@ -403,9 +476,9 @@ export default function Admin() {
                         <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
                       </>
                     )}
-                    <a 
-                      href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`} 
-                      target="_blank" 
+                    <a
+                      href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
+                      target="_blank"
                       rel="noreferrer"
                       className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
                     >
@@ -424,7 +497,7 @@ export default function Admin() {
         </div>
       )}
 
-      {/* Forms Modals */}
+      {/* Form Modals */}
       <AnimatePresence>
         {showForm && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
@@ -432,50 +505,61 @@ export default function Admin() {
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
               <div className="p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
                 <h2 className="text-2xl font-serif font-bold text-brand-primary">{editingPet ? 'Editar Reporte' : 'Nuevo Reporte'}</h2>
-<button onClick={() => setShowForm(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
-               </div>
-               <form onSubmit={handlePetSubmit} className="p-8 overflow-y-auto space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="text-xs font-bold uppercase text-gray-500">Nombre</label>
-                      <input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold uppercase text-gray-500">Especie</label>
-                      <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.species} onChange={e => setFormData({...formData, species: e.target.value as any})}>
-                        <option value="dog">Perro</option>
-                        <option value="cat">Gato</option>
-                        <option value="other">Otro</option>
-                      </select>
-                    </div>
+                <button onClick={() => setShowForm(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
+              </div>
+              <form onSubmit={handlePetSubmit} className="p-8 overflow-y-auto space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-xs font-bold uppercase text-gray-500">Nombre</label>
+                    <input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                   </div>
                   <div>
-                    <label className="text-xs font-bold uppercase text-gray-500">Estado</label>
-                    <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
-                      <option value={PetStatus.LOST}>Perdido</option>
-                      <option value={PetStatus.RETAINED}>Retenido</option>
-                      <option value={PetStatus.SIGHTED}>Avistado</option>
-                      <option value={PetStatus.ACCIDENTED}>Accidentado</option>
-                      <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
+                    <label className="text-xs font-bold uppercase text-gray-500">Especie</label>
+                    <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.species} onChange={e => setFormData({...formData, species: e.target.value as any})}>
+                      <option value="dog">Perro</option>
+                      <option value="cat">Gato</option>
+                      <option value="other">Otro</option>
                     </select>
                   </div>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-xs font-bold uppercase text-gray-500">Ubicación</label>
-                      <input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold uppercase text-gray-500">Contacto (WhatsApp / Teléfono)</label>
-                      <input type="tel" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.contactInfo} onChange={e => setFormData({...formData, contactInfo: e.target.value})} />
-                    </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Estado</label>
+                  <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
+                    <option value={PetStatus.LOST}>Perdido</option>
+                    <option value={PetStatus.RETAINED}>Retenido</option>
+                    <option value={PetStatus.SIGHTED}>Avistado</option>
+                    <option value={PetStatus.ACCIDENTED}>Accidentado</option>
+                    <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
+                  </select>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase text-gray-500">Ubicación</label>
+                    <input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
                   </div>
                   <div>
-                    <label className="text-xs font-bold uppercase text-gray-500">Descripción</label>
-                    <textarea required rows={3} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+                    <label className="text-xs font-bold uppercase text-gray-500">Contacto (WhatsApp / Teléfono)</label>
+                    <input type="tel" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.contactInfo} onChange={e => setFormData({...formData, contactInfo: e.target.value})} />
                   </div>
-                  <button type="submit" disabled={formLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">{formLoading ? <Loader2 className="animate-spin" /> : <Save className="w-5 h-5 inline mr-2" />} Guardar</button>
-</form>
-             </motion.div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Descripción</label>
+                  <textarea required rows={3} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Imágenes</label>
+                  <input type="file" accept="image/*" multiple onChange={e => { const files = Array.from(e.target.files || []); setSelectedFiles(files); setPreviews(files.map(f => URL.createObjectURL(f))); }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
+                  {previews.length > 0 && (
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {previews.map((src, i) => (
+                        <img key={i} src={src} className="w-20 h-20 object-cover rounded-xl" />
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button type="submit" disabled={formLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">{formLoading ? <Loader2 className="animate-spin" /> : <Save className="w-5 h-5 inline mr-2" />} Guardar</button>
+              </form>
+            </motion.div>
           </div>
         )}
 
