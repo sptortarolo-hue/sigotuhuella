@@ -377,10 +377,10 @@ const statusEmoji = previewPet.status === 'lost' ? '🚨 BUSCADO 🚨' : preview
                 {files.length === 0 && <p className="text-xs text-red-500 font-medium tracking-wide">Es obligatorio subir al menos una foto clara de la mascota.</p>}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre (si lo tiene)</label>
-<input
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="space-y-2">
+                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre (si lo tiene)</label>
+                   <input
                      type="text"
                      className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
                      placeholder="Eje: Firulais"

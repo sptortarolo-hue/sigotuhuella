@@ -432,9 +432,9 @@ export default function Admin() {
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
               <div className="p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
                 <h2 className="text-2xl font-serif font-bold text-brand-primary">{editingPet ? 'Editar Reporte' : 'Nuevo Reporte'}</h2>
-                <button onClick={() => setShowForm(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
-              </div>
-<form onSubmit={handlePetSubmit} className="p-8 overflow-y-auto space-y-6">
+<button onClick={() => setShowForm(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
+               </div>
+               <form onSubmit={handlePetSubmit} className="p-8 overflow-y-auto space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="text-xs font-bold uppercase text-gray-500">Nombre</label>
@@ -474,43 +474,8 @@ export default function Admin() {
                     <textarea required rows={3} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
                   </div>
                   <button type="submit" disabled={formLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">{formLoading ? <Loader2 className="animate-spin" /> : <Save className="w-5 h-5 inline mr-2" />} Guardar</button>
-                </form>
-                   <div>
-                     <label className="text-xs font-bold uppercase text-gray-500">Especie</label>
-                     <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.species} onChange={e => setFormData({...formData, species: e.target.value as any})}>
-                       <option value="dog">Perro</option>
-                       <option value="cat">Gato</option>
-                       <option value="other">Otro</option>
-                     </select>
-</div>
-                </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase text-gray-500">Estado</label>
-                    <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
-                      <option value={PetStatus.LOST}>Perdido</option>
-                      <option value={PetStatus.RETAINED}>Retenido</option>
-                      <option value={PetStatus.SIGHTED}>Avistado</option>
-                      <option value={PetStatus.ACCIDENTED}>Accidentado</option>
-                      <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
-                    </select>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                     <label className="text-xs font-bold uppercase text-gray-500">Ubicación</label>
-                     <input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
-                   </div>
-                   <div>
-                     <label className="text-xs font-bold uppercase text-gray-500">Contacto (WhatsApp / Teléfono)</label>
-                     <input type="tel" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.contactInfo} onChange={e => setFormData({...formData, contactInfo: e.target.value})} />
-                   </div>
-                 </div>
-                 <div>
-                   <label className="text-xs font-bold uppercase text-gray-500">Descripción</label>
-                   <textarea required rows={3} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
-                 </div>
-                 <button type="submit" disabled={formLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">{formLoading ? <Loader2 className="animate-spin" /> : <Save className="w-5 h-5 inline mr-2" />} Guardar</button>
-               </form>
-            </motion.div>
+</form>
+             </motion.div>
           </div>
         )}
 
