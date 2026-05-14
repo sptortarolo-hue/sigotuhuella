@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-interface AuthUser {
+export interface AuthUser {
   id: string;
   email: string;
   display_name: string;
@@ -8,7 +8,17 @@ interface AuthUser {
   phone?: string;
 }
 
-export function useAuth() {
+interface AuthContextType {
+  user: AuthUser | null;
+  isAdmin: boolean;
+  loading: boolean;
+  login: (token: string, userData: AuthUser) => void;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -46,17 +56,29 @@ export function useAuth() {
 
   const isAdmin = user?.role === 'admin';
 
-  const login = (token: string, userData: AuthUser) => {
+  const login = useCallback((token: string, userData: AuthUser) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
-  };
+  }, []);
 
-  return { user, isAdmin, loading, login, logout };
+  return (
+    <AuthContext.Provider value={{ user, isAdmin, loading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }
