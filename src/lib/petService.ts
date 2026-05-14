@@ -1,135 +1,69 @@
-import { 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy,
-  Timestamp,
-  type DocumentData
-} from 'firebase/firestore';
-import { db, auth } from './firebase';
+import { api } from './api';
 
 export enum PetStatus {
   LOST = 'lost',
   FOUND = 'found',
   FOR_ADOPTION = 'for_adoption',
   ADOPTED = 'adopted',
-  REUNITED = 'reunited'
+  REUNITED = 'reunited',
+}
+
+export interface PetImage {
+  id: string;
+  image_data: string;
+  mime_type: string;
 }
 
 export interface Pet {
   id: string;
-  name?: string;
-  species: 'dog' | 'cat' | 'other';
-  breed?: string;
-  color?: string;
+  name: string | null;
+  species: string;
+  breed: string | null;
+  color: string | null;
   status: PetStatus;
-  gender: 'male' | 'female' | 'unknown';
-  description: string;
+  gender: string;
+  description: string | null;
   location: string;
-  coordinates?: {
-    lat: number;
-    lng: number;
-  };
-  contactInfo: string;
-  imageUrl?: string;
-  imageUrls?: string[];
-  createdAt: any;
-  updatedAt: any;
-  createdBy: string;
-  isAdminVerified: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  contact_info: string | null;
+  images: PetImage[];
+  created_by: string;
+  is_admin_verified: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
+export function getPetImageUrl(pet: Pet): string | undefined {
+  return pet.images?.[0] ? `data:${pet.images[0].mime_type};base64,${pet.images[0].image_data}` : undefined;
 }
 
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-  }
+export function getPetImageUrls(pet: Pet): string[] {
+  return pet.images?.map(img => `data:${img.mime_type};base64,${img.image_data}`) || [];
 }
 
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+export function getPetCoordinates(pet: Pet): { lat: number; lng: number } | null {
+  return pet.latitude && pet.longitude ? { lat: pet.latitude, lng: pet.longitude } : null;
 }
 
-const PETS_COLLECTION = 'pets';
+export function formatPetDate(dateStr: string): Date {
+  return new Date(dateStr);
+}
 
-export const getPets = async (status?: PetStatus) => {
-  try {
-    const q = status 
-      ? query(collection(db, PETS_COLLECTION), where('status', '==', status), orderBy('createdAt', 'desc'))
-      : query(collection(db, PETS_COLLECTION), orderBy('createdAt', 'desc'));
-      
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pet));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, PETS_COLLECTION);
-    return [];
-  }
+export const getPets = async (status?: PetStatus): Promise<Pet[]> => {
+  const data = await api.pets.list(status);
+  return data.pets || [];
 };
 
-export const createPet = async (petData: Omit<Pet, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'isAdminVerified'>) => {
-  if (!auth.currentUser) throw new Error('Must be signed in');
-  
-  try {
-    return await addDoc(collection(db, PETS_COLLECTION), {
-      ...petData,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-      createdBy: auth.currentUser.uid,
-      isAdminVerified: false
-    });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.CREATE, PETS_COLLECTION);
-  }
+export const createPet = async (petData: any): Promise<any> => {
+  const data = await api.pets.create(petData);
+  return data.pet;
 };
 
-export const updatePet = async (id: string, petData: Partial<Pet>) => {
-  try {
-    const petRef = doc(db, PETS_COLLECTION, id);
-    return await updateDoc(petRef, {
-      ...petData,
-      updatedAt: Timestamp.now()
-    });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `${PETS_COLLECTION}/${id}`);
-  }
+export const updatePet = async (id: string, petData: Partial<Pet>): Promise<void> => {
+  await api.pets.update(id, petData);
 };
 
-export const deletePet = async (id: string) => {
-  try {
-    const petRef = doc(db, PETS_COLLECTION, id);
-    return await deleteDoc(petRef);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `${PETS_COLLECTION}/${id}`);
-  }
+export const deletePet = async (id: string): Promise<void> => {
+  await api.pets.delete(id);
 };

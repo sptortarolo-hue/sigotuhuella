@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pet, PetStatus } from '@/src/lib/petService';
+import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
 import { MapPin, Calendar, Info, Phone } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -31,29 +31,25 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
   };
 
   const dateLabel = pet.status === PetStatus.LOST ? 'Perdido el' : 'Reportado el';
+  const imageUrl = getPetImageUrl(pet);
+  const imageUrls = getPetImageUrls(pet);
 
   return (
     <div className="group bg-white rounded-3xl overflow-hidden border border-brand-accent hover:border-brand-secondary transition-all hover:shadow-xl hover:-translate-y-1">
       <div className="relative aspect-square overflow-hidden bg-gray-100">
-        {pet.imageUrls && pet.imageUrls.length > 0 ? (
+        {imageUrls.length > 0 ? (
           <div className="w-full h-full relative">
             <img 
-              src={pet.imageUrls[0]} 
+              src={imageUrl}
               alt={pet.name || 'Mascota'} 
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
             />
-            {pet.imageUrls.length > 1 && (
+            {imageUrls.length > 1 && (
               <div className="absolute bottom-4 right-4 px-2 py-1 bg-black/50 text-white text-[10px] font-bold rounded-md backdrop-blur-sm">
-                1 / {pet.imageUrls.length}
+                1 / {imageUrls.length}
               </div>
             )}
           </div>
-        ) : pet.imageUrl ? (
-          <img 
-            src={pet.imageUrl} 
-            alt={pet.name || 'Mascota'} 
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-          />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-2">
             <Info className="w-10 h-10" />
@@ -88,12 +84,12 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Calendar className="w-4 h-4 text-brand-secondary" />
-            <span>{dateLabel} {format(pet.createdAt.toDate(), 'PP', { locale: es })}</span>
+            <span>{dateLabel} {format(formatPetDate(pet.created_at), 'PP', { locale: es })}</span>
           </div>
-          {pet.contactInfo && (
+          {pet.contact_info && (
             <div className="flex items-center gap-2 text-sm text-gray-800 font-medium">
               <Phone className="w-4 h-4 text-brand-primary" />
-              <span>{pet.contactInfo}</span>
+              <span>{pet.contact_info}</span>
             </div>
           )}
         </div>

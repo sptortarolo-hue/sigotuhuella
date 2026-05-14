@@ -66,7 +66,7 @@ export default function Collaborate() {
                 <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-4 bg-brand-bg rounded-2xl border border-brand-accent">
                     <span className="block text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">Entidad</span>
-                    <span className="text-lg font-bold text-brand-dark">{account.bankName}</span>
+                    <span className="text-lg font-bold text-brand-dark">{account.bank_name}</span>
                   </div>
                   
                   {(account.alias || account.cbu || account.cvu) && (

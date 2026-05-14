@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
-import { createPet, PetStatus } from '@/src/lib/petService';
-import { uploadMultiplePetImages } from '@/src/lib/storageService';
+import { createPet, PetStatus, getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
+import { filesToBase64 } from '@/src/lib/storageService';
 import MapLoader from '@/src/components/MapLoader';
 import LocationPicker from '@/src/components/LocationPicker';
 import { cn } from '@/src/lib/utils';
@@ -24,7 +24,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import PetCard from '@/src/components/PetCard';
 
-// Default center for Sicardi/Garibaldi area
 const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
 
 export default function ReportPet() {
@@ -97,24 +96,26 @@ export default function ReportPet() {
     setError('');
     
     try {
-      // 1. Upload images
-      const imageUrls = await uploadMultiplePetImages(files);
+      const images = await filesToBase64(files);
       
       const petData = {
-        ...formData,
-        coordinates: formData.coordinates || undefined,
-        imageUrls,
-        imageUrl: imageUrls[0] // Primary image
+        name: formData.name || null,
+        species: formData.species,
+        breed: formData.breed || null,
+        color: formData.color || null,
+        status: formData.status,
+        gender: formData.gender,
+        description: formData.description,
+        location: formData.location,
+        latitude: formData.coordinates.lat,
+        longitude: formData.coordinates.lng,
+        contactInfo: formData.contactInfo,
+        images,
       };
 
-      // 2. Create pet record
-      const petId = await createPet(petData);
+      const createdPet = await createPet(petData);
       
-      setPreviewPet({
-        ...petData,
-        id: petId,
-        createdAt: { toDate: () => new Date() } // Mock for preview
-      });
+      setPreviewPet(createdPet);
       setSuccess(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
@@ -128,8 +129,6 @@ export default function ReportPet() {
   const handleGenerateFlyer = async () => {
     if (!previewPet) return;
     setIsGenerating(true);
-    
-    // Simulate IA processing for a better description
     setTimeout(() => {
       setGeneratedFlyer('digital-flyer');
       setIsGenerating(false);
@@ -147,7 +146,7 @@ ${statusEmoji} en Sicardi/Garibaldi
 📍 Visto en: ${previewPet.location}
 🔎 Especie: ${previewPet.species === 'dog' ? 'Perro' : 'Gato'}
 🎨 Color/Detalles: ${previewPet.description}
-📞 Contacto: ${previewPet.contactInfo}
+📞 Contacto: ${previewPet.contact_info || previewPet.contactInfo}
 
 Sumate a la red vecinal en: ${window.location.origin}/perdidos`;
   };
@@ -172,7 +171,7 @@ Sumate a la red vecinal en: ${window.location.origin}/perdidos`;
         <div className="bg-white p-12 rounded-[3rem] border border-brand-accent shadow-xl">
           <AlertCircle className="w-16 h-16 text-brand-secondary mx-auto mb-6" />
           <h1 className="text-3xl font-serif font-bold text-brand-primary mb-4">Debes iniciar sesión</h1>
-          <p className="text-gray-500 mb-8">Para publicar un reporte de mascota perdida o encontrada, necesitamos que te identifiques con tu cuenta de Google.</p>
+          <p className="text-gray-500 mb-8">Para publicar un reporte de mascota perdida o encontrada, necesitamos que te identifiques.</p>
           <button 
             onClick={() => navigate('/login')}
             className="px-8 py-4 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all"
@@ -241,7 +240,6 @@ Sumate a la red vecinal en: ${window.location.origin}/perdidos`;
                   </button>
                 ) : (
                   <div className="space-y-6">
-                    {/* Digital Flyer Preview */}
                     <div className="max-w-md mx-auto aspect-[4/5] bg-white rounded-3xl border-4 border-brand-accent overflow-hidden shadow-2xl relative flex flex-col">
                       <div className={cn(
                         "p-4 text-white font-serif font-black text-4xl text-center uppercase tracking-tighter",
@@ -252,7 +250,7 @@ Sumate a la red vecinal en: ${window.location.origin}/perdidos`;
                       
                       <div className="flex-1 relative overflow-hidden bg-brand-bg">
                         <img 
-                          src={previewPet.imageUrls[0]} 
+                          src={getPetImageUrl(previewPet)}
                           className="w-full h-full object-cover" 
                           alt="Flyer mascota"
                         />
@@ -272,7 +270,7 @@ Sumate a la red vecinal en: ${window.location.origin}/perdidos`;
                           </div>
                           <div className="bg-brand-bg p-3 rounded-xl border border-brand-accent flex-1">
                             <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Contacto</p>
-                            <p className="text-sm font-bold text-brand-primary">{previewPet.contactInfo}</p>
+                            <p className="text-sm font-bold text-brand-primary">{previewPet.contact_info || previewPet.contactInfo}</p>
                           </div>
                         </div>
                         <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed italic border-l-4 border-brand-secondary pl-3">
@@ -324,7 +322,6 @@ Sumate a la red vecinal en: ${window.location.origin}/perdidos`;
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Image Upload Area */}
               <div className="space-y-4">
                 <label className="text-sm font-bold uppercase tracking-widest text-gray-500 flex justify-between">
                   <span>Imágenes (1 a 3) *</span>
@@ -363,7 +360,6 @@ Sumate a la red vecinal en: ${window.location.origin}/perdidos`;
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Basic Info */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre (si lo tiene)</label>
                   <input
@@ -429,7 +425,6 @@ Sumate a la red vecinal en: ${window.location.origin}/perdidos`;
                 </div>
               </div>
 
-              {/* Map Selection Section */}
               <div className="space-y-4">
                 <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 flex items-center gap-2">
                   <Locate className="w-3 h-3" />
@@ -515,4 +510,3 @@ Sumate a la red vecinal en: ${window.location.origin}/perdidos`;
     </div>
   );
 }
-

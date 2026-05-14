@@ -1,19 +1,16 @@
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage, auth } from './firebase';
+export function fileToBase64(file: File): Promise<{ data: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.split(',')[1];
+      resolve({ data: base64, mimeType: file.type || 'image/jpeg' });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
-export const uploadPetImage = async (file: File): Promise<string> => {
-  if (!auth.currentUser) throw new Error('Must be signed in to upload images');
-  
-  const timestamp = Date.now();
-  const fileExtension = file.name.split('.').pop();
-  const storagePath = `pets/${auth.currentUser.uid}/${timestamp}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
-  const storageRef = ref(storage, storagePath);
-  
-  const snapshot = await uploadBytes(storageRef, file);
-  return await getDownloadURL(snapshot.ref);
-};
-
-export const uploadMultiplePetImages = async (files: File[]): Promise<string[]> => {
-  const uploadPromises = files.map(file => uploadPetImage(file));
-  return await Promise.all(uploadPromises);
-};
+export async function filesToBase64(files: File[]): Promise<{ data: string; mimeType: string }[]> {
+  return Promise.all(files.map(fileToBase64));
+}

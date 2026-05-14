@@ -1,36 +1,61 @@
 import { useState, useEffect } from 'react';
-import { auth, db } from '@/src/lib/firebase';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+
+interface AuthUser {
+  id: string;
+  email: string;
+  display_name: string;
+  role: string;
+}
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      if (u) {
-        // Simple admin check based on email or Firestore role
-        if (u.email === 'sptortarolo@gmail.com') {
-          setIsAdmin(true);
-        } else {
-          try {
-            const userDoc = await getDoc(doc(db, 'users', u.uid));
-            setIsAdmin(userDoc.exists() && userDoc.data().role === 'admin');
-          } catch (e) {
-            setIsAdmin(false);
-          }
-        }
-      } else {
-        setIsAdmin(false);
-      }
+    const token = localStorage.getItem('token');
+    if (!token) {
       setLoading(false);
-    });
-
-    return () => unsubscribe();
+      return;
+    }
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch { /* ignore */ }
+    }
+    fetch('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.user) {
+          setUser(data.user);
+          localStorage.setItem('user', JSON.stringify(data.user));
+        } else {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setUser(null);
+        }
+      })
+      .catch(() => {
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  return { user, isAdmin, loading };
+  const isAdmin = user?.role === 'admin';
+
+  const login = (token: string, userData: AuthUser) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
+    setUser(userData);
+  };
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+  };
+
+  return { user, isAdmin, loading, login, logout };
 }

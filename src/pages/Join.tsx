@@ -36,8 +36,9 @@ export default function Join() {
     
     try {
       await createVolunteerRequest({
-        ...formData,
-        userId: user.uid
+        fullName: formData.fullName,
+        residenceZone: formData.residenceZone,
+        whatsapp: formData.whatsapp,
       });
       setSuccess(true);
       setTimeout(() => navigate('/'), 4000);
@@ -91,12 +92,12 @@ export default function Join() {
           >
             <Users className="w-16 h-16 text-brand-primary mx-auto mb-6" />
             <h2 className="text-2xl font-serif font-bold text-brand-primary mb-4">Empezá aquí</h2>
-            <p className="text-gray-500 mb-8">Debes iniciar sesión con tu cuenta de Google para solicitar unirte.</p>
+            <p className="text-gray-500 mb-8">Debes iniciar sesión para solicitar unirte.</p>
             <button 
               onClick={() => navigate('/login')}
               className="w-full px-8 py-5 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-xl transition-all"
             >
-              Iniciar Sesión con Google
+              Iniciar Sesión
               <ArrowRight className="w-5 h-5" />
             </button>
           </motion.div>

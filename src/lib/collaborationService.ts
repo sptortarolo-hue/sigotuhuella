@@ -1,73 +1,54 @@
-import { 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  getDocs, 
-  query, 
-  orderBy,
-  Timestamp
-} from 'firebase/firestore';
-import { db, auth } from './firebase';
+import { api } from './api';
 
 export interface CollaborationAccount {
   id: string;
   title: string;
-  description?: string;
-  bankName: string;
-  alias?: string;
-  cbu?: string;
-  cvu?: string;
-  order: number;
+  description: string | null;
+  bank_name: string;
+  alias: string | null;
+  cbu: string | null;
+  cvu: string | null;
+  display_order: number;
 }
 
 export interface VolunteerRequest {
   id: string;
-  fullName: string;
-  residenceZone: string;
+  full_name: string;
+  residence_zone: string;
   whatsapp: string;
-  userId: string;
-  createdAt: any;
+  user_id: string;
   status: 'pending' | 'reviewed' | 'accepted';
+  created_at: string;
+  email?: string;
+  display_name?: string;
 }
 
-const COLLAB_COLLECTION = 'collaboration_accounts';
-const VOLUNTEER_COLLECTION = 'volunteer_requests';
-
-// Collaboration Accounts Service
-export const getCollaborationAccounts = async () => {
-  const q = query(collection(db, COLLAB_COLLECTION), orderBy('order', 'asc'));
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CollaborationAccount));
+export const getCollaborationAccounts = async (): Promise<CollaborationAccount[]> => {
+  const data = await api.collaboration.list();
+  return data.accounts || [];
 };
 
-export const createCollaborationAccount = async (data: Omit<CollaborationAccount, 'id'>) => {
-  return await addDoc(collection(db, COLLAB_COLLECTION), data);
+export const createCollaborationAccount = async (data: any): Promise<void> => {
+  await api.collaboration.create(data);
 };
 
-export const updateCollaborationAccount = async (id: string, data: Partial<CollaborationAccount>) => {
-  const ref = doc(db, COLLAB_COLLECTION, id);
-  return await updateDoc(ref, data);
+export const updateCollaborationAccount = async (id: string, data: any): Promise<void> => {
+  await api.collaboration.update(id, data);
 };
 
-export const deleteCollaborationAccount = async (id: string) => {
-  const ref = doc(db, COLLAB_COLLECTION, id);
-  return await deleteDoc(ref);
+export const deleteCollaborationAccount = async (id: string): Promise<void> => {
+  await api.collaboration.delete(id);
 };
 
-// Volunteer Requests Service
-export const createVolunteerRequest = async (data: Omit<VolunteerRequest, 'id' | 'createdAt' | 'status'>) => {
-  if (!auth.currentUser) throw new Error('Must be signed in');
-  return await addDoc(collection(db, VOLUNTEER_COLLECTION), {
-    ...data,
-    createdAt: Timestamp.now(),
-    status: 'pending'
-  });
+export const createVolunteerRequest = async (data: { fullName: string; residenceZone: string; whatsapp: string }): Promise<void> => {
+  await api.volunteers.create(data);
 };
 
-export const getVolunteerRequests = async () => {
-  const q = query(collection(db, VOLUNTEER_COLLECTION), orderBy('createdAt', 'desc'));
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VolunteerRequest));
+export const getVolunteerRequests = async (): Promise<VolunteerRequest[]> => {
+  const data = await api.volunteers.list();
+  return data.requests || [];
+};
+
+export const updateVolunteerRequestStatus = async (id: string, status: string): Promise<void> => {
+  await api.volunteers.updateStatus(id, status);
 };

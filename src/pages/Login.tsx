@@ -1,44 +1,43 @@
 import { useState } from 'react';
-import { auth } from '@/src/lib/firebase';
-import { signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, LogOut, ShieldAlert, Loader2 } from 'lucide-react';
+import { api } from '@/src/lib/api';
+import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Login() {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, loading, login, logout } = useAuth();
   const [authLoading, setAuthLoading] = useState(false);
   const [error, setError] = useState('');
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setAuthLoading(true);
     setError('');
-    const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-      // Wait a bit for useAuth to pick up the new state
-      setTimeout(() => {
-        if (!loading) {
-          navigate('/admin');
-        }
-      }, 1000);
-    } catch (e: any) {
-      setError('Error al iniciar sesión. Intenta de nuevo.');
-      console.error(e);
+      if (mode === 'register') {
+        const data = await api.auth.register(email, password, displayName);
+        login(data.token, data.user);
+      } else {
+        const data = await api.auth.login(email, password);
+        login(data.token, data.user);
+      }
+      navigate('/admin');
+    } catch (err: any) {
+      setError(err.message || 'Error al procesar la solicitud');
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigate('/');
-    } catch (e) {
-      console.error(e);
-    }
+  const handleLogout = () => {
+    logout();
+    navigate('/');
   };
 
   if (loading) return (
@@ -64,12 +63,9 @@ export default function Login() {
 
         {user ? (
           <div className="space-y-6">
-            <div className="p-4 bg-brand-accent/30 rounded-2xl border border-brand-accent flex items-center gap-4">
-              <img src={user.photoURL || ''} className="w-12 h-12 rounded-full border-2 border-white" alt="Avatar" />
-              <div>
-                <p className="text-sm font-bold text-gray-800">{user.displayName}</p>
-                <p className="text-xs text-gray-500">{user.email}</p>
-              </div>
+            <div className="p-4 bg-brand-accent/30 rounded-2xl border border-brand-accent">
+              <p className="text-sm font-bold text-gray-800">{user.display_name || user.email}</p>
+              <p className="text-xs text-gray-500">{user.email}</p>
             </div>
 
             {!isAdmin && (
@@ -98,26 +94,75 @@ export default function Login() {
             </div>
           </div>
         ) : (
-          <div className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {error && <p className="text-red-600 text-sm text-center font-medium bg-red-50 py-2 rounded-xl">{error}</p>}
-            
+
+            {mode === 'register' && (
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                  placeholder="Tu nombre"
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                <Mail className="w-3 h-3" /> Email
+              </label>
+              <input
+                type="email"
+                required
+                className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                placeholder="email@ejemplo.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                <Lock className="w-3 h-3" /> Contraseña
+              </label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                placeholder="Min. 6 caracteres"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+            </div>
+
             <button
-              onClick={handleLogin}
+              type="submit"
               disabled={authLoading}
-              className="w-full py-4 bg-white border-2 border-brand-accent text-gray-800 rounded-2xl font-bold flex items-center justify-center gap-3 hover:border-brand-primary transition-all group"
+              className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
             >
               {authLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
+              ) : mode === 'login' ? (
+                <LogIn className="w-5 h-5" />
               ) : (
-                <img src="https://www.google.com/favicon.ico" className="w-5 h-5 grayscale group-hover:grayscale-0 transition-all" alt="Google" />
+                <UserPlus className="w-5 h-5" />
               )}
-              Ingresar con Google
+              {mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
             </button>
 
-            <p className="text-xs text-center text-gray-400">
-              Al ingresar aceptas el manejo de datos para la gestión vecinal.
-            </p>
-          </div>
+            <button
+              type="button"
+              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
+              className="w-full text-center text-sm text-brand-primary font-bold hover:underline"
+            >
+              {mode === 'login' ? '¿No tenés cuenta? Registrate' : '¿Ya tenés cuenta? Iniciá sesión'}
+            </button>
+          </form>
         )}
       </motion.div>
     </div>

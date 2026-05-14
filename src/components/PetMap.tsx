@@ -2,7 +2,7 @@ import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Pet } from '@/src/lib/petService';
+import { Pet, getPetImageUrl, getPetCoordinates } from '@/src/lib/petService';
 import { MapPin } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -42,17 +42,18 @@ export default function PetMap({ pets, center }: PetMapProps) {
         />
         
         {pets.map(pet => {
-          if (!pet.coordinates) return null;
+          const coords = getPetCoordinates(pet);
+          if (!coords) return null;
           return (
             <Marker
               key={pet.id}
-              position={[pet.coordinates.lat, pet.coordinates.lng]}
+              position={[coords.lat, coords.lng]}
               icon={createCustomIcon(pet.status)}
             >
               <Popup>
                 <div className="p-1 max-w-[200px]">
-                  {pet.imageUrl && (
-                    <img src={pet.imageUrl} className="w-full h-24 object-cover rounded-lg mb-2" alt={pet.name} />
+                  {getPetImageUrl(pet) && (
+                    <img src={getPetImageUrl(pet)} className="w-full h-24 object-cover rounded-lg mb-2" alt={pet.name || ''} />
                   )}
                   <h4 className="font-bold text-brand-primary text-sm m-0">{pet.name || 'Mascota'}</h4>
                   <p className="text-[10px] text-gray-500 uppercase font-bold mb-1 mt-0">
@@ -60,20 +61,22 @@ export default function PetMap({ pets, center }: PetMapProps) {
                   </p>
                   <p className="text-[10px] text-gray-600 mb-3 line-clamp-2">{pet.description}</p>
                   
-                  <div className="flex gap-2">
-                    <a 
-                      href={`tel:${pet.contactInfo}`}
-                      className="flex-1 bg-brand-primary text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline"
-                    >
-                      Llamar
-                    </a>
-                    <a 
-                      href={`https://wa.me/${pet.contactInfo.replace(/\D/g, '')}`}
-                      className="flex-1 bg-emerald-500 text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline"
-                    >
-                      WhatsApp
-                    </a>
-                  </div>
+                  {pet.contact_info && (
+                    <div className="flex gap-2">
+                      <a 
+                        href={`tel:${pet.contact_info}`}
+                        className="flex-1 bg-brand-primary text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline"
+                      >
+                        Llamar
+                      </a>
+                      <a 
+                        href={`https://wa.me/${pet.contact_info.replace(/\D/g, '')}`}
+                        className="flex-1 bg-emerald-500 text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline"
+                      >
+                        WhatsApp
+                      </a>
+                    </div>
+                  )}
                 </div>
               </Popup>
             </Marker>

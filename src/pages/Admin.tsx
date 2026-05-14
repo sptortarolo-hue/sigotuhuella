@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { getPets, createPet, updatePet, deletePet, Pet, PetStatus } from '@/src/lib/petService';
-import { uploadMultiplePetImages } from '@/src/lib/storageService';
+import { getPets, createPet, updatePet, deletePet, Pet, PetStatus, getPetImageUrl } from '@/src/lib/petService';
+import { filesToBase64 } from '@/src/lib/storageService';
 import { 
   getCollaborationAccounts, 
   createCollaborationAccount, 
   updateCollaborationAccount, 
   deleteCollaborationAccount,
   getVolunteerRequests,
+  updateVolunteerRequestStatus,
   CollaborationAccount,
   VolunteerRequest
 } from '@/src/lib/collaborationService';
@@ -42,21 +43,20 @@ export default function Admin() {
     location: '',
     contactInfo: '',
     description: '',
-    imageUrls: [] as string[]
   });
 
   // Collaboration State
   const [accounts, setAccounts] = useState<CollaborationAccount[]>([]);
   const [showCollabForm, setShowCollabForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState<CollaborationAccount | null>(null);
-  const [collabData, setCollabData] = useState<Omit<CollaborationAccount, 'id'>>({
+  const [collabData, setCollabData] = useState({
     title: '',
     description: '',
     bankName: '',
     alias: '',
     cbu: '',
     cvu: '',
-    order: 0
+    displayOrder: 0
   });
 
   // Volunteers State
@@ -98,13 +98,23 @@ export default function Admin() {
     e.preventDefault();
     setFormLoading(true);
     try {
-      let finalImageUrls = [...formData.imageUrls];
+      let images: { data: string; mimeType: string }[] = [];
       if (selectedFiles.length > 0) {
-        const uploadedUrls = await uploadMultiplePetImages(selectedFiles);
-        finalImageUrls = [...finalImageUrls, ...uploadedUrls].slice(0, 3);
+        images = await filesToBase64(selectedFiles);
       }
 
-      const dataToSave = { ...formData, imageUrls: finalImageUrls, imageUrl: finalImageUrls[0] || '' };
+      const dataToSave = {
+        name: formData.name || null,
+        species: formData.species,
+        breed: formData.breed || null,
+        color: formData.color || null,
+        status: formData.status,
+        gender: formData.gender,
+        location: formData.location,
+        contactInfo: formData.contactInfo,
+        description: formData.description,
+        images,
+      };
 
       if (editingPet) await updatePet(editingPet.id, dataToSave);
       else await createPet(dataToSave);
@@ -117,10 +127,29 @@ export default function Admin() {
   };
 
   const resetPetForm = () => {
-    setFormData({ name: '', species: 'dog', breed: '', color: '', status: PetStatus.LOST, gender: 'unknown', location: '', contactInfo: '', description: '', imageUrls: [] });
+    setFormData({ name: '', species: 'dog', breed: '', color: '', status: PetStatus.LOST, gender: 'unknown', location: '', contactInfo: '', description: '' });
     setPreviews([]);
     setSelectedFiles([]);
     setEditingPet(null);
+  };
+
+  const editPet = async (pet: Pet) => {
+    setEditingPet(pet);
+    setFormData({
+      name: pet.name || '',
+      species: pet.species as any,
+      breed: pet.breed || '',
+      color: pet.color || '',
+      status: pet.status,
+      gender: pet.gender || 'unknown',
+      location: pet.location || '',
+      contactInfo: pet.contact_info || '',
+      description: pet.description || '',
+    });
+    if (pet.images && pet.images.length > 0) {
+      setPreviews(pet.images.map(img => `data:${img.mime_type};base64,${img.image_data}`));
+    }
+    setShowForm(true);
   };
 
   // Collab Handlers
@@ -128,12 +157,15 @@ export default function Admin() {
     e.preventDefault();
     setFormLoading(true);
     try {
-      if (editingAccount) await updateCollaborationAccount(editingAccount.id, collabData);
-      else await createCollaborationAccount(collabData);
+      if (editingAccount) {
+        await updateCollaborationAccount(editingAccount.id, collabData);
+      } else {
+        await createCollaborationAccount(collabData);
+      }
       
       setShowCollabForm(false);
       setEditingAccount(null);
-      setCollabData({ title: '', description: '', bankName: '', alias: '', cbu: '', cvu: '', order: accounts.length });
+      setCollabData({ title: '', description: '', bankName: '', alias: '', cbu: '', cvu: '', displayOrder: accounts.length });
       fetchAccounts();
     } catch (e) { console.error(e); alert('Error al guardar'); }
     finally { setFormLoading(false); }
@@ -144,6 +176,11 @@ export default function Admin() {
       await deleteCollaborationAccount(id);
       fetchAccounts();
     }
+  };
+
+  const handleVolunteerStatus = async (id: string, status: string) => {
+    await updateVolunteerRequestStatus(id, status);
+    fetchVolunteers();
   };
 
   return (
@@ -197,23 +234,7 @@ export default function Admin() {
                 {pets.map(pet => (
                   <PetCard 
                     key={pet.id} pet={pet} showAdminActions 
-                    onEdit={(p) => { 
-                      setEditingPet(p); 
-                      setFormData({ 
-                        name: p.name || '',
-                        species: p.species,
-                        breed: p.breed || '',
-                        color: p.color || '',
-                        status: p.status,
-                        gender: p.gender || 'unknown',
-                        location: p.location || '',
-                        contactInfo: p.contactInfo || '',
-                        description: p.description || '',
-                        imageUrls: p.imageUrls || [] 
-                      }); 
-                      setPreviews(p.imageUrls || []); 
-                      setShowForm(true); 
-                    }}
+                    onEdit={editPet}
                     onDelete={async (id) => { if(confirm('Eliminar?')) { await deletePet(id); fetchPets(); } }} 
                   />
                 ))}
@@ -225,7 +246,7 @@ export default function Admin() {
             <div className="space-y-6">
               <div className="flex justify-end">
                 <button
-                  onClick={() => { setEditingAccount(null); setCollabData({ title: '', description: '', bankName: '', alias: '', cbu: '', cvu: '', order: accounts.length }); setShowCollabForm(true); }}
+                  onClick={() => { setEditingAccount(null); setCollabData({ title: '', description: '', bankName: '', alias: '', cbu: '', cvu: '', displayOrder: accounts.length }); setShowCollabForm(true); }}
                   className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:shadow-lg transition-all"
                 >
                   <Plus className="w-5 h-5" /> Nueva Cuenta
@@ -245,14 +266,14 @@ export default function Admin() {
                     {accounts.map(acc => (
                       <tr key={acc.id} className="hover:bg-brand-bg/50 transition-colors">
                         <td className="px-6 py-4 font-bold text-brand-primary">{acc.title}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{acc.bankName}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{acc.bank_name}</td>
                         <td className="px-6 py-4 text-xs font-mono text-gray-500">
                           {acc.alias && <div>Alias: {acc.alias}</div>}
                           {acc.cbu && <div>CBU: {acc.cbu}</div>}
                           {acc.cvu && <div>CVU: {acc.cvu}</div>}
                         </td>
                         <td className="px-6 py-4 text-right space-x-2">
-                          <button onClick={() => { setEditingAccount(acc); setCollabData(acc); setShowCollabForm(true); }} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
+                          <button onClick={() => { setEditingAccount(acc); setCollabData({ title: acc.title, description: acc.description || '', bankName: acc.bank_name, alias: acc.alias || '', cbu: acc.cbu || '', cvu: acc.cvu || '', displayOrder: acc.display_order }); setShowCollabForm(true); }} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
                           <button onClick={() => handleDeleteCollab(acc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                         </td>
                       </tr>
@@ -269,25 +290,33 @@ export default function Admin() {
                 <div key={vol.id} className="bg-white p-6 rounded-3xl border border-brand-accent shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-lg text-brand-primary">{vol.fullName}</h3>
+                      <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
                       <span className="text-[10px] px-2 py-0.5 bg-brand-bg border border-brand-accent rounded-full font-bold uppercase text-gray-400">
                         {vol.status}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                      <div className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {vol.residenceZone}</div>
+                      <div className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {vol.residence_zone}</div>
                       <div className="flex items-center gap-1"><Phone className="w-4 h-4" /> {vol.whatsapp}</div>
-                      <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(vol.createdAt?.seconds * 1000).toLocaleDateString()}</div>
+                      <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(vol.created_at).toLocaleDateString()}</div>
                     </div>
                   </div>
-                  <a 
-                    href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
-                  >
-                    Contactar <ExternalLink className="w-4 h-4" />
-                  </a>
+                  <div className="flex gap-2">
+                    {vol.status === 'pending' && (
+                      <>
+                        <button onClick={() => handleVolunteerStatus(vol.id, 'reviewed')} className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-sm font-bold hover:bg-amber-100 transition-colors">Revisado</button>
+                        <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
+                      </>
+                    )}
+                    <a 
+                      href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
+                    >
+                      Contactar <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
                 </div>
               ))}
               {volunteers.length === 0 && (

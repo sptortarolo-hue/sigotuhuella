@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { getPets, Pet, PetStatus } from '@/src/lib/petService';
+import { getPets, Pet, PetStatus, getPetCoordinates } from '@/src/lib/petService';
 import PetCard from '@/src/components/PetCard';
 import PetMap from '@/src/components/PetMap';
-import MapLoader, { hasValidKey } from '@/src/components/MapLoader';
+import MapLoader from '@/src/components/MapLoader';
 import { Search, Loader2, Grid, Map as MapIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -40,7 +40,7 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
   const displayedPets = pets.filter(p => 
     p.location.toLowerCase().includes(filter.toLowerCase()) ||
     (p.name && p.name.toLowerCase().includes(filter.toLowerCase())) ||
-    p.description.toLowerCase().includes(filter.toLowerCase())
+    (p.description && p.description.toLowerCase().includes(filter.toLowerCase()))
   );
 
   return (
@@ -127,7 +127,7 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
             >
               <MapLoader>
                 <PetMap 
-                  pets={displayedPets.filter(p => !!p.coordinates)} 
+                  pets={displayedPets.filter(p => !!getPetCoordinates(p))} 
                   center={DEFAULT_CENTER} 
                 />
               </MapLoader>
@@ -142,4 +142,3 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
     </div>
   );
 }
-
