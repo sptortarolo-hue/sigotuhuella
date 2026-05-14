@@ -28,14 +28,20 @@ app.get('*', (_req, res) => {
 async function seedAdmin() {
   const email = 'sptortarolo@gmail.com';
   try {
+    const passwordHash = await hashPassword('123456');
     const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length === 0) {
-      const passwordHash = await hashPassword('123456');
       await pool.query(
         'INSERT INTO users (email, password_hash, display_name, role) VALUES ($1, $2, $3, $4)',
         [email, passwordHash, 'sptortarolo', 'admin']
       );
       console.log(`Admin user created: ${email}`);
+    } else {
+      await pool.query(
+        'UPDATE users SET password_hash = $1, display_name = $2, role = $3 WHERE email = $4',
+        [passwordHash, 'sptortarolo', 'admin', email]
+      );
+      console.log(`Admin user updated: ${email}`);
     }
   } catch (err) {
     console.error('Admin seed error:', err);
