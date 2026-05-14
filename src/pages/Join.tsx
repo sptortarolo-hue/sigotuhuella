@@ -9,10 +9,10 @@ import {
   User as UserIcon, 
   Loader2, 
   CheckCircle2,
-  AlertCircle,
-  ArrowRight
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import AuthGate from '@/src/components/AuthGate';
 
 export default function Join() {
   const { user, loading: authLoading } = useAuth();
@@ -60,49 +60,39 @@ export default function Join() {
 
   if (!user) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-20">
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
-            <h1 className="text-5xl font-serif font-bold text-brand-primary mb-6">Sumate a la red de vecinos</h1>
-            <p className="text-xl text-gray-600 leading-relaxed mb-8">
-              Buscamos personas comprometidas que quieran ayudar en los barrios de Villa Garibaldi, Parque Sicardi e Ignacio Correas.
-            </p>
-            <div className="space-y-4">
-              {[
-                'Ayuda en traslados',
-                'Hogares de tránsito',
-                'Difusión en redes',
-                'Logística y organización'
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-3 text-brand-dark font-medium">
-                  <div className="w-6 h-6 bg-brand-primary text-white rounded-full flex items-center justify-center text-xs">✓</div>
-                  {item}
-                </div>
-              ))}
-            </div>
-          </motion.div>
-          
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white p-12 rounded-[3.5rem] border border-brand-accent shadow-2xl text-center"
-          >
-            <Users className="w-16 h-16 text-brand-primary mx-auto mb-6" />
-            <h2 className="text-2xl font-serif font-bold text-brand-primary mb-4">Empezá aquí</h2>
-            <p className="text-gray-500 mb-8">Debes iniciar sesión para solicitar unirte.</p>
-            <button 
-              onClick={() => navigate('/login')}
-              className="w-full px-8 py-5 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-xl transition-all"
+      <>
+        <div className="max-w-4xl mx-auto px-4 pt-20 pb-4">
+          <div className="grid md:grid-cols-2 gap-12 items-center mb-12">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
             >
-              Iniciar Sesión
-              <ArrowRight className="w-5 h-5" />
-            </button>
-          </motion.div>
+              <h1 className="text-5xl font-serif font-bold text-brand-primary mb-6">Sumate a la red de vecinos</h1>
+              <p className="text-xl text-gray-600 leading-relaxed mb-8">
+                Buscamos personas comprometidas que quieran ayudar en los barrios de Villa Garibaldi, Parque Sicardi e Ignacio Correas.
+              </p>
+              <div className="space-y-4">
+                {[
+                  'Ayuda en traslados',
+                  'Hogares de tránsito',
+                  'Difusión en redes',
+                  'Logística y organización'
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 text-brand-dark font-medium">
+                    <div className="w-6 h-6 bg-brand-primary text-white rounded-full flex items-center justify-center text-xs">✓</div>
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
         </div>
-      </div>
+        <AuthGate
+          title="Empezá aquí"
+          description="Debes iniciar sesión para solicitar unirte."
+          icon={<Users className="w-16 h-16 text-brand-primary mx-auto mb-6" />}
+        />
+      </>
     );
   }
 

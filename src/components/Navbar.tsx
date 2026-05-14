@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { PawPrint, Heart, Search, Monitor, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList } from 'lucide-react';
+import { PawPrint, Heart, Search, Monitor, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -64,6 +64,16 @@ export default function Navbar() {
                 {item.name}
               </Link>
             ))}
+
+            {/* Login Button */}
+            {!user && (
+              <Link
+                to="/login"
+                className="px-5 py-2.5 bg-brand-primary text-white text-sm font-bold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all"
+              >
+                Iniciar Sesión
+              </Link>
+            )}
 
             {/* User Menu */}
             {user && (
@@ -137,7 +147,7 @@ export default function Navbar() {
                 {item.name}
               </Link>
             ))}
-            {user && (
+            {user ? (
               <>
                 <div className="border-t border-brand-accent pt-4 mt-2">
                   <p className="text-xs text-gray-400 px-2 mb-2 font-bold uppercase tracking-widest">Mi Cuenta</p>
@@ -152,6 +162,14 @@ export default function Navbar() {
                   </button>
                 </div>
               </>
+            ) : (
+              <Link
+                to="/login"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 text-lg font-medium p-2 rounded-lg bg-brand-primary/10 text-brand-primary"
+              >
+                <LogIn className="w-5 h-5" /> Iniciar Sesión
+              </Link>
             )}
           </motion.div>
         )}

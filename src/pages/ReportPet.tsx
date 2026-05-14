@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import PetCard from '@/src/components/PetCard';
+import AuthGate from '@/src/components/AuthGate';
 
 const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
 
@@ -169,19 +170,11 @@ ${window.location.origin}/sigotuhuella.jpg`;
 
   if (!user) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-        <div className="bg-white p-12 rounded-[3rem] border border-brand-accent shadow-xl">
-          <AlertCircle className="w-16 h-16 text-brand-secondary mx-auto mb-6" />
-          <h1 className="text-3xl font-serif font-bold text-brand-primary mb-4">Debes iniciar sesión</h1>
-          <p className="text-gray-500 mb-8">Para publicar un reporte de mascota perdida o encontrada, necesitamos que te identifiques.</p>
-          <button 
-            onClick={() => navigate('/login')}
-            className="px-8 py-4 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all"
-          >
-            Ir a Iniciar Sesión
-          </button>
-        </div>
-      </div>
+      <AuthGate
+        title="Identificate para publicar"
+        description="Para publicar un reporte de mascota perdida o encontrada, necesitamos que te identifiques."
+        icon={<AlertCircle className="w-16 h-16 text-brand-secondary mx-auto mb-6" />}
+      />
     );
   }
 
