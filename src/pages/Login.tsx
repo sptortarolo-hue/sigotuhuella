@@ -57,8 +57,8 @@ export default function Login() {
           <div className="w-16 h-16 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
             <LogIn className="w-8 h-8" />
           </div>
-          <h1 className="text-3xl font-serif font-bold text-brand-primary">Acceso Administrador</h1>
-          <p className="text-gray-500 text-sm mt-2">Solo personal autorizado del movimiento.</p>
+          <h1 className="text-3xl font-serif font-bold text-brand-primary">Iniciá Sesión</h1>
+          <p className="text-gray-500 text-sm mt-2">Ingresá para publicar reportes, gestionar tus publicaciones y colaborar con la comunidad.</p>
         </div>
 
         {user ? (
