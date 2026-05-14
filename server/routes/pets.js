@@ -73,7 +73,13 @@ router.post('/', requireAuth, async (req, res) => {
         );
       }
     }
+    const imagesResult = await client.query(
+      `SELECT json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) as images
+      FROM pet_images pi WHERE pi.pet_id = $1`,
+      [pet.id]
+    );
     await client.query('COMMIT');
+    pet.images = imagesResult.rows[0]?.images || [];
     res.status(201).json({ pet });
   } catch (err) {
     await client.query('ROLLBACK');
