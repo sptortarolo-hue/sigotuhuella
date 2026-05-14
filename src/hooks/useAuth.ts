@@ -5,6 +5,7 @@ interface AuthUser {
   email: string;
   display_name: string;
   role: string;
+  phone?: string;
 }
 
 export function useAuth() {

@@ -17,7 +17,7 @@ router.get('/', requireAdmin, async (req, res) => {
 });
 
 router.put('/:id', requireAuth, async (req, res) => {
-   const { displayName, phone, role } = req.body;
+  const { displayName, phone, role } = req.body;
   const isSelf = req.user.id === req.params.id;
   const isAdmin = req.user.role === 'admin';
   if (!isSelf && !isAdmin) {
@@ -27,15 +27,15 @@ router.put('/:id', requireAuth, async (req, res) => {
     const fields = [];
     const values = [];
     let idx = 1;
-if (displayName !== undefined) {
-       fields.push(`display_name = $${idx++}`);
-       values.push(displayName);
-     }
-     if (phone !== undefined) {
-       fields.push(`phone = $${idx++}`);
-       values.push(phone);
-     }
-     if (role !== undefined && isAdmin) {
+    if (displayName !== undefined) {
+      fields.push(`display_name = $${idx++}`);
+      values.push(displayName);
+    }
+    if (phone !== undefined) {
+      fields.push(`phone = $${idx++}`);
+      values.push(phone);
+    }
+    if (role !== undefined && isAdmin) {
       fields.push(`role = $${idx++}`);
       values.push(role);
     }
@@ -103,7 +103,7 @@ router.get('/:id/pets', requireAuth, async (req, res) => {
   }
   try {
     const result = await pool.query(
-      `SELECT p.*, 
+      `SELECT p.*,
         COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
       FROM pets p
       LEFT JOIN pet_images pi ON pi.pet_id = p.id

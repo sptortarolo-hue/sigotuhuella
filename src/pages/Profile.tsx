@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Save, Loader2, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { User, Lock, Save, Loader2, ArrowLeft, CheckCircle2, AlertCircle, Phone as PhoneIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Profile() {
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState(user?.display_name || '');
+  const [phone, setPhone] = useState(user?.phone || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
@@ -29,9 +30,9 @@ export default function Profile() {
     setProfileMsg('');
     setProfileError('');
     try {
-      const data = await api.users.update(user.id, { displayName });
+      const data = await api.users.update(user.id, { displayName, phone });
       const stored = JSON.parse(localStorage.getItem('user') || '{}');
-      localStorage.setItem('user', JSON.stringify({ ...stored, display_name: data.user.display_name }));
+      localStorage.setItem('user', JSON.stringify({ ...stored, display_name: data.user.display_name, phone: data.user.phone }));
       setProfileMsg('Datos actualizados');
     } catch (err: any) {
       setProfileError(err.message || 'Error al actualizar');
@@ -73,6 +74,12 @@ export default function Profile() {
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre</label>
             <input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none" value={displayName} onChange={e => setDisplayName(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+              <PhoneIcon className="w-4 h-4" /> WhatsApp / Teléfono
+            </label>
+            <input type="tel" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none" placeholder="+54 9 221 123456" value={phone} onChange={e => setPhone(e.target.value)} />
           </div>
           {profileMsg && <div className="p-3 bg-green-50 text-green-600 rounded-xl text-sm flex gap-2 items-center"><CheckCircle2 className="w-4 h-4" />{profileMsg}</div>}
           {profileError && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm flex gap-2 items-center"><AlertCircle className="w-4 h-4" />{profileError}</div>}

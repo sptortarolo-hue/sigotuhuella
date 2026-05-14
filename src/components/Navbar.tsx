@@ -97,11 +97,14 @@ export default function Navbar() {
                         <p className="text-xs text-gray-500 truncate">{user.email}</p>
                       </div>
                       <div className="py-1">
+                        <button onClick={() => { setUserMenuOpen(false); navigate('/dashboard'); }} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                          <PawPrint className="w-4 h-4 text-brand-primary" /> Mi Panel
+                        </button>
                         <button onClick={() => { setUserMenuOpen(false); navigate('/mis-publicaciones'); }} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
                           <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
                         </button>
                         <button onClick={() => { setUserMenuOpen(false); navigate('/perfil'); }} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
-                          <Settings className="w-4 h-4 text-brand-primary" /> Configuración
+                          <Settings className="w-4 h-4 text-brand-primary" /> Editar Perfil
                         </button>
                         <button onClick={handleLogout} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors">
                           <LogOut className="w-4 h-4" /> Cerrar Sesión
@@ -148,20 +151,21 @@ export default function Navbar() {
               </Link>
             ))}
             {user ? (
-              <>
-                <div className="border-t border-brand-accent pt-4 mt-2">
-                  <p className="text-xs text-gray-400 px-2 mb-2 font-bold uppercase tracking-widest">Mi Cuenta</p>
-                  <Link to="/mis-publicaciones" onClick={() => setIsOpen(false)} className="flex items-center gap-3 text-lg font-medium p-2 rounded-lg text-gray-600">
-                    <LayoutList className="w-5 h-5" /> Mis Publicaciones
-                  </Link>
-                  <Link to="/perfil" onClick={() => setIsOpen(false)} className="flex items-center gap-3 text-lg font-medium p-2 rounded-lg text-gray-600">
-                    <Settings className="w-5 h-5" /> Configuración
-                  </Link>
-                  <button onClick={() => { handleLogout(); setIsOpen(false); }} className="w-full flex items-center gap-3 text-lg font-medium p-2 rounded-lg text-red-600">
-                    <LogOut className="w-5 h-5" /> Cerrar Sesión
-                  </button>
-                </div>
-              </>
+              <div className="border-t border-brand-accent pt-4 mt-2">
+                <p className="text-xs text-gray-400 px-2 mb-2 font-bold uppercase tracking-widest">Mi Cuenta</p>
+                <Link to="/dashboard" onClick={() => setIsOpen(false)} className="flex items-center gap-3 text-lg font-medium p-2 rounded-lg text-gray-600">
+                  <PawPrint className="w-5 h-5" /> Mi Panel
+                </Link>
+                <Link to="/mis-publicaciones" onClick={() => setIsOpen(false)} className="flex items-center gap-3 text-lg font-medium p-2 rounded-lg text-gray-600">
+                  <LayoutList className="w-5 h-5" /> Mis Publicaciones
+                </Link>
+                <Link to="/perfil" onClick={() => setIsOpen(false)} className="flex items-center gap-3 text-lg font-medium p-2 rounded-lg text-gray-600">
+                  <Settings className="w-5 h-5" /> Editar Perfil
+                </Link>
+                <button onClick={() => { handleLogout(); setIsOpen(false); }} className="w-full flex items-center gap-3 text-lg font-medium p-2 rounded-lg text-red-600">
+                  <LogOut className="w-5 h-5" /> Cerrar Sesión
+                </button>
+              </div>
             ) : (
               <Link
                 to="/login"

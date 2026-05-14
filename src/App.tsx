@@ -15,18 +15,19 @@ const Collaborate = lazy(() => import('@/src/pages/Collaborate'));
 const Join = lazy(() => import('@/src/pages/Join'));
 const Profile = lazy(() => import('@/src/pages/Profile'));
 const MyPets = lazy(() => import('@/src/pages/MyPets'));
+const Dashboard = lazy(() => import('@/src/pages/Dashboard'));
 
-function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin: boolean }) {
+function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin?: boolean }) {
   const { user, isAdmin: isUserAdmin, loading } = useAuth();
-  
+
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-brand-bg text-brand-primary">
       <Loader2 className="w-10 h-10 animate-spin" />
     </div>
   );
-  
+
   if (!user || (isAdmin && !isUserAdmin)) return <Navigate to="/login" replace />;
-  
+
   return <>{children}</>;
 }
 
@@ -51,20 +52,21 @@ export default function App() {
               <Route path="/sumate" element={<Join />} />
               <Route path="/perfil" element={<Profile />} />
               <Route path="/mis-publicaciones" element={<MyPets />} />
+              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/login" element={<Login />} />
-              <Route 
-                path="/admin" 
+              <Route
+                path="/admin"
                 element={
                   <ProtectedRoute isAdmin>
                     <Admin />
                   </ProtectedRoute>
-                } 
+                }
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </main>
-        
+
         <footer className="bg-white border-t border-brand-accent py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid md:grid-cols-4 gap-12">
