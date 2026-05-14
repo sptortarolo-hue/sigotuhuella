@@ -6,20 +6,21 @@ import { filesToBase64 } from '@/src/lib/storageService';
 import MapLoader from '@/src/components/MapLoader';
 import LocationPicker from '@/src/components/LocationPicker';
 import { cn } from '@/src/lib/utils';
-import { 
-  Camera, 
-  MapPin, 
-  Phone, 
-  FileText, 
-  Loader2, 
-  X, 
+import {
+  Camera,
+  MapPin,
+  Phone,
+  FileText,
+  Loader2,
+  X,
   Image as ImageIcon,
   CheckCircle2,
   AlertCircle,
   Locate,
   MessageCircle,
   Download,
-  Share2
+  Share2,
+  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import PetCard from '@/src/components/PetCard';
@@ -33,14 +34,14 @@ export default function ReportPet() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
-  
+
   const [previewPet, setPreviewPet] = useState<any>(null);
   const [generatedFlyer, setGeneratedFlyer] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  
+
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
-  
+
   const [formData, setFormData] = useState({
     name: '',
     species: 'dog' as 'dog' | 'cat' | 'other',
@@ -61,10 +62,10 @@ export default function ReportPet() {
         alert('Máximo 3 imágenes permitidas');
         return;
       }
-      
+
       const newFiles = [...files, ...selectedFiles];
       setFiles(newFiles);
-      
+
       const newPreviews = selectedFiles.map((file: File) => URL.createObjectURL(file));
       setPreviews([...previews, ...newPreviews]);
     }
@@ -74,7 +75,7 @@ export default function ReportPet() {
     const newFiles = [...files];
     newFiles.splice(index, 1);
     setFiles(newFiles);
-    
+
     const newPreviews = [...previews];
     URL.revokeObjectURL(newPreviews[index]);
     newPreviews.splice(index, 1);
@@ -92,13 +93,13 @@ export default function ReportPet() {
       setError('Por favor activa la ubicación en el mapa haciendo click donde fue visto.');
       return;
     }
-    
+
     setLoading(true);
     setError('');
-    
+
     try {
       const images = await filesToBase64(files);
-      
+
       const petData = {
         name: formData.name || null,
         species: formData.species,
@@ -115,7 +116,7 @@ export default function ReportPet() {
       };
 
       const createdPet = await createPet(petData);
-      
+
       setPreviewPet(createdPet);
       setSuccess(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -180,9 +181,13 @@ ${window.location.origin}/sigotuhuella.jpg`;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold mb-6">
+        <ArrowLeft className="w-4 h-4" /> Volver
+      </button>
+
       <AnimatePresence mode="wait">
         {success && previewPet ? (
-          <motion.div 
+          <motion.div
             key="success"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -192,16 +197,16 @@ ${window.location.origin}/sigotuhuella.jpg`;
               <CheckCircle2 className="w-20 h-20 text-green-500 mx-auto mb-6" />
               <h1 className="text-4xl font-serif font-bold text-brand-primary mb-4">¡Publicado con éxito!</h1>
               <p className="text-gray-500 mb-8">Tu reporte ya es visible para toda la comunidad de Sicardi y Garibaldi.</p>
-              
+
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button 
+                <button
                   onClick={() => navigate('/perdidos')}
                   className="px-8 py-4 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all"
                 >
                   Ir a la Galería
                 </button>
-                <button 
-                  onClick={() => setSuccess(false)}
+                <button
+                  onClick={() => { setSuccess(false); setPreviewPet(null); }}
                   className="px-8 py-4 bg-white text-brand-primary border border-brand-accent rounded-2xl font-bold hover:border-brand-primary transition-all"
                 >
                   Hacer otro reporte
@@ -223,7 +228,7 @@ ${window.location.origin}/sigotuhuella.jpg`;
                 <p className="text-sm text-gray-500 mb-8">
                   Generá un flyer optimizado con IA para compartir en tus grupos de WhatsApp y redes sociales.
                 </p>
-                
+
                 {!generatedFlyer ? (
                   <button
                     onClick={handleGenerateFlyer}
@@ -242,11 +247,11 @@ ${window.location.origin}/sigotuhuella.jpg`;
                       )}>
                         {previewPet.status === 'lost' ? 'BUSCADO' : 'ENCONTRADO'}
                       </div>
-                      
+
                       <div className="flex-1 relative overflow-hidden bg-brand-bg">
-                        <img 
+                        <img
                           src={getPetImageUrl(previewPet)}
-                          className="w-full h-full object-cover" 
+                          className="w-full h-full object-cover"
                           alt="Flyer mascota"
                         />
                         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md p-3 rounded-2xl border border-brand-accent shadow-lg text-left">
@@ -322,12 +327,12 @@ ${window.location.origin}/sigotuhuella.jpg`;
                   <span>Imágenes (1 a 3) *</span>
                   <span className={files.length === 3 ? "text-brand-secondary" : ""}>{files.length}/3</span>
                 </label>
-                
+
                 <div className="grid grid-cols-3 gap-4">
                   {previews.map((preview, index) => (
                     <div key={index} className="relative aspect-square rounded-2xl overflow-hidden border-2 border-brand-accent shadow-sm">
                       <img src={preview} className="w-full h-full object-cover" alt="Preview" />
-                      <button 
+                      <button
                         type="button"
                         onClick={() => removeFile(index)}
                         className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
@@ -336,16 +341,16 @@ ${window.location.origin}/sigotuhuella.jpg`;
                       </button>
                     </div>
                   ))}
-                  
+
                   {files.length < 3 && (
                     <label className="aspect-square rounded-2xl border-2 border-dashed border-brand-accent hover:border-brand-primary hover:bg-brand-primary/5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group">
                       <Camera className="w-8 h-8 text-gray-400 group-hover:text-brand-primary transition-colors" />
                       <span className="text-[10px] uppercase font-bold text-gray-400 group-hover:text-brand-primary">Subir Foto</span>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={handleFileChange} 
-                        className="hidden" 
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="hidden"
                         multiple={3 - files.length > 1}
                       />
                     </label>
@@ -365,7 +370,7 @@ ${window.location.origin}/sigotuhuella.jpg`;
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Estado *</label>
                   <select
@@ -388,8 +393,8 @@ ${window.location.origin}/sigotuhuella.jpg`;
                         type="button"
                         onClick={() => setFormData({ ...formData, species: s as any })}
                         className={`flex-1 py-3 text-xs font-bold rounded-xl border transition-all ${
-                          formData.species === s 
-                          ? 'bg-brand-primary border-brand-primary text-white shadow-md' 
+                          formData.species === s
+                          ? 'bg-brand-primary border-brand-primary text-white shadow-md'
                           : 'bg-white border-brand-accent text-gray-500'
                         }`}
                       >
@@ -408,8 +413,8 @@ ${window.location.origin}/sigotuhuella.jpg`;
                         type="button"
                         onClick={() => setFormData({ ...formData, gender: g as any })}
                         className={`flex-1 py-3 text-xs font-bold rounded-xl border transition-all ${
-                          formData.gender === g 
-                          ? 'bg-brand-primary border-brand-primary text-white shadow-md' 
+                          formData.gender === g
+                          ? 'bg-brand-primary border-brand-primary text-white shadow-md'
                           : 'bg-white border-brand-accent text-gray-500'
                         }`}
                       >
@@ -425,15 +430,15 @@ ${window.location.origin}/sigotuhuella.jpg`;
                   <Locate className="w-3 h-3" />
                   ¿Dónde fue visto por última vez? (Marca en el mapa) *
                 </label>
-                
+
                 <MapLoader>
-                  <LocationPicker 
+                  <LocationPicker
                     initialCenter={DEFAULT_CENTER}
                     selectedLocation={formData.coordinates || undefined}
                     onLocationSelect={(coords) => setFormData({ ...formData, coordinates: coords })}
                   />
                 </MapLoader>
-                
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Referencia escrita (Calle, esquina, etc.)</label>
                   <input
@@ -448,25 +453,25 @@ ${window.location.origin}/sigotuhuella.jpg`;
               </div>
 
               <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                    <Phone className="w-3 h-3" />
-                    Contacto (WhatsApp / Teléfono) *
-                  </label>
-                  <input
-                    required
-                    type="tel"
-                    pattern="[0-9]*"
-                    onInput={(e) => {
-                      const val = e.currentTarget.value.replace(/\D/g, '');
-                      e.currentTarget.value = val;
-                      setFormData({ ...formData, contactInfo: val });
-                    }}
-                    placeholder="Eje: 2211234567 (Solo números)"
-                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                    value={formData.contactInfo}
-                  />
-                  <p className="text-[10px] text-gray-400">Ingresa solo los números de tu celular para que puedan contactarte por WhatsApp.</p>
-                </div>
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                  <Phone className="w-3 h-3" />
+                  Contacto (WhatsApp / Teléfono) *
+                </label>
+                <input
+                  required
+                  type="tel"
+                  pattern="[0-9]*"
+                  onInput={(e) => {
+                    const val = e.currentTarget.value.replace(/\D/g, '');
+                    e.currentTarget.value = val;
+                    setFormData({ ...formData, contactInfo: val });
+                  }}
+                  placeholder="Eje: 2211234567 (Solo números)"
+                  className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+                  value={formData.contactInfo}
+                />
+                <p className="text-[10px] text-gray-400">Ingresa solo los números de tu celular para que puedan contactarte por WhatsApp.</p>
+              </div>
 
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">

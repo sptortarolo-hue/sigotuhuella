@@ -121,6 +121,10 @@ export default function Dashboard() {
     });
   }
 
+  const memberSince = user.created_at
+    ? new Date(user.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+    : '—';
+
   return (
     <div className="max-w-4xl mx-auto px-4 pb-20">
       {/* Header */}
@@ -287,15 +291,13 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3 p-2">
-            <PawPrint className="w-4 h-4 text-gray-400" />
-            <div>
-              <p className="text-xs text-gray-400">Miembro desde</p>
-              <p className="text-sm font-medium text-gray-800">
-                {latestPet ? formatDate(latestPet.created_at) : '—'}
-              </p>
-            </div>
-          </div>
+<div className="flex items-center gap-3 p-2">
+             <PawPrint className="w-4 h-4 text-gray-400" />
+             <div>
+               <p className="text-xs text-gray-400">Miembro desde</p>
+               <p className="text-sm font-medium text-gray-800">{memberSince}</p>
+             </div>
+           </div>
         </div>
       </motion.div>
 

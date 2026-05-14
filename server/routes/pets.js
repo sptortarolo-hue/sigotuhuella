@@ -101,16 +101,17 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (pet.created_by !== req.user.id && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Not authorized' });
     }
-    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'description', 'location', 'contact_info'];
-    const updates = [];
-    const values = [];
-    let idx = 1;
-    for (const field of fields) {
-      if (req.body[field] !== undefined) {
-        updates.push(`${field} = $${idx++}`);
-        values.push(req.body[field]);
-      }
-    }
+const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'description', 'location', 'contact_info'];
+     const updates = [];
+     const values = [];
+     let idx = 1;
+     for (const field of fields) {
+       const key = field === 'contact_info' ? 'contactInfo' : field;
+       if (req.body[key] !== undefined) {
+         updates.push(`${field} = $${idx++}`);
+         values.push(req.body[key]);
+       }
+     }
     if (req.body.latitude !== undefined && req.body.longitude !== undefined) {
       updates.push(`latitude = $${idx++}`);
       values.push(req.body.latitude);

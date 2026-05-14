@@ -6,6 +6,7 @@ export interface AuthUser {
   display_name: string;
   role: string;
   phone?: string;
+  created_at?: string;
 }
 
 interface AuthContextType {
