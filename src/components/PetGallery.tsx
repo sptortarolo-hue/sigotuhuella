@@ -20,13 +20,13 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
       setLoading(true);
       try {
         const data = await getPets();
-        const filtered = data.filter(p => {
-          if (type === 'lost') {
-            return p.status === PetStatus.LOST || p.status === PetStatus.FOUND;
-          } else {
-            return p.status === PetStatus.FOR_ADOPTION;
-          }
-        });
+const filtered = data.filter(p => {
+           if (type === 'lost') {
+             return p.status === PetStatus.LOST || p.status === PetStatus.RETAINED || p.status === PetStatus.SIGHTED || p.status === PetStatus.ACCIDENTED;
+           } else {
+             return p.status === PetStatus.FOR_ADOPTION;
+           }
+         });
         setPets(filtered);
       } catch (e) {
         console.error(e);
@@ -47,7 +47,7 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <header className="mb-12 text-center max-w-2xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-serif font-bold text-brand-primary mb-4">
-          {type === 'lost' ? 'Perdidos y Encontrados' : 'Mascotas en Adopción'}
+          {type === 'lost' ? 'Perdidos, Retenidos, Avistados y Accidentados' : 'Mascotas en Adopción'}
         </h1>
         <p className="text-gray-600 leading-relaxed">
           {type === 'lost' 

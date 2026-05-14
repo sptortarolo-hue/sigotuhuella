@@ -168,10 +168,10 @@ export default function Dashboard() {
             <div className="text-xs text-gray-500">Perdidos</div>
           </div>
           <div className="bg-brand-bg rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-emerald-600">
-              {pets.filter(p => p.status === 'found').length}
-            </div>
-            <div className="text-xs text-gray-500">Encontrados</div>
+<div className="text-2xl font-bold text-emerald-600">
+               {pets.filter(p => p.status === 'retained').length}
+             </div>
+             <div className="text-xs text-gray-500">Retenidos</div>
           </div>
           <div className="bg-brand-bg rounded-xl p-4 text-center">
             <div className="text-2xl font-bold text-amber-600">
@@ -223,7 +223,7 @@ export default function Dashboard() {
               <h4 className="text-sm font-bold text-brand-primary">{latestPet.name || 'Sin nombre'}</h4>
               <p className="text-xs text-gray-500">{latestPet.location}</p>
               <p className="text-xs text-gray-400">
-                {latestPet.status === 'lost' ? '🟢 Buscando' : '🔵 Encontrado'} · {formatDate(latestPet.created_at)}
+                {latestPet.status === 'lost' ? '🟢 Buscando' : latestPet.status === 'retained' ? '🔵 Retenido' : latestPet.status === 'sighted' ? '🟡 Avistado' : latestPet.status === 'accidented' ? '🟣 Accidentado' : '🟢 En Adopción'} · {formatDate(latestPet.created_at)}
               </p>
             </div>
           </div>

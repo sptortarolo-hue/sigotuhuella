@@ -106,13 +106,13 @@ export default function Home() {
                   <div className="relative pl-10 sm:pl-12">
                     <div className="absolute left-0 top-0 w-7 h-7 sm:w-8 sm:h-8 bg-brand-primary/10 text-brand-primary rounded-full flex items-center justify-center font-bold text-sm">1</div>
                     <h3 className="text-base sm:text-xl font-bold text-brand-primary mb-2">Primero</h3>
-                    <p className="text-sm text-gray-600 mb-3">Entrá a la sección Perros Encontrados para confirmar si alguien ya lo resguardó.</p>
+                    <p className="text-sm text-gray-600 mb-3">Entrá a la sección Mascotas Reportadas para confirmar si alguien ya lo resguardó.</p>
                     <Link
                       to="/perdidos"
                       className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-bg text-brand-primary border border-brand-accent rounded-xl font-bold hover:border-brand-primary transition-all text-xs sm:text-sm"
                     >
                       <Search className="w-3 h-3 sm:w-4 sm:h-4" />
-                      Ver Perros Encontrados
+                      Ver Mascotas Reportadas
                     </Link>
                   </div>
 

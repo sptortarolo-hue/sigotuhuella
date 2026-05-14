@@ -2,7 +2,9 @@ import { api } from './api';
 
 export enum PetStatus {
   LOST = 'lost',
-  FOUND = 'found',
+  RETAINED = 'retained',
+  SIGHTED = 'sighted',
+  ACCIDENTED = 'accidented',
   FOR_ADOPTION = 'for_adoption',
   ADOPTED = 'adopted',
   REUNITED = 'reunited',

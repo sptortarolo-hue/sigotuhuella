@@ -82,51 +82,68 @@ export default function ReportPet() {
     setPreviews(newPreviews);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (files.length === 0) {
-      setError('Debes subir al menos una imagen.');
-      return;
-    }
+const handleSubmit = async (e: React.FormEvent) => {
+     e.preventDefault();
+     setError('');
 
-    if (!formData.coordinates) {
-      setError('Por favor activa la ubicación en el mapa haciendo click donde fue visto.');
-      return;
-    }
+     if (files.length === 0) {
+       setError('Debes subir al menos una imagen.');
+       return;
+     }
 
-    setLoading(true);
-    setError('');
+     if (!formData.coordinates) {
+       setError('Por favor activa la ubicación en el mapa haciendo click donde fue visto.');
+       return;
+     }
 
-    try {
-      const images = await filesToBase64(files);
+     if (!formData.description.trim()) {
+       setError('La descripción es obligatoria.');
+       return;
+     }
 
-      const petData = {
-        name: formData.name || null,
-        species: formData.species,
-        breed: formData.breed || null,
-        color: formData.color || null,
-        status: formData.status,
-        gender: formData.gender,
-        description: formData.description,
-        location: formData.location,
-        latitude: formData.coordinates.lat,
-        longitude: formData.coordinates.lng,
-        contactInfo: formData.contactInfo,
-        images,
-      };
+     if (!formData.location.trim()) {
+       setError('La referencia de ubicación es obligatoria.');
+       return;
+     }
 
-      const createdPet = await createPet(petData);
+     if (!formData.contactInfo.trim()) {
+       setError('El número de contacto es obligatorio.');
+       return;
+     }
 
-      setPreviewPet(createdPet);
-      setSuccess(true);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (err: any) {
-      console.error(err);
-      setError('Hubo un error al publicar tu reporte. Por favor intenta de nuevo.');
-    } finally {
-      setLoading(false);
-    }
-  };
+     setLoading(true);
+     try {
+       const images = await filesToBase64(files);
+
+       const petData = {
+         name: formData.name || null,
+         species: formData.species,
+         breed: formData.breed || null,
+         color: formData.color || null,
+         status: formData.status,
+         gender: formData.gender,
+         description: formData.description,
+         location: formData.location,
+         latitude: formData.coordinates.lat,
+         longitude: formData.coordinates.lng,
+         contactInfo: formData.contactInfo,
+         images,
+       };
+
+       const createdPet = await createPet(petData);
+
+       setPreviewPet(createdPet);
+       setSuccess(true);
+       window.scrollTo({ top: 0, behavior: 'smooth' });
+     } catch (err: any) {
+       console.error(err);
+       setError(err.message?.includes('400') || err.message?.includes('401')
+         ? 'Error de autenticación. Recarga la página e intenta de nuevo.'
+         : 'Hubo un error al publicar tu reporte. Por favor intenta de nuevo.');
+     } finally {
+       setLoading(false);
+     }
+   };
 
   const handleGenerateFlyer = async () => {
     if (!previewPet) return;
@@ -137,22 +154,23 @@ export default function ReportPet() {
     }, 1500);
   };
 
-  const getWhatsAppMessage = () => {
-    if (!previewPet) return '';
-    const statusEmoji = previewPet.status === 'lost' ? '🚨 BUSCADO 🚨' : '✅ ENCONTRADO ✅';
-    return `¡DIFUNDIR POR FAVOR! 🙏
+const getWhatsAppMessage = () => {
+     if (!previewPet) return '';
+const statusEmoji = previewPet.status === 'lost' ? '🚨 BUSCADO 🚨' : previewPet.status === 'retained' ? '🏠 RETENIDO 🏠' : previewPet.status === 'sighted' ? '👀 AVISTADO 👀' : '⚠️ ACCIDENTADO ⚠️';
+      const speciesLabel = previewPet.species === 'dog' ? 'Perro' : previewPet.species === 'cat' ? 'Gato' : 'Otro';
+     return `¡DIFUNDIR POR FAVOR! 🙏
 
-${statusEmoji} en Sicardi/Garibaldi
+ ${statusEmoji} en Sicardi/Garibaldi
 
-🐾 ${previewPet.name ? `Nombre: ${previewPet.name}` : 'Mascota sin identificar'}
-📍 Visto en: ${previewPet.location}
-🔎 Especie: ${previewPet.species === 'dog' ? 'Perro' : 'Gato'}
-🎨 Color/Detalles: ${previewPet.description}
-📞 Contacto: ${previewPet.contact_info || previewPet.contactInfo}
+ 🐾 ${previewPet.name ? `Nombre: ${previewPet.name}` : 'Mascota sin identificar'}
+ 📍 Visto en: ${previewPet.location}
+ 🔎 Especie: ${speciesLabel}
+ 🎨 Color/Detalles: ${previewPet.description || 'Sin detalles'}
+ 📞 Contacto: ${previewPet.contact_info || previewPet.contactInfo || 'No disponible'}
 
-🐾 Sigo Tu Huella — Red Vecinal
-${window.location.origin}/perdidos
-${window.location.origin}/sigotuhuella.jpg`;
+ 🐾 Sigo Tu Huella — Red Vecinal
+ ${window.location.origin}/perdidos
+ ${window.location.origin}/sigotuhuella.jpg`;
   };
 
   const shareOnWhatsApp = () => {
@@ -362,27 +380,29 @@ ${window.location.origin}/sigotuhuella.jpg`;
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre (si lo tiene)</label>
-                  <input
-                    type="text"
-                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                    placeholder="Eje: Firulais"
-                    value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  />
-                </div>
+<input
+                     type="text"
+                     className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+                     placeholder="Eje: Firulais"
+                     value={formData.name}
+                     onChange={e => setFormData({ ...formData, name: e.target.value })}
+                   />
+                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Estado *</label>
-                  <select
-                    required
-                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
-                    value={formData.status}
-                    onChange={e => setFormData({ ...formData, status: e.target.value as PetStatus })}
-                  >
-                    <option value={PetStatus.LOST}>Se perdió</option>
-                    <option value={PetStatus.FOUND}>La encontré</option>
-                  </select>
-                </div>
+                 <div className="space-y-2">
+                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Estado *</label>
+                   <select
+                     required
+                     className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
+                     value={formData.status}
+                     onChange={e => setFormData({ ...formData, status: e.target.value as PetStatus })}
+                   >
+                     <option value={PetStatus.LOST}>Se perdió</option>
+                     <option value={PetStatus.RETAINED}>Está retenido</option>
+                     <option value={PetStatus.SIGHTED}>Fue avistado</option>
+                     <option value={PetStatus.ACCIDENTED}>Está accidentado</option>
+                   </select>
+                 </div>
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Especie *</label>
@@ -457,19 +477,18 @@ ${window.location.origin}/sigotuhuella.jpg`;
                   <Phone className="w-3 h-3" />
                   Contacto (WhatsApp / Teléfono) *
                 </label>
-                <input
-                  required
-                  type="tel"
-                  pattern="[0-9]*"
-                  onInput={(e) => {
-                    const val = e.currentTarget.value.replace(/\D/g, '');
-                    e.currentTarget.value = val;
-                    setFormData({ ...formData, contactInfo: val });
-                  }}
-                  placeholder="Eje: 2211234567 (Solo números)"
-                  className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                  value={formData.contactInfo}
-                />
+<input
+                   required
+                   type="text"
+                   inputMode="numeric"
+                   pattern="[0-9]*"
+                   onChange={(e) => {
+                     setFormData({ ...formData, contactInfo: e.target.value.replace(/\D/g, '') });
+                   }}
+                   placeholder="Eje: 2211234567 (Solo números)"
+                   className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+                   value={formData.contactInfo}
+                 />
                 <p className="text-[10px] text-gray-400">Ingresa solo los números de tu celular para que puedan contactarte por WhatsApp.</p>
               </div>
 
