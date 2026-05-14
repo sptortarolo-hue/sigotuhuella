@@ -32,14 +32,14 @@ export default function Navbar() {
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
-  const navItems = [
-    { name: 'Inicio', path: '/', icon: PawPrint },
-    { name: 'Perdidos', path: '/perdidos', icon: Search },
-    { name: 'Adopción', path: '/adopcion', icon: Heart },
-    { name: 'Colaborar', path: '/colaborar', icon: HandCoins },
-    { name: 'Sumate', path: '/sumate', icon: Users },
-    { name: 'Publicar', path: '/reportar', icon: PlusCircle },
-  ];
+const navItems = [
+     { name: 'Inicio', path: '/', icon: PawPrint },
+     { name: 'Mascotas Reportadas', path: '/perdidos', icon: Search },
+     { name: 'Adopción', path: '/adopcion', icon: Heart },
+     { name: 'Colaborar', path: '/colaborar', icon: HandCoins },
+     { name: 'Sumate', path: '/sumate', icon: Users },
+     { name: 'Publicar', path: '/reportar', icon: PlusCircle },
+   ];
 
   const handleLogout = () => {
     logout();

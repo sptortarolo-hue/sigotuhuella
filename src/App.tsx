@@ -79,7 +79,7 @@ export default function App() {
               <div>
                 <h4 className="font-bold text-gray-800 mb-4 uppercase text-xs tracking-widest">Navegación</h4>
                 <ul className="space-y-2 text-gray-600 text-sm">
-                  <li><Link to="/perdidos" className="hover:text-brand-primary">Perdidos</Link></li>
+                  <li><Link to="/perdidos" className="hover:text-brand-primary">Mascotas Reportadas</Link></li>
                   <li><Link to="/adopcion" className="hover:text-brand-primary">Adopción</Link></li>
                   <li><Link to="/reportar" className="hover:text-brand-primary">Publicar</Link></li>
                 </ul>
