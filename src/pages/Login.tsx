@@ -34,7 +34,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         const data = await api.auth.login(email, password);
         login(data.token, data.user);
       }
-      navigate('/admin');
+      navigate('/');
     } catch (err: any) {
       setError(err.message || 'Error al procesar la solicitud');
     } finally {

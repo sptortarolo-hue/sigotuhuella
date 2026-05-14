@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { Loader2, AlertCircle, LogIn, UserPlus, Mail, Lock, User, Eye, EyeOff, Phone as PhoneIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -13,6 +14,7 @@ interface AuthGateProps {
 
 export default function AuthGate({ title, description, icon, onSuccess }: AuthGateProps) {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<'login' | 'register' | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -61,6 +63,7 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
     try {
       const res = await api.auth.register(regEmail, regPassword, regName, regPhone);
       login(res.token, res.user);
+      navigate('/');
       onSuccess?.();
     } catch (err: any) {
       setError(err.message || 'Error al registrarse');
