@@ -15,10 +15,11 @@ import { getNews, createNews, updateNews, deleteNews, News, getNewsImageUrl } fr
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import PetCard from '@/src/components/PetCard';
+import SocialShareModal from '@/src/components/SocialShareModal';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart
+  Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -317,6 +318,7 @@ export default function Admin() {
 
   // Datos para Noticias Destacadas
   const highlightedPets = pets.filter(p => p.status === PetStatus.REUNITED);
+  const [sharePet, setSharePet] = useState<Pet | null>(null);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -386,6 +388,14 @@ export default function Admin() {
                     >
                       <HeartHandshake className="w-4 h-4" />
                       Hubo reencuentro
+                    </button>
+                    {/* Botón Redes Sociales */}
+                    <button
+                      onClick={() => setSharePet(pet)}
+                      className="mt-2 w-full py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      Redes Sociales
                     </button>
                   </div>
                 ))}
@@ -846,6 +856,10 @@ export default function Admin() {
               </form>
             </motion.div>
           </div>
+        )}
+
+        {sharePet && (
+          <SocialShareModal pet={sharePet} onClose={() => setSharePet(null)} />
         )}
       </AnimatePresence>
     </div>
