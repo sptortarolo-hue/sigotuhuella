@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { dirname, join } from 'path';
+import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import pool, { initDb } from './db.js';
 import { hashPassword } from './auth.js';
@@ -24,6 +25,51 @@ app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/news', newsRoutes);
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+const indexHtml = readFileSync(join(__dirname, '..', 'dist', 'index.html'), 'utf-8');
+
+app.get('/pet/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.name, p.description, p.location, p.status, p.species,
+        (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
+        (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
+      FROM pets p WHERE p.id = $1`,
+      [req.params.id]
+    );
+    const pet = result.rows[0];
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    let title = 'Mascota - Sigo Tu Huella';
+    let description = 'Publicación en Sigo Tu Huella - Red Vecinal';
+    let image = `${baseUrl}/sigotuhuella.jpg`;
+    if (pet) {
+      const statusLabels = { lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado', accidented: 'Accidentado', for_adoption: 'En Adopción', adopted: 'Adoptado', reunited: 'Reencuentro' };
+      title = `${pet.name || 'Mascota sin identificar'} - ${statusLabels[pet.status] || 'Reporte'} | Sigo Tu Huella`;
+      description = `${pet.location} | ${pet.description ? pet.description.substring(0, 150) : 'Ver más información en Sigo Tu Huella'}`;
+      if (pet.image_data && pet.mime_type) {
+        image = `${baseUrl}/api/pets/${req.params.id}/image/0`;
+      }
+    }
+    const ogHtml = indexHtml.replace(
+      '</head>',
+      `<meta property="og:title" content="${escapeHtml(title)}" />
+<meta property="og:description" content="${escapeHtml(description)}" />
+<meta property="og:image" content="${escapeHtml(image)}" />
+<meta property="og:url" content="${baseUrl}/pet/${req.params.id}" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+</head>`
+    );
+    res.send(ogHtml);
+  } catch (err) {
+    console.error('OG error:', err);
+    res.send(indexHtml);
+  }
+});
 
 app.get('*', (_req, res) => {
   res.sendFile(join(__dirname, '..', 'dist', 'index.html'));
