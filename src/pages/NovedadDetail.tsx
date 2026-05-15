@@ -1,9 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { News, getNews, getNewsImageUrl, formatNewsDate } from '@/src/lib/newsService';
-import { Sparkles, ArrowLeft, Calendar, Loader2, Info } from 'lucide-react';
+import { Sparkles, ArrowLeft, Calendar, Loader2, Info, Play } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+
+function getVideoEmbedUrl(url: string): string | null {
+  if (!url) return null;
+  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+  if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=0`;
+  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+  if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+  return null;
+}
+
+function isDirectVideo(url: string): boolean {
+  return /\.(mp4|webm|ogg)(\?|$)/i.test(url);
+}
 
 export default function NovedadDetail() {
   const { id } = useParams();
@@ -77,6 +90,35 @@ export default function NovedadDetail() {
         {imageUrl && (
           <div className="relative aspect-video rounded-[2.5rem] overflow-hidden mb-10 shadow-xl">
             <img src={imageUrl} alt={item.title} className="w-full h-full object-cover" />
+          </div>
+        )}
+
+        {item.video_url && (
+          <div className="relative aspect-video rounded-[2.5rem] overflow-hidden mb-10 shadow-xl bg-black">
+            {isDirectVideo(item.video_url) ? (
+              <video controls className="w-full h-full" src={item.video_url} />
+            ) : (() => {
+              const embedUrl = getVideoEmbedUrl(item.video_url);
+              return embedUrl ? (
+                <iframe
+                  src={embedUrl}
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="Video"
+                />
+              ) : (
+                <a
+                  href={item.video_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full h-full flex items-center justify-center gap-3 text-white bg-gray-900 hover:bg-gray-800 transition-colors"
+                >
+                  <Play className="w-10 h-10" />
+                  <span className="text-lg font-bold">Ver video</span>
+                </a>
+              );
+            })()}
           </div>
         )}
 

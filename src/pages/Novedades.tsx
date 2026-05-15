@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { News, getNews, getNewsImageUrl, formatNewsDate } from '@/src/lib/newsService';
-import { Sparkles, Loader2, ArrowLeft, Calendar, HeartHandshake, Home } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft, Calendar, HeartHandshake, Home, Play } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
@@ -54,7 +54,16 @@ export default function Novedades() {
               >
                 <div className="relative aspect-video overflow-hidden bg-gray-100">
                   {imageUrl ? (
-                    <img src={imageUrl} alt={item.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                    <>
+                      <img src={imageUrl} alt={item.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                      {item.video_url && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <div className="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
+                            <Play className="w-6 h-6 text-brand-primary ml-0.5" />
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-brand-primary/10 to-brand-secondary/10">
                       {item.type === 'reunited' ? (
