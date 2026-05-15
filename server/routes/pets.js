@@ -1,6 +1,51 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin } from '../auth.js';
+import sharp from 'sharp';
+
+async function createCollage(images) {
+  const imgs = images.slice(0, 3);
+  const buffers = imgs.map(img => Buffer.from(img.image_data, 'base64'));
+
+  if (imgs.length === 2) {
+    const resized = await Promise.all(
+      buffers.map(buf => sharp(buf).resize(400, 400, { fit: 'cover' }).toBuffer())
+    );
+    const collage = await sharp({
+      create: { width: 800, height: 400, channels: 3, background: { r: 240, g: 240, b: 240 } }
+    })
+    .composite([
+      { input: resized[0], top: 0, left: 0 },
+      { input: resized[1], top: 0, left: 400 },
+    ])
+    .jpeg({ quality: 85 })
+    .toBuffer();
+    return { data: collage.toString('base64'), mimeType: 'image/jpeg' };
+  }
+
+  if (imgs.length >= 3) {
+    const resized = await Promise.all(
+      buffers.map(buf => sharp(buf).resize(300, 300, { fit: 'cover' }).toBuffer())
+    );
+    const collage = await sharp({
+      create: { width: 600, height: 600, channels: 3, background: { r: 240, g: 240, b: 240 } }
+    })
+    .composite([
+      { input: resized[0], top: 0, left: 0 },
+      { input: resized[1], top: 0, left: 300 },
+      { input: resized[2], top: 300, left: 150 },
+    ])
+    .jpeg({ quality: 85 })
+    .toBuffer();
+    return { data: collage.toString('base64'), mimeType: 'image/jpeg' };
+  }
+
+  if (imgs.length === 1) {
+    return { data: imgs[0].image_data, mimeType: imgs[0].mime_type };
+  }
+
+  return { data: null, mimeType: null };
+}
 
 function generateCelebrationText(pet, type) {
   const name = pet.name || 'una mascota';
@@ -34,11 +79,25 @@ async function autoCreateNews(pet, newsType) {
       ? `¡${pet.name || 'Una mascota'} fue reencontrada! 🎉`
       : `¡${pet.name || 'Una mascota'} fue adoptada! 🏡`;
     const content = generateCelebrationText(pet, newsType);
-    await pool.query(
-      `INSERT INTO news (title, content, type, related_pet_id, created_by)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [title, content, newsType, pet.id, pet.created_by]
+    // Fetch pet images for news image
+    const imagesResult = await pool.query(
+      'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 3',
+      [pet.id]
     );
+    const { data: imageData, mimeType } = await createCollage(imagesResult.rows);
+    if (imageData && mimeType) {
+      await pool.query(
+        `INSERT INTO news (title, content, image_data, mime_type, type, related_pet_id, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [title, content, imageData, mimeType, newsType, pet.id, pet.created_by]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO news (title, content, type, related_pet_id, created_by)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [title, content, newsType, pet.id, pet.created_by]
+      );
+    }
   } catch (err) {
     console.error('Auto-create news error:', err);
   }
