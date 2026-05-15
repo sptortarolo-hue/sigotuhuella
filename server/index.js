@@ -17,6 +17,28 @@ const PORT = process.env.PORT || 3000;
 const app = express();
 
 app.use(express.json({ limit: '50mb' }));
+
+// Serve pet images for OG preview (before static middleware to avoid conflicts)
+app.get('/og-image/:petId/:index', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2',
+      [req.params.petId, parseInt(req.params.index) || 0]
+    );
+    if (result.rows.length === 0) return res.status(404).end();
+    const img = result.rows[0];
+    const buffer = Buffer.from(img.image_data, 'base64');
+    res.set('Content-Type', img.mime_type);
+    res.set('Content-Length', buffer.length);
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.end(buffer);
+  } catch (err) {
+    console.error('OG image error:', err);
+    res.status(500).end();
+  }
+});
+
 app.use(express.static(join(__dirname, '..', 'dist')));
 
 app.use('/api/auth', authRoutes);
@@ -46,15 +68,13 @@ app.get('/pet/:id', async (req, res) => {
     const baseUrl = `${protocol}://${req.get('host')}`;
     let title = 'Mascota - Sigo Tu Huella';
     let description = 'Publicación en Sigo Tu Huella - Red Vecinal';
-    let image = '';
-    let hasImage = false;
+    let image = `${baseUrl}/sigotuhuella.jpg`;
     if (pet) {
       const statusLabels = { lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado', accidented: 'Accidentado', for_adoption: 'En Adopción', adopted: 'Adoptado', reunited: 'Reencuentro' };
       title = `${pet.name || 'Mascota sin identificar'} - ${statusLabels[pet.status] || 'Reporte'} | Sigo Tu Huella`;
       description = `${pet.location} | ${pet.description ? pet.description.substring(0, 160) : 'Ver más información en Sigo Tu Huella'}`;
       if (pet.image_data && pet.mime_type) {
-        image = `${baseUrl}/api/pets/${req.params.id}/image/0`;
-        hasImage = true;
+        image = `${baseUrl}/og-image/${req.params.id}/0`;
       }
     }
     const ogTags = `<meta property="og:title" content="${escapeHtml(title)}" />
@@ -62,13 +82,13 @@ app.get('/pet/:id', async (req, res) => {
 <meta property="og:url" content="${baseUrl}/pet/${req.params.id}" />
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="es_AR" />
-${hasImage ? `<meta property="og:image" content="${escapeHtml(image)}" />
+<meta property="og:image" content="${escapeHtml(image)}" />
 <meta property="og:image:secure_url" content="${escapeHtml(image)}" />
-<meta property="og:image:type" content="${escapeHtml(pet.mime_type)}" />
+${pet && pet.mime_type ? `<meta property="og:image:type" content="${escapeHtml(pet.mime_type)}" />` : ''}
 <meta property="og:image:width" content="800" />
-<meta property="og:image:height" content="600" />` : ''}
+<meta property="og:image:height" content="600" />
 <meta name="twitter:card" content="summary_large_image" />
-${hasImage ? `<meta name="twitter:image" content="${escapeHtml(image)}" />` : ''}
+<meta name="twitter:image" content="${escapeHtml(image)}" />
 </head>`;
     res.send(indexHtml.replace('</head>', ogTags));
   } catch (err) {
