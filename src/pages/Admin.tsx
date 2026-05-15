@@ -62,7 +62,8 @@ export default function Admin() {
     alias: '',
     cbu: '',
     cvu: '',
-    displayOrder: 0
+    displayOrder: 0,
+    mercadopagoLink: '',
   });
 
   // Volunteers State
@@ -296,7 +297,7 @@ export default function Admin() {
       }
       setShowCollabForm(false);
       setEditingAccount(null);
-      setCollabData({ title: '', description: '', bankName: '', alias: '', cbu: '', cvu: '', displayOrder: accounts.length });
+      setCollabData({ title: '', description: '', bankName: '', alias: '', cbu: '', cvu: '', displayOrder: accounts.length, mercadopagoLink: '' });
       fetchAccounts();
     } catch (e) { console.error(e); alert('Error al guardar'); }
     finally { setFormLoading(false); }
@@ -533,7 +534,7 @@ export default function Admin() {
             <div className="space-y-6">
               <div className="flex justify-end">
                 <button
-                  onClick={() => { setEditingAccount(null); setCollabData({ title: '', description: '', bankName: '', alias: '', cbu: '', cvu: '', displayOrder: accounts.length }); setShowCollabForm(true); }}
+                  onClick={() => { setEditingAccount(null); setCollabData({ title: '', description: '', bankName: '', alias: '', cbu: '', cvu: '', displayOrder: accounts.length, mercadopagoLink: '' }); setShowCollabForm(true); }}
                   className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:shadow-lg transition-all"
                 >
                   <Plus className="w-5 h-5" /> Nueva Cuenta
@@ -560,7 +561,7 @@ export default function Admin() {
                           {acc.cvu && <div>CVU: {acc.cvu}</div>}
                         </td>
                         <td className="px-6 py-4 text-right space-x-2">
-                          <button onClick={() => { setEditingAccount(acc); setCollabData({ title: acc.title, description: acc.description || '', bankName: acc.bank_name, alias: acc.alias || '', cbu: acc.cbu || '', cvu: acc.cvu || '', displayOrder: acc.display_order }); setShowCollabForm(true); }} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
+                          <button onClick={() => { setEditingAccount(acc); setCollabData({ title: acc.title, description: acc.description || '', bankName: acc.bank_name, alias: acc.alias || '', cbu: acc.cbu || '', cvu: acc.cvu || '', displayOrder: acc.display_order, mercadopagoLink: acc.mercadopago_link || '' }); setShowCollabForm(true); }} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
                           <button onClick={() => handleDeleteCollab(acc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                         </td>
                       </tr>
@@ -799,6 +800,11 @@ export default function Admin() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label className="text-xs font-bold uppercase text-gray-500">CBU</label><input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.cbu} onChange={e => setCollabData({...collabData, cbu: e.target.value})} /></div>
                   <div><label className="text-xs font-bold uppercase text-gray-500">CVU</label><input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.cvu} onChange={e => setCollabData({...collabData, cvu: e.target.value})} /></div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Link de Mercado Pago (opcional)</label>
+                  <input type="url" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.mercadopagoLink} onChange={e => setCollabData({...collabData, mercadopagoLink: e.target.value})} placeholder="https://mpago.la/..." />
+                  <p className="text-[10px] text-gray-400 mt-1">Creá un Link de Pago en tu cuenta de Mercado Pago y pegalo acá. Aparecerá un botón de "Donar con Mercado Pago" en la página Colaborar.</p>
                 </div>
                 <button type="submit" disabled={formLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">{formLoading ? <Loader2 className="animate-spin" /> : 'Guardar Datos'}</button>
               </form>

@@ -9,6 +9,7 @@ export interface CollaborationAccount {
   cbu: string | null;
   cvu: string | null;
   display_order: number;
+  mercadopago_link: string | null;
 }
 
 export interface VolunteerRequest {

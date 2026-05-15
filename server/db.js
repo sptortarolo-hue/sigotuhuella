@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS collaboration_accounts (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+ALTER TABLE collaboration_accounts ADD COLUMN IF NOT EXISTS mercadopago_link VARCHAR(500);
+
 CREATE TABLE IF NOT EXISTS volunteer_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   full_name VARCHAR(255) NOT NULL,
