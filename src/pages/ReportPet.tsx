@@ -463,8 +463,14 @@ const statusEmoji = previewPet.status === 'lost' ? '🚨 BUSCADO 🚨' : preview
                           { headers: { 'User-Agent': 'SigoTuHuella/1.0' } }
                         );
                         const data = await res.json();
-                        if (data?.display_name) {
-                          setFormData(prev => ({ ...prev, location: data.display_name }));
+                        if (data?.address) {
+                          const parts: string[] = [];
+                          if (data.address.road) parts.push(data.address.road);
+                          if (data.address.house_number) parts.push(data.address.house_number);
+                          const street = parts.join(' ');
+                          if (street) {
+                            setFormData(prev => ({ ...prev, location: street }));
+                          }
                         }
                       } catch (e) {
                         console.error('Error al obtener dirección:', e);
