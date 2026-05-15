@@ -149,6 +149,21 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+router.get('/:id/image/:index', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2',
+      [req.params.id, parseInt(req.params.index) || 0]
+    );
+    if (result.rows.length === 0) return res.status(404).end();
+    const img = result.rows[0];
+    res.set('Content-Type', img.mime_type);
+    res.send(Buffer.from(img.image_data, 'base64'));
+  } catch (err) {
+    res.status(500).end();
+  }
+});
+
 router.post('/', requireAuth, async (req, res) => {
   const { name, species, breed, color, status, gender, age, size, isVaccinated, isSterilized, description, location, latitude, longitude, contactInfo, images } = req.body;
   if (!species || !status || !location) {

@@ -17,6 +17,7 @@ interface PetCardProps {
 function getWhatsAppMessage(pet: Pet): string {
   const statusEmoji = pet.status === PetStatus.LOST ? '🚨 BUSCADO 🚨' : pet.status === PetStatus.RETAINED ? '🏠 RETENIDO 🏠' : pet.status === PetStatus.SIGHTED ? '👀 AVISTADO 👀' : pet.status === PetStatus.ACCIDENTED ? '⚠️ ACCIDENTADO ⚠️' : '🐾 EN ADOPCIÓN 🐾';
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const petImageUrl = pet.images?.[0] ? `${origin}/api/pets/${pet.id}/image/0` : null;
   return `¡DIFUNDIR POR FAVOR! 🙏
 
 ${statusEmoji} en Sicardi/Garibaldi
@@ -26,10 +27,9 @@ ${statusEmoji} en Sicardi/Garibaldi
 🔎 Especie: ${pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otra'}
 📞 Contacto: ${pet.contact_info || 'No disponible'}
 📝 ${pet.description || ''}
-
-🐾 Sigo Tu Huella — Red Vecinal
-${origin}/perdidos
-${origin}/sigotuhuella.jpg`;
+🔗 ${origin}/pet/${pet.id}
+${petImageUrl || ''}`;
+}
 }
 
 function shareOnWhatsApp(pet: Pet) {
