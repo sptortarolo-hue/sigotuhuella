@@ -39,7 +39,7 @@ const navItems = [
      { name: 'Adopción', path: '/adopcion', icon: Heart },
      { name: 'Colaborar', path: '/colaborar', icon: HandCoins },
      { name: 'Sumate', path: '/sumate', icon: Users },
-     { name: 'Publicar', path: '/reportar', icon: PlusCircle },
+      { name: 'Reportar', path: '/reportar', icon: PlusCircle },
    ];
 
   const handleLogout = () => {
