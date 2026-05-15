@@ -67,7 +67,7 @@ export default function Join() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
             >
-              <h1 className="text-5xl font-serif font-bold text-brand-primary mb-6">Sumate a la red de vecinos</h1>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-brand-primary mb-6">Sumate a la red de vecinos</h1>
               <p className="text-xl text-gray-600 leading-relaxed mb-8">
                 Buscamos personas comprometidas que quieran ayudar en los barrios de Villa Garibaldi, Parque Sicardi e Ignacio Correas.
               </p>
@@ -103,7 +103,7 @@ export default function Join() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center"
+            className="bg-white p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center"
           >
             <div className="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle2 className="w-12 h-12" />

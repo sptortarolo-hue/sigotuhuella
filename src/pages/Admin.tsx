@@ -326,7 +326,7 @@ export default function Admin() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              "flex items-center gap-2 px-6 py-4 font-bold transition-all relative",
+              "flex items-center gap-2 px-3 md:px-6 py-2 md:py-4 font-bold transition-all relative",
               activeTab === tab.id ? "text-brand-primary" : "text-gray-400 hover:text-gray-600"
             )}
           >
@@ -382,37 +382,7 @@ export default function Admin() {
           {/* ====== NOTICIAS DESTACADAS ====== */}
           {activeTab === 'highlights' && (
             <>
-              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden">
-                <table className="w-full text-left min-w-max">
-                  <thead>
-                    <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
-                      <th className="px-6 py-4">Nombre</th>
-                      <th className="px-6 py-4">Ubicación</th>
-                      <th className="px-6 py-4">Contacto</th>
-                      <th className="px-6 py-4">Fecha</th>
-                      <th className="px-6 py-4 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-brand-accent">
-                    {highlightedPets.map(pet => (
-                      <tr key={pet.id} className="hover:bg-brand-bg/50 transition-colors">
-                        <td className="px-6 py-4 font-bold text-brand-primary">{pet.name || 'Sin nombre'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{pet.location}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{pet.contact_info || '-'}</td>
-                        <td className="px-6 py-4 text-xs text-gray-400">{new Date(pet.created_at).toLocaleDateString()}</td>
-                        <td className="px-6 py-4 text-right space-x-2">
-                          <button
-                            onClick={() => { editPet(pet); setActiveTab('pets' as any); }}
-                            className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors"
-                            title="Editar"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-x-auto">
                 {highlightedPets.length === 0 && (
                   <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
                     <p className="text-gray-400 font-medium">No hay noticias destacadas aún. Marca mascotas como "Hubo reencuentro" desde la pestaña Mascotas.</p>
@@ -433,7 +403,7 @@ export default function Admin() {
                   <Plus className="w-5 h-5" /> Nueva Novedad
                 </button>
               </div>
-              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden">
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-x-auto">
                 <table className="w-full text-left min-w-max">
                   <thead>
                     <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
@@ -446,7 +416,7 @@ export default function Admin() {
                   <tbody className="divide-y divide-brand-accent">
                     {newsList.map(item => (
                       <tr key={item.id} className="hover:bg-brand-bg/50 transition-colors">
-                        <td className="px-6 py-4 font-bold text-brand-primary max-w-xs truncate">{item.title}</td>
+                        <td className="px-6 py-4 font-bold text-brand-primary max-w-[200px] min-w-[120px]">{item.title}</td>
                         <td className="px-6 py-4">
                           <span className={cn(
                             "text-[10px] px-2 py-1 rounded-full font-bold uppercase",
@@ -487,34 +457,7 @@ export default function Admin() {
                   <Plus className="w-5 h-5" /> Nueva Cuenta
                 </button>
               </div>
-              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
-                      <th className="px-6 py-4">Título</th>
-                      <th className="px-6 py-4">Banco</th>
-                      <th className="px-6 py-4">Datos</th>
-                      <th className="px-6 py-4 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-brand-accent">
-                    {accounts.map(acc => (
-                      <tr key={acc.id} className="hover:bg-brand-bg/50 transition-colors">
-                        <td className="px-6 py-4 font-bold text-brand-primary">{acc.title}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{acc.bank_name}</td>
-                        <td className="px-6 py-4 text-xs font-mono text-gray-500">
-                          {acc.alias && <div>Alias: {acc.alias}</div>}
-                          {acc.cbu && <div>CBU: {acc.cbu}</div>}
-                          {acc.cvu && <div>CVU: {acc.cvu}</div>}
-                        </td>
-                        <td className="px-6 py-4 text-right space-x-2">
-                          <button onClick={() => { setEditingAccount(acc); setCollabData({ title: acc.title, description: acc.description || '', bankName: acc.bank_name, alias: acc.alias || '', cbu: acc.cbu || '', cvu: acc.cvu || '', displayOrder: acc.display_order }); setShowCollabForm(true); }} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
-                          <button onClick={() => handleDeleteCollab(acc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-x-auto">
               </div>
             </div>
           )}
@@ -712,11 +655,11 @@ export default function Admin() {
               <form onSubmit={handleCollabSubmit} className="p-8 space-y-4">
                 <div><label className="text-xs font-bold uppercase text-gray-500">Título</label><input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.title} onChange={e => setCollabData({...collabData, title: e.target.value})} /></div>
                 <div><label className="text-xs font-bold uppercase text-gray-500">Descripción</label><textarea rows={2} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.description} onChange={e => setCollabData({...collabData, description: e.target.value})} /></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label className="text-xs font-bold uppercase text-gray-500">Banco</label><input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.bankName} onChange={e => setCollabData({...collabData, bankName: e.target.value})} /></div>
                   <div><label className="text-xs font-bold uppercase text-gray-500">Alias</label><input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.alias} onChange={e => setCollabData({...collabData, alias: e.target.value})} /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label className="text-xs font-bold uppercase text-gray-500">CBU</label><input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.cbu} onChange={e => setCollabData({...collabData, cbu: e.target.value})} /></div>
                   <div><label className="text-xs font-bold uppercase text-gray-500">CVU</label><input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.cvu} onChange={e => setCollabData({...collabData, cvu: e.target.value})} /></div>
                 </div>

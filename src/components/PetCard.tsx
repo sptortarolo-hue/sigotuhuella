@@ -118,7 +118,7 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
         <div className="space-y-3 mb-6">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <MapPin className="w-4 h-4 text-brand-secondary" />
-            <span>{pet.location}</span>
+            <span className="break-words">{pet.location}</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Calendar className="w-4 h-4 text-brand-secondary" />

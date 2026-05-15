@@ -35,7 +35,7 @@ export default function Collaborate() {
         <div className="inline-flex p-3 bg-red-100 text-red-600 rounded-2xl mb-6">
           <Heart className="w-8 h-8 fill-current" />
         </div>
-        <h1 className="text-5xl font-serif font-bold text-brand-primary mb-6 tracking-tight">Colaborar con el rescate</h1>
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-brand-primary mb-6 tracking-tight">Colaborar con el rescate</h1>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
           Tu ayuda económica es fundamental para sostener nuestra labor. Todo lo recaudado se destina a asistencia veterinaria, pensionado, manutención y compra de alimento.
         </p>
@@ -75,7 +75,7 @@ export default function Collaborate() {
                         {account.alias ? 'Alias' : account.cbu ? 'CBU' : 'CVU'}
                       </span>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-lg font-mono font-bold text-brand-dark truncate">
+                        <span className="text-lg font-mono font-bold text-brand-dark break-all">
                           {account.alias || account.cbu || account.cvu}
                         </span>
                         <button 

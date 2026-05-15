@@ -27,7 +27,7 @@ const createCustomIcon = (status: string) => {
 
 export default function PetMap({ pets, center }: PetMapProps) {
   return (
-    <div className="w-full h-[600px] rounded-[2.5rem] overflow-hidden border border-brand-accent shadow-xl relative z-0">
+    <div className="w-full h-[400px] md:h-[600px] rounded-[2.5rem] overflow-hidden border border-brand-accent shadow-xl relative z-0">
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={13}

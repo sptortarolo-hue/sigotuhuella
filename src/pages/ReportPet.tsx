@@ -211,7 +211,7 @@ const statusEmoji = previewPet.status === 'lost' ? '🚨 BUSCADO 🚨' : preview
             animate={{ opacity: 1, y: 0 }}
             className="space-y-8"
           >
-            <div className="bg-white p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center">
+            <div className="bg-white p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center">
               <CheckCircle2 className="w-20 h-20 text-green-500 mx-auto mb-6" />
               <h1 className="text-4xl font-serif font-bold text-brand-primary mb-4">¡Publicado con éxito!</h1>
               <p className="text-gray-500 mb-8">Tu reporte ya es visible para toda la comunidad de Sicardi y Garibaldi.</p>
