@@ -16,7 +16,7 @@ export default function Novedades() {
         const data = await getNews();
         setNews(data);
       } catch (e) { console.error(e); }
-      finally { setLoading(false); }
+      finally { setLoading(false); window.scrollTo(0, 0); }
     };
     fetch();
   }, []);

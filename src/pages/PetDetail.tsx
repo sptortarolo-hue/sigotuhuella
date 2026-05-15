@@ -23,6 +23,7 @@ export default function PetDetail() {
         console.error(e);
       } finally {
         setLoading(false);
+        window.scrollTo(0, 0);
       }
     };
     fetchPet();

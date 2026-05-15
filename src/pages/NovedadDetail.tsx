@@ -19,6 +19,7 @@ export default function NovedadDetail() {
         const found = all.find(n => n.id === id) || null;
         setItem(found);
         setRelated(all.filter(n => n.id !== id).slice(0, 3));
+        window.scrollTo(0, 0);
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
     };
