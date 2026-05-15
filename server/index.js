@@ -9,6 +9,7 @@ import petRoutes from './routes/pets.js';
 import collaborationRoutes from './routes/collaboration.js';
 import volunteerRoutes from './routes/volunteers.js';
 import userRoutes from './routes/users.js';
+import newsRoutes from './routes/news.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -22,6 +23,7 @@ app.use('/api/pets', petRoutes);
 app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/news', newsRoutes);
 
 app.get('*', (_req, res) => {
   res.sendFile(join(__dirname, '..', 'dist', 'index.html'));

@@ -68,6 +68,20 @@ CREATE TABLE IF NOT EXISTS pet_images (
   mime_type VARCHAR(50) NOT NULL,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS news (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  image_data TEXT,
+  mime_type VARCHAR(50),
+  video_url TEXT,
+  type VARCHAR(20) NOT NULL DEFAULT 'manual',
+  related_pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,
+  created_by UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
 `;
 
 export async function initDb() {

@@ -11,20 +11,21 @@ import {
   CollaborationAccount,
   VolunteerRequest
 } from '@/src/lib/collaborationService';
+import { getNews, createNews, updateNews, deleteNews, News, getNewsImageUrl } from '@/src/lib/newsService';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import PetCard from '@/src/components/PetCard';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog, Search, RefreshCw, HeartHandshake
+  Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog, Search, RefreshCw, HeartHandshake, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'collab' | 'volunteers' | 'users' | 'highlights'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -67,14 +68,96 @@ export default function Admin() {
   const [userList, setUserList] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
 
+  // News State
+  const [newsList, setNewsList] = useState<News[]>([]);
+  const [showNewsForm, setShowNewsForm] = useState(false);
+  const [editingNews, setEditingNews] = useState<News | null>(null);
+  const [newsFormLoading, setNewsFormLoading] = useState(false);
+  const [newsFormData, setNewsFormData] = useState({
+    title: '',
+    content: '',
+    videoUrl: '',
+  });
+  const [newsFile, setNewsFile] = useState<File | null>(null);
+  const [newsPreview, setNewsPreview] = useState<string | null>(null);
+  const [newsImageData, setNewsImageData] = useState<string | null>(null);
+  const [newsMimeType, setNewsMimeType] = useState<string | null>(null);
+
   useEffect(() => {
     fetchAll();
   }, []);
 
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchPets(), fetchAccounts(), fetchVolunteers(), fetchUsers()]);
+    await Promise.all([fetchPets(), fetchAccounts(), fetchVolunteers(), fetchUsers(), fetchNews()]);
     setLoading(false);
+  };
+
+  const fetchNews = async () => {
+    try {
+      const data = await getNews();
+      setNewsList(data);
+    } catch (e) { console.error(e); }
+  };
+
+  const resetNewsForm = () => {
+    setNewsFormData({ title: '', content: '', videoUrl: '' });
+    setNewsFile(null);
+    setNewsPreview(null);
+    setNewsImageData(null);
+    setNewsMimeType(null);
+    setEditingNews(null);
+  };
+
+  const editNews = (item: News) => {
+    setEditingNews(item);
+    setNewsFormData({ title: item.title, content: item.content, videoUrl: item.video_url || '' });
+    const url = getNewsImageUrl(item);
+    setNewsPreview(url);
+    setNewsImageData(item.image_data);
+    setNewsMimeType(item.mime_type);
+    setShowNewsForm(true);
+  };
+
+  const handleNewsFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNewsFile(file);
+    setNewsPreview(URL.createObjectURL(file));
+    const results = await filesToBase64([file]);
+    setNewsImageData(results[0]?.data || null);
+    setNewsMimeType(results[0]?.mimeType || null);
+  };
+
+  const handleNewsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNewsFormLoading(true);
+    try {
+      const payload: any = {
+        title: newsFormData.title,
+        content: newsFormData.content,
+        videoUrl: newsFormData.videoUrl || null,
+      };
+      if (newsImageData && newsMimeType) {
+        payload.imageData = newsImageData;
+        payload.mimeType = newsMimeType;
+      }
+      if (editingNews) await updateNews(editingNews.id, payload);
+      else await createNews(payload);
+
+      setShowNewsForm(false);
+      resetNewsForm();
+      fetchNews();
+    } catch (e) { console.error(e); alert('Error al guardar'); }
+    finally { setNewsFormLoading(false); }
+  };
+
+  const handleDeleteNews = async (id: string) => {
+    if (!confirm('¿Eliminar esta novedad definitivamente?')) return;
+    try {
+      await deleteNews(id);
+      fetchNews();
+    } catch (e) { console.error(e); alert('Error al eliminar'); }
   };
 
   const fetchPets = async () => {
@@ -237,6 +320,7 @@ export default function Admin() {
           { id: 'volunteers', label: 'Solicitudes Sumate', icon: Users },
           { id: 'users', label: 'Usuarios', icon: UserCog },
           { id: 'highlights', label: 'Noticias Destacadas', icon: HeartHandshake },
+          { id: 'news', label: 'Novedades', icon: Sparkles },
         ].map(tab => (
           <button
             key={tab.id}
@@ -332,6 +416,60 @@ export default function Admin() {
                 {highlightedPets.length === 0 && (
                   <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
                     <p className="text-gray-400 font-medium">No hay noticias destacadas aún. Marca mascotas como "Hubo reencuentro" desde la pestaña Mascotas.</p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ====== NOVEDADES ====== */}
+          {activeTab === 'news' && (
+            <>
+              <div className="flex justify-end mb-6">
+                <button
+                  onClick={() => { resetNewsForm(); setShowNewsForm(true); }}
+                  className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:shadow-lg transition-all"
+                >
+                  <Plus className="w-5 h-5" /> Nueva Novedad
+                </button>
+              </div>
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden">
+                <table className="w-full text-left min-w-max">
+                  <thead>
+                    <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                      <th className="px-6 py-4">Título</th>
+                      <th className="px-6 py-4">Tipo</th>
+                      <th className="px-6 py-4">Fecha</th>
+                      <th className="px-6 py-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-accent">
+                    {newsList.map(item => (
+                      <tr key={item.id} className="hover:bg-brand-bg/50 transition-colors">
+                        <td className="px-6 py-4 font-bold text-brand-primary max-w-xs truncate">{item.title}</td>
+                        <td className="px-6 py-4">
+                          <span className={cn(
+                            "text-[10px] px-2 py-1 rounded-full font-bold uppercase",
+                            item.type === 'manual' ? "bg-amber-100 text-amber-700" :
+                            item.type === 'reunited' ? "bg-emerald-100 text-emerald-700" : "bg-brand-secondary/10 text-brand-secondary"
+                          )}>
+                            {item.type === 'manual' ? 'Manual' : item.type === 'reunited' ? 'Reencuentro' : 'Adopción'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-gray-400">{new Date(item.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 text-right space-x-2">
+                          {item.type === 'manual' && (
+                            <button onClick={() => editNews(item)} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
+                          )}
+                          <button onClick={() => handleDeleteNews(item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {newsList.length === 0 && (
+                  <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
+                    <p className="text-gray-400 font-medium">No hay novedades aún.</p>
                   </div>
                 )}
               </div>
@@ -583,6 +721,42 @@ export default function Admin() {
                   <div><label className="text-xs font-bold uppercase text-gray-500">CVU</label><input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.cvu} onChange={e => setCollabData({...collabData, cvu: e.target.value})} /></div>
                 </div>
                 <button type="submit" disabled={formLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">{formLoading ? <Loader2 className="animate-spin" /> : 'Guardar Datos'}</button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {showNewsForm && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowNewsForm(false)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+              <div className="p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+                <h2 className="text-2xl font-serif font-bold text-brand-primary">{editingNews ? 'Editar Novedad' : 'Nueva Novedad'}</h2>
+                <button onClick={() => { setShowNewsForm(false); resetNewsForm(); }} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
+              </div>
+              <form onSubmit={handleNewsSubmit} className="p-8 overflow-y-auto space-y-6">
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Título</label>
+                  <input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={newsFormData.title} onChange={e => setNewsFormData({...newsFormData, title: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Contenido</label>
+                  <textarea required rows={8} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={newsFormData.content} onChange={e => setNewsFormData({...newsFormData, content: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">URL de Video (opcional)</label>
+                  <input type="url" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={newsFormData.videoUrl} onChange={e => setNewsFormData({...newsFormData, videoUrl: e.target.value})} placeholder="https://youtube.com/..." />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Imagen de portada</label>
+                  <input type="file" accept="image/*" onChange={handleNewsFileChange} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
+                  {newsPreview && (
+                    <img src={newsPreview} className="mt-3 w-40 h-28 object-cover rounded-xl border border-brand-accent" />
+                  )}
+                </div>
+                <button type="submit" disabled={newsFormLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">
+                  {newsFormLoading ? <Loader2 className="animate-spin mx-auto" /> : <Save className="w-5 h-5 inline mr-2" />} Guardar
+                </button>
               </form>
             </motion.div>
           </div>

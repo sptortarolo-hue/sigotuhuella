@@ -1,10 +1,17 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Heart, Search, ShieldCheck, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import NewsCarousel from '@/src/components/NewsCarousel';
+import { getNews } from '@/src/lib/newsService';
 
 export default function Home() {
   const [showLostModal, setShowLostModal] = useState(false);
+  const [news, setNews] = useState<any[]>([]);
+
+  useEffect(() => {
+    getNews().then(setNews).catch(() => {});
+  }, []);
 
   return (
     <div className="flex flex-col">
@@ -65,75 +72,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Lost Pet Modal */}
-      <AnimatePresence>
-        {showLostModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowLostModal(false)}
-              className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg sm:max-w-2xl bg-white rounded-[2rem] sm:rounded-[3rem] shadow-2xl overflow-hidden"
-            >
-              <div className="p-6 sm:p-10">
-                <button
-                  onClick={() => setShowLostModal(false)}
-                  className="absolute top-4 right-4 p-2 hover:bg-brand-bg rounded-full transition-colors"
-                >
-                  <X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
-                </button>
-
-                <div className="mb-6 sm:mb-8">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 bg-brand-secondary/10 text-brand-secondary rounded-2xl sm:rounded-2xl flex items-center justify-center mb-4 sm:mb-6">
-                    <Search className="w-7 h-7 sm:w-8 sm:h-8" />
-                  </div>
-                  <h2 className="text-2xl sm:text-4xl font-serif font-bold text-brand-primary mb-3 sm:mb-4 tracking-tight">
-                    ¡Estamos acá para ayudarte a que vuelva a casa!
-                  </h2>
-                  <p className="text-sm sm:text-lg text-gray-600 leading-relaxed">
-                    Entendemos lo estresante que es perder a tu mascota, pero mantener la calma y actuar rápido hace la diferencia.
-                  </p>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="relative pl-10 sm:pl-12">
-                    <div className="absolute left-0 top-0 w-7 h-7 sm:w-8 sm:h-8 bg-brand-primary/10 text-brand-primary rounded-full flex items-center justify-center font-bold text-sm">1</div>
-                    <h3 className="text-base sm:text-xl font-bold text-brand-primary mb-2">Primero</h3>
-                    <p className="text-sm text-gray-600 mb-3">Entrá a la sección Mascotas Reportadas para confirmar si alguien ya lo resguardó.</p>
-                    <Link
-                      to="/perdidos"
-                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-bg text-brand-primary border border-brand-accent rounded-xl font-bold hover:border-brand-primary transition-all text-xs sm:text-sm"
-                    >
-                      <Search className="w-3 h-3 sm:w-4 sm:h-4" />
-                      Ver Mascotas Reportadas
-                    </Link>
-                  </div>
-
-                  <div className="relative pl-10 sm:pl-12">
-                    <div className="absolute left-0 top-0 w-7 h-7 sm:w-8 sm:h-8 bg-brand-primary/10 text-brand-primary rounded-full flex items-center justify-center font-bold text-sm">2</div>
-                    <h3 className="text-base sm:text-xl font-bold text-brand-primary mb-2">Segundo</h3>
-                    <p className="text-sm text-gray-600 mb-3">Si aún no está en la lista, ve a Publicar. Subí su información y foto para multiplicar las chances de encontrarlo.</p>
-                    <Link
-                      to="/reportar"
-                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all text-xs sm:text-sm"
-                    >
-                      <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
-                      Publicar Mascota Perdida
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* News Carousel */}
+      <NewsCarousel news={news} />
 
       {/* Features */}
       <section className="py-16 sm:py-24 bg-white">

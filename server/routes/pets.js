@@ -2,6 +2,48 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin } from '../auth.js';
 
+function generateCelebrationText(pet, type) {
+  const name = pet.name || 'una mascota';
+  const species = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : 'mascota';
+  const location = pet.location || 'nuestra zona';
+
+  if (type === 'reunited') {
+    const messages = [
+      `¡Qué alegría! 🎉 ${name} ya está de vuelta en casa. Este ${species} que buscábamos en ${location} fue reencontrado con su familia. ¡Gracias a toda la comunidad que difundió y ayudó! Juntos hacemos la diferencia. 🐾💚`,
+      `¡Final feliz! 🥳 ${name}, el ${species} que estaba perdido en ${location}, ya se reencontró con su familia. Gracias a la red de vecinos que compartieron su publicación. ¡Sigo Tu Huella sigue sumando reencuentros! 🐾❤️`,
+      `¡Buenas noticias! ✨ ¡${name} apareció! Este ${species} que buscábamos en ${location} ya está con los suyos. La comunidad de Sicardi/Garibaldi una vez más demostró su solidaridad. 🙌🐾`,
+    ];
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+
+  if (type === 'adopted') {
+    const messages = [
+      `¡Nuevo hogar! 🏡 ${name} encontró una familia. Este ${species} fue adoptado y ahora tiene un hogar lleno de amor. ¡Gracias a todos los que compartieron y ayudaron a difundir! 🐾💚`,
+      `¡Feliz adopción! 🎊 ${name} ya tiene familia. Después de esperar, este ${species} fue adoptado. Deseamos que sea muy feliz en su nuevo hogar. ¡Sigo Tu Huella celebra! 🐾❤️`,
+      `¡Un final feliz más! 🌟 ${name} fue adoptado. Este ${species} encontró un hogar lleno de amor. Gracias a la red de adopción por hacer esto posible. 🐾💕`,
+    ];
+    return messages[Math.floor(Math.random() * messages.length)];
+  }
+
+  return '';
+}
+
+async function autoCreateNews(pet, newsType) {
+  try {
+    const title = newsType === 'reunited'
+      ? `¡${pet.name || 'Una mascota'} fue reencontrada! 🎉`
+      : `¡${pet.name || 'Una mascota'} fue adoptada! 🏡`;
+    const content = generateCelebrationText(pet, newsType);
+    await pool.query(
+      `INSERT INTO news (title, content, type, related_pet_id, created_by)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [title, content, newsType, pet.id, pet.created_by]
+    );
+  } catch (err) {
+    console.error('Auto-create news error:', err);
+  }
+}
+
 const router = Router();
 
 router.get('/', async (req, res) => {
@@ -138,6 +180,15 @@ router.put('/:id', requireAuth, async (req, res) => {
           [petId, img.data, img.mimeType || 'image/jpeg']
         );
       }
+    }
+    // Auto-generate news on status change to REUNITED or ADOPTED
+    const isReunited = pet.status !== 'reunited' && req.body.status === 'reunited';
+    const isAdopted = pet.status !== 'adopted' && req.body.status === 'adopted';
+    // Re-fetch pet with updated data for news generation
+    if (isReunited || isAdopted) {
+      const updatedPet = await pool.query('SELECT * FROM pets WHERE id = $1', [petId]);
+      const newsType = isReunited ? 'reunited' : 'adopted';
+      await autoCreateNews(updatedPet.rows[0], newsType);
     }
     // Return pet with images
     const updated = await pool.query(

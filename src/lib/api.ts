@@ -60,4 +60,11 @@ register: (email: string, password: string, displayName?: string, phone?: string
       request(`/users/${id}/password`, { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) }),
     myPets: (id: string) => request(`/users/${id}/pets`),
   },
+  news: {
+    list: () => request('/news'),
+    get: (id: string) => request(`/news/${id}`),
+    create: (data: any) => request('/news', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) => request(`/news/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/news/${id}`, { method: 'DELETE' }),
+  },
 };

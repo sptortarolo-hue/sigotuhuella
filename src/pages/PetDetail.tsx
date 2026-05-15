@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getPets, Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Phone, MessageCircle, ArrowLeft, Info, Heart } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, ArrowLeft, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
 export default function PetDetail() {
