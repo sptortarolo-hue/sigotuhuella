@@ -13,7 +13,6 @@ export default function PetDetail() {
   const [pet, setPet] = useState<Pet | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIdx, setCurrentImageIdx] = useState(0);
-  const [currentImageIdx, setCurrentImageIdx] = useState(0);
 
   useEffect(() => {
     const fetchPet = async () => {
