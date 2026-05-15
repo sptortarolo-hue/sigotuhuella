@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
 import { MapPin, Calendar, Info, Phone, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
@@ -38,7 +39,9 @@ function shareOnWhatsApp(pet: Pet) {
 }
 
 export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: PetCardProps) {
-const statusColors = {
+    const navigate = useNavigate();
+    const statusColors = {
+
      [PetStatus.LOST]: 'bg-red-100 text-red-700',
      [PetStatus.RETAINED]: 'bg-blue-100 text-blue-700',
      [PetStatus.SIGHTED]: 'bg-amber-100 text-amber-700',
@@ -62,9 +65,16 @@ const statusColors = {
   const imageUrl = getPetImageUrl(pet);
   const imageUrls = getPetImageUrls(pet);
 
-  return (
-    <div className="group bg-white rounded-3xl overflow-hidden border border-brand-accent hover:border-brand-secondary transition-all hover:shadow-xl hover:-translate-y-1">
-      <div className="relative aspect-square overflow-hidden bg-gray-100">
+   return (
+     <div 
+       onClick={() => !showAdminActions && navigate(`/pet/${pet.id}`)}
+       className={cn(
+         "group bg-white rounded-3xl overflow-hidden border border-brand-accent hover:border-brand-secondary transition-all hover:shadow-xl hover:-translate-y-1",
+         !showAdminActions && "cursor-pointer"
+       )}
+     >
+       <div className="relative aspect-square overflow-hidden bg-gray-100">
+
         {imageUrls.length > 0 ? (
           <div className="w-full h-full relative">
             <img 
