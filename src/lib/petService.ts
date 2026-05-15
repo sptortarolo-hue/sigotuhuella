@@ -24,6 +24,10 @@ export interface Pet {
   color: string | null;
   status: PetStatus;
   gender: string;
+  age: string | null;
+  size: string | null;
+  is_vaccinated: boolean;
+  is_sterilized: boolean;
   description: string | null;
   location: string;
   latitude: number | null;

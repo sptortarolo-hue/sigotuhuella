@@ -150,7 +150,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', requireAuth, async (req, res) => {
-  const { name, species, breed, color, status, gender, description, location, latitude, longitude, contactInfo, images } = req.body;
+  const { name, species, breed, color, status, gender, age, size, isVaccinated, isSterilized, description, location, latitude, longitude, contactInfo, images } = req.body;
   if (!species || !status || !location) {
     return res.status(400).json({ error: 'Species, status, and location are required' });
   }
@@ -158,10 +158,11 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
     const petResult = await client.query(
-      `INSERT INTO pets (name, species, breed, color, status, gender, description, location, latitude, longitude, contact_info, created_by, is_admin_verified)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `INSERT INTO pets (name, species, breed, color, status, gender, age, size, is_vaccinated, is_sterilized, description, location, latitude, longitude, contact_info, created_by, is_admin_verified)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *`,
       [name || null, species, breed || null, color || null, status, gender || 'unknown',
+       age || null, size || null, isVaccinated || false, isSterilized || false,
        description || null, location, latitude || null, longitude || null,
        contactInfo || null, req.user.id, false]
     );
@@ -202,12 +203,12 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (pet.created_by !== req.user.id && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Not authorized' });
     }
-    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'description', 'location', 'contact_info'];
+    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'description', 'location', 'contact_info'];
     const updates = [];
     const values = [];
     let idx = 1;
     for (const field of fields) {
-      const key = field === 'contact_info' ? 'contactInfo' : field;
+      const key = field === 'contact_info' ? 'contactInfo' : field === 'is_vaccinated' ? 'isVaccinated' : field === 'is_sterilized' ? 'isSterilized' : field;
       if (req.body[key] !== undefined) {
         updates.push(`${field} = $${idx++}`);
         values.push(req.body[key]);

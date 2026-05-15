@@ -25,7 +25,7 @@ import { cn } from '@/src/lib/utils';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -42,6 +42,10 @@ export default function Admin() {
     color: '',
     status: PetStatus.LOST,
     gender: 'unknown' as 'male' | 'female' | 'unknown',
+    age: '',
+    size: 'medium' as 'small' | 'medium' | 'large',
+    isVaccinated: false,
+    isSterilized: false,
     location: '',
     contactInfo: '',
     description: '',
@@ -230,6 +234,10 @@ export default function Admin() {
         color: formData.color || null,
         status: formData.status,
         gender: formData.gender,
+        age: formData.age || null,
+        size: formData.size || null,
+        isVaccinated: formData.isVaccinated,
+        isSterilized: formData.isSterilized,
         location: formData.location,
         contactInfo: formData.contactInfo,
         description: formData.description,
@@ -247,7 +255,7 @@ export default function Admin() {
   };
 
   const resetPetForm = () => {
-    setFormData({ name: '', species: 'dog', breed: '', color: '', status: PetStatus.LOST, gender: 'unknown', location: '', contactInfo: '', description: '' });
+    setFormData({ name: '', species: 'dog', breed: '', color: '', status: PetStatus.LOST, gender: 'unknown', age: '', size: 'medium', isVaccinated: false, isSterilized: false, location: '', contactInfo: '', description: '' });
     setPreviews([]);
     setSelectedFiles([]);
     setEditingPet(null);
@@ -262,6 +270,10 @@ export default function Admin() {
       color: pet.color || '',
       status: pet.status,
       gender: pet.gender || 'unknown',
+      age: pet.age || '',
+      size: pet.size || 'medium',
+      isVaccinated: pet.is_vaccinated || false,
+      isSterilized: pet.is_sterilized || false,
       location: pet.location || '',
       contactInfo: pet.contact_info || '',
       description: pet.description || '',
@@ -316,6 +328,7 @@ export default function Admin() {
       <div className="flex flex-wrap gap-4 mb-12 border-b border-brand-accent pb-px">
         {[
           { id: 'pets', label: 'Mascotas', icon: LayoutDashboard },
+          { id: 'adoption', label: 'Adopción', icon: Heart },
           { id: 'collab', label: 'Cuentas de Ayuda', icon: CreditCard },
           { id: 'volunteers', label: 'Solicitudes Sumate', icon: Users },
           { id: 'users', label: 'Usuarios', icon: UserCog },
@@ -373,6 +386,45 @@ export default function Admin() {
                       <HeartHandshake className="w-4 h-4" />
                       Hubo reencuentro
                     </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* ====== ADOPCIÓN ====== */}
+          {activeTab === 'adoption' && (
+            <>
+              <div className="flex justify-end mb-6">
+                <button
+                  onClick={() => { resetPetForm(); setFormData(prev => ({ ...prev, status: PetStatus.FOR_ADOPTION })); setShowForm(true); }}
+                  className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:shadow-lg transition-all"
+                >
+                  <Plus className="w-5 h-5" /> Nueva Publicación
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {pets.filter(p => p.status === PetStatus.FOR_ADOPTION || p.status === PetStatus.ADOPTED).map(pet => (
+                  <div key={pet.id} className="relative">
+                    <PetCard
+                      pet={pet}
+                      showAdminActions
+                      onEdit={editPet}
+                      onDelete={async (id) => { if (confirm('Eliminar?')) { await deletePet(id); fetchPets(); } }}
+                    />
+                    {pet.status === PetStatus.FOR_ADOPTION && (
+                      <button
+                        onClick={async () => {
+                          if (confirm('¿Marcar como adoptado?')) {
+                            await updatePet(pet.id, { status: PetStatus.ADOPTED });
+                            fetchPets();
+                          }
+                        }}
+                        className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold hover:bg-emerald-600 transition-colors"
+                      >
+                        Marcar como Adoptado
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -627,6 +679,34 @@ export default function Admin() {
                   <label className="text-xs font-bold uppercase text-gray-500">Descripción</label>
                   <textarea required rows={3} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
                 </div>
+                {formData.status === PetStatus.FOR_ADOPTION && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">Edad</label>
+                        <input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} placeholder="Ej: 2 años, cachorro" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">Tamaño</label>
+                        <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.size} onChange={e => setFormData({...formData, size: e.target.value as any})}>
+                          <option value="small">Pequeño</option>
+                          <option value="medium">Mediano</option>
+                          <option value="large">Grande</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex gap-6">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={formData.isVaccinated} onChange={e => setFormData({...formData, isVaccinated: e.target.checked})} className="w-4 h-4 accent-brand-primary" />
+                        <span className="text-gray-700 font-medium">Vacunado</span>
+                      </label>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={formData.isSterilized} onChange={e => setFormData({...formData, isSterilized: e.target.checked})} className="w-4 h-4 accent-brand-primary" />
+                        <span className="text-gray-700 font-medium">Esterilizado/Castrado</span>
+                      </label>
+                    </div>
+                  </>
+                )}
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Imágenes</label>
                   <input type="file" accept="image/*" multiple onChange={e => { const files = Array.from(e.target.files || []); setSelectedFiles(files); setPreviews(files.map(f => URL.createObjectURL(f))); }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />

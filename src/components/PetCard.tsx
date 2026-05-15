@@ -120,6 +120,18 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             <MapPin className="w-4 h-4 text-brand-secondary" />
             <span className="break-words">{pet.location}</span>
           </div>
+          {pet.status === PetStatus.FOR_ADOPTION && (pet.age || pet.size) && (
+            <div className="flex flex-wrap gap-2">
+              {pet.age && <span className="text-[10px] px-2 py-1 bg-brand-bg rounded-full font-bold text-gray-500">{pet.age}</span>}
+              {pet.size && <span className="text-[10px] px-2 py-1 bg-brand-bg rounded-full font-bold text-gray-500">{pet.size === 'small' ? 'Pequeño' : pet.size === 'medium' ? 'Mediano' : 'Grande'}</span>}
+            </div>
+          )}
+          {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.ADOPTED) && (pet.is_vaccinated || pet.is_sterilized) && (
+            <div className="flex flex-wrap gap-2">
+              {pet.is_vaccinated && <span className="text-[10px] px-2 py-1 bg-green-50 text-green-600 rounded-full font-bold">💉 Vacunado</span>}
+              {pet.is_sterilized && <span className="text-[10px] px-2 py-1 bg-blue-50 text-blue-600 rounded-full font-bold">✂️ Esterilizado</span>}
+            </div>
+          )}
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Calendar className="w-4 h-4 text-brand-secondary" />
             <span>{dateLabel} {format(formatPetDate(pet.created_at), 'PP', { locale: es })}</span>
