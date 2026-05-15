@@ -30,7 +30,6 @@ ${statusEmoji} en Sicardi/Garibaldi
 🔗 ${origin}/pet/${pet.id}
 ${petImageUrl || ''}`;
 }
-}
 
 function shareOnWhatsApp(pet: Pet) {
   const text = getWhatsAppMessage(pet);
