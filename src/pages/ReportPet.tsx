@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
-import { createPet, PetStatus, getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
+import { createPet, PetStatus } from '@/src/lib/petService';
 import { filesToBase64 } from '@/src/lib/storageService';
 import MapLoader from '@/src/components/MapLoader';
 import LocationPicker from '@/src/components/LocationPicker';
-import { cn } from '@/src/lib/utils';
 import {
   Camera,
   MapPin,
@@ -13,17 +12,15 @@ import {
   FileText,
   Loader2,
   X,
-  Image as ImageIcon,
   CheckCircle2,
   AlertCircle,
   Locate,
-  MessageCircle,
-  Download,
   Share2,
   ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import PetCard from '@/src/components/PetCard';
+import SocialShareModal from '@/src/components/SocialShareModal';
 import AuthGate from '@/src/components/AuthGate';
 
 const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
@@ -36,8 +33,7 @@ export default function ReportPet() {
   const [error, setError] = useState('');
 
   const [previewPet, setPreviewPet] = useState<any>(null);
-  const [generatedFlyer, setGeneratedFlyer] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -71,6 +67,7 @@ export default function ReportPet() {
     }
   };
 
+  
   const removeFile = (index: number) => {
     const newFiles = [...files];
     newFiles.splice(index, 1);
@@ -240,91 +237,25 @@ const statusEmoji = previewPet.status === 'lost' ? '🚨 BUSCADO 🚨' : preview
 
               <div className="mt-12 p-8 bg-brand-bg rounded-[2.5rem] border border-brand-accent text-center">
                 <div className="w-12 h-12 bg-brand-secondary/10 text-brand-secondary rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <ImageIcon className="w-6 h-6" />
+                  <Share2 className="w-6 h-6" />
                 </div>
                 <h3 className="text-xl font-bold text-brand-primary mb-2">Difundir es clave</h3>
                 <p className="text-sm text-gray-500 mb-8">
-                  Generá un flyer optimizado con IA para compartir en tus grupos de WhatsApp y redes sociales.
+                  Compartí esta publicación en tus redes sociales para que más personas puedan ayudar.
                 </p>
-
-                {!generatedFlyer ? (
-                  <button
-                    onClick={handleGenerateFlyer}
-                    disabled={isGenerating}
-                    className="w-full sm:w-auto px-8 py-4 bg-brand-secondary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-50 mx-auto"
-                  >
-                    {isGenerating ? <Loader2 className="animate-spin w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
-                    {isGenerating ? 'Generando Flyer IA...' : 'Generar Flyer para Publicar'}
-                  </button>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="max-w-md mx-auto aspect-[4/5] bg-white rounded-3xl border-4 border-brand-accent overflow-hidden shadow-2xl relative flex flex-col">
-                      <div className={cn(
-                        "p-4 text-white font-serif font-black text-4xl text-center uppercase tracking-tighter",
-                        previewPet.status === 'lost' ? "bg-red-600" : "bg-emerald-600"
-                      )}>
-                        {previewPet.status === 'lost' ? 'BUSCADO' : 'ENCONTRADO'}
-                      </div>
-
-                      <div className="flex-1 relative overflow-hidden bg-brand-bg">
-                        <img
-                          src={getPetImageUrl(previewPet)}
-                          className="w-full h-full object-cover"
-                          alt="Flyer mascota"
-                        />
-                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md p-3 rounded-2xl border border-brand-accent shadow-lg text-left">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-1">Nombre</p>
-                          <p className="font-serif font-bold text-brand-primary text-xl tracking-tight leading-none">
-                            {previewPet.name || 'Sin nombre'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="p-6 bg-white text-left">
-                        <div className="flex gap-4 mb-4">
-                          <div className="bg-brand-bg p-3 rounded-xl border border-brand-accent flex-1">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Visto en</p>
-                            <p className="text-sm font-bold text-brand-primary truncate">{previewPet.location}</p>
-                          </div>
-                          <div className="bg-brand-bg p-3 rounded-xl border border-brand-accent flex-1">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Contacto</p>
-                            <p className="text-sm font-bold text-brand-primary">{previewPet.contact_info || previewPet.contactInfo}</p>
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed italic border-l-4 border-brand-secondary pl-3">
-                          "{previewPet.description}"
-                        </p>
-                      </div>
-
-                      <div className="bg-brand-bg p-3 border-t border-brand-accent text-center">
-                        <p className="text-[8px] font-black tracking-widest text-brand-primary uppercase">
-                          Sigo Tu Huella • Comunidad de Rescate Sicardi
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
-                      <button
-                        onClick={() => window.print()}
-                        className="flex-1 py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg"
-                      >
-                        <Download className="w-5 h-5" />
-                        Imprimir / PDF
-                      </button>
-                      <button
-                        onClick={shareOnWhatsApp}
-                        className="flex-1 py-4 bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg"
-                      >
-                        <MessageCircle className="w-5 h-5" />
-                        WhatsApp
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-400 italic">
-                      Puedes descargar la imagen o enviarla directamente por WhatsApp para difundir.
-                    </p>
-                  </div>
-                )}
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all mx-auto"
+                >
+                  <Share2 className="w-5 h-5" />
+                  Compartilo en redes sociales
+                </button>
               </div>
+              <AnimatePresence>
+                {showShareModal && previewPet && (
+                  <SocialShareModal pet={previewPet} onClose={() => setShowShareModal(false)} />
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         ) : (

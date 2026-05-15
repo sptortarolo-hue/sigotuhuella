@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
 import { MapPin, Calendar, Info, Phone, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
+import SocialShareModal from '@/src/components/SocialShareModal';
+import { AnimatePresence } from 'motion/react';
 
 interface PetCardProps {
   key?: React.Key;
@@ -14,31 +16,9 @@ interface PetCardProps {
   onDelete?: (id: string) => void | Promise<void>;
 }
 
-function getWhatsAppMessage(pet: Pet): string {
-  const statusEmoji = pet.status === PetStatus.LOST ? '🚨 BUSCADO 🚨' : pet.status === PetStatus.RETAINED ? '🏠 RETENIDO 🏠' : pet.status === PetStatus.SIGHTED ? '👀 AVISTADO 👀' : pet.status === PetStatus.ACCIDENTED ? '⚠️ ACCIDENTADO ⚠️' : '🐾 EN ADOPCIÓN 🐾';
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const petImageUrl = pet.images?.[0] ? `${origin}/og-image/${pet.id}/0` : null;
-  return `¡DIFUNDIR POR FAVOR! 🙏
-
-${statusEmoji} en Sicardi/Garibaldi
-
-🐾 ${pet.name ? `Nombre: ${pet.name}` : 'Mascota sin identificar'}
-📍 ${pet.location}
-🔎 Especie: ${pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otra'}
-📞 Contacto: ${pet.contact_info || 'No disponible'}
-📝 ${pet.description || ''}
-🔗 ${origin}/pet/${pet.id}
-${petImageUrl || ''}`;
-}
-
-function shareOnWhatsApp(pet: Pet) {
-  const text = getWhatsAppMessage(pet);
-  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-  window.open(url, '_blank');
-}
-
 export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: PetCardProps) {
     const navigate = useNavigate();
+    const [showShareModal, setShowShareModal] = useState(false);
     const statusColors = {
 
      [PetStatus.LOST]: 'bg-red-100 text-red-700',
@@ -149,8 +129,8 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
 
         <div className="flex gap-2 pt-4 border-t border-brand-accent">
           <button
-            onClick={() => shareOnWhatsApp(pet)}
-            className="flex-1 px-4 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-100 transition-colors"
+            onClick={() => setShowShareModal(true)}
+            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:shadow-lg transition-all"
           >
             <MessageCircle className="w-4 h-4" />
             Compartir
@@ -173,6 +153,11 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
           )}
         </div>
       </div>
+      <AnimatePresence>
+        {showShareModal && (
+          <SocialShareModal pet={pet} onClose={() => setShowShareModal(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
