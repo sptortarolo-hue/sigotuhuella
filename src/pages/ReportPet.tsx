@@ -455,7 +455,21 @@ const statusEmoji = previewPet.status === 'lost' ? '🚨 BUSCADO 🚨' : preview
                   <LocationPicker
                     initialCenter={DEFAULT_CENTER}
                     selectedLocation={formData.coordinates || undefined}
-                    onLocationSelect={(coords) => setFormData({ ...formData, coordinates: coords })}
+                    onLocationSelect={async (coords) => {
+                      setFormData(prev => ({ ...prev, coordinates: coords }));
+                      try {
+                        const res = await fetch(
+                          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}&addressdetails=1&accept-language=es`,
+                          { headers: { 'User-Agent': 'SigoTuHuella/1.0' } }
+                        );
+                        const data = await res.json();
+                        if (data?.display_name) {
+                          setFormData(prev => ({ ...prev, location: data.display_name }));
+                        }
+                      } catch (e) {
+                        console.error('Error al obtener dirección:', e);
+                      }
+                    }}
                   />
                 </MapLoader>
 
