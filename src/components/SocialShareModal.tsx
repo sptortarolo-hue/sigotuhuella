@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Pet, PetStatus, getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
+import { Pet, getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
 import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { motion } from 'motion/react';
@@ -22,44 +22,45 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const [platform, setPlatform] = useState<Platform>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
-  const [message, setMessage] = useState('');
   const flyerRef = useRef<HTMLDivElement>(null);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const petUrl = `${origin}/pet/${pet.id}`;
   const images = getPetImageUrls(pet);
   const mainImage = images[0] || null;
+  const isMobile = typeof navigator !== 'undefined' && !!navigator.share;
 
-  const defaultMessage = `Hola! En Sigo Tu Huella vi esta publicación y quería compartirla con vos. 
-🐾 ${pet.name || 'Mascota'} - ${statusLabel(pet.status)}
-📍 ${pet.location}
-Más info: ${petUrl}`;
+  const shareText = `🐾 ${pet.name || 'Mascota'} - ${statusLabel(pet.status)} en ${pet.location}\nMás info: ${petUrl}`;
 
   const handleGenerate = async () => {
     if (!flyerRef.current) return;
     setGenerating(true);
     try {
       const dataUrl = await toPng(flyerRef.current, { quality: 0.95, pixelRatio: 2 });
-      const link = document.createElement('a');
-      link.download = `${pet.name || 'mascota'}-${pet.status}.png`;
-      link.href = dataUrl;
-      link.click();
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], `${pet.name || 'mascota'}-${pet.status}.png`, { type: 'image/png' });
 
-      if (platform === 'whatsapp') {
-        const text = encodeURIComponent(message || defaultMessage);
-        setTimeout(() => window.open(`https://wa.me/?text=${text}`, '_blank'), 500);
+      if (isMobile && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `${pet.name || 'Mascota'} - ${statusLabel(pet.status)}`, text: shareText });
+      } else {
+        const link = document.createElement('a');
+        link.download = file.name;
+        link.href = dataUrl;
+        link.click();
+
+        if (platform === 'whatsapp') {
+          window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank');
+        } else if (platform === 'facebook') {
+          window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(petUrl)}`, '_blank');
+        }
       }
 
       setGenerated(true);
     } catch (e) {
-      console.error('Error generating image:', e);
+      if ((e as any)?.name !== 'AbortError') console.error('Error al generar:', e);
     } finally {
       setGenerating(false);
     }
-  };
-
-  const handleRegenerate = () => {
-    setGenerated(false);
-    setTimeout(() => handleGenerate(), 100);
   };
 
   const platforms = [
@@ -106,19 +107,16 @@ Más info: ${petUrl}`;
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Preview del flyer */}
               <div className="text-center">
                 <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Vista previa del flyer</p>
                 <div
                   ref={flyerRef}
                   className="w-full max-w-sm mx-auto rounded-3xl overflow-hidden border-4 border-brand-accent shadow-xl bg-white"
                 >
-                  {/* Header con estado */}
                   <div className={cn("p-4 text-white font-serif font-black text-3xl text-center uppercase tracking-tighter", statusBg(pet.status))}>
                     {statusLabel(pet.status)}
                   </div>
 
-                  {/* Imagen */}
                   <div className="relative aspect-square bg-gray-100">
                     {mainImage ? (
                       <img src={mainImage} alt={pet.name || ''} className="w-full h-full object-cover" />
@@ -135,7 +133,6 @@ Más info: ${petUrl}`;
                     </div>
                   </div>
 
-                  {/* Datos */}
                   <div className="p-5 bg-white">
                     <div className="flex gap-3 mb-3">
                       <div className="bg-brand-bg p-3 rounded-xl border border-brand-accent flex-1">
@@ -156,7 +153,6 @@ Más info: ${petUrl}`;
                     )}
                   </div>
 
-                  {/* Footer */}
                   <div className="bg-brand-bg p-3 border-t border-brand-accent text-center">
                     <p className="text-[8px] font-black tracking-widest text-brand-primary uppercase">
                       Sigo Tu Huella • Comunidad de Rescate
@@ -165,19 +161,6 @@ Más info: ${petUrl}`;
                 </div>
               </div>
 
-              {/* Mensaje editable */}
-              <div>
-                <label className="text-xs font-bold uppercase text-gray-500 mb-2 block">Mensaje para acompañar (opcional)</label>
-                <textarea
-                  value={message}
-                  onChange={e => setMessage(e.target.value)}
-                  placeholder={defaultMessage}
-                  rows={3}
-                  className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent text-sm outline-none resize-none"
-                />
-              </div>
-
-              {/* Acciones */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={() => { setPlatform(null); setGenerated(false); }}
@@ -200,7 +183,7 @@ Más info: ${petUrl}`;
                   ) : generated ? (
                     <><Download className="w-4 h-4" /> Descargar de nuevo</>
                   ) : (
-                    <><Sparkles className="w-4 h-4" /> Generar y {platform === 'whatsapp' ? 'compartir' : 'descargar'}</>
+                    <><Sparkles className="w-4 h-4" /> Generar y compartir</>
                   )}
                 </button>
               </div>
@@ -208,32 +191,36 @@ Más info: ${petUrl}`;
               {generated && (
                 <div className="p-4 bg-green-50 rounded-2xl border border-green-200 text-center">
                   <p className="text-sm text-green-700 font-medium">
-                    {platform === 'whatsapp' 
-                      ? '✅ Flyer descargado. Se abrirá WhatsApp para que envíes el mensaje.'
-                      : '✅ Flyer descargado. Ahora podés subirlo a la red social.'}
+                    {isMobile
+                      ? '✅ Flyer generado. Seleccioná la app para compartir.'
+                      : platform === 'whatsapp'
+                        ? '✅ Flyer descargado. Se abrió WhatsApp para compartir.'
+                        : platform === 'facebook'
+                          ? '✅ Flyer descargado. Se abrió Facebook para publicar.'
+                          : '✅ Flyer descargado.'}
                   </p>
-                  <button
-                    onClick={handleRegenerate}
-                    className="mt-2 text-xs text-green-600 hover:underline font-bold"
-                  >
-                    ¿No se ve bien? Regenerar
-                  </button>
                 </div>
               )}
 
               {platform === 'whatsapp' && (
                 <p className="text-xs text-center text-gray-400">
-                  Se descargará el flyer como imagen PNG y se abrirá WhatsApp con un mensaje predefinido para que lo compartas.
+                  {isMobile
+                    ? 'En tu celular: podés compartir el flyer en un chat o como estado de WhatsApp.'
+                    : 'En PC: se descarga la imagen y se abre WhatsApp Web con un mensaje predefinido.'}
                 </p>
               )}
               {platform === 'facebook' && (
                 <p className="text-xs text-center text-gray-400">
-                  El flyer se descargará como imagen PNG. Subilo a tu muro de Facebook junto con el mensaje que escribiste.
+                  {isMobile
+                    ? 'En tu celular: podés compartir el flyer directamente en tu feed o historia de Facebook.'
+                    : 'En PC: se descarga la imagen y se abre Facebook para que la publiques.'}
                 </p>
               )}
               {platform === 'instagram' && (
                 <p className="text-xs text-center text-gray-400">
-                  El flyer se descargará como imagen PNG. Subilo a Instagram desde la app con el mensaje que escribiste.
+                  {isMobile
+                    ? 'En tu celular: podés compartir el flyer directamente en tu feed o historia de Instagram.'
+                    : 'En PC: la imagen se descarga para que la subas desde la app de Instagram.'}
                 </p>
               )}
             </div>
