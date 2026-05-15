@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Pet } from '@/src/lib/petService';
-import PetFlyer from '@/src/components/PetFlyer';
-import { X, MessageCircle, Camera, Download, Sparkles, Loader2, MessageSquare } from 'lucide-react';
+import { Pet, getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
+import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -13,6 +12,7 @@ interface SocialShareModalProps {
   onClose: () => void;
 }
 
+const statusBg = (s: string) => s === 'lost' ? 'bg-red-600' : s === 'retained' ? 'bg-blue-600' : s === 'sighted' ? 'bg-amber-600' : s === 'accidented' ? 'bg-purple-600' : s === 'for_adoption' ? 'bg-brand-secondary' : 'bg-green-600';
 const statusLabel = (s: string) => {
   const labels: Record<string, string> = { lost: 'PERDIDO', retained: 'RETENIDO', sighted: 'AVISTADO', accidented: 'ACCIDENTADO', for_adoption: 'EN ADOPCIÓN', adopted: 'ADOPTADO', reunited: 'REENCUENTRO' };
   return labels[s] || 'REPORTE';
@@ -25,6 +25,8 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const flyerRef = useRef<HTMLDivElement>(null);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const petUrl = `${origin}/pet/${pet.id}`;
+  const images = getPetImageUrls(pet);
+  const mainImage = images[0] || null;
   const isMobile = typeof navigator !== 'undefined' && !!navigator.share;
 
   const shareText = `🐾 ${pet.name || 'Mascota'} - ${statusLabel(pet.status)} en ${pet.location}\nMás info: ${petUrl}`;
@@ -63,7 +65,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
   const platforms = [
     { id: 'whatsapp' as Platform, label: 'WhatsApp', icon: MessageCircle, color: 'bg-emerald-500 hover:bg-emerald-600', bgColor: 'bg-emerald-50', textColor: 'text-emerald-600' },
-    { id: 'facebook' as Platform, label: 'Facebook', icon: MessageSquare, color: 'bg-blue-600 hover:bg-blue-700', bgColor: 'bg-blue-50', textColor: 'text-blue-600' },
+    { id: 'facebook' as Platform, label: 'Facebook', icon: ImageIcon, color: 'bg-blue-600 hover:bg-blue-700', bgColor: 'bg-blue-50', textColor: 'text-blue-600' },
     { id: 'instagram' as Platform, label: 'Instagram', icon: Camera, color: 'bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400', bgColor: 'bg-pink-50', textColor: 'text-pink-600' },
   ];
 
@@ -107,8 +109,55 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
             <div className="space-y-6">
               <div className="text-center">
                 <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Vista previa del flyer</p>
-                <div ref={flyerRef}>
-                  <PetFlyer pet={pet} />
+                <div
+                  ref={flyerRef}
+                  className="w-full max-w-sm mx-auto rounded-3xl overflow-hidden border-4 border-brand-accent shadow-xl bg-white"
+                >
+                  <div className={cn("p-4 text-white font-serif font-black text-3xl text-center uppercase tracking-tighter", statusBg(pet.status))}>
+                    {statusLabel(pet.status)}
+                  </div>
+
+                  <div className="relative aspect-square bg-gray-100">
+                    {mainImage ? (
+                      <img src={mainImage} alt={pet.name || ''} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-300">
+                        <ImageIcon className="w-16 h-16" />
+                      </div>
+                    )}
+                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg text-left border border-brand-accent">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-0.5">Nombre</p>
+                      <p className="font-serif font-bold text-brand-primary text-xl tracking-tight leading-none">
+                        {pet.name || 'Sin nombre'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 bg-white">
+                    <div className="flex gap-3 mb-3">
+                      <div className="bg-brand-bg p-3 rounded-xl border border-brand-accent flex-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Ubicación</p>
+                        <p className="text-xs sm:text-sm font-bold text-brand-primary truncate">{pet.location}</p>
+                      </div>
+                      {pet.contact_info && (
+                        <div className="bg-brand-bg p-3 rounded-xl border border-brand-accent flex-1">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Contacto</p>
+                          <p className="text-xs sm:text-sm font-bold text-brand-primary">{pet.contact_info}</p>
+                        </div>
+                      )}
+                    </div>
+                    {pet.description && (
+                      <p className="text-xs text-gray-600 leading-relaxed italic border-l-4 border-brand-secondary pl-3">
+                        "{pet.description}"
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="bg-brand-bg p-3 border-t border-brand-accent text-center">
+                    <p className="text-[8px] font-black tracking-widest text-brand-primary uppercase">
+                      Sigo Tu Huella • Comunidad de Rescate
+                    </p>
+                  </div>
                 </div>
               </div>
 
