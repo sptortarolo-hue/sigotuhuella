@@ -59,7 +59,6 @@ export default function PetDetail() {
   }
 
   const images = getPetImageUrls(pet);
-  const [currentImageIdx, setCurrentImageIdx] = useState(0);
 
   const waMessage = `Hola! Estoy escribiendo por la publicación de ${pet.name || 'la mascota'} en Sigo Tu Huella. 
 📍 Ubicación: ${pet.location}
