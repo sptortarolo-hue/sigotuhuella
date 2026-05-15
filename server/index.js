@@ -42,29 +42,35 @@ app.get('/pet/:id', async (req, res) => {
       [req.params.id]
     );
     const pet = result.rows[0];
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'https';
+    const baseUrl = `${protocol}://${req.get('host')}`;
     let title = 'Mascota - Sigo Tu Huella';
     let description = 'Publicación en Sigo Tu Huella - Red Vecinal';
-    let image = `${baseUrl}/sigotuhuella.jpg`;
+    let image = '';
+    let hasImage = false;
     if (pet) {
       const statusLabels = { lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado', accidented: 'Accidentado', for_adoption: 'En Adopción', adopted: 'Adoptado', reunited: 'Reencuentro' };
       title = `${pet.name || 'Mascota sin identificar'} - ${statusLabels[pet.status] || 'Reporte'} | Sigo Tu Huella`;
-      description = `${pet.location} | ${pet.description ? pet.description.substring(0, 150) : 'Ver más información en Sigo Tu Huella'}`;
+      description = `${pet.location} | ${pet.description ? pet.description.substring(0, 160) : 'Ver más información en Sigo Tu Huella'}`;
       if (pet.image_data && pet.mime_type) {
         image = `${baseUrl}/api/pets/${req.params.id}/image/0`;
+        hasImage = true;
       }
     }
-    const ogHtml = indexHtml.replace(
-      '</head>',
-      `<meta property="og:title" content="${escapeHtml(title)}" />
+    const ogTags = `<meta property="og:title" content="${escapeHtml(title)}" />
 <meta property="og:description" content="${escapeHtml(description)}" />
-<meta property="og:image" content="${escapeHtml(image)}" />
 <meta property="og:url" content="${baseUrl}/pet/${req.params.id}" />
 <meta property="og:type" content="website" />
+<meta property="og:locale" content="es_AR" />
+${hasImage ? `<meta property="og:image" content="${escapeHtml(image)}" />
+<meta property="og:image:secure_url" content="${escapeHtml(image)}" />
+<meta property="og:image:type" content="${escapeHtml(pet.mime_type)}" />
+<meta property="og:image:width" content="800" />
+<meta property="og:image:height" content="600" />` : ''}
 <meta name="twitter:card" content="summary_large_image" />
-</head>`
-    );
-    res.send(ogHtml);
+${hasImage ? `<meta name="twitter:image" content="${escapeHtml(image)}" />` : ''}
+</head>`;
+    res.send(indexHtml.replace('</head>', ogTags));
   } catch (err) {
     console.error('OG error:', err);
     res.send(indexHtml);

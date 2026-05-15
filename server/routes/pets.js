@@ -157,9 +157,13 @@ router.get('/:id/image/:index', async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).end();
     const img = result.rows[0];
+    const buffer = Buffer.from(img.image_data, 'base64');
     res.set('Content-Type', img.mime_type);
-    res.send(Buffer.from(img.image_data, 'base64'));
+    res.set('Content-Length', buffer.length);
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(buffer);
   } catch (err) {
+    console.error('Image serve error:', err);
     res.status(500).end();
   }
 });
