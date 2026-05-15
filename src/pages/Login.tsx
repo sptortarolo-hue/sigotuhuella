@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as PhoneIcon, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Login() {
   const { user, isAdmin, loading, login, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as any)?.from || '/';
   const [authLoading, setAuthLoading] = useState(false);
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -15,7 +18,6 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
-  const navigate = useNavigate();
 
 const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +36,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         const data = await api.auth.login(email, password);
         login(data.token, data.user);
       }
-      navigate('/');
+      navigate(from, { replace: true });
     } catch (err: any) {
       setError(err.message || 'Error al procesar la solicitud');
     } finally {
