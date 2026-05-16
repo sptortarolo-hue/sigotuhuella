@@ -12,9 +12,9 @@ interface SocialShareModalProps {
   onClose: () => void;
 }
 
-const statusBg = (s: string) => s === 'lost' ? 'bg-red-600' : s === 'retained' ? 'bg-blue-600' : s === 'sighted' ? 'bg-amber-600' : s === 'accidented' ? 'bg-purple-600' : s === 'for_adoption' ? 'bg-brand-secondary' : 'bg-green-600';
+const statusBg = (s: string) => s === 'lost' ? 'bg-red-600' : s === 'retained' ? 'bg-blue-600' : s === 'sighted' ? 'bg-amber-600' : s === 'accidented' ? 'bg-purple-600' : s === 'needs_attention' ? 'bg-amber-600' : s === 'for_adoption' ? 'bg-brand-secondary' : 'bg-green-600';
 const statusLabel = (s: string) => {
-  const labels: Record<string, string> = { lost: 'PERDIDO', retained: 'RETENIDO', sighted: 'AVISTADO', accidented: 'ACCIDENTADO', for_adoption: 'EN ADOPCIÓN', adopted: 'ADOPTADO', reunited: 'REENCUENTRO' };
+  const labels: Record<string, string> = { lost: 'PERDIDO', retained: 'RETENIDO', sighted: 'AVISTADO', accidented: 'ACCIDENTADO', needs_attention: 'NECESITA ATENCIÓN', for_adoption: 'EN ADOPCIÓN', adopted: 'ADOPTADO', reunited: 'REENCUENTRO' };
   return labels[s] || 'REPORTE';
 };
 

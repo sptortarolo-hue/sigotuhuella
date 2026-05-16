@@ -70,7 +70,7 @@ app.get('/pet/:id', async (req, res) => {
     let description = 'Publicación en Sigo Tu Huella - Red Vecinal';
     let image = `${baseUrl}/sigotuhuella.jpg`;
     if (pet) {
-      const statusLabels = { lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado', accidented: 'Accidentado', for_adoption: 'En Adopción', adopted: 'Adoptado', reunited: 'Reencuentro' };
+      const statusLabels = { lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado', accidented: 'Accidentado', needs_attention: 'Necesita Atención', for_adoption: 'En Adopción', adopted: 'Adoptado', reunited: 'Reencuentro' };
       title = `${pet.name || 'Mascota sin identificar'} - ${statusLabels[pet.status] || 'Reporte'} | Sigo Tu Huella`;
       description = `${pet.location} | ${pet.description ? pet.description.substring(0, 160) : 'Ver más información en Sigo Tu Huella'}`;
       if (pet.image_data && pet.mime_type) {

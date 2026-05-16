@@ -57,7 +57,7 @@ export default function PetMap({ pets, center }: PetMapProps) {
                   )}
                   <h4 className="font-bold text-brand-primary text-sm m-0">{pet.name || 'Mascota'}</h4>
 <p className="text-[10px] text-gray-500 uppercase font-bold mb-1 mt-0">
-                     {pet.status === 'lost' ? 'Perdido' : pet.status === 'retained' ? 'Retenido' : pet.status === 'sighted' ? 'Avistado' : pet.status === 'accidented' ? 'Accidentado' : 'En Adopción'}
+                     {pet.status === 'lost' ? 'Perdido' : pet.status === 'retained' ? 'Retenido' : pet.status === 'sighted' ? 'Avistado' : pet.status === 'accidented' ? 'Accidentado' : pet.status === 'needs_attention' ? 'Necesita Atención' : 'En Adopción'}
                    </p>
                   <p className="text-[10px] text-gray-600 mb-3 line-clamp-2">{pet.description}</p>
                   

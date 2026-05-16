@@ -5,6 +5,7 @@ export enum PetStatus {
   RETAINED = 'retained',
   SIGHTED = 'sighted',
   ACCIDENTED = 'accidented',
+  NEEDS_ATTENTION = 'needs_attention',
   FOR_ADOPTION = 'for_adoption',
   ADOPTED = 'adopted',
   REUNITED = 'reunited',

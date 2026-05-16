@@ -75,6 +75,7 @@ Me gustaría obtener más información.`;
     [PetStatus.RETAINED]: 'bg-blue-100 text-blue-700',
     [PetStatus.SIGHTED]: 'bg-amber-100 text-amber-700',
     [PetStatus.ACCIDENTED]: 'bg-purple-100 text-purple-700',
+    [PetStatus.NEEDS_ATTENTION]: 'bg-amber-100 text-amber-700',
     [PetStatus.FOR_ADOPTION]: 'bg-brand-primary/20 text-brand-primary',
     [PetStatus.REUNITED]: 'bg-green-100 text-green-700',
   };
@@ -84,6 +85,7 @@ Me gustaría obtener más información.`;
     [PetStatus.RETAINED]: 'Retenido',
     [PetStatus.SIGHTED]: 'Avistado',
     [PetStatus.ACCIDENTED]: 'Accidentado',
+    [PetStatus.NEEDS_ATTENTION]: 'Necesita Atención',
     [PetStatus.FOR_ADOPTION]: 'En Adopción',
     [PetStatus.REUNITED]: 'Reencuentro',
   };

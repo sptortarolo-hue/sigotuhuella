@@ -25,6 +25,7 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
      [PetStatus.RETAINED]: 'bg-blue-100 text-blue-700',
      [PetStatus.SIGHTED]: 'bg-amber-100 text-amber-700',
      [PetStatus.ACCIDENTED]: 'bg-purple-100 text-purple-700',
+     [PetStatus.NEEDS_ATTENTION]: 'bg-amber-100 text-amber-700',
      [PetStatus.FOR_ADOPTION]: 'bg-brand-primary/20 text-brand-primary',
      [PetStatus.ADOPTED]: 'bg-green-100 text-green-700',
      [PetStatus.REUNITED]: 'bg-amber-100 text-amber-700',
@@ -35,6 +36,7 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
      [PetStatus.RETAINED]: 'Retenido',
      [PetStatus.SIGHTED]: 'Avistado',
      [PetStatus.ACCIDENTED]: 'Accidentado',
+     [PetStatus.NEEDS_ATTENTION]: 'Necesita Atención',
      [PetStatus.FOR_ADOPTION]: 'En Adopción',
      [PetStatus.ADOPTED]: 'Adoptado',
      [PetStatus.REUNITED]: 'Reencuentro',
@@ -86,7 +88,7 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
         <div className="flex justify-between items-start mb-4">
           <div>
 <h3 className="text-xl font-serif font-bold text-gray-800 leading-tight">
-               {pet.name || (pet.status === PetStatus.LOST ? 'Se busca' : pet.status === PetStatus.RETAINED ? 'Retenido' : pet.status === PetStatus.SIGHTED ? 'Avistado' : pet.status === PetStatus.ACCIDENTED ? 'Accidentado' : 'En Adopción')}
+               {pet.name || (pet.status === PetStatus.LOST ? 'Se busca' : pet.status === PetStatus.RETAINED ? 'Retenido' : pet.status === PetStatus.SIGHTED ? 'Avistado' : pet.status === PetStatus.ACCIDENTED ? 'Accidentado' : pet.status === PetStatus.NEEDS_ATTENTION ? 'Necesita Atención' : 'En Adopción')}
             </h3>
             <p className="text-sm text-gray-500 italic lowercase first-letter:uppercase">
               {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otra especie'} • {pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : 'Sexo desconocido'}
@@ -153,11 +155,12 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
           )}
         </div>
       </div>
+      </div>
       <AnimatePresence>
         {showShareModal && (
           <SocialShareModal pet={pet} onClose={() => setShowShareModal(false)} />
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }

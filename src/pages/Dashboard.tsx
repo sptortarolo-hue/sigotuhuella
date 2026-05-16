@@ -223,7 +223,7 @@ export default function Dashboard() {
               <h4 className="text-sm font-bold text-brand-primary">{latestPet.name || 'Sin nombre'}</h4>
               <p className="text-xs text-gray-500">{latestPet.location}</p>
               <p className="text-xs text-gray-400">
-                {latestPet.status === 'lost' ? '🟢 Buscando' : latestPet.status === 'retained' ? '🔵 Retenido' : latestPet.status === 'sighted' ? '🟡 Avistado' : latestPet.status === 'accidented' ? '🟣 Accidentado' : '🟢 En Adopción'} · {formatDate(latestPet.created_at)}
+                {latestPet.status === 'lost' ? '🟢 Buscando' : latestPet.status === 'retained' ? '🔵 Retenido' : latestPet.status === 'sighted' ? '🟡 Avistado' : latestPet.status === 'accidented' ? '🟣 Accidentado' : latestPet.status === 'needs_attention' ? '🟠 Necesita Atención' : '🟢 En Adopción'} · {formatDate(latestPet.created_at)}
               </p>
             </div>
           </div>

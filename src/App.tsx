@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import Navbar from '@/src/components/Navbar';
 import PwaHandler from '@/src/components/PwaHandler';
+import ScrollToTop from '@/src/components/ScrollToTop';
 import Home from '@/src/pages/Home';
 import PetGallery from '@/src/components/PetGallery';
 import { useAuth } from '@/src/hooks/useAuth';
@@ -38,6 +39,7 @@ function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAd
 export default function App() {
   return (
     <Router>
+      <ScrollToTop />
       <div className="min-h-screen bg-brand-bg">
         <PwaHandler />
         <Navbar />

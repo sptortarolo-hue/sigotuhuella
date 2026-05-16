@@ -300,8 +300,9 @@ const handleSubmit = async (e: React.FormEvent) => {
                      <option value={PetStatus.LOST}>Se perdió</option>
                      <option value={PetStatus.RETAINED}>Está retenido</option>
                      <option value={PetStatus.SIGHTED}>Fue avistado</option>
-                     <option value={PetStatus.ACCIDENTED}>Está accidentado</option>
-                   </select>
+                      <option value={PetStatus.ACCIDENTED}>Está accidentado</option>
+                      <option value={PetStatus.NEEDS_ATTENTION}>Necesita atención</option>
+                    </select>
                  </div>
 
                 <div className="space-y-2">

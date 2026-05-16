@@ -7,7 +7,7 @@ const router = Router();
 router.get('/', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, display_name, role, created_at FROM users ORDER BY created_at DESC'
+      'SELECT id, email, display_name, phone, role, created_at FROM users ORDER BY created_at DESC'
     );
     res.json({ users: result.rows });
   } catch (err) {

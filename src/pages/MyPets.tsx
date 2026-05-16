@@ -240,6 +240,7 @@ export default function MyPets() {
                     <option value={PetStatus.RETAINED}>Retenido</option>
                     <option value={PetStatus.SIGHTED}>Avistado</option>
                     <option value={PetStatus.ACCIDENTED}>Accidentado</option>
+                    <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
                     <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
                   </select>
                 </div>

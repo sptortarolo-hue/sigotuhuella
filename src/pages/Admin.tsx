@@ -35,6 +35,8 @@ export default function Admin() {
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
   const [formLoading, setFormLoading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [petSearch, setPetSearch] = useState('');
+  const [petStatusFilter, setPetStatusFilter] = useState<string>('all');
   const [previews, setPreviews] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: '',
@@ -364,16 +366,54 @@ export default function Admin() {
           {/* ====== MASCOTAS ====== */}
           {activeTab === 'pets' && (
             <>
-              <div className="flex justify-end mb-6">
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por nombre, ubicación, especie, contacto..."
+                    value={petSearch}
+                    onChange={e => setPetSearch(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
+                  />
+                </div>
+                <select
+                  value={petStatusFilter}
+                  onChange={e => setPetStatusFilter(e.target.value)}
+                  className="px-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm text-sm"
+                >
+                  <option value="all">Todos los estados</option>
+                  <option value={PetStatus.LOST}>Perdido</option>
+                  <option value={PetStatus.RETAINED}>Retenido</option>
+                  <option value={PetStatus.SIGHTED}>Avistado</option>
+                  <option value={PetStatus.ACCIDENTED}>Accidentado</option>
+                  <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
+                  <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
+                  <option value={PetStatus.ADOPTED}>Adoptado</option>
+                  <option value={PetStatus.REUNITED}>Reencuentro</option>
+                </select>
                 <button
                   onClick={() => { resetPetForm(); setShowForm(true); }}
-                  className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:shadow-lg transition-all"
+                  className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:shadow-lg transition-all shrink-0"
                 >
                   <Plus className="w-5 h-5" /> Nuevo Reporte
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {pets.filter(p => p.status !== PetStatus.REUNITED).map(pet => (
+                {pets.filter(p => {
+                  if (petStatusFilter !== 'all' && p.status !== petStatusFilter) return false;
+                  if (!petSearch.trim()) return true;
+                  const q = petSearch.toLowerCase();
+                  return (
+                    (p.name && p.name.toLowerCase().includes(q)) ||
+                    (p.location && p.location.toLowerCase().includes(q)) ||
+                    (p.description && p.description.toLowerCase().includes(q)) ||
+                    (p.contact_info && p.contact_info.toLowerCase().includes(q)) ||
+                    (p.species && p.species.toLowerCase().includes(q)) ||
+                    (p.breed && p.breed.toLowerCase().includes(q)) ||
+                    (p.color && p.color.toLowerCase().includes(q))
+                  );
+                }).map(pet => (
                   <div key={pet.id} className="relative">
                     <PetCard
                       pet={pet}
@@ -730,6 +770,7 @@ export default function Admin() {
                     <option value={PetStatus.RETAINED}>Retenido</option>
                     <option value={PetStatus.SIGHTED}>Avistado</option>
                     <option value={PetStatus.ACCIDENTED}>Accidentado</option>
+                    <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
                     <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
                   </select>
                 </div>

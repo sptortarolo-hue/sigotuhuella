@@ -15,6 +15,7 @@ const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: PetStatus.RETAINED, label: 'Retenido' },
   { value: PetStatus.SIGHTED, label: 'Avistado' },
   { value: PetStatus.ACCIDENTED, label: 'Accidentado' },
+  { value: PetStatus.NEEDS_ATTENTION, label: 'Necesita Atención' },
   { value: PetStatus.FOR_ADOPTION, label: 'En Adopción' },
 ];
 
@@ -36,7 +37,8 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
               p.status === PetStatus.LOST ||
               p.status === PetStatus.RETAINED ||
               p.status === PetStatus.SIGHTED ||
-              p.status === PetStatus.ACCIDENTED
+              p.status === PetStatus.ACCIDENTED ||
+              p.status === PetStatus.NEEDS_ATTENTION
             );
           } else {
             return p.status === PetStatus.FOR_ADOPTION;
@@ -111,7 +113,7 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
                  {STATUS_FILTER_OPTIONS.filter(
                    (opt) =>
                      opt.value === 'all' ||
-                     [PetStatus.LOST, PetStatus.RETAINED, PetStatus.SIGHTED, PetStatus.ACCIDENTED].includes(opt.value as PetStatus)
+                     [PetStatus.LOST, PetStatus.RETAINED, PetStatus.SIGHTED, PetStatus.ACCIDENTED, PetStatus.NEEDS_ATTENTION].includes(opt.value as PetStatus)
                  ).map((opt) => (
                    <option key={opt.value} value={opt.value}>
                      {opt.label}
