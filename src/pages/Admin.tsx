@@ -239,6 +239,21 @@ export default function Admin() {
     catch (e) { console.error(e); alert('Error al eliminar'); }
   };
 
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+
+  const handlePreviewPdf = async (petId: string) => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/api/pets/${petId}/records/report`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) { const err = await res.json(); alert(err.error || 'Error al generar PDF'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      setPdfPreviewUrl(url);
+    } catch (e) { console.error(e); alert('Error al generar PDF'); }
+  };
+
   const fetchPets = async () => {
     try {
       const data = await getPets();
@@ -1052,10 +1067,31 @@ export default function Admin() {
                     <button onClick={() => { resetRecordForm(); setShowRecordForm(true); }} className="px-5 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:shadow-lg transition-all">
                       <Plus className="w-4 h-4" /> Nuevo Registro
                     </button>
+                    <button onClick={() => { if (trackPet) { handlePreviewPdf(trackPet.id); } }} className="px-5 py-2.5 bg-white border border-brand-accent text-brand-primary rounded-xl font-bold text-sm flex items-center gap-2 hover:border-brand-primary hover:shadow transition-all">
+                      <FileText className="w-4 h-4" /> Vista previa PDF
+                    </button>
                     <button onClick={() => { if (trackPet) api.pets.records.report(trackPet.id); }} className="px-5 py-2.5 bg-white border border-brand-accent text-brand-primary rounded-xl font-bold text-sm flex items-center gap-2 hover:border-brand-primary hover:shadow transition-all">
                       <Download className="w-4 h-4" /> Descargar PDF
                     </button>
                   </div>
+
+                  {/* PDF Preview */}
+                  {pdfPreviewUrl && (
+                    <div className="bg-white rounded-2xl border border-brand-accent overflow-hidden">
+                      <div className="flex items-center justify-between p-3 bg-brand-bg/50 border-b border-brand-accent">
+                        <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Vista previa</p>
+                        <div className="flex gap-2">
+                          <a href={pdfPreviewUrl} download="seguimiento.pdf" className="px-3 py-1.5 bg-brand-primary text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:shadow transition-all">
+                            <Download className="w-3 h-3" /> Descargar
+                          </a>
+                          <button onClick={() => { setPdfPreviewUrl(null); URL.revokeObjectURL(pdfPreviewUrl); }} className="px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold text-gray-500 hover:bg-brand-bg transition-all">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                      <embed src={pdfPreviewUrl} type="application/pdf" className="w-full h-[500px]" />
+                    </div>
+                  )}
 
                   {/* Timeline */}
                   <div className="space-y-3">
