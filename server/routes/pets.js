@@ -418,7 +418,8 @@ router.get('/:petId/records/report', async (req, res) => {
       if (decoded.role !== 'admin') return res.status(403).json({ error: 'Not authorized' });
     } catch { return res.status(401).json({ error: 'Invalid token' }); }
   }
-  const petResult = await pool.query(
+  try {
+    const petResult = await pool.query(
       `SELECT p.*, 
         COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
       FROM pets p
@@ -465,7 +466,7 @@ router.get('/:petId/records/report', async (req, res) => {
     // Pet info
     doc.fontSize(12).font('Helvetica-Bold').text(`${pet.name || 'Mascota'}`, { underline: true }).moveDown(0.3);
     doc.fontSize(9).font('Helvetica');
-    doc.text(`Especie: ${pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otra'}  |  Estado: ${statusLabels[pet.status] || pet.status}  |  Sexo: ${pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : 'No especificado'}`);
+    doc.text('Especie: ' + (pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otra') + ' | Estado: ' + (statusLabels[pet.status] || pet.status) + ' | Sexo: ' + (pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : 'No especificado'));
     doc.text(`Ubicación: ${pet.location || '-'}`);
     doc.text(`Contacto: ${pet.contact_info || '-'}`);
     if (pet.breed) doc.text(`Raza: ${pet.breed}`);
@@ -493,13 +494,14 @@ router.get('/:petId/records/report', async (req, res) => {
       if (doc.y > 680) { doc.addPage(); }
 
       doc.fontSize(9).font('Helvetica-Bold');
-      doc.text(`${date}  \u2022  ${typeLabel}${rec.amount ? `  —  $${parseFloat(rec.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : ''}`);
+      var amountStr = rec.amount ? ' - $' + parseFloat(rec.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '';
+      doc.text(date + ' - ' + typeLabel + amountStr);
       doc.fontSize(8.5).font('Helvetica');
-      doc.text(`   ${rec.title}`);
-      if (rec.description) doc.text(`   ${rec.description}`);
-      if (rec.vet_name || rec.clinic_name) doc.text(`   Veterinario: ${[rec.vet_name, rec.clinic_name].filter(Boolean).join(' \u00b7 ')}`);
-      if (rec.medication_name || rec.dosage) doc.text(`   Medicaci\u00f3n: ${[rec.medication_name, rec.dosage].filter(Boolean).join(' \u00b7 ')}`);
-      if (rec.next_date) doc.text(`   Pr\u00f3ximo: ${new Date(rec.next_date).toLocaleDateString('es-AR')}`);
+      doc.text('   ' + rec.title);
+      if (rec.description) doc.text('   ' + rec.description);
+      if (rec.vet_name || rec.clinic_name) doc.text('   Veterinario: ' + [rec.vet_name, rec.clinic_name].filter(Boolean).join(' - '));
+      if (rec.medication_name || rec.dosage) doc.text('   Medicacion: ' + [rec.medication_name, rec.dosage].filter(Boolean).join(' - '));
+      if (rec.next_date) doc.text('   Proximo: ' + new Date(rec.next_date).toLocaleDateString('es-AR'));
       doc.moveDown(0.3);
 
       // Separator
@@ -512,7 +514,7 @@ router.get('/:petId/records/report', async (req, res) => {
     if (doc.y > 720) doc.addPage();
     doc.moveDown(0.5);
     doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#ddd').moveDown(0.5);
-    doc.fontSize(7).fillColor('#999').text('Sigo Tu Huella — Red Vecinal · Villa Garibaldi · Sicardi · Correas', { align: 'center' });
+    doc.fontSize(7).fillColor('#999').text('Sigo Tu Huella - Red Vecinal / Villa Garibaldi - Sicardi - Correas', { align: 'center' });
 
     doc.end();
   } catch (err) {
