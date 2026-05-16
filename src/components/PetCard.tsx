@@ -47,7 +47,6 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
   const imageUrls = getPetImageUrls(pet);
 
     return (
-      <>
       <div 
         onClick={() => !showAdminActions && navigate(`/pet/${pet.id}`)}
         className={cn(
@@ -156,12 +155,12 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             </>
           )}
         </div>
+        <AnimatePresence>
+          {showShareModal && (
+            <SocialShareModal pet={pet} onClose={() => setShowShareModal(false)} />
+          )}
+        </AnimatePresence>
       </div>
-      <AnimatePresence>
-        {showShareModal && (
-          <SocialShareModal pet={pet} onClose={() => setShowShareModal(false)} />
-        )}
-      </AnimatePresence>
-    </>
+    </div>
   );
 }
