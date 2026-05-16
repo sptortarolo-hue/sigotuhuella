@@ -21,6 +21,8 @@ const PetDetail = lazy(() => import('@/src/pages/PetDetail'));
 const Novedades = lazy(() => import('@/src/pages/Novedades'));
 const NovedadDetail = lazy(() => import('@/src/pages/NovedadDetail'));
 const LostPetGuide = lazy(() => import('@/src/pages/LostPetGuide'));
+const ForgotPassword = lazy(() => import('@/src/pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('@/src/pages/ResetPassword'));
 
 function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin?: boolean }) {
   const { user, isAdmin: isUserAdmin, loading } = useAuth();
@@ -65,6 +67,8 @@ export default function App() {
               <Route path="/mis-publicaciones" element={<MyPets />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/login" element={<Login />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password/:token" element={<ResetPassword />} />
               <Route
                 path="/admin"
                 element={

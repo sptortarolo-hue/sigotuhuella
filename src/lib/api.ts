@@ -27,9 +27,13 @@ export const api = {
   auth: {
     login: (email: string, password: string) =>
       request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-register: (email: string, password: string, displayName?: string, phone?: string) =>
-       request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, displayName, phone }) }),
+    register: (email: string, password: string, displayName?: string, phone?: string) =>
+      request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, displayName, phone }) }),
     me: () => request('/auth/me'),
+    forgotPassword: (email: string) =>
+      request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+    resetPassword: (token: string, newPassword: string) =>
+      request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
   },
   pets: {
     list: (status?: string) => request(`/pets${status ? `?status=${status}` : ''}`),
