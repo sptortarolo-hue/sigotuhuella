@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Pet, getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
-import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon, PawPrint } from 'lucide-react';
+import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -35,19 +35,37 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     if (!flyerRef.current) return;
     setGenerating(true);
     try {
+      // Ensure images inside the flyer are loaded before capturing
+      const imgs = flyerRef.current.querySelectorAll('img');
+      await Promise.all(Array.from(imgs).map(img =>
+        img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
+      ));
+
       const dataUrl = await toPng(flyerRef.current, { quality: 0.95, pixelRatio: 2 });
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const file = new File([blob], `${pet.name || 'mascota'}-${pet.status}.png`, { type: 'image/png' });
 
-      if (isMobile && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `${pet.name || 'Mascota'} - ${statusLabel(pet.status)}`, text: shareText });
-      } else {
-        const link = document.createElement('a');
-        link.download = file.name;
-        link.href = dataUrl;
-        link.click();
+      // Download directly from data URL
+      const link = document.createElement('a');
+      link.download = `${pet.name || 'mascota'}-${pet.status}.png`;
+      link.href = dataUrl;
+      link.click();
 
+      // Share via navigator.share on mobile
+      if (isMobile && navigator.canShare) {
+        try {
+          const res = await fetch(dataUrl);
+          const blob = await res.blob();
+          const file = new File([blob], link.download, { type: 'image/png' });
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ files: [file], title: `${pet.name || 'Mascota'} - ${statusLabel(pet.status)}`, text: shareText });
+          }
+        } catch (shareErr) {
+          if ((shareErr as any)?.name === 'AbortError') return;
+          console.error('Share error:', shareErr);
+        }
+      }
+
+      // Open social network on desktop
+      if (!isMobile) {
         if (platform === 'whatsapp') {
           window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank');
         } else if (platform === 'facebook') {
@@ -57,7 +75,10 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
       setGenerated(true);
     } catch (e) {
-      if ((e as any)?.name !== 'AbortError') console.error('Error al generar:', e);
+      if ((e as any)?.name !== 'AbortError') {
+        console.error('Error al generar:', e);
+        alert('Error al generar el flyer. Probá de nuevo o seleccioná otra red.');
+      }
     } finally {
       setGenerating(false);
     }
@@ -125,7 +146,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                         <ImageIcon className="w-16 h-16" />
                       </div>
                     )}
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-2xl p-3 shadow-lg text-left border border-brand-accent">
+                    <div className="absolute top-4 right-4 bg-white rounded-2xl p-3 shadow-lg text-left border border-brand-accent">
                       <p className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-0.5">Nombre</p>
                       <p className="font-serif font-bold text-brand-primary text-xl tracking-tight leading-none">
                         {pet.name || 'Sin nombre'}
@@ -153,11 +174,11 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                     )}
                   </div>
 
-                  <div className="bg-brand-bg p-3 border-t border-brand-accent flex items-center justify-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-brand-primary flex items-center justify-center text-white shadow-sm">
-                      <PawPrint className="w-3.5 h-3.5" />
+                  <div className="bg-brand-bg p-2.5 border-t border-brand-accent flex items-center justify-center gap-2">
+                    <div className="w-8 h-8 rounded-lg overflow-hidden border border-brand-accent/50 shadow-sm shrink-0">
+                      <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
                     </div>
-                    <span className="text-[9px] font-black tracking-[0.15em] text-brand-primary uppercase">Sigo tu huella</span>
+                    <span className="text-[8px] font-black tracking-[0.15em] text-brand-primary uppercase">Sigo tu huella</span>
                   </div>
                 </div>
               </div>
