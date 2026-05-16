@@ -302,4 +302,110 @@ router.put('/:id/verify', requireAdmin, async (req, res) => {
   }
 });
 
+// ====== PET RECORDS (Seguimiento) ======
+
+router.get('/:petId/records', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM pet_records WHERE pet_id = $1 ORDER BY record_date DESC, created_at DESC',
+      [req.params.petId]
+    );
+    res.json({ records: result.rows });
+  } catch (err) {
+    console.error('Get records error:', err);
+    res.status(500).json({ error: 'Failed to fetch records' });
+  }
+});
+
+router.get('/:petId/records/summary', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*)::int as total, COALESCE(SUM(amount), 0) as total_expenses,
+        (SELECT record_date FROM pet_records WHERE pet_id = $1 AND next_date IS NOT NULL AND next_date >= CURRENT_DATE ORDER BY next_date ASC LIMIT 1) as next_date,
+        (SELECT MAX(record_date) FROM pet_records WHERE pet_id = $1) as last_date
+      FROM pet_records WHERE pet_id = $1`,
+      [req.params.petId]
+    );
+    res.json({ summary: result.rows[0] });
+  } catch (err) {
+    console.error('Get summary error:', err);
+    res.status(500).json({ error: 'Failed to fetch summary' });
+  }
+});
+
+router.post('/:petId/records', requireAuth, async (req, res) => {
+  const { recordType, title, description, amount, recordDate, nextDate, vetName, clinicName, medicationName, dosage, attachmentData, attachmentType, attachmentName } = req.body;
+  if (!recordType || !title) {
+    return res.status(400).json({ error: 'Record type and title are required' });
+  }
+  try {
+    const pet = await pool.query('SELECT created_by FROM pets WHERE id = $1', [req.params.petId]);
+    if (pet.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
+    if (pet.rows[0].created_by !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    const result = await pool.query(
+      `INSERT INTO pet_records (pet_id, record_type, title, description, amount, record_date, next_date, vet_name, clinic_name, medication_name, dosage, attachment_data, attachment_type, attachment_name, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       RETURNING *`,
+      [req.params.petId, recordType, title, description || null, amount || null, recordDate || new Date(),
+       nextDate || null, vetName || null, clinicName || null, medicationName || null, dosage || null,
+       attachmentData || null, attachmentType || null, attachmentName || null, req.user.id]
+    );
+    res.status(201).json({ record: result.rows[0] });
+  } catch (err) {
+    console.error('Create record error:', err);
+    res.status(500).json({ error: 'Failed to create record' });
+  }
+});
+
+router.put('/:petId/records/:recordId', requireAuth, async (req, res) => {
+  const fields = ['record_type', 'title', 'description', 'amount', 'record_date', 'next_date', 'vet_name', 'clinic_name', 'medication_name', 'dosage', 'attachment_data', 'attachment_type', 'attachment_name'];
+  const updates = [];
+  const values = [];
+  let idx = 1;
+  for (const field of fields) {
+    const mapping = {
+      record_type: 'recordType', title: 'title', description: 'description',
+      amount: 'amount', record_date: 'recordDate', next_date: 'nextDate',
+      vet_name: 'vetName', clinic_name: 'clinicName', medication_name: 'medicationName',
+      dosage: 'dosage', attachment_data: 'attachmentData', attachment_type: 'attachmentType',
+      attachment_name: 'attachmentName'
+    };
+    const key = mapping[field] || field;
+    if (req.body[key] !== undefined) {
+      updates.push(`${field} = $${idx++}`);
+      values.push(req.body[key]);
+    }
+  }
+  if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+  updates.push('updated_at = NOW()');
+  values.push(req.params.recordId);
+  try {
+    await pool.query(`UPDATE pet_records SET ${updates.join(', ')} WHERE id = $${idx}`, values);
+    const updated = await pool.query('SELECT * FROM pet_records WHERE id = $1', [req.params.recordId]);
+    res.json({ record: updated.rows[0] });
+  } catch (err) {
+    console.error('Update record error:', err);
+    res.status(500).json({ error: 'Failed to update record' });
+  }
+});
+
+router.delete('/:petId/records/:recordId', requireAuth, async (req, res) => {
+  try {
+    const rec = await pool.query('SELECT pr.* FROM pet_records pr JOIN pets p ON p.id = pr.pet_id WHERE pr.id = $1', [req.params.recordId]);
+    if (rec.rows.length === 0) return res.status(404).json({ error: 'Record not found' });
+    const record = rec.rows[0];
+    const pet = await pool.query('SELECT created_by FROM pets WHERE id = $1', [record.pet_id]);
+    if (pet.rows[0].created_by !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    await pool.query('DELETE FROM pet_records WHERE id = $1', [req.params.recordId]);
+    res.json({ message: 'Record deleted' });
+  } catch (err) {
+    console.error('Delete record error:', err);
+    res.status(500).json({ error: 'Failed to delete record' });
+  }
+});
+
 export default router;

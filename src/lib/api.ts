@@ -39,6 +39,13 @@ register: (email: string, password: string, displayName?: string, phone?: string
     delete: (id: string) => request(`/pets/${id}`, { method: 'DELETE' }),
     verify: (id: string, verified: boolean) =>
       request(`/pets/${id}/verify`, { method: 'PUT', body: JSON.stringify({ verified }) }),
+    records: {
+      list: (petId: string) => request(`/pets/${petId}/records`),
+      summary: (petId: string) => request(`/pets/${petId}/records/summary`),
+      create: (petId: string, data: any) => request(`/pets/${petId}/records`, { method: 'POST', body: JSON.stringify(data) }),
+      update: (petId: string, recordId: string, data: any) => request(`/pets/${petId}/records/${recordId}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (petId: string, recordId: string) => request(`/pets/${petId}/records/${recordId}`, { method: 'DELETE' }),
+    },
   },
   collaboration: {
     list: () => request('/collaboration'),

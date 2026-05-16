@@ -17,7 +17,7 @@ import { api } from '@/src/lib/api';
 import PetCard from '@/src/components/PetCard';
 import SocialShareModal from '@/src/components/SocialShareModal';
 import {
-  Plus, X, Loader2, Save, AlertCircle, Camera,
+  Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
   Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2
 } from 'lucide-react';
@@ -167,6 +167,76 @@ export default function Admin() {
       await deleteNews(id);
       fetchNews();
     } catch (e) { console.error(e); alert('Error al eliminar'); }
+  };
+
+  const loadPetRecords = async (petId: string) => {
+    try {
+      const [recordsData, summaryData] = await Promise.all([
+        api.pets.records.list(petId),
+        api.pets.records.summary(petId),
+      ]);
+      setPetRecords(recordsData.records || []);
+      setRecordsSummary(summaryData.summary || null);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleTrackPet = (pet: Pet) => {
+    setTrackPet(pet);
+    setShowRecordForm(false);
+    loadPetRecords(pet.id);
+  };
+
+  const resetRecordForm = () => {
+    setRecordFormData({
+      recordType: 'appointment', title: '', description: '', amount: '',
+      recordDate: new Date().toISOString().split('T')[0], nextDate: '',
+      vetName: '', clinicName: '', medicationName: '', dosage: '',
+    });
+    setRecordFile(null); setRecordFileName('');
+  };
+
+  const handleRecordFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) { setRecordFile(file); setRecordFileName(file.name); }
+  };
+
+  const handleRecordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecordFormLoading(true);
+    try {
+      let attachmentData = null; let attachmentType = null;
+      if (recordFile) {
+        const reader = new FileReader();
+        attachmentData = await new Promise((resolve) => {
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.readAsDataURL(recordFile);
+        });
+        attachmentType = recordFile.type;
+      }
+      await api.pets.records.create(trackPet!.id, {
+        recordType: recordFormData.recordType,
+        title: recordFormData.title,
+        description: recordFormData.description || null,
+        amount: recordFormData.amount ? parseFloat(recordFormData.amount) : null,
+        recordDate: recordFormData.recordDate,
+        nextDate: recordFormData.nextDate || null,
+        vetName: recordFormData.vetName || null,
+        clinicName: recordFormData.clinicName || null,
+        medicationName: recordFormData.medicationName || null,
+        dosage: recordFormData.dosage || null,
+        attachmentData, attachmentType, attachmentName: recordFileName || null,
+      });
+      setShowRecordForm(false);
+      resetRecordForm();
+      loadPetRecords(trackPet!.id);
+    } catch (e) { console.error(e); alert('Error al guardar'); }
+    finally { setRecordFormLoading(false); }
+  };
+
+  const handleDeleteRecord = async (recordId: string) => {
+    if (!confirm('¿Eliminar este registro?')) return;
+    try { await api.pets.records.delete(trackPet!.id, recordId); loadPetRecords(trackPet!.id); }
+    catch (e) { console.error(e); alert('Error al eliminar'); }
   };
 
   const fetchPets = async () => {
@@ -324,6 +394,17 @@ export default function Admin() {
   // Datos para Noticias Destacadas
   const highlightedPets = pets.filter(p => p.status === PetStatus.REUNITED);
   const [sharePet, setSharePet] = useState<Pet | null>(null);
+  const [trackPet, setTrackPet] = useState<Pet | null>(null);
+  const [petRecords, setPetRecords] = useState<any[]>([]);
+  const [recordsSummary, setRecordsSummary] = useState<any>(null);
+  const [showRecordForm, setShowRecordForm] = useState(false);
+  const [recordFormLoading, setRecordFormLoading] = useState(false);
+  const [recordFormData, setRecordFormData] = useState({
+    recordType: 'appointment', title: '', description: '', amount: '', recordDate: new Date().toISOString().split('T')[0],
+    nextDate: '', vetName: '', clinicName: '', medicationName: '', dosage: '',
+  });
+  const [recordFile, setRecordFile] = useState<File | null>(null);
+  const [recordFileName, setRecordFileName] = useState('');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -439,6 +520,14 @@ export default function Admin() {
                     >
                       <Share2 className="w-4 h-4" />
                       Redes Sociales
+                    </button>
+                    {/* Botón Seguimiento */}
+                    <button
+                      onClick={() => handleTrackPet(pet)}
+                      className="mt-2 w-full py-2.5 bg-brand-bg text-brand-primary border border-brand-accent rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary hover:text-white hover:border-brand-primary transition-all"
+                    >
+                      <Activity className="w-4 h-4" />
+                      Seguimiento
                     </button>
                   </div>
                 ))}
@@ -912,6 +1001,185 @@ export default function Admin() {
                   {newsFormLoading ? <Loader2 className="animate-spin mx-auto" /> : <Save className="w-5 h-5 inline mr-2" />} Guardar
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {trackPet && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setTrackPet(null)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-6 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+                <div>
+                  <h2 className="text-xl font-serif font-bold text-brand-primary">{trackPet.name || 'Mascota'}</h2>
+                  <p className="text-xs text-gray-500 capitalize">{trackPet.species === 'dog' ? 'Perro' : trackPet.species === 'cat' ? 'Gato' : 'Otra especie'} · {trackPet.location}</p>
+                </div>
+                <button onClick={() => setTrackPet(null)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-5 h-5" /></button>
+              </div>
+
+              {!showRecordForm ? (
+                <div className="p-6 overflow-y-auto space-y-6">
+                  {/* Summary cards */}
+                  {recordsSummary && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="bg-brand-bg rounded-xl p-3 text-center">
+                        <div className="text-lg font-bold text-brand-primary">${parseFloat(recordsSummary.total_expenses || 0).toLocaleString('es-AR')}</div>
+                        <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Gastos</div>
+                      </div>
+                      <div className="bg-brand-bg rounded-xl p-3 text-center">
+                        <div className="text-lg font-bold text-emerald-600">{recordsSummary.next_date ? new Date(recordsSummary.next_date).toLocaleDateString() : '-'}</div>
+                        <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Próximo</div>
+                      </div>
+                      <div className="bg-brand-bg rounded-xl p-3 text-center">
+                        <div className="text-lg font-bold text-brand-primary">{recordsSummary.last_date ? new Date(recordsSummary.last_date).toLocaleDateString() : '-'}</div>
+                        <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Último</div>
+                      </div>
+                      <div className="bg-brand-bg rounded-xl p-3 text-center">
+                        <div className="text-lg font-bold text-brand-primary">{recordsSummary.total || 0}</div>
+                        <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Registros</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* New record button */}
+                  <div className="flex justify-end">
+                    <button onClick={() => { resetRecordForm(); setShowRecordForm(true); }} className="px-5 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:shadow-lg transition-all">
+                      <Plus className="w-4 h-4" /> Nuevo Registro
+                    </button>
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="space-y-3">
+                    {petRecords.length === 0 ? (
+                      <div className="text-center py-12 bg-brand-bg rounded-2xl border-2 border-dashed border-brand-accent">
+                        <p className="text-gray-400 font-medium">No hay registros de seguimiento aún.</p>
+                      </div>
+                    ) : (
+                      petRecords.map((rec) => {
+                        const typeConfig: Record<string, { label: string; color: string }> = {
+                          appointment: { label: 'Turno', color: 'bg-green-100 text-green-700' },
+                          study: { label: 'Estudio', color: 'bg-blue-100 text-blue-700' },
+                          expense: { label: 'Gasto', color: 'bg-orange-100 text-orange-700' },
+                          medication: { label: 'Medicación', color: 'bg-purple-100 text-purple-700' },
+                          vaccine: { label: 'Vacuna', color: 'bg-teal-100 text-teal-700' },
+                          surgery: { label: 'Cirugía', color: 'bg-red-100 text-red-700' },
+                          note: { label: 'Nota', color: 'bg-gray-100 text-gray-700' },
+                        };
+                        const tc = typeConfig[rec.record_type] || { label: rec.record_type, color: 'bg-gray-100 text-gray-700' };
+                        return (
+                          <div key={rec.id} className="bg-white p-4 rounded-2xl border border-brand-accent shadow-sm">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  <span className="text-[10px] text-gray-400">{new Date(rec.record_date).toLocaleDateString()}</span>
+                                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${tc.color}`}>{tc.label}</span>
+                                </div>
+                                <h4 className="text-sm font-bold text-gray-800">{rec.title}</h4>
+                                {rec.description && <p className="text-xs text-gray-600 mt-1">{rec.description}</p>}
+                                {(rec.vet_name || rec.clinic_name) && <p className="text-[11px] text-gray-500 mt-1">🏥 {[rec.vet_name, rec.clinic_name].filter(Boolean).join(' · ')}</p>}
+                                {(rec.medication_name || rec.dosage) && <p className="text-[11px] text-gray-500 mt-1">💊 {[rec.medication_name, rec.dosage].filter(Boolean).join(' · ')}</p>}
+                                {rec.amount && <p className="text-xs font-bold text-brand-primary mt-1">${parseFloat(rec.amount).toLocaleString('es-AR')}</p>}
+                                {rec.next_date && <p className="text-[11px] text-amber-600 mt-1">📅 Próximo: {new Date(rec.next_date).toLocaleDateString()}</p>}
+                                {rec.attachment_data && (
+                                  <a href={`data:${rec.attachment_type};base64,${rec.attachment_data}`} download={rec.attachment_name || 'adjunto'} className="inline-flex items-center gap-1 text-[11px] text-brand-primary font-bold hover:underline mt-1">
+                                    <Download className="w-3 h-3" /> {rec.attachment_name || 'Descargar'}
+                                  </a>
+                                )}
+                              </div>
+                              <button onClick={() => handleDeleteRecord(rec.id)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0 transition-colors">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 overflow-y-auto">
+                  <div className="flex items-center gap-2 mb-6">
+                    <button onClick={() => setShowRecordForm(false)} className="text-sm text-gray-400 hover:text-brand-primary transition-colors">← Volver</button>
+                    <span className="text-sm font-bold text-brand-primary">Nuevo Registro</span>
+                  </div>
+                  <form onSubmit={handleRecordSubmit} className="space-y-4">
+                    <div>
+                      <label className="text-xs font-bold uppercase text-gray-500">Tipo</label>
+                      <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={recordFormData.recordType} onChange={e => setRecordFormData({...recordFormData, recordType: e.target.value})}>
+                        <option value="appointment">Turno</option>
+                        <option value="study">Estudio</option>
+                        <option value="expense">Gasto</option>
+                        <option value="medication">Medicación</option>
+                        <option value="vaccine">Vacuna</option>
+                        <option value="surgery">Cirugía</option>
+                        <option value="note">Nota</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase text-gray-500">Título *</label>
+                      <input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={recordFormData.title} onChange={e => setRecordFormData({...recordFormData, title: e.target.value})} placeholder="Ej: Control veterinario" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase text-gray-500">Descripción</label>
+                      <textarea rows={2} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={recordFormData.description} onChange={e => setRecordFormData({...recordFormData, description: e.target.value})} placeholder="Detalles..." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">Fecha</label>
+                        <input required type="date" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={recordFormData.recordDate} onChange={e => setRecordFormData({...recordFormData, recordDate: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">Próxima fecha</label>
+                        <input type="date" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={recordFormData.nextDate} onChange={e => setRecordFormData({...recordFormData, nextDate: e.target.value})} />
+                      </div>
+                    </div>
+                    {recordFormData.recordType === 'expense' && (
+                      <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">Monto ($)</label>
+                        <input type="number" step="0.01" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={recordFormData.amount} onChange={e => setRecordFormData({...recordFormData, amount: e.target.value})} placeholder="0.00" />
+                      </div>
+                    )}
+                    {(recordFormData.recordType === 'appointment' || recordFormData.recordType === 'study' || recordFormData.recordType === 'surgery') && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold uppercase text-gray-500">Veterinario</label>
+                          <input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={recordFormData.vetName} onChange={e => setRecordFormData({...recordFormData, vetName: e.target.value})} placeholder="Dr. Apellido" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold uppercase text-gray-500">Clínica</label>
+                          <input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={recordFormData.clinicName} onChange={e => setRecordFormData({...recordFormData, clinicName: e.target.value})} placeholder="Nombre" />
+                        </div>
+                      </div>
+                    )}
+                    {recordFormData.recordType === 'medication' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold uppercase text-gray-500">Medicamento</label>
+                          <input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={recordFormData.medicationName} onChange={e => setRecordFormData({...recordFormData, medicationName: e.target.value})} placeholder="Nombre" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold uppercase text-gray-500">Dosis</label>
+                          <input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={recordFormData.dosage} onChange={e => setRecordFormData({...recordFormData, dosage: e.target.value})} placeholder="Ej: 1 comprimido/día" />
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-xs font-bold uppercase text-gray-500">Archivo adjunto</label>
+                      <input type="file" accept=".pdf,image/*" onChange={handleRecordFileChange} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
+                      {recordFileName && <p className="text-xs text-gray-500 mt-1">📎 {recordFileName}</p>}
+                    </div>
+                    <button type="submit" disabled={recordFormLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">
+                      {recordFormLoading ? <Loader2 className="animate-spin mx-auto" /> : <Save className="w-5 h-5 inline mr-2" />} Guardar
+                    </button>
+                  </form>
+                </div>
+              )}
             </motion.div>
           </div>
         )}

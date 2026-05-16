@@ -90,6 +90,27 @@ CREATE TABLE IF NOT EXISTS news (
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS pet_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
+  record_type VARCHAR(50) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  amount DECIMAL(10,2),
+  record_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  next_date DATE,
+  vet_name VARCHAR(255),
+  clinic_name VARCHAR(255),
+  medication_name VARCHAR(255),
+  dosage VARCHAR(100),
+  attachment_data TEXT,
+  attachment_type VARCHAR(50),
+  attachment_name VARCHAR(255),
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
 `;
 
 export async function initDb() {
