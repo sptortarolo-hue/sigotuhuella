@@ -89,8 +89,11 @@ router.post('/forgot-password', async (req, res) => {
       [resetToken, expiresAt, email]
     );
 
-    await sendPasswordResetEmail(email, resetToken);
-    console.log(`Password reset token sent to ${email}: ${resetToken}`);
+    console.log(`PASSWORD RESET TOKEN for ${email}: ${resetToken}`);
+
+    sendPasswordResetEmail(email, resetToken).catch(err => {
+      console.error('Email send error:', err.message);
+    });
 
     res.json({ message: 'If the email exists, a reset link has been sent' });
   } catch (err) {
