@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin } from '../auth.js';
 import sharp from 'sharp';
+import PDFDocument from 'pdfkit';
 
 async function createCollage(images) {
   const imgs = images.slice(0, 3);
@@ -405,6 +406,121 @@ router.delete('/:petId/records/:recordId', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Delete record error:', err);
     res.status(500).json({ error: 'Failed to delete record' });
+  }
+});
+
+router.get('/:petId/records/report', async (req, res) => {
+  try {
+    // Auth via query token (for direct window.open access)
+    const token = req.query.token;
+    if (token) {
+      try {
+        const jwt = await import('jsonwebtoken');
+        const decoded = jwt.default.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+        if (decoded.role !== 'admin') return res.status(403).json({ error: 'Not authorized' });
+      } catch { return res.status(401).json({ error: 'Invalid token' }); }
+    }
+  try {
+    const petResult = await pool.query(
+      `SELECT p.*, 
+        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+      FROM pets p
+      LEFT JOIN pet_images pi ON pi.pet_id = p.id
+      WHERE p.id = $1
+      GROUP BY p.id`,
+      [req.params.petId]
+    );
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
+    const pet = petResult.rows[0];
+
+    const recordsResult = await pool.query(
+      'SELECT * FROM pet_records WHERE pet_id = $1 ORDER BY record_date DESC, created_at DESC',
+      [req.params.petId]
+    );
+    const records = recordsResult.rows;
+
+    const summary = await pool.query(
+      `SELECT COUNT(*)::int as total, COALESCE(SUM(amount), 0) as total_expenses,
+        (SELECT record_date FROM pet_records WHERE pet_id = $1 AND next_date IS NOT NULL AND next_date >= CURRENT_DATE ORDER BY next_date ASC LIMIT 1) as next_date,
+        (SELECT MAX(record_date) FROM pet_records WHERE pet_id = $1) as last_date
+      FROM pet_records WHERE pet_id = $1`,
+      [req.params.petId]
+    );
+
+    const statusLabels = { lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado', accidented: 'Accidentado', needs_attention: 'Necesita Atención', for_adoption: 'En Adopción', adopted: 'Adoptado', reunited: 'Reencuentro' };
+    const typeLabels = { appointment: 'Turno', study: 'Estudio', expense: 'Gasto', medication: 'Medicación', vaccine: 'Vacuna', surgery: 'Cirugía', note: 'Nota' };
+
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="seguimiento-${pet.id}.pdf"`);
+    doc.pipe(res);
+
+    // Header
+    doc.fontSize(20).font('Helvetica-Bold').text('SIGO TU HUELLA', { align: 'center' });
+    doc.fontSize(10).font('Helvetica').text('Informe de Seguimiento', { align: 'center' });
+    doc.fontSize(8).fillColor('#999').text(`Generado el ${new Date().toLocaleDateString('es-AR')}`, { align: 'center' });
+    doc.fillColor('#000').moveDown(0.5);
+
+    // Separator
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#ddd').moveDown(0.8);
+
+    // Pet info
+    doc.fontSize(12).font('Helvetica-Bold').text(`${pet.name || 'Mascota'}`, { underline: true }).moveDown(0.3);
+    doc.fontSize(9).font('Helvetica');
+    doc.text(`Especie: ${pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otra'}  |  Estado: ${statusLabels[pet.status] || pet.status}  |  Sexo: ${pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : 'No especificado'}`);
+    doc.text(`Ubicación: ${pet.location || '-'}`);
+    doc.text(`Contacto: ${pet.contact_info || '-'}`);
+    if (pet.breed) doc.text(`Raza: ${pet.breed}`);
+    if (pet.color) doc.text(`Color: ${pet.color}`);
+    doc.moveDown(0.5);
+
+    // Summary
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#ddd').moveDown(0.5);
+    doc.fontSize(10).font('Helvetica-Bold').text('RESUMEN').moveDown(0.3);
+    doc.fontSize(9).font('Helvetica');
+    const s = summary.rows[0];
+    doc.text(`Registros: ${s.total}  |  Gastos totales: $${parseFloat(s.total_expenses || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`);
+    doc.text(`Último registro: ${s.last_date ? new Date(s.last_date).toLocaleDateString('es-AR') : '-'}  |  Próximo: ${s.next_date ? new Date(s.next_date).toLocaleDateString('es-AR') : '-'}`);
+    doc.moveDown(0.5);
+
+    // Records
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#ddd').moveDown(0.5);
+    doc.fontSize(10).font('Helvetica-Bold').text('REGISTROS').moveDown(0.5);
+
+    for (const rec of records) {
+      const typeLabel = typeLabels[rec.record_type] || rec.record_type;
+      const date = new Date(rec.record_date).toLocaleDateString('es-AR');
+
+      // Check page break
+      if (doc.y > 680) { doc.addPage(); }
+
+      doc.fontSize(9).font('Helvetica-Bold');
+      doc.text(`${date}  \u2022  ${typeLabel}${rec.amount ? `  —  $${parseFloat(rec.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : ''}`);
+      doc.fontSize(8.5).font('Helvetica');
+      doc.text(`   ${rec.title}`);
+      if (rec.description) doc.text(`   ${rec.description}`);
+      if (rec.vet_name || rec.clinic_name) doc.text(`   Veterinario: ${[rec.vet_name, rec.clinic_name].filter(Boolean).join(' \u00b7 ')}`);
+      if (rec.medication_name || rec.dosage) doc.text(`   Medicaci\u00f3n: ${[rec.medication_name, rec.dosage].filter(Boolean).join(' \u00b7 ')}`);
+      if (rec.next_date) doc.text(`   Pr\u00f3ximo: ${new Date(rec.next_date).toLocaleDateString('es-AR')}`);
+      doc.moveDown(0.3);
+
+      // Separator
+      const y = doc.y;
+      doc.moveTo(70, y).lineTo(525, y).stroke('#eee');
+      doc.moveDown(0.3);
+    }
+
+    // Footer
+    if (doc.y > 720) doc.addPage();
+    doc.moveDown(0.5);
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#ddd').moveDown(0.5);
+    doc.fontSize(7).fillColor('#999').text('Sigo Tu Huella — Red Vecinal · Villa Garibaldi · Sicardi · Correas', { align: 'center' });
+
+    doc.end();
+  } catch (err) {
+    console.error('PDF report error:', err);
+    res.status(500).json({ error: 'Failed to generate PDF' });
   }
 });
 

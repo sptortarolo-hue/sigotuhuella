@@ -45,8 +45,13 @@ register: (email: string, password: string, displayName?: string, phone?: string
       create: (petId: string, data: any) => request(`/pets/${petId}/records`, { method: 'POST', body: JSON.stringify(data) }),
       update: (petId: string, recordId: string, data: any) => request(`/pets/${petId}/records/${recordId}`, { method: 'PUT', body: JSON.stringify(data) }),
       delete: (petId: string, recordId: string) => request(`/pets/${petId}/records/${recordId}`, { method: 'DELETE' }),
+      report: (petId: string) => {
+        const token = localStorage.getItem('token');
+        window.open(`/api/pets/${petId}/records/report?token=${token || ''}`, '_blank');
+      },
     },
   },
+  news: {
   collaboration: {
     list: () => request('/collaboration'),
     create: (data: any) => request('/collaboration', { method: 'POST', body: JSON.stringify(data) }),

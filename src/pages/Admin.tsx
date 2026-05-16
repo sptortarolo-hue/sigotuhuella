@@ -1047,10 +1047,13 @@ export default function Admin() {
                     </div>
                   )}
 
-                  {/* New record button */}
-                  <div className="flex justify-end">
+                  {/* New record + PDF buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3 justify-end">
                     <button onClick={() => { resetRecordForm(); setShowRecordForm(true); }} className="px-5 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:shadow-lg transition-all">
                       <Plus className="w-4 h-4" /> Nuevo Registro
+                    </button>
+                    <button onClick={() => { if (trackPet) api.pets.records.report(trackPet.id); }} className="px-5 py-2.5 bg-white border border-brand-accent text-brand-primary rounded-xl font-bold text-sm flex items-center gap-2 hover:border-brand-primary hover:shadow transition-all">
+                      <Download className="w-4 h-4" /> Descargar PDF
                     </button>
                   </div>
 
