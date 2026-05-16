@@ -46,14 +46,15 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
   const imageUrl = getPetImageUrl(pet);
   const imageUrls = getPetImageUrls(pet);
 
-   return (
-     <div 
-       onClick={() => !showAdminActions && navigate(`/pet/${pet.id}`)}
-       className={cn(
-         "group bg-white rounded-3xl overflow-hidden border border-brand-accent hover:border-brand-secondary transition-all hover:shadow-xl hover:-translate-y-1",
-         !showAdminActions && "cursor-pointer"
-       )}
-     >
+    return (
+      <>
+      <div 
+        onClick={() => !showAdminActions && navigate(`/pet/${pet.id}`)}
+        className={cn(
+          "group bg-white rounded-3xl overflow-hidden border border-brand-accent hover:border-brand-secondary transition-all hover:shadow-xl hover:-translate-y-1",
+          !showAdminActions && "cursor-pointer"
+        )}
+      >
        <div className="relative aspect-square overflow-hidden bg-gray-100">
 
         {imageUrls.length > 0 ? (
@@ -155,7 +156,6 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             </>
           )}
         </div>
-      </div>
       </div>
       <AnimatePresence>
         {showShareModal && (
