@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth, requireAdmin } from '../auth.js';
+import { requireAuth, requireAdmin, verifyToken } from '../auth.js';
 import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
-import jwt from 'jsonwebtoken';
 
 async function createCollage(images) {
   const imgs = images.slice(0, 3);
@@ -417,7 +416,7 @@ router.get('/:petId/records/report', async (req, res) => {
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : queryToken;
   if (token && token !== 'null' && token !== '') {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+      const decoded = verifyToken(token);
       if (decoded.role !== 'admin') return res.status(403).json({ error: 'Not authorized' });
     } catch { return res.status(401).json({ error: 'Invalid token' }); }
   }
