@@ -37,7 +37,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const hasContact = !!pet.contact_info;
   const hasDescription = !!pet.description;
 
-  const shareText = `🐾 ${pet.name || 'Mascota'} - ${flyerStatusLabel} en ${pet.location}\nMás info: ${petUrl}`;
+  const shareText = petUrl;
 
   const handleGenerate = async () => {
     if (!flyerRef.current) return;
