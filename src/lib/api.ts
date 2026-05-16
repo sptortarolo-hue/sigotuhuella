@@ -45,15 +45,23 @@ register: (email: string, password: string, displayName?: string, phone?: string
       create: (petId: string, data: any) => request(`/pets/${petId}/records`, { method: 'POST', body: JSON.stringify(data) }),
       update: (petId: string, recordId: string, data: any) => request(`/pets/${petId}/records/${recordId}`, { method: 'PUT', body: JSON.stringify(data) }),
       delete: (petId: string, recordId: string) => request(`/pets/${petId}/records/${recordId}`, { method: 'DELETE' }),
-      report: (petId: string) => {
+      report: async (petId: string) => {
         const token = localStorage.getItem('token');
-        const url = token ? `/api/pets/${petId}/records/report?token=${token}` : `/api/pets/${petId}/records/report`;
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'seguimiento.pdf';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        try {
+          const res = await fetch(`/api/pets/${petId}/records/report`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          });
+          if (!res.ok) { const err = await res.json(); alert(err.error || 'Error al generar PDF'); return; }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'seguimiento.pdf';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (e) { alert('Error al descargar el PDF'); }
       },
     },
   },

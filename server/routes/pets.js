@@ -411,7 +411,10 @@ router.delete('/:petId/records/:recordId', requireAuth, async (req, res) => {
 });
 
 router.get('/:petId/records/report', async (req, res) => {
-  const token = req.query.token;
+  // Auth via Authorization header (from fetch) or query token (legacy)
+  const authHeader = req.headers.authorization;
+  const queryToken = req.query.token;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : queryToken;
   if (token && token !== 'null' && token !== '') {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
