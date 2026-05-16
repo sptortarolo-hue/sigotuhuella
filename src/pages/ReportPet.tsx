@@ -142,39 +142,8 @@ const handleSubmit = async (e: React.FormEvent) => {
      }
    };
 
-  const handleGenerateFlyer = async () => {
-    if (!previewPet) return;
-    setIsGenerating(true);
-    setTimeout(() => {
-      setGeneratedFlyer('digital-flyer');
-      setIsGenerating(false);
-    }, 1500);
-  };
 
-const getWhatsAppMessage = () => {
-     if (!previewPet) return '';
-const statusEmoji = previewPet.status === 'lost' ? '🚨 BUSCADO 🚨' : previewPet.status === 'retained' ? '🏠 RETENIDO 🏠' : previewPet.status === 'sighted' ? '👀 AVISTADO 👀' : '⚠️ ACCIDENTADO ⚠️';
-      const speciesLabel = previewPet.species === 'dog' ? 'Perro' : previewPet.species === 'cat' ? 'Gato' : 'Otro';
-     return `¡DIFUNDIR POR FAVOR! 🙏
 
- ${statusEmoji} en Sicardi/Garibaldi
-
- 🐾 ${previewPet.name ? `Nombre: ${previewPet.name}` : 'Mascota sin identificar'}
- 📍 Visto en: ${previewPet.location}
- 🔎 Especie: ${speciesLabel}
- 🎨 Color/Detalles: ${previewPet.description || 'Sin detalles'}
- 📞 Contacto: ${previewPet.contact_info || previewPet.contactInfo || 'No disponible'}
-
- 🐾 Sigo Tu Huella — Red Vecinal
- ${window.location.origin}/perdidos
- ${window.location.origin}/sigotuhuella.jpg`;
-  };
-
-  const shareOnWhatsApp = () => {
-    const text = getWhatsAppMessage();
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
-  };
 
   if (authLoading) {
     return (
