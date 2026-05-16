@@ -3,6 +3,7 @@ import pool from '../db.js';
 import { requireAuth, requireAdmin } from '../auth.js';
 import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
+import jwt from 'jsonwebtoken';
 
 async function createCollage(images) {
   const imgs = images.slice(0, 3);
@@ -411,9 +412,8 @@ router.delete('/:petId/records/:recordId', requireAuth, async (req, res) => {
 
 router.get('/:petId/records/report', async (req, res) => {
   const token = req.query.token;
-  if (token) {
+  if (token && token !== 'null' && token !== '') {
     try {
-      const { default: jwt } = await import('jsonwebtoken');
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
       if (decoded.role !== 'admin') return res.status(403).json({ error: 'Not authorized' });
     } catch { return res.status(401).json({ error: 'Invalid token' }); }

@@ -47,7 +47,13 @@ register: (email: string, password: string, displayName?: string, phone?: string
       delete: (petId: string, recordId: string) => request(`/pets/${petId}/records/${recordId}`, { method: 'DELETE' }),
       report: (petId: string) => {
         const token = localStorage.getItem('token');
-        window.open(`/api/pets/${petId}/records/report?token=${token || ''}`, '_blank');
+        const url = token ? `/api/pets/${petId}/records/report?token=${token}` : `/api/pets/${petId}/records/report`;
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'seguimiento.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       },
     },
   },
