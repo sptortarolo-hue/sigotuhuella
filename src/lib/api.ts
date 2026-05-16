@@ -51,7 +51,6 @@ register: (email: string, password: string, displayName?: string, phone?: string
       },
     },
   },
-  news: {
   collaboration: {
     list: () => request('/collaboration'),
     create: (data: any) => request('/collaboration', { method: 'POST', body: JSON.stringify(data) }),
