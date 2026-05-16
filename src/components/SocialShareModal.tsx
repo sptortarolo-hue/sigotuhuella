@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Pet, getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
-import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon } from 'lucide-react';
+import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon, PawPrint } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -153,10 +153,11 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                     )}
                   </div>
 
-                  <div className="bg-brand-bg p-3 border-t border-brand-accent text-center">
-                    <p className="text-[8px] font-black tracking-widest text-brand-primary uppercase">
-                      Sigo Tu Huella • Comunidad de Rescate
-                    </p>
+                  <div className="bg-brand-bg p-3 border-t border-brand-accent flex items-center justify-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-brand-primary flex items-center justify-center text-white shadow-sm">
+                      <PawPrint className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="text-[9px] font-black tracking-[0.15em] text-brand-primary uppercase">Sigo tu huella</span>
                   </div>
                 </div>
               </div>
