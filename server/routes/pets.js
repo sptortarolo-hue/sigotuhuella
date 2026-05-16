@@ -410,18 +410,15 @@ router.delete('/:petId/records/:recordId', requireAuth, async (req, res) => {
 });
 
 router.get('/:petId/records/report', async (req, res) => {
-  try {
-    // Auth via query token (for direct window.open access)
-    const token = req.query.token;
-    if (token) {
-      try {
-        const jwt = await import('jsonwebtoken');
-        const decoded = jwt.default.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-        if (decoded.role !== 'admin') return res.status(403).json({ error: 'Not authorized' });
-      } catch { return res.status(401).json({ error: 'Invalid token' }); }
-    }
-  try {
-    const petResult = await pool.query(
+  const token = req.query.token;
+  if (token) {
+    try {
+      const { default: jwt } = await import('jsonwebtoken');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+      if (decoded.role !== 'admin') return res.status(403).json({ error: 'Not authorized' });
+    } catch { return res.status(401).json({ error: 'Invalid token' }); }
+  }
+  const petResult = await pool.query(
       `SELECT p.*, 
         COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
       FROM pets p
