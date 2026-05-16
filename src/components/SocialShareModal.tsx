@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Pet, getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
+import { Pet, getPetImageUrls } from '@/src/lib/petService';
 import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { motion } from 'motion/react';
@@ -29,7 +29,15 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const mainImage = images[0] || null;
   const isMobile = typeof navigator !== 'undefined' && !!navigator.share;
 
-  const shareText = `🐾 ${pet.name || 'Mascota'} - ${statusLabel(pet.status)} en ${pet.location}\nMás info: ${petUrl}`;
+  // Pre-compute flyer data
+  const flyerStatusBg = statusBg(pet.status);
+  const flyerStatusLabel = statusLabel(pet.status);
+  const flyerName = pet.name || 'Sin nombre';
+  const hasImage = !!mainImage;
+  const hasContact = !!pet.contact_info;
+  const hasDescription = !!pet.description;
+
+  const shareText = `🐾 ${pet.name || 'Mascota'} - ${flyerStatusLabel} en ${pet.location}\nMás info: ${petUrl}`;
 
   const handleGenerate = async () => {
     if (!flyerRef.current) return;
@@ -56,7 +64,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
           const blob = await res.blob();
           const file = new File([blob], link.download, { type: 'image/png' });
           if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ files: [file], title: `${pet.name || 'Mascota'} - ${statusLabel(pet.status)}`, text: shareText });
+            await navigator.share({ files: [file], title: `${pet.name || 'Mascota'} - ${flyerStatusLabel}`, text: shareText });
           }
         } catch (shareErr) {
           if ((shareErr as any)?.name === 'AbortError') return;
@@ -106,7 +114,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
         <div className="p-6 sm:p-8 space-y-6">
           {!platform ? (
-            <div>
+            <div key="select">
               <p className="text-sm text-gray-500 mb-4 text-center">Seleccioná la red social para generar el flyer</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {platforms.map((opt) => (
@@ -127,20 +135,20 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div key={platform} className="space-y-6">
               <div className="text-center">
                 <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Vista previa del flyer</p>
                 <div
                   ref={flyerRef}
                   className="w-full max-w-sm mx-auto rounded-3xl overflow-hidden border-4 border-brand-accent shadow-xl bg-white"
                 >
-                  <div className={cn("p-4 text-white font-serif font-black text-3xl text-center uppercase tracking-tighter", statusBg(pet.status))}>
-                    {statusLabel(pet.status)}
+                  <div className={cn("p-4 text-white font-serif font-black text-3xl text-center uppercase tracking-tighter", flyerStatusBg)}>
+                    {flyerStatusLabel}
                   </div>
 
                   <div className="relative aspect-square bg-gray-100">
-                    {mainImage ? (
-                      <img src={mainImage} alt={pet.name || ''} className="w-full h-full object-cover" />
+                    {hasImage ? (
+                      <img src={mainImage!} alt={flyerName} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-300">
                         <ImageIcon className="w-16 h-16" />
@@ -149,7 +157,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                     <div className="absolute top-4 right-4 bg-white rounded-2xl p-3 shadow-lg text-left border border-brand-accent">
                       <p className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-0.5">Nombre</p>
                       <p className="font-serif font-bold text-brand-primary text-xl tracking-tight leading-none">
-                        {pet.name || 'Sin nombre'}
+                        {flyerName}
                       </p>
                     </div>
                   </div>
@@ -160,14 +168,14 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                         <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Ubicación</p>
                         <p className="text-xs sm:text-sm font-bold text-brand-primary truncate">{pet.location}</p>
                       </div>
-                      {pet.contact_info && (
+                      {hasContact && (
                         <div className="bg-brand-bg p-3 rounded-xl border border-brand-accent flex-1">
                           <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Contacto</p>
                           <p className="text-xs sm:text-sm font-bold text-brand-primary">{pet.contact_info}</p>
                         </div>
                       )}
                     </div>
-                    {pet.description && (
+                    {hasDescription && (
                       <p className="text-xs text-gray-600 leading-relaxed italic border-l-4 border-brand-secondary pl-3">
                         "{pet.description}"
                       </p>
