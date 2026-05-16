@@ -49,6 +49,7 @@ export default function Admin() {
     size: 'medium' as 'small' | 'medium' | 'large',
     isVaccinated: false,
     isSterilized: false,
+    isDewormed: false,
     location: '',
     contactInfo: '',
     description: '',
@@ -242,6 +243,7 @@ export default function Admin() {
         size: formData.size || null,
         isVaccinated: formData.isVaccinated,
         isSterilized: formData.isSterilized,
+        isDewormed: formData.isDewormed,
         location: formData.location,
         contactInfo: formData.contactInfo,
         description: formData.description,
@@ -259,7 +261,7 @@ export default function Admin() {
   };
 
   const resetPetForm = () => {
-    setFormData({ name: '', species: 'dog', breed: '', color: '', status: PetStatus.LOST, gender: 'unknown', age: '', size: 'medium', isVaccinated: false, isSterilized: false, location: '', contactInfo: '', description: '' });
+    setFormData({ name: '', species: 'dog', breed: '', color: '', status: PetStatus.LOST, gender: 'unknown', age: '', size: 'medium', isVaccinated: false, isSterilized: false, isDewormed: false, location: '', contactInfo: '', description: '' });
     setPreviews([]);
     setSelectedFiles([]);
     setEditingPet(null);
@@ -278,6 +280,7 @@ export default function Admin() {
       size: pet.size || 'medium',
       isVaccinated: pet.is_vaccinated || false,
       isSterilized: pet.is_sterilized || false,
+      isDewormed: pet.is_dewormed || false,
       location: pet.location || '',
       contactInfo: pet.contact_info || '',
       description: pet.description || '',
@@ -804,7 +807,21 @@ export default function Admin() {
                         </select>
                       </div>
                     </div>
-                    <div className="flex gap-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold uppercase text-gray-500">Sexo</label>
+                        <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value as any})}>
+                          <option value="male">Macho</option>
+                          <option value="female">Hembra</option>
+                          <option value="unknown">No especificado</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-6">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" checked={formData.isDewormed} onChange={e => setFormData({...formData, isDewormed: e.target.checked})} className="w-4 h-4 accent-brand-primary" />
+                        <span className="text-gray-700 font-medium">Desparacitado</span>
+                      </label>
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input type="checkbox" checked={formData.isVaccinated} onChange={e => setFormData({...formData, isVaccinated: e.target.checked})} className="w-4 h-4 accent-brand-primary" />
                         <span className="text-gray-700 font-medium">Vacunado</span>

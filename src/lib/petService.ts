@@ -29,6 +29,7 @@ export interface Pet {
   size: string | null;
   is_vaccinated: boolean;
   is_sterilized: boolean;
+  is_dewormed: boolean;
   description: string | null;
   location: string;
   latitude: number | null;

@@ -107,8 +107,9 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
               {pet.size && <span className="text-[10px] px-2 py-1 bg-brand-bg rounded-full font-bold text-gray-500">{pet.size === 'small' ? 'Pequeño' : pet.size === 'medium' ? 'Mediano' : 'Grande'}</span>}
             </div>
           )}
-          {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.ADOPTED) && (pet.is_vaccinated || pet.is_sterilized) && (
+          {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.ADOPTED) && (pet.is_vaccinated || pet.is_sterilized || pet.is_dewormed) && (
             <div className="flex flex-wrap gap-2">
+              {pet.is_dewormed && <span className="text-[10px] px-2 py-1 bg-teal-50 text-teal-600 rounded-full font-bold">🪱 Desparacitado</span>}
               {pet.is_vaccinated && <span className="text-[10px] px-2 py-1 bg-green-50 text-green-600 rounded-full font-bold">💉 Vacunado</span>}
               {pet.is_sterilized && <span className="text-[10px] px-2 py-1 bg-blue-50 text-blue-600 rounded-full font-bold">✂️ Esterilizado</span>}
             </div>
