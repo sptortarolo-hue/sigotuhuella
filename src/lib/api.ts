@@ -52,11 +52,14 @@ register: (email: string, password: string, displayName?: string, phone?: string
             headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           });
           if (!res.ok) { const err = await res.json(); alert(err.error || 'Error al generar PDF'); return; }
+          const disposition = res.headers.get('Content-Disposition');
+          const match = disposition?.match(/filename="?(.+?)"?$/);
+          const filename = match ? match[1] : 'seguimiento.pdf';
           const blob = await res.blob();
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = 'seguimiento.pdf';
+          a.download = filename;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);

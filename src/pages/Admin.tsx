@@ -240,6 +240,7 @@ export default function Admin() {
   };
 
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfFilename, setPdfFilename] = useState('seguimiento.pdf');
 
   const handlePreviewPdf = async (petId: string) => {
     const token = localStorage.getItem('token');
@@ -248,6 +249,9 @@ export default function Admin() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) { const err = await res.json(); alert(err.error || 'Error al generar PDF'); return; }
+      const disposition = res.headers.get('Content-Disposition');
+      const match = disposition?.match(/filename="?(.+?)"?$/);
+      setPdfFilename(match ? match[1] : 'seguimiento.pdf');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       setPdfPreviewUrl(url);
@@ -1081,7 +1085,7 @@ export default function Admin() {
                       <div className="flex items-center justify-between p-3 bg-brand-bg/50 border-b border-brand-accent">
                         <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Vista previa</p>
                         <div className="flex gap-2">
-                          <a href={pdfPreviewUrl} download="seguimiento.pdf" className="px-3 py-1.5 bg-brand-primary text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:shadow transition-all">
+                          <a href={pdfPreviewUrl} download={pdfFilename} className="px-3 py-1.5 bg-brand-primary text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:shadow transition-all">
                             <Download className="w-3 h-3" /> Descargar
                           </a>
                           <button onClick={() => { setPdfPreviewUrl(null); URL.revokeObjectURL(pdfPreviewUrl); }} className="px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold text-gray-500 hover:bg-brand-bg transition-all">

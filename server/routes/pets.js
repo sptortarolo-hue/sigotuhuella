@@ -452,8 +452,11 @@ router.get('/:petId/records/report', async (req, res) => {
 
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
 
+    const now = new Date();
+    const dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    const safeName = (pet.name || 'mascota').replace(/[^a-zA-Z0-9\u00C0-\u024F\s]/g, '').trim().replace(/\s+/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="seguimiento-${pet.id}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="seguimiento-${safeName}-${dateStr}.pdf"`);
     doc.pipe(res);
 
     // Header
