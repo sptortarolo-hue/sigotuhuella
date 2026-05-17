@@ -91,9 +91,13 @@ router.post('/forgot-password', async (req, res) => {
 
     console.log(`PASSWORD RESET TOKEN for ${email}: ${resetToken}`);
 
-    sendPasswordResetEmail(email, resetToken)
-      .then(() => console.log(`Email sent successfully to ${email}`))
-      .catch(err => console.error('Email send error:', err.message));
+    try {
+      const result = await sendPasswordResetEmail(email, resetToken);
+      console.log('Resend response:', JSON.stringify(result));
+      console.log(`Email sent successfully to ${email}`);
+    } catch (emailErr) {
+      console.error('Email send error:', emailErr.message);
+    }
 
     res.json({ message: 'If the email exists, a reset link has been sent' });
   } catch (err) {
