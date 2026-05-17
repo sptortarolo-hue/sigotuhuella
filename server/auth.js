@@ -6,19 +6,24 @@ import { v4 as uuidv4 } from 'uuid';
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT) || 465,
-  secure: true,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+  host: process.env.SMTP_HOST || 'l0061596.ferozo.com',
+  port: parseInt(process.env.SMTP_PORT) || 587,
+  secure: false,
+  tls: {
+    rejectUnauthorized: false,
   },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 15000,
 });
 
 export async function sendPasswordResetEmail(email, resetToken) {
+  console.log('SMTP Config:', {
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    user: process.env.SMTP_USER,
+  });
+  
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
