@@ -246,7 +246,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   <span className={files.length === 3 ? "text-brand-secondary" : ""}>{files.length}/3</span>
                 </label>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                   {previews.map((preview, index) => (
                     <div key={index} className="relative aspect-square rounded-2xl overflow-hidden border-2 border-brand-accent shadow-sm">
                       <img src={preview} className="w-full h-full object-cover" alt="Preview" />
