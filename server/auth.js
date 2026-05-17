@@ -1,18 +1,26 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { v4 as uuidv4 } from 'uuid';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT) || 465,
+  secure: true,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
 export async function sendPasswordResetEmail(email, resetToken) {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
-  return resend.emails.send({
-    from: 'Sigo Tu Huella <onboarding@resend.dev>',
+  return transporter.sendMail({
+    from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
     to: email,
     subject: 'Recuperá tu contraseña - Sigo Tu Huella',
     html: `
