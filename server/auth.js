@@ -11,10 +11,15 @@ const transporter = nodemailer.createTransport({
   secure: false,
   tls: {
     rejectUnauthorized: false,
+    ciphers: 'SSLv3',
   },
-  connectionTimeout: 15000,
-  greetingTimeout: 15000,
-  socketTimeout: 15000,
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
 });
 
 export async function sendPasswordResetEmail(email, resetToken) {

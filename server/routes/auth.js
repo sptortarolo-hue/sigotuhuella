@@ -91,7 +91,7 @@ router.post('/forgot-password', async (req, res) => {
 
     console.log(`PASSWORD RESET TOKEN for ${email}: ${resetToken}`);
 
-    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.onrender.com';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
     const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
     console.log(`RESET LINK: ${resetUrl}`);
 
