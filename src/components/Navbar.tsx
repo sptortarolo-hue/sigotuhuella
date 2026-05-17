@@ -91,6 +91,7 @@ const navItems = [
             )}
 
             {user && (
+              <span className="hidden lg:block text-sm text-gray-600 mr-2">Hola, {user.display_name || user.email}</span>
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
