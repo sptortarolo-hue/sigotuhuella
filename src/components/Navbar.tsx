@@ -67,70 +67,76 @@ const navItems = [
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-1">
-            {navItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={cn(
-                  "text-xs sm:text-sm font-medium transition-colors hover:text-brand-primary px-2 py-1 rounded-lg whitespace-nowrap",
-                  location.pathname === item.path ? "text-brand-primary font-bold" : "text-gray-600"
-                )}
-              >
-                {item.name}
-              </Link>
-            ))}
-
-            {!user && (
-              <Link
-                to="/login"
-                className="ml-2 px-4 py-2 bg-brand-primary text-white text-xs sm:text-sm font-bold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all whitespace-nowrap"
-              >
-                Iniciar Sesión
-              </Link>
-            )}
-
-            {user && (
-              <>
-              <span className="hidden lg:block text-sm text-gray-600 mr-2">Hola, {user.display_name || user.email}</span>
-              <div className="relative" ref={menuRef}>
-                <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl hover:bg-brand-primary/20 transition-colors"
-                >
-                  <User className="w-5 h-5" />
-                </button>
-                <AnimatePresence>
-                  {userMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-brand-accent overflow-hidden z-50"
-                    >
-                      <div className="px-4 py-3 border-b border-brand-accent bg-brand-bg/50">
-                        <p className="text-sm font-bold text-brand-primary truncate">{user.display_name || user.email}</p>
-                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
-                      </div>
-                      <div className="py-1">
-                        <button onClick={() => handleNavClick('/dashboard')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
-                          <PawPrint className="w-4 h-4 text-brand-primary" /> Mi Panel
-                        </button>
-                        <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
-                          <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
-                        </button>
-                        <button onClick={() => handleNavClick('/perfil')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
-                          <Settings className="w-4 h-4 text-brand-primary" /> Editar Perfil
-                        </button>
-                        <button onClick={handleLogout} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors">
-                          <LogOut className="w-4 h-4" /> Cerrar Sesión
-                        </button>
-                      </div>
-                    </motion.div>
+          <div className="hidden md:flex items-center justify-between flex-1 ml-8">
+            <div className="flex items-center gap-1">
+              {navItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={cn(
+                    "text-xs sm:text-sm font-medium transition-colors hover:text-brand-primary px-2 py-1 rounded-lg whitespace-nowrap",
+                    location.pathname === item.path ? "text-brand-primary font-bold" : "text-gray-600"
                   )}
-                </AnimatePresence>
-              </div>
-            </>)}
+                >
+                  {item.name}
+                </Link>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-px h-6 bg-gray-300" />
+
+              {!user && (
+                <Link
+                  to="/login"
+                  className="px-4 py-2 bg-brand-primary text-white text-xs sm:text-sm font-bold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all whitespace-nowrap"
+                >
+                  Iniciar Sesión
+                </Link>
+              )}
+
+              {user && (
+                <>
+                <span className="hidden lg:block text-sm text-gray-700 bg-brand-primary/5 px-3 py-1.5 rounded-full font-medium">Hola, {user.display_name || user.email}</span>
+                <div className="relative" ref={menuRef}>
+                  <button
+                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl hover:bg-brand-primary/20 transition-colors"
+                  >
+                    <User className="w-5 h-5" />
+                  </button>
+                  <AnimatePresence>
+                    {userMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-brand-accent overflow-hidden z-50"
+                      >
+                        <div className="px-4 py-3 border-b border-brand-accent bg-brand-bg/50">
+                          <p className="text-sm font-bold text-brand-primary truncate">{user.display_name || user.email}</p>
+                          <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                        </div>
+                        <div className="py-1">
+                          <button onClick={() => handleNavClick('/dashboard')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                            <PawPrint className="w-4 h-4 text-brand-primary" /> Mi Panel
+                          </button>
+                          <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                            <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
+                          </button>
+                          <button onClick={() => handleNavClick('/perfil')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                            <Settings className="w-4 h-4 text-brand-primary" /> Editar Perfil
+                          </button>
+                          <button onClick={handleLogout} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors">
+                            <LogOut className="w-4 h-4" /> Cerrar Sesión
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </>)}
+            </div>
           </div>
 
           {/* Mobile Menu Toggle */}
