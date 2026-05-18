@@ -98,12 +98,9 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
         img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
       ));
 
-      const scale = Math.min(1200 / targetWidth, 2);
       const dataUrl = await toPng(flyerRef.current, { 
         quality: 0.95, 
-        pixelRatio: scale,
-        width: targetWidth,
-        height: targetHeight
+        pixelRatio: 2
       });
 
       const link = document.createElement('a');
@@ -139,6 +136,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
         console.error('Error al generar:', e);
         alert('Error al generar el flyer. Probá de nuevo o seleccioná otra red.');
       }
+      return;
     } finally {
       setGenerating(false);
     }
@@ -326,7 +324,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                   Cambiar formato
                 </button>
                 <button
-                  onClick={handleGenerate}
+                  onClick={(e) => { e.stopPropagation(); handleGenerate(); }}
                   disabled={generating}
                   className={cn(
                     "flex-[2] py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 text-white shadow-md hover:shadow-lg transition-all disabled:opacity-70",
