@@ -6,7 +6,7 @@ import { User, Lock, Save, Loader2, ArrowLeft, CheckCircle2, AlertCircle, Phone 
 import { motion } from 'motion/react';
 
 export default function Profile() {
-  const { user, login, logout } = useAuth();
+  const { user, login, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [phone, setPhone] = useState(user?.phone || '');
@@ -31,8 +31,7 @@ export default function Profile() {
     setProfileError('');
     try {
       const data = await api.users.update(user.id, { displayName, phone });
-      const stored = JSON.parse(localStorage.getItem('user') || '{}');
-      localStorage.setItem('user', JSON.stringify({ ...stored, display_name: data.user.display_name, phone: data.user.phone }));
+      updateUser({ display_name: data.user.display_name, phone: data.user.phone });
       setProfileMsg('Datos actualizados');
     } catch (err: any) {
       setProfileError(err.message || 'Error al actualizar');
@@ -75,8 +74,7 @@ export default function Profile() {
         reader.readAsDataURL(file);
       });
       const data = await api.users.uploadAvatar(user.id, { imageData: base64, mimeType: file.type });
-      const stored = JSON.parse(localStorage.getItem('user') || '{}');
-      localStorage.setItem('user', JSON.stringify({ ...stored, avatar_data: data.avatar.avatar_data, avatar_mime_type: data.avatar.avatar_mime_type, avatar_type: data.avatar.avatar_type }));
+      updateUser({ avatar_data: data.avatar.avatar_data, avatar_mime_type: data.avatar.avatar_mime_type, avatar_type: data.avatar.avatar_type });
       setProfileMsg('Foto de perfil actualizada');
     } catch (err: any) {
       setProfileError(err.message || 'Error al subir foto');

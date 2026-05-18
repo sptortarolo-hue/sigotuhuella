@@ -116,10 +116,10 @@ async function seedAdmin() {
       console.log(`Admin user created: ${email}`);
     } else {
       await pool.query(
-        'UPDATE users SET password_hash = $1, display_name = $2, role = $3 WHERE email = $4',
-        [passwordHash, 'sptortarolo', 'admin', email]
+        "UPDATE users SET role = 'admin' WHERE email = $1",
+        [email]
       );
-      console.log(`Admin user updated: ${email}`);
+      console.log(`Admin role verified: ${email}`);
     }
   } catch (err) {
     console.error('Admin seed error:', err);
