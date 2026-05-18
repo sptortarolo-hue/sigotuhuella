@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { createVolunteerRequest } from '@/src/lib/collaborationService';
@@ -20,6 +20,18 @@ export default function Join() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const prefilled = useRef(false);
+
+  useEffect(() => {
+    if (user && !prefilled.current) {
+      setFormData({
+        fullName: user.display_name || '',
+        residenceZone: '',
+        whatsapp: user.phone || ''
+      });
+      prefilled.current = true;
+    }
+  }, [user]);
   
   const [formData, setFormData] = useState({
     fullName: '',
@@ -128,6 +140,11 @@ export default function Join() {
               <p className="text-gray-500 text-center">Completa tus datos para ser parte de la red de Sigo tu Huella.</p>
             </div>
 
+            <div className="p-4 bg-brand-primary/5 rounded-2xl border border-brand-primary/10 text-sm text-brand-primary flex items-center gap-2 mb-6">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              Cargamos tus datos de tu cuenta. Podés modificarlos si es necesario.
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-8">
               <div className="space-y-6">
                 <div className="space-y-2">
@@ -135,14 +152,19 @@ export default function Join() {
                     <UserIcon className="w-3 h-3" />
                     Nombre y Apellido *
                   </label>
-                  <input
-                    required
-                    type="text"
-                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                    placeholder="Tu nombre completo"
-                    value={formData.fullName}
-                    onChange={e => setFormData({ ...formData, fullName: e.target.value })}
-                  />
+                  <div className="relative">
+                    <input
+                      required
+                      type="text"
+                      className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+                      placeholder="Tu nombre completo"
+                      value={formData.fullName}
+                      onChange={e => setFormData({ ...formData, fullName: e.target.value })}
+                    />
+                    {user?.display_name && (
+                      <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400" />
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -165,14 +187,19 @@ export default function Join() {
                     <Phone className="w-3 h-3" />
                     Número de WhatsApp *
                   </label>
-                  <input
-                    required
-                    type="tel"
-                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                    placeholder="+54 9 221 ..."
-                    value={formData.whatsapp}
-                    onChange={e => setFormData({ ...formData, whatsapp: e.target.value })}
-                  />
+                  <div className="relative">
+                    <input
+                      required
+                      type="tel"
+                      className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+                      placeholder="+54 9 221 ..."
+                      value={formData.whatsapp}
+                      onChange={e => setFormData({ ...formData, whatsapp: e.target.value })}
+                    />
+                    {user?.phone && (
+                      <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400" />
+                    )}
+                  </div>
                 </div>
               </div>
 
