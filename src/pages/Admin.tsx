@@ -364,8 +364,8 @@ export default function Admin() {
         images,
       };
 
-      if (editingPet) await updatePet(editingPet.id, dataToSave);
-      else await createPet(dataToSave);
+      if (editingPet) await updatePet(editingPet.id, dataToSave as any);
+      else await createPet(dataToSave as any);
 
       setShowForm(false);
       resetPetForm();
@@ -1150,7 +1150,7 @@ export default function Admin() {
                 )}
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Imágenes</label>
-                  <input type="file" accept="image/*" multiple onChange={e => { const files = Array.from(e.target.files || []); setSelectedFiles(files); setPreviews(files.map(f => URL.createObjectURL(f))); }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
+                  <input type="file" accept="image/*" multiple onChange={e => { const files = Array.from(e.target.files || []) as File[]; setSelectedFiles(files); setPreviews(files.map(f => URL.createObjectURL(f))); }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
                   {previews.length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {previews.map((src, i) => (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { Pet, PetStatus, getPetCoordinates, deletePet, updatePet, getPetImageUrls } from '@/src/lib/petService';
@@ -331,7 +331,7 @@ export default function MyPets() {
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Imágenes</label>
                   <input type="file" accept="image/*" multiple onChange={e => { 
-                    const files = Array.from(e.target.files || []); 
+                    const files = Array.from(e.target.files || []) as File[]; 
                     setSelectedFiles([...selectedFiles, ...files]); 
                     setPreviews([...previews, ...files.map(f => URL.createObjectURL(f))]); 
                   }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
