@@ -2,8 +2,10 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
+const isLocal = process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1'));
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/sigotuhuella',
+  ssl: (process.env.DATABASE_URL && !isLocal) ? { rejectUnauthorized: false } : false,
 });
 
 const schema = `
