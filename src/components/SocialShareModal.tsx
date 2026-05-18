@@ -476,8 +476,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                   <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden" style={{ width: Math.round(targetWidth * previewScale), height: Math.round(targetHeight * previewScale) }}>
                     <canvas
                       ref={canvasRef}
-                      className="block"
-                      style={{ width: '100%', height: '100%', transform: `scale(${previewScale})`, transformOrigin: 'top left' }}
+                      className="block w-full h-full"
                     />
                   </div>
                 )}
