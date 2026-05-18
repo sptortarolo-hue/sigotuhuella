@@ -164,8 +164,12 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
   const isTall = aspectRatio === '9:16';
 
-  const renderStateFlyer = () => (
+  const renderUrgentFlyer = () => (
     <div className="flex flex-col bg-white" style={{ width: targetWidth, height: targetHeight }}>
+      <div className={cn("flex items-center justify-center text-white font-black uppercase tracking-tight", isTall ? "flex-[0_0_22%] text-5xl" : "flex-[0_0_18%] text-6xl", flyerStatusBg)}>
+        {flyerStatusLabel}
+      </div>
+
       <div className="relative flex-1 bg-gray-100 overflow-hidden">
         {hasImage ? (
           <img src={mainImage!} alt={flyerName} className="w-full h-full object-cover" />
@@ -174,9 +178,50 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
             <ImageIcon className="w-1/4 h-1/4" />
           </div>
         )}
-        <div className={cn("absolute top-6 left-6 text-white font-bold rounded-2xl px-6 py-2.5 shadow-lg uppercase tracking-tighter text-3xl", flyerStatusBg)}>
-          {flyerStatusLabel}
+        <div className="absolute bottom-6 right-6 bg-black/50 backdrop-blur-sm rounded-2xl px-6 py-3">
+          <p className="text-white font-bold text-4xl">{flyerName}</p>
         </div>
+      </div>
+
+      <div className={cn("bg-white flex gap-4", isTall ? "flex-[0_0_18%] flex-col p-4" : "flex-[0_0_14%] flex-row items-center px-6 py-4")}>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <MapPin className={cn("shrink-0 text-gray-400", isTall ? "w-7 h-7" : "w-8 h-8")} />
+          <span className="font-bold text-brand-primary truncate text-2xl">{pet.location}</span>
+        </div>
+        {hasContact && (
+          <>
+            <span className={cn("text-brand-accent", isTall ? "hidden" : "inline")}>|</span>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <Phone className={cn("shrink-0 text-gray-400", isTall ? "w-7 h-7" : "w-8 h-8")} />
+              <span className="font-bold text-brand-primary text-2xl truncate">{pet.contact_info}</span>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="flex-[0_0_10%] bg-brand-primary flex items-center justify-center gap-3">
+        <div className="w-9 h-9 rounded-lg overflow-hidden border border-white/30 shrink-0">
+          <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
+        </div>
+        <span className="text-white font-black text-base tracking-[0.15em] uppercase">Sigo tu huella</span>
+      </div>
+    </div>
+  );
+
+  const renderPositiveFlyer = () => (
+    <div className="flex flex-col bg-white" style={{ width: targetWidth, height: targetHeight }}>
+      <div className={cn("flex items-center justify-center text-white font-black uppercase tracking-tight", isTall ? "flex-[0_0_22%] text-5xl" : "flex-[0_0_18%] text-6xl", flyerStatusBg)}>
+        {flyerStatusLabel}
+      </div>
+
+      <div className="relative flex-1 bg-gray-100 overflow-hidden">
+        {hasImage ? (
+          <img src={mainImage!} alt={flyerName} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <ImageIcon className="w-1/4 h-1/4" />
+          </div>
+        )}
         <div className="absolute bottom-6 right-6 bg-black/50 backdrop-blur-sm rounded-2xl px-6 py-3">
           <p className="text-white font-bold text-4xl">{flyerName}</p>
         </div>
@@ -250,10 +295,9 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   );
 
   const renderFlyerContent = () => {
-    if (pet.status === 'for_adoption') {
-      return renderAdoptionFlyer();
-    }
-    return renderStateFlyer();
+    if (pet.status === 'for_adoption') return renderAdoptionFlyer();
+    if (pet.status === 'adopted' || pet.status === 'reunited') return renderPositiveFlyer();
+    return renderUrgentFlyer();
   };
 
   const platforms = [
