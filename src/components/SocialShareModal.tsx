@@ -25,8 +25,8 @@ const platformConfigs: PlatformConfig[] = [
   {
     platform: 'whatsapp',
     uses: [
-      { id: 'story', label: 'Estado', description: 'Para estados de WhatsApp', aspectRatio: '9:16', width: 752, height: 1334 },
-      { id: 'post', label: 'Imagen/Chat', description: 'Para enviar en chats', aspectRatio: '1:1', width: 800, height: 800 }
+      { id: 'story', label: 'Estado', description: 'Para estados de WhatsApp', aspectRatio: '9:16', width: 1080, height: 1920 },
+      { id: 'post', label: 'Imagen/Chat', description: 'Para enviar en chats', aspectRatio: '1:1', width: 1080, height: 1080 }
     ]
   },
   {
@@ -77,6 +77,36 @@ const getDimensions = (platform: Platform, useType: UseType) => {
   return { width: use.width, height: use.height, aspectRatio: use.aspectRatio };
 };
 
+type LayoutType = 'story' | 'portrait' | 'square';
+
+const getLayoutType = (w: number, h: number): LayoutType => {
+  const ratio = w / h;
+  if (ratio < 0.6) return 'story';
+  if (ratio < 0.9) return 'portrait';
+  return 'square';
+};
+
+const styleNames: Record<LayoutType, [string, string]> = {
+  story: ['Hero', 'Split'],
+  portrait: ['Magazine', 'Poster'],
+  square: ['Compact', 'Minimal'],
+};
+
+const styleDescriptions: Record<LayoutType, [string, string]> = {
+  story: [
+    'Foto grande arriba, mucho espacio, estilo hero',
+    'Foto centrada con decoraciones, split visual'
+  ],
+  portrait: [
+    'Estilo editorial, foto dominante arriba',
+    'Estilo póster, balance compacto'
+  ],
+  square: [
+    'Foto izquierda, info derecha, máximo info',
+    'Foto central, minimalista y limpio'
+  ],
+};
+
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -91,95 +121,42 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
-function drawFlyerNative(
+function drawCircularPhoto(
   ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  design: DesignConfig,
-  name: string,
-  petDetails: string | undefined,
-  location: string | undefined,
-  contactInfo: string | undefined,
-  description: string | undefined,
-  status: string,
+  cx: number, cy: number, r: number,
   img: HTMLImageElement | null,
-  logoImg: HTMLImageElement | null
+  w: number
 ) {
-  ctx.clearRect(0, 0, w, h);
-
-  // === BACKGROUND GRADIENT (brand unified) ===
-  const bgGrad = ctx.createLinearGradient(0, 0, w * 0.3, h);
-  bgGrad.addColorStop(0, BRAND_GRADIENT[0]);
-  bgGrad.addColorStop(1, BRAND_GRADIENT[1]);
-  ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, w, h);
-
-  // === GEOMETRIC DECORATIONS ===
-  ctx.globalAlpha = 0.06;
-  ctx.fillStyle = '#ffffff';
-
-  ctx.beginPath();
-  ctx.arc(w * 0.85, h * 0.12, w * 0.3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(w * 0.1, h * 0.88, w * 0.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(w * 0.75, h * 0.75, w * 0.08, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(w * 0.2, h * 0.15, w * 0.06, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Subtle decorative dots
-  ctx.globalAlpha = 0.04;
-  for (let x = w * 0.6; x < w * 0.95; x += 30) {
-    for (let y = h * 0.5; y < h * 0.85; y += 30) {
-      ctx.beginPath();
-      ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  ctx.globalAlpha = 1;
-
-  // === LAYOUT CALCULATIONS ===
-  const isTall = h > w;
-  const photoRadius = isTall ? w * 0.25 : w * 0.28;
-  const photoCx = w / 2;
-  const photoCy = isTall ? h * 0.30 : h * 0.35;
-
-  // === PET PHOTO (circular with border + shadow) ===
   if (img) {
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
-    ctx.shadowBlur = photoRadius * 0.4;
-    ctx.shadowOffsetY = photoRadius * 0.15;
+    ctx.shadowBlur = r * 0.4;
+    ctx.shadowOffsetY = r * 0.15;
 
     ctx.beginPath();
-    ctx.arc(photoCx, photoCy, photoRadius, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.clip();
 
     const imgAspect = img.naturalWidth / img.naturalHeight;
     let drawW: number, drawH: number;
     if (imgAspect > 1) {
-      drawH = photoRadius * 2.2;
+      drawH = r * 2.2;
       drawW = drawH * imgAspect;
     } else {
-      drawW = photoRadius * 2.2;
+      drawW = r * 2.2;
       drawH = drawW / imgAspect;
     }
-    ctx.drawImage(img, photoCx - drawW / 2, photoCy - drawH / 2, drawW, drawH);
+    ctx.drawImage(img, cx - drawW / 2, cy - drawH / 2, drawW, drawH);
     ctx.restore();
 
     ctx.beginPath();
-    ctx.arc(photoCx, photoCy, photoRadius, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = Math.max(4, w * 0.006);
     ctx.stroke();
   } else {
     ctx.beginPath();
-    ctx.arc(photoCx, photoCy, photoRadius, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.15)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
@@ -187,111 +164,77 @@ function drawFlyerNative(
     ctx.stroke();
 
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.font = `${photoRadius * 0.8}px system-ui`;
+    ctx.font = `${r * 0.8}px system-ui`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🐾', photoCx, photoCy);
+    ctx.fillText('🐾', cx, cy);
   }
+}
 
-  // === STATUS BADGE ===
-  const badgeFontSize = w * 0.04;
-  ctx.font = `800 ${badgeFontSize}px system-ui, -apple-system, sans-serif`;
-  const badgeText = design.label;
-  const badgeTextW = ctx.measureText(badgeText).width;
-  const badgePadX = w * 0.04;
-  const badgePadY = w * 0.015;
-  const badgeW = badgeTextW + badgePadX * 2;
-  const badgeH = badgeFontSize + badgePadY * 2;
-  const badgeX = (w - badgeW) / 2;
-  const badgeY = photoCy + photoRadius + w * 0.035;
+function drawBadge(
+  ctx: CanvasRenderingContext2D,
+  w: number, cx: number, y: number,
+  text: string, color: string
+): number {
+  const fontSize = w * 0.04;
+  ctx.font = `800 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  const textW = ctx.measureText(text).width;
+  const padX = w * 0.04;
+  const padY = w * 0.015;
+  const bw = textW + padX * 2;
+  const bh = fontSize + padY * 2;
+  const bx = cx - bw / 2;
 
-  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
-  ctx.fillStyle = design.badgeColor;
+  roundRect(ctx, bx, y, bw, bh, bh / 2);
+  ctx.fillStyle = color;
   ctx.fill();
 
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `800 ${badgeFontSize}px system-ui, -apple-system, sans-serif`;
-  ctx.fillText(badgeText, w / 2, badgeY + badgeH / 2);
+  ctx.font = `800 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.fillText(text, cx, y + bh / 2);
 
-  // === PET NAME ===
-  const nameY = badgeY + badgeH + w * 0.035;
-  const nameFontSize = w * 0.085;
-  ctx.font = `800 ${nameFontSize}px system-ui, -apple-system, sans-serif`;
-  ctx.fillStyle = '#ffffff';
+  return y + bh;
+}
+
+function drawWrappedText(
+  ctx: CanvasRenderingContext2D,
+  text: string, cx: number, y: number,
+  maxWidth: number, fontSize: number, maxLines: number,
+  fontStyle: string, color: string, lineSpacing: number
+): number {
+  ctx.font = `${fontStyle} ${fontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = color;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
 
-  ctx.shadowColor = 'rgba(0,0,0,0.2)';
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetY = 3;
-  ctx.fillText(name, w / 2, nameY);
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-
-  // === PET DETAILS ===
-  let infoY = nameY + nameFontSize * 1.1;
-  if (petDetails) {
-    const detailFontSize = w * 0.028;
-    ctx.font = `500 ${detailFontSize}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(petDetails, w / 2, infoY);
-    infoY += detailFontSize * 1.8;
-  }
-
-  // === INFO SECTION ===
-  const infoFontSize = w * 0.035;
-  ctx.font = `500 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-
-  if (location) {
-    ctx.fillText(location, w / 2, infoY);
-    infoY += infoFontSize * 1.5;
-  }
-
-  if (contactInfo) {
-    ctx.fillText(contactInfo, w / 2, infoY);
-    infoY += infoFontSize * 1.5;
-  }
-
-  // Description for all statuses
-  if (description) {
-    const descFontSize = w * 0.03;
-    ctx.font = `italic 500 ${descFontSize}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    const maxDescW = w * 0.72;
-    const words = description.split(' ');
-    let line = '';
-    let lineCount = 0;
-    const maxLines = 3;
-    let descY = infoY;
-    for (const word of words) {
-      if (lineCount >= maxLines) break;
-      const testLine = line + word + ' ';
-      if (ctx.measureText(testLine).width > maxDescW && line) {
-        ctx.fillText(line.trim(), w / 2, descY);
-        line = word + ' ';
-        descY += descFontSize * 1.4;
-        lineCount++;
-      } else {
-        line = testLine;
-      }
-    }
-    if (line.trim() && lineCount < maxLines) {
-      ctx.fillText(line.trim(), w / 2, descY);
+  const words = text.split(' ');
+  let line = '';
+  let lineCount = 0;
+  let curY = y;
+  for (const word of words) {
+    if (lineCount >= maxLines) break;
+    const testLine = line + word + ' ';
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      ctx.fillText(line.trim(), cx, curY);
+      line = word + ' ';
+      curY += fontSize * lineSpacing;
+      lineCount++;
+    } else {
+      line = testLine;
     }
   }
+  if (line.trim() && lineCount < maxLines) {
+    ctx.fillText(line.trim(), cx, curY);
+    curY += fontSize * lineSpacing;
+  }
+  return curY;
+}
 
-  // === BRAND BAR ===
+function drawBrandBar(ctx: CanvasRenderingContext2D, w: number, h: number, logoImg: HTMLImageElement | null) {
   const brandY = h - h * 0.06;
 
-  // Separator line
   ctx.strokeStyle = 'rgba(255,255,255,0.25)';
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -299,7 +242,6 @@ function drawFlyerNative(
   ctx.lineTo(w * 0.85, brandY);
   ctx.stroke();
 
-  // Logo thumbnail
   const logoR = w * 0.028;
   const logoY = brandY + h * 0.025 + logoR;
 
@@ -333,7 +275,6 @@ function drawFlyerNative(
     ctx.fillText('🐾', w * 0.32, logoY);
   }
 
-  // Brand text
   const brandFontSize = w * 0.035;
   ctx.font = `800 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
@@ -342,11 +283,482 @@ function drawFlyerNative(
   ctx.fillText('SIGO TU HUELLA', w * 0.32 + logoR + w * 0.025, logoY);
 }
 
+// === LAYOUT DRAWERS ===
+
+function drawBgDecorations(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  ctx.clearRect(0, 0, w, h);
+
+  const bgGrad = ctx.createLinearGradient(0, 0, w * 0.3, h);
+  bgGrad.addColorStop(0, BRAND_GRADIENT[0]);
+  bgGrad.addColorStop(1, BRAND_GRADIENT[1]);
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.globalAlpha = 0.06;
+  ctx.fillStyle = '#ffffff';
+
+  ctx.beginPath();
+  ctx.arc(w * 0.85, h * 0.12, w * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(w * 0.1, h * 0.88, w * 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(w * 0.75, h * 0.75, w * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(w * 0.2, h * 0.15, w * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalAlpha = 0.04;
+  for (let x = w * 0.45; x < w * 0.95; x += 30) {
+    for (let y = h * 0.45; y < h * 0.85; y += 30) {
+      ctx.beginPath();
+      ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.globalAlpha = 1;
+}
+
+// Layout: Story Hero (9:16, style 0)
+function drawStoryHero(
+  ctx: CanvasRenderingContext2D, w: number, h: number,
+  design: DesignConfig, name: string, petDetails: string | undefined,
+  location: string | undefined, contactInfo: string | undefined,
+  description: string | undefined, img: HTMLImageElement | null
+) {
+  const photoR = w * 0.28;
+  const photoCy = h * 0.30;
+
+  drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
+
+  let yPos = photoCy + photoR + w * 0.035;
+  yPos = drawBadge(ctx, w, w / 2, yPos, design.label, design.badgeColor);
+
+  yPos += w * 0.035;
+  const nameFs = w * 0.09;
+  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(0,0,0,0.2)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 3;
+  ctx.fillText(name, w / 2, yPos);
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  yPos += nameFs * 1.15;
+
+  if (petDetails) {
+    const df = w * 0.028;
+    ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(petDetails, w / 2, yPos);
+    yPos += df * 1.8;
+  }
+
+  yPos += w * 0.015;
+
+  if (location) {
+    const lf = w * 0.035;
+    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(location, w / 2, yPos);
+    yPos += lf * 1.6;
+  }
+
+  if (contactInfo) {
+    const cf = w * 0.035;
+    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(contactInfo, w / 2, yPos);
+    yPos += cf * 1.6;
+  }
+
+  if (description) {
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.03, 3, 'italic 500', 'rgba(255,255,255,0.65)', 1.4);
+  }
+}
+
+// Layout: Story Split (9:16, style 1)
+function drawStorySplit(
+  ctx: CanvasRenderingContext2D, w: number, h: number,
+  design: DesignConfig, name: string, petDetails: string | undefined,
+  location: string | undefined, contactInfo: string | undefined,
+  description: string | undefined, img: HTMLImageElement | null
+) {
+  // Extra decorative circles in upper area for "split" feel
+  ctx.globalAlpha = 0.05;
+  ctx.fillStyle = '#ffffff';
+  for (let i = 0; i < 6; i++) {
+    const angle = (i / 6) * Math.PI * 2;
+    const dist = w * (0.25 + Math.random() * 0.25);
+    ctx.beginPath();
+    ctx.arc(w / 2 + Math.cos(angle) * dist, h * 0.25 + Math.sin(angle) * dist * 0.4, w * 0.04 + Math.random() * w * 0.04, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  const photoR = w * 0.22;
+  const photoCy = h * 0.40;
+
+  drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
+
+  let yPos = photoCy + photoR + w * 0.03;
+  yPos = drawBadge(ctx, w, w / 2, yPos, design.label, design.badgeColor);
+
+  yPos += w * 0.03;
+  const nameFs = w * 0.08;
+  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(0,0,0,0.2)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 3;
+  ctx.fillText(name, w / 2, yPos);
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  yPos += nameFs * 1.1;
+
+  if (petDetails) {
+    const df = w * 0.026;
+    ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(petDetails, w / 2, yPos);
+    yPos += df * 1.7;
+  }
+
+  if (location) {
+    const lf = w * 0.032;
+    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(location, w / 2, yPos);
+    yPos += lf * 1.5;
+  }
+
+  if (contactInfo) {
+    const cf = w * 0.032;
+    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(contactInfo, w / 2, yPos);
+    yPos += cf * 1.5;
+  }
+
+  if (description) {
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.76, w * 0.028, 3, 'italic 500', 'rgba(255,255,255,0.65)', 1.35);
+  }
+}
+
+// Layout: Portrait Magazine (4:5, style 0)
+function drawPortraitMagazine(
+  ctx: CanvasRenderingContext2D, w: number, h: number,
+  design: DesignConfig, name: string, petDetails: string | undefined,
+  location: string | undefined, contactInfo: string | undefined,
+  description: string | undefined, img: HTMLImageElement | null
+) {
+  const photoR = w * 0.22;
+  const photoCy = h * 0.25;
+
+  drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
+
+  let yPos = photoCy + photoR + w * 0.03;
+  yPos = drawBadge(ctx, w, w / 2, yPos, design.label, design.badgeColor);
+
+  yPos += w * 0.03;
+  const nameFs = w * 0.08;
+  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(0,0,0,0.2)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 3;
+  ctx.fillText(name, w / 2, yPos);
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  yPos += nameFs * 1.1;
+
+  if (petDetails) {
+    const df = w * 0.026;
+    ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(petDetails, w / 2, yPos);
+    yPos += df * 1.7;
+  }
+
+  if (location) {
+    const lf = w * 0.032;
+    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(location, w / 2, yPos);
+    yPos += lf * 1.5;
+  }
+
+  if (contactInfo) {
+    const cf = w * 0.032;
+    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(contactInfo, w / 2, yPos);
+    yPos += cf * 1.5;
+  }
+
+  if (description) {
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.028, 2, 'italic 500', 'rgba(255,255,255,0.65)', 1.35);
+  }
+}
+
+// Layout: Portrait Poster (4:5, style 1)
+function drawPortraitPoster(
+  ctx: CanvasRenderingContext2D, w: number, h: number,
+  design: DesignConfig, name: string, petDetails: string | undefined,
+  location: string | undefined, contactInfo: string | undefined,
+  description: string | undefined, img: HTMLImageElement | null
+) {
+  const photoR = w * 0.20;
+  const photoCy = h * 0.33;
+
+  drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
+
+  let yPos = photoCy + photoR + w * 0.025;
+  yPos = drawBadge(ctx, w, w / 2, yPos, design.label, design.badgeColor);
+
+  yPos += w * 0.025;
+  const nameFs = w * 0.075;
+  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(0,0,0,0.2)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2;
+  ctx.fillText(name, w / 2, yPos);
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  yPos += nameFs * 1.05;
+
+  if (petDetails) {
+    const df = w * 0.024;
+    ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(petDetails, w / 2, yPos);
+    yPos += df * 1.6;
+  }
+
+  if (location) {
+    const lf = w * 0.03;
+    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(location, w / 2, yPos);
+    yPos += lf * 1.4;
+  }
+
+  if (contactInfo) {
+    const cf = w * 0.03;
+    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(contactInfo, w / 2, yPos);
+    yPos += cf * 1.4;
+  }
+
+  if (description) {
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.74, w * 0.026, 2, 'italic 500', 'rgba(255,255,255,0.65)', 1.3);
+  }
+}
+
+// Layout: Square Compact (1:1, style 0) — photo left, info right
+function drawSquareCompact(
+  ctx: CanvasRenderingContext2D, w: number, h: number,
+  design: DesignConfig, name: string, petDetails: string | undefined,
+  location: string | undefined, contactInfo: string | undefined,
+  description: string | undefined, img: HTMLImageElement | null
+) {
+  const photoR = h * 0.33;
+  const photoCx = w * 0.28;
+  const photoCy = h * 0.38;
+
+  drawCircularPhoto(ctx, photoCx, photoCy, photoR, img, w);
+
+  const rightX = w * 0.55;
+  const rightW = w * 0.40;
+
+  let yPos = photoCy - photoR * 0.5;
+  yPos = drawBadge(ctx, w, rightX + rightW / 2, yPos, design.label, design.badgeColor);
+
+  yPos += w * 0.035;
+  const nameFs = w * 0.065;
+  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(0,0,0,0.2)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2;
+  ctx.fillText(name, rightX, yPos);
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  yPos += nameFs * 1.2;
+
+  if (location) {
+    const lf = w * 0.028;
+    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(location, rightX, yPos);
+    yPos += lf * 1.5;
+  }
+
+  if (contactInfo) {
+    const cf = w * 0.028;
+    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(contactInfo, rightX, yPos);
+    yPos += cf * 1.5;
+  }
+
+  if (description) {
+    yPos = drawWrappedText(ctx, description, rightX + rightW / 2, yPos, rightW, w * 0.025, 2, 'italic 500', 'rgba(255,255,255,0.6)', 1.3);
+  }
+
+  // "SIGO TU HUELLA" small tag in right area
+  ctx.font = `700 ${w * 0.022}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('🐾 SIGO TU HUELLA', rightX, h - h * 0.08);
+}
+
+// Layout: Square Minimal (1:1, style 1)
+function drawSquareMinimal(
+  ctx: CanvasRenderingContext2D, w: number, h: number,
+  design: DesignConfig, name: string, petDetails: string | undefined,
+  location: string | undefined, contactInfo: string | undefined,
+  description: string | undefined, img: HTMLImageElement | null
+) {
+  const photoR = w * 0.28;
+  const photoCy = h * 0.32;
+
+  drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
+
+  let yPos = photoCy + photoR + w * 0.03;
+  yPos = drawBadge(ctx, w, w / 2, yPos, design.label, design.badgeColor);
+
+  yPos += w * 0.03;
+  const nameFs = w * 0.075;
+  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(0,0,0,0.2)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2;
+  ctx.fillText(name, w / 2, yPos);
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  yPos += nameFs * 1.1;
+
+  if (location) {
+    const lf = w * 0.03;
+    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(location, w / 2, yPos);
+    yPos += lf * 1.5;
+  }
+
+  if (contactInfo) {
+    const cf = w * 0.03;
+    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(contactInfo, w / 2, yPos);
+    yPos += cf * 1.5;
+  }
+
+  if (description) {
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.026, 1, 'italic 500', 'rgba(255,255,255,0.6)', 1.3);
+  }
+}
+
+function drawFlyerNative(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  design: DesignConfig,
+  name: string,
+  petDetails: string | undefined,
+  location: string | undefined,
+  contactInfo: string | undefined,
+  description: string | undefined,
+  status: string,
+  img: HTMLImageElement | null,
+  logoImg: HTMLImageElement | null,
+  styleIndex: 0 | 1
+) {
+  drawBgDecorations(ctx, w, h);
+
+  const layoutType = getLayoutType(w, h);
+
+  if (layoutType === 'square' && styleIndex === 0) {
+    drawSquareCompact(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
+  } else if (layoutType === 'square' && styleIndex === 1) {
+    drawSquareMinimal(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
+  } else if (layoutType === 'story' && styleIndex === 0) {
+    drawStoryHero(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
+  } else if (layoutType === 'story' && styleIndex === 1) {
+    drawStorySplit(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
+  } else if (layoutType === 'portrait' && styleIndex === 0) {
+    drawPortraitMagazine(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
+  } else {
+    drawPortraitPoster(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
+  }
+
+  drawBrandBar(ctx, w, h, logoImg);
+}
+
 export default function SocialShareModal({ pet, onClose }: SocialShareModalProps) {
   const [platform, setPlatform] = useState<Platform>(null);
   const [useType, setUseType] = useState<UseType>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
+  const [styleIndex, setStyleIndex] = useState<0 | 1>(0);
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -383,8 +795,8 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     if (!ctx) return;
     canvas.width = targetWidth;
     canvas.height = targetHeight;
-    drawFlyerNative(ctx, targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, pet.status, img, logoImg);
-  }, [targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, pet.status, logoImg]);
+    drawFlyerNative(ctx, targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, pet.status, img, logoImg, styleIndex);
+  }, [targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, pet.status, logoImg, styleIndex]);
 
   useEffect(() => {
     if (!mainImage || !platform || !useType) return;
@@ -430,7 +842,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
         offscreen.getContext('2d')!,
         targetWidth, targetHeight, design, flyerName, petDetails,
         pet.location, pet.contact_info, pet.description, pet.status,
-        imgToUse, logoImg
+        imgToUse, logoImg, styleIndex
       );
 
       const dataUrl = offscreen.toDataURL('image/png', 1.0);
@@ -571,6 +983,38 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest bg-brand-bg px-3 py-1 rounded-full">
                   {getCurrentConfig()?.uses.find(u => u.id === useType)?.aspectRatio}
                 </span>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest text-center">Estilo de diseño</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[0, 1].map((idx) => {
+                    const lt = getLayoutType(targetWidth, targetHeight);
+                    const name = styleNames[lt][idx];
+                    const desc = styleDescriptions[lt][idx];
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => setStyleIndex(idx as 0 | 1)}
+                        className={cn(
+                          "p-4 rounded-2xl border-2 text-left transition-all",
+                          styleIndex === idx
+                            ? "border-brand-primary bg-brand-bg shadow-md"
+                            : "border-brand-accent hover:border-gray-300"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs mb-2",
+                          styleIndex === idx ? "bg-brand-primary" : "bg-gray-300"
+                        )}>
+                          {idx + 1}
+                        </div>
+                        <p className="font-bold text-sm text-brand-primary">{name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="text-center">
