@@ -166,7 +166,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
   const renderUrgentFlyer = () => (
     <div className="flex flex-col bg-white" style={{ width: targetWidth, height: targetHeight }}>
-      <div className={cn("flex items-center justify-center text-white font-black uppercase tracking-tight", isTall ? "flex-[0_0_22%] text-5xl" : "flex-[0_0_18%] text-6xl", flyerStatusBg)}>
+      <div className={cn("flex items-center justify-center text-white font-black uppercase tracking-tight", isTall ? "flex-[0_0_20%] text-7xl" : "flex-[0_0_16%] text-8xl", flyerStatusBg)}>
         {flyerStatusLabel}
       </div>
 
@@ -178,39 +178,47 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
             <ImageIcon className="w-1/4 h-1/4" />
           </div>
         )}
-        <div className="absolute bottom-6 right-6 bg-black/50 backdrop-blur-sm rounded-2xl px-6 py-3">
-          <p className="text-white font-bold text-4xl">{flyerName}</p>
+        <div className="absolute bottom-8 right-8 bg-black/60 backdrop-blur-sm rounded-2xl px-8 py-4">
+          <p className="text-white font-black text-5xl">{flyerName}</p>
         </div>
       </div>
 
-      <div className={cn("bg-white flex gap-4", isTall ? "flex-[0_0_18%] flex-col p-4" : "flex-[0_0_14%] flex-row items-center px-6 py-4")}>
+      {hasDescription && (
+        <div className={cn("bg-white", isTall ? "flex-[0_0_16%] px-6 py-3" : "flex-[0_0_12%] px-8 py-3")}>
+          <p className={cn("text-gray-600 leading-snug italic border-l-4 border-brand-secondary pl-3", isTall ? "text-2xl" : "text-3xl")}>
+            "{pet.description}"
+          </p>
+        </div>
+      )}
+
+      <div className={cn("bg-white flex gap-4", isTall ? "flex-[0_0_16%] flex-col p-4" : "flex-[0_0_12%] flex-row items-center px-8 py-4")}>
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <MapPin className={cn("shrink-0 text-gray-400", isTall ? "w-7 h-7" : "w-8 h-8")} />
-          <span className="font-bold text-brand-primary truncate text-2xl">{pet.location}</span>
+          <MapPin className={cn("shrink-0 text-gray-400", isTall ? "w-8 h-8" : "w-10 h-10")} />
+          <span className="font-bold text-brand-primary truncate text-3xl">{pet.location}</span>
         </div>
         {hasContact && (
           <>
-            <span className={cn("text-brand-accent", isTall ? "hidden" : "inline")}>|</span>
+            <span className={cn("text-brand-accent", isTall ? "hidden" : "inline text-3xl")}>|</span>
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <Phone className={cn("shrink-0 text-gray-400", isTall ? "w-7 h-7" : "w-8 h-8")} />
-              <span className="font-bold text-brand-primary text-2xl truncate">{pet.contact_info}</span>
+              <Phone className={cn("shrink-0 text-gray-400", isTall ? "w-8 h-8" : "w-10 h-10")} />
+              <span className="font-bold text-brand-primary text-3xl truncate">{pet.contact_info}</span>
             </div>
           </>
         )}
       </div>
 
       <div className="flex-[0_0_10%] bg-brand-primary flex items-center justify-center gap-3">
-        <div className="w-9 h-9 rounded-lg overflow-hidden border border-white/30 shrink-0">
+        <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/30 shrink-0">
           <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
         </div>
-        <span className="text-white font-black text-base tracking-[0.15em] uppercase">Sigo tu huella</span>
+        <span className="text-white font-black text-lg tracking-[0.15em] uppercase">Sigo tu huella</span>
       </div>
     </div>
   );
 
   const renderPositiveFlyer = () => (
     <div className="flex flex-col bg-white" style={{ width: targetWidth, height: targetHeight }}>
-      <div className={cn("flex items-center justify-center text-white font-black uppercase tracking-tight", isTall ? "flex-[0_0_22%] text-5xl" : "flex-[0_0_18%] text-6xl", flyerStatusBg)}>
+      <div className={cn("flex items-center justify-center text-white font-black uppercase tracking-tight", isTall ? "flex-[0_0_20%] text-7xl" : "flex-[0_0_16%] text-8xl", flyerStatusBg)}>
         {flyerStatusLabel}
       </div>
 
@@ -222,32 +230,40 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
             <ImageIcon className="w-1/4 h-1/4" />
           </div>
         )}
-        <div className="absolute bottom-6 right-6 bg-black/50 backdrop-blur-sm rounded-2xl px-6 py-3">
-          <p className="text-white font-bold text-4xl">{flyerName}</p>
+        <div className="absolute bottom-8 right-8 bg-black/60 backdrop-blur-sm rounded-2xl px-8 py-4">
+          <p className="text-white font-black text-5xl">{flyerName}</p>
         </div>
       </div>
 
-      <div className={cn("bg-white flex gap-4", isTall ? "flex-[0_0_18%] flex-col p-4" : "flex-[0_0_14%] flex-row items-center px-6 py-4")}>
+      {hasDescription && (
+        <div className={cn("bg-white", isTall ? "flex-[0_0_16%] px-6 py-3" : "flex-[0_0_12%] px-8 py-3")}>
+          <p className={cn("text-gray-600 leading-snug italic border-l-4 border-green-500 pl-3", isTall ? "text-2xl" : "text-3xl")}>
+            "{pet.description}"
+          </p>
+        </div>
+      )}
+
+      <div className={cn("bg-white flex gap-4", isTall ? "flex-[0_0_16%] flex-col p-4" : "flex-[0_0_12%] flex-row items-center px-8 py-4")}>
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <MapPin className={cn("shrink-0 text-gray-400", isTall ? "w-7 h-7" : "w-8 h-8")} />
-          <span className="font-bold text-brand-primary truncate text-2xl">{pet.location}</span>
+          <MapPin className={cn("shrink-0 text-gray-400", isTall ? "w-8 h-8" : "w-10 h-10")} />
+          <span className="font-bold text-brand-primary truncate text-3xl">{pet.location}</span>
         </div>
         {hasContact && (
           <>
-            <span className={cn("text-brand-accent", isTall ? "hidden" : "inline")}>|</span>
+            <span className={cn("text-brand-accent", isTall ? "hidden" : "inline text-3xl")}>|</span>
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <Phone className={cn("shrink-0 text-gray-400", isTall ? "w-7 h-7" : "w-8 h-8")} />
-              <span className="font-bold text-brand-primary text-2xl truncate">{pet.contact_info}</span>
+              <Phone className={cn("shrink-0 text-gray-400", isTall ? "w-8 h-8" : "w-10 h-10")} />
+              <span className="font-bold text-brand-primary text-3xl truncate">{pet.contact_info}</span>
             </div>
           </>
         )}
       </div>
 
       <div className="flex-[0_0_10%] bg-brand-primary flex items-center justify-center gap-3">
-        <div className="w-9 h-9 rounded-lg overflow-hidden border border-white/30 shrink-0">
+        <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/30 shrink-0">
           <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
         </div>
-        <span className="text-white font-black text-base tracking-[0.15em] uppercase">Sigo tu huella</span>
+        <span className="text-white font-black text-lg tracking-[0.15em] uppercase">Sigo tu huella</span>
       </div>
     </div>
   );
@@ -262,34 +278,34 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
             <ImageIcon className="w-1/4 h-1/4" />
           </div>
         )}
-        <div className="absolute top-6 left-6 bg-brand-secondary text-white font-bold rounded-2xl px-6 py-2.5 shadow-lg uppercase tracking-tighter text-3xl">
+        <div className="absolute top-8 left-8 bg-brand-secondary text-white font-bold rounded-2xl px-8 py-3 shadow-lg uppercase tracking-tighter text-4xl">
           {flyerStatusLabel}
         </div>
-        <div className="absolute bottom-6 right-6 bg-black/50 backdrop-blur-sm rounded-2xl px-6 py-3">
-          <p className="text-white font-bold text-4xl">{flyerName}</p>
+        <div className="absolute bottom-8 right-8 bg-black/60 backdrop-blur-sm rounded-2xl px-8 py-4">
+          <p className="text-white font-black text-5xl">{flyerName}</p>
         </div>
       </div>
 
       {hasDescription && (
-        <div className={cn("bg-white", isTall ? "flex-[0_0_20%] p-4" : "flex-[0_0_18%] px-6 py-4")}>
-          <p className={cn("text-gray-600 leading-relaxed italic border-l-4 border-brand-secondary pl-3", isTall ? "text-xl" : "text-2xl")}>
+        <div className={cn("bg-white", isTall ? "flex-[0_0_18%] px-6 py-4" : "flex-[0_0_16%] px-8 py-4")}>
+          <p className={cn("text-gray-600 leading-relaxed italic border-l-4 border-brand-secondary pl-3", isTall ? "text-2xl" : "text-3xl")}>
             "{pet.description}"
           </p>
         </div>
       )}
 
       {hasContact && (
-        <div className="bg-white px-6 py-3 border-t border-brand-accent flex items-center gap-3">
-          <Phone className="w-8 h-8 text-brand-secondary shrink-0" />
-          <span className="font-bold text-brand-primary text-2xl">{pet.contact_info}</span>
+        <div className="bg-white px-8 py-4 border-t border-brand-accent flex items-center gap-3">
+          <Phone className="w-10 h-10 text-brand-secondary shrink-0" />
+          <span className="font-bold text-brand-primary text-3xl">{pet.contact_info}</span>
         </div>
       )}
 
       <div className="flex-[0_0_10%] bg-brand-primary flex items-center justify-center gap-3">
-        <div className="w-9 h-9 rounded-lg overflow-hidden border border-white/30 shrink-0">
+        <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/30 shrink-0">
           <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
         </div>
-        <span className="text-white font-black text-base tracking-[0.15em] uppercase">Sigo tu huella</span>
+        <span className="text-white font-black text-lg tracking-[0.15em] uppercase">Sigo tu huella</span>
       </div>
     </div>
   );
