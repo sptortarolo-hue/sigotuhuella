@@ -556,7 +556,6 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const [useType, setUseType] = useState<UseType>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
-  const styleIndex: 0 | 1 = getLayoutType(targetWidth, targetHeight) === 'square' ? 1 : 0;
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -567,6 +566,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const isMobile = typeof navigator !== 'undefined' && !!navigator.share;
 
   const { width: targetWidth, height: targetHeight, aspectRatio } = getDimensions(platform, useType);
+  const styleIndex: 0 | 1 = getLayoutType(targetWidth, targetHeight) === 'square' ? 1 : 0;
 
   const design = statusDesigns[pet.status] || statusDesigns.lost;
   const flyerName = pet.name || 'Sin nombre';
