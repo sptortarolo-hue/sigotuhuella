@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Upload, Loader2, CheckCircle2, AlertCircle, PawPrint } from 'lucide-react';
+import { ArrowLeft, Camera, Upload, Loader2, CheckCircle2, AlertCircle, PawPrint, TrendingUp } from 'lucide-react';
 import { motion } from 'motion/react';
-import MemberCard from '@/src/components/MemberCard';
+import MemberCard, { BADGE_CONFIG } from '@/src/components/MemberCard';
 
 export default function MemberCardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -12,6 +12,7 @@ export default function MemberCardPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [memberData, setMemberData] = useState<any>(null);
+  const [statsData, setStatsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [msg, setMsg] = useState('');
@@ -20,13 +21,17 @@ export default function MemberCardPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate('/login'); return; }
-    fetchMemberData();
+    fetchAll();
   }, [user, authLoading]);
 
-  const fetchMemberData = async () => {
+  const fetchAll = async () => {
     try {
-      const data = await api.members.me();
-      setMemberData(data.user);
+      const [memberRes, statsRes] = await Promise.allSettled([
+        api.members.me(),
+        user ? api.users.stats(user.id) : Promise.reject(),
+      ]);
+      if (memberRes.status === 'fulfilled') setMemberData(memberRes.value.user);
+      if (statsRes.status === 'fulfilled') setStatsData(statsRes.value);
     } catch (err: any) {
       setError(err.message || 'Error al obtener datos');
     } finally {
@@ -37,29 +42,18 @@ export default function MemberCardPage() {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setAvatarLoading(true);
-    setMsg('');
-    setError('');
+    setAvatarLoading(true); setMsg(''); setError('');
     try {
       const base64 = await new Promise<string>((resolve) => {
         const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]);
-        };
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
         reader.readAsDataURL(file);
       });
-      await api.users.uploadAvatar(user!.id, {
-        imageData: base64,
-        mimeType: file.type,
-      });
+      await api.users.uploadAvatar(user!.id, { imageData: base64, mimeType: file.type });
       setMsg('Foto de perfil actualizada');
-      fetchMemberData();
-    } catch (err: any) {
-      setError(err.message || 'Error al subir foto');
-    } finally {
-      setAvatarLoading(false);
-    }
+      fetchAll();
+    } catch (err: any) { setError(err.message || 'Error al subir foto'); }
+    finally { setAvatarLoading(false); }
   };
 
   const handleDownload = (blob: Blob) => {
@@ -67,10 +61,8 @@ export default function MemberCardPage() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `carnet-${memberData?.member_number || 'miembro'}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
   if (authLoading || loading) {
@@ -83,13 +75,17 @@ export default function MemberCardPage() {
 
   const isMember = memberData?.member_number && memberData?.volunteer_status !== 'none';
   const isSuspended = memberData?.volunteer_status === 'suspended';
+  const level = statsData?.level;
+  const stats = statsData?.stats;
+  const nextLevel = statsData?.nextLevel;
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-12 space-y-8">
+    <div className="max-w-2xl mx-auto px-4 py-12 space-y-8">
       <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold">
         <ArrowLeft className="w-4 h-4" /> Volver
       </button>
 
+      {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
         <div className="flex items-center gap-4 mb-8">
           <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center">
@@ -127,47 +123,90 @@ export default function MemberCardPage() {
             avatarType={memberData.avatar_type || 'pawprint'}
             badges={memberData.badges || []}
             volunteerStatus={memberData.volunteer_status || 'none'}
+            levelCode={level?.code}
+            levelName={level?.name}
+            stats={stats}
             onDownload={handleDownload}
           />
         )}
       </motion.div>
 
-      {isMember && !isSuspended && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+      {/* Level & Progress */}
+      {isMember && !isSuspended && stats && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center">
-              <Camera className="w-6 h-6" />
+              <TrendingUp className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-serif font-bold text-brand-primary">Foto de Perfil</h2>
-              <p className="text-xs text-gray-500">Subí una foto para tu carnet</p>
+              <h2 className="text-xl font-serif font-bold text-brand-primary">Mi Nivel</h2>
+              <p className="text-sm font-bold text-brand-primary">{level?.name || 'Voluntario'}</p>
             </div>
           </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            {[
+              { label: 'Reportes', value: stats.total_reports, icon: '📋' },
+              { label: 'Reencuentros', value: stats.reunited_count, icon: '💞' },
+              { label: 'Avistajes', value: stats.sighted_count, icon: '👁️' },
+              { label: 'Adopciones', value: stats.adopted_count, icon: '🏡' },
+            ].map(s => (
+              <div key={s.label} className="bg-brand-bg rounded-2xl p-4 text-center">
+                <div className="text-2xl mb-1">{s.icon}</div>
+                <div className="text-2xl font-bold text-brand-primary">{s.value}</div>
+                <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          {nextLevel && (
+            <div className="bg-brand-bg rounded-2xl p-4">
+              <p className="text-xs font-bold uppercase text-gray-500 mb-2">Próximo nivel: {nextLevel.name}</p>
+              <div className="flex gap-4 text-sm text-gray-600">
+                <span>📋 {stats.total_reports}/{nextLevel.reports} reportes</span>
+                <span>💞 {stats.reunited_count}/{nextLevel.reunited} reencuentros</span>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      )}
 
+      {/* Badges */}
+      {isMember && !isSuspended && memberData?.badges?.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+          <h2 className="text-xl font-serif font-bold text-brand-primary mb-6">Mis Insignias</h2>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+            {(memberData.badges as { code: string; awarded_at: string }[]).map(badge => {
+              const cfg = BADGE_CONFIG[badge.code];
+              return (
+                <div key={badge.code} className="flex flex-col items-center gap-2 p-3 rounded-2xl" style={{ backgroundColor: `${cfg?.color || '#6B7280'}18` }}>
+                  <span className="text-3xl">{cfg?.icon || '⭐'}</span>
+                  <span className="text-xs font-bold text-center text-gray-700 leading-tight">{cfg?.label || badge.code}</span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${cfg?.auto ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {cfg?.auto ? 'Automática' : 'Manual'}
+                  </span>
+                  <span className="text-[9px] text-gray-400">{new Date(badge.awarded_at).toLocaleDateString()}</span>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Avatar upload */}
+      {isMember && !isSuspended && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center"><Camera className="w-6 h-6" /></div>
+            <div><h2 className="text-xl font-serif font-bold text-brand-primary">Foto de Perfil</h2><p className="text-xs text-gray-500">Subí una foto para tu carnet</p></div>
+          </div>
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-brand-accent shrink-0 bg-brand-bg flex items-center justify-center">
-              {memberData?.avatar_type === 'photo' && memberData?.avatar_data ? (
-                <img
-                  src={`data:${memberData.avatar_mime_type};base64,${memberData.avatar_data}`}
-                  alt="Avatar"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <PawPrint className="w-8 h-8 text-brand-primary" />
-              )}
+              {memberData?.avatar_type === 'photo' && memberData?.avatar_data
+                ? <img src={`data:${memberData.avatar_mime_type};base64,${memberData.avatar_data}`} alt="Avatar" className="w-full h-full object-cover" />
+                : <PawPrint className="w-8 h-8 text-brand-primary" />}
             </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleAvatarUpload}
-              className="hidden"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={avatarLoading}
-              className="px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:shadow-lg transition-all disabled:opacity-50"
-            >
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+            <button onClick={() => fileInputRef.current?.click()} disabled={avatarLoading}
+              className="px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:shadow-lg transition-all disabled:opacity-50">
               {avatarLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               {memberData?.avatar_type === 'photo' ? 'Cambiar Foto' : 'Subir Foto'}
             </button>

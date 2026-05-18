@@ -18,6 +18,7 @@ import { Badge } from '@/src/hooks/AuthProvider';
 import { api } from '@/src/lib/api';
 import PetCard from '@/src/components/PetCard';
 import SocialShareModal from '@/src/components/SocialShareModal';
+import { BADGE_CONFIG } from '@/src/components/MemberCard';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
@@ -76,7 +77,7 @@ export default function Admin() {
   const [volunteers, setVolunteers] = useState<VolunteerRequest[]>([]);
   const [memberInfo, setMemberInfo] = useState<Record<string, { member_number?: string; volunteer_status?: string; badges?: Badge[] }>>({});
 
-  const ALL_BADGES = [
+  const MANUAL_BADGES = [
     { code: 'volunteer', label: 'Voluntario/a', icon: '🤝' },
     { code: 'first_donation', label: '1ra Donación', icon: '❤️' },
     { code: 'frequent_donor', label: 'Donante Frecuente', icon: '💜' },
@@ -84,6 +85,7 @@ export default function Admin() {
     { code: 'rescuer', label: 'Rescatista', icon: '🛡️' },
     { code: 'founder', label: 'Fundador/a', icon: '👑' },
   ];
+  const ALL_BADGES = MANUAL_BADGES;
 
   // Users State
   const [userList, setUserList] = useState<any[]>([]);
@@ -965,30 +967,48 @@ export default function Admin() {
                                      <PawPrint className="w-3 h-3" /> {info.member_number}
                                    </div>
                                  )}
-                                 <div className="flex flex-wrap gap-1.5 mt-2">
-                                   {ALL_BADGES.map((badge, idx) => {
-                                     const hasBadge = badges.some(b => b.code === badge.code);
-                                     return (
-                                       <span
-                                         key={idx}
-                                         onClick={() => {
-                                           if (hasBadge) {
-                                             handleRemoveBadge(vol.user_id!, badge.code);
-                                           } else if (vol.user_id) {
-                                             handleAwardBadge(vol.user_id!, badge.code);
-                                           }
-                                         }}
-                                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
-                                           hasBadge
-                                             ? 'bg-brand-primary/20 text-brand-primary'
-                                             : 'border border-dashed border-brand-primary/20 text-brand-primary'
-                                         }`}
-                                       >
-                                         {badge.icon} {badge.label}
-                                       </span>
-                                     );
-                                   })}
-                                 </div>
+                                  {/* Auto-badges: read-only */}
+                                  {(() => {
+                                    const autoBadges = badges.filter((b) => BADGE_CONFIG[b.code]?.auto);
+                                    if (autoBadges.length === 0) return null;
+                                    return (
+                                      <div className="mt-2">
+                                        <p className="text-[9px] uppercase font-bold text-gray-400 mb-1">Insignias automáticas</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {autoBadges.map((b, i) => {
+                                            const cfg = BADGE_CONFIG[b.code];
+                                            return (
+                                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold">
+                                                {cfg?.icon} {cfg?.label}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                  {/* Manual badges: clickable */}
+                                  <div className="mt-2">
+                                    <p className="text-[9px] uppercase font-bold text-gray-400 mb-1">Insignias manuales</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {MANUAL_BADGES.map((badge, idx) => {
+                                        const hasBadge = badges.some((b) => b.code === badge.code);
+                                        return (
+                                          <span
+                                            key={idx}
+                                            onClick={() => {
+                                              if (hasBadge) { handleRemoveBadge(vol.user_id, badge.code); }
+                                              else if (vol.user_id) { handleAwardBadge(vol.user_id, badge.code); }
+                                            }}
+                                            title={hasBadge ? 'Clic para quitar' : 'Clic para asignar'}
+                                            className={`cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${hasBadge ? 'bg-brand-primary/20 text-brand-primary' : 'border border-dashed border-brand-primary/30 text-gray-400 hover:text-brand-primary hover:border-brand-primary'}`}
+                                          >
+                                            {badge.icon} {badge.label}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
                                </div>
                                <div className="flex gap-2">
                                  <a

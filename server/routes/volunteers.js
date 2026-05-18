@@ -131,7 +131,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
     const volunteer = requestResult.rows[0];
     if (volunteer.user_id) {
       await pool.query(
-        "UPDATE users SET volunteer_status = NULL WHERE id = $1",
+        "UPDATE users SET volunteer_status = 'none' WHERE id = $1",
         [volunteer.user_id]
       );
     }

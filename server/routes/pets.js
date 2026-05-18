@@ -104,6 +104,23 @@ async function autoCreateNews(pet, newsType) {
   }
 }
 
+// ── Gamification helper ──────────────────────────────────────────────────────
+async function awardBadgeIfMissing(userId, code) {
+  if (!userId) return;
+  try {
+    const userRes = await pool.query('SELECT badges, volunteer_status FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length === 0) return;
+    const { badges, volunteer_status } = userRes.rows[0];
+    if (volunteer_status === 'none' || !volunteer_status) return; // only members earn auto-badges
+    const existing = Array.isArray(badges) ? badges : [];
+    if (existing.find(b => b.code === code)) return;
+    const updated = JSON.stringify([...existing, { code, awarded_at: new Date().toISOString() }]);
+    await pool.query('UPDATE users SET badges = $1::jsonb WHERE id = $2', [updated, userId]);
+  } catch (err) {
+    console.error('awardBadgeIfMissing error:', err);
+  }
+}
+
 const router = Router();
 
 router.get('/', async (req, res) => {
@@ -183,6 +200,17 @@ router.post('/', requireAuth, async (req, res) => {
     );
     await client.query('COMMIT');
     pet.images = imagesResult.rows[0]?.images || [];
+
+    // Auto-badge: first_report (first pet ever reported by this user)
+    const reportCountRes = await pool.query('SELECT COUNT(*) as cnt FROM pets WHERE created_by = $1', [req.user.id]);
+    if (parseInt(reportCountRes.rows[0].cnt) === 1) {
+      await awardBadgeIfMissing(req.user.id, 'first_report');
+    }
+    // Auto-badge: reporter_5 and reporter_15 milestones
+    const cnt = parseInt(reportCountRes.rows[0].cnt);
+    if (cnt === 5) await awardBadgeIfMissing(req.user.id, 'reporter_5');
+    if (cnt === 15) await awardBadgeIfMissing(req.user.id, 'reporter_15');
+
     res.status(201).json({ pet });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -265,6 +293,16 @@ router.put('/:id', requireAuth, async (req, res) => {
       const updatedPet = await pool.query('SELECT * FROM pets WHERE id = $1', [petId]);
       const newsType = isReunited ? 'reunited' : 'adopted';
       await autoCreateNews(updatedPet.rows[0], newsType);
+    }
+    // Auto-badge: reunited_hero (first reunion)
+    if (isReunited && pet.created_by) {
+      const reunitedCount = await pool.query(
+        "SELECT COUNT(*) as cnt FROM pets WHERE created_by = $1 AND status = 'reunited'",
+        [pet.created_by]
+      );
+      const rc = parseInt(reunitedCount.rows[0].cnt);
+      if (rc >= 1) await awardBadgeIfMissing(pet.created_by, 'reunited_hero');
+      if (rc >= 5) await awardBadgeIfMissing(pet.created_by, 'reunited_legend');
     }
     // Return pet with images
     const updated = await pool.query(

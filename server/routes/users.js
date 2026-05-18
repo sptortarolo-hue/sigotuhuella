@@ -157,4 +157,57 @@ router.put('/:id/avatar', requireAuth, async (req, res) => {
   }
 });
 
+// ── User Stats & Gamification Level ─────────────────────────────────────────
+router.get('/:id/stats', requireAuth, async (req, res) => {
+  if (req.user.id !== req.params.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  try {
+    const statsRes = await pool.query(
+      `SELECT
+        COUNT(*) FILTER (WHERE TRUE)                          AS total_reports,
+        COUNT(*) FILTER (WHERE status = 'reunited')           AS reunited_count,
+        COUNT(*) FILTER (WHERE status = 'sighted')            AS sighted_count,
+        COUNT(*) FILTER (WHERE status = 'adopted')            AS adopted_count,
+        COUNT(*) FILTER (WHERE status = 'for_adoption')       AS for_adoption_count
+       FROM pets WHERE created_by = $1`,
+      [req.params.id]
+    );
+    const s = statsRes.rows[0];
+    const total = parseInt(s.total_reports) || 0;
+    const reunited = parseInt(s.reunited_count) || 0;
+
+    // Determine level
+    let level = 'Voluntario';
+    let levelCode = 'volunteer';
+    let levelOrder = 1;
+    if (total >= 5 || reunited >= 1) { level = 'Proteccionista'; levelCode = 'protector'; levelOrder = 2; }
+    if (total >= 15 || reunited >= 3) { level = 'Héroe Local'; levelCode = 'hero'; levelOrder = 3; }
+    if (total >= 30 || reunited >= 10) { level = 'Leyenda'; levelCode = 'legend'; levelOrder = 4; }
+
+    // Next level thresholds
+    const nextThresholds = [
+      { order: 1, name: 'Proteccionista', reports: 5, reunited: 1 },
+      { order: 2, name: 'Héroe Local', reports: 15, reunited: 3 },
+      { order: 3, name: 'Leyenda', reports: 30, reunited: 10 },
+    ];
+    const next = nextThresholds.find(t => t.order > levelOrder) || null;
+
+    res.json({
+      stats: {
+        total_reports: total,
+        reunited_count: reunited,
+        sighted_count: parseInt(s.sighted_count) || 0,
+        adopted_count: parseInt(s.adopted_count) || 0,
+        for_adoption_count: parseInt(s.for_adoption_count) || 0,
+      },
+      level: { name: level, code: levelCode, order: levelOrder },
+      nextLevel: next,
+    });
+  } catch (err) {
+    console.error('Get user stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
 export default router;

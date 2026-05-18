@@ -94,6 +94,7 @@ export const api = {
     myPets: (id: string) => request(`/users/${id}/pets`),
     uploadAvatar: (id: string, data: { imageData: string; mimeType: string }) =>
       request(`/users/${id}/avatar`, { method: 'PUT', body: JSON.stringify(data) }),
+    stats: (id: string) => request(`/users/${id}/stats`),
   },
   members: {
     me: () => request('/members/me'),
