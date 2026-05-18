@@ -1,11 +1,50 @@
 import React, { useState, useRef } from 'react';
 import { Pet, getPetImageUrls } from '@/src/lib/petService';
-import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon } from 'lucide-react';
+import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon, ArrowLeft } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
 type Platform = 'whatsapp' | 'facebook' | 'instagram' | null;
+type UseType = 'story' | 'post' | null;
+
+interface UseOption {
+  id: UseType;
+  label: string;
+  description: string;
+  aspectRatio: string;
+  width: number;
+  height: number;
+}
+
+interface PlatformConfig {
+  platform: Platform;
+  uses: UseOption[];
+}
+
+const platformConfigs: PlatformConfig[] = [
+  {
+    platform: 'whatsapp',
+    uses: [
+      { id: 'story', label: 'Estado', description: 'Para estados de WhatsApp', aspectRatio: '9:16', width: 752, height: 1334 },
+      { id: 'post', label: 'Imagen/Chat', description: 'Para enviar en chats', aspectRatio: '1:1', width: 800, height: 800 }
+    ]
+  },
+  {
+    platform: 'facebook',
+    uses: [
+      { id: 'story', label: 'Historia', description: 'Para stories', aspectRatio: '9:16', width: 1080, height: 1920 },
+      { id: 'post', label: 'Publicación', description: 'Para feed', aspectRatio: '1:1', width: 1080, height: 1080 }
+    ]
+  },
+  {
+    platform: 'instagram',
+    uses: [
+      { id: 'story', label: 'Historia/Reel', description: 'Para stories y reels', aspectRatio: '9:16', width: 1080, height: 1920 },
+      { id: 'post', label: 'Publicación', description: 'Para feed (4:5)', aspectRatio: '4:5', width: 1080, height: 1350 }
+    ]
+  }
+];
 
 interface SocialShareModalProps {
   pet: Pet;
@@ -18,8 +57,18 @@ const statusLabel = (s: string) => {
   return labels[s] || 'REPORTE';
 };
 
+const getDimensions = (platform: Platform, useType: UseType) => {
+  if (!platform || !useType) return { width: 1080, height: 1080, aspectRatio: '1:1' };
+  const config = platformConfigs.find(p => p.platform === platform);
+  if (!config) return { width: 1080, height: 1080, aspectRatio: '1:1' };
+  const use = config.uses.find(u => u.id === useType);
+  if (!use) return { width: 1080, height: 1080, aspectRatio: '1:1' };
+  return { width: use.width, height: use.height, aspectRatio: use.aspectRatio };
+};
+
 export default function SocialShareModal({ pet, onClose }: SocialShareModalProps) {
   const [platform, setPlatform] = useState<Platform>(null);
+  const [useType, setUseType] = useState<UseType>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
   const flyerRef = useRef<HTMLDivElement>(null);
@@ -29,7 +78,8 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const mainImage = images[0] || null;
   const isMobile = typeof navigator !== 'undefined' && !!navigator.share;
 
-  // Pre-compute flyer data
+  const { width: targetWidth, height: targetHeight, aspectRatio } = getDimensions(platform, useType);
+
   const flyerStatusBg = statusBg(pet.status);
   const flyerStatusLabel = statusLabel(pet.status);
   const flyerName = pet.name || 'Sin nombre';
@@ -43,21 +93,24 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     if (!flyerRef.current) return;
     setGenerating(true);
     try {
-      // Ensure images inside the flyer are loaded before capturing
       const imgs = flyerRef.current.querySelectorAll('img');
       await Promise.all(Array.from(imgs).map(img =>
         img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
       ));
 
-      const dataUrl = await toPng(flyerRef.current, { quality: 0.95, pixelRatio: 2 });
+      const scale = Math.min(1200 / targetWidth, 2);
+      const dataUrl = await toPng(flyerRef.current, { 
+        quality: 0.95, 
+        pixelRatio: scale,
+        width: targetWidth,
+        height: targetHeight
+      });
 
-      // Download directly from data URL
       const link = document.createElement('a');
-      link.download = `${pet.name || 'mascota'}-${pet.status}.png`;
+      link.download = `${pet.name || 'mascota'}-${pet.status}-${platform}-${useType}.png`;
       link.href = dataUrl;
       link.click();
 
-      // Share via navigator.share on mobile
       if (isMobile && navigator.canShare) {
         try {
           const res = await fetch(dataUrl);
@@ -72,7 +125,6 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
         }
       }
 
-      // Open social network on desktop
       if (!isMobile) {
         if (platform === 'whatsapp') {
           window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank');
@@ -92,11 +144,78 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     }
   };
 
+  const getFlyerContainerClass = () => {
+    const base = "mx-auto rounded-3xl overflow-hidden border-4 border-brand-accent shadow-xl bg-white";
+    if (aspectRatio === '9:16') return cn(base, "max-w-[200px]");
+    if (aspectRatio === '4:5') return cn(base, "max-w-[240px]");
+    return cn(base, "max-w-sm");
+  };
+
+  const getFlyerInnerStyle = () => {
+    if (aspectRatio === '9:16') return { width: '200px', height: '355px' };
+    if (aspectRatio === '4:5') return { width: '240px', height: '300px' };
+    return {};
+  };
+
+  const renderFlyerContent = (isPreview: boolean = false) => (
+    <div className="relative overflow-hidden" style={isPreview ? getFlyerInnerStyle() : {}}>
+      <div className={cn("p-3 text-white font-serif font-black text-xl text-center uppercase tracking-tighter", flyerStatusBg)}>
+        {flyerStatusLabel} {flyerName && `- ${flyerName.toUpperCase()}`}
+      </div>
+
+      <div className={cn(
+        "relative bg-gray-100 overflow-hidden",
+        aspectRatio === '9:16' ? "h-32" : 
+        aspectRatio === '4:5' ? "h-40" : "aspect-square"
+      )}>
+        {hasImage ? (
+          <img src={mainImage!} alt={flyerName} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <ImageIcon className={aspectRatio === '9:16' ? "w-10 h-10" : "w-16 h-16"} />
+          </div>
+        )}
+      </div>
+
+      <div className={cn("bg-white", aspectRatio === '9:16' ? "p-3" : "p-4")}>
+        <div className={cn("flex gap-2", aspectRatio === '9:16' ? "flex-col" : "flex-row")}>
+          <div className={cn("bg-brand-bg rounded-lg border border-brand-accent flex-1", aspectRatio === '9:16' ? "p-2" : "p-2 sm:p-3")}>
+            <p className={cn("font-bold text-gray-400 uppercase", aspectRatio === '9:16' ? "text-[8px]" : "text-[10px]")}>Ubicación</p>
+            <p className={cn("font-bold text-brand-primary truncate", aspectRatio === '9:16' ? "text-xs" : "text-xs sm:text-sm")}>{pet.location}</p>
+          </div>
+          {hasContact && (
+            <div className={cn("bg-brand-bg rounded-lg border border-brand-accent flex-1", aspectRatio === '9:16' ? "p-2" : "p-2 sm:p-3")}>
+              <p className={cn("font-bold text-gray-400 uppercase", aspectRatio === '9:16' ? "text-[8px]" : "text-[10px]")}>Contacto</p>
+              <p className={cn("font-bold text-brand-primary", aspectRatio === '9:16' ? "text-xs" : "text-xs sm:text-sm")}>{pet.contact_info}</p>
+            </div>
+          )}
+        </div>
+        {hasDescription && aspectRatio !== '9:16' && (
+          <p className="text-xs text-gray-600 leading-relaxed italic border-l-4 border-brand-secondary pl-2 mt-2">
+            "{pet.description}"
+          </p>
+        )}
+      </div>
+
+      <div className={cn("bg-brand-bg border-t border-brand-accent flex items-center gap-2", aspectRatio === '9:16' ? "p-2" : "p-2.5")}>
+        <div className={cn("rounded-lg overflow-hidden border border-brand-accent/50 shadow-sm shrink-0", aspectRatio === '9:16' ? "w-6 h-6" : "w-8 h-8")}>
+          <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
+        </div>
+        <span className={cn("font-black tracking-[0.15em] text-brand-primary uppercase", aspectRatio === '9:16' ? "text-[7px]" : "text-[8px]")}>Sigo tu huella</span>
+      </div>
+    </div>
+  );
+
   const platforms = [
     { id: 'whatsapp' as Platform, label: 'WhatsApp', icon: MessageCircle, color: 'bg-emerald-500 hover:bg-emerald-600', bgColor: 'bg-emerald-50', textColor: 'text-emerald-600' },
     { id: 'facebook' as Platform, label: 'Facebook', icon: ImageIcon, color: 'bg-blue-600 hover:bg-blue-700', bgColor: 'bg-blue-50', textColor: 'text-blue-600' },
     { id: 'instagram' as Platform, label: 'Instagram', icon: Camera, color: 'bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400', bgColor: 'bg-pink-50', textColor: 'text-pink-600' },
   ];
+
+  const getCurrentConfig = () => {
+    if (!platform) return null;
+    return platformConfigs.find(p => p.platform === platform);
+  };
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4">
@@ -135,69 +254,76 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                 ))}
               </div>
             </div>
+          ) : !useType ? (
+            <div key="use-select">
+              <button
+                onClick={() => setPlatform(null)}
+                className="flex items-center gap-2 text-sm text-gray-500 mb-4 hover:text-gray-700"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Cambiar plataforma
+              </button>
+              <p className="text-center text-gray-600 mb-6">
+                ¿Cómo vas a compartir en <span className="font-bold">{platforms.find(p => p.id === platform)?.label}</span>?
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {getCurrentConfig()?.uses.map((use) => (
+                  <button
+                    key={use.id}
+                    onClick={() => setUseType(use.id!)}
+                    className={cn(
+                      "flex flex-col items-center gap-2 p-6 rounded-[2rem] border-2 border-brand-accent hover:shadow-xl hover:-translate-y-1 transition-all bg-brand-bg hover:bg-white",
+                      platform === 'whatsapp' && "hover:border-emerald-500" ||
+                      platform === 'facebook' && "hover:border-blue-500" ||
+                      "hover:border-pink-500"
+                    )}
+                  >
+                    <div className={cn(
+                      "rounded-xl flex items-center justify-center font-bold text-white",
+                      platform === 'whatsapp' ? "bg-emerald-500 w-12 h-12" :
+                      platform === 'facebook' ? "bg-blue-600 w-12 h-12" :
+                      "bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 w-12 h-12"
+                    )}>
+                      {use.aspectRatio}
+                    </div>
+                    <span className="font-bold text-brand-primary">{use.label}</span>
+                    <span className="text-xs text-gray-500 text-center">{use.description}</span>
+                    <span className="text-[10px] text-gray-400">{use.width}x{use.height} px</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : (
-            <div key={platform} className="space-y-6">
+            <div key={`${platform}-${useType}`} className="space-y-6">
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setUseType(null)}
+                  className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Cambiar uso
+                </button>
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest bg-brand-bg px-3 py-1 rounded-full">
+                  {getCurrentConfig()?.uses.find(u => u.id === useType)?.aspectRatio}
+                </span>
+              </div>
+
               <div className="text-center">
                 <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Vista previa del flyer</p>
                 <div
                   ref={flyerRef}
-                  className="w-full max-w-sm mx-auto rounded-3xl overflow-hidden border-4 border-brand-accent shadow-xl bg-white"
+                  className={getFlyerContainerClass()}
                 >
-                  <div className={cn("p-4 text-white font-serif font-black text-3xl text-center uppercase tracking-tighter", flyerStatusBg)}>
-                    {flyerStatusLabel}
-                  </div>
-
-                  <div className="relative aspect-square bg-gray-100">
-                    {hasImage ? (
-                      <img src={mainImage!} alt={flyerName} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-300">
-                        <ImageIcon className="w-16 h-16" />
-                      </div>
-                    )}
-                    <div className="absolute top-4 right-4 bg-white rounded-2xl p-3 shadow-lg text-left border border-brand-accent">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-0.5">Nombre</p>
-                      <p className="font-serif font-bold text-brand-primary text-xl tracking-tight leading-none">
-                        {flyerName}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-5 bg-white">
-                    <div className="flex gap-3 mb-3">
-                      <div className="bg-brand-bg p-3 rounded-xl border border-brand-accent flex-1">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Ubicación</p>
-                        <p className="text-xs sm:text-sm font-bold text-brand-primary truncate">{pet.location}</p>
-                      </div>
-                      {hasContact && (
-                        <div className="bg-brand-bg p-3 rounded-xl border border-brand-accent flex-1">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Contacto</p>
-                          <p className="text-xs sm:text-sm font-bold text-brand-primary">{pet.contact_info}</p>
-                        </div>
-                      )}
-                    </div>
-                    {hasDescription && (
-                      <p className="text-xs text-gray-600 leading-relaxed italic border-l-4 border-brand-secondary pl-3">
-                        "{pet.description}"
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="bg-brand-bg p-2.5 border-t border-brand-accent flex items-center justify-center gap-2">
-                    <div className="w-8 h-8 rounded-lg overflow-hidden border border-brand-accent/50 shadow-sm shrink-0">
-                      <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
-                    </div>
-                    <span className="text-[8px] font-black tracking-[0.15em] text-brand-primary uppercase">Sigo tu huella</span>
-                  </div>
+                  {renderFlyerContent(true)}
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={() => { setPlatform(null); setGenerated(false); }}
+                  onClick={() => { setUseType(null); setGenerated(false); }}
                   className="flex-1 py-3 border border-brand-accent text-gray-600 rounded-xl font-bold text-sm hover:bg-brand-bg transition-all"
                 >
-                  Cambiar red
+                  Cambiar formato
                 </button>
                 <button
                   onClick={handleGenerate}
@@ -235,23 +361,23 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
               {platform === 'whatsapp' && (
                 <p className="text-xs text-center text-gray-400">
-                  {isMobile
-                    ? 'En tu celular: podés compartir el flyer en un chat o como estado de WhatsApp.'
-                    : 'En PC: se descarga la imagen y se abre WhatsApp Web con un mensaje predefinido.'}
+                  {useType === 'story'
+                    ? 'El flyer está optimizado para estados de WhatsApp (9:16).'
+                    : 'El flyer está optimizado para compartir en chats (1:1).'}
                 </p>
               )}
               {platform === 'facebook' && (
                 <p className="text-xs text-center text-gray-400">
-                  {isMobile
-                    ? 'En tu celular: podés compartir el flyer directamente en tu feed o historia de Facebook.'
-                    : 'En PC: se descarga la imagen y se abre Facebook para que la publiques.'}
+                  {useType === 'story'
+                    ? 'El flyer está optimizado para historias de Facebook (9:16).'
+                    : 'El flyer está optimizado para publicaciones en el feed (1:1).'}
                 </p>
               )}
               {platform === 'instagram' && (
                 <p className="text-xs text-center text-gray-400">
-                  {isMobile
-                    ? 'En tu celular: podés compartir el flyer directamente en tu feed o historia de Instagram.'
-                    : 'En PC: la imagen se descarga para que la subas desde la app de Instagram.'}
+                  {useType === 'story'
+                    ? 'El flyer está optimizado para historias y reels de Instagram (9:16).'
+                    : 'El flyer está optimizado para publicaciones en el feed (4:5).'}
                 </p>
               )}
             </div>
