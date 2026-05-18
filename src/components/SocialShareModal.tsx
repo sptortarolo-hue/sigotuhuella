@@ -86,26 +86,6 @@ const getLayoutType = (w: number, h: number): LayoutType => {
   return 'square';
 };
 
-const styleNames: Record<LayoutType, [string, string]> = {
-  story: ['Hero', 'Split'],
-  portrait: ['Magazine', 'Poster'],
-  square: ['Compact', 'Minimal'],
-};
-
-const styleDescriptions: Record<LayoutType, [string, string]> = {
-  story: [
-    'Foto grande arriba, mucho espacio, estilo hero',
-    'Foto centrada con decoraciones, split visual'
-  ],
-  portrait: [
-    'Estilo editorial, foto dominante arriba',
-    'Estilo póster, balance compacto'
-  ],
-  square: [
-    'Foto izquierda, info derecha, máximo info',
-    'Foto central, minimalista y limpio'
-  ],
-};
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
@@ -338,15 +318,6 @@ function drawContentCard(ctx: CanvasRenderingContext2D, w: number, yStart: numbe
   ctx.restore();
 }
 
-function drawContentCardRight(ctx: CanvasRenderingContext2D, w: number, xStart: number, yStart: number, yEnd: number) {
-  if (yStart >= yEnd) return;
-  ctx.save();
-  ctx.globalAlpha = 0.18;
-  ctx.fillStyle = '#000000';
-  roundRect(ctx, xStart - w * 0.02, yStart, w * 0.44, yEnd - yStart, w * 0.03);
-  ctx.fill();
-  ctx.restore();
-}
 
 // Layout: Story Hero (9:16, style 0)
 function drawStoryHero(
@@ -419,86 +390,6 @@ function drawStoryHero(
   }
 }
 
-// Layout: Story Split (9:16, style 1)
-function drawStorySplit(
-  ctx: CanvasRenderingContext2D, w: number, h: number,
-  design: DesignConfig, name: string, petDetails: string | undefined,
-  location: string | undefined, contactInfo: string | undefined,
-  description: string | undefined, img: HTMLImageElement | null
-) {
-  // Extra decorative circles in upper area for "split" feel
-  ctx.globalAlpha = 0.05;
-  ctx.fillStyle = '#ffffff';
-  for (let i = 0; i < 6; i++) {
-    const angle = (i / 6) * Math.PI * 2;
-    const dist = w * (0.25 + Math.random() * 0.25);
-    ctx.beginPath();
-    ctx.arc(w / 2 + Math.cos(angle) * dist, h * 0.25 + Math.sin(angle) * dist * 0.4, w * 0.04 + Math.random() * w * 0.04, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-
-  const photoR = w * 0.22;
-  const photoCy = h * 0.40;
-
-  const cardY = photoCy + photoR - w * 0.02;
-  const cardEndY = h - h * 0.06 - w * 0.02;
-  drawContentCard(ctx, w, cardY, cardEndY);
-
-  drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
-
-  let yPos = photoCy + photoR + w * 0.03;
-  yPos = drawBadge(ctx, w, w / 2, yPos, design.label, design.badgeColor);
-
-  yPos += w * 0.03;
-  const nameFs = w * 0.08;
-  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.shadowColor = 'rgba(0,0,0,0.2)';
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetY = 3;
-  ctx.fillText(name, w / 2, yPos);
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-  yPos += nameFs * 1.1;
-
-  if (petDetails) {
-    const df = w * 0.026;
-    ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(petDetails, w / 2, yPos);
-    yPos += df * 1.7;
-  }
-
-  if (location) {
-    const lf = w * 0.032;
-    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(location, w / 2, yPos);
-    yPos += lf * 1.5;
-  }
-
-  if (contactInfo) {
-    const cf = w * 0.032;
-    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(contactInfo, w / 2, yPos);
-    yPos += cf * 1.5;
-  }
-
-  if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.76, w * 0.028, 4, 'italic 500', 'rgba(255,255,255,0.85)', 1.35);
-  }
-}
 
 // Layout: Portrait Magazine (4:5, style 0)
 function drawPortraitMagazine(
@@ -569,137 +460,7 @@ function drawPortraitMagazine(
   }
 }
 
-// Layout: Portrait Poster (4:5, style 1)
-function drawPortraitPoster(
-  ctx: CanvasRenderingContext2D, w: number, h: number,
-  design: DesignConfig, name: string, petDetails: string | undefined,
-  location: string | undefined, contactInfo: string | undefined,
-  description: string | undefined, img: HTMLImageElement | null
-) {
-  const photoR = w * 0.20;
-  const photoCy = h * 0.33;
 
-  const cardY = photoCy + photoR - w * 0.02;
-  const cardEndY = h - h * 0.06 - w * 0.02;
-  drawContentCard(ctx, w, cardY, cardEndY);
-
-  drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
-
-  let yPos = photoCy + photoR + w * 0.025;
-  yPos = drawBadge(ctx, w, w / 2, yPos, design.label, design.badgeColor);
-
-  yPos += w * 0.025;
-  const nameFs = w * 0.075;
-  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.shadowColor = 'rgba(0,0,0,0.2)';
-  ctx.shadowBlur = 6;
-  ctx.shadowOffsetY = 2;
-  ctx.fillText(name, w / 2, yPos);
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-  yPos += nameFs * 1.05;
-
-  if (petDetails) {
-    const df = w * 0.024;
-    ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(petDetails, w / 2, yPos);
-    yPos += df * 1.6;
-  }
-
-  if (location) {
-    const lf = w * 0.03;
-    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(location, w / 2, yPos);
-    yPos += lf * 1.4;
-  }
-
-  if (contactInfo) {
-    const cf = w * 0.03;
-    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(contactInfo, w / 2, yPos);
-    yPos += cf * 1.4;
-  }
-
-  if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.74, w * 0.026, 2, 'italic 500', 'rgba(255,255,255,0.85)', 1.3);
-  }
-}
-
-// Layout: Square Compact (1:1, style 0) — photo left, info right
-function drawSquareCompact(
-  ctx: CanvasRenderingContext2D, w: number, h: number,
-  design: DesignConfig, name: string, petDetails: string | undefined,
-  location: string | undefined, contactInfo: string | undefined,
-  description: string | undefined, img: HTMLImageElement | null
-) {
-  const photoR = h * 0.33;
-  const photoCx = w * 0.28;
-  const photoCy = h * 0.38;
-
-  const rightX = w * 0.55;
-  const rightW = w * 0.40;
-
-  const cardY = photoCy - photoR * 0.5;
-  const cardEndY = h - h * 0.06 - w * 0.02;
-  drawContentCardRight(ctx, w, rightX, cardY, cardEndY);
-
-  drawCircularPhoto(ctx, photoCx, photoCy, photoR, img, w);
-
-  let yPos = cardY;
-  yPos = drawBadge(ctx, w, rightX + rightW / 2, yPos, design.label, design.badgeColor);
-
-  yPos += w * 0.035;
-  const nameFs = w * 0.065;
-  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.shadowColor = 'rgba(0,0,0,0.2)';
-  ctx.shadowBlur = 6;
-  ctx.shadowOffsetY = 2;
-  ctx.fillText(name, rightX, yPos);
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-  yPos += nameFs * 1.2;
-
-  if (location) {
-    const lf = w * 0.028;
-    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(location, rightX, yPos);
-    yPos += lf * 1.5;
-  }
-
-  if (contactInfo) {
-    const cf = w * 0.028;
-    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(contactInfo, rightX, yPos);
-    yPos += cf * 1.5;
-  }
-
-  if (description) {
-    yPos = drawWrappedText(ctx, description, rightX + rightW / 2, yPos, rightW, w * 0.025, 2, 'italic 500', 'rgba(255,255,255,0.85)', 1.3);
-  }
-}
 
 // Layout: Square Minimal (1:1, style 1)
 function drawSquareMinimal(
@@ -779,18 +540,12 @@ function drawFlyerNative(
 
   const layoutType = getLayoutType(w, h);
 
-  if (layoutType === 'square' && styleIndex === 0) {
-    drawSquareCompact(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
-  } else if (layoutType === 'square' && styleIndex === 1) {
+  if (layoutType === 'square') {
     drawSquareMinimal(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
-  } else if (layoutType === 'story' && styleIndex === 0) {
+  } else if (layoutType === 'story') {
     drawStoryHero(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
-  } else if (layoutType === 'story' && styleIndex === 1) {
-    drawStorySplit(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
-  } else if (layoutType === 'portrait' && styleIndex === 0) {
-    drawPortraitMagazine(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
   } else {
-    drawPortraitPoster(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
+    drawPortraitMagazine(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
   }
 
   drawBrandBar(ctx, w, h, logoImg);
@@ -801,7 +556,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const [useType, setUseType] = useState<UseType>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
-  const [styleIndex, setStyleIndex] = useState<0 | 1>(0);
+  const styleIndex: 0 | 1 = getLayoutType(targetWidth, targetHeight) === 'square' ? 1 : 0;
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -839,7 +594,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     canvas.width = targetWidth;
     canvas.height = targetHeight;
     drawFlyerNative(ctx, targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, pet.status, img, logoImg, styleIndex);
-  }, [targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, pet.status, logoImg, styleIndex]);
+  }, [targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, pet.status, logoImg]);
 
   useEffect(() => {
     if (!mainImage || !platform || !useType) return;
@@ -1026,38 +781,6 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest bg-brand-bg px-3 py-1 rounded-full">
                   {getCurrentConfig()?.uses.find(u => u.id === useType)?.aspectRatio}
                 </span>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest text-center">Estilo de diseño</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {[0, 1].map((idx) => {
-                    const lt = getLayoutType(targetWidth, targetHeight);
-                    const name = styleNames[lt][idx];
-                    const desc = styleDescriptions[lt][idx];
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => setStyleIndex(idx as 0 | 1)}
-                        className={cn(
-                          "p-4 rounded-2xl border-2 text-left transition-all",
-                          styleIndex === idx
-                            ? "border-brand-primary bg-brand-bg shadow-md"
-                            : "border-brand-accent hover:border-gray-300"
-                        )}
-                      >
-                        <div className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs mb-2",
-                          styleIndex === idx ? "bg-brand-primary" : "bg-gray-300"
-                        )}>
-                          {idx + 1}
-                        </div>
-                        <p className="font-bold text-sm text-brand-primary">{name}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
 
               <div className="text-center">
