@@ -775,7 +775,7 @@ function drawFlyerNative(
   logoImg: HTMLImageElement | null,
   styleIndex: 0 | 1
 ) {
-  drawBgDecorations(ctx, w, h);
+  drawBgDecorations(ctx, w, h, design.gradientStart, design.gradientEnd);
 
   const layoutType = getLayoutType(w, h);
 
