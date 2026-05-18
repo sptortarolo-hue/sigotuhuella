@@ -11,6 +11,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
+        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
+      },
       manifest: {
         name: 'Sigo tu huella - Sicardi/Garibaldi',
         short_name: 'SigoTuHuella',
