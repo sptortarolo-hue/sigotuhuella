@@ -35,7 +35,7 @@ router.post('/', requireAuth, async (req, res) => {
 
 router.put('/:id', requireAdmin, async (req, res) => {
   const { status } = req.body;
-  if (!['pending', 'accepted', 'suspended'].includes(status)) {
+  if (!['pending', 'reviewed', 'accepted', 'suspended'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
   try {

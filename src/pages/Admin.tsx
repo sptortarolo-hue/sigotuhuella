@@ -871,10 +871,11 @@ export default function Admin() {
                           <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
                             vol.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                            vol.status === 'reviewed' ? 'bg-amber-100 text-amber-700' :
                             vol.status === 'suspended' ? 'bg-red-100 text-red-600' :
                             'bg-gray-100 text-gray-500'
                           }`}>
-                            {vol.status === 'suspended' ? 'Suspendido' : vol.status}
+                            {vol.status === 'suspended' ? 'Suspendido' : vol.status === 'reviewed' ? 'Revisado' : vol.status}
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-4 text-sm text-gray-500">
@@ -901,7 +902,7 @@ export default function Admin() {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        {vol.status === 'pending' && (
+                        {(vol.status === 'pending' || vol.status === 'reviewed') && (
                           <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
                         )}
                         {vol.status === 'accepted' && vol.user_id && (
