@@ -928,7 +928,7 @@ export default function Admin() {
                     <div className="flex flex-wrap gap-6">
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input type="checkbox" checked={formData.isDewormed} onChange={e => setFormData({...formData, isDewormed: e.target.checked})} className="w-4 h-4 accent-brand-primary" />
-                        <span className="text-gray-700 font-medium">Desparacitado</span>
+                        <span className="text-gray-700 font-medium">Desparasitado</span>
                       </label>
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input type="checkbox" checked={formData.isVaccinated} onChange={e => setFormData({...formData, isVaccinated: e.target.checked})} className="w-4 h-4 accent-brand-primary" />
