@@ -53,20 +53,20 @@ interface SocialShareModalProps {
 interface DesignConfig {
   label: string;
   badgeColor: string;
+  gradientStart: string;
+  gradientEnd: string;
 }
 
 const statusDesigns: Record<string, DesignConfig> = {
-  lost: { label: 'SE PERDIÓ', badgeColor: '#B8860B' },
-  retained: { label: 'RETENIDO', badgeColor: '#5B7B9A' },
-  sighted: { label: 'AVISTADO', badgeColor: '#5B7B9A' },
-  accidented: { label: 'ACCIDENTADO', badgeColor: '#B8860B' },
-  needs_attention: { label: 'NECESITA ATENCIÓN', badgeColor: '#B8860B' },
-  for_adoption: { label: 'EN ADOPCIÓN', badgeColor: '#D48C70' },
-  adopted: { label: '¡ADOPTADO!', badgeColor: '#6B8F5E' },
-  reunited: { label: '¡REENCUENTRO!', badgeColor: '#6B8F5E' },
+  lost: { label: 'SE PERDIÓ', badgeColor: '#DC2626', gradientStart: '#7F1D1D', gradientEnd: '#DC2626' },
+  retained: { label: 'RETENIDO', badgeColor: '#2563EB', gradientStart: '#1E3A5F', gradientEnd: '#2563EB' },
+  sighted: { label: 'AVISTADO', badgeColor: '#2563EB', gradientStart: '#1E3A5F', gradientEnd: '#2563EB' },
+  accidented: { label: 'ACCIDENTADO', badgeColor: '#EA580C', gradientStart: '#7C2D12', gradientEnd: '#EA580C' },
+  needs_attention: { label: 'NECESITA ATENCIÓN', badgeColor: '#D97706', gradientStart: '#78350F', gradientEnd: '#D97706' },
+  for_adoption: { label: 'EN ADOPCIÓN', badgeColor: '#8B5CF6', gradientStart: '#3B0764', gradientEnd: '#8B5CF6' },
+  adopted: { label: '¡ADOPTADO!', badgeColor: '#10B981', gradientStart: '#064E3B', gradientEnd: '#10B981' },
+  reunited: { label: '¡REENCUENTRO!', badgeColor: '#10B981', gradientStart: '#064E3B', gradientEnd: '#10B981' },
 };
-
-const BRAND_GRADIENT: [string, string] = ['#5A5A40', '#D48C70'];
 
 const getDimensions = (platform: Platform, useType: UseType) => {
   if (!platform || !useType) return { width: 1080, height: 1080, aspectRatio: '1:1' };
@@ -174,25 +174,31 @@ function drawCircularPhoto(
 function drawBadge(
   ctx: CanvasRenderingContext2D,
   w: number, cx: number, y: number,
-  text: string, color: string
+  text: string, color: string, fontSize?: number
 ): number {
-  const fontSize = w * 0.04;
-  ctx.font = `800 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  const fs = fontSize ?? w * 0.055;
+  ctx.font = `800 ${fs}px system-ui, -apple-system, sans-serif`;
   const textW = ctx.measureText(text).width;
-  const padX = w * 0.04;
-  const padY = w * 0.015;
+  const padX = w * 0.035;
+  const padY = fs * 0.35;
   const bw = textW + padX * 2;
-  const bh = fontSize + padY * 2;
+  const bh = fs + padY * 2;
   const bx = cx - bw / 2;
 
-  roundRect(ctx, bx, y, bw, bh, bh / 2);
-  ctx.fillStyle = color;
-  ctx.fill();
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.15)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2;
 
+  roundRect(ctx, bx, y, bw, bh, bh / 2);
   ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = color;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `800 ${fontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.font = `800 ${fs}px system-ui, -apple-system, sans-serif`;
   ctx.fillText(text, cx, y + bh / 2);
 
   return y + bh;
@@ -285,12 +291,12 @@ function drawBrandBar(ctx: CanvasRenderingContext2D, w: number, h: number, logoI
 
 // === LAYOUT DRAWERS ===
 
-function drawBgDecorations(ctx: CanvasRenderingContext2D, w: number, h: number) {
+function drawBgDecorations(ctx: CanvasRenderingContext2D, w: number, h: number, colorStart: string, colorEnd: string) {
   ctx.clearRect(0, 0, w, h);
 
   const bgGrad = ctx.createLinearGradient(0, 0, w * 0.3, h);
-  bgGrad.addColorStop(0, BRAND_GRADIENT[0]);
-  bgGrad.addColorStop(1, BRAND_GRADIENT[1]);
+  bgGrad.addColorStop(0, colorStart);
+  bgGrad.addColorStop(1, colorEnd);
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, w, h);
 
