@@ -902,7 +902,7 @@ export default function Admin() {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        {(vol.status === 'pending' || vol.status === 'reviewed') && (
+                        {vol.status !== 'accepted' && vol.status !== 'suspended' && (
                           <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
                         )}
                         {vol.status === 'accepted' && vol.user_id && (
