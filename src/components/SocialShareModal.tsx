@@ -97,6 +97,7 @@ function drawFlyerNative(
   h: number,
   design: DesignConfig,
   name: string,
+  petDetails: string | undefined,
   location: string | undefined,
   contactInfo: string | undefined,
   description: string | undefined,
@@ -144,9 +145,9 @@ function drawFlyerNative(
 
   // === LAYOUT CALCULATIONS ===
   const isTall = h > w;
-  const photoRadius = isTall ? w * 0.22 : w * 0.25;
+  const photoRadius = isTall ? w * 0.25 : w * 0.28;
   const photoCx = w / 2;
-  const photoCy = isTall ? h * 0.28 : h * 0.32;
+  const photoCy = isTall ? h * 0.30 : h * 0.35;
 
   // === PET PHOTO (circular with border + shadow) ===
   if (img) {
@@ -202,7 +203,7 @@ function drawFlyerNative(
   const badgeW = badgeTextW + badgePadX * 2;
   const badgeH = badgeFontSize + badgePadY * 2;
   const badgeX = (w - badgeW) / 2;
-  const badgeY = photoCy + photoRadius + w * 0.04;
+  const badgeY = photoCy + photoRadius + w * 0.035;
 
   roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
   ctx.fillStyle = design.badgeColor;
@@ -215,7 +216,7 @@ function drawFlyerNative(
   ctx.fillText(badgeText, w / 2, badgeY + badgeH / 2);
 
   // === PET NAME ===
-  const nameY = badgeY + badgeH + w * 0.05;
+  const nameY = badgeY + badgeH + w * 0.035;
   const nameFontSize = w * 0.085;
   ctx.font = `800 ${nameFontSize}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = '#ffffff';
@@ -230,65 +231,82 @@ function drawFlyerNative(
   ctx.shadowBlur = 0;
   ctx.shadowOffsetY = 0;
 
+  // === PET DETAILS ===
+  let infoY = nameY + nameFontSize * 1.1;
+  if (petDetails) {
+    const detailFontSize = w * 0.028;
+    ctx.font = `500 ${detailFontSize}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(petDetails, w / 2, infoY);
+    infoY += detailFontSize * 1.8;
+  }
+
   // === INFO SECTION ===
-  let infoY = nameY + nameFontSize * 1.2;
   const infoFontSize = w * 0.035;
   ctx.font = `500 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = 'rgba(255,255,255,0.9)';
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
 
   if (location) {
     ctx.fillText(location, w / 2, infoY);
-    infoY += infoFontSize * 1.6;
+    infoY += infoFontSize * 1.5;
   }
 
   if (contactInfo) {
     ctx.fillText(contactInfo, w / 2, infoY);
-    infoY += infoFontSize * 1.6;
+    infoY += infoFontSize * 1.5;
   }
 
-  if (description && status === 'for_adoption') {
+  // Description for all statuses
+  if (description) {
     const descFontSize = w * 0.03;
     ctx.font = `italic 500 ${descFontSize}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    const maxDescW = w * 0.7;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    const maxDescW = w * 0.72;
     const words = description.split(' ');
     let line = '';
+    let lineCount = 0;
+    const maxLines = 3;
     let descY = infoY;
     for (const word of words) {
+      if (lineCount >= maxLines) break;
       const testLine = line + word + ' ';
       if (ctx.measureText(testLine).width > maxDescW && line) {
         ctx.fillText(line.trim(), w / 2, descY);
         line = word + ' ';
         descY += descFontSize * 1.4;
+        lineCount++;
       } else {
         line = testLine;
       }
     }
-    if (line.trim()) {
+    if (line.trim() && lineCount < maxLines) {
       ctx.fillText(line.trim(), w / 2, descY);
     }
   }
 
   // === BRAND BAR ===
-  const brandY = h - h * 0.08;
+  const brandY = h - h * 0.06;
 
   // Separator line
   ctx.strokeStyle = 'rgba(255,255,255,0.25)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(w * 0.2, brandY);
-  ctx.lineTo(w * 0.8, brandY);
+  ctx.moveTo(w * 0.15, brandY);
+  ctx.lineTo(w * 0.85, brandY);
   ctx.stroke();
 
   // Logo thumbnail
-  const logoR = w * 0.018;
-  const logoY = brandY + h * 0.02 + logoR;
+  const logoR = w * 0.028;
+  const logoY = brandY + h * 0.025 + logoR;
 
   if (logoImg) {
     ctx.save();
     ctx.beginPath();
-    ctx.arc(w * 0.38, logoY, logoR, 0, Math.PI * 2);
+    ctx.arc(w * 0.32, logoY, logoR, 0, Math.PI * 2);
     ctx.clip();
     const la = logoImg.naturalWidth / logoImg.naturalHeight;
     let lw: number, lh: number;
@@ -299,11 +317,11 @@ function drawFlyerNative(
       lw = logoR * 2.2;
       lh = lw / la;
     }
-    ctx.drawImage(logoImg, w * 0.38 - lw / 2, logoY - lh / 2, lw, lh);
+    ctx.drawImage(logoImg, w * 0.32 - lw / 2, logoY - lh / 2, lw, lh);
     ctx.restore();
 
     ctx.beginPath();
-    ctx.arc(w * 0.38, logoY, logoR, 0, Math.PI * 2);
+    ctx.arc(w * 0.32, logoY, logoR, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -312,16 +330,16 @@ function drawFlyerNative(
     ctx.font = `${logoR * 1.5}px system-ui`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🐾', w * 0.38, logoY);
+    ctx.fillText('🐾', w * 0.32, logoY);
   }
 
   // Brand text
-  const brandFontSize = w * 0.025;
-  ctx.font = `700 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  const brandFontSize = w * 0.035;
+  ctx.font = `800 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText('SIGO TU HUELLA', w * 0.38 + logoR + w * 0.02, logoY);
+  ctx.fillText('SIGO TU HUELLA', w * 0.32 + logoR + w * 0.025, logoY);
 }
 
 export default function SocialShareModal({ pet, onClose }: SocialShareModalProps) {
@@ -343,6 +361,10 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const design = statusDesigns[pet.status] || statusDesigns.lost;
   const flyerName = pet.name || 'Sin nombre';
   const shareText = petUrl;
+  const petSpecies = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species || '';
+  const petGender = pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : '';
+  const petDetailParts = [petSpecies, pet.breed, petGender, pet.age].filter(Boolean);
+  const petDetails = petDetailParts.join(' · ');
 
   const previewScale = Math.min(280 / targetWidth, 400 / targetHeight, 1);
 
@@ -361,8 +383,8 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     if (!ctx) return;
     canvas.width = targetWidth;
     canvas.height = targetHeight;
-    drawFlyerNative(ctx, targetWidth, targetHeight, design, flyerName, pet.location, pet.contact_info, pet.description, pet.status, img, logoImg);
-  }, [targetWidth, targetHeight, design, flyerName, pet.location, pet.contact_info, pet.description, pet.status, logoImg]);
+    drawFlyerNative(ctx, targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, pet.status, img, logoImg);
+  }, [targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, pet.status, logoImg]);
 
   useEffect(() => {
     if (!mainImage || !platform || !useType) return;
@@ -406,7 +428,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
       drawFlyerNative(
         offscreen.getContext('2d')!,
-        targetWidth, targetHeight, design, flyerName,
+        targetWidth, targetHeight, design, flyerName, petDetails,
         pet.location, pet.contact_info, pet.description, pet.status,
         imgToUse, logoImg
       );
