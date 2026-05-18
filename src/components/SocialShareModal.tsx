@@ -141,8 +141,9 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const drawFlyer = useCallback(async (canvas: StaticCanvas, imageUrl: string | null) => {
     canvas.clear();
     canvas.setDimensions({ width: targetWidth, height: targetHeight });
+    canvas.backgroundColor = '#ffffff';
 
-    // Gradient background
+    // Gradient background using a full-size Rect (more reliable for export)
     const gradient = new Gradient('linear', {
       coords: { x1: 0, y1: 0, x2: 0, y2: targetHeight },
       colorStops: [
@@ -150,7 +151,16 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
         { offset: 1, color: sc.gradient[1] },
       ],
     });
-    canvas.backgroundColor = gradient;
+    const bgRect = new Rect({
+      left: 0,
+      top: 0,
+      width: targetWidth,
+      height: targetHeight,
+      fill: gradient,
+      selectable: false,
+      evented: false,
+    });
+    canvas.add(bgRect);
 
     const pad = targetWidth * 0.05;
     const statusFontSize = targetWidth * 0.07;
@@ -285,7 +295,9 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     });
     canvas.add(brandText);
 
+    // In Fabric.js v6, renderAll schedules paint via rAF — must wait for actual paint
     canvas.renderAll();
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
   }, [targetWidth, targetHeight, isTall, sc, flyerName, pet.location, pet.contact_info, pet.description, pet.status, hasContact, hasDescription]);
 
   // Initialize and render canvas
@@ -317,6 +329,9 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     try {
       const imageToUse = processedImage || mainImage;
       await drawFlyer(fabricCanvasRef.current, imageToUse);
+
+      // Extra frame delay to ensure canvas pixels are fully painted before export
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
       const dataUrl = fabricCanvasRef.current.toDataURL({
         format: 'png',
