@@ -123,28 +123,30 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
              </div>
            )}
 
-           <div className="p-1 bg-white rounded-2xl border border-brand-accent shadow-sm flex">
-             <button
-               onClick={() => setViewMode('grid')}
-               className={cn(
-                 "p-3 rounded-xl transition-all flex items-center gap-2 text-sm font-bold",
-                 viewMode === 'grid' ? "bg-brand-primary text-white" : "text-gray-400 hover:text-gray-600"
-               )}
-             >
-               <Grid className="w-4 h-4" />
-               Grilla
-             </button>
-             <button
-               onClick={() => setViewMode('map')}
-               className={cn(
-                 "p-3 rounded-xl transition-all flex items-center gap-2 text-sm font-bold",
-                 viewMode === 'map' ? "bg-brand-primary text-white" : "text-gray-400 hover:text-gray-600"
-               )}
-             >
-               <MapIcon className="w-4 h-4" />
-               Mapa
-             </button>
-           </div>
+            {type === 'lost' && (
+              <div className="p-1 bg-white rounded-2xl border border-brand-accent shadow-sm flex">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={cn(
+                    "p-3 rounded-xl transition-all flex items-center gap-2 text-sm font-bold",
+                    viewMode === 'grid' ? "bg-brand-primary text-white" : "text-gray-400 hover:text-gray-600"
+                  )}
+                >
+                  <Grid className="w-4 h-4" />
+                  Grilla
+                </button>
+                <button
+                  onClick={() => setViewMode('map')}
+                  className={cn(
+                    "p-3 rounded-xl transition-all flex items-center gap-2 text-sm font-bold",
+                    viewMode === 'map' ? "bg-brand-primary text-white" : "text-gray-400 hover:text-gray-600"
+                  )}
+                >
+                  <MapIcon className="w-4 h-4" />
+                  Mapa
+                </button>
+              </div>
+            )}
          </div>
       </header>
 
@@ -155,7 +157,7 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
         </div>
       ) : displayedPets.length > 0 ? (
         <AnimatePresence mode="wait">
-          {viewMode === 'grid' ? (
+          {viewMode === 'grid' || type === 'adoption' ? (
             <motion.div
               key="grid"
               initial={{ opacity: 0 }}
