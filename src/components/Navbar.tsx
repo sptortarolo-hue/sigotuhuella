@@ -10,7 +10,7 @@ export default function Navbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -118,6 +118,11 @@ const navItems = [
                           <p className="text-xs text-gray-500 truncate">{user.email}</p>
                         </div>
                         <div className="py-1">
+                          {isAdmin && (
+                            <button onClick={() => handleNavClick('/admin')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-primary/5 text-brand-primary font-bold transition-colors border-b border-brand-accent">
+                              <Settings className="w-4 h-4 text-brand-primary animate-pulse" /> Panel Admin
+                            </button>
+                          )}
                           <button onClick={() => handleNavClick('/dashboard')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
                             <PawPrint className="w-4 h-4 text-brand-primary" /> Mi Panel
                           </button>
@@ -176,6 +181,11 @@ const navItems = [
             {user ? (
               <div className="border-t border-brand-accent pt-3 mt-2">
                 <p className="text-xs text-gray-400 px-2 mb-2 font-bold uppercase tracking-widest">Mi Cuenta</p>
+                {isAdmin && (
+                  <Link to="/admin" onClick={() => handleNavClick('/admin')} className="flex items-center gap-3 text-base font-bold p-3 rounded-lg text-brand-primary bg-brand-primary/5 hover:bg-brand-primary/10 mb-2">
+                    <Settings className="w-5 h-5 shrink-0" /> Panel Admin
+                  </Link>
+                )}
                 <Link to="/dashboard" onClick={() => handleNavClick('/dashboard')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
                   <PawPrint className="w-5 h-5 shrink-0" /> Mi Panel
                 </Link>
