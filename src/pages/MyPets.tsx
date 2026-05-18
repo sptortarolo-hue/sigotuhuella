@@ -7,7 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import PetCard from '@/src/components/PetCard';
 import PetMap from '@/src/components/PetMap';
 import MapLoader from '@/src/components/MapLoader';
-import { Search, Loader2, Grid, Map as MapIcon, ArrowLeft, PawPrint, X, Save, HeartHandshake } from 'lucide-react';
+import PetRecordsModal from '@/src/components/PetRecordsModal';
+import { Search, Loader2, Grid, Map as MapIcon, ArrowLeft, PawPrint, X, Save, HeartHandshake, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
@@ -20,6 +21,7 @@ export default function MyPets() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
+  const [activeRecordsPet, setActiveRecordsPet] = useState<{id: string, name: string} | null>(null);
 
   // Edit state
   const [showForm, setShowForm] = useState(false);
@@ -27,6 +29,7 @@ export default function MyPets() {
   const [formLoading, setFormLoading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [imagesToKeep, setImagesToKeep] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     species: 'dog' as 'dog' | 'cat' | 'other',
@@ -34,6 +37,11 @@ export default function MyPets() {
     color: '',
     status: PetStatus.LOST,
     gender: 'unknown' as 'male' | 'female' | 'unknown',
+    age: '',
+    size: '',
+    isVaccinated: false,
+    isSterilized: false,
+    isDewormed: false,
     location: '',
     contactInfo: '',
     description: '',
@@ -78,9 +86,10 @@ export default function MyPets() {
   };
 
   const resetPetForm = () => {
-    setFormData({ name: '', species: 'dog', breed: '', color: '', status: PetStatus.LOST, gender: 'unknown', location: '', contactInfo: '', description: '' });
+    setFormData({ name: '', species: 'dog', breed: '', color: '', status: PetStatus.LOST, gender: 'unknown', age: '', size: '', isVaccinated: false, isSterilized: false, isDewormed: false, location: '', contactInfo: '', description: '' });
     setPreviews([]);
     setSelectedFiles([]);
+    setImagesToKeep([]);
     setEditingPet(null);
   };
 
@@ -93,12 +102,18 @@ export default function MyPets() {
       color: pet.color || '',
       status: pet.status,
       gender: pet.gender || 'unknown',
+      age: pet.age || '',
+      size: pet.size || '',
+      isVaccinated: pet.is_vaccinated,
+      isSterilized: pet.is_sterilized,
+      isDewormed: pet.is_dewormed,
       location: pet.location || '',
       contactInfo: pet.contact_info || '',
       description: pet.description || '',
     });
     const urls = getPetImageUrls(pet);
     setPreviews(urls);
+    setImagesToKeep(pet.images?.map(img => img.id) || []);
     setShowForm(true);
   };
 
@@ -106,9 +121,9 @@ export default function MyPets() {
     e.preventDefault();
     setFormLoading(true);
     try {
-      let images: { data: string; mimeType: string }[] = [];
+      let newImages: { data: string; mimeType: string }[] = [];
       if (selectedFiles.length > 0) {
-        images = await filesToBase64(selectedFiles);
+        newImages = await filesToBase64(selectedFiles);
       }
 
       const dataToSave = {
@@ -118,10 +133,16 @@ export default function MyPets() {
         color: formData.color || null,
         status: formData.status,
         gender: formData.gender,
+        age: formData.age || null,
+        size: formData.size || null,
+        isVaccinated: formData.isVaccinated,
+        isSterilized: formData.isSterilized,
+        isDewormed: formData.isDewormed,
         location: formData.location,
         contactInfo: formData.contactInfo,
         description: formData.description,
-        images,
+        imagesToKeep,
+        newImages,
       };
 
       if (editingPet) await updatePet(editingPet.id, dataToSave);
@@ -188,12 +209,30 @@ export default function MyPets() {
                   onDelete={handleDelete}
                 />
                 {pet.status !== PetStatus.REUNITED && (
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => handleReencuentro(pet.id)}
+                      className="flex-1 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"
+                    >
+                      <HeartHandshake className="w-4 h-4" />
+                      Reencuentro
+                    </button>
+                    <button
+                      onClick={() => setActiveRecordsPet({ id: pet.id, name: pet.name || 'Mascota' })}
+                      className="flex-1 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-colors"
+                    >
+                      <Activity className="w-4 h-4" />
+                      Historial Médico
+                    </button>
+                  </div>
+                )}
+                {pet.status === PetStatus.REUNITED && (
                   <button
-                    onClick={() => handleReencuentro(pet.id)}
-                    className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"
+                    onClick={() => setActiveRecordsPet({ id: pet.id, name: pet.name || 'Mascota' })}
+                    className="mt-3 w-full py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-colors"
                   >
-                    <HeartHandshake className="w-4 h-4" />
-                    Hubo reencuentro
+                    <Activity className="w-4 h-4" />
+                    Historial Médico
                   </button>
                 )}
               </div>
@@ -233,6 +272,37 @@ export default function MyPets() {
                     </select>
                   </div>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-xs font-bold uppercase text-gray-500">Edad</label>
+                    <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})}>
+                      <option value="">No sé / No aplica</option>
+                      <option value="cachorro">Cachorro</option>
+                      <option value="adulto">Adulto</option>
+                      <option value="senior">Senior</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-gray-500">Tamaño</label>
+                    <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.size} onChange={e => setFormData({...formData, size: e.target.value})}>
+                      <option value="">No sé / No aplica</option>
+                      <option value="small">Pequeño</option>
+                      <option value="medium">Mediano</option>
+                      <option value="large">Grande</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                    <input type="checkbox" className="w-4 h-4 rounded text-brand-primary" checked={formData.isVaccinated} onChange={e => setFormData({...formData, isVaccinated: e.target.checked})} /> Vacunado
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                    <input type="checkbox" className="w-4 h-4 rounded text-brand-primary" checked={formData.isSterilized} onChange={e => setFormData({...formData, isSterilized: e.target.checked})} /> Castrado
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                    <input type="checkbox" className="w-4 h-4 rounded text-brand-primary" checked={formData.isDewormed} onChange={e => setFormData({...formData, isDewormed: e.target.checked})} /> Desparasitado
+                  </label>
+                </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Estado</label>
                   <select className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
@@ -260,11 +330,34 @@ export default function MyPets() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Imágenes</label>
-                  <input type="file" accept="image/*" multiple onChange={e => { const files = Array.from(e.target.files || []); setSelectedFiles(files); setPreviews(files.map(f => URL.createObjectURL(f))); }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
+                  <input type="file" accept="image/*" multiple onChange={e => { 
+                    const files = Array.from(e.target.files || []); 
+                    setSelectedFiles([...selectedFiles, ...files]); 
+                    setPreviews([...previews, ...files.map(f => URL.createObjectURL(f))]); 
+                  }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
                   {previews.length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {previews.map((src, i) => (
-                        <img key={i} src={src} className="w-20 h-20 object-cover rounded-xl" />
+                        <div key={i} className="relative">
+                          <img src={src} className="w-20 h-20 object-cover rounded-xl border border-brand-accent" />
+                          <button type="button" onClick={() => {
+                            if (i < imagesToKeep.length) {
+                              const newImagesToKeep = [...imagesToKeep];
+                              newImagesToKeep.splice(i, 1);
+                              setImagesToKeep(newImagesToKeep);
+                            } else {
+                              const fileIndex = i - imagesToKeep.length;
+                              const newFiles = [...selectedFiles];
+                              newFiles.splice(fileIndex, 1);
+                              setSelectedFiles(newFiles);
+                            }
+                            const newPreviews = [...previews];
+                            newPreviews.splice(i, 1);
+                            setPreviews(newPreviews);
+                          }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-xs">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -273,6 +366,16 @@ export default function MyPets() {
               </form>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {activeRecordsPet && (
+          <PetRecordsModal
+            petId={activeRecordsPet.id}
+            petName={activeRecordsPet.name}
+            onClose={() => setActiveRecordsPet(null)}
+          />
         )}
       </AnimatePresence>
     </div>

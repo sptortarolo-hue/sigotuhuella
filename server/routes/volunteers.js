@@ -68,9 +68,9 @@ router.put('/:id', requireAdmin, async (req, res) => {
         );
       } else {
         const counterResult = await pool.query(
-          "SELECT COUNT(*) as count FROM users WHERE member_number IS NOT NULL"
+          "SELECT MAX(CAST(SUBSTRING(member_number FROM 5) AS INTEGER)) as max_num FROM users WHERE member_number LIKE 'STH-%'"
         );
-        const nextNum = parseInt(counterResult.rows[0].count) + 1;
+        const nextNum = (parseInt(counterResult.rows[0].max_num) || 0) + 1;
         const memberNumber = 'STH-' + String(nextNum).padStart(5, '0');
         const volunteerBadge = JSON.stringify([{ code: 'volunteer', awarded_at: new Date().toISOString() }]);
 
@@ -80,6 +80,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
             volunteer_status = 'active',
             badges = CASE
               WHEN badges IS NULL OR badges = '[]'::jsonb THEN $2::jsonb
+              WHEN badges @> '[{"code": "volunteer"}]'::jsonb THEN badges
               ELSE badges || $2::jsonb
             END
           WHERE id = $3`,

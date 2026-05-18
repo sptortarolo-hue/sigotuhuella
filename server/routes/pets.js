@@ -221,7 +221,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       updates.push(`longitude = $${idx++}`);
       values.push(req.body.longitude);
     }
-    if (updates.length === 0 && !req.body.images) {
+    if (updates.length === 0 && !req.body.images && !req.body.newImages && req.body.imagesToKeep === undefined) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     if (updates.length > 0) {
@@ -232,8 +232,23 @@ router.put('/:id', requireAuth, async (req, res) => {
         values
       );
     }
-    // Handle images: replace all if provided
-    if (req.body.images && req.body.images.length > 0) {
+    // Handle images explicitly
+    if (req.body.imagesToKeep !== undefined) {
+      if (req.body.imagesToKeep.length > 0) {
+        await pool.query('DELETE FROM pet_images WHERE pet_id = $1 AND id != ALL($2::uuid[])', [petId, req.body.imagesToKeep]);
+      } else {
+        await pool.query('DELETE FROM pet_images WHERE pet_id = $1', [petId]);
+      }
+    }
+    if (req.body.newImages && req.body.newImages.length > 0) {
+      for (const img of req.body.newImages) {
+        await pool.query(
+          'INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)',
+          [petId, img.data, img.mimeType || 'image/jpeg']
+        );
+      }
+    } else if (req.body.images && req.body.images.length > 0) {
+      // Fallback for legacy behavior
       await pool.query('DELETE FROM pet_images WHERE pet_id = $1', [petId]);
       for (const img of req.body.images) {
         await pool.query(

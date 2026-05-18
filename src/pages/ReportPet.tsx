@@ -45,6 +45,11 @@ export default function ReportPet() {
     color: '',
     status: PetStatus.LOST,
     gender: 'unknown' as 'male' | 'female' | 'unknown',
+    age: '',
+    size: '',
+    isVaccinated: false,
+    isSterilized: false,
+    isDewormed: false,
     location: '',
     contactInfo: '',
     description: '',
@@ -119,6 +124,11 @@ const handleSubmit = async (e: React.FormEvent) => {
          color: formData.color || null,
          status: formData.status,
          gender: formData.gender,
+         age: formData.age || null,
+         size: formData.size || null,
+         isVaccinated: formData.isVaccinated,
+         isSterilized: formData.isSterilized,
+         isDewormed: formData.isDewormed,
          description: formData.description,
          location: formData.location,
          latitude: formData.coordinates.lat,
@@ -344,6 +354,49 @@ const handleSubmit = async (e: React.FormEvent) => {
                     ))}
                   </div>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Edad aproximada</label>
+                  <select
+                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
+                    value={formData.age}
+                    onChange={e => setFormData({ ...formData, age: e.target.value })}
+                  >
+                    <option value="">No sé / No aplica</option>
+                    <option value="cachorro">Cachorro</option>
+                    <option value="adulto">Adulto</option>
+                    <option value="senior">Senior</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Tamaño</label>
+                  <select
+                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
+                    value={formData.size}
+                    onChange={e => setFormData({ ...formData, size: e.target.value })}
+                  >
+                    <option value="">No sé / No aplica</option>
+                    <option value="small">Pequeño</option>
+                    <option value="medium">Mediano</option>
+                    <option value="large">Grande</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-6 bg-brand-bg p-4 rounded-2xl border border-brand-accent">
+                <label className="flex items-center gap-3 text-sm font-bold text-gray-600 cursor-pointer">
+                  <input type="checkbox" className="w-5 h-5 rounded text-brand-primary" checked={formData.isVaccinated} onChange={e => setFormData({...formData, isVaccinated: e.target.checked})} />
+                  Vacunado
+                </label>
+                <label className="flex items-center gap-3 text-sm font-bold text-gray-600 cursor-pointer">
+                  <input type="checkbox" className="w-5 h-5 rounded text-brand-primary" checked={formData.isSterilized} onChange={e => setFormData({...formData, isSterilized: e.target.checked})} />
+                  Castrado
+                </label>
+                <label className="flex items-center gap-3 text-sm font-bold text-gray-600 cursor-pointer">
+                  <input type="checkbox" className="w-5 h-5 rounded text-brand-primary" checked={formData.isDewormed} onChange={e => setFormData({...formData, isDewormed: e.target.checked})} />
+                  Desparasitado
+                </label>
               </div>
 
               <div className="space-y-4">

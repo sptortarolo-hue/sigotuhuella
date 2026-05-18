@@ -176,6 +176,21 @@ Me gustaría obtener más información.`;
             </div>
           </div>
 
+          {(pet.age || pet.size || pet.is_vaccinated || pet.is_sterilized || pet.is_dewormed) && (
+            <div className="bg-white p-6 rounded-[2rem] border border-brand-accent mb-8 shadow-sm">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
+                <Info className="w-4 h-4" /> Datos de la Mascota
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {pet.age && <span className="px-3 py-1 bg-brand-bg border border-brand-accent rounded-full text-xs font-bold text-gray-700">Edad: {pet.age === 'cachorro' ? 'Cachorro' : pet.age === 'adulto' ? 'Adulto' : 'Senior'}</span>}
+                {pet.size && <span className="px-3 py-1 bg-brand-bg border border-brand-accent rounded-full text-xs font-bold text-gray-700">Tamaño: {pet.size === 'small' ? 'Pequeño' : pet.size === 'medium' ? 'Mediano' : 'Grande'}</span>}
+                {pet.is_vaccinated && <span className="px-3 py-1 bg-green-50 text-green-700 border border-green-100 rounded-full text-xs font-bold">✓ Vacunado</span>}
+                {pet.is_sterilized && <span className="px-3 py-1 bg-green-50 text-green-700 border border-green-100 rounded-full text-xs font-bold">✓ Castrado</span>}
+                {pet.is_dewormed && <span className="px-3 py-1 bg-green-50 text-green-700 border border-green-100 rounded-full text-xs font-bold">✓ Desparasitado</span>}
+              </div>
+            </div>
+          )}
+
           <div className="bg-white p-6 rounded-[2rem] border border-brand-accent mb-8 shadow-sm">
             <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
               <Info className="w-4 h-4" /> Descripción
