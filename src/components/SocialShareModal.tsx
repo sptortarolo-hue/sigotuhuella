@@ -322,6 +322,26 @@ function drawBgDecorations(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.globalAlpha = 1;
 }
 
+function drawContentCard(ctx: CanvasRenderingContext2D, w: number, yStart: number, yEnd: number) {
+  if (yStart >= yEnd) return;
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = '#000000';
+  roundRect(ctx, w * 0.06, yStart, w * 0.88, yEnd - yStart, w * 0.04);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawContentCardRight(ctx: CanvasRenderingContext2D, w: number, xStart: number, yStart: number, yEnd: number) {
+  if (yStart >= yEnd) return;
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = '#000000';
+  roundRect(ctx, xStart - w * 0.02, yStart, w * 0.44, yEnd - yStart, w * 0.03);
+  ctx.fill();
+  ctx.restore();
+}
+
 // Layout: Story Hero (9:16, style 0)
 function drawStoryHero(
   ctx: CanvasRenderingContext2D, w: number, h: number,
@@ -331,6 +351,10 @@ function drawStoryHero(
 ) {
   const photoR = w * 0.28;
   const photoCy = h * 0.30;
+
+  const cardY = photoCy + photoR - w * 0.02;
+  const cardEndY = h - h * 0.06 - w * 0.02;
+  drawContentCard(ctx, w, cardY, cardEndY);
 
   drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
 
@@ -355,7 +379,7 @@ function drawStoryHero(
   if (petDetails) {
     const df = w * 0.028;
     ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(petDetails, w / 2, yPos);
@@ -367,7 +391,7 @@ function drawStoryHero(
   if (location) {
     const lf = w * 0.035;
     ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(location, w / 2, yPos);
@@ -377,7 +401,7 @@ function drawStoryHero(
   if (contactInfo) {
     const cf = w * 0.035;
     ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(contactInfo, w / 2, yPos);
@@ -385,7 +409,7 @@ function drawStoryHero(
   }
 
   if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.03, 3, 'italic 500', 'rgba(255,255,255,0.65)', 1.4);
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.03, 4, 'italic 500', 'rgba(255,255,255,0.85)', 1.4);
   }
 }
 
@@ -411,6 +435,10 @@ function drawStorySplit(
   const photoR = w * 0.22;
   const photoCy = h * 0.40;
 
+  const cardY = photoCy + photoR - w * 0.02;
+  const cardEndY = h - h * 0.06 - w * 0.02;
+  drawContentCard(ctx, w, cardY, cardEndY);
+
   drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
 
   let yPos = photoCy + photoR + w * 0.03;
@@ -434,7 +462,7 @@ function drawStorySplit(
   if (petDetails) {
     const df = w * 0.026;
     ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(petDetails, w / 2, yPos);
@@ -444,7 +472,7 @@ function drawStorySplit(
   if (location) {
     const lf = w * 0.032;
     ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(location, w / 2, yPos);
@@ -454,7 +482,7 @@ function drawStorySplit(
   if (contactInfo) {
     const cf = w * 0.032;
     ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(contactInfo, w / 2, yPos);
@@ -462,7 +490,7 @@ function drawStorySplit(
   }
 
   if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.76, w * 0.028, 3, 'italic 500', 'rgba(255,255,255,0.65)', 1.35);
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.76, w * 0.028, 4, 'italic 500', 'rgba(255,255,255,0.85)', 1.35);
   }
 }
 
@@ -476,6 +504,10 @@ function drawPortraitMagazine(
   const photoR = w * 0.22;
   const photoCy = h * 0.25;
 
+  const cardY = photoCy + photoR - w * 0.02;
+  const cardEndY = h - h * 0.06 - w * 0.02;
+  drawContentCard(ctx, w, cardY, cardEndY);
+
   drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
 
   let yPos = photoCy + photoR + w * 0.03;
@@ -499,7 +531,7 @@ function drawPortraitMagazine(
   if (petDetails) {
     const df = w * 0.026;
     ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(petDetails, w / 2, yPos);
@@ -509,7 +541,7 @@ function drawPortraitMagazine(
   if (location) {
     const lf = w * 0.032;
     ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(location, w / 2, yPos);
@@ -519,7 +551,7 @@ function drawPortraitMagazine(
   if (contactInfo) {
     const cf = w * 0.032;
     ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(contactInfo, w / 2, yPos);
@@ -527,7 +559,7 @@ function drawPortraitMagazine(
   }
 
   if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.028, 2, 'italic 500', 'rgba(255,255,255,0.65)', 1.35);
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.028, 2, 'italic 500', 'rgba(255,255,255,0.85)', 1.35);
   }
 }
 
@@ -540,6 +572,10 @@ function drawPortraitPoster(
 ) {
   const photoR = w * 0.20;
   const photoCy = h * 0.33;
+
+  const cardY = photoCy + photoR - w * 0.02;
+  const cardEndY = h - h * 0.06 - w * 0.02;
+  drawContentCard(ctx, w, cardY, cardEndY);
 
   drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
 
@@ -564,7 +600,7 @@ function drawPortraitPoster(
   if (petDetails) {
     const df = w * 0.024;
     ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(petDetails, w / 2, yPos);
@@ -574,7 +610,7 @@ function drawPortraitPoster(
   if (location) {
     const lf = w * 0.03;
     ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(location, w / 2, yPos);
@@ -584,7 +620,7 @@ function drawPortraitPoster(
   if (contactInfo) {
     const cf = w * 0.03;
     ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(contactInfo, w / 2, yPos);
@@ -592,7 +628,7 @@ function drawPortraitPoster(
   }
 
   if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.74, w * 0.026, 2, 'italic 500', 'rgba(255,255,255,0.65)', 1.3);
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.74, w * 0.026, 2, 'italic 500', 'rgba(255,255,255,0.85)', 1.3);
   }
 }
 
@@ -607,12 +643,16 @@ function drawSquareCompact(
   const photoCx = w * 0.28;
   const photoCy = h * 0.38;
 
-  drawCircularPhoto(ctx, photoCx, photoCy, photoR, img, w);
-
   const rightX = w * 0.55;
   const rightW = w * 0.40;
 
-  let yPos = photoCy - photoR * 0.5;
+  const cardY = photoCy - photoR * 0.5;
+  const cardEndY = h - h * 0.06 - w * 0.02;
+  drawContentCardRight(ctx, w, rightX, cardY, cardEndY);
+
+  drawCircularPhoto(ctx, photoCx, photoCy, photoR, img, w);
+
+  let yPos = cardY;
   yPos = drawBadge(ctx, w, rightX + rightW / 2, yPos, design.label, design.badgeColor);
 
   yPos += w * 0.035;
@@ -633,7 +673,7 @@ function drawSquareCompact(
   if (location) {
     const lf = w * 0.028;
     ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(location, rightX, yPos);
@@ -643,7 +683,7 @@ function drawSquareCompact(
   if (contactInfo) {
     const cf = w * 0.028;
     ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(contactInfo, rightX, yPos);
@@ -651,15 +691,8 @@ function drawSquareCompact(
   }
 
   if (description) {
-    yPos = drawWrappedText(ctx, description, rightX + rightW / 2, yPos, rightW, w * 0.025, 2, 'italic 500', 'rgba(255,255,255,0.6)', 1.3);
+    yPos = drawWrappedText(ctx, description, rightX + rightW / 2, yPos, rightW, w * 0.025, 2, 'italic 500', 'rgba(255,255,255,0.85)', 1.3);
   }
-
-  // "SIGO TU HUELLA" small tag in right area
-  ctx.font = `700 ${w * 0.022}px system-ui, -apple-system, sans-serif`;
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText('🐾 SIGO TU HUELLA', rightX, h - h * 0.08);
 }
 
 // Layout: Square Minimal (1:1, style 1)
@@ -669,16 +702,20 @@ function drawSquareMinimal(
   location: string | undefined, contactInfo: string | undefined,
   description: string | undefined, img: HTMLImageElement | null
 ) {
-  const photoR = w * 0.28;
-  const photoCy = h * 0.32;
+  const photoR = w * 0.22;
+  const photoCy = h * 0.28;
+
+  const cardY = photoCy + photoR - w * 0.02;
+  const cardEndY = h - h * 0.06 - w * 0.02;
+  drawContentCard(ctx, w, cardY, cardEndY);
 
   drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
 
   let yPos = photoCy + photoR + w * 0.03;
   yPos = drawBadge(ctx, w, w / 2, yPos, design.label, design.badgeColor);
 
-  yPos += w * 0.03;
-  const nameFs = w * 0.075;
+  yPos += w * 0.025;
+  const nameFs = w * 0.065;
   ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
@@ -690,30 +727,30 @@ function drawSquareMinimal(
   ctx.shadowColor = 'transparent';
   ctx.shadowBlur = 0;
   ctx.shadowOffsetY = 0;
-  yPos += nameFs * 1.1;
+  yPos += nameFs * 1.0;
 
   if (location) {
-    const lf = w * 0.03;
+    const lf = w * 0.028;
     ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(location, w / 2, yPos);
-    yPos += lf * 1.5;
+    yPos += lf * 1.3;
   }
 
   if (contactInfo) {
-    const cf = w * 0.03;
+    const cf = w * 0.028;
     ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(contactInfo, w / 2, yPos);
-    yPos += cf * 1.5;
+    yPos += cf * 1.3;
   }
 
   if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.026, 1, 'italic 500', 'rgba(255,255,255,0.6)', 1.3);
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.024, 1, 'italic 500', 'rgba(255,255,255,0.85)', 1.3);
   }
 }
 
