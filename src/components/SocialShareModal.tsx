@@ -89,19 +89,39 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
   const shareText = petUrl;
 
+  const captureHighRes = async () => {
+    const original = flyerRef.current;
+    if (!original) return null;
+
+    const clone = original.cloneNode(true) as HTMLElement;
+
+    clone.style.width = `${targetWidth}px`;
+    clone.style.height = `${targetHeight}px`;
+    clone.style.position = 'absolute';
+    clone.style.left = '-9999px';
+    clone.style.top = '0';
+    clone.style.border = 'none';
+    clone.style.borderRadius = '0';
+    clone.style.maxWidth = 'none';
+    original.parentNode?.appendChild(clone);
+
+    const imgs = clone.querySelectorAll('img');
+    await Promise.all(Array.from(imgs).map(img =>
+      img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
+    ));
+
+    const dataUrl = await toPng(clone, { quality: 0.95, pixelRatio: 2 });
+
+    clone.parentNode?.removeChild(clone);
+
+    return dataUrl;
+  };
+
   const handleGenerate = async () => {
-    if (!flyerRef.current) return;
     setGenerating(true);
     try {
-      const imgs = flyerRef.current.querySelectorAll('img');
-      await Promise.all(Array.from(imgs).map(img =>
-        img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
-      ));
-
-      const dataUrl = await toPng(flyerRef.current, { 
-        quality: 0.95, 
-        pixelRatio: 2
-      });
+      const dataUrl = await captureHighRes();
+      if (!dataUrl) throw new Error('No se pudo generar el flyer');
 
       const link = document.createElement('a');
       link.download = `${pet.name || 'mascota'}-${pet.status}-${platform}-${useType}.png`;
