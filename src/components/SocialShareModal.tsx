@@ -96,9 +96,12 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     if (!original) return null;
 
     const clone = original.cloneNode(true) as HTMLElement;
-    clone.style.position = 'absolute';
-    clone.style.left = '-9999px';
+    clone.style.position = 'fixed';
     clone.style.top = '0';
+    clone.style.left = '0';
+    clone.style.zIndex = '-1000';
+    clone.style.opacity = '0.01';
+    clone.style.pointerEvents = 'none';
     document.body.appendChild(clone);
 
     const imgs = clone.querySelectorAll('img');
@@ -357,11 +360,9 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
               <div className="text-center">
                 <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Vista previa del flyer</p>
-                <div className="flex justify-center overflow-hidden rounded-3xl border-4 border-brand-accent shadow-xl" style={{ height: Math.round(targetHeight * previewScale) }}>
-                  <div className="shrink-0 origin-top-center" style={{ transform: `scale(${previewScale})` }}>
-                    <div ref={flyerRef} style={{ width: targetWidth, height: targetHeight }}>
-                      {renderFlyerContent()}
-                    </div>
+                <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden" style={{ width: Math.round(targetWidth * previewScale), height: Math.round(targetHeight * previewScale) }}>
+                  <div ref={flyerRef} style={{ width: targetWidth, height: targetHeight, transform: `scale(${previewScale})`, transformOrigin: 'top left' }}>
+                    {renderFlyerContent()}
                   </div>
                 </div>
               </div>
