@@ -4,7 +4,6 @@ import { X, MessageCircle, Camera, Download, Sparkles, Loader2, ImageIcon, Arrow
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
-
 type Platform = 'whatsapp' | 'facebook' | 'instagram' | null;
 type UseType = 'story' | 'post' | null;
 
@@ -53,21 +52,21 @@ interface SocialShareModalProps {
 
 interface DesignConfig {
   label: string;
-  gradient: [string, string];
-  badgeBg: string;
-  category: 'urgent' | 'positive' | 'adoption' | 'info';
+  badgeColor: string;
 }
 
 const statusDesigns: Record<string, DesignConfig> = {
-  lost: { label: 'SE PERDIÓ', gradient: ['#dc2626', '#ea580c'], badgeBg: 'rgba(220,38,38,0.9)', category: 'urgent' },
-  retained: { label: 'RETENIDO', gradient: ['#2563eb', '#06b6d4'], badgeBg: 'rgba(37,99,235,0.9)', category: 'info' },
-  sighted: { label: 'AVISTADO', gradient: ['#d97706', '#f59e0b'], badgeBg: 'rgba(217,119,6,0.9)', category: 'info' },
-  accidented: { label: 'ACCIDENTADO', gradient: ['#7c3aed', '#ec4899'], badgeBg: 'rgba(124,58,237,0.9)', category: 'urgent' },
-  needs_attention: { label: 'NECESITA ATENCIÓN', gradient: ['#d97706', '#ea580c'], badgeBg: 'rgba(217,119,6,0.9)', category: 'urgent' },
-  for_adoption: { label: 'EN ADOPCIÓN', gradient: ['#7c3aed', '#06b6d4'], badgeBg: 'rgba(124,58,237,0.9)', category: 'adoption' },
-  adopted: { label: '¡ADOPTADO!', gradient: ['#16a34a', '#0891b2'], badgeBg: 'rgba(22,163,74,0.9)', category: 'positive' },
-  reunited: { label: '¡REENCUENTRO!', gradient: ['#16a34a', '#0891b2'], badgeBg: 'rgba(22,163,74,0.9)', category: 'positive' },
+  lost: { label: 'SE PERDIÓ', badgeColor: '#B8860B' },
+  retained: { label: 'RETENIDO', badgeColor: '#5B7B9A' },
+  sighted: { label: 'AVISTADO', badgeColor: '#5B7B9A' },
+  accidented: { label: 'ACCIDENTADO', badgeColor: '#B8860B' },
+  needs_attention: { label: 'NECESITA ATENCIÓN', badgeColor: '#B8860B' },
+  for_adoption: { label: 'EN ADOPCIÓN', badgeColor: '#D48C70' },
+  adopted: { label: '¡ADOPTADO!', badgeColor: '#6B8F5E' },
+  reunited: { label: '¡REENCUENTRO!', badgeColor: '#6B8F5E' },
 };
+
+const BRAND_GRADIENT: [string, string] = ['#5A5A40', '#D48C70'];
 
 const getDimensions = (platform: Platform, useType: UseType) => {
   if (!platform || !useType) return { width: 1080, height: 1080, aspectRatio: '1:1' };
@@ -102,14 +101,15 @@ function drawFlyerNative(
   contactInfo: string | undefined,
   description: string | undefined,
   status: string,
-  img: HTMLImageElement | null
+  img: HTMLImageElement | null,
+  logoImg: HTMLImageElement | null
 ) {
   ctx.clearRect(0, 0, w, h);
 
-  // === BACKGROUND GRADIENT ===
+  // === BACKGROUND GRADIENT (brand unified) ===
   const bgGrad = ctx.createLinearGradient(0, 0, w * 0.3, h);
-  bgGrad.addColorStop(0, design.gradient[0]);
-  bgGrad.addColorStop(1, design.gradient[1]);
+  bgGrad.addColorStop(0, BRAND_GRADIENT[0]);
+  bgGrad.addColorStop(1, BRAND_GRADIENT[1]);
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, w, h);
 
@@ -117,15 +117,12 @@ function drawFlyerNative(
   ctx.globalAlpha = 0.06;
   ctx.fillStyle = '#ffffff';
 
-  // Large circles
   ctx.beginPath();
   ctx.arc(w * 0.85, h * 0.12, w * 0.3, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
   ctx.arc(w * 0.1, h * 0.88, w * 0.2, 0, Math.PI * 2);
   ctx.fill();
-
-  // Small accent circles
   ctx.beginPath();
   ctx.arc(w * 0.75, h * 0.75, w * 0.08, 0, Math.PI * 2);
   ctx.fill();
@@ -133,73 +130,37 @@ function drawFlyerNative(
   ctx.arc(w * 0.2, h * 0.15, w * 0.06, 0, Math.PI * 2);
   ctx.fill();
 
-  // Diagonal lines for urgent category
-  if (design.category === 'urgent') {
-    ctx.globalAlpha = 0.04;
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2;
-    for (let i = -h; i < w + h; i += 40) {
+  // Subtle decorative dots
+  ctx.globalAlpha = 0.04;
+  for (let x = w * 0.6; x < w * 0.95; x += 30) {
+    for (let y = h * 0.5; y < h * 0.85; y += 30) {
       ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i + h, h);
-      ctx.stroke();
+      ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+      ctx.fill();
     }
-  }
-
-  // Dots pattern for adoption category
-  if (design.category === 'adoption') {
-    ctx.globalAlpha = 0.05;
-    ctx.fillStyle = '#ffffff';
-    for (let x = w * 0.6; x < w * 0.95; x += 25) {
-      for (let y = h * 0.5; y < h * 0.85; y += 25) {
-        ctx.beginPath();
-        ctx.arc(x, y, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }
-
-  // Wave for positive category
-  if (design.category === 'positive') {
-    ctx.globalAlpha = 0.05;
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    for (let x = 0; x < w; x += 5) {
-      const y = h * 0.9 + Math.sin(x * 0.02) * 20;
-      if (x === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
   }
 
   ctx.globalAlpha = 1;
 
   // === LAYOUT CALCULATIONS ===
-  const pad = w * 0.06;
   const isTall = h > w;
-
-  // Photo area
   const photoRadius = isTall ? w * 0.22 : w * 0.25;
   const photoCx = w / 2;
   const photoCy = isTall ? h * 0.28 : h * 0.32;
 
   // === PET PHOTO (circular with border + shadow) ===
   if (img) {
-    // Shadow
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = photoRadius * 0.4;
     ctx.shadowOffsetY = photoRadius * 0.15;
 
-    // Clip circle
     ctx.beginPath();
     ctx.arc(photoCx, photoCy, photoRadius, 0, Math.PI * 2);
     ctx.clip();
 
-    // Draw image centered and cropped
     const imgAspect = img.naturalWidth / img.naturalHeight;
-    let drawW: number, drawH: number, drawX: number, drawY: number;
+    let drawW: number, drawH: number;
     if (imgAspect > 1) {
       drawH = photoRadius * 2.2;
       drawW = drawH * imgAspect;
@@ -207,19 +168,15 @@ function drawFlyerNative(
       drawW = photoRadius * 2.2;
       drawH = drawW / imgAspect;
     }
-    drawX = photoCx - drawW / 2;
-    drawY = photoCy - drawH / 2;
-    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    ctx.drawImage(img, photoCx - drawW / 2, photoCy - drawH / 2, drawW, drawH);
     ctx.restore();
 
-    // White border
     ctx.beginPath();
     ctx.arc(photoCx, photoCy, photoRadius, 0, Math.PI * 2);
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = Math.max(4, w * 0.006);
     ctx.stroke();
   } else {
-    // Placeholder
     ctx.beginPath();
     ctx.arc(photoCx, photoCy, photoRadius, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.15)';
@@ -228,7 +185,6 @@ function drawFlyerNative(
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Paw icon placeholder
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.font = `${photoRadius * 0.8}px system-ui`;
     ctx.textAlign = 'center';
@@ -237,7 +193,7 @@ function drawFlyerNative(
   }
 
   // === STATUS BADGE ===
-  const badgeFontSize = w * 0.035;
+  const badgeFontSize = w * 0.04;
   ctx.font = `800 ${badgeFontSize}px system-ui, -apple-system, sans-serif`;
   const badgeText = design.label;
   const badgeTextW = ctx.measureText(badgeText).width;
@@ -248,26 +204,24 @@ function drawFlyerNative(
   const badgeX = (w - badgeW) / 2;
   const badgeY = photoCy + photoRadius + w * 0.04;
 
-  // Badge background
   roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
-  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fillStyle = design.badgeColor;
   ctx.fill();
 
-  // Badge text
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  ctx.font = `800 ${badgeFontSize}px system-ui, -apple-system, sans-serif`;
   ctx.fillText(badgeText, w / 2, badgeY + badgeH / 2);
 
   // === PET NAME ===
-  const nameY = badgeY + badgeH + w * 0.04;
-  const nameFontSize = w * 0.07;
+  const nameY = badgeY + badgeH + w * 0.05;
+  const nameFontSize = w * 0.085;
   ctx.font = `800 ${nameFontSize}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
 
-  // Text shadow for depth
   ctx.shadowColor = 'rgba(0,0,0,0.2)';
   ctx.shadowBlur = 8;
   ctx.shadowOffsetY = 3;
@@ -277,25 +231,24 @@ function drawFlyerNative(
   ctx.shadowOffsetY = 0;
 
   // === INFO SECTION ===
-  let infoY = nameY + nameFontSize * 1.3;
-  const infoFontSize = w * 0.03;
+  let infoY = nameY + nameFontSize * 1.2;
+  const infoFontSize = w * 0.035;
   ctx.font = `500 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = 'rgba(255,255,255,0.9)';
   ctx.textAlign = 'center';
 
   if (location) {
-    ctx.fillText(`📍 ${location}`, w / 2, infoY);
+    ctx.fillText(location, w / 2, infoY);
     infoY += infoFontSize * 1.6;
   }
 
   if (contactInfo) {
-    ctx.fillText(`📞 ${contactInfo}`, w / 2, infoY);
+    ctx.fillText(contactInfo, w / 2, infoY);
     infoY += infoFontSize * 1.6;
   }
 
-  // Description for adoption
   if (description && status === 'for_adoption') {
-    const descFontSize = w * 0.025;
+    const descFontSize = w * 0.03;
     ctx.font = `italic 500 ${descFontSize}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
     const maxDescW = w * 0.7;
@@ -317,7 +270,7 @@ function drawFlyerNative(
     }
   }
 
-  // === BRAND BAR (minimalist) ===
+  // === BRAND BAR ===
   const brandY = h - h * 0.08;
 
   // Separator line
@@ -328,12 +281,47 @@ function drawFlyerNative(
   ctx.lineTo(w * 0.8, brandY);
   ctx.stroke();
 
+  // Logo thumbnail
+  const logoR = w * 0.018;
+  const logoY = brandY + h * 0.02 + logoR;
+
+  if (logoImg) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(w * 0.38, logoY, logoR, 0, Math.PI * 2);
+    ctx.clip();
+    const la = logoImg.naturalWidth / logoImg.naturalHeight;
+    let lw: number, lh: number;
+    if (la > 1) {
+      lh = logoR * 2.2;
+      lw = lh * la;
+    } else {
+      lw = logoR * 2.2;
+      lh = lw / la;
+    }
+    ctx.drawImage(logoImg, w * 0.38 - lw / 2, logoY - lh / 2, lw, lh);
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(w * 0.38, logoY, logoR, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = `${logoR * 1.5}px system-ui`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🐾', w * 0.38, logoY);
+  }
+
   // Brand text
-  const brandFontSize = w * 0.02;
+  const brandFontSize = w * 0.025;
   ctx.font = `700 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.textAlign = 'center';
-  ctx.fillText('🐾  SIGO TU HUELLA', w / 2, brandY + brandFontSize * 1.5);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SIGO TU HUELLA', w * 0.38 + logoR + w * 0.02, logoY);
 }
 
 export default function SocialShareModal({ pet, onClose }: SocialShareModalProps) {
@@ -341,9 +329,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const [useType, setUseType] = useState<UseType>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
-  const [processedImage, setProcessedImage] = useState<string | null>(null);
-  const [bgRemoving, setBgRemoving] = useState(false);
-  const [bgRemoved, setBgRemoved] = useState(false);
+  const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -356,50 +342,18 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
   const design = statusDesigns[pet.status] || statusDesigns.lost;
   const flyerName = pet.name || 'Sin nombre';
-  const hasContact = !!pet.contact_info;
-  const hasDescription = !!pet.description;
   const shareText = petUrl;
 
   const previewScale = Math.min(280 / targetWidth, 400 / targetHeight, 1);
 
-  // Background removal
+  // Load brand logo
   useEffect(() => {
-    if (!mainImage || processedImage) return;
-    let cancelled = false;
-    const processImage = async () => {
-      setBgRemoving(true);
-      try {
-        const response = await fetch(mainImage);
-        const blob = await response.blob();
-        const { removeBackground } = await import('@imgly/background-removal');
-        const resultBlob = await removeBackground(blob);
-        if (!cancelled) {
-          const url = URL.createObjectURL(resultBlob);
-          setProcessedImage(url);
-          setBgRemoved(true);
-        }
-      } catch (e) {
-        console.error('BG removal failed, using original:', e);
-        if (!cancelled) {
-          setProcessedImage(mainImage);
-          setBgRemoved(true);
-        }
-      } finally {
-        if (!cancelled) setBgRemoving(false);
-      }
-    };
-    processImage();
-    return () => { cancelled = true; };
-  }, [mainImage]);
-
-  // Cleanup object URLs
-  useEffect(() => {
-    return () => {
-      if (processedImage && processedImage.startsWith('blob:')) {
-        URL.revokeObjectURL(processedImage);
-      }
-    };
-  }, [processedImage]);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => setLogoImg(img);
+    img.onerror = () => setLogoImg(null);
+    img.src = '/sigotuhuella.jpg';
+  }, []);
 
   // Load image and draw on canvas
   const drawOnCanvas = useCallback((canvas: HTMLCanvasElement, img: HTMLImageElement | null) => {
@@ -407,12 +361,11 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     if (!ctx) return;
     canvas.width = targetWidth;
     canvas.height = targetHeight;
-    drawFlyerNative(ctx, targetWidth, targetHeight, design, flyerName, pet.location, pet.contact_info, pet.description, pet.status, img);
-  }, [targetWidth, targetHeight, design, flyerName, pet.location, pet.contact_info, pet.description, pet.status]);
+    drawFlyerNative(ctx, targetWidth, targetHeight, design, flyerName, pet.location, pet.contact_info, pet.description, pet.status, img, logoImg);
+  }, [targetWidth, targetHeight, design, flyerName, pet.location, pet.contact_info, pet.description, pet.status, logoImg]);
 
   useEffect(() => {
-    const imageUrl = processedImage || mainImage;
-    if (!imageUrl || !platform || !useType) return;
+    if (!mainImage || !platform || !useType) return;
 
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -424,10 +377,9 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
       imgRef.current = null;
       if (canvasRef.current) drawOnCanvas(canvasRef.current, null);
     };
-    img.src = imageUrl;
-  }, [processedImage, mainImage, platform, useType, drawOnCanvas]);
+    img.src = mainImage;
+  }, [mainImage, platform, useType, drawOnCanvas]);
 
-  // Initial draw without image
   useEffect(() => {
     if (!platform || !useType || !canvasRef.current) return;
     drawOnCanvas(canvasRef.current, imgRef.current);
@@ -437,21 +389,18 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     if (!canvasRef.current) return;
     setGenerating(true);
     try {
-      const imageUrl = processedImage || mainImage;
-
-      // Create offscreen canvas for export
       const offscreen = document.createElement('canvas');
       offscreen.width = targetWidth;
       offscreen.height = targetHeight;
 
       let imgToUse: HTMLImageElement | null = imgRef.current;
-      if (imageUrl && !imgToUse) {
+      if (mainImage && !imgToUse) {
         imgToUse = await new Promise<HTMLImageElement>((resolve, reject) => {
           const img = new Image();
           img.crossOrigin = 'anonymous';
           img.onload = () => resolve(img);
           img.onerror = reject;
-          img.src = imageUrl;
+          img.src = mainImage;
         });
       }
 
@@ -459,7 +408,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
         offscreen.getContext('2d')!,
         targetWidth, targetHeight, design, flyerName,
         pet.location, pet.contact_info, pet.description, pet.status,
-        imgToUse
+        imgToUse, logoImg
       );
 
       const dataUrl = offscreen.toDataURL('image/png', 1.0);
@@ -604,19 +553,12 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
               <div className="text-center">
                 <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Vista previa del flyer</p>
-                {bgRemoving ? (
-                  <div className="flex flex-col items-center gap-3 py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-brand-secondary" />
-                    <p className="text-sm text-gray-500">Procesando imagen con IA...</p>
-                  </div>
-                ) : (
-                  <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden" style={{ width: Math.round(targetWidth * previewScale), height: Math.round(targetHeight * previewScale) }}>
-                    <canvas
-                      ref={canvasRef}
-                      className="block w-full h-full"
-                    />
-                  </div>
-                )}
+                <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden" style={{ width: Math.round(targetWidth * previewScale), height: Math.round(targetHeight * previewScale) }}>
+                  <canvas
+                    ref={canvasRef}
+                    className="block w-full h-full"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
@@ -628,7 +570,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleGenerate(); }}
-                  disabled={generating || bgRemoving}
+                  disabled={generating}
                   className={cn(
                     "flex-[2] py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 text-white shadow-md hover:shadow-lg transition-all disabled:opacity-70",
                     platform === 'whatsapp' ? 'bg-emerald-500 hover:bg-emerald-600' :
@@ -658,12 +600,6 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                           : '✅ Flyer descargado.'}
                   </p>
                 </div>
-              )}
-
-              {bgRemoved && (
-                <p className="text-xs text-center text-gray-400">
-                  ✨ Fondo de la foto removido automáticamente con IA
-                </p>
               )}
 
               {platform === 'whatsapp' && (
