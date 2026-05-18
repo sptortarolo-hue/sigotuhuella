@@ -89,39 +89,23 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
   const shareText = petUrl;
 
-  const captureHighRes = async () => {
-    const original = flyerRef.current;
-    if (!original) return null;
-
-    const clone = original.cloneNode(true) as HTMLElement;
-
-    clone.style.width = `${targetWidth}px`;
-    clone.style.height = `${targetHeight}px`;
-    clone.style.position = 'absolute';
-    clone.style.left = '-9999px';
-    clone.style.top = '0';
-    clone.style.border = 'none';
-    clone.style.borderRadius = '0';
-    clone.style.maxWidth = 'none';
-    original.parentNode?.appendChild(clone);
-
-    const imgs = clone.querySelectorAll('img');
-    await Promise.all(Array.from(imgs).map(img =>
-      img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
-    ));
-
-    const dataUrl = await toPng(clone, { quality: 0.95, pixelRatio: 2 });
-
-    clone.parentNode?.removeChild(clone);
-
-    return dataUrl;
-  };
+  const previewScale = Math.min(280 / targetWidth, 400 / targetHeight, 1);
 
   const handleGenerate = async () => {
+    if (!flyerRef.current) return;
     setGenerating(true);
     try {
-      const dataUrl = await captureHighRes();
-      if (!dataUrl) throw new Error('No se pudo generar el flyer');
+      const imgs = flyerRef.current.querySelectorAll('img');
+      await Promise.all(Array.from(imgs).map(img =>
+        img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
+      ));
+
+      const dataUrl = await toPng(flyerRef.current, {
+        quality: 0.95,
+        pixelRatio: 2,
+        width: targetWidth,
+        height: targetHeight,
+      });
 
       const link = document.createElement('a');
       link.download = `${pet.name || 'mascota'}-${pet.status}-${platform}-${useType}.png`;
@@ -162,35 +146,24 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     }
   };
 
-  const getFlyerContainerClass = () => {
-    const base = "mx-auto rounded-3xl overflow-hidden border-4 border-brand-accent shadow-xl bg-white";
-    if (aspectRatio === '9:16') return cn(base, "max-w-[200px]");
-    if (aspectRatio === '4:5') return cn(base, "max-w-[240px]");
-    return cn(base, "max-w-sm");
-  };
+  const isTall = aspectRatio === '9:16';
 
-  const getFlyerInnerStyle = () => {
-    if (aspectRatio === '9:16') return { width: '200px', height: '355px' };
-    if (aspectRatio === '4:5') return { width: '240px', height: '300px' };
-    return {};
-  };
+  const infoClass = isTall
+    ? "flex-[0_0_30%] p-3 flex flex-col gap-2"
+    : "flex-[0_0_25%] p-4 flex flex-col gap-2";
 
-  const renderFlyerContent = (isPreview: boolean = false) => (
-    <div className="relative overflow-hidden" style={isPreview ? getFlyerInnerStyle() : {}}>
-      <div className={cn("p-3 text-white font-serif font-black text-xl text-center uppercase tracking-tighter", flyerStatusBg)}>
+  const renderFlyerContent = () => (
+    <div className="flex flex-col bg-white" style={{ width: targetWidth, height: targetHeight }}>
+      <div className={cn("flex-[0_0_12%] flex items-center justify-center text-white font-serif font-black text-sm uppercase tracking-tighter", flyerStatusBg)}>
         {flyerStatusLabel}
       </div>
 
-      <div className={cn(
-        "relative bg-gray-100 overflow-hidden",
-        aspectRatio === '9:16' ? "h-32" : 
-        aspectRatio === '4:5' ? "h-40" : "aspect-square"
-      )}>
+      <div className="relative flex-1 bg-gray-100 overflow-hidden">
         {hasImage ? (
           <img src={mainImage!} alt={flyerName} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300">
-            <ImageIcon className={aspectRatio === '9:16' ? "w-10 h-10" : "w-16 h-16"} />
+            <ImageIcon className="w-1/4 h-1/4" />
           </div>
         )}
         <div className="absolute bottom-2 right-2 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1.5">
@@ -198,31 +171,31 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
         </div>
       </div>
 
-      <div className={cn("bg-white", aspectRatio === '9:16' ? "p-3" : "p-4")}>
-        <div className={cn("flex gap-2", aspectRatio === '9:16' ? "flex-col" : "flex-row")}>
-          <div className={cn("bg-brand-bg rounded-lg border border-brand-accent flex-1", aspectRatio === '9:16' ? "p-2" : "p-2 sm:p-3")}>
-            <p className={cn("font-bold text-gray-400 uppercase", aspectRatio === '9:16' ? "text-[8px]" : "text-[10px]")}>Ubicación</p>
-            <p className={cn("font-bold text-brand-primary truncate", aspectRatio === '9:16' ? "text-xs" : "text-xs sm:text-sm")}>{pet.location}</p>
+      <div className={cn("bg-white", infoClass)}>
+        <div className={cn("flex gap-2", isTall ? "flex-col" : "flex-row")}>
+          <div className="bg-brand-bg rounded-lg border border-brand-accent flex-1 p-3">
+            <p className="font-bold text-gray-400 uppercase text-[10px]">Ubicación</p>
+            <p className="font-bold text-brand-primary text-sm truncate">{pet.location}</p>
           </div>
           {hasContact && (
-            <div className={cn("bg-brand-bg rounded-lg border border-brand-accent flex-1", aspectRatio === '9:16' ? "p-2" : "p-2 sm:p-3")}>
-              <p className={cn("font-bold text-gray-400 uppercase", aspectRatio === '9:16' ? "text-[8px]" : "text-[10px]")}>Contacto</p>
-              <p className={cn("font-bold text-brand-primary", aspectRatio === '9:16' ? "text-xs" : "text-xs sm:text-sm")}>{pet.contact_info}</p>
+            <div className="bg-brand-bg rounded-lg border border-brand-accent flex-1 p-3">
+              <p className="font-bold text-gray-400 uppercase text-[10px]">Contacto</p>
+              <p className="font-bold text-brand-primary text-sm">{pet.contact_info}</p>
             </div>
           )}
         </div>
-        {hasDescription && aspectRatio !== '9:16' && (
-          <p className="text-xs text-gray-600 leading-relaxed italic border-l-4 border-brand-secondary pl-2 mt-2">
+        {hasDescription && !isTall && (
+          <p className="text-xs text-gray-600 leading-relaxed italic border-l-4 border-brand-secondary pl-2">
             "{pet.description}"
           </p>
         )}
       </div>
 
-      <div className={cn("bg-brand-bg border-t border-brand-accent flex items-center gap-2", aspectRatio === '9:16' ? "p-2" : "p-2.5")}>
-        <div className={cn("rounded-lg overflow-hidden border border-brand-accent/50 shadow-sm shrink-0", aspectRatio === '9:16' ? "w-6 h-6" : "w-8 h-8")}>
+      <div className="flex-[0_0_10%] bg-brand-bg border-t border-brand-accent flex items-center justify-center gap-2">
+        <div className="w-8 h-8 rounded-lg overflow-hidden border border-brand-accent/50 shadow-sm shrink-0">
           <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
         </div>
-        <span className={cn("font-black tracking-[0.15em] text-brand-primary uppercase", aspectRatio === '9:16' ? "text-[7px]" : "text-[8px]")}>Sigo tu huella</span>
+        <span className="text-xs font-black tracking-[0.15em] text-brand-primary uppercase">Sigo tu huella</span>
       </div>
     </div>
   );
@@ -331,11 +304,12 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
               <div className="text-center">
                 <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Vista previa del flyer</p>
-                <div
-                  ref={flyerRef}
-                  className={getFlyerContainerClass()}
-                >
-                  {renderFlyerContent(true)}
+                <div className="flex justify-center overflow-hidden rounded-3xl border-4 border-brand-accent shadow-xl" style={{ height: Math.round(targetHeight * previewScale) }}>
+                  <div className="shrink-0 origin-top-center" style={{ transform: `scale(${previewScale})` }}>
+                    <div ref={flyerRef} style={{ width: targetWidth, height: targetHeight }}>
+                      {renderFlyerContent()}
+                    </div>
+                  </div>
                 </div>
               </div>
 
