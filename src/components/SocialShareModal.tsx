@@ -3,7 +3,7 @@ import { Pet, getPetImageUrls } from '@/src/lib/petService';
 import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon, ArrowLeft, MapPin, Phone } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
-import { fabric } from 'fabric';
+import { StaticCanvas, FabricText, FabricImage, Rect, Circle, Gradient } from 'fabric';
 import { removeBackground } from '@imgly/background-removal';
 
 type Platform = 'whatsapp' | 'facebook' | 'instagram' | null;
@@ -81,7 +81,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const [bgRemoving, setBgRemoving] = useState(false);
   const [bgRemoved, setBgRemoved] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fabricCanvasRef = useRef<fabric.StaticCanvas | null>(null);
+  const fabricCanvasRef = useRef<StaticCanvas | null>(null);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const petUrl = `${origin}/pet/${pet.id}`;
   const images = getPetImageUrls(pet);
@@ -138,14 +138,12 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     };
   }, [processedImage]);
 
-  const drawFlyer = useCallback(async (canvas: fabric.StaticCanvas, imageUrl: string | null) => {
+  const drawFlyer = useCallback(async (canvas: StaticCanvas, imageUrl: string | null) => {
     canvas.clear();
-    canvas.setWidth(targetWidth);
-    canvas.setHeight(targetHeight);
+    canvas.setDimensions({ width: targetWidth, height: targetHeight });
 
     // Gradient background
-    const gradient = new fabric.Gradient({
-      type: 'linear',
+    const gradient = new Gradient('linear', {
       coords: { x1: 0, y1: 0, x2: 0, y2: targetHeight },
       colorStops: [
         { offset: 0, color: sc.gradient[0] },
@@ -164,7 +162,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     let currentY = pad;
 
     // Status text
-    const statusText = new fabric.Text(sc.label, {
+    const statusText = new FabricText(sc.label, {
       left: pad,
       top: currentY,
       fontSize: statusFontSize,
@@ -181,25 +179,22 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     const imageAreaTop = currentY;
 
     if (imageUrl) {
-      await new Promise<void>((resolve) => {
-        fabric.Image.fromURL(imageUrl, (img) => {
-          const maxW = targetWidth - pad * 2;
-          const maxH = imageAreaHeight;
-          const scale = Math.min(maxW / img.width!, maxH / img.height!, 1);
-          img.scale(scale);
-          img.set({
-            left: (targetWidth - img.getScaledWidth()) / 2,
-            top: imageAreaTop,
-            originX: 'left',
-            originY: 'top',
-          });
-          canvas.add(img);
-          resolve();
-        }, { crossOrigin: 'anonymous' });
-      });
+      try {
+        const img = await FabricImage.fromURL(imageUrl, {}, { crossOrigin: 'anonymous' });
+        const maxW = targetWidth - pad * 2;
+        const maxH = imageAreaHeight;
+        const scale = Math.min(maxW / (img.width || 1), maxH / (img.height || 1), 1);
+        img.scale(scale);
+        img.set({
+          left: (targetWidth - img.getScaledWidth()) / 2,
+          top: imageAreaTop,
+        });
+        canvas.add(img);
+      } catch (e) {
+        console.error('Failed to load image:', e);
+      }
     } else {
-      // Placeholder icon
-      const placeholder = new fabric.Circle({
+      const placeholder = new Circle({
         radius: targetWidth * 0.12,
         left: (targetWidth - targetWidth * 0.24) / 2,
         top: imageAreaTop + (imageAreaHeight - targetWidth * 0.24) / 2,
@@ -211,7 +206,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     currentY = imageAreaTop + imageAreaHeight + targetHeight * 0.03;
 
     // Pet name
-    const nameText = new fabric.Text(flyerName, {
+    const nameText = new FabricText(flyerName, {
       left: pad,
       top: currentY,
       fontSize: nameFontSize,
@@ -223,7 +218,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     currentY += nameText.height! + targetHeight * 0.02;
 
     // Location
-    const locationText = new fabric.Text(`📍 ${pet.location || 'Sin ubicación'}`, {
+    const locationText = new FabricText(`📍 ${pet.location || 'Sin ubicación'}`, {
       left: pad,
       top: currentY,
       fontSize: infoFontSize,
@@ -236,7 +231,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
     // Contact
     if (hasContact) {
-      const contactText = new fabric.Text(`📞 ${pet.contact_info}`, {
+      const contactText = new FabricText(`📞 ${pet.contact_info}`, {
         left: pad,
         top: currentY,
         fontSize: infoFontSize,
@@ -250,7 +245,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
     // Description (for adoption)
     if (hasDescription && pet.status === 'for_adoption') {
-      const descText = new fabric.Text(`"${pet.description}"`, {
+      const descText = new FabricText(`"${pet.description}"`, {
         left: pad,
         top: currentY,
         fontSize: descFontSize,
@@ -266,8 +261,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     const brandBarHeight = targetHeight * 0.08;
     const brandBarTop = targetHeight - brandBarHeight;
 
-    // Semi-transparent bar
-    const brandBar = new fabric.Rect({
+    const brandBar = new Rect({
       left: 0,
       top: brandBarTop,
       width: targetWidth,
@@ -277,7 +271,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     canvas.add(brandBar);
 
     // Brand text
-    const brandText = new fabric.Text('SIGO TU HUELLA', {
+    const brandText = new FabricText('SIGO TU HUELLA', {
       left: targetWidth / 2,
       top: brandBarTop + brandBarHeight / 2,
       fontSize: brandFontSize,
@@ -302,7 +296,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
       fabricCanvasRef.current.dispose();
     }
 
-    const canvas = new fabric.StaticCanvas(canvasRef.current, {
+    const canvas = new StaticCanvas(canvasRef.current, {
       width: targetWidth,
       height: targetHeight,
       backgroundColor: '#ffffff',
@@ -311,13 +305,16 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
     const imageToUse = processedImage || mainImage;
     drawFlyer(canvas, imageToUse);
-  }, [platform, useType, processedImage, mainImage, drawFlyer]);
+
+    return () => {
+      canvas.dispose();
+    };
+  }, [platform, useType, processedImage, mainImage, drawFlyer, targetWidth, targetHeight]);
 
   const handleGenerate = async () => {
     if (!fabricCanvasRef.current) return;
     setGenerating(true);
     try {
-      // Re-render at full quality
       const imageToUse = processedImage || mainImage;
       await drawFlyer(fabricCanvasRef.current, imageToUse);
 
