@@ -26,6 +26,9 @@ export default defineConfig({
       },
     }),
   ],
+  optimizeDeps: {
+    exclude: ['@imgly/background-removal', 'onnxruntime-web'],
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),

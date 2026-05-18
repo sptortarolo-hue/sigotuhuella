@@ -3,7 +3,7 @@ import { Pet, getPetImageUrls } from '@/src/lib/petService';
 import { X, MessageCircle, Camera, Download, Sparkles, Loader2, ImageIcon, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
-import { removeBackground } from '@imgly/background-removal';
+
 
 type Platform = 'whatsapp' | 'facebook' | 'instagram' | null;
 type UseType = 'story' | 'post' | null;
@@ -371,6 +371,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
       try {
         const response = await fetch(mainImage);
         const blob = await response.blob();
+        const { removeBackground } = await import('@imgly/background-removal');
         const resultBlob = await removeBackground(blob);
         if (!cancelled) {
           const url = URL.createObjectURL(resultBlob);
