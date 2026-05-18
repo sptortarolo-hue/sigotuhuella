@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Pet, getPetImageUrls } from '@/src/lib/petService';
 import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon, ArrowLeft, MapPin, Phone } from 'lucide-react';
-import { toPng } from 'html-to-image';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { fabric } from 'fabric';
+import { removeBackground } from '@imgly/background-removal';
 
 type Platform = 'whatsapp' | 'facebook' | 'instagram' | null;
 type UseType = 'story' | 'post' | null;
@@ -51,10 +52,15 @@ interface SocialShareModalProps {
   onClose: () => void;
 }
 
-const statusBg = (s: string) => s === 'lost' ? 'bg-red-600' : s === 'retained' ? 'bg-blue-600' : s === 'sighted' ? 'bg-amber-600' : s === 'accidented' ? 'bg-purple-600' : s === 'needs_attention' ? 'bg-amber-600' : s === 'for_adoption' ? 'bg-brand-secondary' : 'bg-green-600';
-const statusLabel = (s: string) => {
-  const labels: Record<string, string> = { lost: 'PERDIDO', retained: 'RETENIDO', sighted: 'AVISTADO', accidented: 'ACCIDENTADO', needs_attention: 'NECESITA ATENCIÓN', for_adoption: 'EN ADOPCIÓN', adopted: 'ADOPTADO', reunited: 'REENCUENTRO' };
-  return labels[s] || 'REPORTE';
+const statusConfig: Record<string, { label: string; gradient: [string, string]; textColor: string }> = {
+  lost: { label: 'SE PERDIÓ', gradient: ['#dc2626', '#ea580c'], textColor: '#ffffff' },
+  retained: { label: 'RETENIDO', gradient: ['#2563eb', '#06b6d4'], textColor: '#ffffff' },
+  sighted: { label: 'AVISTADO', gradient: ['#d97706', '#f59e0b'], textColor: '#ffffff' },
+  accidented: { label: 'ACCIDENTADO', gradient: ['#7c3aed', '#ec4899'], textColor: '#ffffff' },
+  needs_attention: { label: 'NECESITA ATENCIÓN', gradient: ['#d97706', '#ea580c'], textColor: '#ffffff' },
+  for_adoption: { label: 'EN ADOPCIÓN', gradient: ['#059669', '#0d9488'], textColor: '#ffffff' },
+  adopted: { label: 'ADOPTADO', gradient: ['#16a34a', '#059669'], textColor: '#ffffff' },
+  reunited: { label: 'REENCUENTRO', gradient: ['#16a34a', '#0891b2'], textColor: '#ffffff' },
 };
 
 const getDimensions = (platform: Platform, useType: UseType) => {
@@ -71,7 +77,11 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const [useType, setUseType] = useState<UseType>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
-  const flyerRef = useRef<HTMLDivElement>(null);
+  const [processedImage, setProcessedImage] = useState<string | null>(null);
+  const [bgRemoving, setBgRemoving] = useState(false);
+  const [bgRemoved, setBgRemoved] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fabricCanvasRef = useRef<fabric.StaticCanvas | null>(null);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const petUrl = `${origin}/pet/${pet.id}`;
   const images = getPetImageUrls(pet);
@@ -79,49 +89,243 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const isMobile = typeof navigator !== 'undefined' && !!navigator.share;
 
   const { width: targetWidth, height: targetHeight, aspectRatio } = getDimensions(platform, useType);
+  const isTall = aspectRatio === '9:16';
 
-  const flyerStatusBg = statusBg(pet.status);
-  const flyerStatusLabel = statusLabel(pet.status);
+  const sc = statusConfig[pet.status] || statusConfig.lost;
   const flyerName = pet.name || 'Sin nombre';
   const hasImage = !!mainImage;
   const hasContact = !!pet.contact_info;
   const hasDescription = !!pet.description;
-
   const shareText = petUrl;
 
   const previewScale = Math.min(280 / targetWidth, 400 / targetHeight, 1);
 
-  const captureHighRes = async () => {
-    const original = flyerRef.current;
-    if (!original) return null;
+  // Background removal
+  useEffect(() => {
+    if (!mainImage || processedImage) return;
+    let cancelled = false;
+    const processImage = async () => {
+      setBgRemoving(true);
+      try {
+        const response = await fetch(mainImage);
+        const blob = await response.blob();
+        const resultBlob = await removeBackground(blob);
+        if (!cancelled) {
+          const url = URL.createObjectURL(resultBlob);
+          setProcessedImage(url);
+          setBgRemoved(true);
+        }
+      } catch (e) {
+        console.error('BG removal failed, using original:', e);
+        if (!cancelled) {
+          setProcessedImage(mainImage);
+          setBgRemoved(true);
+        }
+      } finally {
+        if (!cancelled) setBgRemoving(false);
+      }
+    };
+    processImage();
+    return () => { cancelled = true; };
+  }, [mainImage]);
 
-    const clone = original.cloneNode(true) as HTMLElement;
-    clone.style.position = 'fixed';
-    clone.style.top = '0';
-    clone.style.left = '0';
-    clone.style.zIndex = '-1000';
-    clone.style.opacity = '0.01';
-    clone.style.pointerEvents = 'none';
-    document.body.appendChild(clone);
+  // Cleanup object URLs
+  useEffect(() => {
+    return () => {
+      if (processedImage && processedImage.startsWith('blob:')) {
+        URL.revokeObjectURL(processedImage);
+      }
+    };
+  }, [processedImage]);
 
-    const imgs = clone.querySelectorAll('img');
-    await Promise.all(Array.from(imgs).map(img =>
-      img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; })
-    ));
+  const drawFlyer = useCallback(async (canvas: fabric.StaticCanvas, imageUrl: string | null) => {
+    canvas.clear();
+    canvas.setWidth(targetWidth);
+    canvas.setHeight(targetHeight);
 
-    const dataUrl = await toPng(clone, { quality: 0.95, pixelRatio: 2 });
+    // Gradient background
+    const gradient = new fabric.Gradient({
+      type: 'linear',
+      coords: { x1: 0, y1: 0, x2: 0, y2: targetHeight },
+      colorStops: [
+        { offset: 0, color: sc.gradient[0] },
+        { offset: 1, color: sc.gradient[1] },
+      ],
+    });
+    canvas.backgroundColor = gradient;
 
-    clone.parentNode?.removeChild(clone);
+    const pad = targetWidth * 0.05;
+    const statusFontSize = targetWidth * 0.07;
+    const nameFontSize = targetWidth * 0.05;
+    const infoFontSize = targetWidth * 0.03;
+    const descFontSize = targetWidth * 0.025;
+    const brandFontSize = targetWidth * 0.018;
 
-    return dataUrl;
-  };
+    let currentY = pad;
+
+    // Status text
+    const statusText = new fabric.Text(sc.label, {
+      left: pad,
+      top: currentY,
+      fontSize: statusFontSize,
+      fontWeight: '900',
+      fill: sc.textColor,
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      textAlign: 'left',
+    });
+    canvas.add(statusText);
+    currentY += statusText.height! + targetHeight * 0.03;
+
+    // Pet image area
+    const imageAreaHeight = targetHeight * (isTall ? 0.45 : 0.40);
+    const imageAreaTop = currentY;
+
+    if (imageUrl) {
+      await new Promise<void>((resolve) => {
+        fabric.Image.fromURL(imageUrl, (img) => {
+          const maxW = targetWidth - pad * 2;
+          const maxH = imageAreaHeight;
+          const scale = Math.min(maxW / img.width!, maxH / img.height!, 1);
+          img.scale(scale);
+          img.set({
+            left: (targetWidth - img.getScaledWidth()) / 2,
+            top: imageAreaTop,
+            originX: 'left',
+            originY: 'top',
+          });
+          canvas.add(img);
+          resolve();
+        }, { crossOrigin: 'anonymous' });
+      });
+    } else {
+      // Placeholder icon
+      const placeholder = new fabric.Circle({
+        radius: targetWidth * 0.12,
+        left: (targetWidth - targetWidth * 0.24) / 2,
+        top: imageAreaTop + (imageAreaHeight - targetWidth * 0.24) / 2,
+        fill: 'rgba(255,255,255,0.2)',
+      });
+      canvas.add(placeholder);
+    }
+
+    currentY = imageAreaTop + imageAreaHeight + targetHeight * 0.03;
+
+    // Pet name
+    const nameText = new fabric.Text(flyerName, {
+      left: pad,
+      top: currentY,
+      fontSize: nameFontSize,
+      fontWeight: '800',
+      fill: '#ffffff',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+    });
+    canvas.add(nameText);
+    currentY += nameText.height! + targetHeight * 0.02;
+
+    // Location
+    const locationText = new fabric.Text(`📍 ${pet.location || 'Sin ubicación'}`, {
+      left: pad,
+      top: currentY,
+      fontSize: infoFontSize,
+      fontWeight: '600',
+      fill: '#ffffff',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+    });
+    canvas.add(locationText);
+    currentY += locationText.height! + targetHeight * 0.01;
+
+    // Contact
+    if (hasContact) {
+      const contactText = new fabric.Text(`📞 ${pet.contact_info}`, {
+        left: pad,
+        top: currentY,
+        fontSize: infoFontSize,
+        fontWeight: '600',
+        fill: '#ffffff',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      });
+      canvas.add(contactText);
+      currentY += contactText.height! + targetHeight * 0.01;
+    }
+
+    // Description (for adoption)
+    if (hasDescription && pet.status === 'for_adoption') {
+      const descText = new fabric.Text(`"${pet.description}"`, {
+        left: pad,
+        top: currentY,
+        fontSize: descFontSize,
+        fontStyle: 'italic',
+        fill: 'rgba(255,255,255,0.85)',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      });
+      canvas.add(descText);
+      currentY += descText.height! + targetHeight * 0.02;
+    }
+
+    // Brand bar at bottom
+    const brandBarHeight = targetHeight * 0.08;
+    const brandBarTop = targetHeight - brandBarHeight;
+
+    // Semi-transparent bar
+    const brandBar = new fabric.Rect({
+      left: 0,
+      top: brandBarTop,
+      width: targetWidth,
+      height: brandBarHeight,
+      fill: 'rgba(0,0,0,0.3)',
+    });
+    canvas.add(brandBar);
+
+    // Brand text
+    const brandText = new fabric.Text('SIGO TU HUELLA', {
+      left: targetWidth / 2,
+      top: brandBarTop + brandBarHeight / 2,
+      fontSize: brandFontSize,
+      fontWeight: '900',
+      fill: '#ffffff',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      textAlign: 'center',
+      originX: 'center',
+      originY: 'center',
+      charSpacing: 200,
+    });
+    canvas.add(brandText);
+
+    canvas.renderAll();
+  }, [targetWidth, targetHeight, isTall, sc, flyerName, pet.location, pet.contact_info, pet.description, pet.status, hasContact, hasDescription]);
+
+  // Initialize and render canvas
+  useEffect(() => {
+    if (!platform || !useType || !canvasRef.current) return;
+
+    if (fabricCanvasRef.current) {
+      fabricCanvasRef.current.dispose();
+    }
+
+    const canvas = new fabric.StaticCanvas(canvasRef.current, {
+      width: targetWidth,
+      height: targetHeight,
+      backgroundColor: '#ffffff',
+    });
+    fabricCanvasRef.current = canvas;
+
+    const imageToUse = processedImage || mainImage;
+    drawFlyer(canvas, imageToUse);
+  }, [platform, useType, processedImage, mainImage, drawFlyer]);
 
   const handleGenerate = async () => {
-    if (!flyerRef.current) return;
+    if (!fabricCanvasRef.current) return;
     setGenerating(true);
     try {
-      const dataUrl = await captureHighRes();
-      if (!dataUrl) throw new Error('No se pudo generar el flyer');
+      // Re-render at full quality
+      const imageToUse = processedImage || mainImage;
+      await drawFlyer(fabricCanvasRef.current, imageToUse);
+
+      const dataUrl = fabricCanvasRef.current.toDataURL({
+        format: 'png',
+        quality: 1,
+        multiplier: 1,
+      });
 
       const link = document.createElement('a');
       link.download = `${pet.name || 'mascota'}-${pet.status}-${platform}-${useType}.png`;
@@ -134,7 +338,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
           const blob = await res.blob();
           const file = new File([blob], link.download, { type: 'image/png' });
           if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ files: [file], title: `${pet.name || 'Mascota'} - ${flyerStatusLabel}`, text: shareText });
+            await navigator.share({ files: [file], title: `${pet.name || 'Mascota'} - ${sc.label}`, text: shareText });
           }
         } catch (shareErr) {
           if ((shareErr as any)?.name === 'AbortError') return;
@@ -152,168 +356,11 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
       setGenerated(true);
     } catch (e) {
-      if ((e as any)?.name !== 'AbortError') {
-        console.error('Error al generar:', e);
-        alert('Error al generar el flyer. Probá de nuevo o seleccioná otra red.');
-      }
-      return;
+      console.error('Error al generar:', e);
+      alert('Error al generar el flyer. Probá de nuevo.');
     } finally {
       setGenerating(false);
     }
-  };
-
-  const isTall = aspectRatio === '9:16';
-
-  const renderUrgentFlyer = () => (
-    <div className="flex flex-col bg-white" style={{ width: targetWidth, height: targetHeight }}>
-      <div className={cn("flex items-center justify-center text-white font-black uppercase tracking-tight", isTall ? "flex-[0_0_20%] text-7xl" : "flex-[0_0_16%] text-8xl", flyerStatusBg)}>
-        {flyerStatusLabel}
-      </div>
-
-      <div className="relative flex-1 bg-gray-100 overflow-hidden">
-        {hasImage ? (
-          <img src={mainImage!} alt={flyerName} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-300">
-            <ImageIcon className="w-1/4 h-1/4" />
-          </div>
-        )}
-        <div className="absolute bottom-8 right-8 bg-black/60 backdrop-blur-sm rounded-2xl px-8 py-4">
-          <p className="text-white font-black text-5xl">{flyerName}</p>
-        </div>
-      </div>
-
-      {hasDescription && (
-        <div className={cn("bg-white", isTall ? "flex-[0_0_16%] px-6 py-3" : "flex-[0_0_12%] px-8 py-3")}>
-          <p className={cn("text-gray-600 leading-snug italic border-l-4 border-brand-secondary pl-3", isTall ? "text-2xl" : "text-3xl")}>
-            "{pet.description}"
-          </p>
-        </div>
-      )}
-
-      <div className={cn("bg-white flex gap-4", isTall ? "flex-[0_0_16%] flex-col p-4" : "flex-[0_0_12%] flex-row items-center px-8 py-4")}>
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <MapPin className={cn("shrink-0 text-gray-400", isTall ? "w-8 h-8" : "w-10 h-10")} />
-          <span className="font-bold text-brand-primary truncate text-3xl">{pet.location}</span>
-        </div>
-        {hasContact && (
-          <>
-            <span className={cn("text-brand-accent", isTall ? "hidden" : "inline text-3xl")}>|</span>
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <Phone className={cn("shrink-0 text-gray-400", isTall ? "w-8 h-8" : "w-10 h-10")} />
-              <span className="font-bold text-brand-primary text-3xl truncate">{pet.contact_info}</span>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="flex-[0_0_10%] bg-brand-primary flex items-center justify-center gap-3">
-        <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/30 shrink-0">
-          <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
-        </div>
-        <span className="text-white font-black text-lg tracking-[0.15em] uppercase">Sigo tu huella</span>
-      </div>
-    </div>
-  );
-
-  const renderPositiveFlyer = () => (
-    <div className="flex flex-col bg-white" style={{ width: targetWidth, height: targetHeight }}>
-      <div className={cn("flex items-center justify-center text-white font-black uppercase tracking-tight", isTall ? "flex-[0_0_20%] text-7xl" : "flex-[0_0_16%] text-8xl", flyerStatusBg)}>
-        {flyerStatusLabel}
-      </div>
-
-      <div className="relative flex-1 bg-gray-100 overflow-hidden">
-        {hasImage ? (
-          <img src={mainImage!} alt={flyerName} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-300">
-            <ImageIcon className="w-1/4 h-1/4" />
-          </div>
-        )}
-        <div className="absolute bottom-8 right-8 bg-black/60 backdrop-blur-sm rounded-2xl px-8 py-4">
-          <p className="text-white font-black text-5xl">{flyerName}</p>
-        </div>
-      </div>
-
-      {hasDescription && (
-        <div className={cn("bg-white", isTall ? "flex-[0_0_16%] px-6 py-3" : "flex-[0_0_12%] px-8 py-3")}>
-          <p className={cn("text-gray-600 leading-snug italic border-l-4 border-green-500 pl-3", isTall ? "text-2xl" : "text-3xl")}>
-            "{pet.description}"
-          </p>
-        </div>
-      )}
-
-      <div className={cn("bg-white flex gap-4", isTall ? "flex-[0_0_16%] flex-col p-4" : "flex-[0_0_12%] flex-row items-center px-8 py-4")}>
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <MapPin className={cn("shrink-0 text-gray-400", isTall ? "w-8 h-8" : "w-10 h-10")} />
-          <span className="font-bold text-brand-primary truncate text-3xl">{pet.location}</span>
-        </div>
-        {hasContact && (
-          <>
-            <span className={cn("text-brand-accent", isTall ? "hidden" : "inline text-3xl")}>|</span>
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <Phone className={cn("shrink-0 text-gray-400", isTall ? "w-8 h-8" : "w-10 h-10")} />
-              <span className="font-bold text-brand-primary text-3xl truncate">{pet.contact_info}</span>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="flex-[0_0_10%] bg-brand-primary flex items-center justify-center gap-3">
-        <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/30 shrink-0">
-          <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
-        </div>
-        <span className="text-white font-black text-lg tracking-[0.15em] uppercase">Sigo tu huella</span>
-      </div>
-    </div>
-  );
-
-  const renderAdoptionFlyer = () => (
-    <div className="flex flex-col bg-white" style={{ width: targetWidth, height: targetHeight }}>
-      <div className="relative flex-1 bg-gray-100 overflow-hidden">
-        {hasImage ? (
-          <img src={mainImage!} alt={flyerName} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-300">
-            <ImageIcon className="w-1/4 h-1/4" />
-          </div>
-        )}
-        <div className="absolute top-8 left-8 bg-brand-secondary text-white font-bold rounded-2xl px-8 py-3 shadow-lg uppercase tracking-tighter text-4xl">
-          {flyerStatusLabel}
-        </div>
-        <div className="absolute bottom-8 right-8 bg-black/60 backdrop-blur-sm rounded-2xl px-8 py-4">
-          <p className="text-white font-black text-5xl">{flyerName}</p>
-        </div>
-      </div>
-
-      {hasDescription && (
-        <div className={cn("bg-white", isTall ? "flex-[0_0_18%] px-6 py-4" : "flex-[0_0_16%] px-8 py-4")}>
-          <p className={cn("text-gray-600 leading-relaxed italic border-l-4 border-brand-secondary pl-3", isTall ? "text-2xl" : "text-3xl")}>
-            "{pet.description}"
-          </p>
-        </div>
-      )}
-
-      {hasContact && (
-        <div className="bg-white px-8 py-4 border-t border-brand-accent flex items-center gap-3">
-          <Phone className="w-10 h-10 text-brand-secondary shrink-0" />
-          <span className="font-bold text-brand-primary text-3xl">{pet.contact_info}</span>
-        </div>
-      )}
-
-      <div className="flex-[0_0_10%] bg-brand-primary flex items-center justify-center gap-3">
-        <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/30 shrink-0">
-          <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
-        </div>
-        <span className="text-white font-black text-lg tracking-[0.15em] uppercase">Sigo tu huella</span>
-      </div>
-    </div>
-  );
-
-  const renderFlyerContent = () => {
-    if (pet.status === 'for_adoption') return renderAdoptionFlyer();
-    if (pet.status === 'adopted' || pet.status === 'reunited') return renderPositiveFlyer();
-    return renderUrgentFlyer();
   };
 
   const platforms = [
@@ -420,13 +467,20 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
               <div className="text-center">
                 <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Vista previa del flyer</p>
-                <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden" style={{ width: Math.round(targetWidth * previewScale), height: Math.round(targetHeight * previewScale) }}>
-                  <div style={{ width: targetWidth, height: targetHeight, transform: `scale(${previewScale})`, transformOrigin: 'top left' }}>
-                    <div ref={flyerRef} style={{ width: targetWidth, height: targetHeight }}>
-                      {renderFlyerContent()}
-                    </div>
+                {bgRemoving ? (
+                  <div className="flex flex-col items-center gap-3 py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-brand-secondary" />
+                    <p className="text-sm text-gray-500">Procesando imagen con IA...</p>
                   </div>
-                </div>
+                ) : (
+                  <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden" style={{ width: Math.round(targetWidth * previewScale), height: Math.round(targetHeight * previewScale) }}>
+                    <canvas
+                      ref={canvasRef}
+                      className="block"
+                      style={{ width: '100%', height: '100%', transform: `scale(${previewScale})`, transformOrigin: 'top left' }}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
@@ -438,7 +492,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleGenerate(); }}
-                  disabled={generating}
+                  disabled={generating || bgRemoving}
                   className={cn(
                     "flex-[2] py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 text-white shadow-md hover:shadow-lg transition-all disabled:opacity-70",
                     platform === 'whatsapp' ? 'bg-emerald-500 hover:bg-emerald-600' :
@@ -468,6 +522,12 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                           : '✅ Flyer descargado.'}
                   </p>
                 </div>
+              )}
+
+              {bgRemoved && (
+                <p className="text-xs text-center text-gray-400">
+                  ✨ Fondo de la foto removido automáticamente con IA
+                </p>
               )}
 
               {platform === 'whatsapp' && (
