@@ -41,6 +41,7 @@ function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAd
 }
 
 export default function App() {
+  const { user } = useAuth();
   return (
     <Router>
       <ScrollToTop />
@@ -106,7 +107,11 @@ export default function App() {
               <div>
                 <h4 className="font-bold text-gray-800 mb-4 uppercase text-xs tracking-widest">Comunidad</h4>
                 <ul className="space-y-2 text-gray-600 text-sm">
-                  <li><Link to="/sumate" className="hover:text-brand-primary">Sumate</Link></li>
+                  <li>
+                    <Link to="/sumate" className="hover:text-brand-primary">
+                      {user && user.volunteer_status === 'active' ? 'Asociado' : 'Sumate'}
+                    </Link>
+                  </li>
                   <li><Link to="/colaborar" className="hover:text-brand-primary">Colaborar</Link></li>
                 </ul>
               </div>

@@ -13,6 +13,18 @@ export default function Navbar() {
   const { user, logout, isAdmin } = useAuth();
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const isMember = user && user.volunteer_status === 'active';
+
+  const navItems = [
+    { name: 'Inicio', path: '/', icon: PawPrint },
+    { name: 'Mascotas Reportadas', path: '/perdidos', icon: Search },
+    { name: 'Adopción', path: '/adopcion', icon: Heart },
+    { name: 'Colaborar', path: '/colaborar', icon: HandCoins },
+    { name: isMember ? 'Asociado' : 'Sumate', path: '/sumate', icon: Users },
+    { name: 'Reportar', path: '/reportar', icon: PlusCircle },
+    { name: 'Novedades', path: '/novedades', icon: Sparkles },
+  ];
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -31,16 +43,6 @@ export default function Navbar() {
     }
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
-
-const navItems = [
-     { name: 'Inicio', path: '/', icon: PawPrint },
-     { name: 'Mascotas Reportadas', path: '/perdidos', icon: Search },
-     { name: 'Adopción', path: '/adopcion', icon: Heart },
-     { name: 'Colaborar', path: '/colaborar', icon: HandCoins },
-     { name: 'Sumate', path: '/sumate', icon: Users },
-     { name: 'Reportar', path: '/reportar', icon: PlusCircle },
-     { name: 'Novedades', path: '/novedades', icon: Sparkles },
-   ];
 
   const handleLogout = () => {
     logout();
