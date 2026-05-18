@@ -53,3 +53,7 @@ export const getVolunteerRequests = async (): Promise<VolunteerRequest[]> => {
 export const updateVolunteerRequestStatus = async (id: string, status: string): Promise<void> => {
   await api.volunteers.updateStatus(id, status);
 };
+
+export const deleteVolunteerRequest = async (id: string): Promise<void> => {
+  await api.volunteers.delete(id);
+};

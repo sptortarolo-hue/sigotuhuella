@@ -8,6 +8,7 @@ import {
   deleteCollaborationAccount,
   getVolunteerRequests,
   updateVolunteerRequestStatus,
+  deleteVolunteerRequest,
   CollaborationAccount,
   VolunteerRequest
 } from '@/src/lib/collaborationService';
@@ -74,8 +75,6 @@ export default function Admin() {
   // Volunteers State
   const [volunteers, setVolunteers] = useState<VolunteerRequest[]>([]);
   const [memberInfo, setMemberInfo] = useState<Record<string, { member_number?: string; volunteer_status?: string; badges?: Badge[] }>>({});
-  const [showBadgeModal, setShowBadgeModal] = useState(false);
-  const [badgeTargetUser, setBadgeTargetUser] = useState<string | null>(null);
 
   const ALL_BADGES = [
     { code: 'volunteer', label: 'Voluntario/a', icon: '🤝' },
@@ -435,13 +434,20 @@ export default function Admin() {
     if (status === 'accepted') fetchUsers();
   };
 
+  const handleDeleteVolunteer = async (id: string) => {
+    if (!confirm('¿Eliminar esta solicitud definitivamente?')) return;
+    try {
+      await deleteVolunteerRequest(id);
+      fetchVolunteers();
+    } catch (e) { console.error(e); alert('Error al eliminar'); }
+  };
+
   const handleAwardBadge = async (userId: string, code: string) => {
     const info = memberInfo[userId];
     const existing = info?.badges || [];
     if (existing.find((b: Badge) => b.code === code)) return;
     const updated = [...existing, { code, awarded_at: new Date().toISOString() }];
     await api.users.update(userId, { badges: JSON.stringify(updated) });
-    setShowBadgeModal(false);
     fetchVolunteers();
     fetchUsers();
   };
@@ -453,8 +459,6 @@ export default function Admin() {
     fetchVolunteers();
     fetchUsers();
   };
-
-  const userBadges = (userId: string) => memberInfo[userId]?.badges || [];
 
   // Datos para Noticias Destacadas
   const highlightedPets = pets.filter(p => p.status === PetStatus.REUNITED);
@@ -857,112 +861,178 @@ export default function Admin() {
             </div>
           )}
 
-          {/* ====== VOLUNTARIOS ====== */}
-          {activeTab === 'volunteers' && (
-            <div className="space-y-4">
-              <div className="flex justify-end">
-                <button
-                  onClick={async () => {
-                    if (!confirm('¿Convertir todas las solicitudes "Revisado" a "Pendiente"?')) return;
-                    try {
-                      const token = localStorage.getItem('token');
-                      const res = await fetch('/api/volunteers/force-reset', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` },
-                      });
-                      const data = await res.json();
-                      alert(data.message || data.error);
-                      fetchVolunteers();
-                    } catch (e) { alert('Error al limpiar estados'); }
-                  }}
-                  className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-sm font-bold hover:bg-amber-100 transition-colors"
-                >
-                  Limpiar Estados
-                </button>
-              </div>
-              <div className="grid gap-4">
-              {volunteers.map(vol => {
-                const info = vol.user_id ? memberInfo[vol.user_id] : null;
-                const badges = info?.badges || [];
-                return (
-                  <div key={vol.id} className="bg-white p-6 rounded-3xl border border-brand-accent shadow-sm">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                            vol.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                            vol.status === 'reviewed' ? 'bg-amber-100 text-amber-700' :
-                            vol.status === 'suspended' ? 'bg-red-100 text-red-600' :
-                            'bg-gray-100 text-gray-500'
-                          }`}>
-                            {vol.status === 'suspended' ? 'Suspendido' : vol.status === 'reviewed' ? 'Revisado' : vol.status}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                          <div className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {vol.residence_zone}</div>
-                          <div className="flex items-center gap-1"><Phone className="w-4 h-4" /> {vol.whatsapp}</div>
-                          <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(vol.created_at).toLocaleDateString()}</div>
-                        </div>
-                        {info?.member_number && (
-                          <div className="flex items-center gap-2 text-xs text-brand-primary font-bold mt-1">
-                            <PawPrint className="w-3 h-3" /> {info.member_number}
-                          </div>
-                        )}
-                        {badges.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {badges.map((b: Badge, i: number) => {
-                              const bc = ALL_BADGES.find(a => a.code === b.code);
-                              return bc ? (
-                                <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded-full text-[10px] font-bold">
-                                  {bc.icon} {bc.label}
-                                </span>
-                              ) : null;
-                            })}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        {vol.status !== 'accepted' && vol.status !== 'suspended' && (
-                          <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
-                        )}
-                        {vol.status === 'accepted' && vol.user_id && (
-                          <>
-                            <button onClick={() => handleVolunteerStatus(vol.id, 'suspended')} className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors">Suspender</button>
-                            <button onClick={() => { setBadgeTargetUser(vol.user_id); setShowBadgeModal(true); }} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-sm font-bold flex items-center gap-1 hover:bg-purple-100 transition-colors">
-                              <Award className="w-4 h-4" /> Insignias
-                            </button>
-                          </>
-                        )}
-                        {vol.status === 'suspended' && vol.user_id && (
-                          <>
-                            <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Reactivar</button>
-                            <button onClick={() => { setBadgeTargetUser(vol.user_id); setShowBadgeModal(true); }} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-sm font-bold flex items-center gap-1 hover:bg-purple-100 transition-colors">
-                              <Award className="w-4 h-4" /> Insignias
-                            </button>
-                          </>
-                        )}
-                        <a
-                          href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
-                        >
-                          Contactar <ExternalLink className="w-4 h-4" />
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {volunteers.length === 0 && (
-                <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
-                  <p className="text-gray-400 font-medium">Aún no hay solicitudes para sumarse.</p>
-                </div>
-              )}
-            </div>
-            </div>
-          )}
+           {/* ====== VOLUNTARIOS ====== */}
+           {activeTab === 'volunteers' && (
+             <div className="space-y-10">
+               {/* Nuevas Solicitudes */}
+               {(() => {
+                 const pending = volunteers.filter(v => v.status === 'pending');
+                 if (pending.length === 0) return null;
+                 return (
+                   <>
+                     <h2 className="text-xl font-serif font-bold text-brand-primary mb-4">Nuevas Solicitudes</h2>
+                     <div className="grid gap-4">
+                       {pending.map(vol => {
+                         const info = vol.user_id ? memberInfo[vol.user_id] : null;
+                         const badges = info?.badges || [];
+                         return (
+                           <div key={vol.id} className="bg-white p-6 rounded-3xl border border-brand-accent shadow-sm">
+                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                               <div className="space-y-1">
+                                 <div className="flex items-center gap-2">
+                                   <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
+                                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-gray-100 text-gray-500`}>
+                                     {vol.status === 'pending' ? 'Pendiente' : vol.status}
+                                   </span>
+                                 </div>
+                                 <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                                   <div className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {vol.residence_zone}</div>
+                                   <div className="flex items-center gap-1"><Phone className="w-4 h-4" /> {vol.whatsapp}</div>
+                                   <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(vol.created_at).toLocaleDateString()}</div>
+                                 </div>
+                                 {info?.member_number && (
+                                   <div className="flex items-center gap-2 text-xs text-brand-primary font-bold mt-1">
+                                     <PawPrint className="w-3 h-3" /> {info.member_number}
+                                   </div>
+                                 )}
+                                 {badges.length > 0 && (
+                                   <div className="flex flex-wrap gap-1.5 mt-2">
+                                     {badges.map((b: Badge, i: number) => {
+                                       const bc = ALL_BADGES.find(a => a.code === b.code);
+                                       return bc ? (
+                                         <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded-full text-[10px] font-bold">
+                                           {bc.icon} {bc.label}
+                                         </span>
+                                       ) : null;
+                                     })}
+                                   </div>
+                                 )}
+                               </div>
+                               <div className="flex gap-2">
+                                 {vol.status !== 'accepted' && vol.status !== 'suspended' && (
+                                   <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
+                                 )}
+                                 <a
+                                   href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
+                                   target="_blank"
+                                   rel="noreferrer"
+                                   className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
+                                 >
+                                   Contactar <ExternalLink className="w-4 h-4" />
+                                 </a>
+                               </div>
+                             </div>
+                           </div>
+                         );
+                       })}
+                     </div>
+                   </>
+                 );
+               })()}
+
+               {/* Socios Activos */}
+               {(() => {
+                 const active = volunteers.filter(v => v.status === 'accepted' || v.status === 'suspended');
+                 if (active.length === 0) return null;
+                 return (
+                   <>
+                     <h2 className="text-xl font-serif font-bold text-brand-primary mb-4">Socios Activos</h2>
+                     <div className="grid gap-4">
+                       {active.map(vol => {
+                         const info = vol.user_id ? memberInfo[vol.user_id] : null;
+                         const badges = info?.badges || [];
+                         return (
+                           <div key={vol.id} className="bg-white p-6 rounded-3xl border border-brand-accent shadow-sm">
+                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                               <div className="space-y-1">
+                                 <div className="flex items-center gap-2">
+                                   <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
+                                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                     vol.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                     vol.status === 'suspended' ? 'bg-red-100 text-red-600' :
+                                     'bg-gray-100 text-gray-500'
+                                   }`}>
+                                     {vol.status === 'suspended' ? 'Suspendido' : vol.status}
+                                   </span>
+                                 </div>
+                                 <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                                   <div className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {vol.residence_zone}</div>
+                                   <div className="flex items-center gap-1"><Phone className="w-4 h-4" /> {vol.whatsapp}</div>
+                                   <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(vol.created_at).toLocaleDateString()}</div>
+                                 </div>
+                                 {info?.member_number && (
+                                   <div className="flex items-center gap-2 text-xs text-brand-primary font-bold mt-1">
+                                     <PawPrint className="w-3 h-3" /> {info.member_number}
+                                   </div>
+                                 )}
+                                 <div className="flex flex-wrap gap-1.5 mt-2">
+                                   {ALL_BADGES.map((badge, idx) => {
+                                     const hasBadge = badges.some(b => b.code === badge.code);
+                                     return (
+                                       <span
+                                         key={idx}
+                                         onClick={() => {
+                                           if (hasBadge) {
+                                             handleRemoveBadge(vol.user_id!, badge.code);
+                                           } else if (vol.user_id) {
+                                             handleAwardBadge(vol.user_id!, badge.code);
+                                           }
+                                         }}
+                                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
+                                           hasBadge
+                                             ? 'bg-brand-primary/20 text-brand-primary'
+                                             : 'border border-dashed border-brand-primary/20 text-brand-primary'
+                                         }`}
+                                       >
+                                         {badge.icon} {badge.label}
+                                       </span>
+                                     );
+                                   })}
+                                 </div>
+                               </div>
+                               <div className="flex gap-2">
+                                 <a
+                                   href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
+                                   target="_blank"
+                                   rel="noreferrer"
+                                   className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
+                                 >
+                                   Contactar <ExternalLink className="w-4 h-4" />
+                                 </a>
+                                 {vol.status === 'accepted' && vol.user_id && (
+                                   <>
+                                     <button onClick={() => handleVolunteerStatus(vol.id, 'suspended')} className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors">Suspender</button>
+                                   </>
+                                 )}
+                                 {vol.status === 'suspended' && vol.user_id && (
+                                   <>
+                                     <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Reactivar</button>
+                                   </>
+                                 )}
+                                 <button
+                                   onClick={() => handleDeleteVolunteer(vol.id)}
+                                   className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors"
+                                 >
+                                   Eliminar <Trash2 className="w-4 h-4" />
+                                 </button>
+                               </div>
+                             </div>
+                           </div>
+                         );
+                       })}
+                     </div>
+                   </>
+                 );
+               })()}
+
+               {/* Empty state */}
+               {volunteers.length === 0 && (
+                 <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
+                   <p className="text-gray-400 font-medium">Aún no hay solicitudes para sumarse.</p>
+                 </div>
+               )}
+             </div>
+           )}
         </div>
       )}
 
@@ -1344,40 +1414,7 @@ export default function Admin() {
           </div>
         )}
 
-        {showBadgeModal && badgeTargetUser && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowBadgeModal(false)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
-                <h2 className="text-xl font-serif font-bold text-brand-primary">Gestionar Insignias</h2>
-                <button onClick={() => setShowBadgeModal(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-5 h-5" /></button>
-              </div>
-              <div className="p-6 space-y-3">
-                {ALL_BADGES.map(b => {
-                  const hasBadge = userBadges(badgeTargetUser).find((x: Badge) => x.code === b.code);
-                  return (
-                    <div key={b.code} className="flex items-center justify-between p-3 bg-brand-bg rounded-xl">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{b.icon}</span>
-                        <span className="text-sm font-bold text-gray-700">{b.label}</span>
-                      </div>
-                      <button
-                        onClick={() => hasBadge ? handleRemoveBadge(badgeTargetUser, b.code) : handleAwardBadge(badgeTargetUser, b.code)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                          hasBadge
-                            ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                            : 'bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20'
-                        }`}
-                      >
-                        {hasBadge ? 'Quitar' : 'Dar'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          </div>
-        )}
+
 
         {sharePet && (
           <SocialShareModal pet={sharePet} onClose={() => setSharePet(null)} />

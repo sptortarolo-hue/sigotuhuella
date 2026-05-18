@@ -83,6 +83,7 @@ export const api = {
     create: (data: any) => request('/volunteers', { method: 'POST', body: JSON.stringify(data) }),
     updateStatus: (id: string, status: string) =>
       request(`/volunteers/${id}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    delete: (id: string) => request(`/volunteers/${id}`, { method: 'DELETE' }),
   },
   users: {
     list: () => request('/users'),

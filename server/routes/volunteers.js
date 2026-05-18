@@ -118,4 +118,28 @@ router.put('/:id', requireAdmin, async (req, res) => {
   }
 });
 
+router.delete('/:id', requireAdmin, async (req, res) => {
+  try {
+    const requestResult = await pool.query(
+      'SELECT * FROM volunteer_requests WHERE id = $1',
+      [req.params.id]
+    );
+    if (requestResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+    const volunteer = requestResult.rows[0];
+    if (volunteer.user_id) {
+      await pool.query(
+        "UPDATE users SET volunteer_status = NULL WHERE id = $1",
+        [volunteer.user_id]
+      );
+    }
+    await pool.query('DELETE FROM volunteer_requests WHERE id = $1', [req.params.id]);
+    res.json({ message: 'Request deleted' });
+  } catch (err) {
+    console.error('Delete volunteer request error:', err);
+    res.status(500).json({ error: 'Failed to delete request' });
+  }
+});
+
 export default router;
