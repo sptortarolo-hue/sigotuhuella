@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Save, Loader2, ArrowLeft, CheckCircle2, AlertCircle, Phone as PhoneIcon, Camera, Upload, PawPrint, CreditCard } from 'lucide-react';
+import { User, Lock, Save, Loader2, ArrowLeft, CheckCircle2, AlertCircle, Phone as PhoneIcon, Camera, Upload, PawPrint, CreditCard, TrendingUp, Award } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Profile() {
@@ -45,6 +45,19 @@ export default function Profile() {
   const [avatarLoading, setAvatarLoading] = useState(false);
 
   const isMember = user?.member_number && user?.volunteer_status !== 'none';
+
+  const [statsData, setStatsData] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  useEffect(() => {
+    if (user && isMember) {
+      setStatsLoading(true);
+      api.users.stats(user.id)
+        .then(data => setStatsData(data))
+        .catch(err => console.error('Error al cargar estadísticas en perfil:', err))
+        .finally(() => setStatsLoading(false));
+    }
+  }, [user]);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -147,15 +160,53 @@ export default function Profile() {
       {isMember && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center"><CreditCard className="w-6 h-6" /></div>
+            <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center">
+              <CreditCard className="w-6 h-6 text-brand-primary" />
+            </div>
             <div>
-              <h2 className="text-2xl font-serif font-bold text-brand-primary">Mi Carnet</h2>
-              <p className="text-xs text-gray-500">{user.member_number}</p>
+              <h2 className="text-2xl font-serif font-bold text-brand-primary">Mi Carnet y Nivel</h2>
+              <p className="text-xs text-gray-500">Credencial Nº {user.member_number}</p>
             </div>
           </div>
-          <button onClick={() => navigate('/mi-carnet')} className="w-full py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">
-            <CreditCard className="w-4 h-4" /> Ver Mi Carnet
-          </button>
+
+          {statsLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
+            </div>
+          ) : (
+            <>
+              {statsData?.level && (
+                <div className="mb-6 p-4 bg-brand-bg rounded-2xl border border-brand-accent/50 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl shrink-0">
+                      {statsData.level.code === 'legend' ? '👑' :
+                       statsData.level.code === 'hero' ? '⚡' :
+                       statsData.level.code === 'protector' ? '🛡️' : '🌱'}
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Nivel de Impacto</p>
+                      <p className="text-base font-bold text-brand-primary">{statsData.level.name}</p>
+                    </div>
+                  </div>
+                  {statsData.stats && (
+                    <div className="text-right shrink-0">
+                      <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Actividad</p>
+                      <p className="text-xs font-bold text-gray-700">
+                        {statsData.stats.total_reports} {statsData.stats.total_reports === 1 ? 'publicación' : 'publicaciones'}
+                      </p>
+                      <p className="text-[10px] text-emerald-600 font-bold">
+                        {statsData.stats.reunited_count} {statsData.stats.reunited_count === 1 ? 'reencuentro' : 'reencuentros'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button onClick={() => navigate('/mi-carnet')} className="w-full py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">
+                <CreditCard className="w-4 h-4" /> Ver Mi Carnet y Estadísticas
+              </button>
+            </>
+          )}
         </motion.div>
       )}
 

@@ -24,6 +24,11 @@ export default function Join() {
 
   useEffect(() => {
     if (user && !prefilled.current) {
+      // If user is already an active member, redirect to their card
+      if (user.volunteer_status === 'active' && user.member_number) {
+        navigate('/mi-carnet', { replace: true });
+        return;
+      }
       setFormData({
         fullName: user.display_name || '',
         residenceZone: '',

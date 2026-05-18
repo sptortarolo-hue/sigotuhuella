@@ -6,12 +6,19 @@ import { CheckCircle2, XCircle, Loader2, PawPrint } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const BADGE_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
-  volunteer: { label: 'Voluntario/a', color: 'bg-emerald-100 text-emerald-700', icon: '🤝' },
-  first_donation: { label: '1ra Donación', color: 'bg-pink-100 text-pink-700', icon: '❤️' },
-  frequent_donor: { label: 'Donante Frecuente', color: 'bg-purple-100 text-purple-700', icon: '💜' },
-  foster_hero: { label: 'Héroe Tránsito', color: 'bg-amber-100 text-amber-700', icon: '🏠' },
-  rescuer: { label: 'Rescatista', color: 'bg-blue-100 text-blue-700', icon: '🛡️' },
-  founder: { label: 'Fundador/a', color: 'bg-yellow-100 text-yellow-700', icon: '👑' },
+  // Automatic badges
+  first_report:     { label: '1er Reporte',      color: 'bg-emerald-100 text-emerald-700', icon: '🐾' },
+  reporter_5:       { label: '5 Reportes',        color: 'bg-sky-100 text-sky-700', icon: '📋' },
+  reporter_15:      { label: '15 Reportes',       color: 'bg-indigo-100 text-indigo-700', icon: '🌟' },
+  reunited_hero:    { label: 'Héroe Reencuentro', color: 'bg-pink-100 text-pink-700', icon: '💞' },
+  reunited_legend:  { label: 'Leyenda Reunión',   color: 'bg-amber-100 text-amber-700', icon: '🏆' },
+  // Manual badges
+  volunteer:        { label: 'Voluntario/a',      color: 'bg-emerald-100 text-emerald-700', icon: '🤝' },
+  first_donation:   { label: '1ra Donación',      color: 'bg-pink-100 text-pink-700', icon: '❤️' },
+  frequent_donor:   { label: 'Donante Frecuente', color: 'bg-purple-100 text-purple-700', icon: '💜' },
+  foster_hero:      { label: 'Héroe Tránsito',    color: 'bg-amber-100 text-amber-700', icon: '🏠' },
+  rescuer:          { label: 'Rescatista',         color: 'bg-blue-100 text-blue-700', icon: '🛡️' },
+  founder:          { label: 'Fundador/a',         color: 'bg-yellow-100 text-yellow-700', icon: '👑' },
 };
 
 interface MemberData {
