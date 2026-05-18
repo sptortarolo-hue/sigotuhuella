@@ -58,7 +58,7 @@ interface DesignConfig {
 }
 
 const statusDesigns: Record<string, DesignConfig> = {
-  lost: { label: 'SE PERDIÓ', badgeColor: '#DC2626', gradientStart: '#7F1D1D', gradientEnd: '#DC2626' },
+  lost: { label: 'SE PERDIÓ', badgeColor: '#EF4444', gradientStart: '#991B1B', gradientEnd: '#EF4444' },
   retained: { label: 'RETENIDO', badgeColor: '#2563EB', gradientStart: '#1E3A5F', gradientEnd: '#2563EB' },
   sighted: { label: 'AVISTADO', badgeColor: '#2563EB', gradientStart: '#1E3A5F', gradientEnd: '#2563EB' },
   accidented: { label: 'ACCIDENTADO', badgeColor: '#EA580C', gradientStart: '#7C2D12', gradientEnd: '#EA580C' },
@@ -326,6 +326,8 @@ function drawStoryHero(
   location: string | undefined, contactInfo: string | undefined,
   description: string | undefined, img: HTMLImageElement | null
 ) {
+  drawBadge(ctx, w, w / 2, h * 0.03, design.label, design.badgeColor, w * 0.045);
+
   const photoR = w * 0.28;
   const photoCy = h * 0.30;
 
@@ -335,11 +337,8 @@ function drawStoryHero(
 
   drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
 
-  let yPos = photoCy + photoR + w * 0.035;
-  yPos = drawBadge(ctx, w, w / 2, yPos, design.label, design.badgeColor);
-
-  yPos += w * 0.035;
-  const nameFs = w * 0.09;
+  let yPos = photoCy + photoR + w * 0.07;
+  const nameFs = w * 0.10;
   ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
@@ -354,7 +353,7 @@ function drawStoryHero(
   yPos += nameFs * 1.15;
 
   if (petDetails) {
-    const df = w * 0.028;
+    const df = w * 0.032;
     ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'center';
@@ -366,7 +365,7 @@ function drawStoryHero(
   yPos += w * 0.015;
 
   if (location) {
-    const lf = w * 0.035;
+    const lf = w * 0.04;
     ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
@@ -376,7 +375,7 @@ function drawStoryHero(
   }
 
   if (contactInfo) {
-    const cf = w * 0.035;
+    const cf = w * 0.04;
     ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
@@ -386,7 +385,7 @@ function drawStoryHero(
   }
 
   if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.03, 4, 'italic 500', 'rgba(255,255,255,0.85)', 1.4);
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.034, 4, 'italic 500', 'rgba(255,255,255,0.85)', 1.4);
   }
 }
 
@@ -398,8 +397,10 @@ function drawPortraitMagazine(
   location: string | undefined, contactInfo: string | undefined,
   description: string | undefined, img: HTMLImageElement | null
 ) {
+  drawBadge(ctx, w, w / 2, h * 0.03, design.label, design.badgeColor, w * 0.045);
+
   const photoR = w * 0.22;
-  const photoCy = h * 0.25;
+  const photoCy = h * 0.28;
 
   const cardY = photoCy + photoR - w * 0.02;
   const cardEndY = h - h * 0.06 - w * 0.02;
@@ -407,11 +408,8 @@ function drawPortraitMagazine(
 
   drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
 
-  let yPos = photoCy + photoR + w * 0.03;
-  yPos = drawBadge(ctx, w, w / 2, yPos, design.label, design.badgeColor);
-
-  yPos += w * 0.03;
-  const nameFs = w * 0.08;
+  let yPos = photoCy + photoR + w * 0.06;
+  const nameFs = w * 0.09;
   ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
@@ -426,7 +424,7 @@ function drawPortraitMagazine(
   yPos += nameFs * 1.1;
 
   if (petDetails) {
-    const df = w * 0.026;
+    const df = w * 0.03;
     ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'center';
@@ -436,7 +434,7 @@ function drawPortraitMagazine(
   }
 
   if (location) {
-    const lf = w * 0.032;
+    const lf = w * 0.038;
     ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
@@ -446,7 +444,7 @@ function drawPortraitMagazine(
   }
 
   if (contactInfo) {
-    const cf = w * 0.032;
+    const cf = w * 0.038;
     ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
@@ -456,7 +454,7 @@ function drawPortraitMagazine(
   }
 
   if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.028, 2, 'italic 500', 'rgba(255,255,255,0.85)', 1.35);
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.032, 2, 'italic 500', 'rgba(255,255,255,0.85)', 1.35);
   }
 }
 
@@ -469,8 +467,10 @@ function drawSquareMinimal(
   location: string | undefined, contactInfo: string | undefined,
   description: string | undefined, img: HTMLImageElement | null
 ) {
+  drawBadge(ctx, w, w / 2, h * 0.02, design.label, design.badgeColor, w * 0.038);
+
   const photoR = w * 0.22;
-  const photoCy = h * 0.28;
+  const photoCy = h * 0.36;
 
   const cardY = photoCy + photoR - w * 0.02;
   const cardEndY = h - h * 0.06 - w * 0.02;
@@ -478,11 +478,8 @@ function drawSquareMinimal(
 
   drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
 
-  let yPos = photoCy + photoR + w * 0.03;
-  yPos = drawBadge(ctx, w, w / 2, yPos, design.label, design.badgeColor);
-
-  yPos += w * 0.025;
-  const nameFs = w * 0.065;
+  let yPos = photoCy + photoR + w * 0.055;
+  const nameFs = w * 0.075;
   ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
@@ -497,7 +494,7 @@ function drawSquareMinimal(
   yPos += nameFs * 1.0;
 
   if (location) {
-    const lf = w * 0.028;
+    const lf = w * 0.032;
     ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
@@ -507,7 +504,7 @@ function drawSquareMinimal(
   }
 
   if (contactInfo) {
-    const cf = w * 0.028;
+    const cf = w * 0.032;
     ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.textAlign = 'center';
@@ -517,7 +514,7 @@ function drawSquareMinimal(
   }
 
   if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.024, 1, 'italic 500', 'rgba(255,255,255,0.85)', 1.3);
+    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.028, 2, 'italic 500', 'rgba(255,255,255,0.85)', 1.3);
   }
 }
 
