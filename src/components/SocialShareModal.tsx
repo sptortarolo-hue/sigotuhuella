@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Pet, getPetImageUrls } from '@/src/lib/petService';
-import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon, ArrowLeft } from 'lucide-react';
+import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon, ArrowLeft, MapPin, Phone } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -161,11 +161,11 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
   const isTall = aspectRatio === '9:16';
 
-  const infoClass = isTall
+  const defaultInfoClass = isTall
     ? "flex-[0_0_30%] p-3 flex flex-col gap-2"
     : "flex-[0_0_25%] p-4 flex flex-col gap-2";
 
-  const renderFlyerContent = () => (
+  const renderDefaultFlyer = () => (
     <div className="flex flex-col bg-white" style={{ width: targetWidth, height: targetHeight }}>
       <div className={cn("flex-[0_0_12%] flex items-center justify-center text-white font-serif font-black text-sm uppercase tracking-tighter", flyerStatusBg)}>
         {flyerStatusLabel}
@@ -184,7 +184,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
         </div>
       </div>
 
-      <div className={cn("bg-white", infoClass)}>
+      <div className={cn("bg-white", defaultInfoClass)}>
         <div className={cn("flex gap-2", isTall ? "flex-col" : "flex-row")}>
           <div className="bg-brand-bg rounded-lg border border-brand-accent flex-1 p-3">
             <p className="font-bold text-gray-400 uppercase text-[10px]">Ubicación</p>
@@ -212,6 +212,55 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
       </div>
     </div>
   );
+
+  const renderAdoptionFlyer = () => (
+    <div className="flex flex-col bg-white" style={{ width: targetWidth, height: targetHeight }}>
+      <div className="relative flex-1 bg-gray-100 overflow-hidden">
+        {hasImage ? (
+          <img src={mainImage!} alt={flyerName} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <ImageIcon className="w-1/4 h-1/4" />
+          </div>
+        )}
+        <div className="absolute top-3 left-3 bg-brand-secondary text-white text-xs font-bold rounded-lg px-3 py-1 shadow-lg uppercase tracking-tighter">
+          {flyerStatusLabel}
+        </div>
+        <div className="absolute bottom-3 right-3 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1.5">
+          <p className="text-white font-bold text-sm">{flyerName}</p>
+        </div>
+      </div>
+
+      {hasDescription && (
+        <div className={cn("bg-white", isTall ? "flex-[0_0_22%] p-3" : "flex-[0_0_20%] p-4")}>
+          <p className={cn("text-gray-600 leading-relaxed italic border-l-4 border-brand-secondary pl-2", isTall ? "text-[10px]" : "text-xs")}>
+            "{pet.description}"
+          </p>
+        </div>
+      )}
+
+      {hasContact && (
+        <div className="bg-white px-4 py-2 border-t border-brand-accent flex items-center gap-2">
+          <Phone className="w-3.5 h-3.5 text-brand-secondary shrink-0" />
+          <span className="font-bold text-brand-primary text-sm">{pet.contact_info}</span>
+        </div>
+      )}
+
+      <div className="flex-[0_0_9%] bg-brand-primary flex items-center justify-center gap-2">
+        <div className="w-6 h-6 rounded overflow-hidden border border-white/30 shrink-0">
+          <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
+        </div>
+        <span className="text-white font-black text-[10px] tracking-[0.15em] uppercase">Sigo tu huella</span>
+      </div>
+    </div>
+  );
+
+  const renderFlyerContent = () => {
+    if (pet.status === 'for_adoption') {
+      return renderAdoptionFlyer();
+    }
+    return renderDefaultFlyer();
+  };
 
   const platforms = [
     { id: 'whatsapp' as Platform, label: 'WhatsApp', icon: MessageCircle, color: 'bg-emerald-500 hover:bg-emerald-600', bgColor: 'bg-emerald-50', textColor: 'text-emerald-600' },
