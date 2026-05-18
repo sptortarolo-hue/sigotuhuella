@@ -229,7 +229,7 @@ function drawBrandBar(ctx: CanvasRenderingContext2D, w: number, h: number, logoI
   ctx.stroke();
 
   const logoR = w * 0.028;
-  const logoY = brandY + h * 0.025 + logoR;
+  const logoY = brandY + logoR;
 
   if (logoImg) {
     ctx.save();
