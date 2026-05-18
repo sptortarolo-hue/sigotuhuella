@@ -18,7 +18,7 @@ export interface VolunteerRequest {
   residence_zone: string;
   whatsapp: string;
   user_id: string;
-  status: 'pending' | 'reviewed' | 'accepted';
+  status: 'pending' | 'accepted' | 'suspended';
   created_at: string;
   email?: string;
   display_name?: string;

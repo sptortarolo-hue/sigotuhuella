@@ -56,8 +56,8 @@ export default function VerifyMember() {
     );
   }
 
-  const statusLabel: Record<string, string> = { active: 'Activo', inactive: 'Inactivo', pending: 'Pendiente' };
-  const statusColor: Record<string, string> = { active: 'text-emerald-600', inactive: 'text-gray-400', pending: 'text-amber-600' };
+  const statusLabel: Record<string, string> = { active: 'Activo', inactive: 'Inactivo', pending: 'Pendiente', suspended: 'Suspendido' };
+  const statusColor: Record<string, string> = { active: 'text-emerald-600', inactive: 'text-gray-400', pending: 'text-amber-600', suspended: 'text-gray-400' };
 
   return (
     <div className="max-w-md mx-auto px-4 py-20">

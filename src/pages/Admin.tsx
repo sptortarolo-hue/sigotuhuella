@@ -871,10 +871,10 @@ export default function Admin() {
                           <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
                             vol.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                            vol.status === 'reviewed' ? 'bg-amber-100 text-amber-700' :
+                            vol.status === 'suspended' ? 'bg-red-100 text-red-600' :
                             'bg-gray-100 text-gray-500'
                           }`}>
-                            {vol.status}
+                            {vol.status === 'suspended' ? 'Suspendido' : vol.status}
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-4 text-sm text-gray-500">
@@ -902,15 +902,23 @@ export default function Admin() {
                       </div>
                       <div className="flex gap-2">
                         {vol.status === 'pending' && (
-                          <>
-                            <button onClick={() => handleVolunteerStatus(vol.id, 'reviewed')} className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-sm font-bold hover:bg-amber-100 transition-colors">Revisado</button>
-                            <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
-                          </>
+                          <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
                         )}
                         {vol.status === 'accepted' && vol.user_id && (
-                          <button onClick={() => { setBadgeTargetUser(vol.user_id); setShowBadgeModal(true); }} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-sm font-bold flex items-center gap-1 hover:bg-purple-100 transition-colors">
-                            <Award className="w-4 h-4" /> Insignias
-                          </button>
+                          <>
+                            <button onClick={() => handleVolunteerStatus(vol.id, 'suspended')} className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors">Suspender</button>
+                            <button onClick={() => { setBadgeTargetUser(vol.user_id); setShowBadgeModal(true); }} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-sm font-bold flex items-center gap-1 hover:bg-purple-100 transition-colors">
+                              <Award className="w-4 h-4" /> Insignias
+                            </button>
+                          </>
+                        )}
+                        {vol.status === 'suspended' && vol.user_id && (
+                          <>
+                            <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Reactivar</button>
+                            <button onClick={() => { setBadgeTargetUser(vol.user_id); setShowBadgeModal(true); }} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-sm font-bold flex items-center gap-1 hover:bg-purple-100 transition-colors">
+                              <Award className="w-4 h-4" /> Insignias
+                            </button>
+                          </>
                         )}
                         <a
                           href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}

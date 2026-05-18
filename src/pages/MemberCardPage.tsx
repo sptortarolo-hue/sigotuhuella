@@ -82,6 +82,7 @@ export default function MemberCardPage() {
   }
 
   const isMember = memberData?.member_number && memberData?.volunteer_status !== 'none';
+  const isSuspended = memberData?.volunteer_status === 'suspended';
 
   return (
     <div className="max-w-lg mx-auto px-4 py-12 space-y-8">
@@ -105,7 +106,13 @@ export default function MemberCardPage() {
         {error && <div className="mb-6 p-3 bg-red-50 text-red-600 rounded-xl text-sm flex gap-2 items-center"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
         {msg && <div className="mb-6 p-3 bg-green-50 text-green-600 rounded-xl text-sm flex gap-2 items-center"><CheckCircle2 className="w-4 h-4 shrink-0" />{msg}</div>}
 
-        {!isMember ? (
+        {isSuspended ? (
+          <div className="text-center py-12 bg-red-50 rounded-[2rem] border-2 border-dashed border-red-200">
+            <AlertCircle className="w-16 h-16 mx-auto text-red-400 mb-4" />
+            <p className="text-red-600 font-bold text-lg mb-2">Suscripción suspendida</p>
+            <p className="text-sm text-red-500">No podés acceder a tu carnet. Comunicate con la organización para más información.</p>
+          </div>
+        ) : !isMember ? (
           <div className="text-center py-12 bg-brand-bg rounded-[2rem] border-2 border-dashed border-brand-accent">
             <PawPrint className="w-16 h-16 mx-auto text-gray-300 mb-4" />
             <p className="text-gray-500 font-medium mb-2">Aún no tenés carnet de miembro</p>
@@ -125,7 +132,7 @@ export default function MemberCardPage() {
         )}
       </motion.div>
 
-      {isMember && (
+      {isMember && !isSuspended && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center">
