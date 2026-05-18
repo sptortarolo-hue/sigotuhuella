@@ -178,7 +178,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const renderFlyerContent = (isPreview: boolean = false) => (
     <div className="relative overflow-hidden" style={isPreview ? getFlyerInnerStyle() : {}}>
       <div className={cn("p-3 text-white font-serif font-black text-xl text-center uppercase tracking-tighter", flyerStatusBg)}>
-        {flyerStatusLabel} {flyerName && `- ${flyerName.toUpperCase()}`}
+        {flyerStatusLabel}
       </div>
 
       <div className={cn(
@@ -193,6 +193,9 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
             <ImageIcon className={aspectRatio === '9:16' ? "w-10 h-10" : "w-16 h-16"} />
           </div>
         )}
+        <div className="absolute bottom-2 right-2 bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1.5">
+          <p className="text-white font-bold text-sm">{flyerName}</p>
+        </div>
       </div>
 
       <div className={cn("bg-white", aspectRatio === '9:16' ? "p-3" : "p-4")}>
