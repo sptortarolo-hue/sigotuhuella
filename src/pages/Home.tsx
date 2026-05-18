@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Heart, Search, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Heart, Search, ShieldCheck, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState, useEffect } from 'react';
 import NewsCarousel from '@/src/components/NewsCarousel';
@@ -36,8 +36,9 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-3">
               <Link
                 to="/perdiste-a-tu-mascota"
-                className="w-full sm:w-auto px-6 py-3.5 sm:px-8 sm:py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-all shadow-lg hover:shadow-brand-primary/20 text-sm sm:text-base"
+                className="w-full sm:w-auto px-6 py-3.5 sm:px-8 sm:py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-all shadow-lg hover:shadow-brand-primary/20 text-sm sm:text-base animate-pulse"
               >
+                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                 ¿Perdiste a tu mascota?
                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
               </Link>
@@ -45,7 +46,7 @@ export default function Home() {
                 to="/adopcion"
                 className="w-full sm:w-auto px-6 py-3.5 sm:px-8 sm:py-4 bg-white text-brand-primary border border-brand-accent rounded-2xl font-bold hover:border-brand-primary transition-all text-center text-sm sm:text-base"
               >
-                Quiero adoptar
+                Quiero adoptar ❤️
               </Link>
             </div>
           </motion.div>

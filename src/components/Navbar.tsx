@@ -34,12 +34,12 @@ export default function Navbar() {
 
 const navItems = [
      { name: 'Inicio', path: '/', icon: PawPrint },
-     { name: 'Novedades', path: '/novedades', icon: Sparkles },
      { name: 'Mascotas Reportadas', path: '/perdidos', icon: Search },
      { name: 'Adopción', path: '/adopcion', icon: Heart },
      { name: 'Colaborar', path: '/colaborar', icon: HandCoins },
      { name: 'Sumate', path: '/sumate', icon: Users },
-      { name: 'Reportar', path: '/reportar', icon: PlusCircle },
+     { name: 'Reportar', path: '/reportar', icon: PlusCircle },
+     { name: 'Novedades', path: '/novedades', icon: Sparkles },
    ];
 
   const handleLogout = () => {
