@@ -91,6 +91,12 @@ export const api = {
     changePassword: (id: string, currentPassword: string, newPassword: string) =>
       request(`/users/${id}/password`, { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) }),
     myPets: (id: string) => request(`/users/${id}/pets`),
+    uploadAvatar: (id: string, data: { imageData: string; mimeType: string }) =>
+      request(`/users/${id}/avatar`, { method: 'PUT', body: JSON.stringify(data) }),
+  },
+  members: {
+    me: () => request('/members/me'),
+    verify: (memberNumber: string) => request(`/members/verify/${memberNumber}`),
   },
   news: {
     list: () => request('/news'),

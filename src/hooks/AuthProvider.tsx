@@ -7,6 +7,17 @@ export interface AuthUser {
   role: string;
   phone?: string;
   created_at?: string;
+  avatar_data?: string;
+  avatar_mime_type?: string;
+  avatar_type?: string;
+  member_number?: string;
+  volunteer_status?: string;
+  badges?: Badge[];
+}
+
+export interface Badge {
+  code: string;
+  awarded_at: string;
 }
 
 interface AuthContextType {

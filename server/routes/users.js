@@ -1,15 +1,18 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, hashPassword, comparePassword } from '../auth.js';
+import sharp from 'sharp';
 
 const router = Router();
 
 router.get('/', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, display_name, phone, role, created_at FROM users ORDER BY created_at DESC'
+      `SELECT id, email, display_name, phone, role, created_at,
+              avatar_type, member_number, volunteer_status, badges
+       FROM users ORDER BY created_at DESC`
     );
-    res.json({ users: result.rows });
+    res.json({ users: result.rows.map(u => ({ ...u, badges: u.badges || [] })) });
   } catch (err) {
     console.error('Get users error:', err);
     res.status(500).json({ error: 'Failed to fetch users' });
@@ -17,7 +20,7 @@ router.get('/', requireAdmin, async (req, res) => {
 });
 
 router.put('/:id', requireAuth, async (req, res) => {
-  const { displayName, phone, role } = req.body;
+  const { displayName, phone, role, badges } = req.body;
   const isSelf = req.user.id === req.params.id;
   const isAdmin = req.user.role === 'admin';
   if (!isSelf && !isAdmin) {
@@ -39,19 +42,23 @@ router.put('/:id', requireAuth, async (req, res) => {
       fields.push(`role = $${idx++}`);
       values.push(role);
     }
+    if (badges !== undefined && isAdmin) {
+      fields.push(`badges = $${idx++}::jsonb`);
+      values.push(typeof badges === 'string' ? badges : JSON.stringify(badges));
+    }
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     fields.push(`updated_at = NOW()`);
     values.push(req.params.id);
     const result = await pool.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, phone, role, created_at`,
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, phone, role, created_at, avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges`,
       values
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json({ user: result.rows[0] });
+    res.json({ user: { ...result.rows[0], badges: result.rows[0].badges || [] } });
   } catch (err) {
     console.error('Update user error:', err);
     res.status(500).json({ error: 'Failed to update user' });
@@ -116,6 +123,37 @@ router.get('/:id/pets', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Get user pets error:', err);
     res.status(500).json({ error: 'Failed to fetch pets' });
+  }
+});
+
+router.put('/:id/avatar', requireAuth, async (req, res) => {
+  if (req.user.id !== req.params.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  const { imageData, mimeType } = req.body;
+  if (!imageData || !mimeType) {
+    return res.status(400).json({ error: 'Image data and mime type are required' });
+  }
+  try {
+    const buffer = Buffer.from(imageData, 'base64');
+    const resized = await sharp(buffer)
+      .resize(200, 200, { fit: 'cover', position: 'center' })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    const avatarData = resized.toString('base64');
+    const avatarMime = 'image/jpeg';
+    const result = await pool.query(
+      `UPDATE users SET avatar_data = $1, avatar_mime_type = $2, avatar_type = 'photo' WHERE id = $3
+       RETURNING id, avatar_data, avatar_mime_type, avatar_type`,
+      [avatarData, avatarMime, req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ avatar: result.rows[0] });
+  } catch (err) {
+    console.error('Avatar upload error:', err);
+    res.status(500).json({ error: 'Failed to upload avatar' });
   }
 });
 

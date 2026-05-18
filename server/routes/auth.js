@@ -16,12 +16,16 @@ router.post('/register', async (req, res) => {
     }
     const passwordHash = await hashPassword(password);
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash, display_name, phone, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, display_name, phone, role, created_at',
+      `INSERT INTO users (email, password_hash, display_name, phone, role)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, email, display_name, phone, role, created_at,
+                 avatar_data, avatar_mime_type, avatar_type,
+                 member_number, volunteer_status, badges`,
       [email, passwordHash, displayName || email.split('@')[0], phone || null, 'user']
     );
     const user = result.rows[0];
     const token = generateToken(user);
-    res.status(201).json({ token, user });
+    res.status(201).json({ token, user: { ...user, badges: user.badges || [] } });
   } catch (err) {
     console.error('Register error:', err);
     res.status(500).json({ error: 'Registration failed' });
@@ -46,7 +50,13 @@ router.post('/login', async (req, res) => {
     const token = generateToken(user);
     res.json({
       token,
-      user: { id: user.id, email: user.email, display_name: user.display_name, phone: user.phone, role: user.role }
+      user: {
+        id: user.id, email: user.email, display_name: user.display_name,
+        phone: user.phone, role: user.role,
+        avatar_data: user.avatar_data, avatar_mime_type: user.avatar_mime_type,
+        avatar_type: user.avatar_type, member_number: user.member_number,
+        volunteer_status: user.volunteer_status, badges: user.badges || []
+      }
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -57,13 +67,17 @@ router.post('/login', async (req, res) => {
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, display_name, phone, role, created_at FROM users WHERE id = $1',
+      `SELECT id, email, display_name, phone, role, created_at,
+              avatar_data, avatar_mime_type, avatar_type,
+              member_number, volunteer_status, badges
+       FROM users WHERE id = $1`,
       [req.user.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json({ user: result.rows[0] });
+    const user = result.rows[0];
+    res.json({ user: { ...user, badges: user.badges || [] } });
   } catch (err) {
     console.error('Get user error:', err);
     res.status(500).json({ error: 'Failed to get user' });

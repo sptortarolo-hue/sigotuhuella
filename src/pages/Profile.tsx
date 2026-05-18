@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Save, Loader2, ArrowLeft, CheckCircle2, AlertCircle, Phone as PhoneIcon } from 'lucide-react';
+import { User, Lock, Save, Loader2, ArrowLeft, CheckCircle2, AlertCircle, Phone as PhoneIcon, Camera, Upload, PawPrint, CreditCard } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Profile() {
@@ -38,6 +38,37 @@ export default function Profile() {
       setProfileError(err.message || 'Error al actualizar');
     } finally {
       setProfileLoading(false);
+    }
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+
+  const isMember = user?.member_number && user?.volunteer_status !== 'none';
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarLoading(true);
+    setProfileMsg('');
+    setProfileError('');
+    try {
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.readAsDataURL(file);
+      });
+      const data = await api.users.uploadAvatar(user.id, { imageData: base64, mimeType: file.type });
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      localStorage.setItem('user', JSON.stringify({ ...stored, avatar_data: data.avatar.avatar_data, avatar_mime_type: data.avatar.avatar_mime_type, avatar_type: data.avatar.avatar_type }));
+      setProfileMsg('Foto de perfil actualizada');
+    } catch (err: any) {
+      setProfileError(err.message || 'Error al subir foto');
+    } finally {
+      setAvatarLoading(false);
     }
   };
 
@@ -88,6 +119,47 @@ export default function Profile() {
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center"><Camera className="w-6 h-6" /></div>
+          <div>
+            <h2 className="text-2xl font-serif font-bold text-brand-primary">Foto de Perfil</h2>
+            <p className="text-xs text-gray-500">Aparecerá en tu carnet de miembro</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-brand-accent shrink-0 bg-brand-bg flex items-center justify-center">
+            {user?.avatar_type === 'photo' && user?.avatar_data ? (
+              <img src={`data:${user.avatar_mime_type};base64,${user.avatar_data}`} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <PawPrint className="w-8 h-8 text-brand-primary" />
+            )}
+          </div>
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+          <button onClick={() => fileInputRef.current?.click()} disabled={avatarLoading}
+            className="px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:shadow-lg transition-all disabled:opacity-50"
+          >
+            {avatarLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {user?.avatar_type === 'photo' ? 'Cambiar Foto' : 'Subir Foto'}
+          </button>
+        </div>
+      </motion.div>
+
+      {isMember && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center"><CreditCard className="w-6 h-6" /></div>
+            <div>
+              <h2 className="text-2xl font-serif font-bold text-brand-primary">Mi Carnet</h2>
+              <p className="text-xs text-gray-500">{user.member_number}</p>
+            </div>
+          </div>
+          <button onClick={() => navigate('/mi-carnet')} className="w-full py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">
+            <CreditCard className="w-4 h-4" /> Ver Mi Carnet
+          </button>
+        </motion.div>
+      )}
+
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
         <div className="flex items-center gap-4 mb-8">
           <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center"><Lock className="w-6 h-6" /></div>
           <div><h2 className="text-2xl font-serif font-bold text-brand-primary">Cambiar Contraseña</h2></div>

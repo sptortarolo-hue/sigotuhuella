@@ -39,14 +39,51 @@ router.put('/:id', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Invalid status' });
   }
   try {
-    const result = await pool.query(
-      'UPDATE volunteer_requests SET status = $1 WHERE id = $2 RETURNING *',
-      [status, req.params.id]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Request not found' });
+    if (status === 'accepted') {
+      const requestResult = await pool.query(
+        'SELECT * FROM volunteer_requests WHERE id = $1',
+        [req.params.id]
+      );
+      if (requestResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Request not found' });
+      }
+      const volunteer = requestResult.rows[0];
+
+      const counterResult = await pool.query(
+        "SELECT COUNT(*) as count FROM users WHERE member_number IS NOT NULL"
+      );
+      const nextNum = parseInt(counterResult.rows[0].count) + 1;
+      const memberNumber = 'STH-' + String(nextNum).padStart(5, '0');
+      const volunteerBadge = JSON.stringify([{ code: 'volunteer', awarded_at: new Date().toISOString() }]);
+
+      const userUpdate = await pool.query(
+        `UPDATE users SET
+          member_number = $1,
+          volunteer_status = 'active',
+          badges = CASE
+            WHEN badges IS NULL OR badges = '[]'::jsonb THEN $2::jsonb
+            ELSE badges || $2::jsonb
+          END
+        WHERE id = $3
+        RETURNING id, display_name, member_number, volunteer_status, badges`,
+        [memberNumber, volunteerBadge, volunteer.user_id]
+      );
+
+      const result = await pool.query(
+        'UPDATE volunteer_requests SET status = $1 WHERE id = $2 RETURNING *',
+        [status, req.params.id]
+      );
+      res.json({ request: result.rows[0], member: userUpdate.rows[0] || null });
+    } else {
+      const result = await pool.query(
+        'UPDATE volunteer_requests SET status = $1 WHERE id = $2 RETURNING *',
+        [status, req.params.id]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Request not found' });
+      }
+      res.json({ request: result.rows[0] });
     }
-    res.json({ request: result.rows[0] });
   } catch (err) {
     console.error('Update volunteer request error:', err);
     res.status(500).json({ error: 'Failed to update request' });

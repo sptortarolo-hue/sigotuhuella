@@ -11,6 +11,7 @@ import collaborationRoutes from './routes/collaboration.js';
 import volunteerRoutes from './routes/volunteers.js';
 import userRoutes from './routes/users.js';
 import newsRoutes from './routes/news.js';
+import memberRoutes from './routes/members.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -47,6 +48,7 @@ app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/volunteers', volunteerRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/news', newsRoutes);
+app.use('/api/members', memberRoutes);
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

@@ -13,13 +13,14 @@ import {
 } from '@/src/lib/collaborationService';
 import { getNews, createNews, updateNews, deleteNews, News, getNewsImageUrl } from '@/src/lib/newsService';
 import { useAuth } from '@/src/hooks/useAuth';
+import { Badge } from '@/src/hooks/AuthProvider';
 import { api } from '@/src/lib/api';
 import PetCard from '@/src/components/PetCard';
 import SocialShareModal from '@/src/components/SocialShareModal';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2
+  Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -72,6 +73,18 @@ export default function Admin() {
 
   // Volunteers State
   const [volunteers, setVolunteers] = useState<VolunteerRequest[]>([]);
+  const [memberInfo, setMemberInfo] = useState<Record<string, { member_number?: string; volunteer_status?: string; badges?: Badge[] }>>({});
+  const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [badgeTargetUser, setBadgeTargetUser] = useState<string | null>(null);
+
+  const ALL_BADGES = [
+    { code: 'volunteer', label: 'Voluntario/a', icon: '🤝' },
+    { code: 'first_donation', label: '1ra Donación', icon: '❤️' },
+    { code: 'frequent_donor', label: 'Donante Frecuente', icon: '💜' },
+    { code: 'foster_hero', label: 'Héroe Tránsito', icon: '🏠' },
+    { code: 'rescuer', label: 'Rescatista', icon: '🛡️' },
+    { code: 'founder', label: 'Fundador/a', icon: '👑' },
+  ];
 
   // Users State
   const [userList, setUserList] = useState<any[]>([]);
@@ -276,6 +289,17 @@ export default function Admin() {
     try {
       const data = await getVolunteerRequests();
       setVolunteers(data);
+      const userIds = data.filter((v: VolunteerRequest) => v.user_id).map((v: VolunteerRequest) => v.user_id);
+      if (userIds.length > 0) {
+        const usersData = await api.users.list();
+        const infoMap: Record<string, any> = {};
+        (usersData.users || []).forEach((u: any) => {
+          if (userIds.includes(u.id)) {
+            infoMap[u.id] = { member_number: u.member_number, volunteer_status: u.volunteer_status, badges: u.badges || [] };
+          }
+        });
+        setMemberInfo(infoMap);
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -408,7 +432,29 @@ export default function Admin() {
   const handleVolunteerStatus = async (id: string, status: string) => {
     await updateVolunteerRequestStatus(id, status);
     fetchVolunteers();
+    if (status === 'accepted') fetchUsers();
   };
+
+  const handleAwardBadge = async (userId: string, code: string) => {
+    const info = memberInfo[userId];
+    const existing = info?.badges || [];
+    if (existing.find((b: Badge) => b.code === code)) return;
+    const updated = [...existing, { code, awarded_at: new Date().toISOString() }];
+    await api.users.update(userId, { badges: JSON.stringify(updated) });
+    setShowBadgeModal(false);
+    fetchVolunteers();
+    fetchUsers();
+  };
+
+  const handleRemoveBadge = async (userId: string, code: string) => {
+    const info = memberInfo[userId];
+    const updated = (info?.badges || []).filter((b: Badge) => b.code !== code);
+    await api.users.update(userId, { badges: JSON.stringify(updated) });
+    fetchVolunteers();
+    fetchUsers();
+  };
+
+  const userBadges = (userId: string) => memberInfo[userId]?.badges || [];
 
   // Datos para Noticias Destacadas
   const highlightedPets = pets.filter(p => p.status === PetStatus.REUNITED);
@@ -754,6 +800,7 @@ export default function Admin() {
                       <th className="px-6 py-4">Nombre</th>
                       <th className="px-6 py-4">Teléfono</th>
                       <th className="px-6 py-4">Rol</th>
+                      <th className="px-6 py-4">Miembro</th>
                       <th className="px-6 py-4">Registro</th>
                       <th className="px-6 py-4 text-right">Acciones</th>
                     </tr>
@@ -774,6 +821,13 @@ export default function Admin() {
                           <td className="px-6 py-4 text-sm text-gray-600">{u.phone || '-'}</td>
                           <td className="px-6 py-4">
                             <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold uppercase", u.role === 'admin' ? "bg-brand-primary/10 text-brand-primary" : "bg-gray-100 text-gray-500")}>{u.role}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            {u.member_number ? (
+                              <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-emerald-100 text-emerald-700">{u.member_number}</span>
+                            ) : (
+                              <span className="text-[10px] text-gray-400">—</span>
+                            )}
                           </td>
                           <td className="px-6 py-4 text-xs text-gray-400">{new Date(u.created_at).toLocaleDateString()}</td>
                           <td className="px-6 py-4 text-right space-x-2">
@@ -806,39 +860,71 @@ export default function Admin() {
           {/* ====== VOLUNTARIOS ====== */}
           {activeTab === 'volunteers' && (
             <div className="grid gap-4">
-              {volunteers.map(vol => (
-                <div key={vol.id} className="bg-white p-6 rounded-3xl border border-brand-accent shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
-                      <span className="text-[10px] px-2 py-0.5 bg-brand-bg border border-brand-accent rounded-full font-bold uppercase text-gray-400">
-                        {vol.status}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                      <div className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {vol.residence_zone}</div>
-                      <div className="flex items-center gap-1"><Phone className="w-4 h-4" /> {vol.whatsapp}</div>
-                      <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(vol.created_at).toLocaleDateString()}</div>
+              {volunteers.map(vol => {
+                const info = vol.user_id ? memberInfo[vol.user_id] : null;
+                const badges = info?.badges || [];
+                return (
+                  <div key={vol.id} className="bg-white p-6 rounded-3xl border border-brand-accent shadow-sm">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                            vol.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                            vol.status === 'reviewed' ? 'bg-amber-100 text-amber-700' :
+                            'bg-gray-100 text-gray-500'
+                          }`}>
+                            {vol.status}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                          <div className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {vol.residence_zone}</div>
+                          <div className="flex items-center gap-1"><Phone className="w-4 h-4" /> {vol.whatsapp}</div>
+                          <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(vol.created_at).toLocaleDateString()}</div>
+                        </div>
+                        {info?.member_number && (
+                          <div className="flex items-center gap-2 text-xs text-brand-primary font-bold mt-1">
+                            <PawPrint className="w-3 h-3" /> {info.member_number}
+                          </div>
+                        )}
+                        {badges.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {badges.map((b: Badge, i: number) => {
+                              const bc = ALL_BADGES.find(a => a.code === b.code);
+                              return bc ? (
+                                <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded-full text-[10px] font-bold">
+                                  {bc.icon} {bc.label}
+                                </span>
+                              ) : null;
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        {vol.status === 'pending' && (
+                          <>
+                            <button onClick={() => handleVolunteerStatus(vol.id, 'reviewed')} className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-sm font-bold hover:bg-amber-100 transition-colors">Revisado</button>
+                            <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
+                          </>
+                        )}
+                        {vol.status === 'accepted' && vol.user_id && (
+                          <button onClick={() => { setBadgeTargetUser(vol.user_id); setShowBadgeModal(true); }} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-sm font-bold flex items-center gap-1 hover:bg-purple-100 transition-colors">
+                            <Award className="w-4 h-4" /> Insignias
+                          </button>
+                        )}
+                        <a
+                          href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
+                        >
+                          Contactar <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    {vol.status === 'pending' && (
-                      <>
-                        <button onClick={() => handleVolunteerStatus(vol.id, 'reviewed')} className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-sm font-bold hover:bg-amber-100 transition-colors">Revisado</button>
-                        <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
-                      </>
-                    )}
-                    <a
-                      href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
-                    >
-                      Contactar <ExternalLink className="w-4 h-4" />
-                    </a>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {volunteers.length === 0 && (
                 <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
                   <p className="text-gray-400 font-medium">Aún no hay solicitudes para sumarse.</p>
@@ -1223,6 +1309,41 @@ export default function Admin() {
                   </form>
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+
+        {showBadgeModal && badgeTargetUser && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowBadgeModal(false)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden">
+              <div className="p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+                <h2 className="text-xl font-serif font-bold text-brand-primary">Gestionar Insignias</h2>
+                <button onClick={() => setShowBadgeModal(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="p-6 space-y-3">
+                {ALL_BADGES.map(b => {
+                  const hasBadge = userBadges(badgeTargetUser).find((x: Badge) => x.code === b.code);
+                  return (
+                    <div key={b.code} className="flex items-center justify-between p-3 bg-brand-bg rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{b.icon}</span>
+                        <span className="text-sm font-bold text-gray-700">{b.label}</span>
+                      </div>
+                      <button
+                        onClick={() => hasBadge ? handleRemoveBadge(badgeTargetUser, b.code) : handleAwardBadge(badgeTargetUser, b.code)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                          hasBadge
+                            ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                            : 'bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20'
+                        }`}
+                      >
+                        {hasBadge ? 'Quitar' : 'Dar'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </motion.div>
           </div>
         )}

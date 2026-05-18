@@ -23,6 +23,8 @@ const NovedadDetail = lazy(() => import('@/src/pages/NovedadDetail'));
 const LostPetGuide = lazy(() => import('@/src/pages/LostPetGuide'));
 const ForgotPassword = lazy(() => import('@/src/pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('@/src/pages/ResetPassword'));
+const VerifyMember = lazy(() => import('@/src/pages/VerifyMember'));
+const MemberCardPage = lazy(() => import('@/src/pages/MemberCardPage'));
 
 function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin?: boolean }) {
   const { user, isAdmin: isUserAdmin, loading } = useAuth();
@@ -64,6 +66,8 @@ export default function App() {
               <Route path="/colaborar" element={<Collaborate />} />
               <Route path="/sumate" element={<Join />} />
               <Route path="/perfil" element={<Profile />} />
+              <Route path="/mi-carnet" element={<ProtectedRoute><MemberCardPage /></ProtectedRoute>} />
+              <Route path="/verificar/:memberNumber" element={<VerifyMember />} />
               <Route path="/mis-publicaciones" element={<MyPets />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/login" element={<Login />} />
