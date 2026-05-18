@@ -33,6 +33,18 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
+router.post('/force-reset', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "UPDATE volunteer_requests SET status = 'pending' WHERE status = 'reviewed' RETURNING id"
+    );
+    res.json({ message: `Converted ${result.rowCount} records to pending` });
+  } catch (err) {
+    console.error('Force reset error:', err);
+    res.status(500).json({ error: 'Failed to force reset status' });
+  }
+});
+
 router.put('/:id', requireAdmin, async (req, res) => {
   const { status } = req.body;
   if (!['pending', 'reviewed', 'accepted', 'suspended'].includes(status)) {

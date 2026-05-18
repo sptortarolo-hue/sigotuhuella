@@ -77,8 +77,6 @@ CREATE TABLE IF NOT EXISTS volunteer_requests (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-UPDATE volunteer_requests SET status = 'pending' WHERE status = 'reviewed';
-
 CREATE TABLE IF NOT EXISTS pet_images (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,

@@ -859,7 +859,28 @@ export default function Admin() {
 
           {/* ====== VOLUNTARIOS ====== */}
           {activeTab === 'volunteers' && (
-            <div className="grid gap-4">
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <button
+                  onClick={async () => {
+                    if (!confirm('¿Convertir todas las solicitudes "Revisado" a "Pendiente"?')) return;
+                    try {
+                      const token = localStorage.getItem('token');
+                      const res = await fetch('/api/volunteers/force-reset', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` },
+                      });
+                      const data = await res.json();
+                      alert(data.message || data.error);
+                      fetchVolunteers();
+                    } catch (e) { alert('Error al limpiar estados'); }
+                  }}
+                  className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-sm font-bold hover:bg-amber-100 transition-colors"
+                >
+                  Limpiar Estados
+                </button>
+              </div>
+              <div className="grid gap-4">
               {volunteers.map(vol => {
                 const info = vol.user_id ? memberInfo[vol.user_id] : null;
                 const badges = info?.badges || [];
@@ -939,6 +960,7 @@ export default function Admin() {
                   <p className="text-gray-400 font-medium">Aún no hay solicitudes para sumarse.</p>
                 </div>
               )}
+            </div>
             </div>
           )}
         </div>
