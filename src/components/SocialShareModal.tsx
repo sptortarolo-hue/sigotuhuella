@@ -361,8 +361,10 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
               <div className="text-center">
                 <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Vista previa del flyer</p>
                 <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden" style={{ width: Math.round(targetWidth * previewScale), height: Math.round(targetHeight * previewScale) }}>
-                  <div ref={flyerRef} style={{ width: targetWidth, height: targetHeight, transform: `scale(${previewScale})`, transformOrigin: 'top left' }}>
-                    {renderFlyerContent()}
+                  <div style={{ width: targetWidth, height: targetHeight, transform: `scale(${previewScale})`, transformOrigin: 'top left' }}>
+                    <div ref={flyerRef} style={{ width: targetWidth, height: targetHeight }}>
+                      {renderFlyerContent()}
+                    </div>
                   </div>
                 </div>
               </div>
