@@ -33,16 +33,6 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
-router.delete('/clean', requireAdmin, async (req, res) => {
-  try {
-    await pool.query('DELETE FROM volunteer_requests');
-    res.json({ message: 'All requests deleted' });
-  } catch (err) {
-    console.error('Clean requests error:', err);
-    res.status(500).json({ error: 'Failed to clean requests' });
-  }
-});
-
 router.put('/:id', requireAdmin, async (req, res) => {
   const { status } = req.body;
   if (!['pending', 'reviewed', 'accepted', 'suspended'].includes(status)) {

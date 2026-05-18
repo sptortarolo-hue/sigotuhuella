@@ -77,6 +77,8 @@ CREATE TABLE IF NOT EXISTS volunteer_requests (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+DELETE FROM volunteer_requests;
+
 CREATE TABLE IF NOT EXISTS pet_images (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
