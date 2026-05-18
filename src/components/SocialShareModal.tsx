@@ -600,7 +600,6 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     if (!mainImage || !platform || !useType) return;
 
     const img = new Image();
-    img.crossOrigin = 'anonymous';
     img.onload = () => {
       imgRef.current = img;
       if (canvasRef.current) drawOnCanvas(canvasRef.current, img);
@@ -629,31 +628,33 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
       if (mainImage && !imgToUse) {
         imgToUse = await new Promise<HTMLImageElement>((resolve, reject) => {
           const img = new Image();
-          img.crossOrigin = 'anonymous';
           img.onload = () => resolve(img);
           img.onerror = reject;
           img.src = mainImage;
         });
       }
 
+      const ctx = offscreen.getContext('2d');
+      if (!ctx) throw new Error('No se pudo obtener el contexto 2D');
+
       drawFlyerNative(
-        offscreen.getContext('2d')!,
+        ctx,
         targetWidth, targetHeight, design, flyerName, petDetails,
         pet.location, pet.contact_info, pet.description, pet.status,
         imgToUse, logoImg, styleIndex
       );
 
-      const dataUrl = offscreen.toDataURL('image/png', 1.0);
+      const blob = await new Promise<Blob | null>(resolve => offscreen.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('No se pudo generar la imagen');
 
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.download = `${pet.name || 'mascota'}-${pet.status}-${platform}-${useType}.png`;
-      link.href = dataUrl;
+      link.href = url;
       link.click();
 
       if (isMobile && navigator.canShare) {
         try {
-          const res = await fetch(dataUrl);
-          const blob = await res.blob();
           const file = new File([blob], link.download, { type: 'image/png' });
           if (navigator.canShare?.({ files: [file] })) {
             await navigator.share({ files: [file], title: `${pet.name || 'Mascota'} - ${design.label}`, text: shareText });
@@ -671,6 +672,8 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
           window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(petUrl)}`, '_blank');
         }
       }
+
+      URL.revokeObjectURL(url);
 
       setGenerated(true);
     } catch (e) {
