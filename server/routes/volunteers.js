@@ -26,6 +26,10 @@ router.post('/', requireAuth, async (req, res) => {
       'INSERT INTO volunteer_requests (full_name, residence_zone, whatsapp, user_id) VALUES ($1, $2, $3, $4) RETURNING *',
       [fullName, residenceZone, whatsapp, req.user.id]
     );
+    await pool.query(
+      "UPDATE users SET volunteer_status = 'pending' WHERE id = $1",
+      [req.user.id]
+    );
     res.status(201).json({ request: result.rows[0] });
   } catch (err) {
     console.error('Create volunteer request error:', err);

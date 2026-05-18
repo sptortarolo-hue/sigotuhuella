@@ -9,10 +9,12 @@ import {
   User as UserIcon, 
   Loader2, 
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import AuthGate from '@/src/components/AuthGate';
+import MemberCardPage from '@/src/pages/MemberCardPage';
 
 export default function Join() {
   const { user, loading: authLoading } = useAuth();
@@ -24,11 +26,6 @@ export default function Join() {
 
   useEffect(() => {
     if (user && !prefilled.current) {
-      // If user is already an active member, redirect to their card
-      if (user.volunteer_status === 'active' && user.member_number) {
-        navigate('/mi-carnet', { replace: true });
-        return;
-      }
       setFormData({
         fullName: user.display_name || '',
         residenceZone: '',
@@ -71,6 +68,45 @@ export default function Join() {
     return (
       <div className="min-h-[60vh] flex items-center justify-center text-brand-primary">
         <Loader2 className="w-10 h-10 animate-spin" />
+      </div>
+    );
+  }
+
+  if (user && user.volunteer_status === 'active' && user.member_number) {
+    return <MemberCardPage />;
+  }
+
+  if (user && user.volunteer_status === 'pending') {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12 md:py-20">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center"
+        >
+          <div className="w-20 h-20 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse animate-duration-1000">
+            <Clock className="w-12 h-12" />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-serif font-bold text-brand-primary mb-4">Solicitud en proceso</h1>
+          <p className="text-gray-600 mb-8 max-w-md mx-auto leading-relaxed">
+            Ya enviaste una solicitud para sumarte a la red de vecinos. Tu postulación está a la espera de la autorización por parte del equipo de coordinación.
+          </p>
+          <div className="p-4 bg-brand-primary/5 rounded-2xl border border-brand-primary/10 text-sm text-brand-primary flex items-start gap-3 mb-8 text-left">
+            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-brand-primary" />
+            <div>
+              <span className="font-bold block mb-0.5">Te notificaremos pronto</span>
+              Una vez aprobada tu solicitud, este panel se convertirá en tu Carnet de Socio Digital donde verás tus insignias, logros e impacto vecinal.
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button 
+              onClick={() => navigate('/')}
+              className="w-full sm:w-auto px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all"
+            >
+              Volver al inicio
+            </button>
+          </div>
+        </motion.div>
       </div>
     );
   }
