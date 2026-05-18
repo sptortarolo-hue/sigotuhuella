@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Pet, getPetImageUrls } from '@/src/lib/petService';
-import { X, MessageCircle, Camera, Download, Sparkles, Loader2, Image as ImageIcon, ArrowLeft, MapPin, Phone } from 'lucide-react';
+import { X, MessageCircle, Camera, Download, Sparkles, Loader2, ImageIcon, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
-import { StaticCanvas, FabricText, FabricImage, Rect, Circle, Gradient } from 'fabric';
 import { removeBackground } from '@imgly/background-removal';
 
 type Platform = 'whatsapp' | 'facebook' | 'instagram' | null;
@@ -52,15 +51,22 @@ interface SocialShareModalProps {
   onClose: () => void;
 }
 
-const statusConfig: Record<string, { label: string; gradient: [string, string]; textColor: string }> = {
-  lost: { label: 'SE PERDIÓ', gradient: ['#dc2626', '#ea580c'], textColor: '#ffffff' },
-  retained: { label: 'RETENIDO', gradient: ['#2563eb', '#06b6d4'], textColor: '#ffffff' },
-  sighted: { label: 'AVISTADO', gradient: ['#d97706', '#f59e0b'], textColor: '#ffffff' },
-  accidented: { label: 'ACCIDENTADO', gradient: ['#7c3aed', '#ec4899'], textColor: '#ffffff' },
-  needs_attention: { label: 'NECESITA ATENCIÓN', gradient: ['#d97706', '#ea580c'], textColor: '#ffffff' },
-  for_adoption: { label: 'EN ADOPCIÓN', gradient: ['#059669', '#0d9488'], textColor: '#ffffff' },
-  adopted: { label: 'ADOPTADO', gradient: ['#16a34a', '#059669'], textColor: '#ffffff' },
-  reunited: { label: 'REENCUENTRO', gradient: ['#16a34a', '#0891b2'], textColor: '#ffffff' },
+interface DesignConfig {
+  label: string;
+  gradient: [string, string];
+  badgeBg: string;
+  category: 'urgent' | 'positive' | 'adoption' | 'info';
+}
+
+const statusDesigns: Record<string, DesignConfig> = {
+  lost: { label: 'SE PERDIÓ', gradient: ['#dc2626', '#ea580c'], badgeBg: 'rgba(220,38,38,0.9)', category: 'urgent' },
+  retained: { label: 'RETENIDO', gradient: ['#2563eb', '#06b6d4'], badgeBg: 'rgba(37,99,235,0.9)', category: 'info' },
+  sighted: { label: 'AVISTADO', gradient: ['#d97706', '#f59e0b'], badgeBg: 'rgba(217,119,6,0.9)', category: 'info' },
+  accidented: { label: 'ACCIDENTADO', gradient: ['#7c3aed', '#ec4899'], badgeBg: 'rgba(124,58,237,0.9)', category: 'urgent' },
+  needs_attention: { label: 'NECESITA ATENCIÓN', gradient: ['#d97706', '#ea580c'], badgeBg: 'rgba(217,119,6,0.9)', category: 'urgent' },
+  for_adoption: { label: 'EN ADOPCIÓN', gradient: ['#7c3aed', '#06b6d4'], badgeBg: 'rgba(124,58,237,0.9)', category: 'adoption' },
+  adopted: { label: '¡ADOPTADO!', gradient: ['#16a34a', '#0891b2'], badgeBg: 'rgba(22,163,74,0.9)', category: 'positive' },
+  reunited: { label: '¡REENCUENTRO!', gradient: ['#16a34a', '#0891b2'], badgeBg: 'rgba(22,163,74,0.9)', category: 'positive' },
 };
 
 const getDimensions = (platform: Platform, useType: UseType) => {
@@ -72,6 +78,264 @@ const getDimensions = (platform: Platform, useType: UseType) => {
   return { width: use.width, height: use.height, aspectRatio: use.aspectRatio };
 };
 
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawFlyerNative(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  design: DesignConfig,
+  name: string,
+  location: string | undefined,
+  contactInfo: string | undefined,
+  description: string | undefined,
+  status: string,
+  img: HTMLImageElement | null
+) {
+  ctx.clearRect(0, 0, w, h);
+
+  // === BACKGROUND GRADIENT ===
+  const bgGrad = ctx.createLinearGradient(0, 0, w * 0.3, h);
+  bgGrad.addColorStop(0, design.gradient[0]);
+  bgGrad.addColorStop(1, design.gradient[1]);
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  // === GEOMETRIC DECORATIONS ===
+  ctx.globalAlpha = 0.06;
+  ctx.fillStyle = '#ffffff';
+
+  // Large circles
+  ctx.beginPath();
+  ctx.arc(w * 0.85, h * 0.12, w * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(w * 0.1, h * 0.88, w * 0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Small accent circles
+  ctx.beginPath();
+  ctx.arc(w * 0.75, h * 0.75, w * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(w * 0.2, h * 0.15, w * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Diagonal lines for urgent category
+  if (design.category === 'urgent') {
+    ctx.globalAlpha = 0.04;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    for (let i = -h; i < w + h; i += 40) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i + h, h);
+      ctx.stroke();
+    }
+  }
+
+  // Dots pattern for adoption category
+  if (design.category === 'adoption') {
+    ctx.globalAlpha = 0.05;
+    ctx.fillStyle = '#ffffff';
+    for (let x = w * 0.6; x < w * 0.95; x += 25) {
+      for (let y = h * 0.5; y < h * 0.85; y += 25) {
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Wave for positive category
+  if (design.category === 'positive') {
+    ctx.globalAlpha = 0.05;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let x = 0; x < w; x += 5) {
+      const y = h * 0.9 + Math.sin(x * 0.02) * 20;
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+
+  // === LAYOUT CALCULATIONS ===
+  const pad = w * 0.06;
+  const isTall = h > w;
+
+  // Photo area
+  const photoRadius = isTall ? w * 0.22 : w * 0.25;
+  const photoCx = w / 2;
+  const photoCy = isTall ? h * 0.28 : h * 0.32;
+
+  // === PET PHOTO (circular with border + shadow) ===
+  if (img) {
+    // Shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = photoRadius * 0.4;
+    ctx.shadowOffsetY = photoRadius * 0.15;
+
+    // Clip circle
+    ctx.beginPath();
+    ctx.arc(photoCx, photoCy, photoRadius, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Draw image centered and cropped
+    const imgAspect = img.naturalWidth / img.naturalHeight;
+    let drawW: number, drawH: number, drawX: number, drawY: number;
+    if (imgAspect > 1) {
+      drawH = photoRadius * 2.2;
+      drawW = drawH * imgAspect;
+    } else {
+      drawW = photoRadius * 2.2;
+      drawH = drawW / imgAspect;
+    }
+    drawX = photoCx - drawW / 2;
+    drawY = photoCy - drawH / 2;
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    ctx.restore();
+
+    // White border
+    ctx.beginPath();
+    ctx.arc(photoCx, photoCy, photoRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(4, w * 0.006);
+    ctx.stroke();
+  } else {
+    // Placeholder
+    ctx.beginPath();
+    ctx.arc(photoCx, photoCy, photoRadius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Paw icon placeholder
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = `${photoRadius * 0.8}px system-ui`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🐾', photoCx, photoCy);
+  }
+
+  // === STATUS BADGE ===
+  const badgeFontSize = w * 0.035;
+  ctx.font = `800 ${badgeFontSize}px system-ui, -apple-system, sans-serif`;
+  const badgeText = design.label;
+  const badgeTextW = ctx.measureText(badgeText).width;
+  const badgePadX = w * 0.04;
+  const badgePadY = w * 0.015;
+  const badgeW = badgeTextW + badgePadX * 2;
+  const badgeH = badgeFontSize + badgePadY * 2;
+  const badgeX = (w - badgeW) / 2;
+  const badgeY = photoCy + photoRadius + w * 0.04;
+
+  // Badge background
+  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH / 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fill();
+
+  // Badge text
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(badgeText, w / 2, badgeY + badgeH / 2);
+
+  // === PET NAME ===
+  const nameY = badgeY + badgeH + w * 0.04;
+  const nameFontSize = w * 0.07;
+  ctx.font = `800 ${nameFontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+
+  // Text shadow for depth
+  ctx.shadowColor = 'rgba(0,0,0,0.2)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 3;
+  ctx.fillText(name, w / 2, nameY);
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  // === INFO SECTION ===
+  let infoY = nameY + nameFontSize * 1.3;
+  const infoFontSize = w * 0.03;
+  ctx.font = `500 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.textAlign = 'center';
+
+  if (location) {
+    ctx.fillText(`📍 ${location}`, w / 2, infoY);
+    infoY += infoFontSize * 1.6;
+  }
+
+  if (contactInfo) {
+    ctx.fillText(`📞 ${contactInfo}`, w / 2, infoY);
+    infoY += infoFontSize * 1.6;
+  }
+
+  // Description for adoption
+  if (description && status === 'for_adoption') {
+    const descFontSize = w * 0.025;
+    ctx.font = `italic 500 ${descFontSize}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    const maxDescW = w * 0.7;
+    const words = description.split(' ');
+    let line = '';
+    let descY = infoY;
+    for (const word of words) {
+      const testLine = line + word + ' ';
+      if (ctx.measureText(testLine).width > maxDescW && line) {
+        ctx.fillText(line.trim(), w / 2, descY);
+        line = word + ' ';
+        descY += descFontSize * 1.4;
+      } else {
+        line = testLine;
+      }
+    }
+    if (line.trim()) {
+      ctx.fillText(line.trim(), w / 2, descY);
+    }
+  }
+
+  // === BRAND BAR (minimalist) ===
+  const brandY = h - h * 0.08;
+
+  // Separator line
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(w * 0.2, brandY);
+  ctx.lineTo(w * 0.8, brandY);
+  ctx.stroke();
+
+  // Brand text
+  const brandFontSize = w * 0.02;
+  ctx.font = `700 ${brandFontSize}px system-ui, -apple-system, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.textAlign = 'center';
+  ctx.fillText('🐾  SIGO TU HUELLA', w / 2, brandY + brandFontSize * 1.5);
+}
+
 export default function SocialShareModal({ pet, onClose }: SocialShareModalProps) {
   const [platform, setPlatform] = useState<Platform>(null);
   const [useType, setUseType] = useState<UseType>(null);
@@ -81,7 +345,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const [bgRemoving, setBgRemoving] = useState(false);
   const [bgRemoved, setBgRemoved] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fabricCanvasRef = useRef<StaticCanvas | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const petUrl = `${origin}/pet/${pet.id}`;
   const images = getPetImageUrls(pet);
@@ -89,11 +353,9 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const isMobile = typeof navigator !== 'undefined' && !!navigator.share;
 
   const { width: targetWidth, height: targetHeight, aspectRatio } = getDimensions(platform, useType);
-  const isTall = aspectRatio === '9:16';
 
-  const sc = statusConfig[pet.status] || statusConfig.lost;
+  const design = statusDesigns[pet.status] || statusDesigns.lost;
   const flyerName = pet.name || 'Sin nombre';
-  const hasImage = !!mainImage;
   const hasContact = !!pet.contact_info;
   const hasDescription = !!pet.description;
   const shareText = petUrl;
@@ -138,206 +400,68 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     };
   }, [processedImage]);
 
-  const drawFlyer = useCallback(async (canvas: StaticCanvas, imageUrl: string | null) => {
-    canvas.clear();
-    canvas.setDimensions({ width: targetWidth, height: targetHeight });
-    canvas.backgroundColor = '#ffffff';
+  // Load image and draw on canvas
+  const drawOnCanvas = useCallback((canvas: HTMLCanvasElement, img: HTMLImageElement | null) => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    drawFlyerNative(ctx, targetWidth, targetHeight, design, flyerName, pet.location, pet.contact_info, pet.description, pet.status, img);
+  }, [targetWidth, targetHeight, design, flyerName, pet.location, pet.contact_info, pet.description, pet.status]);
 
-    // Gradient background using a full-size Rect (more reliable for export)
-    const gradient = new Gradient('linear', {
-      coords: { x1: 0, y1: 0, x2: 0, y2: targetHeight },
-      colorStops: [
-        { offset: 0, color: sc.gradient[0] },
-        { offset: 1, color: sc.gradient[1] },
-      ],
-    });
-    const bgRect = new Rect({
-      left: 0,
-      top: 0,
-      width: targetWidth,
-      height: targetHeight,
-      fill: gradient,
-      selectable: false,
-      evented: false,
-    });
-    canvas.add(bgRect);
+  useEffect(() => {
+    const imageUrl = processedImage || mainImage;
+    if (!imageUrl || !platform || !useType) return;
 
-    const pad = targetWidth * 0.05;
-    const statusFontSize = targetWidth * 0.07;
-    const nameFontSize = targetWidth * 0.05;
-    const infoFontSize = targetWidth * 0.03;
-    const descFontSize = targetWidth * 0.025;
-    const brandFontSize = targetWidth * 0.018;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      imgRef.current = img;
+      if (canvasRef.current) drawOnCanvas(canvasRef.current, img);
+    };
+    img.onerror = () => {
+      imgRef.current = null;
+      if (canvasRef.current) drawOnCanvas(canvasRef.current, null);
+    };
+    img.src = imageUrl;
+  }, [processedImage, mainImage, platform, useType, drawOnCanvas]);
 
-    let currentY = pad;
-
-    // Status text
-    const statusText = new FabricText(sc.label, {
-      left: pad,
-      top: currentY,
-      fontSize: statusFontSize,
-      fontWeight: '900',
-      fill: sc.textColor,
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      textAlign: 'left',
-    });
-    canvas.add(statusText);
-    currentY += statusText.height! + targetHeight * 0.03;
-
-    // Pet image area
-    const imageAreaHeight = targetHeight * (isTall ? 0.45 : 0.40);
-    const imageAreaTop = currentY;
-
-    if (imageUrl) {
-      try {
-        const img = await FabricImage.fromURL(imageUrl, {}, { crossOrigin: 'anonymous' });
-        const maxW = targetWidth - pad * 2;
-        const maxH = imageAreaHeight;
-        const scale = Math.min(maxW / (img.width || 1), maxH / (img.height || 1), 1);
-        img.scale(scale);
-        img.set({
-          left: (targetWidth - img.getScaledWidth()) / 2,
-          top: imageAreaTop,
-        });
-        canvas.add(img);
-      } catch (e) {
-        console.error('Failed to load image:', e);
-      }
-    } else {
-      const placeholder = new Circle({
-        radius: targetWidth * 0.12,
-        left: (targetWidth - targetWidth * 0.24) / 2,
-        top: imageAreaTop + (imageAreaHeight - targetWidth * 0.24) / 2,
-        fill: 'rgba(255,255,255,0.2)',
-      });
-      canvas.add(placeholder);
-    }
-
-    currentY = imageAreaTop + imageAreaHeight + targetHeight * 0.03;
-
-    // Pet name
-    const nameText = new FabricText(flyerName, {
-      left: pad,
-      top: currentY,
-      fontSize: nameFontSize,
-      fontWeight: '800',
-      fill: '#ffffff',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-    });
-    canvas.add(nameText);
-    currentY += nameText.height! + targetHeight * 0.02;
-
-    // Location
-    const locationText = new FabricText(`📍 ${pet.location || 'Sin ubicación'}`, {
-      left: pad,
-      top: currentY,
-      fontSize: infoFontSize,
-      fontWeight: '600',
-      fill: '#ffffff',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-    });
-    canvas.add(locationText);
-    currentY += locationText.height! + targetHeight * 0.01;
-
-    // Contact
-    if (hasContact) {
-      const contactText = new FabricText(`📞 ${pet.contact_info}`, {
-        left: pad,
-        top: currentY,
-        fontSize: infoFontSize,
-        fontWeight: '600',
-        fill: '#ffffff',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-      });
-      canvas.add(contactText);
-      currentY += contactText.height! + targetHeight * 0.01;
-    }
-
-    // Description (for adoption)
-    if (hasDescription && pet.status === 'for_adoption') {
-      const descText = new FabricText(`"${pet.description}"`, {
-        left: pad,
-        top: currentY,
-        fontSize: descFontSize,
-        fontStyle: 'italic',
-        fill: 'rgba(255,255,255,0.85)',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-      });
-      canvas.add(descText);
-      currentY += descText.height! + targetHeight * 0.02;
-    }
-
-    // Brand bar at bottom
-    const brandBarHeight = targetHeight * 0.08;
-    const brandBarTop = targetHeight - brandBarHeight;
-
-    const brandBar = new Rect({
-      left: 0,
-      top: brandBarTop,
-      width: targetWidth,
-      height: brandBarHeight,
-      fill: 'rgba(0,0,0,0.3)',
-    });
-    canvas.add(brandBar);
-
-    // Brand text
-    const brandText = new FabricText('SIGO TU HUELLA', {
-      left: targetWidth / 2,
-      top: brandBarTop + brandBarHeight / 2,
-      fontSize: brandFontSize,
-      fontWeight: '900',
-      fill: '#ffffff',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      textAlign: 'center',
-      originX: 'center',
-      originY: 'center',
-      charSpacing: 200,
-    });
-    canvas.add(brandText);
-
-    // In Fabric.js v6, renderAll schedules paint via rAF — must wait for actual paint
-    canvas.renderAll();
-    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-  }, [targetWidth, targetHeight, isTall, sc, flyerName, pet.location, pet.contact_info, pet.description, pet.status, hasContact, hasDescription]);
-
-  // Initialize and render canvas
+  // Initial draw without image
   useEffect(() => {
     if (!platform || !useType || !canvasRef.current) return;
-
-    if (fabricCanvasRef.current) {
-      fabricCanvasRef.current.dispose();
-    }
-
-    const canvas = new StaticCanvas(canvasRef.current, {
-      width: targetWidth,
-      height: targetHeight,
-      backgroundColor: '#ffffff',
-    });
-    fabricCanvasRef.current = canvas;
-
-    const imageToUse = processedImage || mainImage;
-    drawFlyer(canvas, imageToUse);
-
-    return () => {
-      canvas.dispose();
-    };
-  }, [platform, useType, processedImage, mainImage, drawFlyer, targetWidth, targetHeight]);
+    drawOnCanvas(canvasRef.current, imgRef.current);
+  }, [platform, useType, drawOnCanvas]);
 
   const handleGenerate = async () => {
-    if (!fabricCanvasRef.current) return;
+    if (!canvasRef.current) return;
     setGenerating(true);
     try {
-      const imageToUse = processedImage || mainImage;
-      await drawFlyer(fabricCanvasRef.current, imageToUse);
+      const imageUrl = processedImage || mainImage;
 
-      // Extra frame delay to ensure canvas pixels are fully painted before export
-      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      // Create offscreen canvas for export
+      const offscreen = document.createElement('canvas');
+      offscreen.width = targetWidth;
+      offscreen.height = targetHeight;
 
-      const dataUrl = fabricCanvasRef.current.toDataURL({
-        format: 'png',
-        quality: 1,
-        multiplier: 1,
-      });
+      let imgToUse: HTMLImageElement | null = imgRef.current;
+      if (imageUrl && !imgToUse) {
+        imgToUse = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = imageUrl;
+        });
+      }
+
+      drawFlyerNative(
+        offscreen.getContext('2d')!,
+        targetWidth, targetHeight, design, flyerName,
+        pet.location, pet.contact_info, pet.description, pet.status,
+        imgToUse
+      );
+
+      const dataUrl = offscreen.toDataURL('image/png', 1.0);
 
       const link = document.createElement('a');
       link.download = `${pet.name || 'mascota'}-${pet.status}-${platform}-${useType}.png`;
@@ -350,7 +474,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
           const blob = await res.blob();
           const file = new File([blob], link.download, { type: 'image/png' });
           if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ files: [file], title: `${pet.name || 'Mascota'} - ${sc.label}`, text: shareText });
+            await navigator.share({ files: [file], title: `${pet.name || 'Mascota'} - ${design.label}`, text: shareText });
           }
         } catch (shareErr) {
           if ((shareErr as any)?.name === 'AbortError') return;
