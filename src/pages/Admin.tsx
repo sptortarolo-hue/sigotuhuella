@@ -576,14 +576,44 @@ export default function Admin() {
                       onEdit={editPet}
                       onDelete={async (id) => { if (confirm('Eliminar?')) { await deletePet(id); fetchPets(); } }}
                     />
-                    {/* Botón Hubo Reencuentro */}
-                    <button
-                      onClick={() => handleReencuentro(pet.id)}
-                      className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"
-                    >
-                      <HeartHandshake className="w-4 h-4" />
-                      Hubo reencuentro
-                    </button>
+                    {/* Botón Acción de Estado */}
+                    {pet.status === PetStatus.FOR_ADOPTION ? (
+                      <button
+                        onClick={async () => {
+                          if (confirm('¿Marcar esta mascota como adoptada?')) {
+                            try {
+                              await updatePet(pet.id, { status: PetStatus.ADOPTED });
+                              fetchPets();
+                            } catch (e) {
+                              console.error(e);
+                              alert('Error al actualizar el estado.');
+                            }
+                          }
+                        }}
+                        className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"
+                      >
+                        <Heart className="w-4 h-4" />
+                        Marcar como Adoptado
+                      </button>
+                    ) : pet.status === PetStatus.ADOPTED ? (
+                      <div className="mt-3 w-full py-2.5 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border border-gray-200">
+                        <Heart className="w-4 h-4 text-emerald-500" />
+                        Adoptado
+                      </div>
+                    ) : pet.status === PetStatus.REUNITED ? (
+                      <div className="mt-3 w-full py-2.5 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border border-gray-200">
+                        <HeartHandshake className="w-4 h-4 text-emerald-500" />
+                        Reencontrado
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleReencuentro(pet.id)}
+                        className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"
+                      >
+                        <HeartHandshake className="w-4 h-4" />
+                        Hubo reencuentro
+                      </button>
+                    )}
                     {/* Botón Redes Sociales */}
                     <button
                       onClick={() => setSharePet(pet)}
