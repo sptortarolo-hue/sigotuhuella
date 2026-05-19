@@ -278,7 +278,14 @@ export default function MemberCard({
     const badgeGap = 12;
     const badgesLeft = PAD + 24;
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    // Dark strip behind badges for contrast
+    const badgeCount = Math.min(badges.length, 8);
+    const stripW = badgeCount > 0 ? badgeCount * (badgeSize + badgeGap) - badgeGap + 10 : 200;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    roundRect(ctx, badgesLeft - 4, badgeAreaY - 4, stripW + 8, badgeSize + 28, 10);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
     ctx.font = 'bold 9px sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillText('INSIGNIAS LOGRADAS', badgesLeft, badgeAreaY);
@@ -289,14 +296,14 @@ export default function MemberCard({
       const bx = badgesLeft + i * (badgeSize + badgeGap);
       const by = badgeAreaY + 16;
 
-      // Draw glass coin
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-      roundRect(ctx, bx, by, badgeSize, badgeSize, 21); // Circular coin
+      // Draw glass coin (more opaque)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      roundRect(ctx, bx, by, badgeSize, badgeSize, 21);
       ctx.fill();
       
-      // Coin border glowing in badge-specific color
-      ctx.strokeStyle = config?.color || 'rgba(255, 255, 255, 0.2)';
-      ctx.lineWidth = 2;
+      // Coin border in badge-specific color
+      ctx.strokeStyle = config?.color || '#6B7280';
+      ctx.lineWidth = 2.5;
       ctx.stroke();
 
       // Emoji/icon inside coin
@@ -304,8 +311,8 @@ export default function MemberCard({
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(config?.icon || '⭐', bx + badgeSize / 2, by + badgeSize / 2);
 
-      // Label under coin (first word)
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      // Label under coin
+      ctx.fillStyle = 'white';
       ctx.font = 'bold 8px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       const cleanLabel = (config?.label || badge.code).split(' ')[0];
