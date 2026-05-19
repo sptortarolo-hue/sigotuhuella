@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import QRCode from 'qrcode';
 import { Badge } from '@/src/hooks/AuthProvider';
 
@@ -359,10 +359,33 @@ export default function MemberCard({
 
   useEffect(() => { drawCard(); }, [drawCard]);
 
-  const handleDownload = () => {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    canvas.toBlob((blob) => { if (blob) onDownload?.(blob); }, 'image/png');
+    setDownloading(true);
+    // Asegurar que el canvas está renderizado esperando un frame
+    await new Promise(requestAnimationFrame);
+    try {
+      await drawCard(); // Redibujar antes de descargar para asegurar estado fresco
+      await new Promise(r => setTimeout(r, 50));
+      canvas.toBlob((blob) => {
+        if (blob) {
+          onDownload?.(blob);
+        } else {
+          // Fallback: intentar con toDataURL
+          const dataUrl = canvas.toDataURL('image/png');
+          fetch(dataUrl).then(r => r.blob()).then(blob2 => {
+            if (blob2.size > 0) onDownload?.(blob2);
+          });
+        }
+        setDownloading(false);
+      }, 'image/png');
+    } catch {
+      console.error('Error al descargar carnet');
+      setDownloading(false);
+    }
   };
 
   return (
@@ -384,9 +407,10 @@ export default function MemberCard({
       </div>
       <button
         onClick={handleDownload}
-        className="w-full sm:w-auto px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300"
+        disabled={downloading}
+        className="w-full sm:w-auto px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Descargar Carnet (PNG)
+        {downloading ? 'Generando...' : 'Descargar Carnet (PNG)'}
       </button>
     </div>
   );

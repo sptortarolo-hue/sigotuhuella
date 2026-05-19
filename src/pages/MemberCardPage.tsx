@@ -31,7 +31,13 @@ export default function MemberCardPage() {
         user ? api.users.stats(user.id) : Promise.reject(),
       ]);
       if (memberRes.status === 'fulfilled') setMemberData(memberRes.value.user);
-      if (statsRes.status === 'fulfilled') setStatsData(statsRes.value);
+      if (statsRes.status === 'fulfilled') {
+        setStatsData(statsRes.value);
+        // Merge auto badges from stats into memberData if they were updated
+        if (statsRes.value.badges && memberRes.status === 'fulfilled') {
+          setMemberData(prev => prev ? { ...prev, badges: statsRes.value.badges } : prev);
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Error al obtener datos');
     } finally {
@@ -197,24 +203,31 @@ const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<{
       )}
 
       {/* Badges */}
-      {isMember && !isSuspended && memberData?.badges?.length > 0 && (
+      {isMember && !isSuspended && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
           <h2 className="text-xl font-serif font-bold text-brand-primary mb-6">Mis Insignias</h2>
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-            {(memberData.badges as { code: string; awarded_at: string }[]).map(badge => {
-              const cfg = BADGE_CONFIG[badge.code];
-              return (
-                <div key={badge.code} className="flex flex-col items-center gap-2 p-3 rounded-2xl" style={{ backgroundColor: `${cfg?.color || '#6B7280'}18` }}>
-                  <span className="text-3xl">{cfg?.icon || '⭐'}</span>
-                  <span className="text-xs font-bold text-center text-gray-700 leading-tight">{cfg?.label || badge.code}</span>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${cfg?.auto ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {cfg?.auto ? 'Automática' : 'Manual'}
-                  </span>
-                  <span className="text-[9px] text-gray-400">{new Date(badge.awarded_at).toLocaleDateString()}</span>
-                </div>
-              );
-            })}
-          </div>
+          {Array.isArray(memberData?.badges) && memberData.badges.length > 0 ? (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              {(memberData.badges as { code: string; awarded_at: string }[]).map(badge => {
+                const cfg = BADGE_CONFIG[badge.code];
+                return (
+                  <div key={badge.code} className="flex flex-col items-center gap-2 p-3 rounded-2xl" style={{ backgroundColor: `${cfg?.color || '#6B7280'}18` }}>
+                    <span className="text-3xl">{cfg?.icon || '⭐'}</span>
+                    <span className="text-xs font-bold text-center text-gray-700 leading-tight">{cfg?.label || badge.code}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${cfg?.auto ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {cfg?.auto ? 'Automática' : 'Manual'}
+                    </span>
+                    <span className="text-[9px] text-gray-400">{new Date(badge.awarded_at).toLocaleDateString()}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-10 bg-brand-bg rounded-2xl border-2 border-dashed border-brand-accent">
+              <p className="text-gray-400 font-medium mb-1">Aún no tenés insignias</p>
+              <p className="text-xs text-gray-400">Reportá mascotas y ayudá en reencuentros para ganar tus primeras insignias</p>
+            </div>
+          )}
         </motion.div>
       )}
 

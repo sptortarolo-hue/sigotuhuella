@@ -200,6 +200,33 @@ router.get('/:id/stats', requireAuth, async (req, res) => {
     ];
     const next = nextThresholds.find(t => t.order > levelOrder) || null;
 
+    // ── Auto badge awarding ───────────────────────────────────────────────
+    const autoRules = [
+      { code: 'first_report',     condition: total >= 1    },
+      { code: 'reporter_5',       condition: total >= 5    },
+      { code: 'reporter_15',      condition: total >= 15   },
+      { code: 'reunited_hero',    condition: reunited >= 1 },
+      { code: 'reunited_legend',  condition: reunited >= 10},
+    ];
+
+    const userRes = await pool.query('SELECT badges FROM users WHERE id = $1', [req.params.id]);
+    let currentBadges = (userRes.rows[0]?.badges || []).filter(Boolean);
+    let badgesChanged = false;
+
+    for (const rule of autoRules) {
+      if (rule.condition && !currentBadges.some((b) => b.code === rule.code)) {
+        currentBadges.push({ code: rule.code, awarded_at: new Date().toISOString() });
+        badgesChanged = true;
+      }
+    }
+
+    if (badgesChanged) {
+      await pool.query(
+        'UPDATE users SET badges = $1::jsonb WHERE id = $2',
+        [JSON.stringify(currentBadges), req.params.id]
+      );
+    }
+
     res.json({
       stats: {
         total_reports: total,
@@ -210,6 +237,7 @@ router.get('/:id/stats', requireAuth, async (req, res) => {
       },
       level: { name: level, code: levelCode, order: levelOrder },
       nextLevel: next,
+      badges: currentBadges,
     });
   } catch (err) {
     console.error('Get user stats error:', err);
