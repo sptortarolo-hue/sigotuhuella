@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { generateToken, hashPassword, comparePassword, requireAuth, sendPasswordResetEmail, generateResetToken } from '../auth.js';
+import { generateToken, hashPassword, comparePassword, requireAuth, sendPasswordResetEmail, generateResetToken, sendWelcomeEmail } from '../auth.js';
 
 const router = Router();
 
@@ -25,6 +25,7 @@ router.post('/register', async (req, res) => {
     );
     const user = result.rows[0];
     const token = generateToken(user);
+    sendWelcomeEmail(user.email, user.display_name).catch(err => console.error('Failed to send welcome email:', err));
     res.status(201).json({ token, user: { ...user, badges: user.badges || [] } });
   } catch (err) {
     console.error('Register error:', err);

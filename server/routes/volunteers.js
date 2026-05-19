@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth, requireAdmin } from '../auth.js';
+import { requireAuth, requireAdmin, sendMemberApprovalEmail } from '../auth.js';
 
 const router = Router();
 
@@ -65,17 +65,21 @@ router.put('/:id', requireAdmin, async (req, res) => {
     const volunteer = requestResult.rows[0];
 
     if (status === 'accepted') {
+      let finalMemberNumber = '';
       if (volunteer.status === 'suspended') {
         await pool.query(
           "UPDATE users SET volunteer_status = 'active' WHERE id = $1",
           [volunteer.user_id]
         );
+        const userRes = await pool.query('SELECT member_number FROM users WHERE id = $1', [volunteer.user_id]);
+        finalMemberNumber = userRes.rows[0]?.member_number || '';
       } else {
         const counterResult = await pool.query(
           "SELECT MAX(CAST(SUBSTRING(member_number FROM 5) AS INTEGER)) as max_num FROM users WHERE member_number LIKE 'STH-%'"
         );
         const nextNum = (parseInt(counterResult.rows[0].max_num) || 0) + 1;
         const memberNumber = 'STH-' + String(nextNum).padStart(5, '0');
+        finalMemberNumber = memberNumber;
         const volunteerBadge = JSON.stringify([{ code: 'volunteer', awarded_at: new Date().toISOString() }]);
 
         await pool.query(
@@ -90,6 +94,14 @@ router.put('/:id', requireAdmin, async (req, res) => {
           WHERE id = $3`,
           [memberNumber, volunteerBadge, volunteer.user_id]
         );
+      }
+
+      // Fetch user email and display name to send approval email
+      const userRes = await pool.query('SELECT email, display_name, member_number FROM users WHERE id = $1', [volunteer.user_id]);
+      if (userRes.rows.length > 0) {
+        const dbUser = userRes.rows[0];
+        sendMemberApprovalEmail(dbUser.email, dbUser.display_name, dbUser.member_number || finalMemberNumber)
+          .catch(err => console.error('Failed to send member approval email:', err));
       }
 
       const result = await pool.query(
