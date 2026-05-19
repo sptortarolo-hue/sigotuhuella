@@ -144,10 +144,17 @@ export default function MemberCard({
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // ── 5. Left Column Info (Avatar, Name, Level) ──────────────────────────────
+    // ── 5. Dark contrast panel behind left content ──────────────────────────────
     const avatarSize = 90;
     const avatarX = PAD + 24;
     const avatarY = PAD + 24;
+    const leftPanelX = PAD + 16;
+    const leftPanelY = PAD + 16;
+    const leftPanelW = CARD_W - PAD * 2 - 32 - 150;
+    const leftPanelH = stats ? 290 : 210;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    roundRect(ctx, leftPanelX, leftPanelY, leftPanelW, leftPanelH, 18);
+    ctx.fill();
 
     // Draw avatar image or fallback icon
     if (avatarType === 'photo' && avatarData && avatarMime) {
@@ -223,13 +230,14 @@ export default function MemberCard({
     const textWidth = ctx.measureText(levelText).width;
     const pillW = textWidth + 18;
     const pillH = 20;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
     roundRect(ctx, nameX, avatarY + 65, pillW, pillH, 10);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.strokeStyle = lvl.gradient[0];
+    ctx.lineWidth = 1.5;
     ctx.stroke();
     
-    ctx.fillStyle = 'white';
+    ctx.fillStyle = lvl.gradient[0];
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(levelText, nameX + 9, avatarY + 65 + pillH / 2);
 
@@ -253,20 +261,21 @@ export default function MemberCard({
       statItems.forEach((stat, i) => {
         const sx = PAD + 24 + i * statW;
         // Frosted card
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
         roundRect(ctx, sx, statsY, statW - 8, 54, 12);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+        ctx.lineWidth = 1;
         ctx.stroke();
 
         // Stat value with emoji
-        ctx.fillStyle = 'white';
+        ctx.fillStyle = '#1F2937';
         ctx.font = 'bold 15px sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(`${stat.emoji} ${stat.value}`, sx + (statW - 8) / 2, statsY + 18);
 
         // Stat Label
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.fillStyle = '#6B7280';
         ctx.font = 'bold 8px sans-serif';
         ctx.fillText(stat.label, sx + (statW - 8) / 2, statsY + 38);
       });
