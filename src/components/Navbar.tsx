@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles } from 'lucide-react';
+import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -141,6 +141,11 @@ export default function Navbar() {
                           <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
                             <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
                           </button>
+                          {isMember && (
+                            <button onClick={() => handleNavClick('/mi-carnet')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                              <CreditCard className="w-4 h-4 text-brand-primary" /> Mi Carnet
+                            </button>
+                          )}
                           <button onClick={() => handleNavClick('/perfil')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
                             <Settings className="w-4 h-4 text-brand-primary" /> Editar Perfil
                           </button>
@@ -221,6 +226,11 @@ export default function Navbar() {
                 <Link to="/mis-publicaciones" onClick={() => handleNavClick('/mis-publicaciones')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
                   <LayoutList className="w-5 h-5 shrink-0" /> Mis Publicaciones
                 </Link>
+                {isMember && (
+                  <Link to="/mi-carnet" onClick={() => handleNavClick('/mi-carnet')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
+                    <CreditCard className="w-5 h-5 shrink-0" /> Mi Carnet
+                  </Link>
+                )}
                 <Link to="/perfil" onClick={() => handleNavClick('/perfil')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
                   <Settings className="w-5 h-5 shrink-0" /> Editar Perfil
                 </Link>
