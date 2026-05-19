@@ -193,6 +193,23 @@ export default function Navbar() {
             {user ? (
               <div className="border-t border-brand-accent pt-3 mt-2">
                 <p className="text-xs text-gray-400 px-2 mb-2 font-bold uppercase tracking-widest">Mi Cuenta</p>
+                <div className="flex items-center gap-3 px-2 mb-3 pb-3 border-b border-brand-accent">
+                  {user.avatar_type === 'photo' && user.avatar_data ? (
+                    <img
+                      src={`data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`}
+                      alt="Avatar"
+                      className="w-10 h-10 rounded-full object-cover shrink-0 border-2 border-brand-accent"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center shrink-0 border-2 border-brand-accent">
+                      <User className="w-5 h-5 text-brand-primary" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-brand-primary truncate">{user.display_name || user.email}</p>
+                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                  </div>
+                </div>
                 {isAdmin && (
                   <Link to="/admin" onClick={() => handleNavClick('/admin')} className="flex items-center gap-3 text-base font-bold p-3 rounded-lg text-brand-primary bg-brand-primary/5 hover:bg-brand-primary/10 mb-2">
                     <Settings className="w-5 h-5 shrink-0" /> Panel Admin

@@ -296,7 +296,7 @@ export default function Admin() {
         const infoMap: Record<string, any> = {};
         (usersData.users || []).forEach((u: any) => {
           if (userIds.includes(u.id)) {
-            infoMap[u.id] = { member_number: u.member_number, volunteer_status: u.volunteer_status, badges: u.badges || [] };
+            infoMap[u.id] = { member_number: u.member_number, volunteer_status: u.volunteer_status, badges: u.badges || [], avatar_data: u.avatar_data, avatar_mime_type: u.avatar_mime_type, avatar_type: u.avatar_type };
           }
         });
         setMemberInfo(infoMap);
@@ -911,11 +911,22 @@ export default function Admin() {
                            <div key={vol.id} className="bg-white p-6 rounded-3xl border border-brand-accent shadow-sm">
                              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                <div className="space-y-1">
-                                 <div className="flex items-center gap-2">
-                                   <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
-                                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-gray-100 text-gray-500`}>
-                                     {vol.status === 'pending' ? 'Pendiente' : vol.status}
-                                   </span>
+                                <div className="flex items-center gap-2">
+                                    {info?.avatar_type === 'photo' && info?.avatar_data ? (
+                                      <img
+                                        src={`data:${info.avatar_mime_type || 'image/jpeg'};base64,${info.avatar_data}`}
+                                        alt="Avatar"
+                                        className="w-10 h-10 rounded-full object-cover shrink-0 border-2 border-brand-accent"
+                                      />
+                                    ) : (
+                                      <div className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center shrink-0 border-2 border-brand-accent">
+                                        <User className="w-5 h-5 text-brand-primary" />
+                                      </div>
+                                    )}
+                                    <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-gray-100 text-gray-500`}>
+                                      {vol.status === 'pending' ? 'Pendiente' : vol.status}
+                                    </span>
                                  </div>
                                  <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                                    <div className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {vol.residence_zone}</div>
@@ -977,14 +988,25 @@ export default function Admin() {
                            <div key={vol.id} className="bg-white p-6 rounded-3xl border border-brand-accent shadow-sm">
                              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                <div className="space-y-1">
-                                 <div className="flex items-center gap-2">
-                                   <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
-                                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                                     vol.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                                     vol.status === 'suspended' ? 'bg-red-100 text-red-600' :
-                                     'bg-gray-100 text-gray-500'
-                                   }`}>
-                                     {vol.status === 'suspended' ? 'Suspendido' : vol.status}
+                                <div className="flex items-center gap-2">
+                                    {info?.avatar_type === 'photo' && info?.avatar_data ? (
+                                      <img
+                                        src={`data:${info.avatar_mime_type || 'image/jpeg'};base64,${info.avatar_data}`}
+                                        alt="Avatar"
+                                        className="w-10 h-10 rounded-full object-cover shrink-0 border-2 border-brand-accent"
+                                      />
+                                    ) : (
+                                      <div className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center shrink-0 border-2 border-brand-accent">
+                                        <User className="w-5 h-5 text-brand-primary" />
+                                      </div>
+                                    )}
+                                    <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                      vol.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                      vol.status === 'suspended' ? 'bg-red-100 text-red-600' :
+                                      'bg-gray-100 text-gray-500'
+                                    }`}>
+                                      {vol.status === 'suspended' ? 'Suspendido' : vol.status}
                                    </span>
                                  </div>
                                  <div className="flex flex-wrap gap-4 text-sm text-gray-500">
