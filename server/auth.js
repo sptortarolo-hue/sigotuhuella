@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
 import { v4 as uuidv4 } from 'uuid';
+import pool from './db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 
@@ -209,3 +210,39 @@ export async function sendMemberApprovalEmail(email, displayName, memberNumber) 
     console.error('Member approval email error:', err);
   }
 }
+
+export async function sendAdminNotificationEmail(subject, htmlContent) {
+  try {
+    const adminsRes = await pool.query("SELECT email FROM users WHERE role = 'admin'");
+    const adminEmails = adminsRes.rows.map(row => row.email).filter(Boolean);
+    
+    if (adminEmails.length === 0) {
+      console.log('No administrators found to notify.');
+      return;
+    }
+    
+    await transporter.sendMail({
+      from: `"Sigo Tu Huella (Alertas)" <${process.env.SMTP_USER}>`,
+      to: adminEmails.join(','),
+      subject: subject,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #cbd5e1; border-radius: 16px; background-color: #f8fafc;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <div style="background-color: #3b82f6; color: white; width: 60px; height: 60px; line-height: 60px; font-size: 30px; border-radius: 20px; display: inline-block; text-align: center; margin: 0 auto;">🔔</div>
+          </div>
+          <h2 style="color: #1e293b; text-align: center; font-size: 22px; margin-bottom: 20px;">Notificación para Administradores</h2>
+          <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; color: #334155; font-size: 15px; line-height: 1.6;">
+            ${htmlContent}
+          </div>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 25px 0;">
+          <p style="color: #94a3b8; font-size: 11px; text-align: center;">
+            Este es un aviso interno automático enviado a los administradores de Sigo Tu Huella.
+          </p>
+        </div>
+      `,
+    });
+  } catch (err) {
+    console.error('Failed to send admin notification email:', err);
+  }
+}
+

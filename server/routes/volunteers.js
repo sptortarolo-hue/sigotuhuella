@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth, requireAdmin, sendMemberApprovalEmail } from '../auth.js';
+import { requireAuth, requireAdmin, sendMemberApprovalEmail, sendAdminNotificationEmail } from '../auth.js';
 
 const router = Router();
 
@@ -30,6 +30,44 @@ router.post('/', requireAuth, async (req, res) => {
       "UPDATE users SET volunteer_status = 'pending' WHERE id = $1",
       [req.user.id]
     );
+
+    // Notify administrators of the new volunteer request
+    const adminSubject = `📢 Nueva Solicitud de Socio: ${fullName}`;
+    const adminHtml = `
+      <p>Se ha recibido una nueva solicitud para convertirse en Socio / Voluntario:</p>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; width: 120px; color: #475569;">Nombre:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;">${fullName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #475569;">Zona:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;">${residenceZone}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #475569;">WhatsApp:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;">${whatsapp}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #475569;">Usuario:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;">${req.user.email}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #475569;">Fecha:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;">${new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}</td>
+        </tr>
+      </table>
+      <div style="text-align: center; margin-top: 25px;">
+        <a href="https://sigotuhuella.online/admin" 
+           style="background-color: #3b82f6; color: white; padding: 12px 24px; 
+                  text-decoration: none; border-radius: 10px; font-weight: bold; 
+                  display: inline-block;">
+          Ver Solicitudes en el Panel
+        </a>
+      </div>
+    `;
+    sendAdminNotificationEmail(adminSubject, adminHtml).catch(err => console.error('Failed to send admin volunteer notification:', err));
+
     res.status(201).json({ request: result.rows[0] });
   } catch (err) {
     console.error('Create volunteer request error:', err);

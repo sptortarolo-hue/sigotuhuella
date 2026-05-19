@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { generateToken, hashPassword, comparePassword, requireAuth, sendPasswordResetEmail, generateResetToken, sendWelcomeEmail } from '../auth.js';
+import { generateToken, hashPassword, comparePassword, requireAuth, sendPasswordResetEmail, generateResetToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
 
 const router = Router();
 
@@ -26,6 +26,32 @@ router.post('/register', async (req, res) => {
     const user = result.rows[0];
     const token = generateToken(user);
     sendWelcomeEmail(user.email, user.display_name).catch(err => console.error('Failed to send welcome email:', err));
+    
+    // Notify administrators of the new registration
+    const adminSubject = `🔔 Nuevo Usuario Registrado: ${user.display_name}`;
+    const adminHtml = `
+      <p>Se ha registrado un nuevo usuario en la plataforma:</p>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; width: 120px; color: #475569;">Nombre:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;">${user.display_name}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #475569;">Email:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;">${user.email}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #475569;">Teléfono:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;">${user.phone || 'No especificado'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #475569;">Fecha:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;">${new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}</td>
+        </tr>
+      </table>
+    `;
+    sendAdminNotificationEmail(adminSubject, adminHtml).catch(err => console.error('Failed to send admin signup notification:', err));
+
     res.status(201).json({ token, user: { ...user, badges: user.badges || [] } });
   } catch (err) {
     console.error('Register error:', err);
