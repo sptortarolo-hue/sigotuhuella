@@ -134,14 +134,21 @@ router.put('/:id/avatar', requireAuth, async (req, res) => {
   if (!imageData || !mimeType) {
     return res.status(400).json({ error: 'Image data and mime type are required' });
   }
+  let avatarData = imageData;
+  let avatarMime = mimeType;
   try {
     const buffer = Buffer.from(imageData, 'base64');
     const resized = await sharp(buffer)
       .resize(200, 200, { fit: 'cover', position: 'center' })
       .jpeg({ quality: 85 })
       .toBuffer();
-    const avatarData = resized.toString('base64');
-    const avatarMime = 'image/jpeg';
+    avatarData = resized.toString('base64');
+    avatarMime = 'image/jpeg';
+  } catch (sharpErr) {
+    console.warn('Sharp resizing failed, using raw base64:', sharpErr.message);
+  }
+
+  try {
     const result = await pool.query(
       `UPDATE users SET avatar_data = $1, avatar_mime_type = $2, avatar_type = 'photo' WHERE id = $3
        RETURNING id, avatar_data, avatar_mime_type, avatar_type`,
@@ -152,7 +159,7 @@ router.put('/:id/avatar', requireAuth, async (req, res) => {
     }
     res.json({ avatar: result.rows[0] });
   } catch (err) {
-    console.error('Avatar upload error:', err);
+    console.error('Avatar upload database error:', err);
     res.status(500).json({ error: 'Failed to upload avatar' });
   }
 });

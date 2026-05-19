@@ -39,17 +39,44 @@ export default function MemberCardPage() {
     }
   };
 
+const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<{ base64: string, mimeType: string }> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      const canvas = document.createElement('canvas');
+      const width = img.width;
+      const height = img.height;
+      const size = Math.min(width, height);
+      canvas.width = maxWidth;
+      canvas.height = maxHeight;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas context error'));
+        return;
+      }
+      const sx = (width - size) / 2;
+      const sy = (height - size) / 2;
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, maxWidth, maxHeight);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      resolve({
+        base64: dataUrl.split(',')[1],
+        mimeType: 'image/jpeg'
+      });
+    };
+    img.onerror = (err) => reject(err);
+  });
+};
+
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setAvatarLoading(true); setMsg(''); setError('');
     try {
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.readAsDataURL(file);
-      });
-      await api.users.uploadAvatar(user!.id, { imageData: base64, mimeType: file.type });
+      const resized = await resizeImage(file, 200, 200);
+      await api.users.uploadAvatar(user!.id, { imageData: resized.base64, mimeType: resized.mimeType });
       setMsg('Foto de perfil actualizada');
       fetchAll();
     } catch (err: any) { setError(err.message || 'Error al subir foto'); }

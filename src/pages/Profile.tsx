@@ -58,6 +58,37 @@ export default function Profile() {
     }
   }, [user]);
 
+const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<{ base64: string, mimeType: string }> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      const canvas = document.createElement('canvas');
+      const width = img.width;
+      const height = img.height;
+      const size = Math.min(width, height);
+      canvas.width = maxWidth;
+      canvas.height = maxHeight;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas context error'));
+        return;
+      }
+      const sx = (width - size) / 2;
+      const sy = (height - size) / 2;
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, maxWidth, maxHeight);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      resolve({
+        base64: dataUrl.split(',')[1],
+        mimeType: 'image/jpeg'
+      });
+    };
+    img.onerror = (err) => reject(err);
+  });
+};
+
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -65,15 +96,8 @@ export default function Profile() {
     setProfileMsg('');
     setProfileError('');
     try {
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]);
-        };
-        reader.readAsDataURL(file);
-      });
-      const data = await api.users.uploadAvatar(user.id, { imageData: base64, mimeType: file.type });
+      const resized = await resizeImage(file, 200, 200);
+      const data = await api.users.uploadAvatar(user.id, { imageData: resized.base64, mimeType: resized.mimeType });
       updateUser({ avatar_data: data.avatar.avatar_data, avatar_mime_type: data.avatar.avatar_mime_type, avatar_type: data.avatar.avatar_type });
       setProfileMsg('Foto de perfil actualizada');
     } catch (err: any) {
