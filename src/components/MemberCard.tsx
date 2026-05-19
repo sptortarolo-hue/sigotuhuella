@@ -360,12 +360,12 @@ export default function MemberCard({
       ctx.beginPath(); ctx.moveTo(qrX + QR_SIZE - 20, qrY + 20); ctx.lineTo(qrX + 20, qrY + QR_SIZE - 20); ctx.stroke();
     }
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fillStyle = BRAND_OLIVE;
     ctx.font = 'bold 9px sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillText(isSuspended ? 'SUSPENDIDO' : 'VERIFICAR SOCIO', qrCenterX, qrY + QR_SIZE + 14);
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fillStyle = '#8B8B73';
     ctx.font = '8px sans-serif';
     ctx.fillText('🐾 Escaneá para verificar', qrCenterX, qrY + QR_SIZE + 30);
 
