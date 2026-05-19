@@ -52,19 +52,6 @@ const CARD_W = 680;
 const CARD_H = 420;
 const PAD = 24;
 
-let debugIdx = 0;
-function debugMark(ctx: CanvasRenderingContext2D, color: string, label: string) {
-  debugIdx++;
-  const x = CARD_W - 18 - (debugIdx % 14) * 18;
-  const y = 6 + Math.floor(debugIdx / 14) * 18;
-  ctx.fillStyle = color;
-  ctx.beginPath(); ctx.roundRect(x, y, 14, 14, 3); ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 6px sans-serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + 7, y + 7);
-}
-
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, r);
@@ -102,7 +89,6 @@ export default function MemberCard({
   const isSuspended = volunteerStatus === 'suspended';
   const lvl = LEVEL_CONFIG[levelCode] || LEVEL_CONFIG.volunteer;
   const effectiveLevelName = levelName || lvl.label;
-  debugIdx = 0;
 
   const drawCard = useCallback(async () => {
     const canvas = canvasRef.current;
@@ -157,7 +143,6 @@ export default function MemberCard({
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    debugMark(ctx, '#FF4444', 'BG');
 
     // ── 5. Left Column Info (Avatar, Name, Level) ──────────────────────────────
     const avatarSize = 90;
@@ -201,7 +186,6 @@ export default function MemberCard({
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('🐾', avatarX + avatarSize / 2, avatarY + avatarSize / 2 + 2);
     }
-    debugMark(ctx, '#FFA500', 'AV');
 
     // Avatar glowing ring based on member level
     ctx.strokeStyle = isSuspended ? '#9CA3AF' : (lvl.glow.replace('0.4', '0.85'));
@@ -213,7 +197,6 @@ export default function MemberCard({
     ctx.stroke();
     // Reset shadow
     ctx.shadowBlur = 0;
-    debugMark(ctx, '#8B00FF', 'RN');
 
     const nameX = avatarX + avatarSize + 20;
 
@@ -222,20 +205,17 @@ export default function MemberCard({
     ctx.font = 'bold 9px sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillText('ASOCIADO ACTIVO', nameX, avatarY + 2);
-    debugMark(ctx, '#00FF00', 'LB');
 
     // Display Name
     ctx.fillStyle = 'white';
     ctx.font = 'bold 24px sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillText(displayName || 'Miembro', nameX, avatarY + 16);
-    debugMark(ctx, '#0000FF', 'NM');
 
     // Member number with glowing aesthetic text
     ctx.font = 'bold 12px sans-serif';
     ctx.fillStyle = isSuspended ? '#EF4444' : '#FBBF24';
     ctx.fillText(`SOCIO Nº ${memberNumber || '—'}`, nameX, avatarY + 46);
-    debugMark(ctx, '#8B00FF', 'ID');
 
     // Dynamic level Badge Pill
     const levelText = `${lvl.icon}  ${effectiveLevelName.toUpperCase()}`;
@@ -252,13 +232,11 @@ export default function MemberCard({
     ctx.fillStyle = 'white';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(levelText, nameX + 9, avatarY + 65 + pillH / 2);
-    debugMark(ctx, '#FF69B4', 'LV');
 
     // Org footer tagline
     ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
     ctx.font = '9px sans-serif';
     ctx.fillText('SIGO TU HUELLA · Sicardi / Garibaldi', nameX, avatarY + avatarSize - 4);
-    debugMark(ctx, '#00FFFF', 'OR');
 
     // ── 6. Glassmorphic Statistics Box (Middle Section) ──────────────────────
     if (stats) {
@@ -293,7 +271,6 @@ export default function MemberCard({
         ctx.fillText(stat.label, sx + (statW - 8) / 2, statsY + 38);
       });
     }
-    debugMark(ctx, '#FF4500', 'ST');
 
     // ── 7. Gorgeous Badges Section (Frosted Coins) ──────────────────────────────────
     const badgeAreaY = stats ? avatarY + avatarSize + 94 : avatarY + avatarSize + 26;
@@ -334,7 +311,6 @@ export default function MemberCard({
       const cleanLabel = (config?.label || badge.code).split(' ')[0];
       ctx.fillText(cleanLabel, bx + badgeSize / 2, by + badgeSize + 4);
     });
-    debugMark(ctx, '#2E8B57', 'BG');
 
     // ── 8. High-Fidelity Floating QR Code (Right Column) ────────────────────
     const QR_BOX_W = 126;
@@ -356,10 +332,15 @@ export default function MemberCard({
     if (!isSuspended) {
       const verifyUrl = `https://sigotuhuella.online/verificar/${memberNumber}`;
       try {
-        await QRCode.toCanvas(canvas, verifyUrl, {
+        const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
           width: QR_SIZE, margin: 1,
-          color: { dark: isSuspended ? '#000000' : lvl.gradient[0], light: '#FFFFFF' },
+          color: { dark: lvl.gradient[0], light: '#FFFFFF' },
         });
+        const qrImg = new Image();
+        await new Promise((resolve) => { qrImg.onload = resolve; qrImg.onerror = resolve; qrImg.src = qrDataUrl; });
+        if (qrImg.complete && qrImg.naturalWidth > 0) {
+          ctx.drawImage(qrImg, qrX, qrY, QR_SIZE, QR_SIZE);
+        }
       } catch { /* ignore */ }
     } else {
       // Draw standard red X watermark over the QR area
@@ -382,7 +363,6 @@ export default function MemberCard({
     ctx.fillStyle = '#9CA3AF';
     ctx.font = '8px sans-serif';
     ctx.fillText('🐾 ESCANEAR QR', qrBoxX + QR_BOX_W / 2, qrY + QR_SIZE + 26);
-    debugMark(ctx, '#DC143C', 'QR');
 
     // ── 9. Suspended Watermark overlay ───────────────────────────────────────
     if (isSuspended) {
@@ -453,12 +433,6 @@ export default function MemberCard({
       >
         {downloading ? 'Generando...' : 'Descargar Carnet (PNG)'}
       </button>
-      <details className="w-full text-xs text-left bg-gray-900/80 text-white p-3 rounded-xl">
-        <summary className="cursor-pointer font-bold">Debug: Datos del carnet</summary>
-        <pre className="mt-2 overflow-auto max-h-40 text-[10px] leading-tight">
-{JSON.stringify({ displayName, memberNumber, avatarType: avatarType || 'pawprint', badgesCount: badges.length, volunteerStatus, levelCode, levelName, stats, hasAvatarData: !!avatarData }, null, 2)}
-        </pre>
-      </details>
     </div>
   );
 }
