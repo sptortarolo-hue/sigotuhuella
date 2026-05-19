@@ -103,9 +103,19 @@ export default function Navbar() {
                 <div className="relative" ref={menuRef}>
                   <button
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl hover:bg-brand-primary/20 transition-colors"
+                    className="p-0.5 bg-brand-primary/10 text-brand-primary rounded-full hover:bg-brand-primary/20 transition-colors flex items-center justify-center overflow-hidden w-9 h-9 border border-brand-accent hover:border-brand-primary"
                   >
-                    <User className="w-5 h-5" />
+                    {user.avatar_type === 'photo' && user.avatar_data ? (
+                      <img 
+                        src={`data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`} 
+                        alt="Avatar" 
+                        className="w-full h-full object-cover rounded-full" 
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-brand-primary/10 rounded-full">
+                        <User className="w-5 h-5" />
+                      </div>
+                    )}
                   </button>
                   <AnimatePresence>
                     {userMenuOpen && (
