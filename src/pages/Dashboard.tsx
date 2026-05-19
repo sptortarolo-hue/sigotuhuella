@@ -130,9 +130,17 @@ export default function Dashboard() {
       {/* Header */}
       <div className="relative -mx-4 -mt-4 mb-8 bg-gradient-to-r from-brand-primary to-brand-secondary rounded-b-[3rem] px-6 py-10 shadow-xl overflow-hidden">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/20">
-            <User className="w-8 h-8 text-white" />
-          </div>
+          {user.avatar_type === 'photo' && user.avatar_data ? (
+            <img
+              src={`data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`}
+              alt="Avatar"
+              className="w-16 h-16 rounded-2xl object-cover border-2 border-white/20"
+            />
+          ) : (
+            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/20">
+              <User className="w-8 h-8 text-white" />
+            </div>
+          )}
           <div>
             <h1 className="text-2xl font-semibold text-white">
               {user.display_name || 'Usuario'}
