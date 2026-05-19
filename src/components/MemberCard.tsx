@@ -4,13 +4,11 @@ import { Badge } from '@/src/hooks/AuthProvider';
 
 // ── Badge catalogue ────────────────────────────────────────────────────────────
 export const BADGE_CONFIG: Record<string, { label: string; color: string; icon: string; auto: boolean }> = {
-  // Automatic badges
   first_report:     { label: '1er Reporte',      color: '#10B981', icon: '🐾', auto: true },
   reporter_5:       { label: '5 Reportes',        color: '#0EA5E9', icon: '📋', auto: true },
   reporter_15:      { label: '15 Reportes',       color: '#6366F1', icon: '🌟', auto: true },
   reunited_hero:    { label: 'Héroe Reencuentro', color: '#EC4899', icon: '💞', auto: true },
   reunited_legend:  { label: 'Leyenda Reunión',   color: '#F59E0B', icon: '🏆', auto: true },
-  // Manual badges
   volunteer:        { label: 'Voluntario/a',      color: '#10B981', icon: '🤝', auto: false },
   first_donation:   { label: '1ra Donación',      color: '#EC4899', icon: '❤️', auto: false },
   frequent_donor:   { label: 'Donante Frecuente', color: '#8B5CF6', icon: '💜', auto: false },
@@ -57,7 +55,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.roundRect(x, y, w, h, r);
 }
 
-// Draw a stylized pet paw print helper
+// Draw a stylized pet paw print
 function drawPawPrint(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, alpha: number) {
   ctx.save();
   ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
@@ -80,6 +78,64 @@ function drawPawPrint(ctx: CanvasRenderingContext2D, cx: number, cy: number, siz
   ctx.restore();
 }
 
+// Draw a dog silhouette watermark
+function drawDogSilhouette(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, alpha: number) {
+  ctx.save();
+  ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+  ctx.font = `${size}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🐕', x, y);
+  ctx.restore();
+}
+
+// Draw a cat silhouette watermark
+function drawCatSilhouette(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, alpha: number) {
+  ctx.save();
+  ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+  ctx.font = `${size}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🐈', x, y);
+  ctx.restore();
+}
+
+// Draw a golden credit card chip
+function drawChip(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  // Chip background
+  const chipGrad = ctx.createLinearGradient(x, y, x + w, y + h);
+  chipGrad.addColorStop(0, '#D4A017');
+  chipGrad.addColorStop(0.5, '#F5D060');
+  chipGrad.addColorStop(1, '#D4A017');
+  ctx.fillStyle = chipGrad;
+  roundRect(ctx, x, y, w, h, 6);
+  ctx.fill();
+
+  // Chip border
+  ctx.strokeStyle = '#B8860B';
+  ctx.lineWidth = 1;
+  roundRect(ctx, x, y, w, h, 6);
+  ctx.stroke();
+
+  // Chip lines
+  ctx.strokeStyle = 'rgba(184, 134, 11, 0.5)';
+  ctx.lineWidth = 0.8;
+  // Horizontal center line
+  ctx.beginPath();
+  ctx.moveTo(x + 6, y + h / 2);
+  ctx.lineTo(x + w - 6, y + h / 2);
+  ctx.stroke();
+  // Vertical center line
+  ctx.beginPath();
+  ctx.moveTo(x + w / 2, y + 6);
+  ctx.lineTo(x + w / 2, y + h - 6);
+  ctx.stroke();
+  // Inner rectangle
+  ctx.strokeStyle = 'rgba(184, 134, 11, 0.4)';
+  roundRect(ctx, x + 8, y + 8, w - 16, h - 16, 3);
+  ctx.stroke();
+}
+
 export default function MemberCard({
   displayName, memberNumber, avatarData, avatarMime, avatarType,
   badges, volunteerStatus, levelCode = 'volunteer', levelName, stats,
@@ -96,67 +152,76 @@ export default function MemberCard({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Use higher resolution backing store for crisp display and download
     canvas.width = CARD_W;
     canvas.height = CARD_H;
     ctx.clearRect(0, 0, CARD_W, CARD_H);
 
-    // ── 1. Elegant Premium Base Gradient ─────────────────────────────────────────
-    const [c1, c2] = isSuspended ? ['#4B5563', '#1F2937'] : lvl.gradient;
+    // ── 1. Warm mascot-themed gradient background ──────────────────────────────
     const bg = ctx.createLinearGradient(0, 0, CARD_W, CARD_H);
-    bg.addColorStop(0, c1);
-    bg.addColorStop(1, c2);
+    if (isSuspended) {
+      bg.addColorStop(0, '#6B7280');
+      bg.addColorStop(0.5, '#4B5563');
+      bg.addColorStop(1, '#374151');
+    } else {
+      bg.addColorStop(0, '#F59E0B');
+      bg.addColorStop(0.4, '#D97706');
+      bg.addColorStop(0.7, '#10B981');
+      bg.addColorStop(1, '#059669');
+    }
     ctx.fillStyle = bg;
     roundRect(ctx, 0, 0, CARD_W, CARD_H, 28);
     ctx.fill();
 
-    // ── 2. Vector Wavy Background Patterns (Aesthetics) ─────────────────────────
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
-    ctx.lineWidth = 3;
-    
-    // Wave 1
+    // ── 2. Paw print watermark pattern across background ───────────────────────
+    const pawPositions = [
+      { x: 80, y: 380, size: 35, a: 0.08 },
+      { x: 320, y: 350, size: 28, a: 0.06 },
+      { x: 550, y: 390, size: 32, a: 0.07 },
+      { x: 600, y: 60, size: 25, a: 0.06 },
+      { x: 150, y: 80, size: 22, a: 0.05 },
+      { x: 450, y: 200, size: 30, a: 0.05 },
+      { x: 250, y: 150, size: 20, a: 0.04 },
+      { x: 500, y: 300, size: 26, a: 0.05 },
+    ];
+    pawPositions.forEach(p => drawPawPrint(ctx, p.x, p.y, p.size, p.a));
+
+    // Pet silhouettes as subtle watermarks
+    drawDogSilhouette(ctx, 620, 370, 40, 0.06);
+    drawCatSilhouette(ctx, 50, 370, 35, 0.06);
+
+    // Decorative bokeh circles
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.beginPath(); ctx.arc(600, 50, 100, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(100, 350, 80, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(400, 380, 60, 0, Math.PI * 2); ctx.fill();
+
+    // ── 3. Header: Organization name ───────────────────────────────────────────
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('🐾  SIGO TU HUELLA', PAD, PAD - 4);
+
+    // Thin separator line
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(-50, CARD_H * 0.65);
-    ctx.bezierCurveTo(CARD_W * 0.25, CARD_H * 0.85, CARD_W * 0.5, CARD_H * 0.35, CARD_W + 50, CARD_H * 0.55);
+    ctx.moveTo(PAD, PAD + 14);
+    ctx.lineTo(CARD_W - PAD, PAD + 14);
     ctx.stroke();
 
-    // Wave 2
-    ctx.beginPath();
-    ctx.moveTo(-50, CARD_H * 0.8);
-    ctx.bezierCurveTo(CARD_W * 0.3, CARD_H * 0.55, CARD_W * 0.6, CARD_H * 0.9, CARD_W + 50, CARD_H * 0.45);
-    ctx.stroke();
+    // ── 4. Golden credit card chip (left side) ─────────────────────────────────
+    const chipX = PAD + 10;
+    const chipY = PAD + 28;
+    const chipW = 52;
+    const chipH = 38;
+    drawChip(ctx, chipX, chipY, chipW, chipH);
 
-    // Translucent glowing circles
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-    ctx.beginPath(); ctx.arc(CARD_W * 0.8, -20, 160, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(50, CARD_H + 30, 120, 0, Math.PI * 2); ctx.fill();
+    // ── 5. Avatar circle (overlapping chip slightly) ───────────────────────────
+    const avatarSize = 72;
+    const avatarX = chipX + chipW - 10;
+    const avatarY = chipY - 8;
 
-    // ── 3. Stylized Floating Paw Print Watermarks ──────────────────────────────
-    drawPawPrint(ctx, 45, CARD_H - 45, 28, 0.05);
-    drawPawPrint(ctx, CARD_W - 130, 45, 38, 0.04);
-    drawPawPrint(ctx, CARD_W - 50, CARD_H - 50, 22, 0.05);
-
-    // ── 4. Frosted Glass Panel Container ──────────────────────────────────────────
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-    roundRect(ctx, PAD, PAD, CARD_W - PAD * 2, CARD_H - PAD * 2, 22);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // ── 5. Dark contrast panel behind left content ──────────────────────────────
-    const avatarSize = 90;
-    const avatarX = PAD + 24;
-    const avatarY = PAD + 24;
-    const leftPanelX = PAD + 16;
-    const leftPanelY = PAD + 16;
-    const leftPanelW = CARD_W - PAD * 2 - 32 - 150;
-    const leftPanelH = stats ? 290 : 210;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-    roundRect(ctx, leftPanelX, leftPanelY, leftPanelW, leftPanelH, 18);
-    ctx.fill();
-
-    // Draw avatar image or fallback icon
     if (avatarType === 'photo' && avatarData && avatarMime) {
       try {
         const img = new Image();
@@ -174,174 +239,176 @@ export default function MemberCard({
         ctx.drawImage(img, avatarX, avatarY, avatarSize, avatarSize);
         ctx.restore();
       } catch {
-        // Sleek fallback circle
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.beginPath();
         ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
         ctx.fill();
-        ctx.font = '36px sans-serif';
+        ctx.font = '28px sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText('🐾', avatarX + avatarSize / 2, avatarY + avatarSize / 2 + 2);
       }
     } else {
-      // Sleek fallback circle
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
       ctx.beginPath();
       ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.font = '36px sans-serif';
+      ctx.font = '28px sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('🐾', avatarX + avatarSize / 2, avatarY + avatarSize / 2 + 2);
     }
 
-    // Avatar glowing ring based on member level
+    // Avatar glowing ring
     ctx.strokeStyle = isSuspended ? '#9CA3AF' : (lvl.glow.replace('0.4', '0.85'));
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = 3;
     ctx.shadowColor = isSuspended ? 'transparent' : lvl.glow;
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
     ctx.stroke();
-    // Reset shadow
     ctx.shadowBlur = 0;
 
-    const nameX = avatarX + avatarSize + 20;
-
-    // Organization Logo Badge & Tagline
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.font = 'bold 9px sans-serif';
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillText('ASOCIADO ACTIVO', nameX, avatarY + 2);
+    // ── 6. Member info section ─────────────────────────────────────────────────
+    const infoX = avatarX + avatarSize + 16;
+    const infoY = PAD + 30;
 
     // Display Name
     ctx.fillStyle = 'white';
-    ctx.font = 'bold 24px sans-serif';
+    ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillText(displayName || 'Miembro', nameX, avatarY + 16);
+    ctx.fillText(displayName || 'Miembro', infoX, infoY);
 
-    // Member number with glowing aesthetic text
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillStyle = isSuspended ? '#EF4444' : '#FBBF24';
-    ctx.fillText(`SOCIO Nº ${memberNumber || '—'}`, nameX, avatarY + 46);
+    // Member number - credit card style
+    const spacedNumber = (memberNumber || '—').replace(/-/g, ' ');
+    ctx.fillStyle = '#FDE68A';
+    ctx.font = 'bold 14px monospace';
+    ctx.letterSpacing = '2px';
+    ctx.fillText(`SOCIO Nº  ${spacedNumber}`, infoX, infoY + 28);
 
-    // Dynamic level Badge Pill
+    // Level pill
     const levelText = `${lvl.icon}  ${effectiveLevelName.toUpperCase()}`;
     ctx.font = 'bold 9px sans-serif';
     const textWidth = ctx.measureText(levelText).width;
-    const pillW = textWidth + 18;
-    const pillH = 20;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    roundRect(ctx, nameX, avatarY + 65, pillW, pillH, 10);
+    const pillW = textWidth + 16;
+    const pillH = 18;
+    const pillX = infoX;
+    const pillY = infoY + 50;
+
+    const pillGrad = ctx.createLinearGradient(pillX, pillY, pillX + pillW, pillY);
+    pillGrad.addColorStop(0, lvl.gradient[0]);
+    pillGrad.addColorStop(1, lvl.gradient[1]);
+    ctx.fillStyle = pillGrad;
+    roundRect(ctx, pillX, pillY, pillW, pillH, 9);
     ctx.fill();
-    ctx.strokeStyle = lvl.gradient[0];
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 1;
     ctx.stroke();
-    
-    ctx.fillStyle = lvl.gradient[0];
+
+    ctx.fillStyle = 'white';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(levelText, nameX + 9, avatarY + 65 + pillH / 2);
+    ctx.fillText(levelText, pillX + 8, pillY + pillH / 2);
 
-    // Org footer tagline
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-    ctx.font = '9px sans-serif';
-    ctx.fillText('SIGO TU HUELLA · Sicardi / Garibaldi', nameX, avatarY + avatarSize - 4);
-
-    // ── 6. Glassmorphic Statistics Box (Middle Section) ──────────────────────
+    // ── 7. Statistics row ──────────────────────────────────────────────────────
     if (stats) {
-      const statsY = avatarY + avatarSize + 22;
+      const statsY = pillY + pillH + 14;
       const statItems = [
         { label: 'REPORTES', value: stats.total_reports, emoji: '📋' },
         { label: 'REENCUENTROS', value: stats.reunited_count, emoji: '💞' },
         { label: 'AVISTAJES', value: stats.sighted_count, emoji: '👁️' },
         { label: 'ADOPCIONES', value: stats.adopted_count, emoji: '🏡' },
       ];
-      const maxStatsWidth = CARD_W - PAD * 2 - 40 - 150; // Leave 150px for QR area on the right
-      const statW = maxStatsWidth / statItems.length;
+      const statsAreaW = CARD_W - PAD * 2 - 160; // Leave space for QR
+      const statW = statsAreaW / statItems.length;
 
       statItems.forEach((stat, i) => {
-        const sx = PAD + 24 + i * statW;
-        // Frosted card
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-        roundRect(ctx, sx, statsY, statW - 8, 54, 12);
+        const sx = PAD + 10 + i * statW;
+        // White frosted card
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+        roundRect(ctx, sx, statsY, statW - 8, 48, 10);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.06)';
         ctx.lineWidth = 1;
         ctx.stroke();
 
         // Stat value with emoji
         ctx.fillStyle = '#1F2937';
-        ctx.font = 'bold 15px sans-serif';
+        ctx.font = 'bold 14px sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(`${stat.emoji} ${stat.value}`, sx + (statW - 8) / 2, statsY + 18);
+        ctx.fillText(`${stat.emoji} ${stat.value}`, sx + (statW - 8) / 2, statsY + 16);
 
         // Stat Label
         ctx.fillStyle = '#6B7280';
-        ctx.font = 'bold 8px sans-serif';
-        ctx.fillText(stat.label, sx + (statW - 8) / 2, statsY + 38);
+        ctx.font = 'bold 7px sans-serif';
+        ctx.fillText(stat.label, sx + (statW - 8) / 2, statsY + 34);
       });
     }
 
-    // ── 7. Gorgeous Badges Section (Frosted Coins) ──────────────────────────────────
-    const badgeAreaY = stats ? avatarY + avatarSize + 94 : avatarY + avatarSize + 26;
-    const badgeSize = 42;
-    const badgeGap = 12;
-    const badgesLeft = PAD + 24;
-
-    // Dark strip behind badges for contrast
+    // ── 8. Badges row ──────────────────────────────────────────────────────────
     const badgeCount = Math.min(badges.length, 8);
-    const stripW = badgeCount > 0 ? badgeCount * (badgeSize + badgeGap) - badgeGap + 10 : 200;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-    roundRect(ctx, badgesLeft - 4, badgeAreaY - 4, stripW + 8, badgeSize + 28, 10);
-    ctx.fill();
+    if (badgeCount > 0) {
+      const badgeAreaY = stats ? (pillY + pillH + 14 + 48 + 10) : pillY + pillH + 14;
+      const badgeSize = 36;
+      const badgeGap = 10;
+      const badgesLeft = PAD + 10;
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.font = 'bold 9px sans-serif';
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillText('INSIGNIAS LOGRADAS', badgesLeft, badgeAreaY);
-
-    const displayBadges = badges.slice(0, 8);
-    displayBadges.forEach((badge, i) => {
-      const config = BADGE_CONFIG[badge.code];
-      const bx = badgesLeft + i * (badgeSize + badgeGap);
-      const by = badgeAreaY + 16;
-
-      // Draw glass coin (more opaque)
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      roundRect(ctx, bx, by, badgeSize, badgeSize, 21);
+      // Dark strip behind badges
+      const stripW = badgeCount * (badgeSize + badgeGap) - badgeGap + 8;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+      roundRect(ctx, badgesLeft - 4, badgeAreaY - 4, stripW + 8, badgeSize + 24, 8);
       ctx.fill();
-      
-      // Coin border in badge-specific color
-      ctx.strokeStyle = config?.color || '#6B7280';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
 
-      // Emoji/icon inside coin
-      ctx.font = '18px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(config?.icon || '⭐', bx + badgeSize / 2, by + badgeSize / 2);
-
-      // Label under coin
-      ctx.fillStyle = 'white';
+      // Title
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.font = 'bold 8px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      const cleanLabel = (config?.label || badge.code).split(' ')[0];
-      ctx.fillText(cleanLabel, bx + badgeSize / 2, by + badgeSize + 4);
-    });
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText('INSIGNIAS', badgesLeft, badgeAreaY);
 
-    // ── 8. High-Fidelity Floating QR Code (Right Column) ────────────────────
-    const QR_BOX_W = 126;
-    const QR_BOX_H = 176;
-    const qrBoxX = CARD_W - PAD - 24 - QR_BOX_W;
-    const qrBoxY = PAD + 24;
+      badges.slice(0, 8).forEach((badge, i) => {
+        const config = BADGE_CONFIG[badge.code];
+        const bx = badgesLeft + i * (badgeSize + badgeGap);
+        const by = badgeAreaY + 12;
 
-    // Draw polished white card background with drop-shadow feel
+        // Coin background with badge color
+        ctx.fillStyle = config?.color || '#6B7280';
+        roundRect(ctx, bx, by, badgeSize, badgeSize, 18);
+        ctx.fill();
+
+        // Coin border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Icon inside coin
+        ctx.font = '16px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(config?.icon || '⭐', bx + badgeSize / 2, by + badgeSize / 2);
+
+        // Label under coin
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 7px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        const cleanLabel = (config?.label || badge.code).split(' ')[0];
+        ctx.fillText(cleanLabel, bx + badgeSize / 2, by + badgeSize + 3);
+      });
+    }
+
+    // ── 9. QR Code verification box (right side) ───────────────────────────────
+    const QR_BOX_W = 130;
+    const QR_BOX_H = 180;
+    const qrBoxX = CARD_W - PAD - 10 - QR_BOX_W;
+    const qrBoxY = PAD + 20;
+
+    // White card background
     ctx.fillStyle = 'white';
-    roundRect(ctx, qrBoxX, qrBoxY, QR_BOX_W, QR_BOX_H, 16);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 4;
+    roundRect(ctx, qrBoxX, qrBoxY, QR_BOX_W, QR_BOX_H, 14);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
-    const QR_SIZE = 106;
+    // QR code
+    const QR_SIZE = 108;
     const qrX = qrBoxX + (QR_BOX_W - QR_SIZE) / 2;
     const qrY = qrBoxY + 10;
 
@@ -359,9 +426,9 @@ export default function MemberCard({
         }
       } catch { /* ignore */ }
     } else {
-      // Draw standard red X watermark over the QR area
+      // Red X watermark
       ctx.fillStyle = '#FEF2F2';
-      roundRect(ctx, qrX, qrY, QR_SIZE, QR_SIZE, 10);
+      roundRect(ctx, qrX, qrY, QR_SIZE, QR_SIZE, 8);
       ctx.fill();
       ctx.strokeStyle = '#EF4444';
       ctx.lineWidth = 5;
@@ -369,18 +436,24 @@ export default function MemberCard({
       ctx.beginPath(); ctx.moveTo(qrX + QR_SIZE - 20, qrY + 20); ctx.lineTo(qrX + 20, qrY + QR_SIZE - 20); ctx.stroke();
     }
 
-    // Escanear instructions
+    // Verification text
     ctx.fillStyle = '#4B5563';
     ctx.font = 'bold 8px sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText(isSuspended ? 'SUSPENDIDO' : 'VERIFICAR SOCIO', qrBoxX + QR_BOX_W / 2, qrY + QR_SIZE + 12);
+    ctx.fillText(isSuspended ? 'SUSPENDIDO' : 'VERIFICAR SOCIO', qrBoxX + QR_BOX_W / 2, qrY + QR_SIZE + 10);
 
-    // Cute small logo paw mark inside QR box
+    // Paw scan icon
     ctx.fillStyle = '#9CA3AF';
-    ctx.font = '8px sans-serif';
-    ctx.fillText('🐾 ESCANEAR QR', qrBoxX + QR_BOX_W / 2, qrY + QR_SIZE + 26);
+    ctx.font = '7px sans-serif';
+    ctx.fillText('🐾 Escaneá para verificar', qrBoxX + QR_BOX_W / 2, qrY + QR_SIZE + 24);
 
-    // ── 9. Suspended Watermark overlay ───────────────────────────────────────
+    // ── 10. Footer tagline ─────────────────────────────────────────────────────
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText('SIGO TU HUELLA · Sicardi / Garibaldi', PAD, CARD_H - PAD + 4);
+
+    // ── 11. Suspended watermark ────────────────────────────────────────────────
     if (isSuspended) {
       ctx.save();
       ctx.globalAlpha = 0.18;
@@ -402,16 +475,14 @@ export default function MemberCard({
     const canvas = canvasRef.current;
     if (!canvas) return;
     setDownloading(true);
-    // Asegurar que el canvas está renderizado esperando un frame
     await new Promise(requestAnimationFrame);
     try {
-      await drawCard(); // Redibujar antes de descargar para asegurar estado fresco
+      await drawCard();
       await new Promise(r => setTimeout(r, 50));
       canvas.toBlob((blob) => {
         if (blob) {
           onDownload?.(blob);
         } else {
-          // Fallback: intentar con toDataURL
           const dataUrl = canvas.toDataURL('image/png');
           fetch(dataUrl).then(r => r.blob()).then(blob2 => {
             if (blob2.size > 0) onDownload?.(blob2);
@@ -432,7 +503,7 @@ export default function MemberCard({
         <div 
           className="absolute -inset-1.5 rounded-[2rem] opacity-50 group-hover:opacity-75 blur-2xl transition duration-500"
           style={{ 
-            background: `linear-gradient(135deg, ${lvl.gradient[0]}, ${lvl.gradient[1]})`,
+            background: isSuspended ? 'linear-gradient(135deg, #6B7280, #374151)' : `linear-gradient(135deg, ${lvl.gradient[0]}, ${lvl.gradient[1]})`,
             boxShadow: `0 0 40px ${lvl.glow}`
           }}
         />
