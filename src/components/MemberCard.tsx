@@ -151,15 +151,31 @@ export default function MemberCard({
 
     // Draw avatar image or fallback icon
     if (avatarType === 'photo' && avatarData && avatarMime) {
-      const img = new Image();
-      img.src = `data:${avatarMime};base64,${avatarData}`;
-      await new Promise((resolve) => { img.onload = resolve; });
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.drawImage(img, avatarX, avatarY, avatarSize, avatarSize);
-      ctx.restore();
+      try {
+        const img = new Image();
+        img.src = `data:${avatarMime};base64,${avatarData}`;
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+          setTimeout(resolve, 3000);
+        });
+        if (!img.complete || img.naturalWidth === 0) throw new Error();
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(img, avatarX, avatarY, avatarSize, avatarSize);
+        ctx.restore();
+      } catch {
+        // Sleek fallback circle
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.beginPath();
+        ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = '36px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('🐾', avatarX + avatarSize / 2, avatarY + avatarSize / 2 + 2);
+      }
     } else {
       // Sleek fallback circle
       ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
@@ -357,7 +373,7 @@ export default function MemberCard({
     }
   }, [displayName, memberNumber, avatarData, avatarMime, avatarType, badges, volunteerStatus, levelCode, levelName, stats, isSuspended, lvl, effectiveLevelName]);
 
-  useEffect(() => { drawCard(); }, [drawCard]);
+  useEffect(() => { drawCard().catch(console.error); }, [drawCard]);
 
   const [downloading, setDownloading] = useState(false);
 
