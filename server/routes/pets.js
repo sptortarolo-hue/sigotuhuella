@@ -52,21 +52,25 @@ function generateCelebrationText(pet, type) {
   const name = pet.name || 'una mascota';
   const species = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : 'mascota';
   const location = pet.location || 'nuestra zona';
+  const isFemale = pet.gender === 'female';
 
   if (type === 'reunited') {
+    const action = isFemale ? 'reencontrada' : 'reencontrado';
+    const lostAction = isFemale ? 'perdida' : 'perdido';
     const messages = [
-      `¡Qué alegría! 🎉 ${name} ya está de vuelta en casa. Este ${species} que buscábamos en ${location} fue reencontrado con su familia. ¡Gracias a toda la comunidad que difundió y ayudó! Juntos hacemos la diferencia. 🐾💚`,
-      `¡Final feliz! 🥳 ${name}, el ${species} que estaba perdido en ${location}, ya se reencontró con su familia. Gracias a la red de vecinos que compartieron su publicación. ¡Sigo Tu Huella sigue sumando reencuentros! 🐾❤️`,
+      `¡Qué alegría! 🎉 ${name} ya está de vuelta en casa. Este ${species} que buscábamos en ${location} fue ${action} con su familia. ¡Gracias a toda la comunidad que difundió y ayudó! Juntos hacemos la diferencia. 🐾💚`,
+      `¡Final feliz! 🥳 ${name}, el ${species} que estaba ${lostAction} en ${location}, ya se reencontró con su familia. Gracias a la red de vecinos que compartieron su publicación. ¡Sigo Tu Huella sigue sumando reencuentros! 🐾❤️`,
       `¡Buenas noticias! ✨ ¡${name} apareció! Este ${species} que buscábamos en ${location} ya está con los suyos. La comunidad de Sicardi/Garibaldi una vez más demostró su solidaridad. 🙌🐾`,
     ];
     return messages[Math.floor(Math.random() * messages.length)];
   }
 
   if (type === 'adopted') {
+    const action = isFemale ? 'adoptada' : 'adoptado';
     const messages = [
-      `¡Nuevo hogar! 🏡 ${name} encontró una familia. Este ${species} fue adoptado y ahora tiene un hogar lleno de amor. ¡Gracias a todos los que compartieron y ayudaron a difundir! 🐾💚`,
-      `¡Feliz adopción! 🎊 ${name} ya tiene familia. Después de esperar, este ${species} fue adoptado. Deseamos que sea muy feliz en su nuevo hogar. ¡Sigo Tu Huella celebra! 🐾❤️`,
-      `¡Un final feliz más! 🌟 ${name} fue adoptado. Este ${species} encontró un hogar lleno de amor. Gracias a la red de adopción por hacer esto posible. 🐾💕`,
+      `¡Nuevo hogar! 🏡 ${name} encontró una familia. Este ${species} fue ${action} y ahora tiene un hogar lleno de amor. ¡Gracias a todos los que compartieron y ayudaron a difundir! 🐾💚`,
+      `¡Feliz adopción! 🎊 ${name} ya tiene familia. Después de esperar, este ${species} fue ${action}. Deseamos que sea muy feliz en su nuevo hogar. ¡Sigo Tu Huella celebra! 🐾❤️`,
+      `¡Un final feliz más! 🌟 ${name} fue ${action}. Este ${species} encontró un hogar lleno de amor. Gracias a la red de adopción por hacer esto posible. 🐾💕`,
     ];
     return messages[Math.floor(Math.random() * messages.length)];
   }
@@ -76,9 +80,23 @@ function generateCelebrationText(pet, type) {
 
 async function autoCreateNews(pet, newsType) {
   try {
-    const title = newsType === 'reunited'
-      ? `¡${pet.name || 'Una mascota'} fue reencontrada! 🎉`
-      : `¡${pet.name || 'Una mascota'} fue adoptada! 🏡`;
+    let title = '';
+    const isFemale = pet.gender === 'female';
+    if (newsType === 'reunited') {
+      if (pet.name) {
+        const action = isFemale ? 'reencontrada' : 'reencontrado';
+        title = `¡${pet.name} fue ${action}! 🎉`;
+      } else {
+        title = `¡Una mascota fue reencontrada! 🎉`;
+      }
+    } else { // adopted
+      if (pet.name) {
+        const action = isFemale ? 'adoptada' : 'adoptado';
+        title = `¡${pet.name} fue ${action}! 🏡`;
+      } else {
+        title = `¡Una mascota fue adoptada! 🏡`;
+      }
+    }
     const content = generateCelebrationText(pet, newsType);
     // Fetch pet images for news image
     const imagesResult = await pool.query(
