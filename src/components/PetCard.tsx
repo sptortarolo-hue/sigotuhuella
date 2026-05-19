@@ -26,7 +26,7 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
      [PetStatus.SIGHTED]: 'bg-amber-100 text-amber-700',
      [PetStatus.ACCIDENTED]: 'bg-purple-100 text-purple-700',
      [PetStatus.NEEDS_ATTENTION]: 'bg-amber-100 text-amber-700',
-     [PetStatus.FOR_ADOPTION]: 'bg-brand-primary/20 text-brand-primary',
+     [PetStatus.FOR_ADOPTION]: 'bg-pink-100 text-pink-800 border border-pink-200',
      [PetStatus.ADOPTED]: 'bg-green-100 text-green-700',
      [PetStatus.REUNITED]: 'bg-amber-100 text-amber-700',
    };
