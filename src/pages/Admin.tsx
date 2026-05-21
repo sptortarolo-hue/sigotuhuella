@@ -1175,10 +1175,40 @@ export default function Admin() {
                     ))}
                   </div>
 
-                  <div className="p-4 bg-blue-50 rounded-2xl border border-blue-200">
-                    <p className="text-sm font-bold text-blue-700 mb-2">📋 Instrucciones Webhook</p>
-                    <p className="text-xs text-blue-600">URL: <code className="bg-blue-100 px-2 py-0.5 rounded">https://sigotuhuella.online/api/whatsapp/webhook</code></p>
-                    <p className="text-xs text-blue-600 mt-1">Configurá esta URL en el panel de desarrolladores de Meta (WhatsApp Cloud API).</p>
+                  <div className="p-5 bg-blue-50 rounded-2xl border border-blue-200">
+                    <h3 className="text-sm font-bold text-blue-800 mb-4 flex items-center gap-2">📘 Guía: Conectar WhatsApp Business con Meta</h3>
+                    <div className="space-y-3 text-sm text-blue-700">
+                      {[
+                        { n: 1, title: 'Ir al Meta Developer Portal',
+                          desc: 'Andá a developers.facebook.com, creá o seleccioná una app y agregale el producto WhatsApp Cloud API.' },
+                        { n: 2, title: 'Obtener credenciales',
+                          desc: 'En la sección WhatsApp → Configuración, copiá Phone Number ID y generá un Access Token permanente. Inventá un Verify Token (ej: "sihuella2024") y guardalo.' },
+                        { n: 3, title: 'Configurar Webhook en Meta',
+                          desc: 'URL: https://sigotuhuella.online/api/whatsapp/webhook — Verify Token: el que inventaste — Click en "Verify and Save".' },
+                        { n: 4, title: 'Suscribir a eventos',
+                          desc: 'En la sección Webhooks, marcá el evento "messages" y guardá.' },
+                        { n: 5, title: 'Completar campos y activar',
+                          desc: 'Llená los campos de arriba con Phone Number ID, Access Token, Verify Token. Tildá "Activar WhatsApp Business" y guardá.' },
+                      ].map(s => (
+                        <div key={s.n} className="flex gap-3">
+                          <span className="shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">{s.n}</span>
+                          <div>
+                            <p className="font-bold text-blue-800">{s.title}</p>
+                            <p className="text-blue-600">{s.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="mt-4 pt-4 border-t border-blue-200">
+                        <p className="font-bold text-blue-800 mb-2">✅ Checklist final</p>
+                        <ul className="space-y-1 text-blue-600">
+                          <li>☐ Phone Number ID completo</li>
+                          <li>☐ Access Token generado</li>
+                          <li>☐ Verify Token coincide con el de Meta</li>
+                          <li>☐ Webhook muestra "Active" en Meta</li>
+                          <li>☐ WhatsApp activado en Admin</li>
+                        </ul>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
