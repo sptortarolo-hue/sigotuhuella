@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard, FileText, QrCode, Share2 } from 'lucide-react';
+import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard, FileText, Share2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -17,13 +17,11 @@ export default function Navbar() {
 
   const navItems = [
     { name: 'Inicio', path: '/', icon: PawPrint },
-    { name: 'Reporte Rápido', path: '/reportar-rapido', icon: PlusCircle },
     { name: 'Reportar', path: '/reportar', icon: FileText },
-    { name: 'Cartel QR', path: '/descargar-cartel', icon: QrCode },
-    { name: 'Compartir', path: '/compartir-qr', icon: Share2 },
     { name: 'Mascotas Reportadas', path: '/perdidos', icon: Search },
     { name: 'Adopción', path: '/adopcion', icon: Heart },
     { name: 'Colaborar', path: '/colaborar', icon: HandCoins },
+    { name: 'Difusión', path: '/difusion', icon: Share2 },
     { name: isMember ? 'Asociado' : 'Sumate', path: '/sumate', icon: Users },
     { name: 'Novedades', path: '/novedades', icon: Sparkles },
   ];

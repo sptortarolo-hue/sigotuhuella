@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Heart, Search, ShieldCheck, AlertCircle } from 'lucide-react';
+import { ArrowRight, Heart, Search, ShieldCheck, AlertCircle, Share2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState, useEffect } from 'react';
 import NewsCarousel from '@/src/components/NewsCarousel';
@@ -74,6 +74,26 @@ export default function Home() {
 
       {/* News Carousel */}
       <NewsCarousel news={news} />
+
+      {/* Diffusion callout */}
+      <section className="py-12 bg-brand-bg/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Link to="/difusion" className="group block bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 hover:shadow-lg transition-all">
+            <div className="flex flex-col sm:flex-row items-center gap-5">
+              <div className="w-14 h-14 bg-brand-primary/10 rounded-2xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <Share2 className="w-7 h-7 text-brand-primary" />
+              </div>
+              <div className="flex-1 text-center sm:text-left">
+                <h3 className="text-lg font-bold text-brand-primary">Ayudanos a difundir</h3>
+                <p className="text-sm text-gray-500 mt-1">Descargá el código QR o imprimí un cartel para tu barrio y sumá más vecinos a la red.</p>
+              </div>
+              <span className="shrink-0 px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm group-hover:shadow-lg transition-all whitespace-nowrap">
+                Ver materiales →
+              </span>
+            </div>
+          </Link>
+        </div>
+      </section>
 
       {/* Features */}
       <section className="py-16 sm:py-24 bg-white">
