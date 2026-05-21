@@ -26,6 +26,8 @@ const ResetPassword = lazy(() => import('@/src/pages/ResetPassword'));
 const VerifyMember = lazy(() => import('@/src/pages/VerifyMember'));
 const MemberCardPage = lazy(() => import('@/src/pages/MemberCardPage'));
 const QuickReport = lazy(() => import('@/src/pages/QuickReport'));
+const PosterPage = lazy(() => import('@/src/pages/PosterPage'));
+const ShareQR = lazy(() => import('@/src/pages/ShareQR'));
 
 function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin?: boolean }) {
   const { user, isAdmin: isUserAdmin, loading } = useAuth();
@@ -65,6 +67,8 @@ export default function App() {
                <Route path="/perdiste-a-tu-mascota" element={<LostPetGuide />} />
                <Route path="/reportar" element={<ReportPet />} />
                <Route path="/reportar-rapido" element={<QuickReport />} />
+               <Route path="/descargar-cartel" element={<PosterPage />} />
+               <Route path="/compartir-qr" element={<ShareQR />} />
 
               <Route path="/colaborar" element={<Collaborate />} />
               <Route path="/sumate" element={<Join />} />
@@ -104,6 +108,7 @@ export default function App() {
                   <li><Link to="/perdidos" className="hover:text-brand-primary">Mascotas Reportadas</Link></li>
                   <li><Link to="/adopcion" className="hover:text-brand-primary">Adopción</Link></li>
                   <li><Link to="/reportar" className="hover:text-brand-primary">Publicar</Link></li>
+                  <li><Link to="/reportar-rapido" className="hover:text-brand-primary">Reporte Rápido</Link></li>
                 </ul>
               </div>
               <div>

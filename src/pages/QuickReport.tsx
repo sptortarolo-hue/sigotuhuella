@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Loader2, CheckCircle2, AlertCircle, ArrowLeft, PawPrint } from 'lucide-react';
+import { Camera, Loader2, CheckCircle2, AlertCircle, ArrowLeft, PawPrint, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || '';
@@ -106,6 +106,14 @@ export default function QuickReport() {
             Recibimos tu reporte. Los administradores ya fueron notificados y en breve lo revisarán.
             {createdId && ' Si hay un match con una mascota perdida te contactaremos a la brevedad.'}
           </p>
+          <button onClick={() => {
+              const msg = encodeURIComponent(
+                `🐾 Se reportó un ${species} ${status === 'lost' ? 'perdido' : 'encontrado'} en ${location}.\n\nMás info: https://sigotuhuella.online/pet/${createdId}\n\nAyudanos a difundir 🙏`
+              );
+              window.open(`https://wa.me/?text=${msg}`, '_blank');
+            }} className="w-full mb-3 px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2">
+              <Share2 className="w-5 h-5" /> Compartir en WhatsApp
+            </button>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button onClick={handleReset} className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
               Reportar otro
