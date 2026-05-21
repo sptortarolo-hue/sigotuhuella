@@ -112,4 +112,8 @@ export const api = {
     update: (key: string, value: string) => request(`/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
     getPublic: () => request('/settings/public'),
   },
+  whatsapp: {
+    messages: (status?: string) => request(`/whatsapp/messages${status ? `?status=${status}` : ''}`),
+    getMessage: (id: string) => request(`/whatsapp/messages/${id}`),
+  },
 };

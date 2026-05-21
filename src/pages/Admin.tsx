@@ -110,6 +110,8 @@ export default function Admin() {
   const [whatsappSettings, setWhatsappSettings] = useState<Record<string, string>>({});
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [waMessages, setWaMessages] = useState<any[]>([]);
+  const [waMessagesLoading, setWaMessagesLoading] = useState(false);
 
   useEffect(() => {
     fetchAll();
@@ -129,6 +131,19 @@ export default function Admin() {
       setWhatsappSettings(map);
     } catch (e) { console.error(e); }
   };
+
+  const fetchWaMessages = async () => {
+    setWaMessagesLoading(true);
+    try {
+      const data = await api.whatsapp.messages();
+      setWaMessages(data);
+    } catch (e) { console.error(e); }
+    setWaMessagesLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'whatsapp') fetchWaMessages();
+  }, [activeTab]);
 
   const fetchNews = async () => {
     try {
@@ -1238,6 +1253,75 @@ export default function Admin() {
                 {settingsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                 {settingsLoading ? 'Guardando...' : settingsSaved ? '✅ Guardado' : 'Guardar Configuración'}
               </button>
+
+              {/* Messages Log */}
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+                <h2 className="text-xl font-serif font-bold text-brand-primary mb-4 flex items-center gap-3">
+                  <MessageSquare className="w-6 h-6" /> Reportes Recibidos
+                </h2>
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm text-gray-500">Últimos mensajes recibidos</p>
+                    <button onClick={fetchWaMessages} className="flex items-center gap-2 text-sm font-bold text-brand-primary hover:underline">
+                      <RefreshCw className={`w-4 h-4 ${waMessagesLoading ? 'animate-spin' : ''}`} /> Actualizar
+                    </button>
+                  </div>
+                  {waMessagesLoading ? (
+                    <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>
+                  ) : waMessages.length === 0 ? (
+                    <div className="text-center py-10 bg-brand-bg rounded-2xl border border-dashed border-brand-accent">
+                      <MessageSquare className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+                      <p className="text-gray-400 font-medium">Aún no se recibieron mensajes</p>
+                      <p className="text-xs text-gray-300 mt-1">Los mensajes aparecerán aquí cuando alguien escriba al WhatsApp.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+                      <table className="w-full text-left text-sm min-w-max">
+                        <thead>
+                          <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                            <th className="px-4 py-3">Número</th>
+                            <th className="px-4 py-3">Nombre</th>
+                            <th className="px-4 py-3">Tipo</th>
+                            <th className="px-4 py-3">Mensaje</th>
+                            <th className="px-4 py-3">Usuario</th>
+                            <th className="px-4 py-3">Estado</th>
+                            <th className="px-4 py-3">Fecha</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-brand-accent">
+                          {waMessages.map((msg: any) => (
+                            <tr key={msg.id} className="hover:bg-brand-bg/50 transition-colors">
+                              <td className="px-4 py-3 font-mono text-xs">{msg.wa_from}</td>
+                              <td className="px-4 py-3 font-medium text-brand-primary">{msg.sender_name || '—'}</td>
+                              <td className="px-4 py-3">
+                                <span className={cn(
+                                  "text-[10px] px-2 py-1 rounded-full font-bold uppercase",
+                                  msg.message_type === 'image' ? "bg-purple-100 text-purple-700" :
+                                  msg.message_type === 'location' ? "bg-blue-100 text-blue-700" :
+                                  msg.message_type === 'interactive' ? "bg-green-100 text-green-700" :
+                                  "bg-gray-100 text-gray-600"
+                                )}>{msg.message_type}</span>
+                              </td>
+                              <td className="px-4 py-3 max-w-[200px] truncate text-gray-500">{msg.text_body || '—'}</td>
+                              <td className="px-4 py-3">{msg.user_name ? <span className="font-bold text-brand-primary">{msg.user_name}</span> : <span className="text-gray-400 text-xs">Anónimo</span>}</td>
+                              <td className="px-4 py-3">
+                                <span className={cn(
+                                  "text-[10px] px-2 py-1 rounded-full font-bold uppercase",
+                                  msg.status === 'pending' ? "bg-yellow-100 text-yellow-700" :
+                                  msg.status === 'processed' ? "bg-blue-100 text-blue-700" :
+                                  msg.status === 'matched' ? "bg-green-100 text-green-700" :
+                                  "bg-gray-100 text-gray-600"
+                                )}>{msg.status}</span>
+                              </td>
+                              <td className="px-4 py-3 text-xs text-gray-400">{new Date(msg.created_at).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
          </div>

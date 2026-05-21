@@ -1,0 +1,176 @@
+import axios from 'axios';
+import pool from '../db.js';
+
+const GRAPH_API = 'https://graph.facebook.com/v22.0';
+
+async function getPhoneNumberId() {
+  const result = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_phone_number_id'");
+  return result.rows[0]?.value || '';
+}
+
+async function getAccessToken() {
+  const result = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_access_token'");
+  return result.rows[0]?.value || '';
+}
+
+export async function sendMessage(to, text) {
+  const phoneNumberId = await getPhoneNumberId();
+  const token = await getAccessToken();
+  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const { data } = await axios.post(`${GRAPH_API}/${phoneNumberId}/messages`,
+    {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'text',
+      text: { preview_url: false, body: text },
+    },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  return data;
+}
+
+export async function sendInteractiveButtons(to, bodyText, buttons) {
+  const phoneNumberId = await getPhoneNumberId();
+  const token = await getAccessToken();
+  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const { data } = await axios.post(`${GRAPH_API}/${phoneNumberId}/messages`,
+    {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: bodyText },
+        action: {
+          buttons: buttons.map((b, i) => ({
+            type: 'reply',
+            reply: { id: String(b.id || i), title: b.title },
+          })),
+        },
+      },
+    },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  return data;
+}
+
+export async function sendImage(to, imageUrl, caption) {
+  const phoneNumberId = await getPhoneNumberId();
+  const token = await getAccessToken();
+  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const { data } = await axios.post(`${GRAPH_API}/${phoneNumberId}/messages`,
+    {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'image',
+      image: { link: imageUrl, caption: caption || '' },
+    },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  return data;
+}
+
+export async function downloadMedia(mediaId) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('WhatsApp not configured');
+
+  const { data: mediaInfo } = await axios.get(`${GRAPH_API}/${mediaId}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  const { data: mediaBuffer } = await axios.get(mediaInfo.url, {
+    responseType: 'arraybuffer',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  return {
+    buffer: Buffer.from(mediaBuffer),
+    mimeType: mediaInfo.mime_type,
+    fileSize: mediaInfo.file_size,
+  };
+}
+
+export async function sendReply(to, text, contextMessageId) {
+  const phoneNumberId = await getPhoneNumberId();
+  const token = await getAccessToken();
+  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const { data } = await axios.post(`${GRAPH_API}/${phoneNumberId}/messages`,
+    {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'text',
+      context: { message_id: contextMessageId },
+      text: { preview_url: false, body: text },
+    },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  return data;
+}
+
+export function verifyWebhook(mode, token, challenge) {
+  return mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN;
+}
+
+export function processIncomingMessage(payload) {
+  if (!payload?.entry?.[0]?.changes?.[0]?.value) return null;
+
+  const value = payload.entry[0].changes[0].value;
+
+  if (!value.messages || value.messages.length === 0) return null;
+
+  const msg = value.messages[0];
+  const from = msg.from;
+  const waMessageId = msg.id;
+
+  let messageType = 'text';
+  let textBody = '';
+  let mediaId = null;
+  let locationLat = null;
+  let locationLng = null;
+
+  if (msg.type === 'text') {
+    messageType = 'text';
+    textBody = msg.text?.body || '';
+  } else if (msg.type === 'image') {
+    messageType = 'image';
+    textBody = msg.image?.caption || '';
+    mediaId = msg.image?.id;
+  } else if (msg.type === 'location') {
+    messageType = 'location';
+    locationLat = msg.location?.latitude;
+    locationLng = msg.location?.longitude;
+    textBody = msg.location?.name || '';
+  } else if (msg.type === 'interactive') {
+    messageType = 'interactive';
+    textBody = msg.interactive?.button_reply?.title ||
+               msg.interactive?.list_reply?.title ||
+               '';
+  }
+
+  const profileName = value.contacts?.[0]?.profile?.name || '';
+
+  return {
+    waMessageId,
+    from,
+    messageType,
+    textBody,
+    mediaId,
+    locationLat,
+    locationLng,
+    profileName,
+    timestamp: msg.timestamp,
+  };
+}
+
+export async function isWhatsAppEnabled() {
+  const result = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_enabled'");
+  return result.rows[0]?.value === 'true';
+}
