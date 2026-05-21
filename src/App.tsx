@@ -25,6 +25,7 @@ const ForgotPassword = lazy(() => import('@/src/pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('@/src/pages/ResetPassword'));
 const VerifyMember = lazy(() => import('@/src/pages/VerifyMember'));
 const MemberCardPage = lazy(() => import('@/src/pages/MemberCardPage'));
+const QuickReport = lazy(() => import('@/src/pages/QuickReport'));
 
 function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin?: boolean }) {
   const { user, isAdmin: isUserAdmin, loading } = useAuth();
@@ -63,6 +64,7 @@ export default function App() {
                <Route path="/novedad/:id" element={<NovedadDetail />} />
                <Route path="/perdiste-a-tu-mascota" element={<LostPetGuide />} />
                <Route path="/reportar" element={<ReportPet />} />
+               <Route path="/reportar-rapido" element={<QuickReport />} />
 
               <Route path="/colaborar" element={<Collaborate />} />
               <Route path="/sumate" element={<Join />} />

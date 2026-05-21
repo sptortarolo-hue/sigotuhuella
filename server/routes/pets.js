@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth, requireAdmin, verifyToken } from '../auth.js';
+import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail } from '../auth.js';
+import { findMatches } from '../services/matchingService.js';
 import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
 
@@ -144,16 +145,24 @@ const router = Router();
 router.get('/', async (req, res) => {
   try {
     const status = req.query.status;
+    const isPublic = req.query.public === 'true';
     let query = `
       SELECT p.*, 
         COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
       FROM pets p
       LEFT JOIN pet_images pi ON pi.pet_id = p.id
     `;
+    const conditions = [];
     const params = [];
     if (status) {
       params.push(status);
-      query += ` WHERE p.status = $1`;
+      conditions.push(`p.status = $${params.length}`);
+    }
+    if (isPublic) {
+      conditions.push(`p.created_by IS NULL`);
+    }
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
     }
     query += ` GROUP BY p.id ORDER BY p.created_at DESC`;
     const result = await pool.query(query, params);
@@ -596,6 +605,67 @@ router.get('/:petId/records/report', async (req, res) => {
   } catch (err) {
     console.error('PDF report error:', err);
     res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+});
+
+// Public endpoint (no auth) for quick anonymous reports
+router.post('/public', async (req, res) => {
+  const { species, description, location, contact_info, status, images } = req.body;
+  if (!species || !description || !location) {
+    return res.status(400).json({ error: 'Species, description, and location are required' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const petResult = await client.query(
+      `INSERT INTO pets (species, description, location, contact_info, status, created_by, is_admin_verified)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [species, description, location, contact_info || null, status || 'lost', null, false]
+    );
+    const pet = petResult.rows[0];
+    if (images && images.length > 0) {
+      for (const img of images) {
+        await client.query(
+          'INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)',
+          [pet.id, img.data, img.mimeType || 'image/jpeg']
+        );
+      }
+    }
+    const imagesResult = await client.query(
+      `SELECT json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) as images
+       FROM pet_images pi WHERE pi.pet_id = $1`,
+      [pet.id]
+    );
+    await client.query('COMMIT');
+    pet.images = imagesResult.rows[0]?.images || [];
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    sendAdminNotificationEmail(
+      '🐾 Nuevo reporte público recibido',
+      `<p style="font-size:16px;margin-bottom:16px;">Se recibió un nuevo reporte a través del formulario público.</p>
+       <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Especie</td><td style="padding:8px;border:1px solid #e2e8f0;">${species}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Descripción</td><td style="padding:8px;border:1px solid #e2e8f0;">${description}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Ubicación</td><td style="padding:8px;border:1px solid #e2e8f0;">${location}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Contacto</td><td style="padding:8px;border:1px solid #e2e8f0;">${contact_info || 'No informado'}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Tipo</td><td style="padding:8px;border:1px solid #e2e8f0;">${status || 'lost'}</td></tr>
+       </table>
+       <p style="text-align:center;margin-top:16px;">
+         <a href="${frontendUrl}/pet/${pet.id}" style="background-color:#3b82f6;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">Ver publicación</a>
+       </p>`
+    ).catch(err => console.error('Failed to send admin notification:', err));
+
+    // Run matching in background
+    findMatches(pet).catch(err => console.error('Matching error:', err));
+
+    res.status(201).json({ pet });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Create public pet error:', err);
+    res.status(500).json({ error: 'Failed to create pet report' });
+  } finally {
+    client.release();
   }
 });
 

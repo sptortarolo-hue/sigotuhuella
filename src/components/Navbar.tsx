@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard } from 'lucide-react';
+import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard, FileText } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -17,7 +17,8 @@ export default function Navbar() {
 
   const navItems = [
     { name: 'Inicio', path: '/', icon: PawPrint },
-    { name: 'Reportar', path: '/reportar', icon: PlusCircle },
+    { name: 'Reporte Rápido', path: '/reportar-rapido', icon: PlusCircle },
+    { name: 'Reportar', path: '/reportar', icon: FileText },
     { name: 'Mascotas Reportadas', path: '/perdidos', icon: Search },
     { name: 'Adopción', path: '/adopcion', icon: Heart },
     { name: 'Colaborar', path: '/colaborar', icon: HandCoins },

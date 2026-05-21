@@ -37,8 +37,10 @@ export const api = {
   },
   pets: {
     list: (status?: string) => request(`/pets${status ? `?status=${status}` : ''}`),
+    listPublic: () => request('/pets?public=true'),
     get: (id: string) => request(`/pets/${id}`),
     create: (data: any) => request('/pets', { method: 'POST', body: JSON.stringify(data) }),
+    publicCreate: (data: any) => request('/pets/public', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => request(`/pets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/pets/${id}`, { method: 'DELETE' }),
     verify: (id: string, verified: boolean) =>

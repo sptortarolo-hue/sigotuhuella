@@ -29,7 +29,7 @@ import { cn } from '@/src/lib/utils';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'public'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -523,6 +523,7 @@ export default function Admin() {
           { id: 'users', label: 'Usuarios', icon: UserCog },
           { id: 'highlights', label: 'Noticias Destacadas', icon: HeartHandshake },
           { id: 'news', label: 'Novedades', icon: Sparkles },
+          { id: 'public', label: 'Reportes Públicos', icon: FileText },
           { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
         ].map(tab => (
           <button
@@ -1136,6 +1137,11 @@ export default function Admin() {
               </div>
             )}
 
+          {/* ====== REPORTES PUBLICOS ====== */}
+          {activeTab === 'public' && (
+            <PublicReportsTab />
+          )}
+
           {/* ====== WHATSAPP ====== */}
           {activeTab === 'whatsapp' && (
             <div className="space-y-8">
@@ -1741,6 +1747,98 @@ export default function Admin() {
           <SocialShareModal pet={sharePet} onClose={() => setSharePet(null)} />
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function PublicReportsTab() {
+  const [reports, setReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchReports = async () => {
+    setLoading(true);
+    try {
+      const data = await api.pets.listPublic();
+      setReports(data.pets || []);
+    } catch (err) {
+      console.error('Failed to fetch public reports:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchReports(); }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar este reporte público?')) return;
+    try {
+      await api.pets.delete(id);
+      fetchReports();
+    } catch (err) {
+      console.error('Delete error:', err);
+    }
+  };
+
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-brand-primary" /></div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-serif font-bold text-brand-primary">Reportes Públicos</h2>
+          <p className="text-sm text-gray-500 mt-1">Reportes ingresados por el formulario rápido sin registro.</p>
+        </div>
+        <button onClick={fetchReports} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-brand-primary border border-brand-accent rounded-xl hover:bg-brand-primary/5 transition-colors">
+          <RefreshCw className="w-4 h-4" /> Actualizar
+        </button>
+      </div>
+
+      {reports.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-[2.5rem] border border-brand-accent">
+          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">No hay reportes públicos pendientes.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-[2.5rem] border border-brand-accent bg-white">
+          <table className="w-full text-left text-sm min-w-max">
+            <thead className="bg-brand-bg border-b border-brand-accent">
+              <tr>
+                <th className="px-6 py-4 font-bold text-gray-700">Especie</th>
+                <th className="px-6 py-4 font-bold text-gray-700">Descripción</th>
+                <th className="px-6 py-4 font-bold text-gray-700">Ubicación</th>
+                <th className="px-6 py-4 font-bold text-gray-700">Contacto</th>
+                <th className="px-6 py-4 font-bold text-gray-700">Fecha</th>
+                <th className="px-6 py-4 font-bold text-gray-700">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-accent">
+              {reports.map((report: any) => (
+                <tr key={report.id} className="hover:bg-brand-bg/50 transition-colors">
+                  <td className="px-6 py-4 capitalize">{report.species}</td>
+                  <td className="px-6 py-4 max-w-xs">
+                    <p className="truncate">{report.description}</p>
+                  </td>
+                  <td className="px-6 py-4">{report.location}</td>
+                  <td className="px-6 py-4">{report.contact_info || <span className="text-gray-400">—</span>}</td>
+                  <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
+                    {new Date(report.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => window.open(`/pet/${report.id}`, '_blank')} className="p-2 hover:bg-brand-primary/10 rounded-lg transition-colors text-brand-primary" title="Ver">
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDelete(report.id)} className="p-2 hover:bg-red-50 rounded-lg transition-colors text-red-500" title="Eliminar">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
