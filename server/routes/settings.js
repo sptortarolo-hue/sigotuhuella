@@ -21,7 +21,7 @@ router.get('/public', async (_req, res) => {
     const result = await pool.query(
       `SELECT key, value FROM settings WHERE key IN ('whatsapp_enabled', 'whatsapp_business_phone')`
     );
-    const data: Record<string, string> = {};
+    const data = {};
     result.rows.forEach(r => { data[r.key] = r.value; });
     res.json(data);
   } catch (err) {
