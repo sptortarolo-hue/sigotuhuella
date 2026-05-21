@@ -107,4 +107,9 @@ export const api = {
     update: (id: string, data: any) => request(`/news/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/news/${id}`, { method: 'DELETE' }),
   },
+  settings: {
+    list: () => request('/settings'),
+    update: (key: string, value: string) => request(`/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
+    getPublic: () => request('/settings/public'),
+  },
 };

@@ -22,14 +22,14 @@ import { BADGE_CONFIG } from '@/src/components/MemberCard';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award
+  Edit2, ExternalLink, Calendar, MapPin, Phone, UserCog, Search, RefreshCw,   HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award, MessageSquare, FlaskConical, Map
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -106,14 +106,28 @@ export default function Admin() {
   const [newsImageData, setNewsImageData] = useState<string | null>(null);
   const [newsMimeType, setNewsMimeType] = useState<string | null>(null);
 
+  // WhatsApp Settings state
+  const [whatsappSettings, setWhatsappSettings] = useState<Record<string, string>>({});
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+
   useEffect(() => {
     fetchAll();
   }, []);
 
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchPets(), fetchAccounts(), fetchVolunteers(), fetchUsers(), fetchNews()]);
+    await Promise.all([fetchPets(), fetchAccounts(), fetchVolunteers(), fetchUsers(), fetchNews(), fetchSettings()]);
     setLoading(false);
+  };
+
+  const fetchSettings = async () => {
+    try {
+      const data = await api.settings.list();
+      const map: Record<string, string> = {};
+      data.forEach((s: any) => { map[s.key] = s.value; });
+      setWhatsappSettings(map);
+    } catch (e) { console.error(e); }
   };
 
   const fetchNews = async () => {
@@ -494,6 +508,7 @@ export default function Admin() {
           { id: 'users', label: 'Usuarios', icon: UserCog },
           { id: 'highlights', label: 'Noticias Destacadas', icon: HeartHandshake },
           { id: 'news', label: 'Novedades', icon: Sparkles },
+          { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
         ].map(tab => (
           <button
             key={tab.id}
@@ -1103,10 +1118,130 @@ export default function Admin() {
                    <p className="text-gray-400 font-medium">Aún no hay solicitudes para sumarse.</p>
                  </div>
                )}
-             </div>
-           )}
-        </div>
-      )}
+              </div>
+            )}
+
+          {/* ====== WHATSAPP ====== */}
+          {activeTab === 'whatsapp' && (
+            <div className="space-y-8">
+              {/* Connection Settings */}
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+                <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
+                  <MessageSquare className="w-6 h-6" /> Configuración WhatsApp Business
+                </h2>
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl">
+                    <input
+                      type="checkbox"
+                      id="whatsapp_enabled"
+                      checked={whatsappSettings.whatsapp_enabled === 'true'}
+                      onChange={(e) => setWhatsappSettings(p => ({ ...p, whatsapp_enabled: e.target.checked ? 'true' : 'false' }))}
+                      className="w-5 h-5 rounded accent-brand-primary"
+                    />
+                    <label htmlFor="whatsapp_enabled" className="font-bold text-brand-primary">Activar WhatsApp Business</label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[
+                      { key: 'whatsapp_phone_number_id', label: 'Phone Number ID', type: 'text' },
+                      { key: 'whatsapp_access_token', label: 'Access Token', type: 'password' },
+                      { key: 'whatsapp_verify_token', label: 'Verify Token', type: 'password' },
+                      { key: 'whatsapp_business_phone', label: 'Número WhatsApp (cód. país + nro)', type: 'text' },
+                    ].map(field => (
+                      <div key={field.key}>
+                        <label className="block text-sm font-bold text-gray-600 mb-1">{field.label}</label>
+                        <input
+                          type={field.type}
+                          value={whatsappSettings[field.key] || ''}
+                          onChange={(e) => setWhatsappSettings(p => ({ ...p, [field.key]: e.target.value }))}
+                          className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="p-4 bg-blue-50 rounded-2xl border border-blue-200">
+                    <p className="text-sm font-bold text-blue-700 mb-2">📋 Instrucciones Webhook</p>
+                    <p className="text-xs text-blue-600">URL: <code className="bg-blue-100 px-2 py-0.5 rounded">https://sigotuhuella.online/api/whatsapp/webhook</code></p>
+                    <p className="text-xs text-blue-600 mt-1">Configurá esta URL en el panel de desarrolladores de Meta (WhatsApp Cloud API).</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Matching Settings */}
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+                <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
+                  <FlaskConical className="w-6 h-6" /> Configuración de Matching
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-600 mb-1">
+                      <Map className="w-4 h-4 inline mr-1" /> Radio de búsqueda (km)
+                    </label>
+                    <input
+                      type="number"
+                      value={whatsappSettings.matching_radius_km || '20'}
+                      onChange={(e) => setWhatsappSettings(p => ({ ...p, matching_radius_km: e.target.value }))}
+                      className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+                      min="1" max="500"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Distancia máxima para considerar un match geográfico.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-600 mb-1">Score mínimo (%)</label>
+                    <input
+                      type="number"
+                      value={whatsappSettings.matching_min_score || '70'}
+                      onChange={(e) => setWhatsappSettings(p => ({ ...p, matching_min_score: e.target.value }))}
+                      className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+                      min="0" max="100"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Puntaje mínimo para enviar notificación de match.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Greeting message */}
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+                <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
+                  <MessageSquare className="w-6 h-6" /> Mensaje de Bienvenida
+                </h2>
+                <textarea
+                  value={whatsappSettings.whatsapp_greeting || ''}
+                  onChange={(e) => setWhatsappSettings(p => ({ ...p, whatsapp_greeting: e.target.value }))}
+                  className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm h-28 resize-none"
+                  placeholder="Mensaje que se envía automáticamente cuando alguien escribe al WhatsApp..."
+                />
+                <p className="text-xs text-gray-400 mt-1">Las líneas con 1️⃣ 2️⃣ 3️⃣ generarán botones interactivos.</p>
+              </div>
+
+              {/* Save button */}
+              <button
+                onClick={async () => {
+                  setSettingsLoading(true);
+                  setSettingsSaved(false);
+                  try {
+                    await Promise.all(Object.entries(whatsappSettings).map(([key, value]) =>
+                      api.settings.update(key, value)
+                    ));
+                    setSettingsSaved(true);
+                    setTimeout(() => setSettingsSaved(false), 3000);
+                  } catch (e) {
+                    console.error(e);
+                    alert('Error al guardar configuración');
+                  }
+                  setSettingsLoading(false);
+                }}
+                disabled={settingsLoading}
+                className="px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
+              >
+                {settingsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                {settingsLoading ? 'Guardando...' : settingsSaved ? '✅ Guardado' : 'Guardar Configuración'}
+              </button>
+            </div>
+          )}
+         </div>
+       )}
 
       {/* Form Modals */}
       <AnimatePresence>

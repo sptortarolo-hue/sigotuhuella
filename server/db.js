@@ -121,6 +121,52 @@ CREATE TABLE IF NOT EXISTS pet_records (
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS settings (
+  key VARCHAR(255) PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  wa_message_id VARCHAR(255),
+  wa_from VARCHAR(100) NOT NULL,
+  sender_name VARCHAR(255),
+  message_type VARCHAR(50) NOT NULL,
+  text_body TEXT,
+  image_data TEXT,
+  image_mime VARCHAR(50),
+  location_lat DOUBLE PRECISION,
+  location_lng DOUBLE PRECISION,
+  pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  status VARCHAR(50) DEFAULT 'pending',
+  match_score INTEGER,
+  matched_pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_sessions (
+  wa_from VARCHAR(100) PRIMARY KEY,
+  step VARCHAR(50) DEFAULT 'greeting',
+  temp_data JSONB DEFAULT '{}'::jsonb,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Insert default settings
+INSERT INTO settings (key, value) VALUES
+  ('whatsapp_enabled', 'false'),
+  ('whatsapp_phone_number_id', ''),
+  ('whatsapp_access_token', ''),
+  ('whatsapp_verify_token', ''),
+  ('whatsapp_business_phone', ''),
+  ('matching_radius_km', '20'),
+  ('matching_min_score', '70'),
+  ('whatsapp_greeting', '🐾 ¡Gracias por contactar a Sigo Tu Huella! ¿Qué querés reportar?\n1️⃣ Avistaje (viste una mascota)\n2️⃣ Necesita atención (mascota herida/en riesgo)\n3️⃣ Accidentada')
+ON CONFLICT (key) DO NOTHING;
 `;
 
 export async function initDb() {
