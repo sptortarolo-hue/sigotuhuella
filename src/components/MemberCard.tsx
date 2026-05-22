@@ -3,18 +3,28 @@ import QRCode from 'qrcode';
 import { Badge } from '@/src/hooks/AuthProvider';
 
 // ── Badge catalogue ────────────────────────────────────────────────────────────
-export const BADGE_CONFIG: Record<string, { label: string; color: string; icon: string; auto: boolean }> = {
-  first_report:     { label: '1er Reporte',      color: '#10B981', icon: '🐾', auto: true },
-  reporter_5:       { label: '5 Reportes',        color: '#0EA5E9', icon: '📋', auto: true },
-  reporter_15:      { label: '15 Reportes',       color: '#6366F1', icon: '🌟', auto: true },
-  reunited_hero:    { label: 'Héroe Reencuentro', color: '#EC4899', icon: '💞', auto: true },
-  reunited_legend:  { label: 'Leyenda Reunión',   color: '#F59E0B', icon: '🏆', auto: true },
-  volunteer:        { label: 'Voluntario/a',      color: '#10B981', icon: '🤝', auto: false },
-  first_donation:   { label: '1ra Donación',      color: '#EC4899', icon: '❤️', auto: false },
-  frequent_donor:   { label: 'Donante Frecuente', color: '#8B5CF6', icon: '💜', auto: false },
-  foster_hero:      { label: 'Héroe Tránsito',    color: '#F59E0B', icon: '🏠', auto: false },
-  rescuer:          { label: 'Rescatista',         color: '#3B82F6', icon: '🛡️', auto: false },
-  founder:          { label: 'Fundador/a',         color: '#FBBF24', icon: '👑', auto: false },
+export const BADGE_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
+  first_report:     { label: '1er Reporte',      color: '#10B981', icon: '🐾' },
+  reporter_5:       { label: '5 Reportes',        color: '#0EA5E9', icon: '📋' },
+  reporter_15:      { label: '15 Reportes',       color: '#6366F1', icon: '🌟' },
+  reunited_hero:    { label: 'Héroe Reencuentro', color: '#EC4899', icon: '💞' },
+  reunited_legend:  { label: 'Leyenda Reunión',   color: '#F59E0B', icon: '🏆' },
+  volunteer:        { label: 'Voluntario/a',      color: '#10B981', icon: '🤝' },
+  first_donation:   { label: '1ra Donación',      color: '#EC4899', icon: '❤️' },
+  frequent_donor:   { label: 'Donante Frecuente', color: '#8B5CF6', icon: '💜' },
+  foster_hero:      { label: 'Héroe Tránsito',    color: '#F59E0B', icon: '🏠' },
+  rescuer:          { label: 'Rescatista',         color: '#3B82F6', icon: '🛡️' },
+  founder:          { label: 'Fundador/a',         color: '#FBBF24', icon: '👑' },
+  ayuda_traslados:  { label: 'Ayuda en traslados', color: '#3B82F6', icon: '🚗' },
+  hogares_transito: { label: 'Hogares de tránsito',color: '#F59E0B', icon: '🏠' },
+  difusion_redes:   { label: 'Difusión en redes',  color: '#8B5CF6', icon: '📱' },
+  logistica:        { label: 'Logística y org.',   color: '#F59E0B', icon: '📋' },
+  aporte_economico: { label: 'Aporte económico',   color: '#EC4899', icon: '💰' },
+  fotografia_video: { label: 'Fotografía y video', color: '#6366F1', icon: '📸' },
+  recoleccion_insumos: { label: 'Recolección insumos',color: '#10B981', icon: '📦' },
+  apoyo_veterinario:{ label: 'Apoyo veterinario',  color: '#EF4444', icon: '🩺' },
+  asesoria_legal:   { label: 'Asesoría legal',     color: '#8B4513', icon: '⚖️' },
+  diseno_grafico:   { label: 'Diseño gráfico',     color: '#FF69B4', icon: '🎨' },
 };
 
 // ── Level catalogue ────────────────────────────────────────────────────────────

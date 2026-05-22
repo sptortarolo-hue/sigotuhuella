@@ -76,7 +76,7 @@ export default function Admin() {
 
   // Volunteers State
   const [volunteers, setVolunteers] = useState<VolunteerRequest[]>([]);
-  const [memberInfo, setMemberInfo] = useState<Record<string, { member_number?: string; volunteer_status?: string; badges?: Badge[] }>>({});
+  const [memberInfo, setMemberInfo] = useState<Record<string, { member_number?: string; volunteer_status?: string; badges?: Badge[]; contribution_areas?: string[] }>>({});
 
   const MANUAL_BADGES = [
     { code: 'volunteer', label: 'Voluntario/a', icon: '🤝' },
@@ -85,8 +85,19 @@ export default function Admin() {
     { code: 'foster_hero', label: 'Héroe Tránsito', icon: '🏠' },
     { code: 'rescuer', label: 'Rescatista', icon: '🛡️' },
     { code: 'founder', label: 'Fundador/a', icon: '👑' },
+    { code: 'ayuda_traslados', label: 'Ayuda en traslados', icon: '🚗' },
+    { code: 'hogares_transito', label: 'Hogares de tránsito', icon: '🏠' },
+    { code: 'difusion_redes', label: 'Difusión en redes', icon: '📱' },
+    { code: 'logistica', label: 'Logística y org.', icon: '📋' },
+    { code: 'aporte_economico', label: 'Aporte económico', icon: '💰' },
+    { code: 'fotografia_video', label: 'Fotografía y video', icon: '📸' },
+    { code: 'recoleccion_insumos', label: 'Recolección insumos', icon: '📦' },
+    { code: 'apoyo_veterinario', label: 'Apoyo veterinario', icon: '🩺' },
+    { code: 'asesoria_legal', label: 'Asesoría legal', icon: '⚖️' },
+    { code: 'diseno_grafico', label: 'Diseño gráfico', icon: '🎨' },
   ];
   const ALL_BADGES = MANUAL_BADGES;
+  const AUTO_BADGE_CODES = new Set(Object.keys(BADGE_CONFIG).filter(k => !MANUAL_BADGES.some(m => m.code === k)));
 
   // Users State
   const [userList, setUserList] = useState<any[]>([]);
@@ -327,7 +338,7 @@ export default function Admin() {
         const infoMap: Record<string, any> = {};
         (usersData.users || []).forEach((u: any) => {
           if (userIds.includes(u.id)) {
-            infoMap[u.id] = { member_number: u.member_number, volunteer_status: u.volunteer_status, badges: u.badges || [], avatar_data: u.avatar_data, avatar_mime_type: u.avatar_mime_type, avatar_type: u.avatar_type };
+            infoMap[u.id] = { member_number: u.member_number, volunteer_status: u.volunteer_status, badges: u.badges || [], contribution_areas: u.contribution_areas || [], avatar_data: u.avatar_data, avatar_mime_type: u.avatar_mime_type, avatar_type: u.avatar_type };
           }
         });
         setMemberInfo(infoMap);
@@ -1054,14 +1065,26 @@ export default function Admin() {
                                    <div className="flex items-center gap-1"><Phone className="w-4 h-4" /> {vol.whatsapp}</div>
                                    <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(vol.created_at).toLocaleDateString()}</div>
                                  </div>
-                                 {info?.member_number && (
-                                   <div className="flex items-center gap-2 text-xs text-brand-primary font-bold mt-1">
-                                     <PawPrint className="w-3 h-3" /> {info.member_number}
-                                   </div>
-                                 )}
+                                  {info?.member_number && (
+                                    <div className="flex items-center gap-2 text-xs text-brand-primary font-bold mt-1">
+                                      <PawPrint className="w-3 h-3" /> {info.member_number}
+                                    </div>
+                                  )}
+                                  {info?.contribution_areas && info.contribution_areas.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                      {info.contribution_areas.map((area: string, i: number) => {
+                                        const cfg = BADGE_CONFIG[area];
+                                        return cfg ? (
+                                          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: cfg.color }}>
+                                            {cfg.icon} {cfg.label}
+                                          </span>
+                                        ) : null;
+                                      })}
+                                    </div>
+                                  )}
                                   {/* Auto-badges: read-only */}
                                   {(() => {
-                                    const autoBadges = badges.filter((b) => BADGE_CONFIG[b.code]?.auto);
+                                    const autoBadges = badges.filter((b) => AUTO_BADGE_CODES.has(b.code));
                                     if (autoBadges.length === 0) return null;
                                     return (
                                       <div className="mt-2">

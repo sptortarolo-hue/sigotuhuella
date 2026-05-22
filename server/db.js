@@ -29,6 +29,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_type VARCHAR(20) DEFAULT 'pawp
 ALTER TABLE users ADD COLUMN IF NOT EXISTS member_number VARCHAR(20) UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS volunteer_status VARCHAR(20) DEFAULT 'none';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS badges JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS contribution_areas JSONB DEFAULT '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS pets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -78,6 +79,8 @@ CREATE TABLE IF NOT EXISTS volunteer_requests (
   status VARCHAR(50) DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+ALTER TABLE volunteer_requests ADD COLUMN IF NOT EXISTS contribution_areas JSONB DEFAULT '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS pet_images (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

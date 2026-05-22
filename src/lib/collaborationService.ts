@@ -41,7 +41,7 @@ export const deleteCollaborationAccount = async (id: string): Promise<void> => {
   await api.collaboration.delete(id);
 };
 
-export const createVolunteerRequest = async (data: { fullName: string; residenceZone: string; whatsapp: string }): Promise<void> => {
+export const createVolunteerRequest = async (data: { fullName: string; residenceZone: string; whatsapp: string; contributionAreas?: string[] }): Promise<void> => {
   await api.volunteers.create(data);
 };
 

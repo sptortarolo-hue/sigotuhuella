@@ -214,9 +214,6 @@ const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<{
                   <div key={badge.code} className="flex flex-col items-center gap-2 p-3 rounded-2xl" style={{ backgroundColor: `${cfg?.color || '#6B7280'}18` }}>
                     <span className="text-3xl">{cfg?.icon || '⭐'}</span>
                     <span className="text-xs font-bold text-center text-gray-700 leading-tight">{cfg?.label || badge.code}</span>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${cfg?.auto ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {cfg?.auto ? 'Automática' : 'Manual'}
-                    </span>
                     <span className="text-[9px] text-gray-400">{new Date(badge.awarded_at).toLocaleDateString()}</span>
                   </div>
                 );

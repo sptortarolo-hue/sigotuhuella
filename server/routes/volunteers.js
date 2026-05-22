@@ -17,14 +17,15 @@ router.get('/', requireAdmin, async (req, res) => {
 });
 
 router.post('/', requireAuth, async (req, res) => {
-  const { fullName, residenceZone, whatsapp } = req.body;
+  const { fullName, residenceZone, whatsapp, contributionAreas } = req.body;
   if (!fullName || !residenceZone || !whatsapp) {
     return res.status(400).json({ error: 'Full name, residence zone, and WhatsApp are required' });
   }
   try {
+    const areas = JSON.stringify(contributionAreas || []);
     const result = await pool.query(
-      'INSERT INTO volunteer_requests (full_name, residence_zone, whatsapp, user_id) VALUES ($1, $2, $3, $4) RETURNING *',
-      [fullName, residenceZone, whatsapp, req.user.id]
+      'INSERT INTO volunteer_requests (full_name, residence_zone, whatsapp, user_id, contribution_areas) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [fullName, residenceZone, whatsapp, req.user.id, areas]
     );
     await pool.query(
       "UPDATE users SET volunteer_status = 'pending' WHERE id = $1",
@@ -33,6 +34,12 @@ router.post('/', requireAuth, async (req, res) => {
 
     // Notify administrators of the new volunteer request
     const adminSubject = `📢 Nueva Solicitud de Socio: ${fullName}`;
+    const areasList = (contributionAreas || []).length > 0
+      ? `<tr>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #475569;">Áreas:</td>
+          <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;">${(contributionAreas || []).join(', ')}</td>
+        </tr>`
+      : '';
     const adminHtml = `
       <p>Se ha recibido una nueva solicitud para convertirse en Socio / Voluntario:</p>
       <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
@@ -56,6 +63,7 @@ router.post('/', requireAuth, async (req, res) => {
           <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; color: #475569;">Fecha:</td>
           <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #334155;">${new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}</td>
         </tr>
+        ${areasList}
       </table>
       <div style="text-align: center; margin-top: 25px;">
         <a href="https://sigotuhuella.online/admin" 
@@ -128,10 +136,27 @@ router.put('/:id', requireAdmin, async (req, res) => {
               WHEN badges IS NULL OR badges = '[]'::jsonb THEN $2::jsonb
               WHEN badges @> '[{"code": "volunteer"}]'::jsonb THEN badges
               ELSE badges || $2::jsonb
-            END
+            END,
+            contribution_areas = COALESCE(contribution_areas, '[]'::jsonb) || $4::jsonb
           WHERE id = $3`,
-          [memberNumber, volunteerBadge, volunteer.user_id]
+          [memberNumber, volunteerBadge, volunteer.user_id, JSON.stringify(volunteer.contribution_areas || [])]
         );
+
+        // Award badges for each contribution area
+        const areas = volunteer.contribution_areas || [];
+        for (const area of areas) {
+          const areaBadge = JSON.stringify([{ code: area, awarded_at: new Date().toISOString() }]);
+          await pool.query(
+            `UPDATE users SET
+              badges = CASE
+                WHEN badges IS NULL OR badges = '[]'::jsonb THEN $1::jsonb
+                WHEN badges @> $2::jsonb THEN badges
+                ELSE badges || $1::jsonb
+              END
+            WHERE id = $3`,
+            [areaBadge, JSON.stringify([{ code: area }]), volunteer.user_id]
+          );
+        }
       }
 
       // Fetch user email and display name to send approval email

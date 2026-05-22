@@ -2,15 +2,16 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { createVolunteerRequest } from '@/src/lib/collaborationService';
-import { 
-  Users, 
-  MapPin, 
-  Phone, 
-  User as UserIcon, 
-  Loader2, 
+import {
+  Users,
+  MapPin,
+  Phone,
+  User as UserIcon,
+  Loader2,
   CheckCircle2,
   AlertCircle,
-  Clock
+  Clock,
+  HeartHandshake
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import AuthGate from '@/src/components/AuthGate';
@@ -19,6 +20,20 @@ import MemberCardPage from '@/src/pages/MemberCardPage';
 export default function Join() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  const CONTRIBUTION_AREAS = [
+    { code: 'ayuda_traslados', label: 'Ayuda en traslados', icon: '🚗' },
+    { code: 'hogares_transito', label: 'Hogares de tránsito', icon: '🏠' },
+    { code: 'difusion_redes', label: 'Difusión en redes', icon: '📱' },
+    { code: 'logistica', label: 'Logística y organización', icon: '📋' },
+    { code: 'aporte_economico', label: 'Aporte económico', icon: '💰' },
+    { code: 'fotografia_video', label: 'Fotografía y video', icon: '📸' },
+    { code: 'recoleccion_insumos', label: 'Recolección de insumos', icon: '📦' },
+    { code: 'apoyo_veterinario', label: 'Apoyo veterinario', icon: '🩺' },
+    { code: 'asesoria_legal', label: 'Asesoría legal', icon: '⚖️' },
+    { code: 'diseno_grafico', label: 'Diseño gráfico', icon: '🎨' },
+  ];
+
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -40,6 +55,13 @@ export default function Join() {
     residenceZone: '',
     whatsapp: ''
   });
+  const [contributionAreas, setContributionAreas] = useState<string[]>([]);
+
+  const toggleArea = (code: string) => {
+    setContributionAreas(prev =>
+      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +75,7 @@ export default function Join() {
         fullName: formData.fullName,
         residenceZone: formData.residenceZone,
         whatsapp: formData.whatsapp,
+        contributionAreas,
       });
       setSuccess(true);
       setTimeout(() => navigate('/'), 4000);
@@ -241,8 +264,44 @@ export default function Join() {
                       <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400" />
                     )}
                   </div>
+                  </div>
                 </div>
-              </div>
+
+                {/* Contribution Areas */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <HeartHandshake className="w-5 h-5 text-brand-primary" />
+                    <label className="text-sm font-bold text-brand-primary">¿Cómo te gustaría ayudar?</label>
+                  </div>
+                  <p className="text-xs text-gray-500 leading-relaxed pl-7">
+                    Elegí las áreas donde sentís que podés aportar. No hace falta que marques todo — cada granito suma.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {CONTRIBUTION_AREAS.map(area => {
+                      const checked = contributionAreas.includes(area.code);
+                      return (
+                        <label
+                          key={area.code}
+                          className={`flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${
+                            checked
+                              ? 'bg-brand-primary/10 border-brand-primary/30'
+                              : 'bg-brand-bg border-brand-accent hover:border-brand-primary/20'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleArea(area.code)}
+                            className="w-4 h-4 rounded accent-brand-primary shrink-0"
+                          />
+                          <span className="text-sm font-medium text-gray-700">
+                            {area.icon} {area.label}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
 
               {error && (
                 <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-medium border border-red-100 flex gap-2">
