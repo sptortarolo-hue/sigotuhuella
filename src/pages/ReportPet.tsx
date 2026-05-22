@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { createPet, PetStatus } from '@/src/lib/petService';
-import { filesToBase64 } from '@/src/lib/storageService';
+import { filesToBase64, compressImage } from '@/src/lib/storageService';
 import MapLoader from '@/src/components/MapLoader';
 import LocationPicker from '@/src/components/LocationPicker';
 import {
@@ -56,14 +56,14 @@ export default function ReportPet() {
     coordinates: null as { lat: number; lng: number } | null
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files);
-      if (files.length + selectedFiles.length > 3) {
+      const rawFiles = Array.from(e.target.files);
+      if (files.length + rawFiles.length > 3) {
         alert('Máximo 3 imágenes permitidas');
         return;
       }
-
+      const selectedFiles = await Promise.all(rawFiles.map(f => compressImage(f)));
       const newFiles = [...files, ...selectedFiles];
       setFiles(newFiles);
 

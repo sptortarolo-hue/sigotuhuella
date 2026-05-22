@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Loader2, CheckCircle2, AlertCircle, ArrowLeft, PawPrint, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { compressImage } from '@/src/lib/storageService';
 
 const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || '';
 
@@ -33,18 +34,21 @@ export default function QuickReport() {
 
   const isValid = species && description.trim().length >= 10 && location.trim().length >= 3;
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    for (let i = 0; i < Math.min(files.length, 3 - images.length); i++) {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFiles = e.target.files;
+    if (!rawFiles) return;
+    const compressed = await Promise.all(
+      Array.from(rawFiles).slice(0, 3 - images.length).map(f => compressImage(f))
+    );
+    for (let i = 0; i < compressed.length; i++) {
       const reader = new FileReader();
       reader.onload = (ev) => {
         const result = ev.target?.result as string;
         const base64 = result.split(',')[1];
         setImages(prev => [...prev, base64]);
-        setImageMimeTypes(prev => [...prev, files[i].type]);
+        setImageMimeTypes(prev => [...prev, 'image/jpeg']);
       };
-      reader.readAsDataURL(files[i]);
+      reader.readAsDataURL(compressed[i]);
     }
   };
 

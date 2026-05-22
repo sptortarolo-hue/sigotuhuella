@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { Pet, PetStatus, getPetCoordinates, deletePet, updatePet, getPetImageUrls } from '@/src/lib/petService';
-import { filesToBase64 } from '@/src/lib/storageService';
+import { filesToBase64, compressImage } from '@/src/lib/storageService';
 import { useNavigate } from 'react-router-dom';
 import PetCard from '@/src/components/PetCard';
 import PetMap from '@/src/components/PetMap';
@@ -330,8 +330,9 @@ export default function MyPets() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Imágenes</label>
-                  <input type="file" accept="image/*" multiple onChange={e => { 
-                    const files = Array.from(e.target.files || []) as File[]; 
+                  <input type="file" accept="image/*" multiple onChange={async e => { 
+                    const raw = Array.from(e.target.files || []) as File[]; 
+                    const files = await Promise.all(raw.map(f => compressImage(f)));
                     setSelectedFiles([...selectedFiles, ...files]); 
                     setPreviews([...previews, ...files.map(f => URL.createObjectURL(f))]); 
                   }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />

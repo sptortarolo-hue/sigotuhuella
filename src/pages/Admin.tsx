@@ -175,9 +175,10 @@ export default function Admin() {
   const handleNewsFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setNewsFile(file);
-    setNewsPreview(URL.createObjectURL(file));
-    const results = await filesToBase64([file]);
+    const compressed = await compressImage(file);
+    setNewsFile(compressed);
+    setNewsPreview(URL.createObjectURL(compressed));
+    const results = await filesToBase64([compressed]);
     setNewsImageData(results[0]?.data || null);
     setNewsMimeType(results[0]?.mimeType || null);
   };
