@@ -436,10 +436,9 @@ export default function Admin() {
       contactInfo: pet.contact_info || '',
       description: pet.description || '',
     });
-    if (pet.images && pet.images.length > 0) {
-      setPreviews(pet.images.map(img => `data:${img.mime_type};base64,${img.image_data}`));
-      setImagesToKeep(pet.images.map(img => img.id));
-    }
+    setSelectedFiles([]);
+    setImagesToKeep(pet.images?.map(img => img.id) || []);
+    setPreviews(pet.images?.map(img => `data:${img.mime_type};base64,${img.image_data}`) || []);
     setShowForm(true);
   };
 
@@ -1474,7 +1473,13 @@ export default function Admin() {
                           <img src={src} className="w-full h-full object-cover rounded-xl" />
                           <button type="button" onClick={() => {
                             setPreviews(prev => prev.filter((_, j) => j !== i));
-                            setSelectedFiles(prev => prev.filter((_, j) => j !== i));
+                            setImagesToKeep(prev => prev.filter((_, j) => j !== i));
+                            setSelectedFiles(prev => {
+                              const keepCount = imagesToKeep.length;
+                              const fileIdx = i - keepCount;
+                              if (fileIdx < 0) return prev;
+                              return prev.filter((_, j) => j !== fileIdx);
+                            });
                           }} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600">✕</button>
                         </div>
                       ))}

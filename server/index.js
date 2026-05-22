@@ -19,7 +19,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 const app = express();
 
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '200mb' }));
 
 // Serve pet images for OG preview (before static middleware to avoid conflicts)
 app.get('/og-image/:petId/:index', async (req, res) => {
