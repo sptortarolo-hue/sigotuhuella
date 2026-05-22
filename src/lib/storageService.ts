@@ -14,3 +14,39 @@ export function fileToBase64(file: File): Promise<{ data: string; mimeType: stri
 export async function filesToBase64(files: File[]): Promise<{ data: string; mimeType: string }[]> {
   return Promise.all(files.map(fileToBase64));
 }
+
+export function compressImage(file: File, maxDimension = 1200, quality = 0.8): Promise<File> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) return resolve(file);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width <= maxDimension && height <= maxDimension && file.size < 1024 * 1024) {
+          return resolve(file);
+        }
+        if (width > height && width > maxDimension) {
+          height = Math.round(height * maxDimension / width);
+          width = maxDimension;
+        } else if (height > maxDimension) {
+          width = Math.round(width * maxDimension / height);
+          height = maxDimension;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(blob => {
+          if (!blob) return reject(new Error('Compression failed'));
+          resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = reject;
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}

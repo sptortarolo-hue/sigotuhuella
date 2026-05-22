@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getPets, createPet, updatePet, deletePet, Pet, PetStatus, getPetImageUrl } from '@/src/lib/petService';
-import { filesToBase64 } from '@/src/lib/storageService';
+import { filesToBase64, compressImage } from '@/src/lib/storageService';
 import {
   getCollaborationAccounts,
   createCollaborationAccount,
@@ -1465,7 +1465,7 @@ export default function Admin() {
                 )}
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Imágenes</label>
-                  <input type="file" accept="image/*" multiple onChange={e => { const files = Array.from(e.target.files || []) as File[]; setSelectedFiles(prev => [...prev, ...files]); setPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]); }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
+                  <input type="file" accept="image/*" multiple onChange={async e => { const raw = Array.from(e.target.files || []) as File[]; const compressed = await Promise.all(raw.map(f => compressImage(f))); setSelectedFiles(prev => [...prev, ...compressed]); setPreviews(prev => [...prev, ...compressed.map(f => URL.createObjectURL(f))]); }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
                   {previews.length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {previews.map((src, i) => (
