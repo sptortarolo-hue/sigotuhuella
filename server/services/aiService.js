@@ -80,13 +80,15 @@ export async function generateImage(prompt) {
     },
     body: JSON.stringify({
       prompt: fullPrompt,
-      steps: 4,
+      steps: 1,
     }),
   });
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Cloudflare AI error (${response.status}): ${errText}`);
+    const isQuota = response.status === 429 || errText.includes('limit') || errText.includes('quota') || errText.includes('neurons');
+    const msg = isQuota ? 'Cuota de Cloudflare AI agotada. La imagen de portada se generará con un placeholder. Vuelve a intentar mañana o reduce el uso. ' + errText : `Cloudflare AI error (${response.status}): ${errText}`;
+    throw new Error(msg);
   }
 
   const contentType = response.headers.get('content-type') || 'image/png';
