@@ -406,7 +406,7 @@ export default function Admin() {
       setShowForm(false);
       resetPetForm();
       fetchPets();
-    } catch (e) { console.error(e); alert('Error al guardar'); }
+    } catch (e: any) { console.error(e); alert('Error: ' + (e.message || 'Error al guardar')); }
     finally { setFormLoading(false); }
   };
 
