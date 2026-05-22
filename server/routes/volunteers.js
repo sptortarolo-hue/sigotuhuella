@@ -22,6 +22,21 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Full name, residence zone, and WhatsApp are required' });
   }
   try {
+    const existing = await pool.query(
+      "SELECT id FROM volunteer_requests WHERE user_id = $1 AND status IN ('pending', 'reviewed')",
+      [req.user.id]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'Ya tenés una solicitud en proceso.' });
+    }
+
+    const userCheck = await pool.query(
+      "SELECT volunteer_status FROM users WHERE id = $1",
+      [req.user.id]
+    );
+    if (userCheck.rows[0]?.volunteer_status === 'active') {
+      return res.status(400).json({ error: 'Ya sos socio activo.' });
+    }
     const areas = JSON.stringify(contributionAreas || []);
     const result = await pool.query(
       'INSERT INTO volunteer_requests (full_name, residence_zone, whatsapp, user_id, contribution_areas) VALUES ($1, $2, $3, $4, $5) RETURNING *',
