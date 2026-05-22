@@ -1,29 +1,8 @@
+import './env-loader.js';
 import express from 'express';
 import { dirname, join } from 'path';
-import { existsSync, readFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
-
-// Manual .env loader: last value wins (dotenv uses first for duplicates)
-const __env_dirname = dirname(fileURLToPath(import.meta.url));
-const __env_path = join(__env_dirname, '..', '.env');
-if (existsSync(__env_path)) {
-  const __env_raw = readFileSync(__env_path, 'utf-8');
-  const __env_vars = {};
-  for (const __env_line of __env_raw.split('\n')) {
-    const __env_trimmed = __env_line.trim();
-    if (!__env_trimmed || __env_trimmed.startsWith('#') || !__env_trimmed.includes('=')) continue;
-    const __env_eq = __env_trimmed.indexOf('=');
-    let __env_key = __env_trimmed.slice(0, __env_eq).trim();
-    let __env_val = __env_trimmed.slice(__env_eq + 1).trim();
-    if ((__env_val.startsWith('"') && __env_val.endsWith('"')) || (__env_val.startsWith("'") && __env_val.endsWith("'"))) {
-      __env_val = __env_val.slice(1, -1);
-    }
-    __env_vars[__env_key] = __env_val;
-  }
-  for (const [__env_k, __env_v] of Object.entries(__env_vars)) {
-    process.env[__env_k] = __env_v;
-  }
-}
 import pool, { initDb } from './db.js';
 import { hashPassword } from './auth.js';
 import authRoutes from './routes/auth.js';
