@@ -41,6 +41,7 @@ export default function Admin() {
   const [petSearch, setPetSearch] = useState('');
   const [petStatusFilter, setPetStatusFilter] = useState<string>('all');
   const [previews, setPreviews] = useState<string[]>([]);
+  const [imagesToKeep, setImagesToKeep] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     species: 'dog' as 'dog' | 'cat' | 'other',
@@ -370,12 +371,7 @@ export default function Admin() {
     e.preventDefault();
     setFormLoading(true);
     try {
-      let images: { data: string; mimeType: string }[] = [];
-      if (selectedFiles.length > 0) {
-        images = await filesToBase64(selectedFiles);
-      }
-
-      const dataToSave = {
+      const dataToSave: any = {
         name: formData.name || null,
         species: formData.species,
         breed: formData.breed || null,
@@ -390,11 +386,22 @@ export default function Admin() {
         location: formData.location,
         contactInfo: formData.contactInfo,
         description: formData.description,
-        images,
       };
 
-      if (editingPet) await updatePet(editingPet.id, dataToSave as any);
-      else await createPet(dataToSave as any);
+      if (editingPet) {
+        const newImages = selectedFiles.length > 0 ? await filesToBase64(selectedFiles) : [];
+        await updatePet(editingPet.id, {
+          ...dataToSave,
+          imagesToKeep,
+          newImages,
+        } as any);
+      } else {
+        let images: { data: string; mimeType: string }[] = [];
+        if (selectedFiles.length > 0) {
+          images = await filesToBase64(selectedFiles);
+        }
+        await createPet({ ...dataToSave, images } as any);
+      }
 
       setShowForm(false);
       resetPetForm();
@@ -408,6 +415,7 @@ export default function Admin() {
     setPreviews([]);
     setSelectedFiles([]);
     setEditingPet(null);
+    setImagesToKeep([]);
   };
 
   const editPet = async (pet: Pet) => {
@@ -430,6 +438,7 @@ export default function Admin() {
     });
     if (pet.images && pet.images.length > 0) {
       setPreviews(pet.images.map(img => `data:${img.mime_type};base64,${img.image_data}`));
+      setImagesToKeep(pet.images.map(img => img.id));
     }
     setShowForm(true);
   };
@@ -1457,11 +1466,17 @@ export default function Admin() {
                 )}
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Imágenes</label>
-                  <input type="file" accept="image/*" multiple onChange={e => { const files = Array.from(e.target.files || []) as File[]; setSelectedFiles(files); setPreviews(files.map(f => URL.createObjectURL(f))); }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
+                  <input type="file" accept="image/*" multiple onChange={e => { const files = Array.from(e.target.files || []) as File[]; setSelectedFiles(prev => [...prev, ...files]); setPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]); }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
                   {previews.length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {previews.map((src, i) => (
-                        <img key={i} src={src} className="w-20 h-20 object-cover rounded-xl" />
+                        <div key={i} className="relative w-20 h-20">
+                          <img src={src} className="w-full h-full object-cover rounded-xl" />
+                          <button type="button" onClick={() => {
+                            setPreviews(prev => prev.filter((_, j) => j !== i));
+                            setSelectedFiles(prev => prev.filter((_, j) => j !== i));
+                          }} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600">✕</button>
+                        </div>
                       ))}
                     </div>
                   )}
