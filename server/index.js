@@ -14,6 +14,7 @@ import newsRoutes from './routes/news.js';
 import memberRoutes from './routes/members.js';
 import settingsRoutes from './routes/settings.js';
 import whatsappRoutes from './routes/whatsapp.js';
+import aiRoutes from './routes/ai.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -53,6 +54,7 @@ app.use('/api/news', newsRoutes);
 app.use('/api/members', memberRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/ai', aiRoutes);
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

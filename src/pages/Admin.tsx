@@ -117,6 +117,9 @@ export default function Admin() {
   const [newsPreview, setNewsPreview] = useState<string | null>(null);
   const [newsImageData, setNewsImageData] = useState<string | null>(null);
   const [newsMimeType, setNewsMimeType] = useState<string | null>(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiType, setAiType] = useState('consejo_cuidado');
+  const [aiTopic, setAiTopic] = useState('');
 
   // WhatsApp Settings state
   const [whatsappSettings, setWhatsappSettings] = useState<Record<string, string>>({});
@@ -170,6 +173,8 @@ export default function Admin() {
     setNewsPreview(null);
     setNewsImageData(null);
     setNewsMimeType(null);
+    setAiType('consejo_cuidado');
+    setAiTopic('');
     setEditingNews(null);
   };
 
@@ -192,6 +197,23 @@ export default function Admin() {
     const results = await filesToBase64([compressed]);
     setNewsImageData(results[0]?.data || null);
     setNewsMimeType(results[0]?.mimeType || null);
+  };
+
+  const handleAiGenerate = async () => {
+    setAiGenerating(true);
+    try {
+      const result = await api.ai.generateNews({ type: aiType, topic: aiTopic });
+      setNewsFormData(prev => ({ ...prev, title: result.title, content: result.content }));
+      if (result.coverImage && result.coverMimeType) {
+        setNewsImageData(result.coverImage);
+        setNewsMimeType(result.coverMimeType);
+        setNewsPreview(`data:${result.coverMimeType};base64,${result.coverImage}`);
+      }
+    } catch (e: any) {
+      alert(e.message || 'Error al generar contenido con IA');
+    } finally {
+      setAiGenerating(false);
+    }
   };
 
   const handleNewsSubmit = async (e: React.FormEvent) => {
@@ -1558,6 +1580,22 @@ export default function Admin() {
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Título</label>
                   <input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={newsFormData.title} onChange={e => setNewsFormData({...newsFormData, title: e.target.value})} />
+                </div>
+                <div className="border-t border-brand-accent pt-4">
+                  <label className="text-xs font-bold uppercase text-gray-500 mb-2 block">Generar con IA</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <select value={aiType} onChange={e => setAiType(e.target.value)} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent text-sm">
+                      <option value="consejo_cuidado">Consejo de cuidado</option>
+                      <option value="historia_adopcion">Historia de adopción</option>
+                      <option value="tips_bienestar">Tips de bienestar</option>
+                      <option value="dato_curioso">Dato curioso</option>
+                    </select>
+                    <input type="text" value={aiTopic} onChange={e => setAiTopic(e.target.value)} placeholder="Tema (opcional)" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent text-sm" />
+                  </div>
+                  <button type="button" onClick={handleAiGenerate} disabled={aiGenerating} className="mt-3 w-full py-3 bg-gradient-to-r from-brand-primary to-brand-accent text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                    {aiGenerating ? <Loader2 className="animate-spin w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
+                    {aiGenerating ? 'Generando...' : 'Generar con IA 🤖'}
+                  </button>
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Contenido</label>

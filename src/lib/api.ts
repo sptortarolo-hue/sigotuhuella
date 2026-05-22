@@ -114,6 +114,10 @@ export const api = {
     update: (key: string, value: string) => request(`/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
     getPublic: () => request('/settings/public'),
   },
+  ai: {
+    generateNews: (data: { type: string; topic?: string }) =>
+      request('/ai/generate-news', { method: 'POST', body: JSON.stringify(data) }),
+  },
   whatsapp: {
     messages: (status?: string) => request(`/whatsapp/messages${status ? `?status=${status}` : ''}`),
     getMessage: (id: string) => request(`/whatsapp/messages/${id}`),
