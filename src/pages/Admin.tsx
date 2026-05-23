@@ -158,6 +158,7 @@ export default function Admin() {
 
   useEffect(() => {
     if (activeTab === 'whatsapp') fetchWaMessages();
+    if (activeTab === 'volunteers') fetchVolunteers();
   }, [activeTab]);
 
   const fetchNews = async () => {
