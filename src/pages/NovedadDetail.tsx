@@ -122,7 +122,7 @@ export default function NovedadDetail() {
           </div>
         )}
 
-        <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed whitespace-pre-wrap text-base sm:text-lg">
+        <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed whitespace-pre-wrap text-base sm:text-lg text-justify">
           {item.content}
         </div>
 

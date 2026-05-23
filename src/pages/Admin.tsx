@@ -972,7 +972,7 @@ export default function Admin() {
                {/* Nuevas Solicitudes */}
                {(() => {
                  const pending = volunteers.filter(v => v.status === 'pending');
-                 if (pending.length === 0) return null;
+                 if (pending.length === 0) return (<div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent"><p className="text-gray-500 font-medium">No hay nuevas solicitudes.</p></div>);
                  return (
                    <>
                      <h2 className="text-xl font-serif font-bold text-brand-primary mb-4">Nuevas Solicitudes</h2>

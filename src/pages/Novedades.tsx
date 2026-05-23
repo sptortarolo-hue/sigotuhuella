@@ -89,7 +89,7 @@ export default function Novedades() {
                     {formatNewsDate(item.created_at)}
                   </div>
                   <h3 className="text-lg font-bold text-brand-primary mb-2 line-clamp-2">{item.title}</h3>
-                  <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed">{item.content.replace(/[#*]/g, '').trim()}</p>
+                  <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed text-justify">{item.content.replace(/[#*]/g, '').trim()}</p>
                 </div>
               </motion.div>
             );
