@@ -47,7 +47,7 @@ export const createVolunteerRequest = async (data: { fullName: string; residence
 
 export const getVolunteerRequests = async (): Promise<VolunteerRequest[]> => {
   const data = await api.volunteers.list();
-  return data || [];
+  return data.requests ?? data;
 };
 
 export const updateVolunteerRequestStatus = async (id: string, status: string): Promise<void> => {
