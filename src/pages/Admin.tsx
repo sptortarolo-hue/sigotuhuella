@@ -354,6 +354,7 @@ export default function Admin() {
   const fetchVolunteers = async () => {
     try {
       const data = await getVolunteerRequests();
+      console.log('volunteers data:', data);
       setVolunteers(data);
       const userIds = data.filter((v: VolunteerRequest) => v.user_id).map((v: VolunteerRequest) => v.user_id);
       if (userIds.length > 0) {
