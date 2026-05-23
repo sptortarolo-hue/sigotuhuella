@@ -563,7 +563,7 @@ export default function Admin() {
           { id: 'pets', label: 'Mascotas', icon: LayoutDashboard },
           { id: 'adoption', label: 'Adopción', icon: Heart },
           { id: 'collab', label: 'Cuentas de Ayuda', icon: CreditCard },
-          { id: 'volunteers', label: 'Solicitudes Sumate', icon: Users },
+                      { id: 'volunteers', label: 'Solicitudes Sumate', icon: Heart },,
           { id: 'users', label: 'Usuarios', icon: UserCog },
           { id: 'highlights', label: 'Noticias Destacadas', icon: HeartHandshake },
           { id: 'news', label: 'Novedades', icon: Sparkles },
