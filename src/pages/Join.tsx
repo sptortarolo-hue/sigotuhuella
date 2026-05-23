@@ -217,14 +217,16 @@ export default function Join() {
                     Nombre y Apellido *
                   </label>
                   <div className="relative">
-                    <input
-                      required
-                      type="text"
-                      className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                      placeholder="Tu nombre completo"
-                      value={formData.fullName}
-                      onChange={e => setFormData({ ...formData, fullName: e.target.value })}
-                    />
+          <input
+            id="volunteerFullName"
+            name="full_name"
+            required
+            type="text"
+            className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+            placeholder="Tu nombre completo"
+            value={formData.fullName}
+            onChange={e => setFormData({ ...formData, fullName: e.target.value })}
+          />
                     {user?.display_name && (
                       <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400" />
                     )}
@@ -236,14 +238,16 @@ export default function Join() {
                     <MapPin className="w-3 h-3" />
                     Zona de Residencia *
                   </label>
-                  <input
-                    required
-                    type="text"
-                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                    placeholder="Eje: Villa Garibaldi - Calle 10 y 610"
-                    value={formData.residenceZone}
-                    onChange={e => setFormData({ ...formData, residenceZone: e.target.value })}
-                  />
+          <input
+            id="volunteerResidence"
+            name="residence_zone"
+            required
+            type="text"
+            className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+            placeholder="Eje: Villa Garibaldi - Calle 10 y 610"
+            value={formData.residenceZone}
+            onChange={e => setFormData({ ...formData, residenceZone: e.target.value })}
+          />
                 </div>
 
                 <div className="space-y-2">
@@ -252,14 +256,16 @@ export default function Join() {
                     Número de WhatsApp *
                   </label>
                   <div className="relative">
-                    <input
-                      required
-                      type="tel"
-                      className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                      placeholder="+54 9 221 ..."
-                      value={formData.whatsapp}
-                      onChange={e => setFormData({ ...formData, whatsapp: e.target.value })}
-                    />
+          <input
+            id="volunteerWhatsapp"
+            name="whatsapp"
+            required
+            type="tel"
+            className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+            placeholder="+54 9 221 ..."
+            value={formData.whatsapp}
+            onChange={e => setFormData({ ...formData, whatsapp: e.target.value })}
+          />
                     {user?.phone && (
                       <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400" />
                     )}
