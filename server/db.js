@@ -68,98 +68,20 @@ CREATE TABLE IF NOT EXISTS collaboration_accounts (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-ALTER TABLE collaboration_accounts ADD COLUMN IF NOT EXISTS mercadopago_link VARCHAR(500);
-
-CREATE TABLE IF NOT EXISTS volunteer_requests (
+CREATE TABLE IF NOT EXISTS promotional_videos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  full_name VARCHAR(255) NOT NULL,
-  residence_zone VARCHAR(255) NOT NULL,
-  whatsapp VARCHAR(100) NOT NULL,
-  user_id UUID REFERENCES users(id),
-  status VARCHAR(50) DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-ALTER TABLE volunteer_requests ADD COLUMN IF NOT EXISTS contribution_areas JSONB DEFAULT '[]'::jsonb;
-
-CREATE TABLE IF NOT EXISTS pet_images (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
-  image_data TEXT NOT NULL,
-  mime_type VARCHAR(50) NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS news (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  image_data TEXT,
-  mime_type VARCHAR(50),
-  video_url TEXT,
-  type VARCHAR(20) NOT NULL DEFAULT 'manual',
-  related_pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,
-  created_by UUID REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS pet_records (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
-  record_type VARCHAR(50) NOT NULL,
   title VARCHAR(255) NOT NULL,
-  description TEXT,
-  amount DECIMAL(10,2),
-  record_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  next_date DATE,
-  vet_name VARCHAR(255),
-  clinic_name VARCHAR(255),
-  medication_name VARCHAR(255),
-  dosage VARCHAR(100),
-  attachment_data TEXT,
-  attachment_type VARCHAR(50),
-  attachment_name VARCHAR(255),
-  created_by UUID REFERENCES users(id),
+  video_data TEXT NOT NULL,
+  thumbnail_data TEXT,
+  style VARCHAR(50),
+  duration INTEGER,
+  music_track VARCHAR(255),
+  voice_enabled BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE TABLE IF NOT EXISTS settings (
-  key VARCHAR(255) PRIMARY KEY,
-  value TEXT NOT NULL,
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS whatsapp_messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  wa_message_id VARCHAR(255),
-  wa_from VARCHAR(100) NOT NULL,
-  sender_name VARCHAR(255),
-  message_type VARCHAR(50) NOT NULL,
-  text_body TEXT,
-  image_data TEXT,
-  image_mime VARCHAR(50),
-  location_lat DOUBLE PRECISION,
-  location_lng DOUBLE PRECISION,
-  pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  status VARCHAR(50) DEFAULT 'pending',
-  match_score INTEGER,
-  matched_pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS whatsapp_sessions (
-  wa_from VARCHAR(100) PRIMARY KEY,
-  step VARCHAR(50) DEFAULT 'greeting',
-  temp_data JSONB DEFAULT '{}'::jsonb,
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-   created_at TIMESTAMP DEFAULT NOW(),
-   updated_at TIMESTAMP DEFAULT NOW()
- );
-
- -- Insert default settings
+-- Insert default settings
 INSERT INTO settings (key, value) VALUES
   ('whatsapp_enabled', 'false'),
   ('whatsapp_phone_number_id', ''),
