@@ -21,6 +21,10 @@ router.post('/', requireAuth, async (req, res) => {
   if (!fullName || !residenceZone || !whatsapp) {
     return res.status(400).json({ error: 'Full name, residence zone, and WhatsApp are required' });
   }
+  // Validate max 3 contribution areas
+  if (contributionAreas.length > 3) {
+    return res.status(400).json({ error: 'Máximo 3 áreas de contribución permitidas.' });
+  }
   try {
     const existing = await pool.query(
       "SELECT id FROM volunteer_requests WHERE user_id = $1 AND status IN ('pending', 'reviewed')",

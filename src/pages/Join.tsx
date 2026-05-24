@@ -58,14 +58,27 @@ export default function Join() {
   const [contributionAreas, setContributionAreas] = useState<string[]>([]);
 
   const toggleArea = (code: string) => {
-    setContributionAreas(prev =>
-      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
-    );
+    setContributionAreas(prev => {
+      if (prev.includes(code)) {
+        return prev.filter(c => c !== code);
+      }
+      // Adding new area: enforce max 3
+      if (prev.length >= 3) {
+        return prev;
+      }
+      return [...prev, code];
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    
+    // Validate max 3 areas
+    if (contributionAreas.length > 3) {
+      setError('Puedes seleccionar un máximo de 3 áreas de contribución.');
+      return;
+    }
     
     setLoading(true);
     setError('');
@@ -273,12 +286,48 @@ export default function Join() {
                   </div>
                 </div>
 
-                {/* Contribution Areas */}
+{/* Contribution Areas */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <HeartHandshake className="w-5 h-5 text-brand-primary" />
-                    <label className="text-sm font-bold text-brand-primary">¿Cómo te gustaría ayudar?</label>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <HeartHandshake className="w-5 h-5 text-brand-primary" />
+                      <label className="text-sm font-bold text-brand-primary">¿Cómo te gustaría ayudar?</label>
+                    </div>
+                    <span className="text-xs text-gray-500 font-medium">{contributionAreas.length}/3 áreas seleccionadas</span>
                   </div>
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    Elegí las áreas donde sentís que podés aportar. No hace falta que marques todo — cada granito suma.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {CONTRIBUTION_AREAS.map(area => {
+                      const checked = contributionAreas.includes(area.code);
+                      const disabled = !checked && contributionAreas.length >= 3;
+                      return (
+                        <label
+                          key={area.code}
+                          className={`flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${
+                            checked
+                              ? 'bg-brand-primary/10 border-brand-primary/30'
+                              : disabled
+                              ? 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60'
+                              : 'bg-brand-bg border-brand-accent hover:border-brand-primary/20'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleArea(area.code)}
+                            disabled={disabled}
+                            className="w-4 h-4 rounded accent-brand-primary shrink-0"
+                          />
+                          <span className={`text-sm font-medium ${disabled ? 'text-gray-400' : 'text-gray-700'}`}>
+                            {area.icon} {area.label}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
                   <p className="text-xs text-gray-500 leading-relaxed pl-7">
                     Elegí las áreas donde sentís que podés aportar. No hace falta que marques todo — cada granito suma.
                   </p>
