@@ -146,9 +146,11 @@ Me gustaría obtener más información.`;
             <div className={cn("inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-4", statusColors[pet.status])}>
               {statusLabels[pet.status]}
             </div>
-            <h1 className="text-4xl md:text-5xl font-serif font-bold text-brand-primary mb-2">
-              {pet.name || (pet.status === PetStatus.LOST ? 'Se busca' : 'Mascota')}
-            </h1>
+            {pet.name && (
+              <h1 className="text-4xl md:text-5xl font-serif font-bold text-brand-primary mb-2">
+                {pet.name}
+              </h1>
+            )}
             <p className="text-lg text-gray-500 italic flex items-center gap-2">
               {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otra especie'} 
               <span className="text-gray-300">•</span> 
@@ -196,7 +198,7 @@ Me gustaría obtener más información.`;
             <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
               <Info className="w-4 h-4" /> Descripción
             </h3>
-            <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
+            <p className={cn("leading-relaxed whitespace-pre-wrap", pet.name ? "text-gray-600 text-base" : "text-gray-700 text-lg")}>
               {pet.description || 'No se proporcionó una descripción detallada.'}
             </p>
           </div>

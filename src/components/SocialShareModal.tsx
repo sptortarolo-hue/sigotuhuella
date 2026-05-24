@@ -317,40 +317,42 @@ function drawCardFlyer(
       infoFontSize: number, detailsFontSize: number,
       nameFontSize: number, brandH: number;
 
+  const hasName = name && name !== 'Sin nombre';
+
   if (layoutType === 'story') {
-    badgeH = h * 0.07;
-    photoTop = h * 0.09;
-    photoH = h * 0.53;
+    badgeH = h * 0.20;
+    photoTop = h * 0.23;
+    photoH = h * 0.38;
     photoW = w * 0.84;
     photoRadius = w * 0.025;
-    maxDescLines = 3;
-    descFontSize = w * 0.028;
+    maxDescLines = 99;
+    descFontSize = hasName ? w * 0.034 : w * 0.044;
     infoFontSize = w * 0.032;
-    detailsFontSize = w * 0.028;
+    detailsFontSize = hasName ? w * 0.028 : w * 0.034;
     nameFontSize = w * 0.065;
-    brandH = h * 0.06;
+    brandH = h * 0.055;
   } else if (layoutType === 'portrait') {
-    badgeH = h * 0.08;
-    photoTop = h * 0.10;
-    photoH = h * 0.43;
+    badgeH = h * 0.20;
+    photoTop = h * 0.23;
+    photoH = h * 0.32;
     photoW = w * 0.84;
     photoRadius = w * 0.025;
-    maxDescLines = 4;
-    descFontSize = w * 0.026;
+    maxDescLines = 99;
+    descFontSize = hasName ? w * 0.032 : w * 0.042;
     infoFontSize = w * 0.03;
-    detailsFontSize = w * 0.026;
+    detailsFontSize = hasName ? w * 0.026 : w * 0.032;
     nameFontSize = w * 0.06;
     brandH = h * 0.055;
   } else {
-    badgeH = h * 0.10;
-    photoTop = h * 0.12;
-    photoH = h * 0.36;
+    badgeH = h * 0.20;
+    photoTop = h * 0.23;
+    photoH = h * 0.26;
     photoW = w * 0.84;
     photoRadius = w * 0.025;
-    maxDescLines = 2;
-    descFontSize = w * 0.024;
+    maxDescLines = 99;
+    descFontSize = hasName ? w * 0.030 : w * 0.040;
     infoFontSize = w * 0.028;
-    detailsFontSize = w * 0.024;
+    detailsFontSize = hasName ? w * 0.024 : w * 0.030;
     nameFontSize = w * 0.055;
     brandH = h * 0.055;
   }
@@ -405,7 +407,7 @@ function drawCardFlyer(
   let contentY = photoY + photoH + h * 0.025;
 
   // Name
-  if (name && name !== 'Sin nombre' && contentY + nameFontSize < contentEndY) {
+  if (hasName && contentY + nameFontSize < contentEndY) {
     ctx.font = `800 ${nameFontSize}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'left';

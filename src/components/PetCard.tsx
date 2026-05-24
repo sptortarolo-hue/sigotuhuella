@@ -88,10 +88,12 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
       <div className="p-6">
         <div className="flex justify-between items-start mb-4">
           <div>
-<h3 className="text-xl font-serif font-bold text-gray-800 leading-tight">
-               {pet.name || (pet.status === PetStatus.LOST ? 'Se busca' : pet.status === PetStatus.RETAINED ? 'Retenido' : pet.status === PetStatus.SIGHTED ? 'Avistado' : pet.status === PetStatus.ACCIDENTED ? 'Accidentado' : pet.status === PetStatus.NEEDS_ATTENTION ? 'Necesita Atención' : 'En Adopción')}
-            </h3>
-            <p className="text-sm text-gray-500 italic lowercase first-letter:uppercase">
+            {pet.name && (
+              <h3 className="text-xl font-serif font-bold text-gray-800 leading-tight">
+                {pet.name}
+              </h3>
+            )}
+            <p className={cn("text-gray-500 italic lowercase first-letter:uppercase", pet.name ? "text-sm" : "text-xs")}>
               {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otra especie'} • {pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : 'Sexo desconocido'}
             </p>
           </div>
@@ -127,9 +129,14 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
           )}
         </div>
 
-        <p className="text-sm text-gray-600 line-clamp-2 mb-6 leading-relaxed">
-          {pet.description}
-        </p>
+        {pet.description && (
+          <p className={cn(
+            "text-gray-600 leading-relaxed",
+            pet.name ? "text-base line-clamp-4 mb-6" : "text-lg line-clamp-6 mb-4"
+          )}>
+            {pet.description}
+          </p>
+        )}
 
         <div className="flex gap-2 pt-4 border-t border-brand-accent">
           <button
