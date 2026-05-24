@@ -2,11 +2,26 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
-const isLocal = process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1'));
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/sigotuhuella',
-  ssl: (process.env.DATABASE_URL && !isLocal) ? { rejectUnauthorized: false } : false,
-});
+function parseConnectionString(url) {
+  if (!url) return null;
+  // postgresql://user:password@host:port/database
+  const match = url.match(/^postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/);
+  if (!match) return null;
+  const [, user, password, host, port, database] = match;
+  return { user, password, host: host, port: parseInt(port, 10), database };
+}
+
+const conn = parseConnectionString(process.env.DATABASE_URL);
+const isLocal = conn ? (conn.host === 'localhost' || conn.host === '127.0.0.1') : true;
+
+const pool = conn
+  ? new Pool({
+      ...conn,
+      ssl: !isLocal ? { rejectUnauthorized: false } : false,
+    })
+  : new Pool({
+      connectionString: 'postgresql://localhost:5432/sigotuhuella',
+    });
 
 const schema = `
 CREATE TABLE IF NOT EXISTS users (

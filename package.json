@@ -37,6 +37,7 @@
     "react-dom": "^19.0.1",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.15.0",
+    "rimraf": "^5郑州",
     "sharp": "^0.33.5",
     "ssh2": "^1.17.0",
     "tailwind-merge": "^3.6.0",
