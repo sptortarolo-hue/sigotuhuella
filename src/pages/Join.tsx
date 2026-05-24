@@ -328,35 +328,7 @@ export default function Join() {
                     })}
                   </div>
                 </div>
-                  <p className="text-xs text-gray-500 leading-relaxed pl-7">
-                    Elegí las áreas donde sentís que podés aportar. No hace falta que marques todo — cada granito suma.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {CONTRIBUTION_AREAS.map(area => {
-                      const checked = contributionAreas.includes(area.code);
-                      return (
-                        <label
-                          key={area.code}
-                          className={`flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${
-                            checked
-                              ? 'bg-brand-primary/10 border-brand-primary/30'
-                              : 'bg-brand-bg border-brand-accent hover:border-brand-primary/20'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleArea(area.code)}
-                            className="w-4 h-4 rounded accent-brand-primary shrink-0"
-                          />
-                          <span className="text-sm font-medium text-gray-700">
-                            {area.icon} {area.label}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
+  
 
               {error && (
                 <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-medium border border-red-100 flex gap-2">
