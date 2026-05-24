@@ -5,18 +5,24 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
-import rimraf from 'rimraf';
+import { rimraf } from 'rimraf';
 import pool from '../db.js';
 import axios from 'axios';
 
-// Azure TTS (optional)
-let speechSdk;
-if (process.env.AZURE_TTS_KEY && process.env.AZURE_TTS_REGION) {
-  try {
-    speechSdk = require('microsoft-cognitiveservices-speech-sdk');
-  } catch (e) {
-    console.warn('Azure Speech SDK not loaded:', e.message);
+// Azure TTS (optional) — lazy load
+let speechSdkPromise = null;
+async function getSpeechSdk() {
+  if (!process.env.AZURE_TTS_KEY || !process.env.AZURE_TTS_REGION) return null;
+  if (!speechSdkPromise) {
+    try {
+      const sdk = await import('microsoft-cognitiveservices-speech-sdk');
+      speechSdkPromise = sdk.default || sdk;
+    } catch (e) {
+      console.warn('Azure Speech SDK not loaded:', e.message);
+      speechSdkPromise = null;
+    }
   }
+  return speechSdkPromise;
 }
 
 // Music URLs (free, no attribution required)
@@ -192,28 +198,29 @@ async function generateAudio(stats, config, outputPath, customScript) {
   const script = customScript || buildAutoScript(config.style, stats);
 
   let ttsBuffer = null;
-  if (config.includeVoice && speechSdk && script) {
-    try {
-      const SpeechConfig = require('microsoft-cognitiveservices-speech-sdk').SpeechConfig;
-      SpeechConfig.fromSubscription(
-        process.env.AZURE_TTS_KEY,
-        process.env.AZURE_TTS_REGION || 'southamerica-east1'
-      ).speechSynthesisVoiceName = 'es-AR-ElenaNeural';
+  if (config.includeVoice) {
+    const sdk = await getSpeechSdk();
+    if (sdk && script) {
+      try {
+        const SpeechConfig = sdk.SpeechConfig;
+        sdk.SpeechConfig.fromSubscription(
+          process.env.AZURE_TTS_KEY,
+          process.env.AZURE_TTS_REGION || 'southamerica-east1'
+        ).speechSynthesisVoiceName = 'es-AR-ElenaNeural';
 
-      const { AudioConfig } = require('microsoft-cognitiveservices-speech-sdk');
-      const audioConfig = new AudioConfig(AudioConfig.speakerOutput());
-      const { SpeechSynthesizer } = require('microsoft-cognitiveservices-speech-sdk');
-      const synthesizer = new SpeechSynthesizer(speechConfig, audioConfig);
-      const result = await new Promise((resolve, reject) => {
-        synthesizer.speakTextAsync(script, res => resolve(res), err => reject(err));
-      });
-      if (result && result.audioData && result.audioData.length > 0) {
-        ttsBuffer = Buffer.from(result.audioData);
+        const audioConfig = new sdk.AudioConfig(sdk.SpeakerAudioDestination.fromDefaultSpeaker());
+        const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
+        const result = await new Promise((resolve, reject) => {
+          synthesizer.speakTextAsync(script, res => resolve(res), err => reject(err));
+        });
+        if (result && result.audioData && result.audioData.length > 0) {
+          ttsBuffer = Buffer.from(result.audioData);
+        }
+        synthesizer.close();
+      } catch (err) {
+        console.warn('Azure TTS failed, will use music only:', err.message);
+        ttsBuffer = null;
       }
-      synthesizer.close();
-    } catch (err) {
-      console.warn('Azure TTS failed, will use music only:', err.message);
-      ttsBuffer = null;
     }
   }
 
@@ -599,29 +606,32 @@ async function generateAudio(testimonials, stats, config, outputPath) {
   }
   script += `Descargá Sigo Tu Huella gratis en sigotuhuella.online y sé parte del cambio.`;
 
-  let ttsBuffer = null;
-  if (config.includeVoice && speechSdk) {
-    try {
-      const SpeechConfig = speechSdk.SpeechConfig;
-      speechSdk.SpeechConfig.fromSubscription(
-        process.env.AZURE_TTS_KEY,
-        process.env.AZURE_TTS_REGION || 'southamerica-east1'
-      ).speechSynthesisVoiceName = 'es-AR-ElenaNeural';
+   let ttsBuffer = null;
+   if (config.includeVoice) {
+     const sdk = await getSpeechSdk();
+     if (sdk) {
+       try {
+         const SpeechConfig = sdk.SpeechConfig;
+         sdk.SpeechConfig.fromSubscription(
+           process.env.AZURE_TTS_KEY,
+           process.env.AZURE_TTS_REGION || 'southamerica-east1'
+         ).speechSynthesisVoiceName = 'es-AR-ElenaNeural';
 
-      const audioConfig = new speechSdk.AudioConfig(speechSdk.SpeakerAudioDestination.fromDefaultSpeaker());
-      const synthesizer = new speechSdk.SpeechSynthesizer(speechConfig, audioConfig);
-      const result = await new Promise((resolve, reject) => {
-        synthesizer.speakTextAsync(script, res => resolve(res), err => reject(err));
-      });
-      if (result && result.audioData && result.audioData.length > 0) {
-        ttsBuffer = Buffer.from(result.audioData);
-      }
-      synthesizer.close();
-    } catch (err) {
-      console.warn('Azure TTS failed, will use music only:', err.message);
-      ttsBuffer = null;
-    }
-  }
+         const audioConfig = new sdk.AudioConfig(sdk.SpeakerAudioDestination.fromDefaultSpeaker());
+         const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
+         const result = await new Promise((resolve, reject) => {
+           synthesizer.speakTextAsync(script, res => resolve(res), err => reject(err));
+         });
+         if (result && result.audioData && result.audioData.length > 0) {
+           ttsBuffer = Buffer.from(result.audioData);
+         }
+         synthesizer.close();
+       } catch (err) {
+         console.warn('Azure TTS failed, will use music only:', err.message);
+         ttsBuffer = null;
+       }
+     }
+   }
 
   // Get music URL
   const musicUrl = MUSIC_TRACKS[config.music] || MUSIC_TRACKS['emotional'];
