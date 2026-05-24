@@ -15,6 +15,7 @@ import memberRoutes from './routes/members.js';
 import settingsRoutes from './routes/settings.js';
 import whatsappRoutes from './routes/whatsapp.js';
 import aiRoutes from './routes/ai.js';
+import videoGeneratorRoutes from './routes/videoGenerator.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -102,10 +103,13 @@ ${pet && pet.mime_type ? `<meta property="og:image:type" content="${escapeHtml(p
   } catch (err) {
     console.error('OG error:', err);
     res.send(indexHtml);
-  }
-});
+   }
+ });
 
-app.get('*', (_req, res) => {
+ // Video generator admin routes
+ app.use('/api/admin/videos', videoGeneratorRoutes);
+
+ app.get('*', (_req, res) => {
   res.sendFile(join(__dirname, '..', 'dist', 'index.html'));
 });
 

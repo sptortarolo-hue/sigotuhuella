@@ -155,11 +155,24 @@ CREATE TABLE IF NOT EXISTS whatsapp_sessions (
   step VARCHAR(50) DEFAULT 'greeting',
   temp_data JSONB DEFAULT '{}'::jsonb,
   user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
+   created_at TIMESTAMP DEFAULT NOW(),
+   updated_at TIMESTAMP DEFAULT NOW()
+ );
 
--- Insert default settings
+ CREATE TABLE IF NOT EXISTS promotional_videos (
+   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   title VARCHAR(255) NOT NULL,
+   video_data TEXT NOT NULL,
+   thumbnail_data TEXT,
+   style VARCHAR(50),
+   duration INTEGER,
+   music_track VARCHAR(255),
+   voice_enabled BOOLEAN DEFAULT TRUE,
+   created_at TIMESTAMP DEFAULT NOW(),
+   created_by UUID REFERENCES users(id) ON DELETE SET NULL
+ );
+
+ -- Insert default settings
 INSERT INTO settings (key, value) VALUES
   ('whatsapp_enabled', 'false'),
   ('whatsapp_phone_number_id', ''),
