@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getPets, Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Phone, MessageCircle, ArrowLeft, Info } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
+import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
 
 export default function PetDetail() {
   const { id } = useParams();
@@ -200,7 +201,7 @@ Me gustaría obtener más información.`;
             </p>
           </div>
 
-          <div className="mt-auto">
+          <div className="mt-auto space-y-3">
             <button 
               onClick={contactWhatsApp}
               disabled={!pet.contact_info}
@@ -219,6 +220,13 @@ Me gustaría obtener más información.`;
                 El contacto no está disponible para esta publicación.
               </p>
             )}
+            <button
+              onClick={() => shareOnWhatsApp(pet)}
+              className="w-full py-5 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-lg hover:from-green-600 hover:to-emerald-700"
+            >
+              <Share2 className="w-6 h-6" />
+              Difundir en WhatsApp
+            </button>
           </div>
         </div>
       </div>

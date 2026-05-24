@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Info, Phone, MessageCircle } from 'lucide-react';
+import { MapPin, Calendar, Info, Phone, MessageCircle, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
 import SocialShareModal from '@/src/components/SocialShareModal';
+import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
 import { AnimatePresence } from 'motion/react';
 
 interface PetCardProps {
@@ -137,6 +138,13 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
           >
             <MessageCircle className="w-4 h-4" />
             Compartir
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); shareOnWhatsApp(pet); }}
+            className="flex-1 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-600 hover:shadow-lg transition-all"
+          >
+            <Share2 className="w-4 h-4" />
+            WhatsApp
           </button>
           {showAdminActions && (
             <>
