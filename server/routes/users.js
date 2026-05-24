@@ -139,7 +139,7 @@ router.put('/:id/avatar', requireAuth, async (req, res) => {
   try {
     const buffer = Buffer.from(imageData, 'base64');
     const resized = await sharp(buffer)
-      .resize(200, 200, { fit: 'cover', position: 'center' })
+      .resize(200, 200, { fit: 'cover', position: 'attention' })
       .jpeg({ quality: 85 })
       .toBuffer();
     avatarData = resized.toString('base64');

@@ -5,13 +5,27 @@ import { findMatches } from '../services/matchingService.js';
 import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
 
+async function smartCropImage(imageData, mimeType, size = 800) {
+  try {
+    const buffer = Buffer.from(imageData, 'base64');
+    const processed = await sharp(buffer)
+      .resize(size, size, { fit: 'cover', position: 'attention' })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    return { data: processed.toString('base64'), mimeType: 'image/jpeg' };
+  } catch (err) {
+    console.warn('Smart crop failed, using original:', err.message);
+    return { data: imageData, mimeType };
+  }
+}
+
 async function createCollage(images) {
   const imgs = images.slice(0, 3);
   const buffers = imgs.map(img => Buffer.from(img.image_data, 'base64'));
 
   if (imgs.length === 2) {
     const resized = await Promise.all(
-      buffers.map(buf => sharp(buf).resize(400, 400, { fit: 'cover' }).toBuffer())
+      buffers.map(buf => sharp(buf).resize(400, 400, { fit: 'cover', position: 'attention' }).toBuffer())
     );
     const collage = await sharp({
       create: { width: 800, height: 400, channels: 3, background: { r: 240, g: 240, b: 240 } }
@@ -27,7 +41,7 @@ async function createCollage(images) {
 
   if (imgs.length >= 3) {
     const resized = await Promise.all(
-      buffers.map(buf => sharp(buf).resize(300, 300, { fit: 'cover' }).toBuffer())
+      buffers.map(buf => sharp(buf).resize(300, 300, { fit: 'cover', position: 'attention' }).toBuffer())
     );
     const collage = await sharp({
       create: { width: 600, height: 600, channels: 3, background: { r: 240, g: 240, b: 240 } }
@@ -297,18 +311,20 @@ router.put('/:id', requireAuth, async (req, res) => {
     }
     if (req.body.newImages && req.body.newImages.length > 0) {
       for (const img of req.body.newImages) {
+        const processed = await smartCropImage(img.data, img.mimeType);
         await pool.query(
           'INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)',
-          [petId, img.data, img.mimeType || 'image/jpeg']
+          [petId, processed.data, processed.mimeType]
         );
       }
     } else if (req.body.images && req.body.images.length > 0) {
       // Fallback for legacy behavior
       await pool.query('DELETE FROM pet_images WHERE pet_id = $1', [petId]);
       for (const img of req.body.images) {
+        const processed = await smartCropImage(img.data, img.mimeType);
         await pool.query(
           'INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)',
-          [petId, img.data, img.mimeType || 'image/jpeg']
+          [petId, processed.data, processed.mimeType]
         );
       }
     }
@@ -621,14 +637,15 @@ router.post('/public', async (req, res) => {
       `INSERT INTO pets (species, description, location, contact_info, status, created_by, is_admin_verified)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [species, description, location, contact_info || null, status || 'lost', null, false]
+       [species, description, location, contact_info || null, status || 'lost', null, false]
     );
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
       for (const img of images) {
+        const processed = await smartCropImage(img.data, img.mimeType);
         await client.query(
           'INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)',
-          [pet.id, img.data, img.mimeType || 'image/jpeg']
+          [pet.id, processed.data, processed.mimeType]
         );
       }
     }
