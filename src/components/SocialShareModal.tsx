@@ -101,54 +101,48 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
-function drawCircularPhoto(
+function drawRectPhoto(
   ctx: CanvasRenderingContext2D,
-  cx: number, cy: number, r: number,
-  img: HTMLImageElement | null,
-  w: number
+  x: number, y: number, w: number, h: number,
+  img: HTMLImageElement | null, radius: number
 ) {
+  ctx.save();
+  roundRect(ctx, x, y, w, h, radius);
+  ctx.clip();
+
   if (img) {
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.35)';
-    ctx.shadowBlur = r * 0.4;
-    ctx.shadowOffsetY = r * 0.15;
-
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.clip();
-
     const imgAspect = img.naturalWidth / img.naturalHeight;
-    let drawW: number, drawH: number;
-    if (imgAspect > 1) {
-      drawH = r * 2.2;
-      drawW = drawH * imgAspect;
+    const areaAspect = w / h;
+    let drawW: number, drawH: number, drawX: number, drawY: number;
+    if (imgAspect > areaAspect) {
+      drawH = h;
+      drawW = h * imgAspect;
+      drawX = x - (drawW - w) / 2;
+      drawY = y;
     } else {
-      drawW = r * 2.2;
-      drawH = drawW / imgAspect;
+      drawW = w;
+      drawH = w / imgAspect;
+      drawX = x;
+      drawY = y - (drawH - h) / 2;
     }
-    ctx.drawImage(img, cx - drawW / 2, cy - drawH / 2, drawW, drawH);
-    ctx.restore();
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
 
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = Math.max(4, w * 0.006);
-    ctx.stroke();
+    const grad = ctx.createLinearGradient(0, y + h * 0.65, 0, y + h);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y + h * 0.65, w, h * 0.35);
   } else {
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.font = `${r * 0.8}px system-ui`;
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🐾', cx, cy);
+    ctx.font = `${h * 0.25}px system-ui`;
+    ctx.fillText('🐾', x + w / 2, y + h / 2);
   }
+
+  ctx.restore();
 }
 
 function drawBadge(
@@ -188,11 +182,12 @@ function drawWrappedText(
   ctx: CanvasRenderingContext2D,
   text: string, cx: number, y: number,
   maxWidth: number, fontSize: number, maxLines: number,
-  fontStyle: string, color: string, lineSpacing: number
+  fontStyle: string, color: string, lineSpacing: number,
+  align?: CanvasTextAlign
 ): number {
   ctx.font = `${fontStyle} ${fontSize}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = color;
-  ctx.textAlign = 'center';
+  ctx.textAlign = align || 'center';
   ctx.textBaseline = 'top';
 
   const words = text.split(' ');
@@ -308,245 +303,159 @@ function drawBgDecorations(ctx: CanvasRenderingContext2D, w: number, h: number, 
   ctx.globalAlpha = 1;
 }
 
-function drawContentCard(ctx: CanvasRenderingContext2D, w: number, yStart: number, yEnd: number) {
-  if (yStart >= yEnd) return;
+function drawCardFlyer(
+  ctx: CanvasRenderingContext2D, w: number, h: number,
+  design: DesignConfig, name: string, petDetails: string | undefined,
+  location: string | undefined, contactInfo: string | undefined,
+  description: string | undefined, img: HTMLImageElement | null
+) {
+  const layoutType = getLayoutType(w, h);
+
+  let badgeH: number, photoTop: number, photoH: number,
+      photoW: number, photoRadius: number,
+      maxDescLines: number, descFontSize: number,
+      infoFontSize: number, detailsFontSize: number,
+      nameFontSize: number, brandH: number;
+
+  if (layoutType === 'story') {
+    badgeH = h * 0.07;
+    photoTop = h * 0.09;
+    photoH = h * 0.53;
+    photoW = w * 0.84;
+    photoRadius = w * 0.025;
+    maxDescLines = 3;
+    descFontSize = w * 0.028;
+    infoFontSize = w * 0.032;
+    detailsFontSize = w * 0.028;
+    nameFontSize = w * 0.065;
+    brandH = h * 0.06;
+  } else if (layoutType === 'portrait') {
+    badgeH = h * 0.08;
+    photoTop = h * 0.10;
+    photoH = h * 0.43;
+    photoW = w * 0.84;
+    photoRadius = w * 0.025;
+    maxDescLines = 4;
+    descFontSize = w * 0.026;
+    infoFontSize = w * 0.03;
+    detailsFontSize = w * 0.026;
+    nameFontSize = w * 0.06;
+    brandH = h * 0.055;
+  } else {
+    badgeH = h * 0.10;
+    photoTop = h * 0.12;
+    photoH = h * 0.36;
+    photoW = w * 0.84;
+    photoRadius = w * 0.025;
+    maxDescLines = 2;
+    descFontSize = w * 0.024;
+    infoFontSize = w * 0.028;
+    detailsFontSize = w * 0.024;
+    nameFontSize = w * 0.055;
+    brandH = h * 0.055;
+  }
+
+  const photoX = (w - photoW) / 2;
+  const photoY = photoTop;
+  const contentX = w * 0.08;
+  const contentMaxW = w * 0.84;
+  const brandY = h - brandH - h * 0.01;
+
+  // 1. Badge — full width bar
+  const badgePad = h * 0.015;
+  const badgeFs = Math.min(w * 0.04, badgeH * 0.45);
   ctx.save();
-  ctx.globalAlpha = 0.18;
-  ctx.fillStyle = '#000000';
-  roundRect(ctx, w * 0.06, yStart, w * 0.88, yEnd - yStart, w * 0.04);
+  ctx.fillStyle = design.badgeColor;
+  roundRect(ctx, w * 0.04, badgePad, w * 0.92, badgeH - badgePad, w * 0.025);
   ctx.fill();
   ctx.restore();
-}
 
-
-// Layout: Story Hero (9:16, style 0)
-function drawStoryHero(
-  ctx: CanvasRenderingContext2D, w: number, h: number,
-  design: DesignConfig, name: string, petDetails: string | undefined,
-  location: string | undefined, contactInfo: string | undefined,
-  description: string | undefined, img: HTMLImageElement | null
-) {
-  drawBadge(ctx, w, w / 2, h * 0.03, design.label, design.badgeColor, w * 0.045);
-
-  const photoR = w * 0.28;
-  const photoCy = h * 0.30;
-
-  const cardY = photoCy + photoR - w * 0.02;
-  const cardEndY = h - h * 0.06 - w * 0.02;
-  drawContentCard(ctx, w, cardY, cardEndY);
-
-  drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
-
-  let yPos = photoCy + photoR + w * 0.07;
-  const nameFs = w * 0.10;
-  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
+  ctx.font = `800 ${badgeFs}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.shadowColor = 'rgba(0,0,0,0.2)';
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetY = 3;
-  ctx.fillText(name, w / 2, yPos);
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-  yPos += nameFs * 1.15;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(design.label, w / 2, badgePad + (badgeH - badgePad) / 2);
 
-  if (petDetails) {
-    const df = w * 0.032;
-    ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
+  // 2. Photo — rectangular with rounded corners
+  drawRectPhoto(ctx, photoX, photoY, photoW, photoH, img, photoRadius);
+
+  // 3. Location & Contact — fixed position above brand bar
+  const locationY = brandY - (contactInfo ? infoFontSize * 2.6 : infoFontSize * 1.5);
+  let curInfoY = locationY;
+
+  if (location && locationY > photoY + photoH) {
+    ctx.font = `500 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(location, contentX, locationY);
+    curInfoY = locationY + infoFontSize * 1.45;
+  }
+
+  if (contactInfo && curInfoY + infoFontSize < brandY) {
+    ctx.font = `500 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(contactInfo, contentX, curInfoY);
+  }
+
+  // 4. Content — fills from photo bottom up to location
+  const contentEndY = Math.min(locationY - h * 0.015, brandY - h * 0.05);
+  let contentY = photoY + photoH + h * 0.025;
+
+  // Name
+  if (name && name !== 'Sin nombre' && contentY + nameFontSize < contentEndY) {
+    ctx.font = `800 ${nameFontSize}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0,0,0,0.2)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 2;
+    ctx.fillText(name, contentX, contentY);
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    contentY += nameFontSize * 1.2;
+  }
+
+  // Pet details
+  if (petDetails && contentY + detailsFontSize < contentEndY) {
+    ctx.font = `500 ${detailsFontSize}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.textAlign = 'center';
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(petDetails, w / 2, yPos);
-    yPos += df * 1.8;
+    ctx.fillText(petDetails, contentX, contentY);
+    contentY += detailsFontSize * 1.5;
   }
 
-  yPos += w * 0.015;
-
-  if (location) {
-    const lf = w * 0.04;
-    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(location, w / 2, yPos);
-    yPos += lf * 1.6;
-  }
-
-  if (contactInfo) {
-    const cf = w * 0.04;
-    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(contactInfo, w / 2, yPos);
-    yPos += cf * 1.6;
-  }
-
-  if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.034, 4, 'italic 500', 'rgba(255,255,255,0.85)', 1.4);
-  }
-}
-
-
-// Layout: Portrait Magazine (4:5, style 0)
-function drawPortraitMagazine(
-  ctx: CanvasRenderingContext2D, w: number, h: number,
-  design: DesignConfig, name: string, petDetails: string | undefined,
-  location: string | undefined, contactInfo: string | undefined,
-  description: string | undefined, img: HTMLImageElement | null
-) {
-  drawBadge(ctx, w, w / 2, h * 0.03, design.label, design.badgeColor, w * 0.045);
-
-  const photoR = w * 0.22;
-  const photoCy = h * 0.28;
-
-  const cardY = photoCy + photoR - w * 0.02;
-  const cardEndY = h - h * 0.06 - w * 0.02;
-  drawContentCard(ctx, w, cardY, cardEndY);
-
-  drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
-
-  let yPos = photoCy + photoR + w * 0.06;
-  const nameFs = w * 0.09;
-  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.shadowColor = 'rgba(0,0,0,0.2)';
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetY = 3;
-  ctx.fillText(name, w / 2, yPos);
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-  yPos += nameFs * 1.1;
-
-  if (petDetails) {
-    const df = w * 0.03;
-    ctx.font = `500 ${df}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(petDetails, w / 2, yPos);
-    yPos += df * 1.7;
-  }
-
-  if (location) {
-    const lf = w * 0.038;
-    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(location, w / 2, yPos);
-    yPos += lf * 1.5;
-  }
-
-  if (contactInfo) {
-    const cf = w * 0.038;
-    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(contactInfo, w / 2, yPos);
-    yPos += cf * 1.5;
-  }
-
-  if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.032, 2, 'italic 500', 'rgba(255,255,255,0.85)', 1.35);
-  }
-}
-
-
-
-// Layout: Square Minimal (1:1, style 1)
-function drawSquareMinimal(
-  ctx: CanvasRenderingContext2D, w: number, h: number,
-  design: DesignConfig, name: string, petDetails: string | undefined,
-  location: string | undefined, contactInfo: string | undefined,
-  description: string | undefined, img: HTMLImageElement | null
-) {
-  drawBadge(ctx, w, w / 2, h * 0.02, design.label, design.badgeColor, w * 0.038);
-
-  const photoR = w * 0.22;
-  const photoCy = h * 0.36;
-
-  const cardY = photoCy + photoR - w * 0.02;
-  const cardEndY = h - h * 0.06 - w * 0.02;
-  drawContentCard(ctx, w, cardY, cardEndY);
-
-  drawCircularPhoto(ctx, w / 2, photoCy, photoR, img, w);
-
-  let yPos = photoCy + photoR + w * 0.055;
-  const nameFs = w * 0.075;
-  ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.shadowColor = 'rgba(0,0,0,0.2)';
-  ctx.shadowBlur = 6;
-  ctx.shadowOffsetY = 2;
-  ctx.fillText(name, w / 2, yPos);
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-  yPos += nameFs * 1.0;
-
-  if (location) {
-    const lf = w * 0.032;
-    ctx.font = `500 ${lf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(location, w / 2, yPos);
-    yPos += lf * 1.3;
-  }
-
-  if (contactInfo) {
-    const cf = w * 0.032;
-    ctx.font = `500 ${cf}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(contactInfo, w / 2, yPos);
-    yPos += cf * 1.3;
-  }
-
-  if (description) {
-    yPos = drawWrappedText(ctx, description, w / 2, yPos, w * 0.72, w * 0.028, 2, 'italic 500', 'rgba(255,255,255,0.85)', 1.3);
+  // Description — dynamic lines based on remaining space
+  if (description && contentY < contentEndY) {
+    const availableForDesc = contentEndY - contentY;
+    const descLineH = descFontSize * 1.35;
+    const maxLinesBySpace = Math.max(1, Math.floor(availableForDesc / descLineH));
+    const actualLines = Math.min(maxDescLines, maxLinesBySpace);
+    drawWrappedText(ctx, description, contentX, contentY, contentMaxW, descFontSize, actualLines, 'italic 500', 'rgba(255,255,255,0.85)', 1.35, 'left');
   }
 }
 
 function drawFlyerNative(
   ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
+  w: number, h: number,
   design: DesignConfig,
-  name: string,
-  petDetails: string | undefined,
-  location: string | undefined,
-  contactInfo: string | undefined,
+  name: string, petDetails: string | undefined,
+  location: string | undefined, contactInfo: string | undefined,
   description: string | undefined,
-  status: string,
   img: HTMLImageElement | null,
-  logoImg: HTMLImageElement | null,
-  styleIndex: 0 | 1
+  logoImg: HTMLImageElement | null
 ) {
   drawBgDecorations(ctx, w, h, design.gradientStart, design.gradientEnd);
-
-  const layoutType = getLayoutType(w, h);
-
-  if (layoutType === 'square') {
-    drawSquareMinimal(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
-  } else if (layoutType === 'story') {
-    drawStoryHero(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
-  } else {
-    drawPortraitMagazine(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
-  }
-
+  drawCardFlyer(ctx, w, h, design, name, petDetails, location, contactInfo, description, img);
   drawBrandBar(ctx, w, h, logoImg);
 }
+
+
 
 export default function SocialShareModal({ pet, onClose }: SocialShareModalProps) {
   const [platform, setPlatform] = useState<Platform>(null);
@@ -563,7 +472,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const isMobile = typeof navigator !== 'undefined' && !!navigator.share;
 
   const { width: targetWidth, height: targetHeight, aspectRatio } = getDimensions(platform, useType);
-  const styleIndex: 0 | 1 = getLayoutType(targetWidth, targetHeight) === 'square' ? 1 : 0;
+
 
   const design = statusDesigns[pet.status] || statusDesigns.lost;
   const flyerName = pet.name || 'Sin nombre';
@@ -590,8 +499,8 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     if (!ctx) return;
     canvas.width = targetWidth;
     canvas.height = targetHeight;
-    drawFlyerNative(ctx, targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, pet.status, img, logoImg, styleIndex);
-  }, [targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, pet.status, logoImg]);
+    drawFlyerNative(ctx, targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, img, logoImg);
+  }, [targetWidth, targetHeight, design, flyerName, petDetails, pet.location, pet.contact_info, pet.description, logoImg]);
 
   useEffect(() => {
     if (!mainImage || !platform || !useType) return;
@@ -637,8 +546,8 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
       drawFlyerNative(
         ctx,
         targetWidth, targetHeight, design, flyerName, petDetails,
-        pet.location, pet.contact_info, pet.description, pet.status,
-        imgToUse, logoImg, styleIndex
+        pet.location, pet.contact_info, pet.description,
+        imgToUse, logoImg
       );
 
       const blob = await new Promise<Blob | null>(resolve => offscreen.toBlob(resolve, 'image/png'));
