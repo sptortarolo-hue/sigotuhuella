@@ -326,7 +326,7 @@ function drawCardFlyer(
     photoW = w * 0.84;
     photoRadius = w * 0.025;
     maxDescLines = 99;
-    descFontSize = hasName ? w * 0.034 : w * 0.044;
+    descFontSize = hasName ? w * 0.038 : w * 0.050;
     infoFontSize = w * 0.032;
     detailsFontSize = hasName ? w * 0.028 : w * 0.034;
     nameFontSize = w * 0.065;
@@ -363,9 +363,17 @@ function drawCardFlyer(
   const contentMaxW = w * 0.84;
   const brandY = h - brandH - h * 0.01;
 
-  // 1. Badge — full width bar
+  // 1. Badge — full width bar with large text
   const badgePad = h * 0.015;
-  const badgeFs = Math.min(w * 0.04, badgeH * 0.45);
+  const maxBadgeTextW = w * 0.78;
+  ctx.font = `800 ${badgeH * 0.55}px system-ui, -apple-system, sans-serif`;
+  let badgeFs = badgeH * 0.55;
+  const textW = ctx.measureText(design.label).width;
+  if (textW > maxBadgeTextW) {
+    badgeFs = badgeFs * (maxBadgeTextW / textW);
+  }
+  badgeFs = Math.max(badgeH * 0.25, Math.min(badgeFs, badgeH * 0.6));
+
   ctx.save();
   ctx.fillStyle = design.badgeColor;
   roundRect(ctx, w * 0.04, badgePad, w * 0.92, badgeH - badgePad, w * 0.025);
