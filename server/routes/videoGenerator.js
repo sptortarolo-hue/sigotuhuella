@@ -25,16 +25,32 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
 
 // POST generate new video
 router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
-  const { style = 'emotive', duration = 60, music = 'emotional', includeVoice = true } = req.body;
+  const {
+    style = 'emotive',
+    duration = 60,
+    music = 'emotional',
+    includeVoice = true,
+    petId,
+    customScript,
+    overlayText
+  } = req.body;
 
   // Run generation in background to not block response
   setImmediate(async () => {
     try {
-      const result = await generateVideo({ style, duration, music, includeVoice });
+      const result = await generateVideo({
+        style,
+        duration,
+        music,
+        includeVoice,
+        petId,
+        customScript,
+        overlayText
+      });
       // Store in DB with file paths
       await pool.query(
         `INSERT INTO promotional_videos (title, video_data, thumbnail_data, style, duration, music_track, voice_enabled, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [`Video ${style} ${duration}s`, result.filename, result.thumbnail, style, duration, music, includeVoice, req.user.id]
       );
     } catch (err) {

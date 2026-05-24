@@ -158,8 +158,7 @@ const router = Router();
 
 router.get('/', async (req, res) => {
   try {
-    const status = req.query.status;
-    const isPublic = req.query.public === 'true';
+    const { status, isPublic, limit } = req.query;
     let query = `
       SELECT p.*, 
         COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
@@ -169,16 +168,20 @@ router.get('/', async (req, res) => {
     const conditions = [];
     const params = [];
     if (status) {
-      params.push(status);
+      params.push(status as string);
       conditions.push(`p.status = $${params.length}`);
     }
-    if (isPublic) {
+    if (isPublic === 'true') {
       conditions.push(`p.created_by IS NULL`);
     }
     if (conditions.length > 0) {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
     query += ` GROUP BY p.id ORDER BY p.created_at DESC`;
+    if (limit) {
+      params.push(parseInt(limit as string));
+      query += ` LIMIT $${params.length}`;
+    }
     const result = await pool.query(query, params);
     res.json({ pets: result.rows });
   } catch (err) {
