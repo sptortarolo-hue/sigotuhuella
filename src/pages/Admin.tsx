@@ -77,6 +77,8 @@ export default function Admin() {
   // Volunteers State
   const [volunteers, setVolunteers] = useState<VolunteerRequest[]>([]);
   const [memberInfo, setMemberInfo] = useState<Record<string, { member_number?: string; volunteer_status?: string; badges?: Badge[]; contribution_areas?: string[] }>>({});
+  const [volunteerSearch, setVolunteerSearch] = useState('');
+  const [volunteerBadgeFilter, setVolunteerBadgeFilter] = useState('');
 
   const MANUAL_BADGES = [
     { code: 'volunteer', label: 'Voluntario/a', icon: '🤝' },
@@ -968,13 +970,57 @@ export default function Admin() {
             </div>
           )}
 
-           {/* ====== VOLUNTARIOS ====== */}
-           {activeTab === 'volunteers' && (
-             <div className="space-y-10">
-               {/* Nuevas Solicitudes */}
-               {(() => {
-                 const pending = volunteers.filter(v => v.status === 'pending');
-                 if (pending.length === 0) return (<div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent"><p className="text-gray-500 font-medium">No hay nuevas solicitudes.</p></div>);
+            {/* ====== VOLUNTARIOS ====== */}
+            {activeTab === 'volunteers' && (
+              <div className="space-y-10">
+                {/* Search + Badge Filter */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre, zona o WhatsApp..."
+                      value={volunteerSearch}
+                      onChange={e => setVolunteerSearch(e.target.value)}
+                      className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
+                    />
+                  </div>
+                  <select
+                    value={volunteerBadgeFilter}
+                    onChange={e => setVolunteerBadgeFilter(e.target.value)}
+                    className="px-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm text-sm"
+                  >
+                    <option value="">Todas las insignias</option>
+                    {Object.entries(BADGE_CONFIG).map(([code, cfg]) => (
+                      <option key={code} value={code}>{cfg.icon} {cfg.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* filter helper */}
+                {(() => {
+                  const filterVolunteer = (v: VolunteerRequest) => {
+                    const q = volunteerSearch.toLowerCase();
+                    if (q && !v.full_name.toLowerCase().includes(q) && !v.residence_zone.toLowerCase().includes(q) && !v.whatsapp.toLowerCase().includes(q)) return false;
+                    if (volunteerBadgeFilter) {
+                      const info = v.user_id ? memberInfo[v.user_id] : null;
+                      const badges = info?.badges || [];
+                      if (!badges.some((b: Badge) => b.code === volunteerBadgeFilter)) return false;
+                    }
+                    return true;
+                  };
+
+                  const allFiltered = volunteers.filter(filterVolunteer);
+                  const pending = allFiltered.filter(v => v.status === 'pending');
+                  const active = allFiltered.filter(v => v.status === 'accepted' || v.status === 'suspended');
+
+                  if (allFiltered.length === 0) {
+                    return (
+                      <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
+                        <p className="text-gray-400 font-medium">Aún no hay solicitudes para sumarse.</p>
+                      </div>
+                    );
+                  }
                  return (
                    <>
                      <h2 className="text-xl font-serif font-bold text-brand-primary mb-4">Nuevas Solicitudes</h2>
@@ -1042,155 +1088,144 @@ export default function Admin() {
                              </div>
                            </div>
                          );
-                       })}
-                     </div>
-                   </>
-                 );
-               })()}
+                        })}
+                      </div>
 
-               {/* Socios Activos */}
-               {(() => {
-                 const active = volunteers.filter(v => v.status === 'accepted' || v.status === 'suspended');
-                 if (active.length === 0) return null;
-                 return (
-                   <>
-                     <h2 className="text-xl font-serif font-bold text-brand-primary mb-4">Socios Activos</h2>
-                     <div className="grid gap-4">
-                       {active.map(vol => {
-                         const info = vol.user_id ? memberInfo[vol.user_id] : null;
-                         const badges = info?.badges || [];
-                         return (
-                           <div key={vol.id} className="bg-white p-6 rounded-3xl border border-brand-accent shadow-sm">
-                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                               <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                    {info?.avatar_type === 'photo' && info?.avatar_data ? (
-                                      <img
-                                        src={`data:${info.avatar_mime_type || 'image/jpeg'};base64,${info.avatar_data}`}
-                                        alt="Avatar"
-                                        className="w-10 h-10 rounded-full object-cover shrink-0 border-2 border-brand-accent"
-                                      />
-                                    ) : (
-                                      <div className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center shrink-0 border-2 border-brand-accent">
-                                        <User className="w-5 h-5 text-brand-primary" />
-                                      </div>
-                                    )}
-                                    <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                                      vol.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                                      vol.status === 'suspended' ? 'bg-red-100 text-red-600' :
-                                      'bg-gray-100 text-gray-500'
-                                    }`}>
-                                      {vol.status === 'suspended' ? 'Suspendido' : vol.status}
-                                   </span>
-                                 </div>
-                                 <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                                   <div className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {vol.residence_zone}</div>
-                                   <div className="flex items-center gap-1"><Phone className="w-4 h-4" /> {vol.whatsapp}</div>
-                                   <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(vol.created_at).toLocaleDateString()}</div>
-                                 </div>
-                                  {info?.member_number && (
-                                    <div className="flex items-center gap-2 text-xs text-brand-primary font-bold mt-1">
-                                      <PawPrint className="w-3 h-3" /> {info.member_number}
+                      {/* Socios Activos */}
+                      {active.length > 0 && (
+                      <>
+                        <h2 className="text-xl font-serif font-bold text-brand-primary mb-4">Socios Activos</h2>
+                        <div className="grid gap-4">
+                          {active.map(vol => {
+                            const info = vol.user_id ? memberInfo[vol.user_id] : null;
+                            const badges = info?.badges || [];
+                            return (
+                              <div key={vol.id} className="bg-white p-6 rounded-3xl border border-brand-accent shadow-sm">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                  <div className="space-y-1">
+                                   <div className="flex items-center gap-2">
+                                       {info?.avatar_type === 'photo' && info?.avatar_data ? (
+                                         <img
+                                           src={`data:${info.avatar_mime_type || 'image/jpeg'};base64,${info.avatar_data}`}
+                                           alt="Avatar"
+                                           className="w-10 h-10 rounded-full object-cover shrink-0 border-2 border-brand-accent"
+                                         />
+                                       ) : (
+                                         <div className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center shrink-0 border-2 border-brand-accent">
+                                           <User className="w-5 h-5 text-brand-primary" />
+                                         </div>
+                                       )}
+                                       <h3 className="font-bold text-lg text-brand-primary">{vol.full_name}</h3>
+                                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                         vol.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                         vol.status === 'suspended' ? 'bg-red-100 text-red-600' :
+                                         'bg-gray-100 text-gray-500'
+                                       }`}>
+                                         {vol.status === 'suspended' ? 'Suspendido' : vol.status}
+                                      </span>
                                     </div>
-                                  )}
-                                  {info?.contribution_areas && info.contribution_areas.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5 mt-2">
-                                      {info.contribution_areas.map((area: string, i: number) => {
-                                        const cfg = BADGE_CONFIG[area];
-                                        return cfg ? (
-                                          <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: cfg.color }}>
-                                            {cfg.icon} {cfg.label}
-                                          </span>
-                                        ) : null;
-                                      })}
+                                    <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                                      <div className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {vol.residence_zone}</div>
+                                      <div className="flex items-center gap-1"><Phone className="w-4 h-4" /> {vol.whatsapp}</div>
+                                      <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(vol.created_at).toLocaleDateString()}</div>
                                     </div>
-                                  )}
-                                  {/* Auto-badges: read-only */}
-                                  {(() => {
-                                    const autoBadges = badges.filter((b) => AUTO_BADGE_CODES.has(b.code));
-                                    if (autoBadges.length === 0) return null;
-                                    return (
-                                      <div className="mt-2">
-                                        <p className="text-[9px] uppercase font-bold text-gray-400 mb-1">Insignias automáticas</p>
-                                        <div className="flex flex-wrap gap-1.5">
-                                          {autoBadges.map((b, i) => {
-                                            const cfg = BADGE_CONFIG[b.code];
-                                            return (
-                                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold">
-                                                {cfg?.icon} {cfg?.label}
-                                              </span>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    );
-                                  })()}
-                                  {/* Manual badges: clickable */}
-                                  <div className="mt-2">
-                                    <p className="text-[9px] uppercase font-bold text-gray-400 mb-1">Insignias manuales</p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {MANUAL_BADGES.map((badge, idx) => {
-                                        const hasBadge = badges.some((b) => b.code === badge.code);
-                                        return (
-                                          <span
-                                            key={idx}
-                                            onClick={() => {
-                                              if (hasBadge) { handleRemoveBadge(vol.user_id, badge.code); }
-                                              else if (vol.user_id) { handleAwardBadge(vol.user_id, badge.code); }
-                                            }}
-                                            title={hasBadge ? 'Clic para quitar' : 'Clic para asignar'}
-                                            className={`cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${hasBadge ? 'bg-brand-primary/20 text-brand-primary' : 'border border-dashed border-brand-primary/30 text-gray-400 hover:text-brand-primary hover:border-brand-primary'}`}
-                                          >
-                                            {badge.icon} {badge.label}
-                                          </span>
-                                        );
-                                      })}
-                                    </div>
+                                     {info?.member_number && (
+                                       <div className="flex items-center gap-2 text-xs text-brand-primary font-bold mt-1">
+                                         <PawPrint className="w-3 h-3" /> {info.member_number}
+                                       </div>
+                                     )}
+                                     {info?.contribution_areas && info.contribution_areas.length > 0 && (
+                                       <div className="flex flex-wrap gap-1.5 mt-2">
+                                         {info.contribution_areas.map((area: string, i: number) => {
+                                           const cfg = BADGE_CONFIG[area];
+                                           return cfg ? (
+                                             <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: cfg.color }}>
+                                               {cfg.icon} {cfg.label}
+                                             </span>
+                                           ) : null;
+                                         })}
+                                       </div>
+                                     )}
+                                     {/* Auto-badges: read-only */}
+                                     {(() => {
+                                       const autoBadges = badges.filter((b) => AUTO_BADGE_CODES.has(b.code));
+                                       if (autoBadges.length === 0) return null;
+                                       return (
+                                         <div className="mt-2">
+                                           <p className="text-[9px] uppercase font-bold text-gray-400 mb-1">Insignias automáticas</p>
+                                           <div className="flex flex-wrap gap-1.5">
+                                             {autoBadges.map((b, i) => {
+                                               const cfg = BADGE_CONFIG[b.code];
+                                               return (
+                                                 <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[10px] font-bold">
+                                                   {cfg?.icon} {cfg?.label}
+                                                 </span>
+                                               );
+                                             })}
+                                           </div>
+                                         </div>
+                                       );
+                                     })()}
+                                     {/* Manual badges: clickable */}
+                                     <div className="mt-2">
+                                       <p className="text-[9px] uppercase font-bold text-gray-400 mb-1">Insignias manuales</p>
+                                       <div className="flex flex-wrap gap-1.5">
+                                         {MANUAL_BADGES.map((badge, idx) => {
+                                           const hasBadge = badges.some((b) => b.code === badge.code);
+                                           return (
+                                             <span
+                                               key={idx}
+                                               onClick={() => {
+                                                 if (hasBadge) { handleRemoveBadge(vol.user_id, badge.code); }
+                                                 else if (vol.user_id) { handleAwardBadge(vol.user_id, badge.code); }
+                                               }}
+                                               title={hasBadge ? 'Clic para quitar' : 'Clic para asignar'}
+                                               className={`cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${hasBadge ? 'bg-brand-primary/20 text-brand-primary' : 'border border-dashed border-brand-primary/30 text-gray-400 hover:text-brand-primary hover:border-brand-primary'}`}
+                                             >
+                                               {badge.icon} {badge.label}
+                                             </span>
+                                           );
+                                         })}
+                                       </div>
+                                     </div>
                                   </div>
-                               </div>
-                               <div className="flex gap-2">
-                                 <a
-                                   href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
-                                   target="_blank"
-                                   rel="noreferrer"
-                                   className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
-                                 >
-                                   Contactar <ExternalLink className="w-4 h-4" />
-                                 </a>
-                                 {vol.status === 'accepted' && vol.user_id && (
-                                   <>
-                                     <button onClick={() => handleVolunteerStatus(vol.id, 'suspended')} className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors">Suspender</button>
-                                   </>
-                                 )}
-                                 {vol.status === 'suspended' && vol.user_id && (
-                                   <>
-                                     <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Reactivar</button>
-                                   </>
-                                 )}
-                                 <button
-                                   onClick={() => handleDeleteVolunteer(vol.id)}
-                                   className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors"
-                                 >
-                                   Eliminar <Trash2 className="w-4 h-4" />
-                                 </button>
-                               </div>
-                             </div>
-                           </div>
-                         );
-                       })}
-                     </div>
-                   </>
-                 );
-               })()}
-
-               {/* Empty state */}
-               {volunteers.length === 0 && (
-                 <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
-                   <p className="text-gray-400 font-medium">Aún no hay solicitudes para sumarse.</p>
-                 </div>
-               )}
-              </div>
+                                  <div className="flex gap-2">
+                                    <a
+                                      href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
+                                    >
+                                      Contactar <ExternalLink className="w-4 h-4" />
+                                    </a>
+                                    {vol.status === 'accepted' && vol.user_id && (
+                                      <>
+                                        <button onClick={() => handleVolunteerStatus(vol.id, 'suspended')} className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors">Suspender</button>
+                                      </>
+                                    )}
+                                    {vol.status === 'suspended' && vol.user_id && (
+                                      <>
+                                        <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Reactivar</button>
+                                      </>
+                                    )}
+                                    <button
+                                      onClick={() => handleDeleteVolunteer(vol.id)}
+                                      className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors"
+                                    >
+                                      Eliminar <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                    </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+               </div>
             )}
 
           {/* ====== REPORTES PUBLICOS ====== */}
