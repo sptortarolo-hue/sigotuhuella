@@ -86,10 +86,11 @@ async function getMusicFile(url) {
   return null;
 }
 
-// Draw frame with optional overlay text
+// Draw frame with Ken Burns zoom and animated overlay text
 async function drawFrame(photoBase64, stats, style, index, totalFrames, overlayText) {
   const canvas = createCanvas(1080, 1920);
   const ctx = canvas.getContext('2d');
+  const progress = index / Math.max(totalFrames - 1, 1);
 
   const olive = '#5A5A40';
   const terracotta = '#D48C70';
@@ -101,12 +102,12 @@ async function drawFrame(photoBase64, stats, style, index, totalFrames, overlayT
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 1080, 1920);
 
-  // Decorative circles
+  // Decorative circles (animated: slight scale)
   ctx.fillStyle = 'rgba(255,255,255,0.05)';
-  ctx.beginPath(); ctx.arc(1080 * 0.85, 1920 * 0.25, 400, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(1080 * 0.15, 1920 * 0.85, 300, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1080 * (0.85 + progress * 0.05), 1920 * (0.25 - progress * 0.03), 400 + progress * 50, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1080 * (0.15 - progress * 0.05), 1920 * (0.85 + progress * 0.03), 300 - progress * 40, 0, Math.PI * 2); ctx.fill();
 
-  // Photo
+  // Photo (Ken Burns: slow zoom + slight pan)
   let photo;
   try {
     photo = await loadImage(Buffer.from(photoBase64, 'base64'));
@@ -116,19 +117,23 @@ async function drawFrame(photoBase64, stats, style, index, totalFrames, overlayT
   }
 
   if (photo) {
-    const x = 140, y = 600, w = 800, h = 800;
+    const zoom = 1 + progress * 0.08;
+    const panX = progress * 20;
+    const panY = progress * 10;
+    const x = 140 - panX, y = 600 - panY, w = 800 * zoom, h = 800 * zoom;
     ctx.save();
     ctx.beginPath();
-    ctx.roundRect(x, y, w, h, 30);
+    ctx.roundRect(140, 600, 800, 800, 30);
     ctx.clip();
     ctx.drawImage(photo, x, y, w, h);
     ctx.restore();
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 4;
-    ctx.strokeRect(x, y, w, h);
+    ctx.strokeRect(140, 600, 800, 800);
   }
 
-  // Stats badge
+  // Stats badge (fade in)
+  ctx.globalAlpha = Math.min(1, progress * 3);
   ctx.fillStyle = 'rgba(0,0,0,0.2)';
   ctx.fillRect(70, 100, 940, 120);
   ctx.fillStyle = '#ffffff';
@@ -138,15 +143,34 @@ async function drawFrame(photoBase64, stats, style, index, totalFrames, overlayT
   ctx.fillText(`${stats.reunited} mascotas reunidas`, 100, 130);
   ctx.font = '48px system-ui';
   ctx.fillText(`${stats.users} vecinos ayudando`, 100, 200);
+  ctx.globalAlpha = 1;
 
-  // Overlay text (if provided)
+  // Overlay text on dark gradient bar at bottom
   if (overlayText && overlayText.length > 0) {
     let frameText = overlayText[index % overlayText.length];
     if (typeof frameText === 'string' && frameText.trim()) {
-      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      // Dark gradient bar
+      const barGrad = ctx.createLinearGradient(0, 1400, 0, 1700);
+      barGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      barGrad.addColorStop(0.1, 'rgba(0,0,0,0.7)');
+      barGrad.addColorStop(0.9, 'rgba(0,0,0,0.7)');
+      barGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = barGrad;
+      ctx.fillRect(0, 1400, 1080, 300);
+
+      // Animate text opacity: fade in over first 30% of its display
+      ctx.globalAlpha = 0.3 + 0.7 * Math.min(1, progress * 3.3);
+      ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      ctx.font = 'italic 46px "Georgia", serif';
-      const maxWidth = 940;
+      ctx.font = 'bold 56px system-ui, -apple-system, sans-serif';
+
+      // Text shadow
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+
+      const maxWidth = 960;
       const words = frameText.split(' ');
       let line = '';
       let y = 1550;
@@ -156,7 +180,7 @@ async function drawFrame(photoBase64, stats, style, index, totalFrames, overlayT
         if (metrics.width > maxWidth && i > 0) {
           ctx.fillText(line.trim(), 540, y);
           line = words[i] + ' ';
-          y += 55;
+          y += 64;
         } else {
           line = testLine;
         }
@@ -164,14 +188,19 @@ async function drawFrame(photoBase64, stats, style, index, totalFrames, overlayT
       if (line.trim()) {
         ctx.fillText(line.trim(), 540, y);
       }
+      ctx.globalAlpha = 1;
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
     }
   }
 
-  // Logo bottom
+  // Logo bottom (fade in)
+  ctx.globalAlpha = Math.min(1, progress * 2);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 72px system-ui, -apple-system, sans-serif';
   ctx.fillText('SIGO TU HUELLA', 540, 1830);
+  ctx.globalAlpha = 1;
 
   return canvas.toBuffer('image/png');
 }
@@ -191,15 +220,18 @@ async function generateAudio(stats, config, outputPath, customScript) {
           );
           speechConfig.speechSynthesisVoiceName = 'es-AR-ElenaNeural';
 
-          const audioConfig = new sdk.AudioConfig(sdk.SpeakerAudioDestination.fromDefaultSpeaker());
+          const ttsOutputPath = outputPath.replace('.mp3', '_tts.wav');
+          const audioConfig = sdk.AudioConfig.fromAudioFileOutput(ttsOutputPath);
           const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
           const result = await new Promise((resolve, reject) => {
             synthesizer.speakTextAsync(script, res => resolve(res), err => reject(err));
           });
-          if (result && result.audioData && result.audioData.length > 0) {
+          synthesizer.close();
+          if (fs.existsSync(ttsOutputPath) && fs.statSync(ttsOutputPath).size > 0) {
+            ttsBuffer = fs.readFileSync(ttsOutputPath);
+          } else if (result && result.audioData && result.audioData.length > 0) {
             ttsBuffer = Buffer.from(result.audioData);
           }
-          synthesizer.close();
         } catch (err) {
           console.warn('Azure TTS failed, will use music only:', err.message);
           ttsBuffer = null;
@@ -214,29 +246,33 @@ async function generateAudio(stats, config, outputPath, customScript) {
   }
 
   if (ttsBuffer) {
-    const ttsTmp = outputPath.replace('.mp3', '_tts.mp3');
+    const ttsTmp = outputPath.replace('.mp3', '_tts.wav');
     fs.writeFileSync(ttsTmp, ttsBuffer);
     if (musicPath) {
+      // Mix TTS (full volume) + music (50% volume) via filter_complex
       await new Promise((resolve, reject) => {
         ffmpeg()
           .input(ttsTmp)
           .input(musicPath)
-          .audioFilters([
-            'volume=0.6:enable=between(t,0,3600)',
-            'volume=1.2:enable=between(t,0,3600)'
+          .complexFilter([
+            '[1:a]volume=0.5[musicVol]',
+            '[0:a][musicVol]amix=inputs=2:duration=first:dropout_transition=2[mix]'
           ])
-          .outputOptions('-shortest')
-          .toFormat('mp3')
-          .audioBitrate('192k')
-          .on('end', resolve)
-          .on('error', reject)
+          .outputOptions(['-map', '[mix]', '-c:a', 'aac', '-b:a', '192k', '-shortest'])
+          .on('end', () => {
+            try { fs.unlinkSync(ttsTmp); } catch {}
+            resolve();
+          })
+          .on('error', (err, stdout, stderr) => {
+            console.error('mix audio stderr:', stderr);
+            reject(err);
+          })
           .save(outputPath);
       });
     } else {
-      // Just copy TTS as-is (no music)
-      fs.copyFileSync(ttsTmp, outputPath);
+      try { fs.copyFileSync(ttsTmp, outputPath); } catch {}
+      try { fs.unlinkSync(ttsTmp); } catch {}
     }
-    fs.unlinkSync(ttsTmp);
   } else if (musicPath) {
     await new Promise((resolve, reject) => {
       ffmpeg()
