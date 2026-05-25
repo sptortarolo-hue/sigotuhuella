@@ -11,8 +11,14 @@ interface Video {
   music_track: string;
   voice_enabled: boolean;
   created_at: string;
-  video_data: string; // filename
+  video_data: string;
   thumbnail_data: string;
+}
+
+interface Pet {
+  id: string;
+  name: string;
+  species: string;
 }
 
 export default function VideoGeneratorTab() {
@@ -21,13 +27,17 @@ export default function VideoGeneratorTab() {
 
   const [config, setConfig] = useState({
     style: 'emotive',
-    duration: 60,
+    duration: 30,
     music: 'emotional',
-    includeVoice: true
+    includeVoice: true,
+    petId: '',
+    customScript: '',
+    overlayText: ''
   });
   const [generating, setGenerating] = useState(false);
   const [videos, setVideos] = useState<Video[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [pets, setPets] = useState<Pet[]>([]);
 
   const musicOptions = [
     { value: 'emotional', label: 'Emocional Piano' },
@@ -44,6 +54,7 @@ export default function VideoGeneratorTab() {
 
   useEffect(() => {
     fetchVideos();
+    fetchPets();
   }, []);
 
   async function fetchVideos() {
@@ -61,22 +72,42 @@ export default function VideoGeneratorTab() {
     }
   }
 
+  async function fetchPets() {
+    try {
+      const res = await fetch('/api/pets?status=reunited&limit=100');
+      if (res.ok) {
+        const data = await res.json();
+        setPets(data.pets || data || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch pets:', e);
+    }
+  }
+
   async function generate() {
     if (!canManage || generating) return;
     setGenerating(true);
     try {
-      const res = await fetch('/api/admin/generate-video', {
+      const body = {
+        style: config.style,
+        duration: config.duration,
+        music: config.music,
+        includeVoice: config.includeVoice,
+        petId: config.petId || undefined,
+        customScript: config.customScript?.trim() || undefined,
+        overlayText: config.overlayText?.trim() || undefined
+      };
+      const res = await fetch('/api/admin/videos/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
+        body: JSON.stringify(body)
       });
       if (!res.ok) throw new Error('Failed to start generation');
-      // Poll for result
       let attempts = 0;
       const poll = setInterval(async () => {
         attempts++;
         await fetchVideos();
-        if (attempts >= 12) clearInterval(poll); // 1 min max poll
+        if (attempts >= 12) clearInterval(poll);
       }, 5000);
     } catch (e) {
       alert('Error generando video');
@@ -87,7 +118,7 @@ export default function VideoGeneratorTab() {
   }
 
   async function deleteVideo(id: string, filename: string) {
-    if (!confirm('¿Eliminar este video?')) return;
+    if (!confirm('Eliminar este video?')) return;
     try {
       const res = await fetch(`/api/admin/videos/${id}`, { method: 'DELETE' });
       if (res.ok) setVideos(v => v.filter(vid => vid.id !== id));
@@ -110,12 +141,13 @@ export default function VideoGeneratorTab() {
     <div className="space-y-8">
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
         <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
-          <Film className="w-6 h-6" /> Configuración del Video
+          <Film className="w-6 h-6" /> Configuracion del Video
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <div>
             <label className="block text-sm font-bold text-gray-600 mb-2">Estilo</label>
-            <select 
+            <select
               value={config.style}
               onChange={e => setConfig(c => ({ ...c, style: e.target.value }))}
               className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
@@ -127,8 +159,8 @@ export default function VideoGeneratorTab() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-600 mb-2">Duración</label>
-            <select 
+            <label className="block text-sm font-bold text-gray-600 mb-2">Duracion</label>
+            <select
               value={config.duration}
               onChange={e => setConfig(c => ({ ...c, duration: parseInt(e.target.value) }))}
               className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
@@ -139,8 +171,8 @@ export default function VideoGeneratorTab() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-gray-600 mb-2">Música de fondo</label>
-            <select 
+            <label className="block text-sm font-bold text-gray-600 mb-2">Musica de fondo</label>
+            <select
               value={config.music}
               onChange={e => setConfig(c => ({ ...c, music: e.target.value }))}
               className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
@@ -152,8 +184,8 @@ export default function VideoGeneratorTab() {
           </div>
 
           <div className="flex items-center gap-3 pt-6">
-            <input 
-              type="checkbox" 
+            <input
+              type="checkbox"
               id="voiceEnabled"
               checked={config.includeVoice}
               onChange={e => setConfig(c => ({ ...c, includeVoice: e.target.checked }))}
@@ -163,13 +195,57 @@ export default function VideoGeneratorTab() {
           </div>
         </div>
 
-        <button 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-2">
+              Mascota especifica <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <select
+              value={config.petId}
+              onChange={e => setConfig(c => ({ ...c, petId: e.target.value }))}
+              className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+            >
+              <option value="">Seleccionar mascota (fotos aleatorias)</option>
+              {pets.map(pet => (
+                <option key={pet.id} value={pet.id}>{pet.name || 'Sin nombre'} ({pet.species})</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-2">
+              Texto para voz en off <span className="text-gray-400 font-normal">(opcional, auto si se deja vacio)</span>
+            </label>
+            <textarea
+              value={config.customScript}
+              onChange={e => setConfig(c => ({ ...c, customScript: e.target.value }))}
+              placeholder="Deja vacio para generar texto automatico segun el estilo"
+              rows={3}
+              className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm resize-y"
+            />
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <label className="block text-sm font-bold text-gray-600 mb-2">
+            Texto en pantalla <span className="text-gray-400 font-normal">(cada linea = un frame distinto, opcional)</span>
+          </label>
+          <textarea
+            value={config.overlayText}
+            onChange={e => setConfig(c => ({ ...c, overlayText: e.target.value }))}
+            placeholder="Cada linea se mostrara en un frame distinto. Ejemplo:&#10;Una mascota mas volvio a casa&#10;Gracias a vos es posible&#10;Comparti Sigo Tu Huella"
+            rows={4}
+            className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm resize-y"
+          />
+        </div>
+
+        <button
           onClick={generate}
           disabled={generating}
           className={cn(
             "w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 text-white transition-all",
-            generating 
-              ? "bg-gray-400 cursor-not-allowed" 
+            generating
+              ? "bg-gray-400 cursor-not-allowed"
               : "bg-gradient-to-r from-brand-primary to-brand-secondary hover:shadow-xl"
           )}
         >
@@ -184,7 +260,7 @@ export default function VideoGeneratorTab() {
           )}
         </button>
         <p className="text-xs text-gray-400 mt-3 text-center">
-          Descargará automáticamente cuando esté listo. Mientras tanto, ya aparece en la lista inferior.
+          La generacion toma unos segundos. Cuando termine, aparece en la lista de abajo.
         </p>
       </div>
 
@@ -193,7 +269,7 @@ export default function VideoGeneratorTab() {
           <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
             <Film className="w-6 h-6" /> Videos Generados
           </h2>
-          <button 
+          <button
             onClick={fetchVideos}
             disabled={refreshing}
             className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-brand-primary border border-brand-accent rounded-xl hover:bg-brand-primary/5 transition-colors disabled:opacity-50"
@@ -206,14 +282,14 @@ export default function VideoGeneratorTab() {
         {videos.length === 0 ? (
           <div className="text-center py-16">
             <Film className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No hay videos generados aún.</p>
+            <p className="text-gray-500">No hay videos generados aun.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {videos.map(video => (
               <div key={video.id} className="rounded-2xl border border-brand-accent overflow-hidden bg-brand-bg">
                 <div className="aspect-video bg-gray-200 relative">
-                  <img 
+                  <img
                     src={`/api/admin/videos/thumb/${video.thumbnail_data}`}
                     alt={video.title}
                     className="w-full h-full object-cover"
@@ -223,17 +299,17 @@ export default function VideoGeneratorTab() {
                 <div className="p-4">
                   <h3 className="font-bold text-brand-primary mb-1">{video.style}</h3>
                   <p className="text-xs text-gray-500 mb-4">
-                    {new Date(video.created_at).toLocaleDateString('es-AR')} · {video.duration}s
+                    {new Date(video.created_at).toLocaleDateString('es-AR')} &middot; {video.duration}s
                   </p>
                   <div className="flex gap-2">
-                    <a 
+                    <a
                       href={`/api/admin/videos/file/${video.video_data}`}
                       download
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl hover:bg-brand-primary/90"
                     >
                       <Download className="w-4 h-4" /> Descargar
                     </a>
-                    <button 
+                    <button
                       onClick={() => deleteVideo(video.id, video.video_data)}
                       className="px-3 py-2 text-red-500 border border-red-200 rounded-xl hover:bg-red-50"
                     >
