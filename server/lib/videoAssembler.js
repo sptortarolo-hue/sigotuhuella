@@ -399,7 +399,7 @@ export async function generateVideo(config) {
           .input('anullsrc')
           .inputFormat('lavfi')
           .duration(duration)
-          .outputOptions(['-c:a', 'aac', '-b:a', '128k'])
+          .outputOptions(['-c:a', 'libmp3lame', '-b:a', '128k'])
           .on('end', resolve)
           .on('error', (err, stdout, stderr) => {
             console.error('silent audio stderr:', stderr);
