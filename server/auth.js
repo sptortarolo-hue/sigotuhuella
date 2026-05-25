@@ -211,6 +211,71 @@ export async function sendMemberApprovalEmail(email, displayName, memberNumber) 
   }
 }
 
+export async function sendLostPetConfirmationEmail(email, petData, registrationToken) {
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+  const completeUrl = registrationToken ? `${frontendUrl}/completar-registro?token=${registrationToken}` : null;
+
+  try {
+    await transporter.sendMail({
+      from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: '🐾 Reporte de mascota perdida recibido - Sigo Tu Huella',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <div style="background-color: #9a3412; color: white; width: 60px; height: 60px; line-height: 60px; font-size: 30px; border-radius: 20px; display: inline-block; text-align: center; margin: 0 auto;">🐾</div>
+          </div>
+          <h2 style="color: #9a3412; text-align: center; font-size: 24px; margin-bottom: 10px;">¡Reporte recibido!</h2>
+          <p style="color: #4a5568; font-size: 16px; line-height: 1.6; text-align: center;">
+            Recibimos tu reporte de <strong>${petData.species}</strong> perdido en <strong>${petData.location}</strong>.
+          </p>
+          <div style="background-color: #fffaf0; border: 1px solid #feebc8; border-radius: 12px; padding: 20px; margin: 25px 0;">
+            <h3 style="color: #dd6b20; margin-top: 0; font-size: 18px;">📋 Resumen de tu reporte</h3>
+            <table style="width:100%; border-collapse:collapse; font-size:14px; color:#4a5568;">
+              <tr><td style="padding:6px 0; font-weight:bold;">Especie</td><td style="padding:6px 0;">${petData.species}</td></tr>
+              ${petData.name ? `<tr><td style="padding:6px 0; font-weight:bold;">Nombre</td><td style="padding:6px 0;">${petData.name}</td></tr>` : ''}
+              ${petData.breed ? `<tr><td style="padding:6px 0; font-weight:bold;">Raza</td><td style="padding:6px 0;">${petData.breed}</td></tr>` : ''}
+              ${petData.color ? `<tr><td style="padding:6px 0; font-weight:bold;">Color</td><td style="padding:6px 0;">${petData.color}</td></tr>` : ''}
+              <tr><td style="padding:6px 0; font-weight:bold;">Ubicación</td><td style="padding:6px 0;">${petData.location}</td></tr>
+              <tr><td style="padding:6px 0; font-weight:bold;">Descripción</td><td style="padding:6px 0;">${petData.description}</td></tr>
+              ${petData.phone ? `<tr><td style="padding:6px 0; font-weight:bold;">Contacto</td><td style="padding:6px 0;">${petData.phone}</td></tr>` : ''}
+            </table>
+          </div>
+          <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 20px; margin: 25px 0;">
+            <h3 style="color: #047857; margin-top: 0; font-size: 16px;">🔔 Notificaciones automáticas</h3>
+            <p style="color: #4a5568; font-size: 14px; line-height: 1.6;">
+              Nuestro sistema buscará automáticamente coincidencias entre tu mascota perdida y los reportes de mascotas encontradas o avistadas en la misma zona. Si encontramos una posible coincidencia, te lo haremos saber.
+            </p>
+          </div>
+          ${completeUrl ? `
+          <div style="background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: center;">
+            <h3 style="color: #0369a1; margin-top: 0; font-size: 16px;">🔑 Completá tu registro</h3>
+            <p style="color: #4a5568; font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
+              Creá una contraseña para acceder a tu cuenta, gestionar tu publicación y recibir notificaciones personalizadas.
+            </p>
+            <a href="${completeUrl}" 
+               style="background-color: #0284c7; color: white; padding: 14px 28px; 
+                      text-decoration: none; border-radius: 12px; font-weight: bold; 
+                      display: inline-block; box-shadow: 0 4px 6px rgba(2, 132, 199, 0.15);">
+              Completar mi registro
+            </a>
+          </div>
+          ` : ''}
+          <p style="color: #718096; font-size: 14px; text-align: center; line-height: 1.6;">
+            ¡Juntos hacemos la diferencia! Si encontrás a tu mascota, recordá actualizar el estado de la publicación ingresando a tu cuenta.
+          </p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 25px 0;">
+          <p style="color: #a0aec0; font-size: 12px; text-align: center;">
+            Este correo fue enviado automáticamente por Sigo Tu Huella. Por favor no lo respondas de forma directa.
+          </p>
+        </div>
+      `,
+    });
+  } catch (err) {
+    console.error('Lost pet confirmation email error:', err);
+  }
+}
+
 export async function sendAdminNotificationEmail(subject, htmlContent) {
   try {
     const adminsRes = await pool.query("SELECT email FROM users WHERE role = 'admin'");

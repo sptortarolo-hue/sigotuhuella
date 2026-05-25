@@ -22,10 +22,19 @@ export default defineConfig({
         theme_color: '#fdfcf7',
         background_color: '#fdfcf7',
         display: 'standalone',
+        start_url: '/',
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        ],
+        shortcuts: [
+          {
+            name: 'Reporte Rápido',
+            short_name: 'Reportar',
+            url: '/reportar-rapido',
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }],
+          },
         ],
         share_target: {
           action: '/reportar-rapido',

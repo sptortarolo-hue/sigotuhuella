@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { generateToken, hashPassword, comparePassword, requireAuth, sendPasswordResetEmail, generateResetToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -187,6 +188,98 @@ router.post('/reset-password', async (req, res) => {
   } catch (err) {
     console.error('Reset password error:', err);
     res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+// Check email status (exists, registration pending)
+router.post('/check-email', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+  try {
+    const result = await pool.query(
+      'SELECT id, email, registration_pending FROM users WHERE email = $1',
+      [email]
+    );
+    if (result.rows.length === 0) {
+      return res.json({ exists: false });
+    }
+    res.json({
+      exists: true,
+      registrationPending: result.rows[0].registration_pending,
+    });
+  } catch (err) {
+    console.error('Check email error:', err);
+    res.status(500).json({ error: 'Failed to check email' });
+  }
+});
+
+// Validate registration token
+router.get('/validate-token/:token', async (req, res) => {
+  const { token } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT id, email, display_name FROM users WHERE registration_token = $1 AND registration_pending = TRUE',
+      [token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(400).json({ valid: false, error: 'Invalid or expired token' });
+    }
+    res.json({ valid: true, email: result.rows[0].email, displayName: result.rows[0].display_name });
+  } catch (err) {
+    console.error('Validate token error:', err);
+    res.status(500).json({ error: 'Failed to validate token' });
+  }
+});
+
+// Complete registration (set password from token or email)
+router.post('/complete-registration', async (req, res) => {
+  const { email, token, password } = req.body;
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  if (!email && !token) {
+    return res.status(400).json({ error: 'Email or token is required' });
+  }
+
+  try {
+    let user;
+
+    if (token) {
+      const result = await pool.query(
+        'SELECT id, email, display_name FROM users WHERE registration_token = $1 AND registration_pending = TRUE',
+        [token]
+      );
+      if (result.rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid or expired token' });
+      }
+      user = result.rows[0];
+    } else {
+      const result = await pool.query(
+        'SELECT id, email, display_name FROM users WHERE email = $1 AND registration_pending = TRUE',
+        [email]
+      );
+      if (result.rows.length === 0) {
+        return res.status(400).json({ error: 'User not found or already registered' });
+      }
+      user = result.rows[0];
+    }
+
+    const passwordHash = await hashPassword(password);
+    await pool.query(
+      'UPDATE users SET password_hash = $1, registration_pending = FALSE, registration_token = NULL WHERE id = $2',
+      [passwordHash, user.id]
+    );
+
+    // Send welcome email
+    sendWelcomeEmail(user.email, user.display_name).catch(err => console.error('Welcome email error:', err));
+
+    res.json({ message: 'Registration completed successfully', email: user.email });
+  } catch (err) {
+    console.error('Complete registration error:', err);
+    res.status(500).json({ error: 'Failed to complete registration' });
   }
 });
 

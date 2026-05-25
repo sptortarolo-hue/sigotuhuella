@@ -27,6 +27,8 @@ const VerifyMember = lazy(() => import('@/src/pages/VerifyMember'));
 const MemberCardPage = lazy(() => import('@/src/pages/MemberCardPage'));
 const QuickReport = lazy(() => import('@/src/pages/QuickReport'));
 const DiffusionPage = lazy(() => import('@/src/pages/DiffusionPage'));
+const LostPetReport = lazy(() => import('@/src/pages/LostPetReport'));
+const CompleteRegistration = lazy(() => import('@/src/pages/CompleteRegistration'));
 
 function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin?: boolean }) {
   const { user, isAdmin: isUserAdmin, loading } = useAuth();
@@ -66,6 +68,8 @@ export default function App() {
                <Route path="/perdiste-a-tu-mascota" element={<LostPetGuide />} />
                <Route path="/reportar" element={<ReportPet />} />
                <Route path="/reportar-rapido" element={<QuickReport />} />
+               <Route path="/perdi-mi-mascota" element={<LostPetReport />} />
+               <Route path="/completar-registro" element={<CompleteRegistration />} />
                <Route path="/difusion" element={<DiffusionPage />} />
                <Route path="/descargar-cartel" element={<DiffusionPage />} />
                <Route path="/compartir-qr" element={<DiffusionPage />} />

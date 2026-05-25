@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/src/lib/api';
-import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as PhoneIcon, Eye, EyeOff } from 'lucide-react';
+import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as PhoneIcon, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Login() {
@@ -12,18 +12,37 @@ export default function Login() {
   const from = (location.state as any)?.from || '/';
   const [authLoading, setAuthLoading] = useState(false);
   const [error, setError] = useState('');
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'complete-registration'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
 
-const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
     setError('');
     try {
+      if (mode === 'complete-registration') {
+        if (password !== confirmPassword) {
+          setError('Las contraseñas no coinciden');
+          setAuthLoading(false);
+          return;
+        }
+        if (password.length < 6) {
+          setError('La contraseña debe tener al menos 6 caracteres');
+          setAuthLoading(false);
+          return;
+        }
+        await api.completeRegistration({ email, password });
+        // Now log in with the new password
+        const data = await api.auth.login(email, password);
+        login(data.token, data.user);
+        navigate(from, { replace: true });
+        return;
+      }
+
       if (mode === 'register') {
         if (password !== confirmPassword) {
           setError('Las contraseñas no coinciden');
@@ -33,6 +52,19 @@ const handleSubmit = async (e: React.FormEvent) => {
         const data = await api.auth.register(email, password, displayName, phone);
         login(data.token, data.user);
       } else {
+        // Check if email has registration_pending before attempting login
+        try {
+          const emailStatus = await api.checkEmail(email);
+          if (emailStatus.exists && emailStatus.registrationPending) {
+            setMode('complete-registration');
+            setError('Ya reportaste una mascota perdida. Creá tu contraseña para completar el registro.');
+            setAuthLoading(false);
+            return;
+          }
+        } catch {
+          // If check-email fails, proceed with normal login
+        }
+
         const data = await api.auth.login(email, password);
         login(data.token, data.user);
       }
@@ -63,11 +95,21 @@ const handleSubmit = async (e: React.FormEvent) => {
         className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl"
       >
         <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <LogIn className="w-8 h-8" />
+          <div className="w-16 h-16 bg-brand-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            {mode === 'complete-registration' ? (
+              <KeyRound className="w-8 h-8 text-brand-primary" />
+            ) : (
+              <LogIn className="w-8 h-8" />
+            )}
           </div>
-          <h1 className="text-3xl font-serif font-bold text-brand-primary">Iniciá Sesión</h1>
-          <p className="text-gray-500 text-sm mt-2">Ingresá para publicar reportes, gestionar tus publicaciones y colaborar con la comunidad.</p>
+          <h1 className="text-3xl font-serif font-bold text-brand-primary">
+            {mode === 'complete-registration' ? 'Completá tu registro' : 'Iniciá Sesión'}
+          </h1>
+          <p className="text-gray-500 text-sm mt-2">
+            {mode === 'complete-registration'
+              ? 'Creá tu contraseña para acceder a tu cuenta.'
+              : 'Ingresá para publicar reportes, gestionar tus publicaciones y colaborar con la comunidad.'}
+          </p>
         </div>
 
         {user ? (
@@ -104,98 +146,23 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
-            {error && <p className="text-red-600 text-sm text-center font-medium bg-red-50 py-2 rounded-xl">{error}</p>}
+            {error && (
+              <p className={`text-sm text-center font-medium py-2 px-4 rounded-xl ${
+                mode === 'complete-registration'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'bg-red-50 text-red-600'
+              }`}>
+                {error}
+              </p>
+            )}
 
-{mode === 'register' && (
-             <div className="space-y-5">
-               <div className="space-y-2">
-                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre</label>
-                 <input
-                   type="text"
-                   required
-                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
-                   placeholder="Tu nombre"
-                   value={displayName}
-                   onChange={e => setDisplayName(e.target.value)}
-                 />
-               </div>
-
-               <div className="space-y-2">
-                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                   <Mail className="w-3 h-3" /> Email
-                 </label>
-                 <input
-                   type="email"
-                   required
-                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
-                   placeholder="email@ejemplo.com"
-                   value={email}
-                   onChange={e => setEmail(e.target.value)}
-                 />
-               </div>
-
-               <div className="space-y-2">
-                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                   <PhoneIcon className="w-3 h-3" /> WhatsApp / Teléfono
-                 </label>
-                 <input
-                   type="tel"
-                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
-                   placeholder="+54 9 221 123456"
-                   value={phone}
-                   onChange={e => setPhone(e.target.value)}
-                 />
-               </div>
-
-               <div className="space-y-2">
-                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                   <Lock className="w-3 h-3" /> Contraseña
-                 </label>
-                 <input
-                   type="password"
-                   required
-                   minLength={6}
-                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
-                   placeholder="Min. 6 caracteres"
-                   value={password}
-                   onChange={e => setPassword(e.target.value)}
-                 />
-               </div>
-
-               <div className="space-y-2">
-                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                   <Lock className="w-3 h-3" /> Repetir Contraseña
-                 </label>
-                 <input
-                   type="password"
-                   required
-                   minLength={6}
-                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
-                   placeholder="Repetir contraseña"
-                   value={confirmPassword}
-                   onChange={e => setConfirmPassword(e.target.value)}
-                 />
-               </div>
-             </div>
-           )}
-
-{mode === 'login' && (
-             <>
-               <div className="space-y-2">
-                 <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                   <Mail className="w-3 h-3" /> Email
-                 </label>
-                 <input
-                   type="email"
-                   required
-                   className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
-                   placeholder="email@ejemplo.com"
-                   value={email}
-                   onChange={e => setEmail(e.target.value)}
-                 />
-               </div>
-
-<div className="space-y-2">
+            {/* Complete registration mode */}
+            {mode === 'complete-registration' && (
+              <div className="space-y-5">
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800">
+                  <p className="font-bold">Email verificado: {email}</p>
+                </div>
+                <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
                     <Lock className="w-3 h-3" /> Contraseña
                   </label>
@@ -209,7 +176,123 @@ const handleSubmit = async (e: React.FormEvent) => {
                     onChange={e => setPassword(e.target.value)}
                   />
                 </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <Lock className="w-3 h-3" /> Repetir Contraseña
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                    placeholder="Repetir contraseña"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
 
+            {/* Register mode */}
+            {mode === 'register' && (
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                    placeholder="Tu nombre"
+                    value={displayName}
+                    onChange={e => setDisplayName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <Mail className="w-3 h-3" /> Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                    placeholder="email@ejemplo.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <PhoneIcon className="w-3 h-3" /> WhatsApp / Teléfono
+                  </label>
+                  <input
+                    type="tel"
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                    placeholder="+54 9 221 123456"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <Lock className="w-3 h-3" /> Contraseña
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                    placeholder="Min. 6 caracteres"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <Lock className="w-3 h-3" /> Repetir Contraseña
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                    placeholder="Repetir contraseña"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Login mode */}
+            {mode === 'login' && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <Mail className="w-3 h-3" /> Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                    placeholder="email@ejemplo.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <Lock className="w-3 h-3" /> Contraseña
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                    placeholder="Min. 6 caracteres"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                  />
+                </div>
                 <div className="text-right">
                   <button
                     type="button"
@@ -234,16 +317,28 @@ const handleSubmit = async (e: React.FormEvent) => {
               ) : (
                 <UserPlus className="w-5 h-5" />
               )}
-              {mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
+              {mode === 'complete-registration' ? 'Completar registro' : mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
             </button>
 
-            <button
-              type="button"
-              onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
-              className="w-full text-center text-sm text-brand-primary font-bold hover:underline"
-            >
-              {mode === 'login' ? '¿No tenés cuenta? Registrate' : '¿Ya tenés cuenta? Iniciá sesión'}
-            </button>
+            {mode !== 'complete-registration' && (
+              <button
+                type="button"
+                onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
+                className="w-full text-center text-sm text-brand-primary font-bold hover:underline"
+              >
+                {mode === 'login' ? '¿No tenés cuenta? Registrate' : '¿Ya tenés cuenta? Iniciá sesión'}
+              </button>
+            )}
+
+            {mode === 'complete-registration' && (
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setError(''); }}
+                className="w-full text-center text-sm text-brand-primary font-bold hover:underline"
+              >
+                Volver a iniciar sesión
+              </button>
+            )}
           </form>
         )}
       </motion.div>
