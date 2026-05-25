@@ -168,7 +168,7 @@ router.get('/', async (req, res) => {
     const conditions = [];
     const params = [];
     if (status) {
-      params.push(status as string);
+      params.push(status);
       conditions.push(`p.status = $${params.length}`);
     }
     if (isPublic === 'true') {
@@ -179,7 +179,7 @@ router.get('/', async (req, res) => {
     }
     query += ` GROUP BY p.id ORDER BY p.created_at DESC`;
     if (limit) {
-      params.push(parseInt(limit as string));
+      params.push(parseInt(limit));
       query += ` LIMIT $${params.length}`;
     }
     const result = await pool.query(query, params);
