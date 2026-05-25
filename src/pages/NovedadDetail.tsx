@@ -24,17 +24,26 @@ export default function NovedadDetail() {
   const [item, setItem] = useState<News | null>(null);
   const [related, setRelated] = useState<News[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetch = async () => {
       try {
+        setLoading(true);
+        setError(null);
         const all = await getNews();
+        console.log('Fetched news count:', all.length);
         const found = all.find(n => n.id === id) || null;
+        console.log('Found item:', found ? { id: found.id, title: found.title } : null);
         setItem(found);
         setRelated(all.filter(n => n.id !== id).slice(0, 3));
         window.scrollTo(0, 0);
-      } catch (e) { console.error(e); }
-      finally { setLoading(false); }
+      } catch (e) {
+        console.error('Error fetching news:', e);
+        setError(e instanceof Error ? e.message : 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
     };
     fetch();
   }, [id]);
@@ -47,112 +56,65 @@ export default function NovedadDetail() {
     );
   }
 
-   if (!item) {
-     return (
-       <div className="h-screen flex items-center justify-center text-center px-4">
-         <div>
-           <Info className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-           <h1 className="text-3xl font-serif font-bold text-brand-primary mb-4">Novedad no encontrada</h1>
-           <button onClick={() => navigate('/novedades')} className="px-8 py-3 bg-brand-primary text-white rounded-2xl font-bold">
-             Ver novedades
-           </button>
-         </div>
-       </div>
-     );
-   }
+  if (error) {
+    return (
+      <div className="h-screen flex items-center justify-center text-center px-4">
+        <div>
+          <Info className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <h1 className="text-3xl font-serif font-bold text-brand-primary mb-4">Error al cargar la novedad</h1>
+          <p className="text-gray-500">{error}</p>
+          <button onClick={() => navigate('/novedades')} className="px-8 py-3 bg-brand-primary text-white rounded-2xl font-bold mt-4">
+            Ver novedades
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-   const handleShareNews = async () => {
-     if (!item) return;
+  if (!item) {
+    return (
+      <div className="h-screen flex items-center justify-center text-center px-4">
+        <div>
+          <Info className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <h1 className="text-3xl font-serif font-bold text-brand-primary mb-4">Novedad no encontrada</h1>
+          <button onClick={() => navigate('/novedades')} className="px-8 py-3 bg-brand-primary text-white rounded-2xl font-bold">
+            Ver novedades
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-     const newsUrl = `${import.meta.env.VITE_FRONTEND_URL}/novedad/${item.id}`;
-     const shareData = {
-       title: item.title,
-       text: item.content.substring(0, 100) + (item.content.length > 100 ? '...' : ''),
-       url: newsUrl
-     };
+  const handleShareNews = async () => {
+    if (!item) return;
 
-     if (navigator.share) {
-       try {
-         await navigator.share(shareData);
-       } catch (error) {
-         console.log('Share cancelled', error);
-         fallbackToClipboard(newsUrl);
-       }
-     } else {
-       fallbackToClipboard(newsUrl);
-     }
-   };
+    const newsUrl = `${import.meta.env.VITE_FRONTEND_URL}/novedad/${item.id}`;
+    const shareData = {
+      title: item.title,
+      text: item.content.substring(0, 100) + (item.content.length > 100 ? '...' : ''),
+      url: newsUrl
+    };
 
-    const fallbackToClipboard = async (text: string) => {
-     try {
-       await navigator.clipboard.writeText(text);
-       alert('Enlace copiado al portapapeles');
-     } catch (err) {
-       alert('Copie el enlace manualmente: ' + text);
-     }
-   };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (error) {
+        console.log('Share cancelled', error);
+        fallbackToClipboard(newsUrl);
+      }
+    } else {
+      fallbackToClipboard(newsUrl);
+    }
+  };
 
-   // Set Open Graph and Twitter Card meta tags for sharing the news link
-   useEffect(() => {
-     if (!item) return;
-
-     try {
-       const baseUrl = import.meta.env.VITE_FRONTEND_URL || '';
-       const canonicalUrl = `${baseUrl}/novedad/${item.id}`;
-       const imageUrl = getNewsImageUrl(item);
-       const title = item.title;
-       const description = item.content
-         ? item.content.substring(0, 200) + (item.content.length > 200 ? '...' : '')
-         : 'Sigo tu huella - Novedades';
-
-       // Remove any existing og/twitter meta tags we added (to avoid duplicates)
-       const removeExistingMeta = () => {
-         const existingOg = document.head.querySelectorAll('meta[property^="og:"], meta[name^="twitter:"]');
-         existingOg.forEach(tag => tag.remove());
-       };
-
-       removeExistingMeta();
-
-       // Prepare meta tags
-       const metaTags = [
-         { property: 'og:url', content: canonicalUrl },
-         { property: 'og:type', content: 'article' },
-         { property: 'og:title', content: title },
-         { property: 'og:description', content: description },
-         { property: 'og:site_name', content: 'Sigo tu huella' },
-         { name: 'twitter:card', content: 'summary_large_image' },
-         { name: 'twitter:title', content: title },
-         { name: 'twitter:description', content: description }
-       ];
-
-       if (imageUrl) {
-         metaTags.push({ property: 'og:image', content: imageUrl });
-         metaTags.push({ name: 'twitter:image', content: imageUrl });
-       }
-
-       // Add meta tags to document head
-       metaTags.forEach(({ property, name, content }) => {
-         if (content) {
-           const meta = document.createElement('meta');
-           if (property) meta.setAttribute('property', property);
-           if (name) meta.setAttribute('name', name);
-           meta.setAttribute('content', content);
-           document.head.appendChild(meta);
-         }
-       });
-
-       // Cleanup function
-       return () => {
-         removeExistingMeta();
-       };
-     } catch (e) {
-       console.error('Error setting meta tags:', e);
-     }
-   }, [item]);
-
-
-
-
+  const fallbackToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('Enlace copiado al portapapeles');
+    } catch (err) {
+      alert('Copie el enlace manualmente: ' + text);
+    }
+  };
 
   const imageUrl = getNewsImageUrl(item);
 
@@ -162,23 +124,23 @@ export default function NovedadDetail() {
         <ArrowLeft className="w-4 h-4" /> Volver
       </button>
 
-       <article>
-         <div className="flex items-center gap-3 mb-6">
-           <span className={cn(
-             "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
-             item.type === 'reunited' ? "bg-emerald-100 text-emerald-700" :
-             item.type === 'adopted' ? "bg-brand-secondary/10 text-brand-secondary" : "bg-amber-100 text-amber-700"
-           )}>
-             {item.type === 'reunited' ? '🐾 Reencuentro' : item.type === 'adopted' ? '🏡 Adopción' : '📰 Novedad'}
-           </span>
-           <span className="text-xs text-gray-400 flex items-center gap-1">
-             <Calendar className="w-3 h-3" /> {formatNewsDate(item.created_at)}
-           </span>
-           <button onClick={handleShareNews}
-             className="text-sm font-bold text-brand-primary hover:bg-brand-primary/5 px-3 py-1.5 rounded-full transition-colors">
-             <Share2 className="w-4 h-4" /> Compartir
-           </button>
-         </div>
+      <article>
+        <div className="flex items-center gap-3 mb-6">
+          <span className={cn(
+            "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
+            item.type === 'reunited' ? "bg-emerald-100 text-emerald-700" :
+            item.type === 'adopted' ? "bg-brand-secondary/10 text-brand-secondary" : "bg-amber-100 text-amber-700"
+          )}>
+            {item.type === 'reunited' ? '🐾 Reencuentro' : item.type === 'adopted' ? '🏡 Adopción' : '📰 Novedad'}
+          </span>
+          <span className="text-xs text-gray-400 flex items-center gap-1">
+            <Calendar className="w-3 h-3" /> {formatNewsDate(item.created_at)}
+          </span>
+          <button onClick={handleShareNews}
+            className="text-sm font-bold text-brand-primary hover:bg-brand-primary/5 px-3 py-1.5 rounded-full transition-colors">
+            <Share2 className="w-4 h-4" /> Compartir
+          </button>
+        </div>
 
         <h1 className="text-3xl sm:text-5xl font-serif font-bold text-brand-primary mb-8 leading-tight">
           {item.title}
@@ -194,7 +156,7 @@ export default function NovedadDetail() {
               <Share2 className="w-5 h-5 text-brand-primary" />
             </button>
           </div>
-)}
+        )}
 
         {item.video_url && (
           <div className="relative aspect-video rounded-[2.5rem] overflow-hidden mb-10 shadow-xl bg-black">
