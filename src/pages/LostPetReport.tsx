@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, MapPin, PawPrint, Mail, Phone, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -94,6 +94,24 @@ export default function LostPetReport() {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+
+  // Reverse geocoding: auto-fill address from coordinates
+  useEffect(() => {
+    if (!coordinates) return;
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coordinates.lat}&lon=${coordinates.lng}&addressdetails=1&accept-language=es`,
+      { headers: { 'User-Agent': 'SigoTuHuella/1.0' } })
+      .then(r => r.json())
+      .then(data => {
+        if (data?.address) {
+          const parts: string[] = [];
+          if (data.address.road) parts.push(data.address.road);
+          if (data.address.house_number) parts.push(data.address.house_number);
+          const street = parts.join(' ');
+          if (street) setLocation(street);
+        }
+      })
+      .catch(console.error);
+  }, [coordinates]);
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -266,9 +284,6 @@ export default function LostPetReport() {
           {/* Location */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">¿Dónde se perdió? *</label>
-            <input value={location} onChange={e => setLocation(e.target.value)}
-              placeholder="Ej: Calle 7 y 52, Sicardi"
-              className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors mb-3" />
 
             <button onClick={getLocation} className="flex items-center gap-2 text-sm font-bold text-brand-primary bg-brand-primary/5 px-4 py-2.5 rounded-xl hover:bg-brand-primary/10 transition-colors mb-3">
               <MapPin className="w-4 h-4" /> Obtener mi ubicación actual
@@ -282,8 +297,12 @@ export default function LostPetReport() {
               />
             </MapLoader>
             {coordinates && (
-              <p className="text-xs text-green-600 mt-1">📍 Ubicación seleccionada</p>
+              <p className="text-xs text-green-600 mt-2">📍 Ubicación seleccionada en el mapa</p>
             )}
+
+            <input value={location} onChange={e => setLocation(e.target.value)}
+              placeholder="Ej: Calle 7 y 52, Sicardi"
+              className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors mt-3" />
           </div>
 
           {/* Email */}

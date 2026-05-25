@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { MapPin } from 'lucide-react';
@@ -19,6 +19,16 @@ interface LocationPickerProps {
   selectedLocation?: { lat: number; lng: number };
 }
 
+function FlyToLocation({ coords }: { coords?: { lat: number; lng: number } }) {
+  const map = useMap();
+  useEffect(() => {
+    if (coords) {
+      map.flyTo(coords, 15, { duration: 1.5 });
+    }
+  }, [coords, map]);
+  return null;
+}
+
 function LocationMarker({ onSelect, selectedLocation }: { onSelect: (loc: {lat: number, lng: number}) => void, selectedLocation?: {lat: number, lng: number} }) {
   useMapEvents({
     click(e) {
@@ -33,7 +43,7 @@ function LocationMarker({ onSelect, selectedLocation }: { onSelect: (loc: {lat: 
 
 export default function LocationPicker({ initialCenter, onLocationSelect, selectedLocation }: LocationPickerProps) {
   return (
-    <div className="w-full h-[300px] rounded-2xl overflow-hidden border border-brand-accent shadow-sm relative z-0">
+    <div className="w-full h-[200px] sm:h-[250px] rounded-2xl overflow-hidden border border-brand-accent shadow-sm relative z-0">
       <MapContainer
         center={[initialCenter.lat, initialCenter.lng]}
         zoom={15}
@@ -45,6 +55,7 @@ export default function LocationPicker({ initialCenter, onLocationSelect, select
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <LocationMarker onSelect={onLocationSelect} selectedLocation={selectedLocation} />
+        <FlyToLocation coords={selectedLocation} />
       </MapContainer>
       <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-brand-accent text-[10px] font-bold text-brand-primary shadow-sm pointer-events-none z-[1000]">
         Haz click en el mapa para marcar la ubicación

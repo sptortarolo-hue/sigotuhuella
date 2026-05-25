@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, HeartHandshake, Frown, Camera, Loader2, CheckCircle2, AlertCircle, ArrowLeft, PawPrint, Share2, MapPin, Locate } from 'lucide-react';
+import { Search, HeartHandshake, Frown, Camera, Loader2, CheckCircle2, AlertCircle, ArrowLeft, PawPrint, Share2, MapPin, Download, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage } from '@/src/lib/storageService';
 import LocationPicker from '@/src/components/LocationPicker';
@@ -34,6 +34,19 @@ export default function QuickReport() {
   const [contactInfo, setContactInfo] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [imageMimeTypes, setImageMimeTypes] = useState<string[]>([]);
+
+  // Install prompt state
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallModal, setShowInstallModal] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   const resetForm = () => {
     setSpecies('');
@@ -88,6 +101,24 @@ export default function QuickReport() {
     );
   };
 
+  // Reverse geocoding: auto-fill address from coordinates
+  useEffect(() => {
+    if (!coordinates) return;
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coordinates.lat}&lon=${coordinates.lng}&addressdetails=1&accept-language=es`,
+      { headers: { 'User-Agent': 'SigoTuHuella/1.0' } })
+      .then(r => r.json())
+      .then(data => {
+        if (data?.address) {
+          const parts: string[] = [];
+          if (data.address.road) parts.push(data.address.road);
+          if (data.address.house_number) parts.push(data.address.house_number);
+          const street = parts.join(' ');
+          if (street) setLocation(street);
+        }
+      })
+      .catch(console.error);
+  }, [coordinates]);
+
   const submitReport = async (status: string) => {
     if (!isValid) return;
     setPageState('submitting');
@@ -131,6 +162,20 @@ export default function QuickReport() {
   const goToMenu = () => {
     resetForm();
     setPageState('menu');
+  };
+
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') setDeferredPrompt(null);
+    } else {
+      setShowInstallModal(true);
+    }
   };
 
   // Success screen
@@ -230,9 +275,6 @@ export default function QuickReport() {
             {/* Location */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Ubicación *</label>
-              <input value={location} onChange={e => setLocation(e.target.value)}
-                placeholder={pageState === 'sighted' ? 'Ej: Calle 7 y 52, Sicardi' : 'Ej: Calle 5 y 48, Garibaldi'}
-                className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors mb-3" />
 
               <button onClick={getLocation} className="flex items-center gap-2 text-sm font-bold text-brand-primary bg-brand-primary/5 px-4 py-2.5 rounded-xl hover:bg-brand-primary/10 transition-colors mb-3">
                 <MapPin className="w-4 h-4" /> Obtener mi ubicación actual
@@ -246,8 +288,12 @@ export default function QuickReport() {
                 />
               </MapLoader>
               {coordinates && (
-                <p className="text-xs text-green-600 mt-1">📍 Ubicación seleccionada</p>
+                <p className="text-xs text-green-600 mt-2">📍 Ubicación seleccionada en el mapa</p>
               )}
+
+              <input value={location} onChange={e => setLocation(e.target.value)}
+                placeholder="Ej: Calle 7 y 52, Sicardi"
+                className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors mt-3" />
             </div>
 
             {/* Contact info (only for retained) */}
@@ -299,8 +345,9 @@ export default function QuickReport() {
 
   // Menu - landing with 3 options
   return (
-    <div className="min-h-[80vh] py-8 sm:py-12 px-4">
-      <div className="max-w-lg mx-auto">
+    <>
+      <div className="min-h-[80vh] py-8 sm:py-12 px-4">
+        <div className="max-w-lg mx-auto">
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary mb-6 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Volver
         </button>
@@ -357,8 +404,81 @@ export default function QuickReport() {
           </button>
         </div>
 
+        {!isStandalone && (
+          <button onClick={handleInstallClick}
+            className="w-full mt-4 px-5 py-3.5 rounded-2xl border-2 border-dashed border-brand-primary/40 text-brand-primary hover:bg-brand-primary/5 hover:border-brand-primary/60 transition-all flex items-center justify-center gap-3 group">
+            <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Download className="w-5 h-5 text-brand-primary" />
+            </div>
+            <div className="text-left">
+              <span className="font-bold text-sm block">Guardar acceso directo</span>
+              <span className="text-xs text-gray-500">Accedé rápido en tu pantalla de inicio</span>
+            </div>
+          </button>
+        )}
         <p className="text-xs text-gray-400 text-center mt-8">Al enviar aceptás que tus datos sean utilizados para la publicación del reporte.</p>
       </div>
-    </div>
-  );
-}
+            <div className="text-left">
+              <span className="font-bold text-sm block">Guardar acceso directo</span>
+              <span className="text-xs text-gray-500">Accedé rápido en tu pantalla de inicio</span>
+            </div>
+          </button>
+        )}
+
+        <p className="text-xs text-gray-400 text-center mt-8">Al enviar aceptás que tus datos sean utilizados para la publicación del reporte.</p>
+          </div>
+        </div>
+
+        {/* Install modal fallback */}
+        <AnimatePresence>
+          {showInstallModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm"
+              onClick={() => setShowInstallModal(false)}>
+              <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+                className="relative w-full max-w-sm bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-2xl"
+                onClick={e => e.stopPropagation()}>
+                <button onClick={() => setShowInstallModal(false)}
+                  className="absolute top-4 right-4 p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+
+                <div className="w-14 h-14 bg-brand-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Download className="w-7 h-7 text-brand-primary" />
+                </div>
+                <h3 className="text-xl font-bold text-center text-brand-primary mb-2">Guardar acceso directo</h3>
+                <p className="text-sm text-gray-500 text-center mb-6">Agregá la app a tu pantalla de inicio para acceder más rápido:</p>
+
+                <div className="space-y-4">
+                  {isIOS ? (
+                    <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-700 space-y-2">
+                      <p className="font-bold text-brand-primary">En Safari (iOS):</p>
+                      <ol className="list-decimal list-inside space-y-2">
+                        <li>Tocá el icono <strong>Compartir</strong> <span className="text-lg">⎋</span> en la barra inferior</li>
+                        <li>Desplazate hacia abajo</li>
+                        <li>Tocá <strong>"Agregar a pantalla de inicio"</strong></li>
+                        <li>Tocá <strong>"Agregar"</strong> en la esquina superior derecha</li>
+                      </ol>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-700 space-y-2">
+                      <p className="font-bold text-brand-primary">En Chrome (Android):</p>
+                      <ol className="list-decimal list-inside space-y-2">
+                        <li>Tocá los tres puntos <strong>⋮</strong> en la esquina superior derecha</li>
+                        <li>Tocá <strong>"Instalar aplicación"</strong> o <strong>"Agregar a pantalla de inicio"</strong></li>
+                        <li>Tocá <strong>"Instalar"</strong></li>
+                      </ol>
+                    </div>
+                  )}
+                </div>
+
+                <button onClick={() => setShowInstallModal(false)}
+                  className="w-full mt-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
+                  Entendido
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </>
+    );
