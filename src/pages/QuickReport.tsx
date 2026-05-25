@@ -417,16 +417,7 @@ export default function QuickReport() {
           </button>
         )}
         <p className="text-xs text-gray-400 text-center mt-8">Al enviar aceptás que tus datos sean utilizados para la publicación del reporte.</p>
-      </div>
-            <div className="text-left">
-              <span className="font-bold text-sm block">Guardar acceso directo</span>
-              <span className="text-xs text-gray-500">Accedé rápido en tu pantalla de inicio</span>
-            </div>
-          </button>
-        )}
-
-        <p className="text-xs text-gray-400 text-center mt-8">Al enviar aceptás que tus datos sean utilizados para la publicación del reporte.</p>
-          </div>
+        </div>
         </div>
 
         {/* Install modal fallback */}
@@ -482,3 +473,4 @@ export default function QuickReport() {
         </AnimatePresence>
       </>
     );
+}
