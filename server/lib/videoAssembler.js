@@ -117,9 +117,9 @@ async function drawFrame(photoBase64, stats, style, index, totalFrames, overlayT
   }
 
   if (photo) {
-    const zoom = 1 + progress * 0.08;
-    const panX = progress * 20;
-    const panY = progress * 10;
+    const zoom = 1 + progress * 0.25;
+    const panX = progress * 60;
+    const panY = progress * 30;
     const x = 140 - panX, y = 600 - panY, w = 800 * zoom, h = 800 * zoom;
     ctx.save();
     ctx.beginPath();
