@@ -3,11 +3,9 @@ import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import { rimraf } from 'rimraf';
 import pool from '../db.js';
-import axios from 'axios';
 
 // Azure TTS (optional) — lazy load
 let speechSdkPromise = null;
@@ -25,20 +23,21 @@ async function getSpeechSdk() {
   return speechSdkPromise;
 }
 
-// Music URLs (free, no attribution required)
-const MUSIC_TRACKS = {
-  'emotional': 'https://cdn.pixabay.com/download/audio/2022/10/25/audio_2320399e9f.mp3',
-  'latin': 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3',
-  'calm': 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3',
-  'energetic': 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_5b8238377c.mp3'
-};
-
 // Directorios
 const PUBLIC_DIR = process.env.PUBLIC_DIR || 'public';
 const VIDEO_OUTPUT_DIR = path.join(process.env.PWD || process.cwd(), PUBLIC_DIR, 'generated', 'videos');
+const MUSIC_DIR = path.join(process.env.PWD || process.cwd(), PUBLIC_DIR, 'generated', 'music');
 if (!fs.existsSync(VIDEO_OUTPUT_DIR)) {
   fs.mkdirSync(VIDEO_OUTPUT_DIR, { recursive: true });
 }
+
+// Music URLs (local files, no external downloads needed)
+const MUSIC_TRACKS = {
+  'emotional': path.join(MUSIC_DIR, 'emotional.mp3'),
+  'latin': path.join(MUSIC_DIR, 'latin.mp3'),
+  'calm': path.join(MUSIC_DIR, 'calm.mp3'),
+  'energetic': path.join(MUSIC_DIR, 'energetic.mp3')
+};
 
 // Helpers
 async function getRandomReunionPhotos(limit = 8) {
@@ -81,30 +80,9 @@ async function getPetData(petId) {
 }
 
 async function getMusicFile(url) {
-  const cacheDir = path.join(os.tmpdir(), 'video-music');
-  if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
-  const filename = `music-${Buffer.from(url).toString('base64').replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
-  const localPath = path.join(cacheDir, filename);
-  if (fs.existsSync(localPath) && fs.statSync(localPath).size > 0) return localPath;
-  try {
-    const response = await axios.get(url, {
-      responseType: 'stream',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://pixabay.com/'
-      }
-    });
-    const writeStream = fs.createWriteStream(localPath);
-    response.data.pipe(writeStream);
-    await new Promise((resolve, reject) => {
-      writeStream.on('finish', resolve);
-      writeStream.on('error', reject);
-    });
-    return localPath;
-  } catch (err) {
-    console.warn('Failed to download music:', url, err.message);
-    return null;
-  }
+  if (fs.existsSync(url) && fs.statSync(url).size > 0) return url;
+  console.warn('Local music file not found:', url);
+  return null;
 }
 
 // Draw frame with optional overlay text
