@@ -275,10 +275,9 @@ function assembleVideo(framesDir, audioPath, outputPath, frameDuration, numFrame
   return new Promise((resolve, reject) => {
     ffmpeg()
       .input(path.join(framesDir, 'frame%03d.png'))
+      .inputOptions(`-framerate ${1 / frameDuration}`)
       .input(audioPath)
       .outputOptions([
-        '-framerate', `1/${frameDuration}`,
-        '-r', '30',
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
@@ -286,7 +285,10 @@ function assembleVideo(framesDir, audioPath, outputPath, frameDuration, numFrame
         '-shortest'
       ])
       .on('end', resolve)
-      .on('error', reject)
+      .on('error', (err, stdout, stderr) => {
+        console.error('ffmpeg stderr:', stderr);
+        reject(err);
+      })
       .save(outputPath);
   });
 }
@@ -395,10 +397,14 @@ export async function generateVideo(config) {
       await new Promise((resolve, reject) => {
         ffmpeg()
           .input('anullsrc')
-          .inputOptions(['-f', 'lavfi', '-t', String(duration)])
-          .outputOptions(['-c:a', 'aac', '-b:a', '128k', '-shortest'])
+          .inputFormat('lavfi')
+          .duration(duration)
+          .outputOptions(['-c:a', 'aac', '-b:a', '128k'])
           .on('end', resolve)
-          .on('error', reject)
+          .on('error', (err, stdout, stderr) => {
+            console.error('silent audio stderr:', stderr);
+            reject(err);
+          })
           .save(audioPath);
       });
     }
