@@ -15,7 +15,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-           script: |
+          script: |
              cd /var/www/sigotuhuella
              git pull
              # Instalar dependencias nativas requeridas por canvas y ffmpeg
