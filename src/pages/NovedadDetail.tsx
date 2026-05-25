@@ -83,7 +83,7 @@ export default function NovedadDetail() {
      }
    };
 
-   const fallbackToClipboard = async (text: string) => {
+    const fallbackToClipboard = async (text: string) => {
      try {
        await navigator.clipboard.writeText(text);
        alert('Enlace copiado al portapapeles');
@@ -96,55 +96,61 @@ export default function NovedadDetail() {
    useEffect(() => {
      if (!item) return;
 
-     const baseUrl = import.meta.env.VITE_FRONTEND_URL || '';
-     const canonicalUrl = `${baseUrl}/novedad/${item.id}`;
-     const imageUrl = getNewsImageUrl(item);
-     const title = item.title;
-     const description = item.content
-       ? item.content.substring(0, 200) + (item.content.length > 200 ? '...' : '')
-       : 'Sigo tu huella - Novedades';
+     try {
+       const baseUrl = import.meta.env.VITE_FRONTEND_URL || '';
+       const canonicalUrl = `${baseUrl}/novedad/${item.id}`;
+       const imageUrl = getNewsImageUrl(item);
+       const title = item.title;
+       const description = item.content
+         ? item.content.substring(0, 200) + (item.content.length > 200 ? '...' : '')
+         : 'Sigo tu huella - Novedades';
 
-     // Remove any existing og/twitter meta tags we added (to avoid duplicates)
-     const removeExistingMeta = () => {
-       const existingOg = document.head.querySelectorAll('meta[property^="og:"], meta[name^="twitter:"]');
-       existingOg.forEach(tag => tag.remove());
-     };
+       // Remove any existing og/twitter meta tags we added (to avoid duplicates)
+       const removeExistingMeta = () => {
+         const existingOg = document.head.querySelectorAll('meta[property^="og:"], meta[name^="twitter:"]');
+         existingOg.forEach(tag => tag.remove());
+       };
 
-     removeExistingMeta();
-
-     // Prepare meta tags
-     const metaTags = [
-       { property: 'og:url', content: canonicalUrl },
-       { property: 'og:type', content: 'article' },
-       { property: 'og:title', content: title },
-       { property: 'og:description', content: description },
-       { property: 'og:site_name', content: 'Sigo tu huella' },
-       { name: 'twitter:card', content: 'summary_large_image' },
-       { name: 'twitter:title', content: title },
-       { name: 'twitter:description', content: description }
-     ];
-
-     if (imageUrl) {
-       metaTags.push({ property: 'og:image', content: imageUrl });
-       metaTags.push({ name: 'twitter:image', content: imageUrl });
-     }
-
-     // Add meta tags to document head
-     metaTags.forEach(({ property, name, content }) => {
-       if (content) {
-         const meta = document.createElement('meta');
-         if (property) meta.setAttribute('property', property);
-         if (name) meta.setAttribute('name', name);
-         meta.setAttribute('content', content);
-         document.head.appendChild(meta);
-       }
-     });
-
-     // Cleanup function
-     return () => {
        removeExistingMeta();
-     };
+
+       // Prepare meta tags
+       const metaTags = [
+         { property: 'og:url', content: canonicalUrl },
+         { property: 'og:type', content: 'article' },
+         { property: 'og:title', content: title },
+         { property: 'og:description', content: description },
+         { property: 'og:site_name', content: 'Sigo tu huella' },
+         { name: 'twitter:card', content: 'summary_large_image' },
+         { name: 'twitter:title', content: title },
+         { name: 'twitter:description', content: description }
+       ];
+
+       if (imageUrl) {
+         metaTags.push({ property: 'og:image', content: imageUrl });
+         metaTags.push({ name: 'twitter:image', content: imageUrl });
+       }
+
+       // Add meta tags to document head
+       metaTags.forEach(({ property, name, content }) => {
+         if (content) {
+           const meta = document.createElement('meta');
+           if (property) meta.setAttribute('property', property);
+           if (name) meta.setAttribute('name', name);
+           meta.setAttribute('content', content);
+           document.head.appendChild(meta);
+         }
+       });
+
+       // Cleanup function
+       return () => {
+         removeExistingMeta();
+       };
+     } catch (e) {
+       console.error('Error setting meta tags:', e);
+     }
    }, [item]);
+
+
 
 
 
