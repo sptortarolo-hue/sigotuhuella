@@ -87,7 +87,13 @@ async function getMusicFile(url) {
   const localPath = path.join(cacheDir, filename);
   if (fs.existsSync(localPath) && fs.statSync(localPath).size > 0) return localPath;
   try {
-    const response = await axios.get(url, { responseType: 'stream' });
+    const response = await axios.get(url, {
+      responseType: 'stream',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://pixabay.com/'
+      }
+    });
     const writeStream = fs.createWriteStream(localPath);
     response.data.pipe(writeStream);
     await new Promise((resolve, reject) => {
@@ -96,7 +102,7 @@ async function getMusicFile(url) {
     });
     return localPath;
   } catch (err) {
-    console.error('Failed to download music:', url, err.message);
+    console.warn('Failed to download music:', url, err.message);
     return null;
   }
 }
@@ -224,28 +230,35 @@ async function generateAudio(stats, config, outputPath, customScript) {
 
   const musicUrl = MUSIC_TRACKS[config.music] || MUSIC_TRACKS['emotional'];
   const musicPath = await getMusicFile(musicUrl);
-  if (!musicPath) throw new Error('Could not obtain music file');
+  if (!musicPath) {
+    console.warn('No music available, generating audio without music');
+  }
 
   if (ttsBuffer) {
     const ttsTmp = outputPath.replace('.mp3', '_tts.mp3');
     fs.writeFileSync(ttsTmp, ttsBuffer);
-    await new Promise((resolve, reject) => {
-      ffmpeg()
-        .input(ttsTmp)
-        .input(musicPath)
-        .audioFilters([
-          'volume=0.6:enable=between(t,0,3600)',
-          'volume=1.2:enable=between(t,0,3600)'
-        ])
-        .outputOptions('-shortest')
-        .toFormat('mp3')
-        .audioBitrate('192k')
-        .on('end', resolve)
-        .on('error', reject)
-        .save(outputPath);
-    });
+    if (musicPath) {
+      await new Promise((resolve, reject) => {
+        ffmpeg()
+          .input(ttsTmp)
+          .input(musicPath)
+          .audioFilters([
+            'volume=0.6:enable=between(t,0,3600)',
+            'volume=1.2:enable=between(t,0,3600)'
+          ])
+          .outputOptions('-shortest')
+          .toFormat('mp3')
+          .audioBitrate('192k')
+          .on('end', resolve)
+          .on('error', reject)
+          .save(outputPath);
+      });
+    } else {
+      // Just copy TTS as-is (no music)
+      fs.copyFileSync(ttsTmp, outputPath);
+    }
     fs.unlinkSync(ttsTmp);
-  } else {
+  } else if (musicPath) {
     await new Promise((resolve, reject) => {
       ffmpeg()
         .input(musicPath)
@@ -375,6 +388,20 @@ export async function generateVideo(config) {
     // Generate audio
     const audioPath = path.join(workDir, 'audio.mp3');
     await generateAudio(stats, { style, duration, music, includeVoice }, audioPath, audioScript);
+
+    // If no audio generated, create silent audio
+    if (!fs.existsSync(audioPath) || fs.statSync(audioPath).size === 0) {
+      console.warn('No audio generated, creating silent track');
+      await new Promise((resolve, reject) => {
+        ffmpeg()
+          .input('anullsrc')
+          .inputOptions(['-f', 'lavfi', '-t', String(duration)])
+          .outputOptions(['-c:a', 'aac', '-b:a', '128k', '-shortest'])
+          .on('end', resolve)
+          .on('error', reject)
+          .save(audioPath);
+      });
+    }
 
     // Assemble video
     const videoFilename = `promo-${style}-${duration}s-${Date.now()}.mp4`;
