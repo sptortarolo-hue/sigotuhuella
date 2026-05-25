@@ -225,40 +225,40 @@ export default function LostPetReport() {
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Luna" className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors" />
           </div>
 
-          {/* Breed + Color */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Raza (opcional)</label>
-              <input value={breed} onChange={e => setBreed(e.target.value)} placeholder="Ej: Caniche" className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors" />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Color (opcional)</label>
-              <input value={color} onChange={e => setColor(e.target.value)} placeholder="Ej: Marrón" className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors" />
-            </div>
-          </div>
-
-          {/* Gender + Age */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Sexo (opcional)</label>
-              <div className="flex gap-2">
-                {GENDER_OPTIONS.map(opt => (
-                  <button key={opt.value} onClick={() => setGender(opt.value)} className={`flex-1 p-2.5 rounded-xl border-2 text-xs font-bold transition-all ${gender === opt.value ? 'border-brand-primary bg-brand-primary/5' : 'border-brand-accent hover:border-gray-300'}`}>
-                    {opt.label}
-                  </button>
-                ))}
+            {/* Breed + Color */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Raza (opcional)</label>
+                <input value={breed} onChange={e => setBreed(e.target.value)} placeholder="Ej: Caniche" className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Color (opcional)</label>
+                <input value={color} onChange={e => setColor(e.target.value)} placeholder="Ej: Marrón" className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors" />
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Edad (opcional)</label>
-              <select value={age} onChange={e => setAge(e.target.value)} className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors bg-white">
-                <option value="">Seleccionar</option>
-                {AGE_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+
+            {/* Gender + Age */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Sexo (opcional)</label>
+                <div className="flex gap-2">
+                  {GENDER_OPTIONS.map(opt => (
+                    <button key={opt.value} onClick={() => setGender(opt.value)} className={`flex-1 p-2.5 rounded-xl border-2 text-xs font-bold transition-all ${gender === opt.value ? 'border-brand-primary bg-brand-primary/5' : 'border-brand-accent hover:border-gray-300'}`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Edad (opcional)</label>
+                <select value={age} onChange={e => setAge(e.target.value)} className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors bg-white">
+                  <option value="">Seleccionar</option>
+                  {AGE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
 
           {/* Size */}
           <div>
