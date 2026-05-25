@@ -321,7 +321,7 @@ export default function VideoGeneratorTab() {
               <div key={video.id} className="rounded-2xl border border-brand-accent overflow-hidden bg-brand-bg">
                 <div className="aspect-video bg-gray-200 relative">
                   <img
-                    src={`/api/admin/videos/thumb/${video.thumbnail_data}`}
+                    src={`/generated/videos/${video.thumbnail_data}`}
                     alt={video.title}
                     className="w-full h-full object-cover"
                     onError={(e) => { e.currentTarget.src = '/placeholder-video-thumb.jpg'; }}
@@ -334,7 +334,7 @@ export default function VideoGeneratorTab() {
                   </p>
                   <div className="flex gap-2">
                     <a
-                      href={`/api/admin/videos/file/${video.video_data}`}
+                      href={`/generated/videos/${video.video_data}`}
                       download
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl hover:bg-brand-primary/90"
                     >

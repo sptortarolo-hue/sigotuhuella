@@ -45,6 +45,7 @@ app.get('/og-image/:petId/:index', async (req, res) => {
 });
 
 app.use(express.static(join(__dirname, '..', 'dist')));
+app.use('/generated', express.static(join(__dirname, '..', 'public', 'generated')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/pets', petRoutes);
