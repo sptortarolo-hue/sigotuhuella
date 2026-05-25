@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { News, getNews, getNewsImageUrl, formatNewsDate } from '@/src/lib/newsService';
-import { Sparkles, ArrowLeft, Calendar, Loader2, Info, Play } from 'lucide-react';
+import { Sparkles, ArrowLeft, Calendar, Loader2, Info, Play, Share2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
@@ -47,19 +47,50 @@ export default function NovedadDetail() {
     );
   }
 
-  if (!item) {
-    return (
-      <div className="h-screen flex items-center justify-center text-center px-4">
-        <div>
-          <Info className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h1 className="text-3xl font-serif font-bold text-brand-primary mb-4">Novedad no encontrada</h1>
-          <button onClick={() => navigate('/novedades')} className="px-8 py-3 bg-brand-primary text-white rounded-2xl font-bold">
-            Ver novedades
-          </button>
-        </div>
-      </div>
-    );
-  }
+   if (!item) {
+     return (
+       <div className="h-screen flex items-center justify-center text-center px-4">
+         <div>
+           <Info className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+           <h1 className="text-3xl font-serif font-bold text-brand-primary mb-4">Novedad no encontrada</h1>
+           <button onClick={() => navigate('/novedades')} className="px-8 py-3 bg-brand-primary text-white rounded-2xl font-bold">
+             Ver novedades
+           </button>
+         </div>
+       </div>
+     );
+   }
+
+   const handleShareNews = async () => {
+     if (!item) return;
+
+     const newsUrl = `${import.meta.env.VITE_FRONTEND_URL}/novedad/${item.id}`;
+     const shareData = {
+       title: item.title,
+       text: item.content.substring(0, 100) + (item.content.length > 100 ? '...' : ''),
+       url: newsUrl
+     };
+
+     if (navigator.share) {
+       try {
+         await navigator.share(shareData);
+       } catch (error) {
+         console.log('Share cancelled', error);
+         fallbackToClipboard(newsUrl);
+       }
+     } else {
+       fallbackToClipboard(newsUrl);
+     }
+   };
+
+   const fallbackToClipboard = async (text: string) => {
+     try {
+       await navigator.clipboard.writeText(text);
+       alert('Enlace copiado al portapapeles');
+     } catch (err) {
+       alert('Copie el enlace manualmente: ' + text);
+     }
+   };
 
   const imageUrl = getNewsImageUrl(item);
 
@@ -69,19 +100,23 @@ export default function NovedadDetail() {
         <ArrowLeft className="w-4 h-4" /> Volver
       </button>
 
-      <article>
-        <div className="flex items-center gap-3 mb-6">
-          <span className={cn(
-            "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
-            item.type === 'reunited' ? "bg-emerald-100 text-emerald-700" :
-            item.type === 'adopted' ? "bg-brand-secondary/10 text-brand-secondary" : "bg-amber-100 text-amber-700"
-          )}>
-            {item.type === 'reunited' ? '🐾 Reencuentro' : item.type === 'adopted' ? '🏡 Adopción' : '📰 Novedad'}
-          </span>
-          <span className="text-xs text-gray-400 flex items-center gap-1">
-            <Calendar className="w-3 h-3" /> {formatNewsDate(item.created_at)}
-          </span>
-        </div>
+       <article>
+         <div className="flex items-center gap-3 mb-6">
+           <span className={cn(
+             "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
+             item.type === 'reunited' ? "bg-emerald-100 text-emerald-700" :
+             item.type === 'adopted' ? "bg-brand-secondary/10 text-brand-secondary" : "bg-amber-100 text-amber-700"
+           )}>
+             {item.type === 'reunited' ? '🐾 Reencuentro' : item.type === 'adopted' ? '🏡 Adopción' : '📰 Novedad'}
+           </span>
+           <span className="text-xs text-gray-400 flex items-center gap-1">
+             <Calendar className="w-3 h-3" /> {formatNewsDate(item.created_at)}
+           </span>
+           <button onClick={handleShareNews}
+             className="text-sm font-bold text-brand-primary hover:bg-brand-primary/5 px-3 py-1.5 rounded-full transition-colors">
+             <Share2 className="w-4 h-4" /> Compartir
+           </button>
+         </div>
 
         <h1 className="text-3xl sm:text-5xl font-serif font-bold text-brand-primary mb-8 leading-tight">
           {item.title}
