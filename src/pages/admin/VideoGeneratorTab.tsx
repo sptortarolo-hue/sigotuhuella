@@ -25,6 +25,23 @@ export default function VideoGeneratorTab() {
   const { user } = useAuth();
   const canManage = user?.role === 'admin';
 
+  function getAuthToken() {
+    try {
+      return localStorage.getItem('token');
+    } catch { return null; }
+  }
+
+  async function authFetch(url: string, options: RequestInit = {}) {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(url, { ...options, headers });
+    return res;
+  }
+
   const [config, setConfig] = useState({
     style: 'emotive',
     duration: 30,
@@ -60,7 +77,7 @@ export default function VideoGeneratorTab() {
   async function fetchVideos() {
     setRefreshing(true);
     try {
-      const res = await fetch('/api/admin/videos');
+      const res = await authFetch('/api/admin/videos');
       if (res.ok) {
         const data = await res.json();
         setVideos(data.videos);
@@ -74,7 +91,7 @@ export default function VideoGeneratorTab() {
 
   async function fetchPets() {
     try {
-      const res = await fetch('/api/pets?status=reunited&limit=100');
+      const res = await authFetch('/api/pets?status=reunited&limit=100');
       if (res.ok) {
         const data = await res.json();
         setPets(data.pets || data || []);
@@ -97,7 +114,7 @@ export default function VideoGeneratorTab() {
         customScript: config.customScript?.trim() || undefined,
         overlayText: config.overlayText?.trim() || undefined
       };
-      const res = await fetch('/api/admin/videos/generate', {
+      const res = await authFetch('/api/admin/videos/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -120,7 +137,7 @@ export default function VideoGeneratorTab() {
   async function deleteVideo(id: string, filename: string) {
     if (!confirm('Eliminar este video?')) return;
     try {
-      const res = await fetch(`/api/admin/videos/${id}`, { method: 'DELETE' });
+      const res = await authFetch(`/api/admin/videos/${id}`, { method: 'DELETE' });
       if (res.ok) setVideos(v => v.filter(vid => vid.id !== id));
     } catch (e) {
       alert('Error borrando video');
