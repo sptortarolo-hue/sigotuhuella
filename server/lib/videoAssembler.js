@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import { rimraf } from 'rimraf';
 import pool from '../db.js';
