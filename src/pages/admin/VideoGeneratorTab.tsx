@@ -119,18 +119,32 @@ export default function VideoGeneratorTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      if (!res.ok) throw new Error('Failed to start generation');
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+      // Poll until video appears in the list
       let attempts = 0;
-      const poll = setInterval(async () => {
-        attempts++;
-        await fetchVideos();
-        if (attempts >= 12) clearInterval(poll);
-      }, 5000);
+      await new Promise((resolve, reject) => {
+        const poll = setInterval(async () => {
+          attempts++;
+          try {
+            await fetchVideos();
+          } catch (e) {
+            // ignore fetch errors during polling
+          }
+          if (attempts >= 12) {
+            clearInterval(poll);
+            resolve();
+          }
+        }, 5000);
+      });
     } catch (e) {
-      alert('Error generando video');
+      alert('Error generando video: ' + (e.message || ''));
       console.error(e);
     } finally {
       setGenerating(false);
+      fetchVideos();
     }
   }
 
