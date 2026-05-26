@@ -41,17 +41,19 @@ export default function Login() {
         login(data.token, data.user);
         navigate(from, { replace: true });
         return;
-      }
-
-      if (mode === 'register') {
-        if (password !== confirmPassword) {
-          setError('Las contraseñas no coinciden');
-          setAuthLoading(false);
-          return;
-        }
-        const data = await api.auth.register(email, password, displayName, phone);
-        login(data.token, data.user);
-      } else {
+       }
+       
+       if (mode === 'register') {
+         if (password !== confirmPassword) {
+           setError('Las contraseñas no coinciden');
+           setAuthLoading(false);
+           return;
+         }
+         const data = await api.auth.register(email, password, displayName, phone);
+         login(data.token, data.user);
+         navigate(from, { replace: true });
+         return;
+       } else {
         // Check if email has registration_pending before attempting login
         try {
           const emailStatus = await api.checkEmail(email);

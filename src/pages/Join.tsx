@@ -282,9 +282,9 @@ export default function Join() {
                     {user?.phone && (
                       <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400" />
                     )}
-                  </div>
-                  </div>
-                </div>
+                   </div>
+                   </div>
+                 </div>
 
 {/* Contribution Areas */}
                 <div className="space-y-3">
