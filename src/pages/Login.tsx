@@ -43,12 +43,18 @@ export default function Login() {
         return;
        }
        
-       if (mode === 'register') {
-         if (password !== confirmPassword) {
-           setError('Las contraseñas no coinciden');
-           setAuthLoading(false);
-           return;
-         }
+        if (mode === 'register') {
+          if (password !== confirmPassword) {
+            setError('Las contraseñas no coinciden');
+            setAuthLoading(false);
+            return;
+          }
+          const data = await api.auth.register(email, password, displayName, phone);
+          login(data.token, data.user);
+          alert('¡Bienvenido a Sigo tu Huella! Tu registro ha sido exitoso.');
+          navigate(from, { replace: true });
+          return;
+        }
          const data = await api.auth.register(email, password, displayName, phone);
          login(data.token, data.user);
          navigate(from, { replace: true });
