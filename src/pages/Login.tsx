@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/src/lib/api';
-import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as PhoneIcon, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as PhoneIcon, Eye, EyeOff, KeyRound, CheckCircle2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Login() {
@@ -18,6 +18,7 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,46 +37,39 @@ export default function Login() {
           return;
         }
         await api.completeRegistration({ email, password });
-        // Now log in with the new password
         const data = await api.auth.login(email, password);
         login(data.token, data.user);
         navigate(from, { replace: true });
         return;
-       }
-       
-        if (mode === 'register') {
-          if (password !== confirmPassword) {
-            setError('Las contraseñas no coinciden');
-            setAuthLoading(false);
-            return;
-          }
-          const data = await api.auth.register(email, password, displayName, phone);
-          login(data.token, data.user);
-          alert('¡Bienvenido a Sigo tu Huella! Tu registro ha sido exitoso.');
-          navigate(from, { replace: true });
+      }
+
+      if (mode === 'register') {
+        if (password !== confirmPassword) {
+          setError('Las contraseñas no coinciden');
+          setAuthLoading(false);
           return;
         }
-         const data = await api.auth.register(email, password, displayName, phone);
-         login(data.token, data.user);
-         navigate(from, { replace: true });
-         return;
-       } else {
-        // Check if email has registration_pending before attempting login
-        try {
-          const emailStatus = await api.checkEmail(email);
-          if (emailStatus.exists && emailStatus.registrationPending) {
-            setMode('complete-registration');
-            setError('Ya reportaste una mascota perdida. Creá tu contraseña para completar el registro.');
-            setAuthLoading(false);
-            return;
-          }
-        } catch {
-          // If check-email fails, proceed with normal login
-        }
-
-        const data = await api.auth.login(email, password);
+        const data = await api.auth.register(email, password, displayName, phone);
         login(data.token, data.user);
+        setRegistrationSuccess(true);
+        setAuthLoading(false);
+        return;
       }
+
+      try {
+        const emailStatus = await api.checkEmail(email);
+        if (emailStatus.exists && emailStatus.registrationPending) {
+          setMode('complete-registration');
+          setError('Ya reportaste una mascota perdida. Creá tu contraseña para completar el registro.');
+          setAuthLoading(false);
+          return;
+        }
+      } catch {
+        // If check-email fails, proceed with normal login
+      }
+
+      const data = await api.auth.login(email, password);
+      login(data.token, data.user);
       navigate(from, { replace: true });
     } catch (err: any) {
       setError(err.message || 'Error al procesar la solicitud');
@@ -89,11 +83,42 @@ export default function Login() {
     navigate('/');
   };
 
+  const greeting = new Date().getHours() < 12 ? '¡Buenos días!' : new Date().getHours() < 18 ? '¡Buenas tardes!' : '¡Buenas noches!';
+
   if (loading) return (
     <div className="h-[60vh] flex items-center justify-center text-brand-primary">
       <Loader2 className="w-10 h-10 animate-spin" />
     </div>
   );
+
+  if (registrationSuccess) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center px-4">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="text-center max-w-md"
+        >
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-10 h-10 text-green-600" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary mb-3">
+            {greeting}
+          </h1>
+          <p className="text-gray-600 mb-6">
+            Tu cuenta fue creada exitosamente.
+            {displayName && <span> ¡Nos alegra tenerte acá, <strong>{displayName}</strong>!</span>}
+          </p>
+          <button
+            onClick={() => navigate(from, { replace: true })}
+            className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all"
+          >
+            Continuar
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 py-20">
