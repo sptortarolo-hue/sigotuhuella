@@ -138,17 +138,17 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
           </p>
         )}
 
-        <div className="flex gap-2 pt-4 border-t border-brand-accent">
+        <div className="flex flex-wrap gap-2 pt-4 border-t border-brand-accent">
           <button
             onClick={(e) => { e.stopPropagation(); setShowShareModal(true); }}
-            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:shadow-lg transition-all"
+            className="flex-1 min-w-[130px] px-4 py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:shadow-lg transition-all"
           >
             <MessageCircle className="w-4 h-4" />
             Imagen para Compartir
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); shareOnWhatsApp(pet); }}
-            className="flex-1 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-600 hover:shadow-lg transition-all"
+            className="flex-1 min-w-[130px] px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-600 hover:shadow-lg transition-all"
           >
             <Share2 className="w-4 h-4" />
             Difundir por WhatsApp
@@ -157,13 +157,13 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             <>
               <button
                 onClick={() => onEdit?.(pet)}
-                className="flex-1 px-4 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-bold hover:bg-brand-primary hover:text-white transition-colors"
+                className="flex-1 min-w-[130px] px-4 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-bold hover:bg-brand-primary hover:text-white transition-colors"
               >
                 Editar
               </button>
               <button
                 onClick={() => onDelete?.(pet.id)}
-                className="px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-colors"
+                className="flex-1 min-w-[130px] px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-colors"
               >
                 Borrar
               </button>

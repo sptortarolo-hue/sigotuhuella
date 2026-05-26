@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, MapPin, PawPrint, Mail, Phone, Share2 } from 'lucide-react';
+import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, MapPin, PawPrint, Mail, Phone, Share2, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage } from '@/src/lib/storageService';
 import { api } from '@/src/lib/api';
@@ -49,6 +49,7 @@ export default function LostPetReport() {
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [reporterName, setReporterName] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [imageMimeTypes, setImageMimeTypes] = useState<string[]>([]);
 
@@ -58,7 +59,7 @@ export default function LostPetReport() {
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isValid = species && description.trim().length >= 10 && location.trim().length >= 3 &&
-    emailRegex.test(email) && images.length >= 1;
+    emailRegex.test(email) && images.length >= 1 && reporterName.trim().length >= 2;
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFiles = e.target.files;
@@ -122,6 +123,7 @@ export default function LostPetReport() {
         species, description, location, email,
         status: 'lost',
       };
+      body.reporter_name = reporterName;
       if (name) body.name = name;
       if (breed) body.breed = breed;
       if (color) body.color = color;
@@ -142,7 +144,7 @@ export default function LostPetReport() {
   };
 
   const handleReset = () => {
-    setSpecies(''); setName(''); setBreed(''); setColor('');
+    setSpecies(''); setReporterName(''); setName(''); setBreed(''); setColor('');
     setGender(''); setAge(''); setSize(''); setDescription('');
     setLocation(''); setCoordinates(null); setEmail(''); setPhone('');
     setImages([]); setImageMimeTypes([]);
@@ -303,6 +305,20 @@ export default function LostPetReport() {
             <input value={location} onChange={e => setLocation(e.target.value)}
               placeholder="Ej: Calle 7 y 52, Sicardi"
               className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors mt-3" />
+          </div>
+
+          {/* Tu nombre */}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">Tu nombre *</label>
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input value={reporterName} onChange={e => setReporterName(e.target.value)}
+                placeholder="Ej: Juan Pérez"
+                className="w-full pl-12 pr-4 py-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors" />
+            </div>
+            {reporterName && reporterName.trim().length < 2 && (
+              <p className="text-xs text-red-500 mt-1">Ingresá tu nombre (mín. 2 caracteres)</p>
+            )}
           </div>
 
           {/* Email */}

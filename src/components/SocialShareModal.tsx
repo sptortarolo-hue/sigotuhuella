@@ -536,10 +536,6 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     if (!canvasRef.current) return;
     setGenerating(true);
     try {
-      const offscreen = document.createElement('canvas');
-      offscreen.width = targetWidth;
-      offscreen.height = targetHeight;
-
       let imgToUse: HTMLImageElement | null = imgRef.current;
       if (mainImage && !imgToUse) {
         imgToUse = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -548,19 +544,10 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
           img.onerror = reject;
           img.src = mainImage;
         });
+        drawOnCanvas(canvasRef.current, imgToUse);
       }
 
-      const ctx = offscreen.getContext('2d');
-      if (!ctx) throw new Error('No se pudo obtener el contexto 2D');
-
-      drawFlyerNative(
-        ctx,
-        targetWidth, targetHeight, design, flyerName, petDetails,
-        pet.location, pet.contact_info, pet.description,
-        imgToUse, logoImg
-      );
-
-      const blob = await new Promise<Blob | null>(resolve => offscreen.toBlob(resolve, 'image/png'));
+      const blob = await new Promise<Blob | null>(resolve => canvasRef.current!.toBlob(resolve, 'image/png'));
       if (!blob) throw new Error('No se pudo generar la imagen');
 
       const url = URL.createObjectURL(blob);
@@ -707,7 +694,8 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                 <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden" style={{ width: Math.round(targetWidth * previewScale), height: Math.round(targetHeight * previewScale) }}>
                   <canvas
                     ref={canvasRef}
-                    className="block w-full h-full"
+                    className="block w-full h-full pointer-events-none select-none"
+                    draggable={false}
                   />
                 </div>
               </div>
@@ -734,7 +722,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                   ) : generated ? (
                     <><Download className="w-4 h-4" /> Descargar de nuevo</>
                   ) : (
-                    <><Sparkles className="w-4 h-4" /> Generar y compartir</>
+                    <><Download className="w-4 h-4" /> Compartir</>
                   )}
                 </button>
               </div>
