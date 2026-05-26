@@ -333,8 +333,8 @@ function drawCardFlyer(
     brandH = h * 0.055;
   } else if (layoutType === 'portrait') {
     badgeH = h * 0.16;
-    photoTop = h * 0.25;
-    photoH = h * 0.32;
+    photoTop = h * 0.19;
+    photoH = h * 0.38;
     photoW = w * 0.84;
     photoRadius = w * 0.025;
     maxDescLines = 99;
@@ -345,8 +345,8 @@ function drawCardFlyer(
     brandH = h * 0.055;
   } else {
     badgeH = h * 0.16;
-    photoTop = h * 0.25;
-    photoH = h * 0.26;
+    photoTop = h * 0.19;
+    photoH = h * 0.32;
     photoW = w * 0.84;
     photoRadius = w * 0.025;
     maxDescLines = 99;
