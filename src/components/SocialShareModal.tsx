@@ -321,7 +321,7 @@ function drawCardFlyer(
 
   if (layoutType === 'story') {
     badgeH = h * 0.20;
-    photoTop = h * 0.23;
+    photoTop = h * 0.25;
     photoH = h * 0.38;
     photoW = w * 0.84;
     photoRadius = w * 0.025;
@@ -333,7 +333,7 @@ function drawCardFlyer(
     brandH = h * 0.055;
   } else if (layoutType === 'portrait') {
     badgeH = h * 0.20;
-    photoTop = h * 0.23;
+    photoTop = h * 0.25;
     photoH = h * 0.32;
     photoW = w * 0.84;
     photoRadius = w * 0.025;
@@ -345,7 +345,7 @@ function drawCardFlyer(
     brandH = h * 0.055;
   } else {
     badgeH = h * 0.20;
-    photoTop = h * 0.23;
+    photoTop = h * 0.25;
     photoH = h * 0.26;
     photoW = w * 0.84;
     photoRadius = w * 0.025;
@@ -412,7 +412,7 @@ function drawCardFlyer(
 
   // 4. Content — fills from photo bottom up to location
   const contentEndY = Math.min(locationY - h * 0.015, brandY - h * 0.05);
-  let contentY = photoY + photoH + h * 0.025;
+  let contentY = photoY + photoH + h * 0.035;
 
   // Name
   if (hasName && contentY + nameFontSize < contentEndY) {
