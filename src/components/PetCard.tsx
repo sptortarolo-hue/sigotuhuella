@@ -144,14 +144,14 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:shadow-lg transition-all"
           >
             <MessageCircle className="w-4 h-4" />
-            Compartir
+            Imagen para Compartir
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); shareOnWhatsApp(pet); }}
             className="flex-1 px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-600 hover:shadow-lg transition-all"
           >
             <Share2 className="w-4 h-4" />
-            WhatsApp
+            Difundir por WhatsApp
           </button>
           {showAdminActions && (
             <>
