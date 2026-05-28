@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Info, Phone, MessageCircle, Share2 } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
@@ -71,9 +71,8 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             )}
           </div>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-2">
-            <Info className="w-10 h-10" />
-            <span className="text-xs font-medium uppercase tracking-widest">Sin Foto</span>
+          <div className="w-full h-full bg-brand-bg flex items-center justify-center">
+            <img src="/sigotuhuella.jpg" alt="" className="w-2/3 h-2/3 object-contain opacity-15" />
           </div>
         )}
         

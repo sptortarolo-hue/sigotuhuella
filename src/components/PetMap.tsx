@@ -52,9 +52,12 @@ export default function PetMap({ pets, center }: PetMapProps) {
             >
               <Popup>
                 <div className="p-1 max-w-[200px]">
-                  {getPetImageUrl(pet) && (
-                    <img src={getPetImageUrl(pet)} className="w-full h-24 object-cover rounded-lg mb-2" alt={pet.name || ''} />
-                  )}
+                  <img
+                    src={getPetImageUrl(pet) || '/sigotuhuella.jpg'}
+                    className="w-full h-24 rounded-lg mb-2"
+                    alt={pet.name || ''}
+                    style={!getPetImageUrl(pet) ? { objectFit: 'contain', opacity: 0.15 } : { objectFit: 'cover' }}
+                  />
                   <h4 className="font-bold text-brand-primary text-sm m-0">{pet.name || 'Mascota'}</h4>
 <p className="text-[10px] text-gray-500 uppercase font-bold mb-1 mt-0">
                      {pet.status === 'lost' ? 'Perdido' : pet.status === 'retained' ? 'Retenido' : pet.status === 'sighted' ? 'Avistado' : pet.status === 'accidented' ? 'Accidentado' : pet.status === 'needs_attention' ? 'Necesita Atención' : 'En Adopción'}

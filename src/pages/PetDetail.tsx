@@ -115,9 +115,8 @@ Me gustaría obtener más información.`;
                 )}
               </>
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-2">
-                <Info className="w-12 h-12" />
-                <span className="text-xs font-bold uppercase tracking-widest">Sin fotos disponibles</span>
+              <div className="w-full h-full bg-brand-bg flex items-center justify-center">
+                <img src="/sigotuhuella.jpg" alt="" className="w-2/3 h-2/3 object-contain opacity-15" />
               </div>
             )}
           </div>
