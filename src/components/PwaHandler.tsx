@@ -36,14 +36,14 @@ export default function PwaHandler() {
     circle.style.strokeDashoffset = String(circumference);
 
     rAFRef.current = requestAnimationFrame(() => {
-      circle.style.transition = 'stroke-dashoffset 3s linear';
+      circle.style.transition = 'stroke-dashoffset 5s linear';
       circle.style.strokeDashoffset = '0';
     });
 
     autoTimerRef.current = window.setTimeout(() => {
       setCloseReason('auto');
       setShowInstallBanner(false);
-    }, 3000);
+    }, 5000);
 
     return () => {
       cancelAnimationFrame(rAFRef.current);
