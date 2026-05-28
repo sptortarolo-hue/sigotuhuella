@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Pet, getPetImageUrls } from '@/src/lib/petService';
 import { X, MessageCircle, Camera, Download, Sparkles, Loader2, ImageIcon, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -485,12 +485,14 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
 
   const design = statusDesigns[pet.status] || statusDesigns.lost;
-  const flyerName = pet.name || 'Sin nombre';
+  const flyerName = useMemo(() => pet.name || 'Sin nombre', [pet.name]);
   const shareText = petUrl;
   const petSpecies = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species || '';
   const petGender = pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : '';
-  const petDetailParts = [petSpecies, pet.breed, petGender, pet.age].filter(Boolean);
-  const petDetails = petDetailParts.join(' · ');
+  const petDetails = useMemo(() => {
+    const parts = [petSpecies, pet.breed, petGender, pet.age].filter(Boolean);
+    return parts.join(' · ');
+  }, [petSpecies, pet.breed, petGender, pet.age]);
 
   const previewScale = Math.min(280 / targetWidth, 400 / targetHeight, 1);
 
@@ -600,13 +602,14 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
-      <motion.div
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-brand-primary/30 backdrop-brightness-75" />
+        <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-xl bg-white rounded-[2.5rem] shadow-2xl overflow-y-auto max-h-[90vh]"
+        onWheel={(e) => e.stopPropagation()}
+        className="relative w-full max-w-xl bg-white rounded-[2.5rem] shadow-2xl overflow-y-auto max-h-[90vh] user-select-none"
       >
         <div className="p-6 sm:p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
           <h2 className="text-xl sm:text-2xl font-serif font-bold text-brand-primary">Flyer para Redes</h2>
@@ -691,7 +694,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
 
               <div className="text-center">
                 <p className="text-xs text-gray-400 mb-3 font-bold uppercase tracking-widest">Vista previa del flyer</p>
-                <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden" style={{ width: Math.round(targetWidth * previewScale), height: Math.round(targetHeight * previewScale) }}>
+                <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden pointer-events-none touch-none select-none" style={{ width: Math.round(targetWidth * previewScale), height: Math.round(targetHeight * previewScale) }}>
                   <canvas
                     ref={canvasRef}
                     className="block w-full h-full pointer-events-none select-none"
