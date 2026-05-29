@@ -162,13 +162,29 @@ export default function LostPetReport() {
           <p className="text-gray-600 mb-4">
             Recibimos tu reporte. Te enviamos un email con el resumen y las instrucciones para completar tu registro.
           </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-left text-sm text-blue-800">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 text-left text-sm text-blue-800">
             <p className="font-bold mb-2">📧 Revisá tu casilla de email</p>
             <ul className="space-y-2 text-blue-700">
               <li>• Resumen de tu reporte</li>
               <li>• Notificaciones automáticas de mascotas similares encontradas</li>
               <li>• Invitación a crear tu contraseña para gestionar tu publicación</li>
             </ul>
+          </div>
+
+          <div className="bg-brand-primary/5 border border-brand-primary/20 rounded-2xl p-5 mb-6 text-left">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-brand-primary/10 rounded-xl flex items-center justify-center shrink-0">
+                <PawPrint className="w-5 h-5 text-brand-primary" />
+              </div>
+              <div>
+                <h3 className="font-bold text-brand-primary text-sm">Match automático</h3>
+                <p className="text-xs text-gray-500">Te notificamos cuando alguien reporte una mascota similar.</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">Registrate para recibir alertas por WhatsApp y gestionar tu publicación.</p>
+            <a href="/login" className="block w-full py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm text-center hover:shadow-lg transition-all">
+              Registrarme
+            </a>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button onClick={handleReset} className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">

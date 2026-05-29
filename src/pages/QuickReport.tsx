@@ -200,6 +200,23 @@ export default function QuickReport() {
             }} className="w-full mb-3 px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2">
               <Share2 className="w-5 h-5" /> Compartir en WhatsApp
             </button>
+
+            <div className="bg-brand-primary/5 border border-brand-primary/20 rounded-2xl p-5 mb-4 text-left">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-brand-primary/10 rounded-xl flex items-center justify-center shrink-0">
+                  <PawPrint className="w-5 h-5 text-brand-primary" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-brand-primary text-sm">¿Perdiste tu mascota también?</h3>
+                  <p className="text-xs text-gray-500">Registrate para acceder al match automático.</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mb-3">Cuando alguien reporte una mascota similar, te avisamos por WhatsApp. Es gratis.</p>
+              <a href="/login" className="block w-full py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm text-center hover:shadow-lg transition-all">
+                Registrarme
+              </a>
+            </div>
+
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button onClick={handleReset} className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
               Reportar otro
