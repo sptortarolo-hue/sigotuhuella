@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Heart, Search, ShieldCheck, Share2, PawPrint } from 'lucide-react';
+import { Heart, Search, ShieldCheck, Share2, PawPrint } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState, useEffect } from 'react';
 import NewsCarousel from '@/src/components/NewsCarousel';
@@ -33,23 +33,34 @@ export default function Home() {
             <p className="text-base sm:text-lg text-gray-600 leading-relaxed mb-8 max-w-lg">
               Movimiento de vecinos autoconvocados dedicado a la atención y abordaje de mascotas en situación de vulnerabilidad. Juntos construimos una comunidad más empática.
             </p>
-            <Link
-              to="/perdi-mi-mascota"
-              className="w-full px-6 py-4 sm:px-8 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-all shadow-lg hover:shadow-brand-primary/20 text-sm sm:text-base mb-4"
-            >
-              <PawPrint className="w-4 h-4 sm:w-5 sm:h-5" />
-              Perdí mi mascota
-              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-            </Link>
-            <Link
-              to="/reportar-rapido"
-              className="text-brand-primary font-semibold text-sm hover:underline transition-all mb-2"
-            >
-              Vi o encontré una mascota
-            </Link>
-            <Link to="/adopcion" className="w-full py-4 border-2 border-brand-secondary text-brand-secondary rounded-2xl font-bold text-center text-sm sm:text-base hover:bg-brand-secondary hover:text-white transition-all">
-              Quiero adoptar ❤️
-            </Link>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              <Link to="/perdi-mi-mascota"
+                className="group bg-white border border-brand-accent rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                  <PawPrint className="w-6 h-6 text-red-500" />
+                </div>
+                <h3 className="font-bold text-brand-primary text-sm mb-1">Perdí mi mascota</h3>
+                <span className="text-brand-primary text-xs">→</span>
+              </Link>
+
+              <Link to="/reportar-rapido"
+                className="group bg-white border border-brand-accent rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                  <Search className="w-6 h-6 text-amber-600" />
+                </div>
+                <h3 className="font-bold text-brand-primary text-sm mb-1">Encontré una mascota</h3>
+                <span className="text-brand-primary text-xs">→</span>
+              </Link>
+
+              <Link to="/adopcion"
+                className="group bg-white border border-brand-accent rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                <div className="w-12 h-12 bg-pink-100 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                  <Heart className="w-6 h-6 text-pink-500" />
+                </div>
+                <h3 className="font-bold text-brand-primary text-sm mb-1">Quiero adoptar</h3>
+                <span className="text-brand-primary text-xs">→</span>
+              </Link>
+            </div>
           </motion.div>
 
           <motion.div
