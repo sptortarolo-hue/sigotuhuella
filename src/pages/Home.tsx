@@ -34,20 +34,20 @@ export default function Home() {
               Movimiento de vecinos autoconvocados dedicado a la atención y abordaje de mascotas en situación de vulnerabilidad. Juntos construimos una comunidad más empática.
             </p>
             <Link
-              to="/reportar-rapido"
+              to="/perdi-mi-mascota"
               className="w-full px-6 py-4 sm:px-8 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-all shadow-lg hover:shadow-brand-primary/20 text-sm sm:text-base mb-4"
             >
               <PawPrint className="w-4 h-4 sm:w-5 sm:h-5" />
-              Vi o encontré una mascota
+              Perdí mi mascota
               <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
             </Link>
             <Link
-              to="/perdi-mi-mascota"
-              className="text-brand-primary font-semibold text-sm hover:underline transition-all inline-flex items-center gap-1 mb-2"
+              to="/reportar-rapido"
+              className="text-brand-primary font-semibold text-sm hover:underline transition-all mb-2"
             >
-              ¿Perdiste tu mascota? <ArrowRight className="w-3.5 h-3.5" />
+              Vi o encontré una mascota
             </Link>
-            <Link to="/adopcion" className="text-gray-400 text-xs font-medium hover:text-brand-primary transition-colors inline-block">
+            <Link to="/adopcion" className="w-full py-4 border-2 border-brand-secondary text-brand-secondary rounded-2xl font-bold text-center text-sm sm:text-base hover:bg-brand-secondary hover:text-white transition-all">
               Quiero adoptar ❤️
             </Link>
           </motion.div>
