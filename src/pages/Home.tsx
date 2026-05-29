@@ -35,7 +35,7 @@ export default function Home() {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <Link to="/perdi-mi-mascota"
-                className="group bg-red-100/70 border border-red-200/60 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                className="group bg-red-200/80 border border-red-300/60 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
                 <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
                   <PawPrint className="w-6 h-6 text-red-500" />
                 </div>
@@ -44,7 +44,7 @@ export default function Home() {
               </Link>
 
               <Link to="/reportar-rapido"
-                className="group bg-amber-100/70 border border-amber-200/60 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                className="group bg-amber-200/80 border border-amber-300/60 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
                 <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
                   <Search className="w-6 h-6 text-amber-600" />
                 </div>
@@ -53,7 +53,7 @@ export default function Home() {
               </Link>
 
               <Link to="/adopcion"
-                className="group bg-pink-100/70 border border-pink-200/60 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                className="group bg-pink-200/80 border border-pink-300/60 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
                 <div className="w-12 h-12 bg-pink-100 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
                   <Heart className="w-6 h-6 text-pink-500" />
                 </div>
