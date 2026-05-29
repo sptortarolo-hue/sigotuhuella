@@ -53,9 +53,9 @@ export default function Home() {
               </Link>
 
               <Link to="/adopcion"
-                className="group bg-teal-100/80 border border-teal-300/60 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
-                <div className="w-12 h-12 bg-teal-200 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                  <Heart className="w-6 h-6 text-teal-700" />
+                className="group bg-stone-100/80 border border-stone-300/60 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                <div className="w-12 h-12 bg-stone-200 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                  <Heart className="w-6 h-6 text-stone-600" />
                 </div>
                 <h3 className="font-bold text-brand-primary text-sm mb-1">Quiero adoptar</h3>
                 <span className="text-brand-primary text-xs">→</span>
