@@ -35,30 +35,30 @@ export default function Home() {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <Link to="/perdi-mi-mascota"
-                className="group bg-amber-100/80 border border-amber-300/60 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
-                <div className="w-12 h-12 bg-amber-200 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                  <PawPrint className="w-6 h-6 text-amber-700" />
+                className="group bg-brand-primary/10 border border-brand-primary/30 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                <div className="w-12 h-12 bg-brand-primary rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                  <PawPrint className="w-6 h-6 text-white" />
                 </div>
                 <h3 className="font-bold text-brand-primary text-sm mb-1">Perdí mi mascota</h3>
                 <span className="text-brand-primary text-xs">→</span>
               </Link>
 
               <Link to="/reportar-rapido"
-                className="group bg-orange-100/80 border border-orange-300/60 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
-                <div className="w-12 h-12 bg-orange-200 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                  <Search className="w-6 h-6 text-orange-700" />
+                className="group bg-brand-secondary/10 border border-brand-secondary/30 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                <div className="w-12 h-12 bg-brand-secondary rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                  <Search className="w-6 h-6 text-white" />
                 </div>
                 <h3 className="font-bold text-brand-primary text-sm mb-1">Encontré una mascota</h3>
                 <span className="text-brand-primary text-xs">→</span>
               </Link>
 
               <Link to="/adopcion"
-                className="group bg-stone-100/80 border border-stone-300/60 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
-                <div className="w-12 h-12 bg-stone-200 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                  <Heart className="w-6 h-6 text-stone-600" />
+                className="group bg-red-50 border-2 border-red-200 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                  <Heart className="w-6 h-6 text-red-500" />
                 </div>
                 <h3 className="font-bold text-brand-primary text-sm mb-1">Quiero adoptar</h3>
-                <span className="text-brand-primary text-xs">→</span>
+                <span className="text-red-400 text-xs">→</span>
               </Link>
             </div>
           </motion.div>
