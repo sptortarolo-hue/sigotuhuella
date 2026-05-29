@@ -202,8 +202,8 @@ export default function LostPetReport() {
   return (
     <div className="min-h-[80vh] py-8 sm:py-12 px-4">
       <div className="max-w-lg mx-auto">
-        <button onClick={() => navigate('/reportar-rapido')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary mb-6 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Volver a reporte rápido
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary mb-6 transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Volver
         </button>
 
         <div className="text-center mb-8">
