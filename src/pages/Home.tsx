@@ -33,23 +33,21 @@ export default function Home() {
             <p className="text-base sm:text-lg text-gray-600 leading-relaxed mb-8 max-w-lg">
               Movimiento de vecinos autoconvocados dedicado a la atención y abordaje de mascotas en situación de vulnerabilidad. Juntos construimos una comunidad más empática.
             </p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Link
-                to="/reportar-rapido"
-                className="w-full sm:w-auto px-6 py-3.5 sm:px-8 sm:py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-all shadow-lg hover:shadow-brand-primary/20 text-sm sm:text-base animate-pulse"
-              >
-                <PawPrint className="w-4 h-4 sm:w-5 sm:h-5" />
-                Vi o encontré una mascota
-                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-              </Link>
-              <Link
-                to="/perdi-mi-mascota"
-                className="w-full sm:w-auto px-6 py-3.5 sm:px-8 sm:py-4 bg-white text-brand-primary border border-brand-accent rounded-2xl font-bold hover:border-brand-primary transition-all text-center text-sm sm:text-base"
-              >
-                Perdí mi mascota
-              </Link>
-            </div>
-            <Link to="/adopcion" className="text-sm text-gray-500 hover:text-brand-primary transition-colors inline-block mt-2">
+            <Link
+              to="/reportar-rapido"
+              className="w-full px-6 py-4 sm:px-8 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-all shadow-lg hover:shadow-brand-primary/20 text-sm sm:text-base mb-4"
+            >
+              <PawPrint className="w-4 h-4 sm:w-5 sm:h-5" />
+              Vi o encontré una mascota
+              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+            </Link>
+            <Link
+              to="/perdi-mi-mascota"
+              className="text-brand-primary font-semibold text-sm hover:underline transition-all inline-flex items-center gap-1 mb-2"
+            >
+              ¿Perdiste tu mascota? <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <Link to="/adopcion" className="text-gray-400 text-xs font-medium hover:text-brand-primary transition-colors inline-block">
               Quiero adoptar ❤️
             </Link>
           </motion.div>
