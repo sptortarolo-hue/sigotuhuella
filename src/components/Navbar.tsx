@@ -192,10 +192,12 @@ export default function Navbar() {
                 <AnimatePresence>
                   {userMenuOpen && (
                     <motion.div
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-brand-accent overflow-hidden z-50"
+                      initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                      transition={{ type: "spring", duration: 0.2 }}
+                      style={{ transformOrigin: "top right" }}
+                      className="absolute right-0 top-full mt-2 mr-[-16px] w-56 bg-white rounded-2xl shadow-xl border border-brand-accent overflow-hidden z-50"
                     >
                       <div className="px-4 py-3 border-b border-brand-accent bg-brand-bg/50">
                         <p className="text-sm font-bold text-brand-primary truncate">{user.display_name || user.email}</p>
