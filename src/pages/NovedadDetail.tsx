@@ -89,22 +89,104 @@ export default function NovedadDetail() {
     if (!item) return;
 
     const newsUrl = `${import.meta.env.VITE_FRONTEND_URL}/novedad/${item.id}`;
-    const shareData = {
-      title: item.title,
-      text: item.content.substring(0, 100) + (item.content.length > 100 ? '...' : ''),
-      url: newsUrl
-    };
 
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch (error) {
-        console.log('Share cancelled', error);
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1200;
+      canvas.height = 630;
+      const ctx = canvas.getContext('2d')!;
+
+      ctx.fillStyle = '#F5F5F0';
+      ctx.fillRect(0, 0, 1200, 630);
+
+      if (imageUrl) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            const aspect = img.width / img.height;
+            let drawW = 1200;
+            let drawH = 1200 / aspect;
+            if (drawH > 400) {
+              drawH = 400;
+              drawW = 400 * aspect;
+            }
+            ctx.drawImage(img, (1200 - drawW) / 2, 30, drawW, drawH);
+            resolve();
+          };
+          img.onerror = () => resolve();
+          img.src = imageUrl;
+        });
+      }
+
+      ctx.fillStyle = '#5A5A40';
+      ctx.font = 'bold 36px system-ui, -apple-system, sans-serif';
+      const titleLines = wrapText(ctx, item.title, 1100);
+      titleLines.forEach((line, i) => {
+        ctx.fillText(line, 50, 460 + i * 44);
+      });
+
+      ctx.fillStyle = '#D48C70';
+      ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+      ctx.fillText('Sigo tu Huella', 50, 590);
+
+      ctx.fillStyle = '#999';
+      ctx.font = '16px system-ui, -apple-system, sans-serif';
+      ctx.fillText(newsUrl, 50, 615);
+
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((b) => {
+          if (b) resolve(b);
+          else reject(new Error('Canvas export failed'));
+        }, 'image/jpeg', 0.9);
+      });
+
+      const file = new File([blob], 'novedad.jpg', { type: 'image/jpeg' });
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: item.title,
+          text: item.content.substring(0, 100) + '...',
+          url: newsUrl,
+          files: [file],
+        });
+      } else {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'novedad-sigotuhuella.jpg';
+        link.click();
+        URL.revokeObjectURL(link.href);
+        alert('Imagen descargada. Adjuntala al compartir por WhatsApp.');
+      }
+    } catch (err) {
+      console.error('Error generando imagen:', err);
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: item.title, url: newsUrl });
+        } catch {
+          fallbackToClipboard(newsUrl);
+        }
+      } else {
         fallbackToClipboard(newsUrl);
       }
-    } else {
-      fallbackToClipboard(newsUrl);
     }
+  };
+
+  const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      if (ctx.measureText(testLine).width > maxWidth && currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines.slice(0, 3);
   };
 
   const fallbackToClipboard = async (text: string) => {

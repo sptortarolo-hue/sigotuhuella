@@ -90,6 +90,17 @@ export default function Novedades() {
                   </div>
                   <h3 className="text-lg font-bold text-brand-primary mb-2 line-clamp-2">{item.title}</h3>
                   <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed text-justify">{item.content.replace(/[#*]/g, '').trim()}</p>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const url = `${import.meta.env.VITE_FRONTEND_URL}/novedad/${item.id}`;
+                      const msg = encodeURIComponent(`📰 ${item.title}\n\n${item.content.substring(0, 150)}...\n\n👉 ${url}`);
+                      window.open(`https://wa.me/?text=${msg}`, '_blank');
+                    }}
+                    className="mt-3 flex items-center gap-1.5 text-xs font-bold text-brand-primary hover:text-brand-secondary transition-colors"
+                  >
+                    <Share2 className="w-3.5 h-3.5" /> Compartir
+                  </button>
                 </div>
               </motion.div>
             );
