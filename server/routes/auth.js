@@ -131,24 +131,13 @@ router.post('/forgot-password', async (req, res) => {
       [resetToken, expiresAt, email]
     );
 
-    console.log(`PASSWORD RESET TOKEN for ${email}: ${resetToken}`);
-
-    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
-    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
-    console.log(`RESET LINK: ${resetUrl}`);
-
-    try {
-      const result = await sendPasswordResetEmail(email, resetToken);
-      console.log('Resend response:', JSON.stringify(result));
-      console.log(`Email sent successfully to ${email}`);
+	try {
+      await sendPasswordResetEmail(email, resetToken);
     } catch (emailErr) {
       console.error('Email send error:', emailErr.message);
     }
 
-    res.json({ 
-      message: 'If the email exists, a reset link has been sent',
-      debugResetUrl: resetUrl
-    });
+	res.json({ message: 'If the email exists, a reset link has been sent' });
   } catch (err) {
     console.error('Forgot password error:', err);
     res.status(500).json({ error: 'Failed to process request' });

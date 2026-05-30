@@ -1,5 +1,6 @@
 import './env-loader.js';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { dirname, join } from 'path';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -21,7 +22,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 const app = express();
 
+app.disable('x-powered-by');
+
 app.use(express.json({ limit: '200mb' }));
+
+app.use((_req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'DENY');
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
+  next();
+});
 
 // Serve pet images for OG preview (before static middleware to avoid conflicts)
 app.get('/og-image/:petId/:index', async (req, res) => {
@@ -46,6 +58,14 @@ app.get('/og-image/:petId/:index', async (req, res) => {
 
 app.use(express.static(join(__dirname, '..', 'dist')));
 app.use('/generated', express.static(join(__dirname, '..', 'public', 'generated')));
+
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Demasiados intentos. Intentá de nuevo en 15 minutos.' } });
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: 'Demasiados intentos de login. Intentá de nuevo en 15 minutos.' } });
+
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/pets', petRoutes);
