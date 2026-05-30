@@ -162,14 +162,41 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* Mobile Menu Toggle */}
-          <button
-            className="md:hidden p-2 text-brand-primary"
-            onClick={() => setIsOpen(!isOpen)}
-            aria-label="Menú"
-          >
-            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          {/* Mobile: login/avatar + hamburger */}
+          <div className="flex items-center gap-2 md:hidden">
+            {!user ? (
+              <Link
+                to="/login"
+                className="px-3 py-1.5 bg-brand-primary text-white text-xs font-bold rounded-lg hover:shadow-lg transition-all whitespace-nowrap"
+              >
+                Iniciar
+              </Link>
+            ) : (
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="w-9 h-9 rounded-full overflow-hidden border-2 border-brand-accent hover:border-brand-primary transition-colors"
+              >
+                {user.avatar_type === 'photo' && user.avatar_data ? (
+                  <img
+                    src={`data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`}
+                    alt="Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-brand-primary/10">
+                    <User className="w-5 h-5 text-brand-primary" />
+                  </div>
+                )}
+              </button>
+            )}
+            <button
+              className="p-2 text-brand-primary"
+              onClick={() => setIsOpen(!isOpen)}
+              aria-label="Menú"
+            >
+              {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
       </div>
 
