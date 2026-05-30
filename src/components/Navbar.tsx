@@ -172,22 +172,63 @@ export default function Navbar() {
                 Iniciar
               </Link>
             ) : (
-              <button
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="w-9 h-9 rounded-full overflow-hidden border-2 border-brand-accent hover:border-brand-primary transition-colors"
-              >
-                {user.avatar_type === 'photo' && user.avatar_data ? (
-                  <img
-                    src={`data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`}
-                    alt="Avatar"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-brand-primary/10">
-                    <User className="w-5 h-5 text-brand-primary" />
-                  </div>
-                )}
-              </button>
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="w-9 h-9 rounded-full overflow-hidden border-2 border-brand-accent hover:border-brand-primary transition-colors"
+                >
+                  {user.avatar_type === 'photo' && user.avatar_data ? (
+                    <img
+                      src={`data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`}
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-brand-primary/10">
+                      <User className="w-5 h-5 text-brand-primary" />
+                    </div>
+                  )}
+                </button>
+                <AnimatePresence>
+                  {userMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-brand-accent overflow-hidden z-50"
+                    >
+                      <div className="px-4 py-3 border-b border-brand-accent bg-brand-bg/50">
+                        <p className="text-sm font-bold text-brand-primary truncate">{user.display_name || user.email}</p>
+                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                      </div>
+                      <div className="py-1">
+                        {isAdmin && (
+                          <button onClick={() => handleNavClick('/admin')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-primary/5 text-brand-primary font-bold transition-colors border-b border-brand-accent">
+                            <Settings className="w-4 h-4 text-brand-primary animate-pulse" /> Panel Admin
+                          </button>
+                        )}
+                        <button onClick={() => handleNavClick('/dashboard')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                          <PawPrint className="w-4 h-4 text-brand-primary" /> Mi Panel
+                        </button>
+                        <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                          <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
+                        </button>
+                        {isMember && (
+                          <button onClick={() => handleNavClick('/mi-carnet')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                            <CreditCard className="w-4 h-4 text-brand-primary" /> Mi Carnet
+                          </button>
+                        )}
+                        <button onClick={() => handleNavClick('/perfil')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                          <Settings className="w-4 h-4 text-brand-primary" /> Editar Perfil
+                        </button>
+                        <button onClick={handleLogout} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors">
+                          <LogOut className="w-4 h-4" /> Cerrar Sesión
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             )}
             <button
               className="p-2 text-brand-primary"
