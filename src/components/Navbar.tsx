@@ -17,7 +17,7 @@ export default function Navbar() {
 
   const navItems = [
     { name: 'Inicio', path: '/', icon: PawPrint },
-    { name: 'Reportar', path: '/reportar', icon: FileText },
+    ...(user ? [{ name: 'Reportar', path: '/reportar', icon: FileText }] : []),
     { name: 'Mascotas Reportadas', path: '/perdidos', icon: Search },
     { name: 'Adopción', path: '/adopcion', icon: Heart },
     { name: 'Colaborar', path: '/colaborar', icon: HandCoins },
