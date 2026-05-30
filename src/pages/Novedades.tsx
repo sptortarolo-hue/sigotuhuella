@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { News, getNews, getNewsImageUrl, formatNewsDate } from '@/src/lib/newsService';
-import { Sparkles, Loader2, ArrowLeft, Calendar, HeartHandshake, Home, Play } from 'lucide-react';
+import { Sparkles, Loader2, ArrowLeft, Calendar, HeartHandshake, Home, Play, Share2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
