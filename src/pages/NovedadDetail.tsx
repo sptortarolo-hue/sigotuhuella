@@ -91,49 +91,131 @@ export default function NovedadDetail() {
     const newsUrl = `${import.meta.env.VITE_FRONTEND_URL}/novedad/${item.id}`;
 
     try {
+      const W = 1200, H = 630;
+      const HEADER_H = 70, FOOTER_H = 50;
+      const IMG_Y = HEADER_H + 20;
+      const IMG_H = 340;
+      const IMG_PAD = 40;
+      const IMG_X = IMG_PAD;
+      const IMG_W = W - IMG_PAD * 2;
+      const TITLE_Y = IMG_Y + IMG_H + 30;
+
       const canvas = document.createElement('canvas');
-      canvas.width = 1200;
-      canvas.height = 630;
+      canvas.width = W;
+      canvas.height = H;
       const ctx = canvas.getContext('2d')!;
 
       ctx.fillStyle = '#F5F5F0';
-      ctx.fillRect(0, 0, 1200, 630);
+      ctx.fillRect(0, 0, W, H);
+
+      // ── Header bar ──
+      ctx.fillStyle = '#5A5A40';
+      ctx.fillRect(0, 0, W, HEADER_H);
+
+      let logoLoaded = false;
+      try {
+        const logo = new Image();
+        logo.crossOrigin = 'anonymous';
+        await new Promise<void>((resolve) => {
+          logo.onload = () => { logoLoaded = true; resolve(); };
+          logo.onerror = () => resolve();
+          logo.src = '/sigotuhuella.jpg';
+        });
+        if (logoLoaded) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(38, HEADER_H / 2, 22, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(logo, 16, HEADER_H / 2 - 22, 44, 44);
+          ctx.restore();
+        }
+      } catch {}
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 26px system-ui, -apple-system, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(logoLoaded ? 'Sigo tu Huella' : '🐾 Sigo tu Huella', logoLoaded ? 70 : 20, HEADER_H / 2);
+
+      const typeLabels: Record<string, { text: string; bg: string; fg: string }> = {
+        reunited: { text: 'Reencuentro', bg: '#d1fae5', fg: '#065f46' },
+        adopted: { text: 'Adopción', bg: '#fdd7b0', fg: '#9a3412' },
+        manual: { text: 'Novedad', bg: '#fef3c7', fg: '#92400e' },
+      };
+      const badge = typeLabels[item.type] || typeLabels.manual;
+      ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+      const badgeText = badge.text;
+      const badgeW = ctx.measureText(badgeText).width + 24;
+      const badgeX = W - IMG_PAD - badgeW;
+      const badgeY = (HEADER_H - 28) / 2;
+      ctx.fillStyle = badge.bg;
+      ctx.beginPath();
+      ctx.roundRect(badgeX, badgeY, badgeW, 28, 14);
+      ctx.fill();
+      ctx.fillStyle = badge.fg;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(badgeText, badgeX + 12, HEADER_H / 2);
+
+      // ── Cover image (or gradient fallback) ──
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(IMG_X, IMG_Y, IMG_W, IMG_H, 16);
+      ctx.closePath();
+      ctx.clip();
 
       if (imageUrl) {
         const img = new Image();
         img.crossOrigin = 'anonymous';
         await new Promise<void>((resolve) => {
           img.onload = () => {
-            const aspect = img.width / img.height;
-            let drawW = 1200;
-            let drawH = 1200 / aspect;
-            if (drawH > 400) {
-              drawH = 400;
-              drawW = 400 * aspect;
+            const srcAspect = img.width / img.height;
+            const dstAspect = IMG_W / IMG_H;
+            let sx = 0, sy = 0, sw = img.width, sh = img.height;
+            if (srcAspect > dstAspect) {
+              sw = img.height * dstAspect;
+              sx = (img.width - sw) / 2;
+            } else {
+              sh = img.width / dstAspect;
+              sy = (img.height - sh) / 2;
             }
-            ctx.drawImage(img, (1200 - drawW) / 2, 30, drawW, drawH);
+            ctx.drawImage(img, sx, sy, sw, sh, IMG_X, IMG_Y, IMG_W, IMG_H);
             resolve();
           };
-          img.onerror = () => resolve();
+          img.onerror = () => {
+            drawPlaceholderGradient(ctx, IMG_X, IMG_Y, IMG_W, IMG_H);
+            resolve();
+          };
           img.src = imageUrl;
         });
+      } else {
+        drawPlaceholderGradient(ctx, IMG_X, IMG_Y, IMG_W, IMG_H);
       }
+      ctx.restore();
 
+      // ── Title ──
       ctx.fillStyle = '#5A5A40';
-      ctx.font = 'bold 36px system-ui, -apple-system, sans-serif';
-      const titleLines = wrapText(ctx, item.title, 1100);
+      ctx.font = 'bold 32px system-ui, -apple-system, sans-serif';
+      ctx.textBaseline = 'top';
+      const titleLines = wrapText(ctx, item.title, W - IMG_PAD * 2, 2);
       titleLines.forEach((line, i) => {
-        ctx.fillText(line, 50, 460 + i * 44);
+        ctx.fillText(line, IMG_PAD, TITLE_Y + i * 40);
       });
 
-      ctx.fillStyle = '#D48C70';
-      ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
-      ctx.fillText('Sigo tu Huella', 50, 590);
-
+      // ── Date + subtitle ──
+      const dateStr = formatNewsDate(item.created_at);
       ctx.fillStyle = '#999';
-      ctx.font = '16px system-ui, -apple-system, sans-serif';
-      ctx.fillText(newsUrl, 50, 615);
+      ctx.font = '18px system-ui, -apple-system, sans-serif';
+      ctx.fillText(`${dateStr}  ·  Barrios Villa Garibaldi`, IMG_PAD, TITLE_Y + titleLines.length * 40 + 12);
 
+      // ── Footer bar ──
+      ctx.fillStyle = '#D48C70';
+      ctx.fillRect(0, H - FOOTER_H, W, FOOTER_H);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '18px system-ui, -apple-system, sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('www.sigotuhuella.online', W / 2 - ctx.measureText('www.sigotuhuella.online').width / 2, H - FOOTER_H / 2);
+
+      // ── Export & share ──
       const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((b) => {
           if (b) resolve(b);
@@ -172,7 +254,21 @@ export default function NovedadDetail() {
     }
   };
 
-  const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
+  const drawPlaceholderGradient = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) => {
+    const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+    grad.addColorStop(0, '#5A5A40');
+    grad.addColorStop(1, '#D48C70');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.font = '180px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🐾', x + w / 2, y + h / 2);
+    ctx.textAlign = 'start';
+  };
+
+  const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number = 2): string[] => {
     const words = text.split(' ');
     const lines: string[] = [];
     let currentLine = '';
@@ -184,9 +280,11 @@ export default function NovedadDetail() {
       } else {
         currentLine = testLine;
       }
+      if (lines.length >= maxLines) break;
     }
-    if (currentLine) lines.push(currentLine);
-    return lines.slice(0, 3);
+    if (currentLine && lines.length < maxLines) lines.push(currentLine);
+    else if (currentLine) lines[lines.length - 1] += '...';
+    return lines;
   };
 
   const fallbackToClipboard = async (text: string) => {
