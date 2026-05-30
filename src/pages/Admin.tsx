@@ -195,12 +195,18 @@ export default function Admin() {
   const handleNewsFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const compressed = await compressImage(file);
-    setNewsFile(compressed);
-    setNewsPreview(URL.createObjectURL(compressed));
-    const results = await filesToBase64([compressed]);
-    setNewsImageData(results[0]?.data || null);
-    setNewsMimeType(results[0]?.mimeType || null);
+    try {
+      const compressed = await compressImage(file);
+      setNewsFile(compressed);
+      setNewsPreview(URL.createObjectURL(compressed));
+      const results = await filesToBase64([compressed]);
+      setNewsImageData(results[0]?.data || null);
+      setNewsMimeType(results[0]?.mimeType || null);
+    } catch (err) {
+      console.error('Error al procesar imagen:', err);
+      alert('No se pudo procesar la imagen. Intentá con otra.');
+      e.target.value = '';
+    }
   };
 
   const handleAiGenerate = async () => {
