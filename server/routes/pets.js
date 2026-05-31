@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
 import { findMatches } from '../services/matchingService.js';
+import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
@@ -675,13 +676,19 @@ router.post('/public', async (req, res) => {
        </table>
        <p style="text-align:center;margin-top:16px;">
          <a href="${frontendUrl}/pet/${pet.id}" style="background-color:#3b82f6;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">Ver publicación</a>
-       </p>`
-    ).catch(err => console.error('Failed to send admin notification:', err));
+</p>`
+        ).catch(err => console.error('Failed to send admin notification:', err));
 
-    // Run matching in background
-    findMatches(pet).catch(err => console.error('Matching error:', err));
+        sendPushToAdmins({
+          title: '🐾 Nuevo reporte público',
+          body: `${species} — ${status === 'sighted' ? 'Avistado' : 'Retenido'} en ${location}`,
+          url: `${frontendUrl}/pet/${pet.id}`,
+        }).catch(err => console.error('Push error:', err));
 
-    res.status(201).json({ pet });
+        // Run matching in background
+        findMatches(pet).catch(err => console.error('Matching error:', err));
+
+        res.status(201).json({ pet });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Create public pet error:', err);
@@ -780,13 +787,19 @@ router.post('/lost-report', async (req, res) => {
        </table>
        <p style="text-align:center;margin-top:16px;">
          <a href="${frontendUrl}/pet/${pet.id}" style="background-color:#3b82f6;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">Ver publicación</a>
-       </p>`
-    ).catch(err => console.error('Failed to send admin notification:', err));
+</p>`
+        ).catch(err => console.error('Failed to send admin notification:', err));
 
-    // Run matching in background
-    findMatches(pet).catch(err => console.error('Matching error:', err));
+        sendPushToAdmins({
+          title: '😢 Mascota perdida',
+          body: `${name || species} perdid${species === 'gato' ? 'a' : 'o'} en ${location}`,
+          url: `${frontendUrl}/pet/${pet.id}`,
+        }).catch(err => console.error('Push error:', err));
 
-    res.status(201).json({ pet, registrationPending: !!registrationToken });
+        // Run matching in background
+        findMatches(pet).catch(err => console.error('Matching error:', err));
+
+        res.status(201).json({ pet, registrationPending: !!registrationToken });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Create lost pet report error:', err);

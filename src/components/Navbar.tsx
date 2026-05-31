@@ -1,9 +1,10 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard, FileText, Share2 } from 'lucide-react';
+import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard, FileText, Share2, Bell, BellOff } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/src/hooks/useAuth';
+import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,6 +15,25 @@ export default function Navbar() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const isMember = user && user.volunteer_status === 'active';
+  const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    isSupported().then(async (ok) => {
+      if (!ok) { setPushEnabled(null); return; }
+      const sub = await isSubscribed();
+      setPushEnabled(sub);
+    });
+  }, []);
+
+  const handleBellClick = async () => {
+    if (pushEnabled) {
+      const ok = await unsubscribe();
+      if (ok) setPushEnabled(false);
+    } else {
+      const ok = await subscribe();
+      if (ok) setPushEnabled(true);
+    }
+  };
 
   const navItems = [
     { name: 'Inicio', path: '/', icon: PawPrint },
@@ -87,6 +107,18 @@ export default function Navbar() {
             </div>
 
             <div className="flex items-center gap-3">
+              {pushEnabled !== null && (
+                <button
+                  onClick={handleBellClick}
+                  title={pushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}
+                  className={cn(
+                    "p-2 rounded-full transition-colors",
+                    pushEnabled ? "text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20" : "text-gray-400 hover:text-brand-primary hover:bg-brand-primary/10"
+                  )}
+                >
+                  {pushEnabled ? <Bell className="w-4 h-4 sm:w-5 sm:h-5" /> : <BellOff className="w-4 h-4 sm:w-5 sm:h-5" />}
+                </button>
+              )}
               <div className="w-px h-6 bg-gray-300" />
 
               {!user && (
@@ -231,12 +263,24 @@ export default function Navbar() {
                   )}
                 </AnimatePresence>
               </div>
+        )}
+        {pushEnabled !== null && (
+          <button
+            onClick={handleBellClick}
+            title={pushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}
+            className={cn(
+              "p-2 rounded-full transition-colors",
+              pushEnabled ? "text-brand-primary bg-brand-primary/10" : "text-gray-400"
             )}
-            <button
-              className="p-2 text-brand-primary"
-              onClick={() => setIsOpen(!isOpen)}
-              aria-label="Menú"
-            >
+          >
+            {pushEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+          </button>
+        )}
+        <button
+          className="p-2 text-brand-primary"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-label="Menú"
+        >
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
@@ -265,8 +309,20 @@ export default function Navbar() {
                 <item.icon className="w-5 h-5 shrink-0" />
                 {item.name}
               </Link>
-            ))}
-            {user ? (
+        ))}
+        {pushEnabled !== null && (
+          <button
+            onClick={() => { handleBellClick(); }}
+            className={cn(
+              "w-full flex items-center gap-3 text-base font-medium p-3 rounded-lg transition-colors",
+              pushEnabled ? "text-brand-primary bg-brand-primary/10" : "text-gray-600"
+            )}
+          >
+            {pushEnabled ? <Bell className="w-5 h-5 shrink-0" /> : <BellOff className="w-5 h-5 shrink-0" />}
+            {pushEnabled ? 'Notificaciones activadas' : 'Activar notificaciones'}
+          </button>
+        )}
+        {user ? (
               <div className="border-t border-brand-accent pt-3 mt-2">
                 <p className="text-xs text-gray-400 px-2 mb-2 font-bold uppercase tracking-widest">Mi Cuenta</p>
                 <div className="flex items-center gap-3 px-2 mb-3 pb-3 border-b border-brand-accent">

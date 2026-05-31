@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, sendMemberApprovalEmail, sendAdminNotificationEmail } from '../auth.js';
+import { sendPushToAdmins, sendPushToUser } from '../services/pushService.js';
 
 const router = Router();
 
@@ -95,6 +96,12 @@ router.post('/', requireAuth, async (req, res) => {
     `;
     sendAdminNotificationEmail(adminSubject, adminHtml).catch(err => console.error('Failed to send admin volunteer notification:', err));
 
+    sendPushToAdmins({
+      title: '📢 Nueva solicitud de socio',
+      body: `Solicitud de ${req.body.fullName || 'un vecino'}`,
+      url: 'https://sigotuhuella.online/admin',
+    }).catch(err => console.error('Push error:', err));
+
     res.status(201).json({ request: result.rows[0] });
   } catch (err) {
     console.error('Create volunteer request error:', err);
@@ -184,6 +191,12 @@ router.put('/:id', requireAdmin, async (req, res) => {
         const dbUser = userRes.rows[0];
         sendMemberApprovalEmail(dbUser.email, dbUser.display_name, dbUser.member_number || finalMemberNumber)
           .catch(err => console.error('Failed to send member approval email:', err));
+
+        sendPushToUser(volunteer.user_id, {
+          title: '🎉 ¡Tu solicitud de socio fue aprobada!',
+          body: `Tu número de socio: ${dbUser.member_number || finalMemberNumber}`,
+          url: 'https://sigotuhuella.online/sumate',
+        }).catch(err => console.error('Push error:', err));
       }
 
       const result = await pool.query(

@@ -17,6 +17,8 @@ import settingsRoutes from './routes/settings.js';
 import whatsappRoutes from './routes/whatsapp.js';
 import aiRoutes from './routes/ai.js';
 import videoGeneratorRoutes from './routes/videoGenerator.js';
+import pushRoutes from './routes/push.js';
+import { verifyToken } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -56,6 +58,26 @@ app.get('/og-image/:petId/:index', async (req, res) => {
   }
 });
 
+app.get('/og-news-image/:newsId', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT image_data, mime_type FROM news WHERE id = $1',
+      [req.params.newsId]
+    );
+    if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).end();
+    const img = result.rows[0];
+    const buffer = Buffer.from(img.image_data, 'base64');
+    res.set('Content-Type', img.mime_type);
+    res.set('Content-Length', buffer.length);
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.end(buffer);
+  } catch (err) {
+    console.error('OG news image error:', err);
+    res.status(500).end();
+  }
+});
+
 app.use(express.static(join(__dirname, '..', 'dist')));
 app.use('/generated', express.static(join(__dirname, '..', 'public', 'generated')));
 
@@ -77,6 +99,14 @@ app.use('/api/members', memberRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/ai', aiRoutes);
+
+app.use('/api/push', (req, res, next) => {
+  const header = req.headers.authorization;
+  if (header && header.startsWith('Bearer ')) {
+    try { req.user = verifyToken(header.slice(7)); } catch {}
+  }
+  next();
+}, pushRoutes);
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -127,7 +157,49 @@ ${pet && pet.mime_type ? `<meta property="og:image:type" content="${escapeHtml(p
    }
  });
 
- // Video generator admin routes
+ app.get('/novedad/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT title, content, image_data, mime_type, type FROM news WHERE id = $1',
+      [req.params.id]
+    );
+    const news = result.rows[0];
+    const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'https';
+    const baseUrl = `${protocol}://${req.get('host')}`;
+    let title = 'Novedad - Sigo Tu Huella';
+    let description = 'Novedad de la comunidad de Sigo Tu Huella - Barrios Villa Garibaldi';
+    let image = `${baseUrl}/sigotuhuella.jpg`;
+    let imageType = '';
+    if (news) {
+      const typeLabels = { reunited: 'Reencuentro', adopted: 'Adopción', manual: 'Novedad' };
+      title = `${news.title} - ${typeLabels[news.type] || 'Novedad'} | Sigo Tu Huella`;
+      description = news.content ? news.content.substring(0, 160) : 'Ver más información en Sigo Tu Huella';
+      if (news.image_data && news.mime_type) {
+        image = `${baseUrl}/og-news-image/${req.params.id}`;
+        imageType = news.mime_type;
+      }
+    }
+    const ogTags = `<meta property="og:title" content="${escapeHtml(title)}" />
+<meta property="og:description" content="${escapeHtml(description)}" />
+<meta property="og:url" content="${baseUrl}/novedad/${req.params.id}" />
+<meta property="og:type" content="article" />
+<meta property="og:locale" content="es_AR" />
+<meta property="og:image" content="${escapeHtml(image)}" />
+<meta property="og:image:secure_url" content="${escapeHtml(image)}" />
+${imageType ? `<meta property="og:image:type" content="${escapeHtml(imageType)}" />` : ''}
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="${escapeHtml(image)}" />
+</head>`;
+    res.send(indexHtml.replace('</head>', ogTags));
+  } catch (err) {
+    console.error('OG news error:', err);
+    res.send(indexHtml);
+  }
+});
+
+// Video generator admin routes
  app.use('/api/admin/videos', videoGeneratorRoutes);
 
  app.get('*', (_req, res) => {

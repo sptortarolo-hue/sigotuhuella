@@ -10,6 +10,9 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'sigotuhuella.jpg'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],

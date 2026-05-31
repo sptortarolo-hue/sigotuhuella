@@ -1,5 +1,6 @@
 import pool from '../db.js';
 import { sendAdminNotificationEmail } from '../auth.js';
+import { sendPushToAdmins } from './pushService.js';
 
 const SPECIES_KEYWORDS = {
   perro: ['perro', 'perra', 'cachorro', 'cachorra', 'canino', 'dog', 'perrito', 'perrita'],
@@ -134,9 +135,15 @@ export async function findMatches(pet) {
                <td style="padding:8px;border:1px solid #e2e8f0;">${match.score}%</td></tr>
            <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Razones</td>
                <td style="padding:8px;border:1px solid #e2e8f0;">${match.reasons.join(', ')}</td></tr>
-         </table>`
-      );
-    }
+</table>`
+    );
+
+    sendPushToAdmins({
+      title: '🎯 Posible match detectado',
+      body: `${pet.name || pet.species} ↔ ${match.lost.name || 'Sin nombre'} (${match.score}%)`,
+      url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/pet/${pet.id}`,
+    }).catch(err => console.error('Push error:', err));
+  }
 
     return matches;
   } catch (err) {

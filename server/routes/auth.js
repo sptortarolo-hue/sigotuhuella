@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { generateToken, hashPassword, comparePassword, requireAuth, sendPasswordResetEmail, generateResetToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
 import crypto from 'crypto';
+import { sendPushToAdmins } from '../services/pushService.js';
 
 const router = Router();
 
@@ -52,6 +53,12 @@ router.post('/register', async (req, res) => {
       </table>
     `;
     sendAdminNotificationEmail(adminSubject, adminHtml).catch(err => console.error('Failed to send admin signup notification:', err));
+
+      sendPushToAdmins({
+        title: '🔔 Nuevo usuario registrado',
+        body: `${user.display_name} se registró en la plataforma`,
+        url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/admin`,
+      }).catch(err => console.error('Push error:', err));
 
     res.status(201).json({ token, user: { ...user, badges: user.badges || [] } });
   } catch (err) {

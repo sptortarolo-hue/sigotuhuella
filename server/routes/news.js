@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAdmin, requireAuth } from '../auth.js';
+import { sendPushToAll } from '../services/pushService.js';
 
 const router = Router();
 
@@ -51,7 +52,16 @@ router.post('/', requireAdmin, async (req, res) => {
       [title, content, imageData || null, mimeType || null, videoUrl || null,
        type || 'manual', relatedPetId || null, req.user.id]
     );
-    res.status(201).json({ news: result.rows[0] });
+    const newsItem = result.rows[0];
+
+    const typeLabels = { reunited: 'Reencuentro', adopted: 'Adopción', manual: 'Novedad' };
+    sendPushToAll({
+      title: `📰 ${typeLabels[newsItem.type] || 'Novedad'}: ${newsItem.title}`,
+      body: newsItem.content.substring(0, 100),
+      url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/novedad/${newsItem.id}`,
+    }).catch(err => console.error('Push error:', err));
+
+    res.status(201).json({ news: newsItem });
   } catch (err) {
     console.error('Create news error:', err);
     res.status(500).json({ error: 'Failed to create news' });

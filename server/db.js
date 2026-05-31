@@ -109,6 +109,15 @@ INSERT INTO settings (key, value) VALUES
   ('matching_min_score', '70'),
   ('whatsapp_greeting', '🐾 ¡Gracias por contactar a Sigo Tu Huella! ¿Qué querés reportar?\n1️⃣ Avistaje (viste una mascota)\n2️⃣ Necesita atención (mascota herida/en riesgo)\n3️⃣ Accidentada')
 ON CONFLICT (key) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth_key TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
 `;
 
 export async function initDb() {
