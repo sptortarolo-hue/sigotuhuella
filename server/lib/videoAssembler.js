@@ -332,7 +332,7 @@ async function generateClosingClip(dims, style, workDir) {
   const logo = await getLogoImage();
 
   const logoSize = Math.round((h < w ? h : w) * 0.35);
-  const logoCenterY = h * 0.28;
+  const logoCenterY = h * 0.32;
 
   const titleSize = h > w ? 64 : 48;
   const titleY = logoCenterY + logoSize / 2 + titleSize * 0.8 + 20;
@@ -395,6 +395,10 @@ async function generateClosingClip(dims, style, workDir) {
     ctx.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 2;
     ctx.fillText('SIGO TU HUELLA', w / 2, titleY);
     ctx.restore();
 
@@ -417,6 +421,10 @@ async function generateClosingClip(dims, style, workDir) {
     ctx.font = `bold ${urlSize}px system-ui, -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 2;
     ctx.fillText('sigotuhuella.online', w / 2, urlY);
     ctx.restore();
 
@@ -426,9 +434,12 @@ async function generateClosingClip(dims, style, workDir) {
     ctx.font = `bold ${ctaSize}px system-ui, -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = terracotta;
-    ctx.fillText('Visitá nuestra web', w / 2, cta1Y);
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 2;
     ctx.fillStyle = '#ffffff';
+    ctx.fillText('Visitá nuestra web', w / 2, cta1Y);
     ctx.fillText('Descargá la app gratis', w / 2, cta2Y);
     ctx.restore();
 
@@ -557,8 +568,8 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
         });
         synthesizer.close();
 
-        if (result && result.audioData && result.audioData.length > 0
-            && result.reason !== sdk.ResultReason.Canceled) {
+        if (result && result.audioData && result.audioData.byteLength > 0
+          && result.reason !== sdk.ResultReason.Canceled) {
           fs.writeFileSync(ttsTmpPath, Buffer.from(result.audioData));
           ttsOk = true;
         } else if (result && result.reason === sdk.ResultReason.Canceled) {
@@ -585,7 +596,7 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
           });
           synthesizer.close();
 
-          if (result && result.audioData && result.audioData.length > 0) {
+          if (result && result.audioData && result.audioData.byteLength > 0) {
             fs.writeFileSync(ttsTmpPath, Buffer.from(result.audioData));
             ttsOk = true;
           }
