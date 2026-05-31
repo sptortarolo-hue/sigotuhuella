@@ -128,7 +128,15 @@ async function getMusicFile(url) {
 }
 
 function escDrawText(text) {
-  return text.replace(/'/g, "'\\''").replace(/:/g, '\\:').replace(/%/g, '%%');
+  return text
+    .replace(/\\/g, '\\\\\\')
+    .replace(/'/g, "'\\''")
+    .replace(/:/g, '\\:')
+    .replace(/%/g, '%%')
+    .replace(/{/g, '\\{')
+    .replace(/}/g, '\\}')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]');
 }
 
 function getFontPath() {
@@ -155,16 +163,16 @@ async function generatePhotoClip(photoBase64, clipDur, zoompan, dims, workDir, c
   let zf, xf, yf;
   if (zoomDir === 1) {
     zf = `min(zoom+${zoomSpeed},1.4)`;
-    xf = panAmp > 0 ? `'iw/2-(iw/zoom/2)+${panAmp}*in*h'` : `'iw/2-(iw/zoom/2)'`;
-    yf = `'ih/2-(ih/zoom/2)'`;
+    xf = panAmp > 0 ? `iw/2-(iw/zoom/2)+${panAmp}*in*h` : `iw/2-(iw/zoom/2)`;
+    yf = `ih/2-(ih/zoom/2)`;
   } else if (zoomDir === -1) {
     zf = `max(1.4-${zoomSpeed}*on,1.0)`;
-    xf = `'iw/2-(iw/zoom/2)'`;
-    yf = `'ih/2-(ih/zoom/2)'`;
+    xf = `iw/2-(iw/zoom/2)`;
+    yf = `ih/2-(ih/zoom/2)`;
   } else {
     zf = '1.1';
-    xf = `'iw/2-(iw/zoom/2)+${panAmp}*sin(in/${FPS}/2)*iw*0.05'`;
-    yf = `'ih/2-(ih/zoom/2)'`;
+    xf = `iw/2-(iw/zoom/2)+${panAmp}*sin(in/${FPS}/2)*iw*0.05`;
+    yf = `ih/2-(ih/zoom/2)`;
   }
 
   const totalFrames = Math.round(clipDur * FPS);
@@ -289,7 +297,7 @@ async function generateOpeningClip(dims, style, workDir) {
   await new Promise((resolve, reject) => {
     ffmpeg()
       .input(path.join(workDir, 'opening_%04d.png'))
-      .inputOptions([`-framerate ${FPS}`, '-start_number', '0'])
+      .inputOptions(['-framerate', String(FPS), '-start_number', '0'])
       .outputOptions([
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',
@@ -411,7 +419,7 @@ async function generateClosingClip(dims, style, workDir) {
   await new Promise((resolve, reject) => {
     ffmpeg()
       .input(path.join(workDir, 'closing_%04d.png'))
-      .inputOptions([`-framerate ${FPS}`, '-start_number', '0'])
+      .inputOptions(['-framerate', String(FPS), '-start_number', '0'])
       .outputOptions([
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',
@@ -476,7 +484,7 @@ async function addWatermarkToVideo(videoPath, watermarkPath, dims, workDir) {
       .complexFilter([
         `[1:v]format=rgba,colorchannelmixer=aa=0.75[wm];[0:v][wm]overlay=W-w-${pad}:${pad}:format=auto,format=yuv420p[v]`,
       ])
-      .outputOptions(['-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p'])
+      .outputOptions(['-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-an'])
       .on('end', resolve)
       .on('error', (err, stdout, stderr) => {
         console.error('watermark stderr:', stderr);
@@ -666,23 +674,22 @@ async function addDrawTextToClip(clipPath, overlayText, clipStart, clipDur, dims
   const textY = h > w ? Math.round(h * 0.72) : Math.round(h * 0.78);
   const escaped = escDrawText(overlayText);
 
-  const drawboxFilter = `drawbox=x=0:y=${textY - 10}:w=iw:h=${fontSize + 24}:color=black@0.45:t=max:enable='between(t,0.3,${clipDur})'`;
-  let drawtextFilter;
+  const drawboxPart = `drawbox=x=0:y=${textY - 10}:w=iw:h=${fontSize + 24}:color=black@0.45:t=fill:enable='between(t,0.3,${clipDur})'[bg]`;
+  let drawtextPart;
   if (fontPath) {
-    drawtextFilter = `drawtext=text='${escaped}':fontfile=${fontPath}:fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t,0.3,${clipDur})'`;
+    drawtextPart = `[bg]drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t,0.3,${clipDur})'[v]`;
   } else {
-    drawtextFilter = `drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t,0.3,${clipDur})'`;
+    drawtextPart = `[bg]drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t,0.3,${clipDur})'[v]`;
   }
 
   await new Promise((resolve, reject) => {
     ffmpeg()
       .input(clipPath)
-      .complexFilter([drawboxFilter, drawtextFilter])
+      .complexFilter([`${drawboxPart};${drawtextPart}`])
       .outputOptions([
+        '-map', '[v]',
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',
-        '-c:a', 'aac',
-        '-b:a', '192k',
       ])
       .on('end', resolve)
       .on('error', (err, stdout, stderr) => {
@@ -709,7 +716,7 @@ async function concatenateClipsWithTransitions(clipPaths, transition, workDir) {
         .complexFilter([
           `[0:v][1:v]xfade=transition=${transition}:duration=${TRANSITION_DUR}:offset=${offset}[v]`,
         ])
-        .outputOptions(['-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p'])
+        .outputOptions(['-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-an'])
         .on('end', resolve)
         .on('error', (err, stdout, stderr) => {
           console.error('xfade stderr:', stderr);
@@ -734,7 +741,7 @@ async function concatenateClipsWithTransitions(clipPaths, transition, workDir) {
         .complexFilter([
           `[0:v][1:v]xfade=transition=${transition}:duration=${TRANSITION_DUR}:offset=${offset}[v]`,
         ])
-        .outputOptions(['-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p'])
+        .outputOptions(['-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-an'])
         .on('end', resolve)
         .on('error', (err, stdout, stderr) => {
           console.error('xfade stderr:', stderr);
@@ -848,7 +855,7 @@ export async function generateVideo(config) {
       console.warn('No audio generated, creating silent track');
       await new Promise((resolve, reject) => {
         ffmpeg()
-          .input('anullsrc')
+          .input('anullsrc=channel_layout=stereo:sample_rate=44100')
           .inputFormat('lavfi')
           .duration(duration)
           .outputOptions(['-c:a', 'libmp3lame', '-b:a', '128k'])
@@ -899,7 +906,7 @@ export async function generateVideo(config) {
           .complexFilter([
             `[0:v][1:v]xfade=transition=fade:duration=${TRANSITION_DUR}:offset=${offset}[v]`,
           ])
-          .outputOptions(['-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p'])
+          .outputOptions(['-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-an'])
           .on('end', resolve)
           .on('error', (err, stdout, stderr) => {
             console.error('final xfade stderr:', stderr);
@@ -918,7 +925,7 @@ export async function generateVideo(config) {
         ffmpeg()
           .input(listPath)
           .inputOptions(['-f', 'concat', '-safe', '0'])
-          .outputOptions(['-c:v', 'libx264', '-pix_fmt', 'yuv420p'])
+      .outputOptions(['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-an'])
           .on('end', resolve)
           .on('error', reject)
           .save(fullVideoPath);
