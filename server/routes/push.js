@@ -5,7 +5,7 @@ import { requireAuth } from '../auth.js';
 const router = Router();
 
 router.get('/vapid-key', (_req, res) => {
-  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || null });
 });
 
 router.post('/subscribe', async (req, res) => {

@@ -1,11 +1,22 @@
 import webpush from 'web-push';
 import pool from '../db.js';
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT || 'mailto:info@sigotuhuella.online',
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
+let vapidReady = false;
+
+try {
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT || 'mailto:info@sigotuhuella.online',
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+    vapidReady = true;
+  } else {
+    console.warn('VAPID keys not configured — push notifications disabled');
+  }
+} catch (err) {
+  console.error('VAPID setup error:', err);
+}
 
 async function getSubscriptions(whereClause, params = []) {
   const result = await pool.query(
@@ -19,6 +30,7 @@ async function getSubscriptions(whereClause, params = []) {
 }
 
 async function sendToSubscriptions(subscriptions, payload) {
+  if (!vapidReady || subscriptions.length === 0) return 0;
   const stringified = JSON.stringify(payload);
   const results = await Promise.allSettled(
     subscriptions.map(sub =>
