@@ -1,13 +1,12 @@
 import express from 'express';
 import { requireAuth, requireAdmin } from '../auth.js';
 import pool from '../db.js';
-import { generateVideo } from '../lib/videoAssembler.js';
+import { generateVideo, getRandomReunionPhotos, getGlobalStats, getPetImages, getNewsImage } from '../lib/videoAssembler.js';
+import { generateVideoContent, generateVideoImages } from '../services/aiService.js';
 import fs from 'fs';
 import path from 'path';
 
 const router = express.Router();
-
-const GENERATION_COOLDOWN = 30_000;
 
 router.get('/', requireAuth, requireAdmin, async (req, res) => {
   try {
@@ -24,16 +23,72 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/available-pets', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { status, limit = 100 } = req.query;
+    let query = `SELECT p.id, p.name, p.species, p.status, p.breed,
+      (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as cover_image
+      FROM pets p`;
+    const params = [];
+    if (status) {
+      query += ` WHERE p.status = $1`;
+      params.push(status);
+    }
+    query += ` ORDER BY p.created_at DESC LIMIT $${params.length + 1}`;
+    params.push(parseInt(limit));
+
+    const result = await pool.query(query, params);
+    res.json({ pets: result.rows });
+  } catch (err) {
+    console.error('Available pets error:', err);
+    res.status(500).json({ error: 'Failed to fetch pets' });
+  }
+});
+
+router.get('/available-news', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { type, limit = 100 } = req.query;
+    let query = `SELECT id, title, type, image_data, mime_type FROM news`;
+    const params = [];
+    if (type) {
+      query += ` WHERE type = $1`;
+      params.push(type);
+    }
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+    params.push(parseInt(limit));
+
+    const result = await pool.query(query, params);
+    res.json({ news: result.rows });
+  } catch (err) {
+    console.error('Available news error:', err);
+    res.status(500).json({ error: 'Failed to fetch news' });
+  }
+});
+
+router.post('/generate-ai-content', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { topic, style, numScenes } = req.body;
+    if (!style) return res.status(400).json({ error: 'style es requerido' });
+
+    const content = await generateVideoContent(topic, style, numScenes || 5);
+    res.json(content);
+  } catch (err) {
+    console.error('AI content generation error:', err);
+    res.status(500).json({ error: err.message || 'Error generando contenido con IA' });
+  }
+});
+
 router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
   const {
     style = 'emotive',
-    duration = 60,
+    duration = 30,
     music = 'emotional',
     includeVoice = true,
-    petId,
-    customScript,
-    overlayText,
-    format = 'vertical'
+    format = 'vertical',
+    mode = 'real',
+    scenes = [],
+    voiceScript = '',
+    topic,
   } = req.body;
 
   try {
@@ -59,7 +114,70 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
       return res.status(429).json({ error: 'Esperá 30 segundos entre generaciones.' });
     }
 
-    const title = `Video ${style} ${duration}s ${format}`;
+    let resolvedScenes = [];
+
+    if (mode === 'ai') {
+      const numScenes = Math.max(3, Math.min(10, scenes.length || 5));
+      const aiContent = await generateVideoContent(topic, style, numScenes);
+      const aiImages = await generateVideoImages(aiContent.imagePrompts);
+
+      for (let i = 0; i < numScenes; i++) {
+        if (aiImages[i]) {
+          resolvedScenes.push({
+            type: 'photo',
+            imageBase64: aiImages[i],
+            overlayText: aiContent.overlayTexts[i] || '',
+          });
+        }
+      }
+
+      var finalVoiceScript = aiContent.voiceScript || voiceScript;
+    } else {
+      for (const scene of scenes) {
+        if (scene.source === 'pet' && scene.petId) {
+          const images = await getPetImages(scene.petId);
+          for (const img of images.slice(0, 1)) {
+            resolvedScenes.push({
+              type: 'photo',
+              imageBase64: img,
+              overlayText: scene.overlayText || '',
+            });
+          }
+        } else if (scene.source === 'news' && scene.newsId) {
+          const img = await getNewsImage(scene.newsId);
+          if (img) {
+            resolvedScenes.push({
+              type: 'photo',
+              imageBase64: img,
+              overlayText: scene.overlayText || '',
+            });
+          }
+        } else if (scene.type === 'photo' && scene.imageBase64) {
+          resolvedScenes.push(scene);
+        }
+      }
+
+      if (resolvedScenes.length === 0) {
+        const randomPhotos = await getRandomReunionPhotos(6);
+        for (const photo of randomPhotos) {
+          resolvedScenes.push({
+            type: 'photo',
+            imageBase64: photo,
+            overlayText: '',
+          });
+        }
+      }
+
+      var finalVoiceScript = voiceScript;
+    }
+
+    if (resolvedScenes.length === 0) {
+      return res.status(400).json({ error: 'No hay imágenes para generar el video. Seleccioná al menos una.' });
+    }
+
+    const title = mode === 'ai'
+      ? `Video IA ${style} ${duration}s ${format}`
+      : `Video ${style} ${duration}s ${format}`;
     const insertResult = await pool.query(
       `INSERT INTO promotional_videos (title, video_data, style, duration, music_track, voice_enabled, format, status, created_by)
        VALUES ($1, '', $2, $3, $4, $5, $6, 'generating', $7)
@@ -71,7 +189,13 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
     setImmediate(async () => {
       try {
         const result = await generateVideo({
-          style, duration, music, includeVoice, petId, customScript, overlayText, format
+          style,
+          duration,
+          music,
+          includeVoice,
+          format,
+          voiceScript: finalVoiceScript,
+          scenes: resolvedScenes,
         });
         await pool.query(
           `UPDATE promotional_videos SET video_data = $1, thumbnail_data = $2, status = 'ready' WHERE id = $3`,

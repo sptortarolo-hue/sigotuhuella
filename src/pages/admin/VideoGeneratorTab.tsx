@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Film, Download, Trash2, Loader2, RefreshCw, Share2, Copy, AlertCircle, CheckCircle, Monitor, Smartphone, Square } from 'lucide-react';
+import { Film, Download, Trash2, Loader2, RefreshCw, Share2, Copy, AlertCircle, CheckCircle, Monitor, Smartphone, Square, Sparkles, Image, Search, Check, X } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 
@@ -19,10 +19,36 @@ interface Video {
   created_by_name: string | null;
 }
 
-interface Pet {
+interface AvailablePet {
   id: string;
-  name: string;
+  name: string | null;
   species: string;
+  status: string;
+  breed: string | null;
+  cover_image: string | null;
+}
+
+interface AvailableNews {
+  id: string;
+  title: string;
+  type: string;
+  image_data: string | null;
+  mime_type: string | null;
+}
+
+interface SceneItem {
+  source: 'pet' | 'news';
+  petId?: string;
+  newsId?: string;
+  overlayText: string;
+  previewImage: string | null;
+  label: string;
+}
+
+interface AIContent {
+  voiceScript: string;
+  overlayTexts: string[];
+  imagePrompts: string[];
 }
 
 const FORMAT_OPTIONS = [
@@ -42,6 +68,25 @@ const STYLE_LABELS: Record<string, string> = {
   informative: 'Informativo',
   viral: 'Viral',
 };
+
+const PET_STATUS_OPTIONS = [
+  { value: '', label: 'Todos los estados' },
+  { value: 'reunited', label: 'Reencontrados' },
+  { value: 'lost', label: 'Perdidos' },
+  { value: 'adopted', label: 'Adoptados' },
+  { value: 'for_adoption', label: 'En adopción' },
+  { value: 'sighted', label: 'Avistados' },
+  { value: 'retained', label: 'Retenidos' },
+  { value: 'accidented', label: 'Accidentados' },
+  { value: 'needs_attention', label: 'Necesitan atención' },
+];
+
+const NEWS_TYPE_OPTIONS = [
+  { value: '', label: 'Todos los tipos' },
+  { value: 'reunited', label: 'Reencontrados' },
+  { value: 'adopted', label: 'Adoptados' },
+  { value: 'manual', label: 'Manual' },
+];
 
 export default function VideoGeneratorTab() {
   const { user } = useAuth();
@@ -63,23 +108,33 @@ export default function VideoGeneratorTab() {
     return fetch(url, { ...options, headers });
   }
 
+  const [mode, setMode] = useState<'real' | 'ai'>('real');
   const [config, setConfig] = useState({
     style: 'emotive',
     duration: 30,
     music: 'emotional',
     includeVoice: true,
-    petId: '',
-    customScript: '',
-    overlayText: '',
     format: 'vertical',
   });
+
+  const [petFilter, setPetFilter] = useState('');
+  const [newsFilter, setNewsFilter] = useState('');
+  const [availablePets, setAvailablePets] = useState<AvailablePet[]>([]);
+  const [availableNews, setAvailableNews] = useState<AvailableNews[]>([]);
+  const [selectedScenes, setSelectedScenes] = useState<SceneItem[]>([]);
+  const [voiceScript, setVoiceScript] = useState('');
+  const [topic, setTopic] = useState('');
+
+  const [aiContent, setAiContent] = useState<AIContent | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
   const [generating, setGenerating] = useState(false);
   const [generatingElapsed, setGeneratingElapsed] = useState(0);
   const [videos, setVideos] = useState<Video[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [pets, setPets] = useState<Pet[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [loadingContent, setLoadingContent] = useState(false);
 
   const musicOptions = [
     { value: 'emotional', label: 'Emocional Piano' },
@@ -96,7 +151,7 @@ export default function VideoGeneratorTab() {
 
   useEffect(() => {
     fetchVideos();
-    fetchPets();
+    fetchAvailableContent();
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
@@ -109,6 +164,10 @@ export default function VideoGeneratorTab() {
     }, 1000);
     return () => clearInterval(timer);
   }, [generating]);
+
+  useEffect(() => {
+    fetchAvailableContent();
+  }, [petFilter, newsFilter]);
 
   async function fetchVideos() {
     setRefreshing(true);
@@ -125,15 +184,89 @@ export default function VideoGeneratorTab() {
     }
   }
 
-  async function fetchPets() {
+  async function fetchAvailableContent() {
+    setLoadingContent(true);
     try {
-      const res = await authFetch('/api/pets?status=reunited&limit=100');
-      if (res.ok) {
-        const data = await res.json();
-        setPets(data.pets || data || []);
+      const petQuery = petFilter ? `&status=${petFilter}` : '';
+      const petRes = await authFetch(`/api/admin/videos/available-pets?limit=50${petQuery}`);
+      if (petRes.ok) {
+        const data = await petRes.json();
+        setAvailablePets(data.pets || []);
+      }
+
+      const newsQuery = newsFilter ? `&type=${newsFilter}` : '';
+      const newsRes = await authFetch(`/api/admin/videos/available-news?limit=50${newsQuery}`);
+      if (newsRes.ok) {
+        const data = await newsRes.json();
+        setAvailableNews(data.news || []);
       }
     } catch (e) {
-      console.error('Failed to fetch pets:', e);
+      console.error('Failed to fetch content:', e);
+    } finally {
+      setLoadingContent(false);
+    }
+  }
+
+  function togglePet(pet: AvailablePet) {
+    setSelectedScenes(prev => {
+      const exists = prev.find(s => s.source === 'pet' && s.petId === pet.id);
+      if (exists) return prev.filter(s => s !== exists);
+      return [...prev, {
+        source: 'pet' as const,
+        petId: pet.id,
+        overlayText: '',
+        previewImage: pet.cover_image ? `data:image/jpeg;base64,${pet.cover_image}` : null,
+        label: pet.name || `${pet.species} (${pet.status})`,
+      }];
+    });
+  }
+
+  function toggleNews(news: AvailableNews) {
+    setSelectedScenes(prev => {
+      const exists = prev.find(s => s.source === 'news' && s.newsId === news.id);
+      if (exists) return prev.filter(s => s !== exists);
+      return [...prev, {
+        source: 'news' as const,
+        newsId: news.id,
+        overlayText: '',
+        previewImage: news.image_data ? `data:${news.mime_type || 'image/jpeg'};base64,${news.image_data}` : null,
+        label: news.title,
+      }];
+    });
+  }
+
+  function updateSceneOverlay(index: number, text: string) {
+    setSelectedScenes(prev => prev.map((s, i) => i === index ? { ...s, overlayText: text } : s));
+  }
+
+  function removeScene(index: number) {
+    setSelectedScenes(prev => prev.filter((_, i) => i !== index));
+  }
+
+  async function generateAIContent() {
+    setAiLoading(true);
+    setAiContent(null);
+    setGenerateError(null);
+    try {
+      const res = await authFetch('/api/admin/videos/generate-ai-content', {
+        method: 'POST',
+        body: JSON.stringify({
+          topic: topic || undefined,
+          style: config.style,
+          numScenes: Math.max(3, Math.min(8, Math.floor(config.duration / 5))),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Error desconocido' }));
+        throw new Error(data.error || `Error ${res.status}`);
+      }
+      const content = await res.json();
+      setAiContent(content);
+      if (content.voiceScript) setVoiceScript(content.voiceScript);
+    } catch (e: any) {
+      setGenerateError(e.message || 'Error generando contenido con IA');
+    } finally {
+      setAiLoading(false);
     }
   }
 
@@ -166,21 +299,42 @@ export default function VideoGeneratorTab() {
   async function generate() {
     if (!canManage || generating) return;
     setGenerateError(null);
+
+    if (mode === 'real' && selectedScenes.length === 0) {
+      setGenerateError('Seleccioná al menos una foto o noticia para el video.');
+      return;
+    }
+
     setGenerating(true);
     try {
-      const body = {
+      const body: any = {
         style: config.style,
         duration: config.duration,
         music: config.music,
         includeVoice: config.includeVoice,
-        petId: config.petId || undefined,
-        customScript: config.customScript?.trim() || undefined,
-        overlayText: config.overlayText?.trim() || undefined,
         format: config.format,
+        mode,
       };
+
+      if (mode === 'ai') {
+        body.topic = topic || undefined;
+        body.voiceScript = voiceScript || undefined;
+        body.scenes = (aiContent?.imagePrompts || []).map((_, i) => ({
+          type: 'photo',
+          overlayText: aiContent?.overlayTexts?.[i] || '',
+        }));
+      } else {
+        body.scenes = selectedScenes.map(s => ({
+          source: s.source,
+          petId: s.petId,
+          newsId: s.newsId,
+          overlayText: s.overlayText,
+        }));
+        body.voiceScript = voiceScript || undefined;
+      }
+
       const res = await authFetch('/api/admin/videos/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -243,12 +397,259 @@ export default function VideoGeneratorTab() {
     );
   }
 
+  const isPetSelected = (petId: string) => selectedScenes.some(s => s.source === 'pet' && s.petId === petId);
+  const isNewsSelected = (newsId: string) => selectedScenes.some(s => s.source === 'news' && s.newsId === newsId);
+
   return (
     <div className="space-y-8">
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
         <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
-          <Film className="w-6 h-6" /> Configuracion del Video
+          <Film className="w-6 h-6" /> Generador de Reel
         </h2>
+
+        <div className="mb-6">
+          <label className="block text-sm font-bold text-gray-600 mb-3">Modo</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              onClick={() => setMode('real')}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left",
+                mode === 'real'
+                  ? "border-brand-primary bg-brand-primary/5"
+                  : "border-brand-accent bg-brand-bg hover:border-brand-primary/40"
+              )}
+            >
+              <Image className={cn("w-5 h-5 shrink-0", mode === 'real' ? "text-brand-primary" : "text-gray-400")} />
+              <div>
+                <div className={cn("text-sm font-bold", mode === 'real' ? "text-brand-primary" : "text-gray-700")}>Contenido Real</div>
+                <div className="text-xs text-gray-400">Fotos de mascotas y noticias</div>
+              </div>
+            </button>
+            <button
+              onClick={() => setMode('ai')}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left",
+                mode === 'ai'
+                  ? "border-brand-secondary bg-brand-secondary/5"
+                  : "border-brand-accent bg-brand-bg hover:border-brand-secondary/40"
+              )}
+            >
+              <Sparkles className={cn("w-5 h-5 shrink-0", mode === 'ai' ? "text-brand-secondary" : "text-gray-400")} />
+              <div>
+                <div className={cn("text-sm font-bold", mode === 'ai' ? "text-brand-secondary" : "text-gray-700")}>Generado con IA</div>
+                <div className="text-xs text-gray-400">Gemini + Cloudflare Flux</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {mode === 'ai' && (
+          <div className="mb-6 p-4 bg-brand-secondary/5 rounded-2xl border border-brand-secondary/20">
+            <label className="block text-sm font-bold text-gray-600 mb-2">
+              Tema del video <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              value={topic}
+              onChange={e => setTopic(e.target.value)}
+              placeholder="Ej: Mascotas perdidas que vuelven a casa"
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-secondary transition-colors text-sm"
+            />
+            <button
+              onClick={generateAIContent}
+              disabled={aiLoading}
+              className={cn(
+                "mt-3 w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all",
+                aiLoading
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  : "bg-brand-secondary text-white hover:shadow-lg"
+              )}
+            >
+              {aiLoading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Generando contenido...</>
+              ) : (
+                <><Sparkles className="w-4 h-4" /> Generar guion e imágenes con IA</>
+              )}
+            </button>
+
+            {aiContent && (
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Guion de voz</label>
+                  <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{aiContent.voiceScript}</p>
+                </div>
+                {aiContent.overlayTexts.length > 0 && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Textos en pantalla</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {aiContent.overlayTexts.map((t, i) => (
+                        <span key={i} className="text-xs bg-white border border-brand-accent px-3 py-1 rounded-full text-gray-700">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {aiContent.imagePrompts.length > 0 && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Prompts de imagen ({aiContent.imagePrompts.length} escenas)</label>
+                    <div className="mt-1 space-y-1 max-h-32 overflow-y-auto">
+                      {aiContent.imagePrompts.map((p, i) => (
+                        <p key={i} className="text-xs text-gray-500 truncate">{i + 1}. {p}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {mode === 'real' && (
+          <div className="mb-6 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 bg-brand-primary/3 rounded-2xl border border-brand-accent">
+                <div className="flex items-center gap-2 mb-3">
+                  <Image className="w-4 h-4 text-brand-primary" />
+                  <h4 className="text-sm font-bold text-brand-primary">Mascotas</h4>
+                </div>
+                <select
+                  value={petFilter}
+                  onChange={e => setPetFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-xs mb-3"
+                >
+                  {PET_STATUS_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                {loadingContent ? (
+                  <div className="flex items-center justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-brand-primary" /></div>
+                ) : (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {availablePets.length === 0 && (
+                      <p className="text-xs text-gray-400 text-center py-2">No hay mascotas</p>
+                    )}
+                    {availablePets.map(pet => (
+                      <button
+                        key={pet.id}
+                        onClick={() => togglePet(pet)}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs",
+                          isPetSelected(pet.id)
+                            ? "bg-brand-primary/10 border border-brand-primary/30"
+                            : "bg-white border border-brand-accent hover:border-brand-primary/30"
+                        )}
+                      >
+                        {pet.cover_image ? (
+                          <img src={`data:image/jpeg;base64,${pet.cover_image}`} className="w-8 h-8 rounded object-cover shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-brand-accent flex items-center justify-center shrink-0">
+                            <Image className="w-4 h-4 text-gray-400" />
+                          </div>
+                        )}
+                        <span className={cn("flex-1 truncate", isPetSelected(pet.id) ? "font-bold text-brand-primary" : "text-gray-700")}>
+                          {pet.name || 'Sin nombre'} <span className="text-gray-400">({pet.species})</span>
+                        </span>
+                        {isPetSelected(pet.id) && <Check className="w-4 h-4 text-brand-primary shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 bg-brand-secondary/3 rounded-2xl border border-brand-accent">
+                <div className="flex items-center gap-2 mb-3">
+                  <Film className="w-4 h-4 text-brand-secondary" />
+                  <h4 className="text-sm font-bold text-brand-secondary">Noticias</h4>
+                </div>
+                <select
+                  value={newsFilter}
+                  onChange={e => setNewsFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-secondary text-xs mb-3"
+                >
+                  {NEWS_TYPE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                {loadingContent ? (
+                  <div className="flex items-center justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-brand-secondary" /></div>
+                ) : (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {availableNews.length === 0 && (
+                      <p className="text-xs text-gray-400 text-center py-2">No hay noticias</p>
+                    )}
+                    {availableNews.map(news => (
+                      <button
+                        key={news.id}
+                        onClick={() => toggleNews(news)}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-xs",
+                          isNewsSelected(news.id)
+                            ? "bg-brand-secondary/10 border border-brand-secondary/30"
+                            : "bg-white border border-brand-accent hover:border-brand-secondary/30"
+                        )}
+                      >
+                        {news.image_data ? (
+                          <img src={`data:${news.mime_type || 'image/jpeg'};base64,${news.image_data}`} className="w-8 h-8 rounded object-cover shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-brand-accent flex items-center justify-center shrink-0">
+                            <Film className="w-4 h-4 text-gray-400" />
+                          </div>
+                        )}
+                        <span className={cn("flex-1 truncate", isNewsSelected(news.id) ? "font-bold text-brand-secondary" : "text-gray-700")}>
+                          {news.title}
+                        </span>
+                        {isNewsSelected(news.id) && <Check className="w-4 h-4 text-brand-secondary shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {selectedScenes.length > 0 && (
+              <div className="p-4 bg-white rounded-2xl border border-brand-accent">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold text-gray-700">
+                    Escenas seleccionadas ({selectedScenes.length})
+                  </h4>
+                  <button
+                    onClick={() => setSelectedScenes([])}
+                    className="text-xs text-red-500 hover:text-red-700 font-bold"
+                  >
+                    Limpiar todo
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {selectedScenes.map((scene, i) => (
+                    <div key={i} className="flex items-center gap-3 p-2 bg-brand-bg rounded-xl">
+                      <span className="text-xs font-bold text-gray-400 w-5 text-center shrink-0">{i + 1}</span>
+                      {scene.previewImage ? (
+                        <img src={scene.previewImage} className="w-10 h-10 rounded object-cover shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-brand-accent flex items-center justify-center shrink-0">
+                          <Image className="w-5 h-5 text-gray-400" />
+                        </div>
+                      )}
+                      <span className="text-xs text-gray-700 flex-1 truncate">{scene.label}</span>
+                      <input
+                        type="text"
+                        value={scene.overlayText}
+                        onChange={e => updateSceneOverlay(i, e.target.value)}
+                        placeholder="Texto overlay"
+                        className="flex-1 min-w-0 px-2 py-1 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-xs"
+                      />
+                      <button
+                        onClick={() => removeScene(i)}
+                        className="shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <div>
@@ -329,46 +730,15 @@ export default function VideoGeneratorTab() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-2">
-              Mascota especifica <span className="text-gray-400 font-normal">(opcional)</span>
-            </label>
-            <select
-              value={config.petId}
-              onChange={e => setConfig(c => ({ ...c, petId: e.target.value }))}
-              className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
-            >
-              <option value="">Seleccionar mascota (fotos aleatorias)</option>
-              {pets.map(pet => (
-                <option key={pet.id} value={pet.id}>{pet.name || 'Sin nombre'} ({pet.species})</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-2">
-              Texto para voz en off <span className="text-gray-400 font-normal">(opcional, auto si se deja vacio)</span>
-            </label>
-            <textarea
-              value={config.customScript}
-              onChange={e => setConfig(c => ({ ...c, customScript: e.target.value }))}
-              placeholder="Deja vacio para generar texto automatico segun el estilo"
-              rows={3}
-              className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm resize-y"
-            />
-          </div>
-        </div>
-
         <div className="mb-6">
           <label className="block text-sm font-bold text-gray-600 mb-2">
-            Texto en pantalla <span className="text-gray-400 font-normal">(cada linea = un frame distinto, opcional)</span>
+            Texto para voz en off <span className="text-gray-400 font-normal">(opcional, auto si se deja vacio)</span>
           </label>
           <textarea
-            value={config.overlayText}
-            onChange={e => setConfig(c => ({ ...c, overlayText: e.target.value }))}
-            placeholder="Cada linea se mostrara en un frame distinto. Ejemplo:&#10;Una mascota mas volvio a casa&#10;Gracias a vos es posible&#10;Comparti Sigo Tu Huella"
-            rows={4}
+            value={voiceScript}
+            onChange={e => setVoiceScript(e.target.value)}
+            placeholder="Deja vacio para generar texto automatico segun el estilo. En modo IA se genera con Gemini."
+            rows={3}
             className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm resize-y"
           />
         </div>
@@ -397,7 +767,7 @@ export default function VideoGeneratorTab() {
             </>
           ) : (
             <>
-              <Film className="w-5 h-5" /> Generar Video Promocional
+              <Film className="w-5 h-5" /> Generar {mode === 'ai' ? 'Reel con IA' : 'Reel Promocional'}
             </>
           )}
         </button>
@@ -473,6 +843,9 @@ export default function VideoGeneratorTab() {
                       <span className="text-xs text-gray-400">
                         {video.format === 'vertical' ? '9:16' : video.format === 'square' ? '1:1' : '16:9'}
                       </span>
+                      {video.title?.includes('IA') && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-secondary/10 text-brand-secondary border border-brand-secondary/20">IA</span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-500 mb-3">
                       {new Date(video.created_at).toLocaleDateString('es-AR')} &middot; {video.duration}s
