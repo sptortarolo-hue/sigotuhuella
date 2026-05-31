@@ -106,7 +106,7 @@ export function getImagePromptForType(type) {
   return IMAGE_PROMPTS[type] || 'Fotografía de mascotas, estilo realista, colores cálidos';
 }
 
-export async function generateVideoContent(topic, style, numScenes) {
+export async function generateVideoContent(topic, style, numScenes, sceneDescriptions = null) {
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY requerida');
 
   const styleInstructions = {
@@ -115,23 +115,35 @@ export async function generateVideoContent(topic, style, numScenes) {
     viral: 'Tono enérgico y llamativo. Frases de impacto, urgencia, con emojis.',
   };
 
+  const hasSceneDescriptions = sceneDescriptions && sceneDescriptions.length > 0;
+
+  let sceneContext = '';
+  if (hasSceneDescriptions) {
+    sceneContext = `\n\nEscenas reales seleccionadas (usá esta info para crear los textos):\n`;
+    sceneDescriptions.forEach((desc, i) => {
+      sceneContext += `Escena ${i + 1}: ${desc}\n`;
+    });
+    sceneContext += `\n- overlayTexts: exactamente ${sceneDescriptions.length} textos cortos contextualizados para cada escena real. Relacioná cada texto con la escena correspondiente.\n- imagePrompts: NO generes imagePrompts (dejá el array vacío []). Las imágenes son fotos reales.`;
+  }
+
   const prompt = `Sos un creativo publicitario argentino que hace reels promocionales para una app de mascotas llamada "Sigo Tu Huella".
 
 Tema del video: ${topic || 'Mascotas perdidas que vuelven a casa gracias a la comunidad'}
 Estilo: ${style} — ${styleInstructions[style] || styleInstructions.emotive}
 Cantidad de escenas con foto: ${numScenes}
+${sceneContext}
 
 Respondé ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
 {
   "voiceScript": "Texto completo para la voz en off. Máximo 25 segundos hablados. En español argentino, natural y fluido. Terminar con 'Descargá Sigo Tu Huella gratis en sigotuhuella.online'",
   "overlayTexts": ["Texto corto para escena 1", "Texto para escena 2", ...],
-  "imagePrompts": ["prompt en inglés para generar imagen de escena 1", "prompt para escena 2", ...]
+  "imagePrompts": ${hasSceneDescriptions ? '[]' : `["prompt en inglés para generar imagen de escena 1", "prompt para escena 2", ...]`}
 }
 
 Reglas:
 - voiceScript: texto natural para voz en off, sin emojis, sin comillas, sin formato markdown
 - overlayTexts: exactamente ${numScenes} textos cortos (máx 8 palabras cada uno) que aparecen en pantalla, uno por escena de foto
-- imagePrompts: exactamente ${numScenes} prompts en INGLÉS para generar imágenes con IA (Flux). Cada prompt debe describir una escena visual concreta, fotorrealista, con iluminación cinematográfica. NO incluir texto en las imágenes. Estilo: fotografía profesional, colores cálidos, 4K quality.`;
+${hasSceneDescriptions ? '- imagePrompts: array vacío [] porque las imágenes son fotos reales' : '- imagePrompts: exactamente ' + numScenes + ' prompts en INGLÉS para generar imágenes con IA (Flux). Cada prompt debe describir una escena visual concreta, fotorrealista, con iluminación cinematográfica. NO incluir texto en las imágenes. Estilo: fotografía profesional, colores cálidos, 4K quality.'}`;
 
   const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
   const response = await ai.models.generateContent({

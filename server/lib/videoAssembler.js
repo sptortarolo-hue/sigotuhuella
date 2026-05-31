@@ -51,7 +51,7 @@ const STYLE_VOICES = {
 
 const STYLE_VOICE_PARAMS = {
   emotive: { rate: '-10%', pitch: '-5%' },
-  informative: { rate: '+0%', pitch: '+0Hz' },
+  informative: { rate: '+0%', pitch: '+0%' },
   viral: { rate: '+15%', pitch: '+3%' },
 };
 
@@ -68,7 +68,7 @@ const STYLE_ZOOMPAN = {
 };
 
 const TRANSITION_DUR = 0.5;
-const OPENING_DUR = 2;
+const OPENING_DUR = 3;
 const CLOSING_DUR = 3;
 const FPS = 30;
 
@@ -199,67 +199,96 @@ async function generateOpeningClip(dims, style, workDir) {
   const terracotta = '#D48C70';
   const dur = OPENING_DUR;
   const totalFrames = Math.round(dur * FPS);
-  const fontPath = getFontPath();
+  const fadeOutStart = totalFrames - Math.round(0.5 * FPS);
 
   const canvas = createCanvas(w, h);
   const ctx = canvas.getContext('2d');
+  const logo = await getLogoImage();
 
   const frames = [];
-  for (let i = 0; i < Math.min(totalFrames, 15); i++) {
-    const progress = i / Math.max(totalFrames - 1, 1);
+  for (let i = 0; i < totalFrames; i++) {
+    const progress = i / (totalFrames - 1);
+
     const grad = ctx.createLinearGradient(0, 0, w, h);
     grad.addColorStop(0, olive);
     grad.addColorStop(1, terracotta);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    for (let c = 0; c < 3; c++) {
+      ctx.beginPath();
+      ctx.arc(w * 0.5, h * (0.2 + c * 0.3), w * (0.3 + c * 0.05), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const haloProgress = Math.min(1, progress * 3);
+    const haloAlpha = 0.08 + 0.04 * Math.sin(i * 0.15);
+    ctx.fillStyle = `rgba(255,255,255,${haloAlpha * haloProgress})`;
     ctx.beginPath();
-    ctx.arc(w * 0.5, h * 0.3, w * 0.4, 0, Math.PI * 2);
+    ctx.arc(w / 2, h * 0.32, w * 0.18, 0, Math.PI * 2);
     ctx.fill();
 
-    const logo = await getLogoImage();
     if (logo) {
-      const logoScale = 0.5 + 0.5 * Math.min(1, progress * 2);
-      const logoSize = (h < w ? h : w) * 0.12;
-      const logoX = w / 2 - (logoSize * logoScale) / 2;
-      const logoY = h * 0.35 - (logoSize * logoScale) / 2;
+      const easeT = Math.min(1, progress * 2.5);
+      const eased = easeT < 0.5 ? 2 * easeT * easeT : 1 - Math.pow(-2 * easeT + 2, 2) / 2;
+      const logoScale = 0.3 + 0.7 * eased;
+      const logoSize = (h < w ? h : w) * 0.14;
+      const actualSize = logoSize * logoScale;
+      const logoX = w / 2 - actualSize / 2;
+      const logoY = h * 0.32 - actualSize / 2;
+
       ctx.save();
       ctx.beginPath();
-      ctx.arc(w / 2, h * 0.35, (logoSize * logoScale) / 2, 0, Math.PI * 2);
+      ctx.arc(w / 2, h * 0.32, actualSize / 2, 0, Math.PI * 2);
       ctx.clip();
-      ctx.drawImage(logo, logoX, logoY, logoSize * logoScale, logoSize * logoScale);
+      ctx.drawImage(logo, logoX, logoY, actualSize, actualSize);
       ctx.restore();
-      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-      ctx.lineWidth = 2;
+
+      ctx.strokeStyle = `rgba(255,255,255,${0.5 * haloProgress})`;
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(w / 2, h * 0.35, (logoSize * logoScale) / 2, 0, Math.PI * 2);
+      ctx.arc(w / 2, h * 0.32, actualSize / 2 + 4, 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    ctx.globalAlpha = Math.min(1, progress * 2.5);
-    ctx.fillStyle = '#ffffff';
-    const titleSize = h < w ? 48 : 64;
-    ctx.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('SIGO TU HUELLA', w / 2, h * 0.52);
-    ctx.globalAlpha = 1;
+    const textFadeIn = Math.max(0, Math.min(1, (progress - 0.33) * 4));
+    if (textFadeIn > 0) {
+      ctx.globalAlpha = textFadeIn;
+      ctx.fillStyle = '#ffffff';
+      const titleSize = h > w ? 64 : 48;
+      ctx.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('SIGO TU HUELLA', w / 2, h * 0.52);
+
+      const lineProgress = Math.max(0, Math.min(1, (progress - 0.45) * 5));
+      const lineWidth = w * 0.3 * lineProgress;
+      ctx.strokeStyle = terracotta;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(w / 2 - lineWidth / 2, h * 0.52 + titleSize * 0.6 + 12);
+      ctx.lineTo(w / 2 + lineWidth / 2, h * 0.52 + titleSize * 0.6 + 12);
+      ctx.stroke();
+
+      ctx.globalAlpha = 1;
+    }
+
+    if (i >= fadeOutStart) {
+      const fadeOutProgress = (i - fadeOutStart) / (totalFrames - fadeOutStart);
+      ctx.fillStyle = `rgba(90,90,64,${fadeOutProgress * 0.6})`;
+      ctx.fillRect(0, 0, w, h);
+    }
 
     const frameBuf = canvas.toBuffer('image/png');
-    const framePath = path.join(workDir, `opening_${i.toString().padStart(3, '0')}.png`);
+    const framePath = path.join(workDir, `opening_${i.toString().padStart(4, '0')}.png`);
     fs.writeFileSync(framePath, frameBuf);
     frames.push(framePath);
   }
 
-  const lastFrame = frames[frames.length - 1];
-  while (frames.length < totalFrames) {
-    frames.push(lastFrame);
-  }
-
   await new Promise((resolve, reject) => {
     ffmpeg()
-      .input(path.join(workDir, 'opening_%03d.png'))
+      .input(path.join(workDir, 'opening_%04d.png'))
       .inputOptions([`-framerate ${FPS}`, '-start_number', '0'])
       .outputOptions([
         '-c:v', 'libx264',
@@ -287,73 +316,101 @@ async function generateClosingClip(dims, style, workDir) {
   const terracotta = '#D48C70';
   const dur = CLOSING_DUR;
   const totalFrames = Math.round(dur * FPS);
+  const fadeOutStart = totalFrames - Math.round(1.0 * FPS);
 
   const canvas = createCanvas(w, h);
   const ctx = canvas.getContext('2d');
-  const frames = [];
+  const logo = await getLogoImage();
 
-  for (let i = 0; i < Math.min(totalFrames, 15); i++) {
-    const progress = i / Math.max(totalFrames - 1, 1);
+  const frames = [];
+  for (let i = 0; i < totalFrames; i++) {
+    const progress = i / (totalFrames - 1);
+
     const grad = ctx.createLinearGradient(0, 0, w, h);
     grad.addColorStop(0, olive);
     grad.addColorStop(1, terracotta);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
     ctx.beginPath();
-    ctx.arc(w * 0.5, h * 0.3, w * 0.35, 0, Math.PI * 2);
+    ctx.arc(w * 0.5, h * 0.25, w * 0.35, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(w * 0.5, h * 0.7, w * 0.25, 0, Math.PI * 2);
+    ctx.arc(w * 0.5, h * 0.75, w * 0.25, 0, Math.PI * 2);
     ctx.fill();
 
-    const logo = await getLogoImage();
+    const contentFadeIn = Math.min(1, progress * 4);
+
     if (logo) {
-      const logoSize = (h < w ? h : w) * 0.08;
+      const logoSize = (h < w ? h : w) * 0.25;
+      const logoX = w / 2 - logoSize / 2;
+      const logoY = h * 0.25 - logoSize / 2;
+
+      ctx.globalAlpha = contentFadeIn;
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.beginPath();
+      ctx.arc(w / 2, h * 0.25, logoSize / 2 + 15, 0, Math.PI * 2);
+      ctx.fill();
+
       ctx.save();
       ctx.beginPath();
-      ctx.arc(w / 2, h * 0.35, logoSize / 2, 0, Math.PI * 2);
+      ctx.arc(w / 2, h * 0.25, logoSize / 2, 0, Math.PI * 2);
       ctx.clip();
-      ctx.drawImage(logo, w / 2 - logoSize / 2, h * 0.35 - logoSize / 2, logoSize, logoSize);
+      ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
       ctx.restore();
-      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-      ctx.lineWidth = 2;
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.arc(w / 2, h * 0.35, logoSize / 2, 0, Math.PI * 2);
+      ctx.arc(w / 2, h * 0.25, logoSize / 2 + 4, 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    ctx.globalAlpha = Math.min(1, progress * 3);
     ctx.fillStyle = '#ffffff';
-    const titleSize = h < w ? 36 : 56;
+    const titleSize = h > w ? 58 : 44;
     ctx.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('SIGO TU HUELLA', w / 2, h * 0.5);
+    ctx.fillText('SIGO TU HUELLA', w / 2, h * 0.48);
 
-    const urlSize = h < w ? 28 : 40;
-    ctx.font = `${urlSize}px system-ui, -apple-system, sans-serif`;
+    const lineProgress = Math.min(1, progress * 3);
+    const lineWidth = w * 0.35 * lineProgress;
+    ctx.strokeStyle = terracotta;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(w / 2 - lineWidth / 2, h * 0.48 + titleSize * 0.6 + 10);
+    ctx.lineTo(w / 2 + lineWidth / 2, h * 0.48 + titleSize * 0.6 + 10);
+    ctx.stroke();
+
+    const urlSize = h > w ? 38 : 28;
+    ctx.font = `bold ${urlSize}px system-ui, -apple-system, sans-serif`;
     ctx.fillText('sigotuhuella.online', w / 2, h * 0.58);
 
-    ctx.font = `bold ${urlSize * 0.8}px system-ui, -apple-system, sans-serif`;
-    ctx.fillText('Descargá la app gratis', w / 2, h * 0.66);
+    const ctaSize = h > w ? 30 : 22;
+    ctx.font = `bold ${ctaSize}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = terracotta;
+    ctx.fillText('Visitá nuestra web', w / 2, h * 0.64);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('Descargá la app gratis', w / 2, h * 0.69);
+
     ctx.globalAlpha = 1;
 
+    if (i >= fadeOutStart) {
+      const fadeOutProgress = (i - fadeOutStart) / (totalFrames - 1 - fadeOutStart);
+      ctx.fillStyle = `rgba(0,0,0,${fadeOutProgress * 0.85})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+
     const frameBuf = canvas.toBuffer('image/png');
-    const framePath = path.join(workDir, `closing_${i.toString().padStart(3, '0')}.png`);
+    const framePath = path.join(workDir, `closing_${i.toString().padStart(4, '0')}.png`);
     fs.writeFileSync(framePath, frameBuf);
     frames.push(framePath);
   }
 
-  const lastFrame = frames[frames.length - 1];
-  while (frames.length < totalFrames) {
-    frames.push(lastFrame);
-  }
-
   await new Promise((resolve, reject) => {
     ffmpeg()
-      .input(path.join(workDir, 'closing_%03d.png'))
+      .input(path.join(workDir, 'closing_%04d.png'))
       .inputOptions([`-framerate ${FPS}`, '-start_number', '0'])
       .outputOptions([
         '-c:v', 'libx264',
@@ -374,16 +431,80 @@ async function generateClosingClip(dims, style, workDir) {
   return clipPath;
 }
 
+async function prepareLogoWatermark(dims, workDir) {
+  const logo = await getLogoImage();
+  if (!logo) return null;
+
+  const { w, h } = dims;
+  const wmSize = Math.round(Math.min(w, h) * 0.08);
+  const padding = Math.round(wmSize * 0.4);
+  const canvasSize = wmSize + padding * 2;
+
+  const canvas = createCanvas(canvasSize, canvasSize);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvasSize, canvasSize);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.beginPath();
+  ctx.arc(canvasSize / 2, canvasSize / 2, canvasSize / 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(canvasSize / 2, canvasSize / 2, wmSize / 2, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(logo, canvasSize / 2 - wmSize / 2, canvasSize / 2 - wmSize / 2, wmSize, wmSize);
+  ctx.restore();
+
+  const wmPath = path.join(workDir, 'logo_watermark.png');
+  const buf = canvas.toBuffer('image/png');
+  fs.writeFileSync(wmPath, buf);
+  return wmPath;
+}
+
+async function addWatermarkToVideo(videoPath, watermarkPath, dims, workDir) {
+  if (!watermarkPath || !fs.existsSync(watermarkPath)) return videoPath;
+
+  const outPath = path.join(workDir, 'watermarked.mp4');
+  const { w, h } = dims;
+  const pad = Math.round(Math.min(w, h) * 0.03);
+
+  await new Promise((resolve, reject) => {
+    ffmpeg()
+      .input(videoPath)
+      .input(watermarkPath)
+      .complexFilter([
+        `[1:v]format=rgba,colorchannelmixer=aa=0.75[wm];[0:v][wm]overlay=W-w-${pad}:${pad}:format=auto,format=yuv420p[v]`,
+      ])
+      .outputOptions(['-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p'])
+      .on('end', resolve)
+      .on('error', (err, stdout, stderr) => {
+        console.error('watermark stderr:', stderr);
+        reject(err);
+      })
+      .save(outPath);
+  });
+
+  try { fs.unlinkSync(videoPath); } catch {}
+  return outPath;
+}
+
 async function generateAudio(stats, config, outputPath, voiceScript) {
   const script = voiceScript || buildAutoScript(config.style, stats);
 
-  let ttsBuffer = null;
+  let ttsTmpPath = null;
   let ttsDur = 0;
+
   if (config.includeVoice) {
     const sdk = await getSpeechSdk();
     if (sdk && script) {
       const voice = STYLE_VOICES[config.style] || STYLE_VOICES.emotive;
       const params = STYLE_VOICE_PARAMS[config.style] || STYLE_VOICE_PARAMS.emotive;
+
+      ttsTmpPath = outputPath.replace('.mp3', '_tts.mp3');
+
+      let ttsOk = false;
+
       try {
         const speechConfig = sdk.SpeechConfig.fromSubscription(
           process.env.AZURE_TTS_KEY,
@@ -399,43 +520,48 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
         });
         synthesizer.close();
 
-        if (result && result.audioData && result.audioData.length > 0) {
-          ttsBuffer = Buffer.from(result.audioData);
-          const ttsTmp = outputPath.replace('.mp3', '_tts_raw.mp3');
-          fs.writeFileSync(ttsTmp, ttsBuffer);
-
-          ttsDur = await getAudioDuration(ttsTmp);
-          console.log(`TTS generated: ${ttsDur.toFixed(1)}s`);
-
-          if (ttsDur > 0) {
-            ttsBuffer = null;
-            if (fs.existsSync(ttsTmp)) fs.unlinkSync(ttsTmp);
-          }
+        if (result && result.audioData && result.audioData.length > 0
+            && result.reason !== sdk.ResultReason.Canceled) {
+          fs.writeFileSync(ttsTmpPath, Buffer.from(result.audioData));
+          ttsOk = true;
+        } else if (result && result.reason === sdk.ResultReason.Canceled) {
+          const cancellation = sdk.CancellationDetails.fromResult(result);
+          console.warn('TTS canceled:', cancellation.reason, cancellation.errorDetails);
         }
       } catch (err) {
-        console.warn('Azure TTS failed with voice', voice, ':', err.message);
-        if (voice !== 'es-AR-ElenaNeural') {
-          console.warn('Retrying with es-AR-ElenaNeural...');
-          try {
-            const speechConfig = sdk.SpeechConfig.fromSubscription(
-              process.env.AZURE_TTS_KEY,
-              process.env.AZURE_TTS_REGION || 'eastus',
-            );
-            speechConfig.speechSynthesisVoiceName = 'es-AR-ElenaNeural';
-            speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
-            const ssml = buildSSML(script, 'es-AR-ElenaNeural', STYLE_VOICE_PARAMS.emotive);
-            const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
-            const result = await new Promise((resolve, reject) => {
-              synthesizer.speakSsmlAsync(ssml, res => resolve(res), err => reject(err));
-            });
-            synthesizer.close();
-            if (result && result.audioData && result.audioData.length > 0) {
-              ttsBuffer = Buffer.from(result.audioData);
-            }
-          } catch (err2) {
-            console.warn('Fallback TTS also failed:', err2.message);
+        console.warn('Azure TTS SSML failed with voice', voice, ':', err.message);
+      }
+
+      if (!ttsOk) {
+        console.warn('Retrying TTS with speakTextAsync (plain text, no SSML)...');
+        try {
+          const speechConfig = sdk.SpeechConfig.fromSubscription(
+            process.env.AZURE_TTS_KEY,
+            process.env.AZURE_TTS_REGION || 'eastus',
+          );
+          speechConfig.speechSynthesisVoiceName = 'es-AR-ElenaNeural';
+          speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+
+          const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
+          const result = await new Promise((resolve, reject) => {
+            synthesizer.speakTextAsync(script, res => resolve(res), err => reject(err));
+          });
+          synthesizer.close();
+
+          if (result && result.audioData && result.audioData.length > 0) {
+            fs.writeFileSync(ttsTmpPath, Buffer.from(result.audioData));
+            ttsOk = true;
           }
+        } catch (err2) {
+          console.warn('Fallback TTS (speakTextAsync) also failed:', err2.message);
         }
+      }
+
+      if (ttsOk && fs.existsSync(ttsTmpPath)) {
+        ttsDur = await getAudioDuration(ttsTmpPath);
+        console.log(`TTS generated: ${ttsDur.toFixed(1)}s`);
+      } else {
+        ttsTmpPath = null;
       }
     }
   }
@@ -443,26 +569,24 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
   const musicUrl = MUSIC_TRACKS[config.music] || MUSIC_TRACKS.emotional;
   const musicPath = await getMusicFile(musicUrl);
 
-  if (ttsBuffer) {
-    const ttsTmp = outputPath.replace('.mp3', '_tts.mp3');
-    fs.writeFileSync(ttsTmp, ttsBuffer);
+  if (ttsTmpPath && fs.existsSync(ttsTmpPath)) {
     if (musicPath) {
       await new Promise((resolve, reject) => {
         ffmpeg()
-          .input(ttsTmp)
+          .input(ttsTmpPath)
           .input(musicPath)
           .complexFilter([
-            '[1:a]volume=0.4,atrim=end=' + (ttsDur > 0 ? ttsDur + 2 : config.duration) + '[musicVol]',
-            '[0:a][musicVol]amix=inputs=2:duration=longest:dropout_transition=3[mix]',
+            `[1:a]volume=0.35,atrim=end=${ttsDur > 0 ? ttsDur + 3 : config.duration}[musicVol]`,
+            `[0:a][musicVol]amix=inputs=2:duration=longest:dropout_transition=3[mix]`,
           ])
           .outputOptions(['-map', '[mix]', '-c:a', 'aac', '-b:a', '192k'])
-          .on('end', () => { try { fs.unlinkSync(ttsTmp); } catch {} resolve(); })
+          .on('end', () => { try { fs.unlinkSync(ttsTmpPath); } catch {} resolve(); })
           .on('error', (err, stdout, stderr) => { console.error('mix audio stderr:', stderr); reject(err); })
           .save(outputPath);
       });
     } else {
-      try { fs.copyFileSync(ttsTmp, outputPath); } catch {}
-      try { fs.unlinkSync(ttsTmp); } catch {}
+      try { fs.copyFileSync(ttsTmpPath, outputPath); } catch {}
+      try { fs.unlinkSync(ttsTmpPath); } catch {}
     }
   } else if (musicPath) {
     await new Promise((resolve, reject) => {
@@ -542,17 +666,18 @@ async function addDrawTextToClip(clipPath, overlayText, clipStart, clipDur, dims
   const textY = h > w ? Math.round(h * 0.72) : Math.round(h * 0.78);
   const escaped = escDrawText(overlayText);
 
-  let filter;
+  const drawboxFilter = `drawbox=x=0:y=${textY - 10}:w=iw:h=${fontSize + 24}:color=black@0.45:t=max:enable='between(t,0.3,${clipDur})'`;
+  let drawtextFilter;
   if (fontPath) {
-    filter = `drawtext=text='${escaped}':fontfile=${fontPath}:fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t,0.3,${clipDur})'`;
+    drawtextFilter = `drawtext=text='${escaped}':fontfile=${fontPath}:fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t,0.3,${clipDur})'`;
   } else {
-    filter = `drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t,0.3,${clipDur})'`;
+    drawtextFilter = `drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t,0.3,${clipDur})'`;
   }
 
   await new Promise((resolve, reject) => {
     ffmpeg()
       .input(clipPath)
-      .complexFilter([filter])
+      .complexFilter([drawboxFilter, drawtextFilter])
       .outputOptions([
         '-c:v', 'libx264',
         '-pix_fmt', 'yuv420p',
@@ -650,7 +775,7 @@ async function concatenateSimple(clipPaths, workDir) {
   return outPath;
 }
 
-async function muxAudioVideo(videoPath, audioPath, outputPath, duration) {
+async function muxAudioVideo(videoPath, audioPath, outputPath) {
   await new Promise((resolve, reject) => {
     ffmpeg()
       .input(videoPath)
@@ -712,12 +837,12 @@ export async function generateVideo(config) {
     if (numPhotoScenes === 0) throw new Error('No hay fotos para generar el video');
 
     const fixedDur = OPENING_DUR + CLOSING_DUR;
-    const totalTransitionDur = numPhotoScenes * TRANSITION_DUR;
+    const totalTransitionDur = (numPhotoScenes + 1) * TRANSITION_DUR;
     const availableDur = Math.max(duration - fixedDur - totalTransitionDur, numPhotoScenes * 2);
     const photoClipDur = availableDur / numPhotoScenes;
 
     const audioPath = path.join(workDir, 'audio.mp3');
-    const ttsDur = await generateAudio(stats, { style, duration, music, includeVoice }, audioPath, voiceScript);
+    await generateAudio(stats, { style, duration, music, includeVoice }, audioPath, voiceScript);
 
     if (!fs.existsSync(audioPath) || fs.statSync(audioPath).size === 0) {
       console.warn('No audio generated, creating silent track');
@@ -733,10 +858,10 @@ export async function generateVideo(config) {
       });
     }
 
-    const clipPaths = [];
+    const mainClips = [];
 
     const openingClip = await generateOpeningClip(dims, style, workDir);
-    clipPaths.push(openingClip);
+    mainClips.push(openingClip);
 
     for (let i = 0; i < numPhotoScenes; i++) {
       const scene = photoScenes[i];
@@ -745,23 +870,64 @@ export async function generateVideo(config) {
       const overlayText = scene.overlayText || '';
       clipPath = await addDrawTextToClip(clipPath, overlayText, 0, photoClipDur, dims, style, workDir, i);
 
-      clipPaths.push(clipPath);
+      mainClips.push(clipPath);
+    }
+
+    let mainVideoPath;
+    try {
+      mainVideoPath = await concatenateClipsWithTransitions(mainClips, transition, workDir);
+    } catch (xfadeErr) {
+      console.warn('xfade failed, falling back to simple concat:', xfadeErr.message);
+      mainVideoPath = await concatenateSimple(mainClips, workDir);
+    }
+
+    const watermarkPath = await prepareLogoWatermark(dims, workDir);
+    if (watermarkPath) {
+      mainVideoPath = await addWatermarkToVideo(mainVideoPath, watermarkPath, dims, workDir);
     }
 
     const closingClip = await generateClosingClip(dims, style, workDir);
-    clipPaths.push(closingClip);
 
-    let videoPath;
+    const fullVideoPath = path.join(workDir, 'full_video.mp4');
     try {
-      videoPath = await concatenateClipsWithTransitions(clipPaths, transition, workDir);
-    } catch (xfadeErr) {
-      console.warn('xfade failed, falling back to simple concat:', xfadeErr.message);
-      videoPath = await concatenateSimple(clipPaths, workDir);
+      const mainDur = await getVideoDuration(mainVideoPath);
+      const offset = Math.max(0.1, mainDur - TRANSITION_DUR);
+      await new Promise((resolve, reject) => {
+        ffmpeg()
+          .input(mainVideoPath)
+          .input(closingClip)
+          .complexFilter([
+            `[0:v][1:v]xfade=transition=fade:duration=${TRANSITION_DUR}:offset=${offset}[v]`,
+          ])
+          .outputOptions(['-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p'])
+          .on('end', resolve)
+          .on('error', (err, stdout, stderr) => {
+            console.error('final xfade stderr:', stderr);
+            reject(err);
+          })
+          .save(fullVideoPath);
+      });
+    } catch (err) {
+      console.warn('Final xfade failed, using simple concat:', err.message);
+      const listPath = path.join(workDir, 'final_clips.txt');
+      fs.writeFileSync(listPath, [
+        `file '${mainVideoPath.replace(/\\/g, '/')}'`,
+        `file '${closingClip.replace(/\\/g, '/')}'`,
+      ].join('\n'));
+      await new Promise((resolve, reject) => {
+        ffmpeg()
+          .input(listPath)
+          .inputOptions(['-f', 'concat', '-safe', '0'])
+          .outputOptions(['-c:v', 'libx264', '-pix_fmt', 'yuv420p'])
+          .on('end', resolve)
+          .on('error', reject)
+          .save(fullVideoPath);
+      });
     }
 
     const videoFilename = `promo-${style}-${duration}s-${format}-${Date.now()}.mp4`;
     const finalVideoPath = path.join(VIDEO_OUTPUT_DIR, videoFilename);
-    await muxAudioVideo(videoPath, audioPath, finalVideoPath, duration);
+    await muxAudioVideo(fullVideoPath, audioPath, finalVideoPath);
 
     const thumbFilename = videoFilename.replace('.mp4', '_thumb.jpg');
     const thumbPath = path.join(VIDEO_OUTPUT_DIR, thumbFilename);

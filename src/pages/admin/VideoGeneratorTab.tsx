@@ -243,18 +243,22 @@ export default function VideoGeneratorTab() {
     setSelectedScenes(prev => prev.filter((_, i) => i !== index));
   }
 
-  async function generateAIContent() {
+  async function generateAIContent(sceneDescriptions?: string[]) {
     setAiLoading(true);
     setAiContent(null);
     setGenerateError(null);
     try {
+      const body: any = {
+        topic: topic || undefined,
+        style: config.style,
+        numScenes: sceneDescriptions ? sceneDescriptions.length : Math.max(3, Math.min(8, Math.floor(config.duration / 5))),
+      };
+      if (sceneDescriptions && sceneDescriptions.length > 0) {
+        body.sceneDescriptions = sceneDescriptions;
+      }
       const res = await authFetch('/api/admin/videos/generate-ai-content', {
         method: 'POST',
-        body: JSON.stringify({
-          topic: topic || undefined,
-          style: config.style,
-          numScenes: Math.max(3, Math.min(8, Math.floor(config.duration / 5))),
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: 'Error desconocido' }));
@@ -263,6 +267,12 @@ export default function VideoGeneratorTab() {
       const content = await res.json();
       setAiContent(content);
       if (content.voiceScript) setVoiceScript(content.voiceScript);
+      if (sceneDescriptions && content.overlayTexts) {
+        setSelectedScenes(prev => prev.map((s, i) => ({
+          ...s,
+          overlayText: content.overlayTexts[i] || s.overlayText,
+        })));
+      }
     } catch (e: any) {
       setGenerateError(e.message || 'Error generando contenido con IA');
     } finally {
@@ -505,6 +515,19 @@ export default function VideoGeneratorTab() {
 
         {mode === 'real' && (
           <div className="mb-6 space-y-4">
+            <div className="p-4 bg-brand-primary/3 rounded-2xl border border-brand-accent">
+              <label className="block text-sm font-bold text-gray-600 mb-2">
+                Tema del video <span className="text-gray-400 font-normal">(para guion IA, opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={topic}
+                onChange={e => setTopic(e.target.value)}
+                placeholder="Ej: Mascotas perdidas que vuelven a casa"
+                className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+              />
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 bg-brand-primary/3 rounded-2xl border border-brand-accent">
                 <div className="flex items-center gap-2 mb-3">
@@ -605,49 +628,70 @@ export default function VideoGeneratorTab() {
               </div>
             </div>
 
-            {selectedScenes.length > 0 && (
-              <div className="p-4 bg-white rounded-2xl border border-brand-accent">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-bold text-gray-700">
-                    Escenas seleccionadas ({selectedScenes.length})
-                  </h4>
+          {selectedScenes.length > 0 && (
+          <div className="p-4 bg-white rounded-2xl border border-brand-accent">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-bold text-gray-700">
+                Escenas seleccionadas ({selectedScenes.length})
+              </h4>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    const descriptions = selectedScenes.map(s => s.label);
+                    generateAIContent(descriptions);
+                  }}
+                  disabled={aiLoading || selectedScenes.length === 0}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    aiLoading
+                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      : "bg-brand-secondary/10 text-brand-secondary border border-brand-secondary/20 hover:bg-brand-secondary/20"
+                  )}
+                >
+                  {aiLoading ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generando...</>
+                  ) : (
+                    <><Sparkles className="w-3.5 h-3.5" /> Generar guion IA</>
+                  )}
+                </button>
+                <button
+                  onClick={() => setSelectedScenes([])}
+                  className="text-xs text-red-500 hover:text-red-700 font-bold"
+                >
+                  Limpiar todo
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {selectedScenes.map((scene, i) => (
+                <div key={i} className="flex items-center gap-3 p-2 bg-brand-bg rounded-xl">
+                  <span className="text-xs font-bold text-gray-400 w-5 text-center shrink-0">{i + 1}</span>
+                  {scene.previewImage ? (
+                    <img src={scene.previewImage} className="w-10 h-10 rounded object-cover shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded bg-brand-accent flex items-center justify-center shrink-0">
+                      <Image className="w-5 h-5 text-gray-400" />
+                    </div>
+                  )}
+                  <span className="text-xs text-gray-700 flex-1 truncate">{scene.label}</span>
+                  <input
+                    type="text"
+                    value={scene.overlayText}
+                    onChange={e => updateSceneOverlay(i, e.target.value)}
+                    placeholder="Texto overlay"
+                    className="flex-1 min-w-0 px-2 py-1 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-xs"
+                  />
                   <button
-                    onClick={() => setSelectedScenes([])}
-                    className="text-xs text-red-500 hover:text-red-700 font-bold"
+                    onClick={() => removeScene(i)}
+                    className="shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors"
                   >
-                    Limpiar todo
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="space-y-2">
-                  {selectedScenes.map((scene, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2 bg-brand-bg rounded-xl">
-                      <span className="text-xs font-bold text-gray-400 w-5 text-center shrink-0">{i + 1}</span>
-                      {scene.previewImage ? (
-                        <img src={scene.previewImage} className="w-10 h-10 rounded object-cover shrink-0" />
-                      ) : (
-                        <div className="w-10 h-10 rounded bg-brand-accent flex items-center justify-center shrink-0">
-                          <Image className="w-5 h-5 text-gray-400" />
-                        </div>
-                      )}
-                      <span className="text-xs text-gray-700 flex-1 truncate">{scene.label}</span>
-                      <input
-                        type="text"
-                        value={scene.overlayText}
-                        onChange={e => updateSceneOverlay(i, e.target.value)}
-                        placeholder="Texto overlay"
-                        className="flex-1 min-w-0 px-2 py-1 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-xs"
-                      />
-                      <button
-                        onClick={() => removeScene(i)}
-                        className="shrink-0 p-1 text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              ))}
+            </div>
+          </div>
+          )}
           </div>
         )}
 

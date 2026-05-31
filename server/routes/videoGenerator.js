@@ -67,10 +67,10 @@ router.get('/available-news', requireAuth, requireAdmin, async (req, res) => {
 
 router.post('/generate-ai-content', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { topic, style, numScenes } = req.body;
+    const { topic, style, numScenes, sceneDescriptions } = req.body;
     if (!style) return res.status(400).json({ error: 'style es requerido' });
 
-    const content = await generateVideoContent(topic, style, numScenes || 5);
+    const content = await generateVideoContent(topic, style, numScenes || 5, sceneDescriptions || null);
     res.json(content);
   } catch (err) {
     console.error('AI content generation error:', err);
