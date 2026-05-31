@@ -150,7 +150,13 @@ export default function VideoGeneratorTab() {
   ];
 
   useEffect(() => {
-    fetchVideos();
+    (async () => {
+      const vids = await fetchVideos();
+      if (vids?.some(v => v.status === 'generating')) {
+        setGenerating(true);
+        startPolling();
+      }
+    })();
     fetchAvailableContent();
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
@@ -169,19 +175,21 @@ export default function VideoGeneratorTab() {
     fetchAvailableContent();
   }, [petFilter, newsFilter]);
 
-  async function fetchVideos() {
+  async function fetchVideos(): Promise<Video[] | null> {
     setRefreshing(true);
     try {
       const res = await authFetch('/api/admin/videos');
       if (res.ok) {
         const data = await res.json();
         setVideos(data.videos);
+        return data.videos;
       }
     } catch (e) {
       console.error('Failed to fetch videos:', e);
     } finally {
       setRefreshing(false);
     }
+    return null;
   }
 
   async function fetchAvailableContent() {
@@ -291,19 +299,19 @@ export default function VideoGeneratorTab() {
           const data = await res.json();
           setVideos(data.videos);
           const stillGenerating = data.videos?.some((v: Video) => v.status === 'generating');
-          if (!stillGenerating || attempts >= 30) {
+          if (!stillGenerating) {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
             setGenerating(false);
           }
         }
       } catch {}
-      if (attempts >= 30) {
+      if (attempts >= 60) {
         if (pollRef.current) clearInterval(pollRef.current);
         pollRef.current = null;
         setGenerating(false);
       }
-    }, 6000);
+    }, 10000);
   }
 
   async function generate() {

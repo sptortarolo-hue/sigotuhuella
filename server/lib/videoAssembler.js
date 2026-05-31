@@ -262,6 +262,7 @@ async function generateOpeningClip(dims, style, workDir) {
 
     const textFadeIn = Math.max(0, Math.min(1, (progress - 0.33) * 4));
     if (textFadeIn > 0) {
+      ctx.save();
       ctx.globalAlpha = textFadeIn;
       ctx.fillStyle = '#ffffff';
       const titleSize = h > w ? 64 : 48;
@@ -279,7 +280,7 @@ async function generateOpeningClip(dims, style, workDir) {
       ctx.lineTo(w / 2 + lineWidth / 2, h * 0.52 + titleSize * 0.6 + 12);
       ctx.stroke();
 
-      ctx.globalAlpha = 1;
+      ctx.restore();
     }
 
     if (i >= fadeOutStart) {
@@ -330,6 +331,22 @@ async function generateClosingClip(dims, style, workDir) {
   const ctx = canvas.getContext('2d');
   const logo = await getLogoImage();
 
+  const logoSize = Math.round((h < w ? h : w) * 0.35);
+  const logoCenterY = h * 0.28;
+
+  const titleSize = h > w ? 64 : 48;
+  const titleY = logoCenterY + logoSize / 2 + titleSize * 0.8 + 20;
+
+  const lineWidth = w * 0.35;
+  const lineY = titleY + titleSize * 0.6 + 12;
+
+  const urlSize = h > w ? 42 : 32;
+  const urlY = lineY + 20 + urlSize * 0.6;
+
+  const ctaSize = h > w ? 32 : 24;
+  const cta1Y = urlY + urlSize * 0.6 + 18;
+  const cta2Y = cta1Y + ctaSize * 0.7 + 8;
+
   const frames = [];
   for (let i = 0; i < totalFrames; i++) {
     const progress = i / (totalFrames - 1);
@@ -342,70 +359,82 @@ async function generateClosingClip(dims, style, workDir) {
 
     ctx.fillStyle = 'rgba(255,255,255,0.03)';
     ctx.beginPath();
-    ctx.arc(w * 0.5, h * 0.25, w * 0.35, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(w * 0.5, h * 0.75, w * 0.25, 0, Math.PI * 2);
+    ctx.arc(w * 0.5, logoCenterY, w * 0.4, 0, Math.PI * 2);
     ctx.fill();
 
-    const contentFadeIn = Math.min(1, progress * 4);
-
+    const logoAlpha = Math.min(1, progress * 5);
     if (logo) {
-      const logoSize = (h < w ? h : w) * 0.25;
-      const logoX = w / 2 - logoSize / 2;
-      const logoY = h * 0.25 - logoSize / 2;
+      ctx.save();
+      ctx.globalAlpha = logoAlpha;
 
-      ctx.globalAlpha = contentFadeIn;
       ctx.fillStyle = 'rgba(255,255,255,0.15)';
       ctx.beginPath();
-      ctx.arc(w / 2, h * 0.25, logoSize / 2 + 15, 0, Math.PI * 2);
+      ctx.arc(w / 2, logoCenterY, logoSize / 2 + 15, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.save();
       ctx.beginPath();
-      ctx.arc(w / 2, h * 0.25, logoSize / 2, 0, Math.PI * 2);
+      ctx.arc(w / 2, logoCenterY, logoSize / 2, 0, Math.PI * 2);
       ctx.clip();
-      ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+      ctx.drawImage(logo, w / 2 - logoSize / 2, logoCenterY - logoSize / 2, logoSize, logoSize);
       ctx.restore();
 
+      ctx.save();
+      ctx.globalAlpha = logoAlpha;
       ctx.strokeStyle = 'rgba(255,255,255,0.6)';
       ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.arc(w / 2, h * 0.25, logoSize / 2 + 4, 0, Math.PI * 2);
+      ctx.arc(w / 2, logoCenterY, logoSize / 2 + 4, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.restore();
     }
 
+    const titleAlpha = Math.max(0, Math.min(1, (progress - 0.1) * 5));
+    ctx.save();
+    ctx.globalAlpha = titleAlpha;
     ctx.fillStyle = '#ffffff';
-    const titleSize = h > w ? 58 : 44;
     ctx.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('SIGO TU HUELLA', w / 2, h * 0.48);
+    ctx.fillText('SIGO TU HUELLA', w / 2, titleY);
+    ctx.restore();
 
-    const lineProgress = Math.min(1, progress * 3);
-    const lineWidth = w * 0.35 * lineProgress;
+    const lineAlpha = Math.max(0, Math.min(1, (progress - 0.15) * 5));
+    const lineProgress = Math.max(0, Math.min(1, (progress - 0.15) * 4));
+    ctx.save();
+    ctx.globalAlpha = lineAlpha;
     ctx.strokeStyle = terracotta;
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(w / 2 - lineWidth / 2, h * 0.48 + titleSize * 0.6 + 10);
-    ctx.lineTo(w / 2 + lineWidth / 2, h * 0.48 + titleSize * 0.6 + 10);
+    ctx.moveTo(w / 2 - lineWidth * lineProgress / 2, lineY);
+    ctx.lineTo(w / 2 + lineWidth * lineProgress / 2, lineY);
     ctx.stroke();
+    ctx.restore();
 
-    const urlSize = h > w ? 38 : 28;
-    ctx.font = `bold ${urlSize}px system-ui, -apple-system, sans-serif`;
-    ctx.fillText('sigotuhuella.online', w / 2, h * 0.58);
-
-    const ctaSize = h > w ? 30 : 22;
-    ctx.font = `bold ${ctaSize}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = terracotta;
-    ctx.fillText('Visitá nuestra web', w / 2, h * 0.64);
+    const urlAlpha = Math.max(0, Math.min(1, (progress - 0.2) * 5));
+    ctx.save();
+    ctx.globalAlpha = urlAlpha;
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('Descargá la app gratis', w / 2, h * 0.69);
+    ctx.font = `bold ${urlSize}px system-ui, -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('sigotuhuella.online', w / 2, urlY);
+    ctx.restore();
 
-    ctx.globalAlpha = 1;
+    const ctaAlpha = Math.max(0, Math.min(1, (progress - 0.28) * 5));
+    ctx.save();
+    ctx.globalAlpha = ctaAlpha;
+    ctx.font = `bold ${ctaSize}px system-ui, -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = terracotta;
+    ctx.fillText('Visitá nuestra web', w / 2, cta1Y);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('Descargá la app gratis', w / 2, cta2Y);
+    ctx.restore();
 
     if (i >= fadeOutStart) {
       const fadeOutProgress = (i - fadeOutStart) / (totalFrames - 1 - fadeOutStart);
+      ctx.globalAlpha = 1;
       ctx.fillStyle = `rgba(0,0,0,${fadeOutProgress * 0.85})`;
       ctx.fillRect(0, 0, w, h);
     }
@@ -625,21 +654,16 @@ function getAudioDuration(filePath) {
 
 function buildSSML(script, voice, params) {
   const { rate, pitch } = params;
-  const sentences = script.split(/(?<=[.!?])\s+/).filter(s => s.trim());
-  const ssmlParts = sentences.map(s => {
-    const trimmed = s.trim();
-    if (!trimmed) return '';
-    return `<s>${trimmed}</s>`;
-  });
+  const cleaned = script.trim().replace(/\s+/g, ' ');
 
   return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
-  <voice name="${voice}">
-    <prosody rate="${rate}" pitch="${pitch}">
-      ${ssmlParts.join('\n      ')}
-      <break time="600ms"/>
-      <emphasis level="strong">sigotuhuella.online</emphasis>
-    </prosody>
-  </voice>
+<voice name="${voice}">
+<prosody rate="${rate}" pitch="${pitch}">
+${cleaned}
+<break time="600ms"/>
+<emphasis level="strong">sigotuhuella.online</emphasis>
+</prosody>
+</voice>
 </speak>`;
 }
 
