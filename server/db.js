@@ -88,15 +88,23 @@ CREATE TABLE IF NOT EXISTS collaboration_accounts (
 CREATE TABLE IF NOT EXISTS promotional_videos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title VARCHAR(255) NOT NULL,
-  video_data TEXT NOT NULL,
+  video_data TEXT NOT NULL DEFAULT '',
   thumbnail_data TEXT,
   style VARCHAR(50),
   duration INTEGER,
   music_track VARCHAR(255),
   voice_enabled BOOLEAN DEFAULT TRUE,
+  format VARCHAR(20) DEFAULT 'vertical',
+  status VARCHAR(20) DEFAULT 'generating',
+  error_msg TEXT,
   created_at TIMESTAMP DEFAULT NOW(),
   created_by UUID REFERENCES users(id) ON DELETE SET NULL
 );
+
+ALTER TABLE promotional_videos ADD COLUMN IF NOT EXISTS format VARCHAR(20) DEFAULT 'vertical';
+ALTER TABLE promotional_videos ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'generating';
+ALTER TABLE promotional_videos ADD COLUMN IF NOT EXISTS error_msg TEXT;
+ALTER TABLE promotional_videos ALTER COLUMN video_data SET DEFAULT '';
 
 -- Insert default settings
 INSERT INTO settings (key, value) VALUES
