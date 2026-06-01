@@ -27,14 +27,9 @@ jobs:
           fi
 
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ffmpeg libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev pkg-config
+    sudo apt-get install -y --no-install-recommends ffmpeg
 
-          npm install || npm install --ignore-scripts
-          if [ ! -d node_modules/editly ]; then
-            echo "WARN: editly no se installo, instalando con --ignore-scripts y rebuild canvas"
-            npm install --ignore-scripts
-            npm rebuild canvas 2>/dev/null || true
-          fi
+    npm install
 
           npm run build
           pm2 restart sigotuhuella || pm2 start npm --name sigotuhuella -- start
