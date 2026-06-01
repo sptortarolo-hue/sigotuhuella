@@ -390,17 +390,6 @@ async function generateOpeningClip(dims, style, workDir) {
   const logoW = Math.round(Math.min(w, h) * 0.14);
   const logoPad = Math.round(Math.min(w, h) * 0.03);
 
-  const filters = [];
-  filters.push(`color=c=${olive}:s=${w}x${h}:d=${dur}:rate=${FPS}[bg]`);
-  filters.push(`color=c=${terracotta}:s=${w}x${h}:d=${dur}:rate=${FPS}:alpha=0.5[tint]`);
-  filters.push(`[bg][tint]blend=all_mode=multiply:all_opacity=0.6[grad]`);
-
-  if (fs.existsSync(LOGO_PATH)) {
-    filters.push(`[grad]overlay=(W-w)/2:${Math.round(h * 0.32 - logoW / 2)}:format=auto:eval=frame:eof_action=repeat[withlogo]`);
-  } else {
-    filters.push('[grad]copy[withlogo]');
-  }
-
   const titleEnable = `between(t\\,${dur * 0.33}\\,${dur})`;
   const lineEnable = `between(t\\,${dur * 0.45}\\,${dur})`;
   const lineW = Math.round(w * 0.3);
@@ -415,17 +404,15 @@ async function generateOpeningClip(dims, style, workDir) {
 
   const lineFilter = `drawbox=x=(iw-${lineW})/2:y=${lineY}:w=${lineW}:h=3:color=${terracotta}:t=fill:enable='${lineEnable}'`;
 
-  const finalFilter = `[withlogo]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`;
-
   const args = ['-y'];
   args.push('-f', 'lavfi', '-i', `color=c=${olive}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
-  args.push('-f', 'lavfi', '-i', `color=c=${terracotta}:s=${w}x${h}:d=${dur}:rate=${FPS}:alpha=0.5`);
+  args.push('-f', 'lavfi', '-i', `color=c=${terracotta}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
 
   if (fs.existsSync(LOGO_PATH)) {
     args.push('-i', LOGO_PATH);
-    args.push('-filter_complex', `[0:v][1:v]blend=all_mode=multiply:all_opacity=0.6[grad];[grad][2:v]overlay=(W-w)/2:${Math.round(h * 0.32 - logoW / 2)}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
+    args.push('-filter_complex', `[1:v]format=rgba,colorchannelmixer=aa=0.5[tint];[0:v][tint]blend=all_mode=multiply:all_opacity=0.6[grad];[grad][2:v]overlay=(W-w)/2:${Math.round(h * 0.32 - logoW / 2)}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
   } else {
-    args.push('-filter_complex', `[0:v][1:v]blend=all_mode=multiply:all_opacity=0.6[grad];[grad]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
+    args.push('-filter_complex', `[1:v]format=rgba,colorchannelmixer=aa=0.5[tint];[0:v][tint]blend=all_mode=multiply:all_opacity=0.6[grad];[grad]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
   }
 
   args.push('-map', '[v]');
@@ -482,12 +469,12 @@ async function generateClosingClip(dims, style, workDir) {
     textFilters += `,drawtext=text='${ctaText}':fontcolor=0xF5F5F0:fontsize=${ctaFontSize}:x=(w-tw)/2:y=${ctaY}:shadowcolor=black:shadowx=1:shadowy=1:enable='${ctaEnable}'`;
   }
 
-  const filterComplex = `[0:v][1:v]blend=all_mode=multiply:all_opacity=0.6[grad]${fs.existsSync(LOGO_PATH) ? `;[grad][2:v]overlay=(W-w)/2:${Math.round(h * 0.30 - logoW / 2)}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]fade=in:st=0:d=0.5,${textFilters},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]` : `;[grad]fade=in:st=0:d=0.5,${textFilters},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`}`;
+  const filterComplex = `[1:v]format=rgba,colorchannelmixer=aa=0.5[tint];[0:v][tint]blend=all_mode=multiply:all_opacity=0.6[grad]${fs.existsSync(LOGO_PATH) ? `;[grad][2:v]overlay=(W-w)/2:${Math.round(h * 0.30 - logoW / 2)}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]fade=in:st=0:d=0.5,${textFilters},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]` : `;[grad]fade=in:st=0:d=0.5,${textFilters},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`}`;
 
   const args = ['-y'];
   args.push('-f', 'lavfi', '-i', `color=c=${olive}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
-  args.push('-f', 'lavfi', '-i', `color=c=${terracotta}:s=${w}x${h}:d=${dur}:rate=${FPS}:alpha=0.5`);
-  if (fs.existsSync(LOGO_PATH)) {
+args.push('-f', 'lavfi', '-i', `color=c=${terracotta}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
+if (fs.existsSync(LOGO_PATH)) {
     args.push('-i', LOGO_PATH);
   }
   args.push('-filter_complex', filterComplex);
