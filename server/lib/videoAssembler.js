@@ -168,44 +168,23 @@ async function generateTTS(config, voiceScript, workDir) {
   const ssml = buildSSML(script, voice, params);
 
   let ttsOk = false;
+  const keys = [process.env.AZURE_TTS_KEY, process.env.AZURE_TTS_KEY2].filter(Boolean);
+  const region = process.env.AZURE_TTS_REGION || 'eastus';
+  const resourceName = process.env.AZURE_TTS_RESOURCE || 'sigoth';
+  const endpoint = `wss://${resourceName}.cognitiveservices.azure.com/stt/speech/universal/v2`;
 
-  if (process.env.AZURE_TTS_KEY) {
-    try {
-      console.log('[TTS] Trying REST API with key1...');
-      const size = await synthesizeREST(ssml, ttsPath);
-      if (size > 0) {
-        ttsOk = true;
-        console.log('[TTS] REST API key1 success, size:', size);
-      }
-    } catch (err) {
-      console.warn('[TTS] REST API key1 failed:', err.message);
-    }
-  }
+  const sdk = await getSpeechSdk();
 
-  if (!ttsOk && process.env.AZURE_TTS_KEY2) {
-    try {
-      console.log('[TTS] Trying REST API with key2...');
-      const size = await synthesizeREST(ssml, ttsPath, process.env.AZURE_TTS_KEY2);
-      if (size > 0) {
-        ttsOk = true;
-        console.log('[TTS] REST API key2 success, size:', size);
-      }
-    } catch (err) {
-      console.warn('[TTS] REST API key2 failed:', err.message);
-    }
-  }
+  for (const key of keys) {
+    if (ttsOk) break;
 
-  if (!ttsOk) {
-    const sdk = await getSpeechSdk();
     if (sdk) {
       try {
-        console.log('[TTS] Trying SDK speakSsmlAsync (fallback)...');
-        const speechConfig = sdk.SpeechConfig.fromSubscription(
-          process.env.AZURE_TTS_KEY,
-          process.env.AZURE_TTS_REGION || 'eastus',
-        );
+        console.log('[TTS] Trying SDK speakSsmlAsync with key', key.slice(0, 8) + '...');
+        const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
         speechConfig.speechSynthesisVoiceName = voice;
         speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+        try { speechConfig.endpointId = endpoint; } catch {}
 
         const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
         const result = await new Promise((resolve, reject) => {
@@ -226,17 +205,11 @@ async function generateTTS(config, voiceScript, workDir) {
         console.warn('[TTS] SDK speakSsmlAsync failed:', err.message);
       }
     }
-  }
 
-  if (!ttsOk) {
-    const sdk = await getSpeechSdk();
-    if (sdk) {
+    if (!ttsOk && sdk) {
       try {
-        console.log('[TTS] Trying SDK speakTextAsync (fallback 2)...');
-        const speechConfig = sdk.SpeechConfig.fromSubscription(
-          process.env.AZURE_TTS_KEY,
-          process.env.AZURE_TTS_REGION || 'eastus',
-        );
+        console.log('[TTS] Trying SDK speakTextAsync with key', key.slice(0, 8) + '...');
+        const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
         speechConfig.speechSynthesisVoiceName = 'es-AR-ElenaNeural';
         speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
 
@@ -253,6 +226,19 @@ async function generateTTS(config, voiceScript, workDir) {
         }
       } catch (err2) {
         console.warn('[TTS] SDK speakTextAsync also failed:', err2.message);
+      }
+    }
+
+    if (!ttsOk) {
+      try {
+        console.log('[TTS] Trying REST API with key', key.slice(0, 8) + '...');
+        const size = await synthesizeREST(ssml, ttsPath, key);
+        if (size > 0) {
+          ttsOk = true;
+          console.log('[TTS] REST API success, size:', size);
+        }
+      } catch (err) {
+        console.warn('[TTS] REST API failed:', err.message);
       }
     }
   }
