@@ -204,7 +204,7 @@ function getFontPath() {
   return null;
 }
 
-async function generatePhotoClip(photoBase64, clipDur, zoompan, dims, workDir, clipIndex, overlayText) {
+async function generatePhotoClip(photoBase64, clipDur, zoompan, dims, workDir, clipIndex) {
   const photoPath = path.join(workDir, `photo_${clipIndex}.png`);
   const clipPath = path.join(workDir, `clip_${clipIndex}.mp4`);
   const buffer = Buffer.from(photoBase64, 'base64');
@@ -229,50 +229,24 @@ async function generatePhotoClip(photoBase64, clipDur, zoompan, dims, workDir, c
   }
 
   const totalFrames = Math.round(clipDur * FPS);
-  const zpFilter = `zoompan=z='${zf}':x=${xf}:y=${yf}:d=${totalFrames}:s=${w}x${h}:fps=${FPS}`;
-
-  const hasText = overlayText && overlayText.trim();
-  let complexFilter;
-  let mapLabel;
-
-  if (hasText) {
-    const fontPath = getFontPath();
-    const fontSize = h > w ? 48 : 36;
-    const textY = h > w ? Math.round(h * 0.72) : Math.round(h * 0.78);
-    const escaped = escDrawText(overlayText);
-
-    const drawboxPart = `drawbox=x=0:y=${textY - 10}:w=iw:h=${fontSize + 24}:color=black@0.45:t=fill:enable='between(t,0.3,${clipDur})'[bg]`;
-    let drawtextPart;
-    if (fontPath) {
-      drawtextPart = `[bg]drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t,0.3,${clipDur})'[v]`;
-    } else {
-      drawtextPart = `[bg]drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t,0.3,${clipDur})'[v]`;
-    }
-    complexFilter = [`${zpFilter}[zp];[zp]${drawboxPart};${drawtextPart}`];
-    mapLabel = '-map [v]';
-  } else {
-    complexFilter = [zpFilter];
-    mapLabel = '';
-  }
-
-  const outputOpts = [
-    '-c:v', 'libx264',
-    '-preset', FF_PRESET,
-    '-crf', String(FF_CRF),
-    '-pix_fmt', 'yuv420p',
-    '-t', String(clipDur),
-    '-r', String(FPS),
-  ];
-  if (mapLabel) outputOpts.unshift('-map', '[v]');
 
   await new Promise((resolve, reject) => {
     ffmpeg()
     .input(photoPath)
-    .complexFilter(complexFilter)
-    .outputOptions(outputOpts)
+    .complexFilter([
+      `zoompan=z='${zf}':x=${xf}:y=${yf}:d=${totalFrames}:s=${w}x${h}:fps=${FPS}`,
+    ])
+    .outputOptions([
+      '-c:v', 'libx264',
+      '-preset', FF_PRESET,
+      '-crf', String(FF_CRF),
+      '-pix_fmt', 'yuv420p',
+      '-t', String(clipDur),
+      '-r', String(FPS),
+    ])
     .on('end', resolve)
     .on('error', (err, stdout, stderr) => {
-      console.error('zoompan+text stderr:', stderr);
+      console.error('zoompan stderr:', stderr);
       reject(err);
     })
     .save(clipPath);
@@ -1121,7 +1095,11 @@ export async function generateVideo(config) {
   fs.mkdirSync(workDir, { recursive: true });
 
   try {
+    const t0 = Date.now();
+    const logStep = (label) => console.log(`[VideoGen] ${label} @ ${(Date.now() - t0) / 1000}s`);
+
     const stats = await getGlobalStats();
+    logStep('stats fetched');
 
     const photoScenes = scenes.filter(s => s.type === 'photo' && s.imageBase64);
     const numPhotoScenes = photoScenes.length;
@@ -1140,6 +1118,7 @@ export async function generateVideo(config) {
       generateClosingClip(dims, style, workDir),
       generateAudio(stats, { style, duration, music, includeVoice }, audioPath, voiceScript),
     ]);
+    logStep('opening+closing+audio parallel');
 
     if (!fs.existsSync(audioPath) || fs.statSync(audioPath).size === 0) {
       console.warn('No audio generated, creating silent track');
@@ -1153,6 +1132,7 @@ export async function generateVideo(config) {
         .on('error', reject)
         .save(audioPath);
       });
+      logStep('silent audio');
     }
 
     const mainClips = [];
@@ -1160,8 +1140,12 @@ export async function generateVideo(config) {
 
     for (let i = 0; i < numPhotoScenes; i++) {
       const scene = photoScenes[i];
+      let clipPath = await generatePhotoClip(scene.imageBase64, photoClipDur, zoompan, dims, workDir, i);
+      logStep(`photo clip ${i} zoompan`);
+
       const overlayText = scene.overlayText || '';
-      const clipPath = await generatePhotoClip(scene.imageBase64, photoClipDur, zoompan, dims, workDir, i, overlayText);
+      clipPath = await addDrawTextToClip(clipPath, overlayText, 0, photoClipDur, dims, style, workDir, i);
+      logStep(`photo clip ${i} drawtext`);
 
       mainClips.push(clipPath);
     }
@@ -1173,12 +1157,14 @@ export async function generateVideo(config) {
       console.warn('xfade failed, falling back to simple concat:', xfadeErr.message);
       mainVideoPath = await concatenateSimple(mainClips, workDir);
     }
+    logStep('concat+xfade');
 
     const [watermarkPath, brandFrame] = await Promise.all([
       prepareLogoWatermark(dims, workDir),
       prepareBrandFrame(dims, workDir),
     ]);
     mainVideoPath = await addWatermarkAndFrame(mainVideoPath, watermarkPath, brandFrame?.framePath, dims, workDir);
+    logStep('watermark+frame');
 
     const fullVideoPath = path.join(workDir, 'full_video.mp4');
     try {
@@ -1216,10 +1202,12 @@ export async function generateVideo(config) {
           .save(fullVideoPath);
       });
     }
+    logStep('closing xfade');
 
     const videoFilename = `promo-${style}-${duration}s-${format}-${Date.now()}.mp4`;
     const finalVideoPath = path.join(VIDEO_OUTPUT_DIR, videoFilename);
     await muxAudioVideo(fullVideoPath, audioPath, finalVideoPath);
+    logStep('mux audio+video');
 
     const thumbFilename = videoFilename.replace('.mp4', '_thumb.jpg');
     const thumbPath = path.join(VIDEO_OUTPUT_DIR, thumbFilename);
