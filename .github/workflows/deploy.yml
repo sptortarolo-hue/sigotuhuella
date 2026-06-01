@@ -14,9 +14,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           port: ${{ secrets.SSH_PORT }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-    command_timeout: 300s
-    script: |
+      key: ${{ secrets.SSH_KEY }}
+      script: |
       cd /var/www/sigotuhuella
       git pull
 
