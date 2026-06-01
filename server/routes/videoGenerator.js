@@ -223,6 +223,44 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/debug-tts', requireAuth, requireAdmin, async (req, res) => {
+  const hasKey = !!process.env.AZURE_TTS_KEY;
+  const hasRegion = !!process.env.AZURE_TTS_REGION;
+  const keyPreview = process.env.AZURE_TTS_KEY ? process.env.AZURE_TTS_KEY.slice(0, 8) + '...' : 'MISSING';
+  const region = process.env.AZURE_TTS_REGION || 'MISSING';
+
+  let restResult = 'not tested';
+  if (hasKey && hasRegion) {
+    try {
+      const url = `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`;
+      const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR"><voice name="es-AR-ElenaNeural">Prueba</voice></speak>`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Ocp-Apim-Subscription-Key': process.env.AZURE_TTS_KEY,
+          'Content-Type': 'application/ssml+xml',
+          'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
+        },
+        body: ssml,
+      });
+      const body = response.ok ? `OK (${response.headers.get('content-length') || '?'} bytes)` : `FAIL ${response.status}: ${(await response.text()).slice(0, 200)}`;
+      restResult = body;
+    } catch (e) {
+      restResult = `ERROR: ${e.message}`;
+    }
+  }
+
+  let sdkResult = 'not tested';
+  try {
+    const sdk = await import('microsoft-cognitiveservices-speech-sdk');
+    sdkResult = `loaded (keys: ${Object.keys(sdk).slice(0, 5).join(',')})`;
+  } catch (e) {
+    sdkResult = `IMPORT FAILED: ${e.message}`;
+  }
+
+  res.json({ hasKey, hasRegion, keyPreview, region, restResult, sdkResult });
+});
+
 router.get('/file/:filename', requireAuth, (req, res) => {
   const { filename } = req.params;
   if (filename.includes('..')) return res.status(400).send('Invalid filename');
