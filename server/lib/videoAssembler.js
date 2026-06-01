@@ -63,7 +63,11 @@ const FF_CRF = 23;
 
 let speechSdkPromise = null;
 async function getSpeechSdk() {
-  if (!process.env.AZURE_TTS_KEY || !process.env.AZURE_TTS_REGION) return null;
+  if (!process.env.AZURE_TTS_KEY) return null;
+  if (!process.env.AZURE_TTS_REGION) {
+    console.warn('[TTS] AZURE_TTS_REGION not set, defaulting to eastus');
+    process.env.AZURE_TTS_REGION = 'eastus';
+  }
   if (!speechSdkPromise) {
     try {
       const sdk = await import('microsoft-cognitiveservices-speech-sdk');
@@ -164,7 +168,7 @@ async function generateTTS(config, voiceScript, workDir) {
 
   let ttsOk = false;
 
-  if (process.env.AZURE_TTS_KEY && process.env.AZURE_TTS_REGION) {
+  if (process.env.AZURE_TTS_KEY) {
     try {
       console.log('[TTS] Trying REST API (primary)...');
       const size = await synthesizeREST(ssml, ttsPath);
