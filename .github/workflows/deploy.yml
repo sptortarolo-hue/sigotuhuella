@@ -15,21 +15,26 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+    command_timeout: 300s
     script: |
       cd /var/www/sigotuhuella
       git pull
-      # Instalar dependencias nativas requeridas por editly (headless-gl) + canvas + ffmpeg
-      sudo apt-get update
-      sudo apt-get install -y ffmpeg libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev pkg-config
-      # Crear swap de 1GB si no existe (necesario para headless-gl en VPS 1GB RAM)
+
+      # Crear swap de 1GB si no existe (necesario para compilar headless-gl en 1GB RAM)
       if [ ! -f /swapfile ]; then
         sudo fallocate -l 1G /swapfile
         sudo chmod 600 /swapfile
         sudo mkswap /swapfile
         sudo swapon /swapfile
       fi
-      # Reconstruir modulos nativos (canvas, headless-gl)
-      npm rebuild
+
+      # Instalar dependencias nativas si no estan (idempotente)
+      dpkg -l | grep -q libgl1-mesa-dev || {
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends ffmpeg libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev pkg-config
+      }
+
+      # Instalar dependencias y reconstruir nativos
       npm install
       npm run build
       pm2 restart sigotuhuella
