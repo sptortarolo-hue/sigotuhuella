@@ -10,11 +10,16 @@ jobs:
     steps:
     - name: Deploy via SSH
       uses: appleboy/ssh-action@v1.2.5
+      env:
+        AZURE_TTS_KEY: ${{ secrets.AZURE_TTS_KEY }}
+        AZURE_TTS_KEY2: ${{ secrets.AZURE_TTS_KEY2 }}
+        AZURE_TTS_REGION: ${{ secrets.AZURE_TTS_REGION }}
       with:
         host: ${{ secrets.SSH_HOST }}
         port: ${{ secrets.SSH_PORT }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
+        envs: AZURE_TTS_KEY,AZURE_TTS_KEY2,AZURE_TTS_REGION
         script: |
           cd /var/www/sigotuhuella
           git pull
@@ -28,6 +33,18 @@ jobs:
 
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ffmpeg
+
+          if [ -n "$AZURE_TTS_KEY" ]; then
+            grep -q "^AZURE_TTS_KEY=" server/.env 2>/dev/null && sed -i "s|^AZURE_TTS_KEY=.*|AZURE_TTS_KEY=$AZURE_TTS_KEY|" server/.env || echo "AZURE_TTS_KEY=$AZURE_TTS_KEY" >> server/.env
+          fi
+
+          if [ -n "$AZURE_TTS_KEY2" ]; then
+            grep -q "^AZURE_TTS_KEY2=" server/.env 2>/dev/null && sed -i "s|^AZURE_TTS_KEY2=.*|AZURE_TTS_KEY2=$AZURE_TTS_KEY2|" server/.env || echo "AZURE_TTS_KEY2=$AZURE_TTS_KEY2" >> server/.env
+          fi
+
+          if [ -n "$AZURE_TTS_REGION" ]; then
+            grep -q "^AZURE_TTS_REGION=" server/.env 2>/dev/null && sed -i "s|^AZURE_TTS_REGION=.*|AZURE_TTS_REGION=$AZURE_TTS_REGION|" server/.env || echo "AZURE_TTS_REGION=$AZURE_TTS_REGION" >> server/.env
+          fi
 
           npm install
 
