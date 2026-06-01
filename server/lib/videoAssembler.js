@@ -734,13 +734,11 @@ async function generateVideo(config) {
     const availableDur = Math.max(duration - fixedDur - totalTransitionDur, numPhotoScenes * 2);
     const photoClipDur = availableDur / numPhotoScenes;
 
-    const audioPath = path.join(workDir, 'audio.mp3');
-
-    const [openingClip, closingClip] = await Promise.all([
-      generateOpeningClip(dims, style, workDir),
-      generateClosingClip(dims, style, workDir),
-      generateAudio({ style, duration, music, includeVoice }, voiceScript, workDir),
-    ]);
+  const [openingClip, closingClip, audioPath] = await Promise.all([
+    generateOpeningClip(dims, style, workDir),
+    generateClosingClip(dims, style, workDir),
+    generateAudio({ style, duration, music, includeVoice }, voiceScript, workDir),
+  ]);
     logStep('opening+closing+audio parallel');
 
     const mainClips = [];
