@@ -83,7 +83,8 @@ async function getSpeechSdk() {
 async function synthesizeREST(ssml, outputPath, keyOverride) {
   const key = keyOverride || process.env.AZURE_TTS_KEY;
   const region = process.env.AZURE_TTS_REGION || 'eastus';
-  const url = `https://${region}.api.cognitive.microsoft.com/cognitiveservices/v1`;
+  const resourceName = process.env.AZURE_TTS_RESOURCE || 'sigoth';
+  const url = `https://${resourceName}.cognitiveservices.azure.com/cognitiveservices/v1`;
 
   console.log('[TTS-REST] POST', url, 'SSML length:', ssml.length, 'key:', key.slice(0, 8) + '...');
 

@@ -230,8 +230,8 @@ router.get('/debug-tts', requireAuth, requireAdmin, async (req, res) => {
   const keyPreview = process.env.AZURE_TTS_KEY ? process.env.AZURE_TTS_KEY.slice(0, 8) + '...' : 'MISSING';
   const key2Preview = process.env.AZURE_TTS_KEY2 ? process.env.AZURE_TTS_KEY2.slice(0, 8) + '...' : 'MISSING';
   const region = process.env.AZURE_TTS_REGION || 'MISSING';
-
-  const url = `https://${region}.api.cognitive.microsoft.com/cognitiveservices/v1`;
+  const resourceName = process.env.AZURE_TTS_RESOURCE || 'sigoth';
+  const url = `https://${resourceName}.cognitiveservices.azure.com/cognitiveservices/v1`;
   const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR"><voice name="es-AR-ElenaNeural">Prueba</voice></speak>`;
 
   let restResult1 = 'not tested';
