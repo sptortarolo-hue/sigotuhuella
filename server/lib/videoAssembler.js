@@ -1,4 +1,4 @@
-import { createCanvas, loadImage } from 'canvas';
+import { createCanvas, loadImage, registerFont } from 'canvas';
 import sharp from 'sharp';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
@@ -7,6 +7,27 @@ import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import { rimraf } from 'rimraf';
 import pool from '../db.js';
+
+const CANVAS_FONT_CANDIDATES = [
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+  '/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf',
+  '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
+];
+const CANVAS_FONT_FAMILY = 'BrandBold';
+let canvasFontRegistered = false;
+for (const fp of CANVAS_FONT_CANDIDATES) {
+  if (fs.existsSync(fp)) {
+    try {
+      registerFont(fp, { family: CANVAS_FONT_FAMILY });
+      canvasFontRegistered = true;
+      console.log('[videoAssembler] Registered canvas font:', fp);
+      break;
+    } catch (e) {
+      console.warn('[videoAssembler] Failed to register font:', fp, e.message);
+    }
+  }
+}
+const CANVAS_FONT = canvasFontRegistered ? CANVAS_FONT_FAMILY : 'sans-serif';
 
 let speechSdkPromise = null;
 async function getSpeechSdk() {
@@ -266,7 +287,7 @@ async function generateOpeningClip(dims, style, workDir) {
       ctx.globalAlpha = textFadeIn;
       ctx.fillStyle = '#ffffff';
       const titleSize = h > w ? 64 : 48;
-      ctx.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`;
+      ctx.font = `bold ${titleSize}px ${CANVAS_FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('SIGO TU HUELLA', w / 2, h * 0.52);
@@ -392,7 +413,7 @@ async function generateClosingClip(dims, style, workDir) {
     ctx.save();
     ctx.globalAlpha = titleAlpha;
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${titleSize}px system-ui, -apple-system, sans-serif`;
+    ctx.font = `bold ${titleSize}px ${CANVAS_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(0,0,0,0.5)';
@@ -418,7 +439,7 @@ async function generateClosingClip(dims, style, workDir) {
     ctx.save();
     ctx.globalAlpha = urlAlpha;
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${urlSize}px system-ui, -apple-system, sans-serif`;
+    ctx.font = `bold ${urlSize}px ${CANVAS_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(0,0,0,0.5)';
@@ -431,7 +452,7 @@ async function generateClosingClip(dims, style, workDir) {
     const ctaAlpha = Math.max(0, Math.min(1, (progress - 0.28) * 5));
     ctx.save();
     ctx.globalAlpha = ctaAlpha;
-    ctx.font = `bold ${ctaSize}px system-ui, -apple-system, sans-serif`;
+    ctx.font = `bold ${ctaSize}px ${CANVAS_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = 'rgba(0,0,0,0.5)';
@@ -539,12 +560,14 @@ async function addWatermarkToVideo(videoPath, watermarkPath, dims, workDir) {
 
 async function generateAudio(stats, config, outputPath, voiceScript) {
   const script = voiceScript || buildAutoScript(config.style, stats);
+  console.log('[TTS] generateAudio start — includeVoice:', config.includeVoice, 'script length:', script?.length);
 
   let ttsTmpPath = null;
   let ttsDur = 0;
 
   if (config.includeVoice) {
     const sdk = await getSpeechSdk();
+    console.log('[TTS] SDK loaded:', !!sdk, 'has key:', !!process.env.AZURE_TTS_KEY, 'has region:', !!process.env.AZURE_TTS_REGION);
     if (sdk && script) {
       const voice = STYLE_VOICES[config.style] || STYLE_VOICES.emotive;
       const params = STYLE_VOICE_PARAMS[config.style] || STYLE_VOICE_PARAMS.emotive;
@@ -562,26 +585,32 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
         speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
 
         const ssml = buildSSML(script, voice, params);
+        console.log('[TTS] Attempting speakSsmlAsync, voice:', voice, 'SSML length:', ssml.length);
         const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
         const result = await new Promise((resolve, reject) => {
           synthesizer.speakSsmlAsync(ssml, res => resolve(res), err => reject(err));
         });
         synthesizer.close();
 
+        console.log('[TTS] SSML result — reason:', result?.reason, 'audioData type:', typeof result?.audioData, 'byteLength:', result?.audioData?.byteLength, 'is ArrayBuffer:', result?.audioData instanceof ArrayBuffer);
         if (result && result.audioData && result.audioData.byteLength > 0
           && result.reason !== sdk.ResultReason.Canceled) {
           fs.writeFileSync(ttsTmpPath, Buffer.from(result.audioData));
+          const fSize = fs.statSync(ttsTmpPath).size;
+          console.log('[TTS] SSML wrote file:', ttsTmpPath, 'size:', fSize);
           ttsOk = true;
         } else if (result && result.reason === sdk.ResultReason.Canceled) {
           const cancellation = sdk.CancellationDetails.fromResult(result);
-          console.warn('TTS canceled:', cancellation.reason, cancellation.errorDetails);
+          console.warn('[TTS] SSML canceled:', cancellation.reason, cancellation.errorDetails);
+        } else {
+          console.warn('[TTS] SSML result unexpected:', JSON.stringify({ reason: result?.reason, hasAudioData: !!result?.audioData, byteLength: result?.audioData?.byteLength }));
         }
       } catch (err) {
-        console.warn('Azure TTS SSML failed with voice', voice, ':', err.message);
+        console.warn('[TTS] SSML failed with voice', voice, ':', err.message);
       }
 
       if (!ttsOk) {
-        console.warn('Retrying TTS with speakTextAsync (plain text, no SSML)...');
+        console.warn('[TTS] Retrying with speakTextAsync (plain text, no SSML)...');
         try {
           const speechConfig = sdk.SpeechConfig.fromSubscription(
             process.env.AZURE_TTS_KEY,
@@ -596,21 +625,29 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
           });
           synthesizer.close();
 
+          console.log('[TTS] speakTextAsync result — reason:', result?.reason, 'byteLength:', result?.audioData?.byteLength);
           if (result && result.audioData && result.audioData.byteLength > 0) {
             fs.writeFileSync(ttsTmpPath, Buffer.from(result.audioData));
+            const fSize = fs.statSync(ttsTmpPath).size;
+            console.log('[TTS] speakTextAsync wrote file:', ttsTmpPath, 'size:', fSize);
             ttsOk = true;
           }
         } catch (err2) {
-          console.warn('Fallback TTS (speakTextAsync) also failed:', err2.message);
+          console.warn('[TTS] speakTextAsync also failed:', err2.message);
         }
       }
 
       if (ttsOk && fs.existsSync(ttsTmpPath)) {
         ttsDur = await getAudioDuration(ttsTmpPath);
-        console.log(`TTS generated: ${ttsDur.toFixed(1)}s`);
+        console.log('[TTS] TTS duration:', ttsDur.toFixed(1), 's');
       } else {
+        console.warn('[TTS] TTS failed completely, using music only');
         ttsTmpPath = null;
       }
+    } else if (!sdk) {
+      console.warn('[TTS] Azure Speech SDK not available');
+    } else if (!script) {
+      console.warn('[TTS] No voice script provided');
     }
   }
 
@@ -619,6 +656,7 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
 
   if (ttsTmpPath && fs.existsSync(ttsTmpPath)) {
     if (musicPath) {
+      console.log('[Audio] Mixing TTS + music →', outputPath);
       await new Promise((resolve, reject) => {
         ffmpeg()
           .input(ttsTmpPath)
@@ -627,16 +665,23 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
             `[1:a]volume=0.35,atrim=end=${ttsDur > 0 ? ttsDur + 3 : config.duration}[musicVol]`,
             `[0:a][musicVol]amix=inputs=2:duration=longest:dropout_transition=3[mix]`,
           ])
-          .outputOptions(['-map', '[mix]', '-c:a', 'aac', '-b:a', '192k'])
-          .on('end', () => { try { fs.unlinkSync(ttsTmpPath); } catch {} resolve(); })
-          .on('error', (err, stdout, stderr) => { console.error('mix audio stderr:', stderr); reject(err); })
+          .outputOptions(['-map', '[mix]', '-c:a', 'libmp3lame', '-b:a', '192k'])
+          .on('end', () => {
+            const fSize = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
+            console.log('[Audio] Mix complete, output size:', fSize);
+            try { fs.unlinkSync(ttsTmpPath); } catch {}
+            resolve();
+          })
+          .on('error', (err, stdout, stderr) => { console.error('[Audio] mix stderr:', stderr); reject(err); })
           .save(outputPath);
       });
     } else {
+      console.log('[Audio] TTS only, copying to', outputPath);
       try { fs.copyFileSync(ttsTmpPath, outputPath); } catch {}
       try { fs.unlinkSync(ttsTmpPath); } catch {}
     }
   } else if (musicPath) {
+    console.log('[Audio] Music only →', outputPath, 'duration:', config.duration);
     await new Promise((resolve, reject) => {
       ffmpeg()
         .input(musicPath)
@@ -647,6 +692,9 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
         .save(outputPath);
     });
   }
+
+  const audioSize = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
+  console.log('[Audio] Final audio file:', outputPath, 'size:', audioSize);
 
   return ttsDur;
 }
@@ -818,6 +866,8 @@ async function concatenateSimple(clipPaths, workDir) {
 }
 
 async function muxAudioVideo(videoPath, audioPath, outputPath) {
+  console.log('[Mux] video:', videoPath, fs.existsSync(videoPath) ? fs.statSync(videoPath).size : 'missing');
+  console.log('[Mux] audio:', audioPath, fs.existsSync(audioPath) ? fs.statSync(audioPath).size : 'missing');
   await new Promise((resolve, reject) => {
     ffmpeg()
       .input(videoPath)
@@ -829,11 +879,12 @@ async function muxAudioVideo(videoPath, audioPath, outputPath) {
         '-shortest',
         '-movflags', '+faststart',
       ])
-      .on('end', resolve)
-      .on('error', (err, stdout, stderr) => {
-        console.error('mux stderr:', stderr);
-        reject(err);
+      .on('end', () => {
+        const fSize = fs.existsSync(outputPath) ? fs.statSync(outputPath).size : 0;
+        console.log('[Mux] complete, output:', outputPath, 'size:', fSize);
+        resolve();
       })
+      .on('error', (err, stdout, stderr) => { console.error('[Mux] stderr:', stderr); reject(err); })
       .save(outputPath);
   });
 }
