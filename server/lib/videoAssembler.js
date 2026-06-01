@@ -356,7 +356,7 @@ async function addDrawTextToClip(clipPath, overlayText, clipDur, dims, workDir, 
   const textY = h > w ? Math.round(h * 0.72) : Math.round(h * 0.78);
   const escaped = escDrawText(overlayText);
 
-  const drawboxPart = `drawbox=x=0:y=${textY - 10}:w=iw:h=${fontSize + 24}:color=black@0.45:t=fill:enable='between(t\\,0.3\\,${clipDur})'[bg]`;
+  const drawboxPart = `drawbox=x=0:y=${textY - 10}:w=iw:h=${fontSize + 24}:color=0x5A5A40@0.6:t=fill:enable='between(t\\,0.3\\,${clipDur})'[bg]`;
 
   let drawtextPart;
   if (fontPath) {
@@ -384,6 +384,7 @@ async function generateOpeningClip(dims, style, workDir) {
   const fontPath = getFontPath();
   const dur = OPENING_DUR;
 
+  const cream = '0xF5F5F0';
   const olive = '0x5A5A40';
   const terracotta = '0xD48C70';
 
@@ -392,7 +393,6 @@ async function generateOpeningClip(dims, style, workDir) {
   const titleY = Math.round(h * 0.52);
 
   const logoW = Math.round(Math.min(w, h) * 0.14);
-  const logoPad = Math.round(Math.min(w, h) * 0.03);
 
   const titleEnable = `between(t\\,${dur * 0.33}\\,${dur})`;
   const lineEnable = `between(t\\,${dur * 0.45}\\,${dur})`;
@@ -401,22 +401,22 @@ async function generateOpeningClip(dims, style, workDir) {
 
   let textFilter;
   if (fontPath) {
-    textFilter = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=white:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=black:shadowx=2:shadowy=2:enable='${titleEnable}'`;
+    textFilter = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=${olive}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${terracotta}@0.4:shadowx=2:shadowy=2:enable='${titleEnable}'`;
   } else {
-    textFilter = `drawtext=text='${titleText}':fontcolor=white:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=black:shadowx=2:shadowy=2:enable='${titleEnable}'`;
+    textFilter = `drawtext=text='${titleText}':fontcolor=${olive}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${terracotta}@0.4:shadowx=2:shadowy=2:enable='${titleEnable}'`;
   }
 
   const lineFilter = `drawbox=x=(iw-${lineW})/2:y=${lineY}:w=${lineW}:h=3:color=${terracotta}:t=fill:enable='${lineEnable}'`;
 
   const args = ['-y'];
+  args.push('-f', 'lavfi', '-i', `color=c=${cream}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
   args.push('-f', 'lavfi', '-i', `color=c=${olive}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
-  args.push('-f', 'lavfi', '-i', `color=c=${terracotta}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
 
   if (fs.existsSync(LOGO_PATH)) {
     args.push('-i', LOGO_PATH);
-    args.push('-filter_complex', `[1:v]format=rgba,colorchannelmixer=aa=0.5[tint];[0:v][tint]blend=all_mode=multiply:all_opacity=0.6[grad];[grad][2:v]overlay=(W-w)/2:${Math.round(h * 0.32 - logoW / 2)}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
+    args.push('-filter_complex', `[1:v]format=rgba,colorchannelmixer=aa=0.6[tint];[0:v][tint]overlay=0:H-h:format=auto:eval=frame:eof_action=repeat[grad];[grad][2:v]overlay=(W-w)/2:${Math.round(h * 0.32 - logoW / 2)}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
   } else {
-    args.push('-filter_complex', `[1:v]format=rgba,colorchannelmixer=aa=0.5[tint];[0:v][tint]blend=all_mode=multiply:all_opacity=0.6[grad];[grad]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
+    args.push('-filter_complex', `[1:v]format=rgba,colorchannelmixer=aa=0.6[tint];[0:v][tint]overlay=0:H-h:format=auto:eval=frame:eof_action=repeat[grad];[grad]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
   }
 
   args.push('-map', '[v]');
@@ -435,6 +435,7 @@ async function generateClosingClip(dims, style, workDir) {
   const dur = CLOSING_DUR;
   const isVertical = h > w;
 
+  const cream = '0xF5F5F0';
   const olive = '0x5A5A40';
   const terracotta = '0xD48C70';
 
@@ -462,32 +463,39 @@ async function generateClosingClip(dims, style, workDir) {
 
   let textFilters = '';
   if (fontPath) {
-    textFilters = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=white:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=black:shadowx=2:shadowy=2:enable='${titleEnable}'`;
-    textFilters += `,drawbox=x=(iw-${lineW})/2:y=${lineY}:w=${lineW}:h=3:color=white:t=fill:enable='${lineEnable}'`;
-    textFilters += `,drawtext=text='${urlText}':fontfile='${fontPath}':fontcolor=white:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=black:shadowx=1:shadowy=1:enable='${urlEnable}'`;
-    textFilters += `,drawtext=text='${ctaText}':fontfile='${fontPath}':fontcolor=0xF5F5F0:fontsize=${ctaFontSize}:x=(w-tw)/2:y=${ctaY}:shadowcolor=black:shadowx=1:shadowy=1:enable='${ctaEnable}'`;
+    textFilters = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=${olive}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${terracotta}@0.4:shadowx=2:shadowy=2:enable='${titleEnable}'`;
+    textFilters += `,drawbox=x=(iw-${lineW})/2:y=${lineY}:w=${lineW}:h=3:color=${terracotta}:t=fill:enable='${lineEnable}'`;
+    textFilters += `,drawtext=text='${urlText}':fontfile='${fontPath}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.3:shadowx=1:shadowy=1:enable='${urlEnable}'`;
+    textFilters += `,drawtext=text='${ctaText}':fontfile='${fontPath}':fontcolor=${olive}:fontsize=${ctaFontSize}:x=(w-tw)/2:y=${ctaY}:shadowcolor=white@0.3:shadowx=1:shadowy=1:enable='${ctaEnable}'`;
   } else {
-    textFilters = `drawtext=text='${titleText}':fontcolor=white:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=black:shadowx=2:shadowy=2:enable='${titleEnable}'`;
-    textFilters += `,drawbox=x=(iw-${lineW})/2:y=${lineY}:w=${lineW}:h=3:color=white:t=fill:enable='${lineEnable}'`;
-    textFilters += `,drawtext=text='${urlText}':fontcolor=white:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=black:shadowx=1:shadowy=1:enable='${urlEnable}'`;
-    textFilters += `,drawtext=text='${ctaText}':fontcolor=0xF5F5F0:fontsize=${ctaFontSize}:x=(w-tw)/2:y=${ctaY}:shadowcolor=black:shadowx=1:shadowy=1:enable='${ctaEnable}'`;
+    textFilters = `drawtext=text='${titleText}':fontcolor=${olive}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${terracotta}@0.4:shadowx=2:shadowy=2:enable='${titleEnable}'`;
+    textFilters += `,drawbox=x=(iw-${lineW})/2:y=${lineY}:w=${lineW}:h=3:color=${terracotta}:t=fill:enable='${lineEnable}'`;
+    textFilters += `,drawtext=text='${urlText}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.3:shadowx=1:shadowy=1:enable='${urlEnable}'`;
+    textFilters += `,drawtext=text='${ctaText}':fontcolor=${olive}:fontsize=${ctaFontSize}:x=(w-tw)/2:y=${ctaY}:shadowcolor=white@0.3:shadowx=1:shadowy=1:enable='${ctaEnable}'`;
   }
 
-  const filterComplex = `[1:v]format=rgba,colorchannelmixer=aa=0.5[tint];[0:v][tint]blend=all_mode=multiply:all_opacity=0.6[grad]${fs.existsSync(LOGO_PATH) ? `;[grad][2:v]overlay=(W-w)/2:${Math.round(h * 0.30 - logoW / 2)}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]fade=in:st=0:d=0.5,${textFilters},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]` : `;[grad]fade=in:st=0:d=0.5,${textFilters},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`}`;
-
-  const args = ['-y'];
-  args.push('-f', 'lavfi', '-i', `color=c=${olive}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
-args.push('-f', 'lavfi', '-i', `color=c=${terracotta}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
-if (fs.existsSync(LOGO_PATH)) {
-    args.push('-i', LOGO_PATH);
+  if (fs.existsSync(LOGO_PATH)) {
+    const filterComplex = `color=c=${cream}:s=${w}x${h}:d=${dur}:rate=${FPS}[bg];[2:v]scale=${logoW}:-1[logo];[bg][logo]overlay=(W-w)/2:${Math.round(h * 0.30 - logoW / 2)}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]fade=in:st=0:d=0.5,${textFilters},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`;
+    await runFfmpeg([
+      '-y', '-i', LOGO_PATH,
+      '-filter_complex', filterComplex,
+      '-map', '[v]',
+      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+      '-pix_fmt', 'yuv420p', '-t', String(dur), '-an',
+      clipPath,
+    ], 'closing');
+  } else {
+    const filterComplex = `color=c=${cream}:s=${w}x${h}:d=${dur}:rate=${FPS}[bg];[bg]fade=in:st=0:d=0.5,${textFilters},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`;
+    await runFfmpeg([
+      '-y',
+      '-filter_complex', filterComplex,
+      '-map', '[v]',
+      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+      '-pix_fmt', 'yuv420p', '-t', String(dur), '-an',
+      clipPath,
+    ], 'closing');
   }
-  args.push('-filter_complex', filterComplex);
-  args.push('-map', '[v]');
-  args.push('-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF));
-  args.push('-pix_fmt', 'yuv420p', '-t', String(dur), '-an');
-  args.push(clipPath);
 
-  await runFfmpeg(args, 'closing');
   return clipPath;
 }
 
@@ -621,10 +629,10 @@ async function addWatermarkAndFrame(videoPath, dims, workDir) {
   filterParts.push(`[1:v]scale=${wmSize}:-1,format=rgba,colorchannelmixer=aa=0.75[wm]`);
   filterParts.push(`[0:v][wm]overlay=W-w-${pad}:${pad}:format=auto[wmed]`);
 
-  filterParts.push(`color=c=0x5A5A40@0.7:s=${w}x${topBarH}:d=5:rate=${FPS}[topbar]`);
+  filterParts.push(`color=c=0xF5F5F0@0.85:s=${w}x${topBarH}:d=5:rate=${FPS}[topbar]`);
   filterParts.push(`[wmed][topbar]overlay=0:0:format=auto:eval=frame:eof_action=repeat[wmed2]`);
 
-  filterParts.push(`color=c=0x5A5A40@0.7:s=${w}x${botBarH}:d=5:rate=${FPS}[botbar]`);
+  filterParts.push(`color=c=0xF5F5F0@0.85:s=${w}x${botBarH}:d=5:rate=${FPS}[botbar]`);
   filterParts.push(`[wmed2][botbar]overlay=0:H-${botBarH}:format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`);
 
   await runFfmpeg([
