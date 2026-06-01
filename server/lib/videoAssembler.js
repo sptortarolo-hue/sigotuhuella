@@ -1,10 +1,22 @@
-import Editly from 'editly';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 import pool from '../db.js';
+
+let _editly = null;
+async function getEditly() {
+  if (!_editly) {
+    try {
+      const mod = await import('editly');
+      _editly = mod.default || mod;
+    } catch (err) {
+      throw new Error('editly no está disponible. Verificá que headless-gl compiló correctamente. Error: ' + err.message);
+    }
+  }
+  return _editly;
+}
 
 const PUBLIC_DIR = process.env.PUBLIC_DIR || 'public';
 const PROJECT_ROOT = process.env.PWD || process.cwd();
@@ -672,6 +684,7 @@ async function generateVideo(config) {
 
     logStep('starting editly render');
 
+    const Editly = await getEditly();
     await Editly(editlyConfig);
 
     logStep('editly render complete');
