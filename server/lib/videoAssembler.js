@@ -80,12 +80,12 @@ async function getSpeechSdk() {
   return speechSdkPromise;
 }
 
-async function synthesizeREST(ssml, outputPath) {
-  const key = process.env.AZURE_TTS_KEY;
+async function synthesizeREST(ssml, outputPath, keyOverride) {
+  const key = keyOverride || process.env.AZURE_TTS_KEY;
   const region = process.env.AZURE_TTS_REGION || 'eastus';
-  const url = `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`;
+  const url = `https://${region}.api.cognitive.microsoft.com/cognitiveservices/v1`;
 
-  console.log('[TTS-REST] POST', url, 'SSML length:', ssml.length);
+  console.log('[TTS-REST] POST', url, 'SSML length:', ssml.length, 'key:', key.slice(0, 8) + '...');
 
   const response = await fetch(url, {
     method: 'POST',
@@ -170,14 +170,27 @@ async function generateTTS(config, voiceScript, workDir) {
 
   if (process.env.AZURE_TTS_KEY) {
     try {
-      console.log('[TTS] Trying REST API (primary)...');
+      console.log('[TTS] Trying REST API with key1...');
       const size = await synthesizeREST(ssml, ttsPath);
       if (size > 0) {
         ttsOk = true;
-        console.log('[TTS] REST API success, size:', size);
+        console.log('[TTS] REST API key1 success, size:', size);
       }
     } catch (err) {
-      console.warn('[TTS] REST API failed:', err.message);
+      console.warn('[TTS] REST API key1 failed:', err.message);
+    }
+  }
+
+  if (!ttsOk && process.env.AZURE_TTS_KEY2) {
+    try {
+      console.log('[TTS] Trying REST API with key2...');
+      const size = await synthesizeREST(ssml, ttsPath, process.env.AZURE_TTS_KEY2);
+      if (size > 0) {
+        ttsOk = true;
+        console.log('[TTS] REST API key2 success, size:', size);
+      }
+    } catch (err) {
+      console.warn('[TTS] REST API key2 failed:', err.message);
     }
   }
 
