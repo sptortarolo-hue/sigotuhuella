@@ -44,6 +44,35 @@ async function getSpeechSdk() {
   return speechSdkPromise;
 }
 
+async function synthesizeREST(ssml, outputPath) {
+  const key = process.env.AZURE_TTS_KEY;
+  const region = process.env.AZURE_TTS_REGION || 'eastus';
+  const url = `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`;
+
+  console.log('[TTS-REST] POST', url, 'SSML length:', ssml.length);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Ocp-Apim-Subscription-Key': key,
+      'Content-Type': 'application/ssml+xml',
+      'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
+    },
+    body: ssml,
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`REST TTS ${response.status}: ${text.slice(0, 200)}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  fs.writeFileSync(outputPath, buffer);
+  const size = fs.statSync(outputPath).size;
+  console.log('[TTS-REST] Wrote', outputPath, 'size:', size);
+  return size;
+}
+
 const PUBLIC_DIR = process.env.PUBLIC_DIR || 'public';
 const PROJECT_ROOT = process.env.PWD || process.cwd();
 const VIDEO_OUTPUT_DIR = path.join(PROJECT_ROOT, PUBLIC_DIR, 'generated', 'videos');
@@ -344,53 +373,78 @@ async function generateClosingClip(dims, style, workDir) {
   const { w, h } = dims;
   const olive = '#5A5A40';
   const terracotta = '#D48C70';
+  const cream = '#F5F5F0';
   const dur = CLOSING_DUR;
   const totalFrames = Math.round(dur * FPS);
-  const fadeOutStart = totalFrames - Math.round(1.0 * FPS);
+  const fadeInEnd = Math.round(0.5 * FPS);
+  const fadeOutStart = totalFrames - Math.round(0.5 * FPS);
 
   const canvas = createCanvas(w, h);
   const ctx = canvas.getContext('2d');
   const logo = await getLogoImage();
 
-  const logoSize = Math.round((h < w ? h : w) * 0.35);
-  const logoCenterY = h * 0.32;
+  const isVertical = h > w;
+  const logoSize = Math.round((isVertical ? w : h) * 0.18);
+  const logoCenterY = h * 0.30;
 
-  const titleSize = h > w ? 64 : 48;
-  const titleY = logoCenterY + logoSize / 2 + titleSize * 0.8 + 20;
+  const titleSize = isVertical ? 58 : 44;
+  const titleY = logoCenterY + logoSize / 2 + titleSize + 16;
 
-  const lineWidth = w * 0.35;
-  const lineY = titleY + titleSize * 0.6 + 12;
+  const lineW = w * 0.30;
+  const lineY = titleY + titleSize * 0.55 + 10;
 
-  const urlSize = h > w ? 42 : 32;
-  const urlY = lineY + 20 + urlSize * 0.6;
+  const urlSize = isVertical ? 38 : 28;
+  const urlY = lineY + 16 + urlSize * 0.5;
 
-  const ctaSize = h > w ? 32 : 24;
-  const cta1Y = urlY + urlSize * 0.6 + 18;
-  const cta2Y = cta1Y + ctaSize * 0.7 + 8;
+  const ctaSize = isVertical ? 30 : 22;
+  const cta1Y = urlY + urlSize * 0.55 + 20;
+  const cta2Y = cta1Y + ctaSize * 0.8 + 10;
+
+  function drawTextWithOutline(text, x, y, font, fillColor) {
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const offsets = [[-2,0],[2,0],[0,-2],[0,2],[-1,-1],[1,-1],[-1,1],[1,1]];
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    for (const [ox, oy] of offsets) {
+      ctx.fillText(text, x + ox, y + oy);
+    }
+    ctx.fillStyle = fillColor;
+    ctx.fillText(text, x, y);
+  }
 
   const frames = [];
   for (let i = 0; i < totalFrames; i++) {
     const progress = i / (totalFrames - 1);
 
-    const grad = ctx.createLinearGradient(0, 0, w, h);
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
     grad.addColorStop(0, olive);
-    grad.addColorStop(1, terracotta);
+    grad.addColorStop(0.6, terracotta);
+    grad.addColorStop(1, olive);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
     ctx.beginPath();
     ctx.arc(w * 0.5, logoCenterY, w * 0.4, 0, Math.PI * 2);
     ctx.fill();
 
-    const logoAlpha = Math.min(1, progress * 5);
+    // Fade in from dark (absorbs xfade overlap)
+    if (i < fadeInEnd) {
+      const fi = 1 - i / fadeInEnd;
+      ctx.fillStyle = `rgba(0,0,0,${fi * 0.8})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    const contentStart = fadeInEnd / totalFrames;
+    const logoAlpha = Math.max(0, Math.min(1, (progress - contentStart) * 6));
     if (logo) {
       ctx.save();
       ctx.globalAlpha = logoAlpha;
 
       ctx.fillStyle = 'rgba(255,255,255,0.15)';
       ctx.beginPath();
-      ctx.arc(w / 2, logoCenterY, logoSize / 2 + 15, 0, Math.PI * 2);
+      ctx.arc(w / 2, logoCenterY, logoSize / 2 + 12, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.beginPath();
@@ -402,72 +456,53 @@ async function generateClosingClip(dims, style, workDir) {
       ctx.save();
       ctx.globalAlpha = logoAlpha;
       ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(w / 2, logoCenterY, logoSize / 2 + 4, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
 
-    const titleAlpha = Math.max(0, Math.min(1, (progress - 0.1) * 5));
+    const textStart = contentStart + 0.04;
+    const titleAlpha = Math.max(0, Math.min(1, (progress - textStart) * 6));
     ctx.save();
     ctx.globalAlpha = titleAlpha;
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${titleSize}px ${CANVAS_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 2;
-    ctx.fillText('SIGO TU HUELLA', w / 2, titleY);
+    drawTextWithOutline('SIGO TU HUELLA', w / 2, titleY, `bold ${titleSize}px ${CANVAS_FONT}`, '#ffffff');
     ctx.restore();
 
-    const lineAlpha = Math.max(0, Math.min(1, (progress - 0.15) * 5));
-    const lineProgress = Math.max(0, Math.min(1, (progress - 0.15) * 4));
+    const lineStart = textStart + 0.05;
+    const lineAlpha = Math.max(0, Math.min(1, (progress - lineStart) * 6));
+    const lineGrow = Math.max(0, Math.min(1, (progress - lineStart) * 5));
     ctx.save();
     ctx.globalAlpha = lineAlpha;
-    ctx.strokeStyle = terracotta;
+    ctx.strokeStyle = cream;
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(w / 2 - lineWidth * lineProgress / 2, lineY);
-    ctx.lineTo(w / 2 + lineWidth * lineProgress / 2, lineY);
+    ctx.moveTo(w / 2 - lineW * lineGrow / 2, lineY);
+    ctx.lineTo(w / 2 + lineW * lineGrow / 2, lineY);
     ctx.stroke();
     ctx.restore();
 
-    const urlAlpha = Math.max(0, Math.min(1, (progress - 0.2) * 5));
+    const urlStart = lineStart + 0.05;
+    const urlAlpha = Math.max(0, Math.min(1, (progress - urlStart) * 6));
     ctx.save();
     ctx.globalAlpha = urlAlpha;
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${urlSize}px ${CANVAS_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 2;
-    ctx.fillText('sigotuhuella.online', w / 2, urlY);
+    drawTextWithOutline('sigotuhuella.online', w / 2, urlY, `bold ${urlSize}px ${CANVAS_FONT}`, '#ffffff');
     ctx.restore();
 
-    const ctaAlpha = Math.max(0, Math.min(1, (progress - 0.28) * 5));
+    const ctaStart = urlStart + 0.06;
+    const ctaAlpha = Math.max(0, Math.min(1, (progress - ctaStart) * 6));
     ctx.save();
     ctx.globalAlpha = ctaAlpha;
-    ctx.font = `bold ${ctaSize}px ${CANVAS_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 2;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText('Visitá nuestra web', w / 2, cta1Y);
-    ctx.fillText('Descargá la app gratis', w / 2, cta2Y);
+    drawTextWithOutline('Visita nuestra web', w / 2, cta1Y, `bold ${ctaSize}px ${CANVAS_FONT}`, cream);
+    drawTextWithOutline('Descarga la app gratis', w / 2, cta2Y, `bold ${ctaSize}px ${CANVAS_FONT}`, cream);
     ctx.restore();
 
+    // Fade to black (last 0.5s, full black)
     if (i >= fadeOutStart) {
-      const fadeOutProgress = (i - fadeOutStart) / (totalFrames - 1 - fadeOutStart);
+      const fo = (i - fadeOutStart) / (totalFrames - 1 - fadeOutStart);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = `rgba(0,0,0,${fadeOutProgress * 0.85})`;
+      ctx.fillStyle = `rgba(0,0,0,${fo})`;
       ctx.fillRect(0, 0, w, h);
     }
 
@@ -558,6 +593,91 @@ async function addWatermarkToVideo(videoPath, watermarkPath, dims, workDir) {
   return outPath;
 }
 
+async function prepareBrandFrame(dims, workDir) {
+  const logo = await getLogoImage();
+  const { w, h } = dims;
+  const isVertical = h > w;
+  const topBarH = isVertical ? 80 : 60;
+  const botBarH = isVertical ? 50 : 36;
+
+  const canvas = createCanvas(w, topBarH + botBarH);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, w, topBarH + botBarH);
+
+  // Top bar: solid olive with gradient fade at bottom edge
+  const topGrad = ctx.createLinearGradient(0, 0, 0, topBarH);
+  topGrad.addColorStop(0, '#5A5A40');
+  topGrad.addColorStop(0.7, '#5A5A40');
+  topGrad.addColorStop(1, 'rgba(90,90,64,0)');
+  ctx.fillStyle = topGrad;
+  ctx.fillRect(0, 0, w, topBarH);
+
+  // Logo circle + name on top bar
+  if (logo) {
+    const logoR = Math.round(topBarH * 0.32);
+    const logoCX = logoR + 16;
+    const logoCY = Math.round(topBarH * 0.40);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.beginPath();
+    ctx.arc(logoCX, logoCY, logoR + 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(logoCX, logoCY, logoR, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(logo, logoCX - logoR, logoCY - logoR, logoR * 2, logoR * 2);
+    ctx.restore();
+
+    const nameSize = Math.round(topBarH * 0.30);
+    ctx.font = `bold ${nameSize}px ${CANVAS_FONT}`;
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Sigo tu Huella', logoCX + logoR + 12, logoCY);
+  }
+
+  // Bottom bar: subtle gradient
+  const botGrad = ctx.createLinearGradient(0, topBarH, 0, topBarH + botBarH);
+  botGrad.addColorStop(0, 'rgba(90,90,64,0)');
+  botGrad.addColorStop(0.3, 'rgba(90,90,64,0.6)');
+  botGrad.addColorStop(1, '#5A5A40');
+  ctx.fillStyle = botGrad;
+  ctx.fillRect(0, topBarH, w, botBarH);
+
+  const framePath = path.join(workDir, 'brand_frame.png');
+  const buf = canvas.toBuffer('image/png');
+  fs.writeFileSync(framePath, buf);
+  return { framePath, topBarH, botBarH };
+}
+
+async function addBrandFrameToVideo(videoPath, framePath, topBarH, botBarH, dims, workDir) {
+  if (!framePath || !fs.existsSync(framePath)) return videoPath;
+
+  const outPath = path.join(workDir, 'branded.mp4');
+  const { w, h } = dims;
+
+  await new Promise((resolve, reject) => {
+    ffmpeg()
+      .input(videoPath)
+      .input(framePath)
+      .complexFilter([
+        `[1:v]format=rgba[frame];[0:v][frame]overlay=0:0:format=auto,format=yuv420p[v]`,
+      ])
+      .outputOptions(['-map', '[v]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-an'])
+      .on('end', resolve)
+      .on('error', (err, stdout, stderr) => {
+        console.error('brand frame stderr:', stderr);
+        reject(err);
+      })
+      .save(outPath);
+  });
+
+  try { fs.unlinkSync(videoPath); } catch {}
+  return outPath;
+}
+
 async function generateAudio(stats, config, outputPath, voiceScript) {
   const script = voiceScript || buildAutoScript(config.style, stats);
   console.log('[TTS] generateAudio start — includeVoice:', config.includeVoice, 'script length:', script?.length);
@@ -565,54 +685,68 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
   let ttsTmpPath = null;
   let ttsDur = 0;
 
-  if (config.includeVoice) {
-    const sdk = await getSpeechSdk();
-    console.log('[TTS] SDK loaded:', !!sdk, 'has key:', !!process.env.AZURE_TTS_KEY, 'has region:', !!process.env.AZURE_TTS_REGION);
-    if (sdk && script) {
-      const voice = STYLE_VOICES[config.style] || STYLE_VOICES.emotive;
-      const params = STYLE_VOICE_PARAMS[config.style] || STYLE_VOICE_PARAMS.emotive;
+  if (config.includeVoice && script) {
+    const voice = STYLE_VOICES[config.style] || STYLE_VOICES.emotive;
+    const params = STYLE_VOICE_PARAMS[config.style] || STYLE_VOICE_PARAMS.emotive;
+    const ssml = buildSSML(script, voice, params);
+    ttsTmpPath = outputPath.replace('.mp3', '_tts.mp3');
 
-      ttsTmpPath = outputPath.replace('.mp3', '_tts.mp3');
+    let ttsOk = false;
 
-      let ttsOk = false;
-
+    // 1) REST API (primary — most reliable)
+    if (process.env.AZURE_TTS_KEY && process.env.AZURE_TTS_REGION) {
       try {
-        const speechConfig = sdk.SpeechConfig.fromSubscription(
-          process.env.AZURE_TTS_KEY,
-          process.env.AZURE_TTS_REGION || 'eastus',
-        );
-        speechConfig.speechSynthesisVoiceName = voice;
-        speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
-
-      const ssml = buildSSML(script, voice, params);
-      console.log('[TTS] Attempting speakSsmlAsync, voice:', voice, 'SSML length:', ssml.length);
-      console.log('[TTS] SSML:\n', ssml);
-        const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
-        const result = await new Promise((resolve, reject) => {
-          synthesizer.speakSsmlAsync(ssml, res => resolve(res), err => reject(err));
-        });
-        synthesizer.close();
-
-        console.log('[TTS] SSML result — reason:', result?.reason, 'audioData type:', typeof result?.audioData, 'byteLength:', result?.audioData?.byteLength, 'is ArrayBuffer:', result?.audioData instanceof ArrayBuffer);
-        if (result && result.audioData && result.audioData.byteLength > 0
-          && result.reason !== sdk.ResultReason.Canceled) {
-          fs.writeFileSync(ttsTmpPath, Buffer.from(result.audioData));
-          const fSize = fs.statSync(ttsTmpPath).size;
-          console.log('[TTS] SSML wrote file:', ttsTmpPath, 'size:', fSize);
+        console.log('[TTS] Trying REST API (primary)...');
+        const size = await synthesizeREST(ssml, ttsTmpPath);
+        if (size > 0) {
           ttsOk = true;
-        } else if (result && result.reason === sdk.ResultReason.Canceled) {
-          const cancellation = sdk.CancellationDetails.fromResult(result);
-          console.warn('[TTS] SSML canceled:', cancellation.reason, cancellation.errorDetails);
-        } else {
-          console.warn('[TTS] SSML result unexpected:', JSON.stringify({ reason: result?.reason, hasAudioData: !!result?.audioData, byteLength: result?.audioData?.byteLength }));
+          console.log('[TTS] REST API success, size:', size);
         }
       } catch (err) {
-        console.warn('[TTS] SSML failed with voice', voice, ':', err.message);
+        console.warn('[TTS] REST API failed:', err.message);
       }
+    }
 
-      if (!ttsOk) {
-        console.warn('[TTS] Retrying with speakTextAsync (plain text, no SSML)...');
+    // 2) SDK speakSsmlAsync (fallback 1)
+    if (!ttsOk) {
+      const sdk = await getSpeechSdk();
+      if (sdk) {
         try {
+          console.log('[TTS] Trying SDK speakSsmlAsync (fallback)...');
+          const speechConfig = sdk.SpeechConfig.fromSubscription(
+            process.env.AZURE_TTS_KEY,
+            process.env.AZURE_TTS_REGION || 'eastus',
+          );
+          speechConfig.speechSynthesisVoiceName = voice;
+          speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+
+          const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
+          const result = await new Promise((resolve, reject) => {
+            synthesizer.speakSsmlAsync(ssml, res => resolve(res), err => reject(err));
+          });
+          synthesizer.close();
+
+          if (result && result.audioData && result.audioData.byteLength > 0
+            && result.reason !== sdk.ResultReason.Canceled) {
+            fs.writeFileSync(ttsTmpPath, Buffer.from(result.audioData));
+            console.log('[TTS] SDK speakSsmlAsync success, byteLength:', result.audioData.byteLength);
+            ttsOk = true;
+          } else if (result && result.reason === sdk.ResultReason.Canceled) {
+            const c = sdk.CancellationDetails.fromResult(result);
+            console.warn('[TTS] SDK speakSsmlAsync canceled:', c.reason, c.errorDetails);
+          }
+        } catch (err) {
+          console.warn('[TTS] SDK speakSsmlAsync failed:', err.message);
+        }
+      }
+    }
+
+    // 3) SDK speakTextAsync (fallback 2 — plain text, no SSML)
+    if (!ttsOk) {
+      const sdk = await getSpeechSdk();
+      if (sdk) {
+        try {
+          console.log('[TTS] Trying SDK speakTextAsync (fallback 2)...');
           const speechConfig = sdk.SpeechConfig.fromSubscription(
             process.env.AZURE_TTS_KEY,
             process.env.AZURE_TTS_REGION || 'eastus',
@@ -626,30 +760,26 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
           });
           synthesizer.close();
 
-          console.log('[TTS] speakTextAsync result — reason:', result?.reason, 'byteLength:', result?.audioData?.byteLength);
           if (result && result.audioData && result.audioData.byteLength > 0) {
             fs.writeFileSync(ttsTmpPath, Buffer.from(result.audioData));
-            const fSize = fs.statSync(ttsTmpPath).size;
-            console.log('[TTS] speakTextAsync wrote file:', ttsTmpPath, 'size:', fSize);
+            console.log('[TTS] SDK speakTextAsync success, byteLength:', result.audioData.byteLength);
             ttsOk = true;
           }
         } catch (err2) {
-          console.warn('[TTS] speakTextAsync also failed:', err2.message);
+          console.warn('[TTS] SDK speakTextAsync also failed:', err2.message);
         }
       }
-
-      if (ttsOk && fs.existsSync(ttsTmpPath)) {
-        ttsDur = await getAudioDuration(ttsTmpPath);
-        console.log('[TTS] TTS duration:', ttsDur.toFixed(1), 's');
-      } else {
-        console.warn('[TTS] TTS failed completely, using music only');
-        ttsTmpPath = null;
-      }
-    } else if (!sdk) {
-      console.warn('[TTS] Azure Speech SDK not available');
-    } else if (!script) {
-      console.warn('[TTS] No voice script provided');
     }
+
+    if (ttsOk && fs.existsSync(ttsTmpPath)) {
+      ttsDur = await getAudioDuration(ttsTmpPath);
+      console.log('[TTS] TTS duration:', ttsDur.toFixed(1), 's');
+    } else {
+      console.warn('[TTS] All TTS methods failed, using music only');
+      ttsTmpPath = null;
+    }
+  } else if (!script) {
+    console.warn('[TTS] No voice script provided');
   }
 
   const musicUrl = MUSIC_TRACKS[config.music] || MUSIC_TRACKS.emotional;
@@ -984,10 +1114,15 @@ export async function generateVideo(config) {
       mainVideoPath = await concatenateSimple(mainClips, workDir);
     }
 
-    const watermarkPath = await prepareLogoWatermark(dims, workDir);
-    if (watermarkPath) {
-      mainVideoPath = await addWatermarkToVideo(mainVideoPath, watermarkPath, dims, workDir);
-    }
+  const watermarkPath = await prepareLogoWatermark(dims, workDir);
+  if (watermarkPath) {
+    mainVideoPath = await addWatermarkToVideo(mainVideoPath, watermarkPath, dims, workDir);
+  }
+
+  const brandFrame = await prepareBrandFrame(dims, workDir);
+  if (brandFrame.framePath) {
+    mainVideoPath = await addBrandFrameToVideo(mainVideoPath, brandFrame.framePath, brandFrame.topBarH, brandFrame.botBarH, dims, workDir);
+  }
 
     const closingClip = await generateClosingClip(dims, style, workDir);
 
