@@ -3,7 +3,7 @@ import path from 'path';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { rimraf } from 'rimraf';
 import pool from '../db.js';
@@ -291,7 +291,7 @@ function ffprobeDuration(filePath) {
 function runFfmpeg(args, label) {
   return new Promise((resolve, reject) => {
     console.log(`[FFmpeg:${label}]`, 'ffmpeg', args.slice(0, 10).join(' '), '...');
-    const proc = require('child_process').spawn('ffmpeg', args, { stdio: ['pipe', 'pipe', 'pipe'] });
+    const proc = spawn('ffmpeg', args, { stdio: ['pipe', 'pipe', 'pipe'] });
     let stderr = '';
     proc.stderr.on('data', (d) => { stderr += d.toString(); });
     proc.on('close', (code) => {
