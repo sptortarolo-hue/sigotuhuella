@@ -584,8 +584,9 @@ async function generateAudio(stats, config, outputPath, voiceScript) {
         speechConfig.speechSynthesisVoiceName = voice;
         speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
 
-        const ssml = buildSSML(script, voice, params);
-        console.log('[TTS] Attempting speakSsmlAsync, voice:', voice, 'SSML length:', ssml.length);
+      const ssml = buildSSML(script, voice, params);
+      console.log('[TTS] Attempting speakSsmlAsync, voice:', voice, 'SSML length:', ssml.length);
+      console.log('[TTS] SSML:\n', ssml);
         const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
         const result = await new Promise((resolve, reject) => {
           synthesizer.speakSsmlAsync(ssml, res => resolve(res), err => reject(err));
@@ -711,16 +712,25 @@ function getAudioDuration(filePath) {
   });
 }
 
+function escapeXml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 function buildSSML(script, voice, params) {
   const { rate, pitch } = params;
-  const cleaned = script.trim().replace(/\s+/g, ' ');
+  const cleaned = escapeXml(script.trim().replace(/\s+/g, ' '));
 
   return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
 <voice name="${voice}">
 <prosody rate="${rate}" pitch="${pitch}">
 ${cleaned}
 <break time="600ms"/>
-<emphasis level="strong">sigotuhuella.online</emphasis>
+sigotuhuella.online
 </prosody>
 </voice>
 </speak>`;
