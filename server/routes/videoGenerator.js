@@ -10,6 +10,9 @@ const router = express.Router();
 
 router.get('/', requireAuth, requireAdmin, async (req, res) => {
   try {
+    await pool.query(
+      "UPDATE promotional_videos SET status = 'failed', error_msg = 'Timeout: generacion excedio 5 minutos' WHERE status = 'generating' AND created_at < NOW() - INTERVAL '5 minutes'"
+    );
     const result = await pool.query(`
       SELECT v.*, u.display_name as created_by_name
       FROM promotional_videos v
@@ -186,9 +189,10 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
     );
     const videoId = insertResult.rows[0].id;
 
-    setImmediate(async () => {
-      try {
-        const result = await generateVideo({
+  setImmediate(async () => {
+    try {
+      const result = await Promise.race([
+        generateVideo({
           style,
           duration,
           music,
@@ -196,19 +200,21 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
           format,
           voiceScript: finalVoiceScript,
           scenes: resolvedScenes,
-        });
-        await pool.query(
-          `UPDATE promotional_videos SET video_data = $1, thumbnail_data = $2, status = 'ready' WHERE id = $3`,
-          [result.filename, result.thumbnail, videoId]
-        );
-      } catch (err) {
-        console.error('Video generation failed:', err);
-        await pool.query(
-          `UPDATE promotional_videos SET status = 'failed', error_msg = $1 WHERE id = $2`,
-          [err.message || 'Unknown error', videoId]
-        );
-      }
-    });
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Video generation timeout (5 minutes)')), 300_000)),
+      ]);
+      await pool.query(
+        `UPDATE promotional_videos SET video_data = $1, thumbnail_data = $2, status = 'ready' WHERE id = $3`,
+        [result.filename, result.thumbnail, videoId]
+      );
+    } catch (err) {
+      console.error('Video generation failed:', err);
+      await pool.query(
+        `UPDATE promotional_videos SET status = 'failed', error_msg = $1 WHERE id = $2`,
+        [err.message || 'Unknown error', videoId]
+      );
+    }
+  });
 
     res.json({ status: 'generating', videoId, message: 'Video generation started.' });
   } catch (err) {
