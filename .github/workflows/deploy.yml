@@ -8,32 +8,26 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.3.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          port: ${{ secrets.SSH_PORT }}
-          username: ${{ secrets.SSH_USER }}
-      key: ${{ secrets.SSH_KEY }}
-      script: |
-      cd /var/www/sigotuhuella
-      git pull
-
-      # Crear swap de 1GB si no existe (necesario para compilar headless-gl en 1GB RAM)
-      if [ ! -f /swapfile ]; then
-        sudo fallocate -l 1G /swapfile
-        sudo chmod 600 /swapfile
-        sudo mkswap /swapfile
-        sudo swapon /swapfile
-      fi
-
-      # Instalar dependencias nativas si no estan (idempotente)
-      dpkg -l | grep -q libgl1-mesa-dev || {
-        sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends ffmpeg libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev pkg-config
-      }
-
-      # Instalar dependencias y reconstruir nativos
-      npm install
-      npm run build
-      pm2 restart sigotuhuella
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.3.0
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        port: ${{ secrets.SSH_PORT }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          cd /var/www/sigotuhuella
+          git pull
+          if [ ! -f /swapfile ]; then
+            sudo fallocate -l 1G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+          fi
+          if ! dpkg -l libgl1-mesa-dev > /dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends ffmpeg libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev pkg-config
+          fi
+          npm install
+          npm run build
+          pm2 restart sigotuhuella
