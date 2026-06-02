@@ -209,9 +209,9 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'No hay imágenes para generar el video. Seleccioná al menos una.' });
     }
 
-    const title = mode === 'ai'
-      ? `Video IA ${style} ${duration}s ${format}`
-      : `Video ${style} ${duration}s ${format}`;
+const title = mode === 'ai'
+    ? `Video IA ${style} ${includeVoice ? 'TTS' : `${duration}s`} ${format}`
+    : `Video ${style} ${includeVoice ? 'TTS' : `${duration}s`} ${format}`;
     const insertResult = await pool.query(
       `INSERT INTO promotional_videos (title, video_data, style, duration, music_track, voice_enabled, format, status, created_by)
        VALUES ($1, '', $2, $3, $4, $5, $6, 'generating', $7)
