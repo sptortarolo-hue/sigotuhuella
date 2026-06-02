@@ -356,19 +356,18 @@ async function addDrawTextToClip(clipPath, overlayText, clipDur, dims, workDir, 
   const textY = h > w ? Math.round(h * 0.72) : Math.round(h * 0.78);
   const escaped = escDrawText(overlayText);
 
-  const drawboxPart = `drawbox=x=0:y=${textY - 10}:w=iw:h=${fontSize + 24}:color=0x5A5A40@0.6:t=fill:enable='between(t\\,0.3\\,${clipDur})'[bg]`;
+  const drawboxPart = `drawbox=x=0:y=${textY - 10}:w=iw:h=${fontSize + 24}:color=0x5A5A40@0.6:t=fill:enable='between(t\\,0.3\\,${clipDur})'`;
 
   let drawtextPart;
   if (fontPath) {
-    drawtextPart = `[bg]drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.3\\,${clipDur})'[v]`;
+    drawtextPart = `drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.3\\,${clipDur})'`;
   } else {
-    drawtextPart = `[bg]drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.3\\,${clipDur})'[v]`;
+    drawtextPart = `drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.3\\,${clipDur})'`;
   }
 
   await runFfmpeg([
     '-y', '-i', clipPath,
-    '-vf', `${drawboxPart};${drawtextPart}`,
-    '-map', '[v]',
+    '-vf', `${drawboxPart},${drawtextPart}`,
     '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
     '-pix_fmt', 'yuv420p', '-an',
     outPath,
