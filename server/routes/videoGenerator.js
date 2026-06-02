@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireAuth, requireAdmin } from '../auth.js';
 import pool from '../db.js';
-import { generateVideo, getRandomReunionPhotos, getGlobalStats, getPetImages, getNewsImage } from '../lib/videoAssembler.js';
+import { generateVideo, getRandomReunionPhotos, getGlobalStats, getPetImages, getPetInfo, getNewsImage, getNewsData } from '../lib/videoAssembler.js';
 import { generateVideoContent, generateVideoImages } from '../services/aiService.js';
 import fs from 'fs';
 import path from 'path';
@@ -118,6 +118,7 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
     }
 
     let resolvedScenes = [];
+    let sceneDescriptions = [];
 
     if (mode === 'ai') {
       const numScenes = Math.max(3, Math.min(10, scenes.length || 5));
@@ -139,7 +140,12 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
       for (const scene of scenes) {
         if (scene.source === 'pet' && scene.petId) {
           const images = await getPetImages(scene.petId);
-          for (const img of images.slice(0, 1)) {
+          const petInfo = await getPetInfo(scene.petId);
+          if (petInfo) {
+            const parts = [petInfo.name, petInfo.species, petInfo.breed, petInfo.status].filter(Boolean);
+            sceneDescriptions.push(parts.join(' - '));
+          }
+          for (const img of images.slice(0, 5)) {
             resolvedScenes.push({
               type: 'photo',
               imageBase64: img,
@@ -147,13 +153,16 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
             });
           }
         } else if (scene.source === 'news' && scene.newsId) {
-          const img = await getNewsImage(scene.newsId);
-          if (img) {
+          const newsData = await getNewsData(scene.newsId);
+          if (newsData && newsData.image_data) {
             resolvedScenes.push({
               type: 'photo',
-              imageBase64: img,
+              imageBase64: newsData.image_data,
               overlayText: scene.overlayText || '',
             });
+            if (newsData.title || newsData.content) {
+              sceneDescriptions.push(`${newsData.title || ''}. ${newsData.content || ''}`);
+            }
           }
         } else if (scene.type === 'photo' && scene.imageBase64) {
           resolvedScenes.push(scene);
@@ -171,7 +180,29 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
         }
       }
 
-      var finalVoiceScript = voiceScript;
+      if (includeVoice && !voiceScript.trim() && sceneDescriptions.length > 0) {
+        try {
+          const aiContent = await generateVideoContent(
+            topic || 'Mascotas y noticias de Sigo Tu Huella',
+            style,
+            resolvedScenes.length,
+            sceneDescriptions,
+          );
+          var finalVoiceScript = aiContent.voiceScript || '';
+          if (aiContent.overlayTexts && aiContent.overlayTexts.length > 0) {
+            resolvedScenes.forEach((s, i) => {
+              if (!s.overlayText && aiContent.overlayTexts[i]) {
+                s.overlayText = aiContent.overlayTexts[i];
+              }
+            });
+          }
+        } catch (aiErr) {
+          console.warn('AI voiceScript generation failed, using empty:', aiErr.message);
+          var finalVoiceScript = voiceScript;
+        }
+      } else {
+        var finalVoiceScript = voiceScript;
+      }
     }
 
     if (resolvedScenes.length === 0) {

@@ -717,41 +717,44 @@ export default function VideoGeneratorTab() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-2">Duracion</label>
-            <select
-              value={config.duration}
-              onChange={e => setConfig(c => ({ ...c, duration: parseInt(e.target.value) }))}
-              className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
-            >
-              <option value={30}>30 segundos</option>
-              <option value={60}>60 segundos</option>
-            </select>
-          </div>
+      {!config.includeVoice && (
+        <div>
+          <label className="block text-sm font-bold text-gray-600 mb-2">Duracion (segundos)</label>
+          <input
+            type="number"
+            min={10}
+            max={120}
+            value={config.duration}
+            onChange={e => setConfig(c => ({ ...c, duration: parseInt(e.target.value) || 30 }))}
+            className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+          />
+        </div>
+      )}
 
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-2">Musica de fondo</label>
-            <select
-              value={config.music}
-              onChange={e => setConfig(c => ({ ...c, music: e.target.value }))}
-              className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
-            >
-              {musicOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
+      <div>
+        <label className="block text-sm font-bold text-gray-600 mb-2">Musica de fondo</label>
+        <select
+          value={config.music}
+          onChange={e => setConfig(c => ({ ...c, music: e.target.value }))}
+          className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+        >
+          {musicOptions.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
 
-          <div className="flex items-center gap-3 pt-6">
-            <input
-              type="checkbox"
-              id="voiceEnabled"
-              checked={config.includeVoice}
-              onChange={e => setConfig(c => ({ ...c, includeVoice: e.target.checked }))}
-              className="w-5 h-5 rounded accent-brand-primary"
-            />
-            <label htmlFor="voiceEnabled" className="font-bold text-gray-700">Incluir voz (TTS)</label>
-          </div>
+      <div className="flex items-center gap-3 pt-6">
+        <input
+          type="checkbox"
+          id="voiceEnabled"
+          checked={config.includeVoice}
+          onChange={e => setConfig(c => ({ ...c, includeVoice: e.target.checked }))}
+          className="w-5 h-5 rounded accent-brand-primary"
+        />
+        <label htmlFor="voiceEnabled" className="font-bold text-gray-700">Incluir voz (TTS)</label>
+        {!config.includeVoice && <span className="text-xs text-gray-400 ml-1">— duracion manual</span>}
+      </div>
         </div>
 
         <div className="mb-6">

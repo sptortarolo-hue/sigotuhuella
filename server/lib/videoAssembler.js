@@ -624,19 +624,14 @@ async function addWatermarkAndFrame(videoPath, dims, workDir) {
   if (!hasLogo) return videoPath;
 
   const wmSize = Math.round(Math.min(w, h) * 0.08);
-
-  const topBarH = isVertical ? 70 : 50;
   const botBarH = isVertical ? 40 : 30;
 
   const filterParts = [];
   filterParts.push(`[1:v]scale=${wmSize}:-1,format=rgba,colorchannelmixer=aa=0.75[wm]`);
   filterParts.push(`[0:v][wm]overlay=W-w-${pad}:${pad}:format=auto[wmed]`);
 
-  filterParts.push(`color=c=0xF5F5F0:s=${w}x${topBarH}:d=5:rate=${FPS},format=rgba,colorchannelmixer=aa=0.85[topbar]`);
-  filterParts.push(`[wmed][topbar]overlay=0:0:format=auto:eval=frame:eof_action=repeat[wmed2]`);
-
   filterParts.push(`color=c=0xF5F5F0:s=${w}x${botBarH}:d=5:rate=${FPS},format=rgba,colorchannelmixer=aa=0.85[botbar]`);
-  filterParts.push(`[wmed2][botbar]overlay=0:H-${botBarH}:format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`);
+  filterParts.push(`[wmed][botbar]overlay=0:H-${botBarH}:format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`);
 
   await runFfmpeg([
     '-y', '-i', videoPath,
@@ -713,6 +708,18 @@ async function getNewsImage(newsId) {
   if (result.rows.length > 0 && result.rows[0].image_data) {
     return result.rows[0].image_data;
   }
+  return null;
+}
+
+async function getNewsData(newsId) {
+  const result = await pool.query('SELECT image_data, title, content FROM news WHERE id = $1', [newsId]);
+  if (result.rows.length > 0) return result.rows[0];
+  return null;
+}
+
+async function getPetInfo(petId) {
+  const result = await pool.query('SELECT name, species, breed, status FROM pets WHERE id = $1', [petId]);
+  if (result.rows.length > 0) return result.rows[0];
   return null;
 }
 
@@ -849,4 +856,4 @@ async function generateVideo(config) {
   }
 }
 
-export { generateVideo, getRandomReunionPhotos, getGlobalStats, getPetImages, getNewsImage };
+export { generateVideo, getRandomReunionPhotos, getGlobalStats, getPetImages, getPetInfo, getNewsImage, getNewsData };
