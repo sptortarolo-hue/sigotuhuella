@@ -56,7 +56,7 @@ const STYLE_ZOOMPAN = {
 
 const TRANSITION_DUR = 0.5;
 const OPENING_DUR = 3;
-const CLOSING_DUR = 3;
+const CLOSING_DUR = 5;
 const FPS = 25;
 const FF_PRESET = 'ultrafast';
 const FF_CRF = 23;
@@ -390,14 +390,16 @@ async function generateOpeningClip(dims, style, workDir) {
 
   const titleText = escDrawText('SIGO TU HUELLA');
   const titleFontSize = h > w ? 64 : 48;
-  const titleY = Math.round(h * 0.52);
+  const topMargin = Math.round(h * 0.08);
+  const titleY = topMargin;
 
   const logoW = Math.round(Math.min(w, h) * 0.14);
+  const logoY = Math.round(h * 0.30);
 
-  const titleEnable = `between(t\\,${dur * 0.33}\\,${dur})`;
-  const lineEnable = `between(t\\,${dur * 0.45}\\,${dur})`;
+  const titleEnable = `between(t\\,0.2\\,${dur})`;
+  const lineEnable = `between(t\\,0.4\\,${dur})`;
   const lineW = Math.round(w * 0.3);
-  const lineY = titleY + Math.round(titleFontSize * 0.8);
+  const lineY = titleY + titleFontSize + 8;
 
   let textFilter;
   if (fontPath) {
@@ -414,7 +416,7 @@ async function generateOpeningClip(dims, style, workDir) {
 
   if (fs.existsSync(LOGO_PATH)) {
     args.push('-i', LOGO_PATH);
-    args.push('-filter_complex', `[1:v]format=rgba,colorchannelmixer=aa=0.6[tint];[0:v][tint]overlay=0:H-h:format=auto:eval=frame:eof_action=repeat[grad];[grad][2:v]overlay=(W-w)/2:${Math.round(h * 0.32 - logoW / 2)}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
+    args.push('-filter_complex', `[1:v]format=rgba,colorchannelmixer=aa=0.6[tint];[0:v][tint]overlay=0:H-h:format=auto:eval=frame:eof_action=repeat[grad];[grad][2:v]overlay=(W-w)/2:${logoY}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
   } else {
     args.push('-filter_complex', `[1:v]format=rgba,colorchannelmixer=aa=0.6[tint];[0:v][tint]overlay=0:H-h:format=auto:eval=frame:eof_action=repeat[grad];[grad]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
   }
