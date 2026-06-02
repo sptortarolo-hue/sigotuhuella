@@ -494,36 +494,45 @@ async function generateClosingClip(dims, style, workDir) {
   return clipPath;
 }
 
-async function generateAudio(config, voiceScript, workDir) {
+async function generateAudio(config, voiceScript, workDir, videoDuration, ttsPath) {
   const audioPath = path.join(workDir, 'audio.mp3');
-  const ttsPath = await generateTTS(config, voiceScript, workDir);
 
   const musicPath = MUSIC_TRACKS[config.music] || MUSIC_TRACKS.emotional;
   const hasMusic = fs.existsSync(musicPath) && fs.statSync(musicPath).size > 0;
   const hasTts = ttsPath && fs.existsSync(ttsPath);
 
   if (hasTts && hasMusic) {
-    const ttsDur = await ffprobeDuration(ttsPath);
-    console.log('[Audio] Mixing TTS + music, TTS dur:', ttsDur.toFixed(1), 's');
+    console.log('[Audio] Mixing TTS (adelay 2s) + music, videoDuration:', videoDuration, 's');
 
     await runFfmpeg([
       '-y', '-i', ttsPath, '-i', musicPath,
       '-filter_complex',
-      `[1:a]volume=0.35,atrim=end=${ttsDur > 0 ? ttsDur + 3 : config.duration}[musicVol];[0:a][musicVol]amix=inputs=2:duration=longest:dropout_transition=3[mix]`,
+      `[0:a]adelay=2000|2000[delayed];[1:a]volume=0.35,atrim=0:${videoDuration}[musicVol];[delayed][musicVol]amix=inputs=2:duration=longest:dropout_transition=3[mix]`,
       '-map', '[mix]', '-c:a', 'libmp3lame', '-b:a', '192k',
+      '-t', String(videoDuration),
       audioPath,
     ], 'audio-mix');
 
     try { fs.unlinkSync(ttsPath); } catch {}
   } else if (hasTts) {
-    fs.copyFileSync(ttsPath, audioPath);
+    console.log('[Audio] TTS only (adelay 2s + pad to', videoDuration, 's)');
+
+    await runFfmpeg([
+      '-y', '-i', ttsPath,
+      '-filter_complex',
+      `[0:a]adelay=2000|2000,apad=whole_dur=${videoDuration}[padded]`,
+      '-map', '[padded]', '-c:a', 'libmp3lame', '-b:a', '192k',
+      '-t', String(videoDuration),
+      audioPath,
+    ], 'audio-tts-padded');
+
     try { fs.unlinkSync(ttsPath); } catch {}
   } else if (hasMusic) {
-    console.log('[Audio] Music only, duration:', config.duration);
+    console.log('[Audio] Music only, duration:', videoDuration, 's');
 
     await runFfmpeg([
       '-y', '-i', musicPath,
-      '-t', String(config.duration),
+      '-t', String(videoDuration),
       '-c:a', 'libmp3lame', '-b:a', '192k',
       audioPath,
     ], 'audio-music');
@@ -532,7 +541,7 @@ async function generateAudio(config, voiceScript, workDir) {
 
     await runFfmpeg([
       '-y', '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
-      '-t', String(config.duration),
+      '-t', String(videoDuration),
       '-c:a', 'libmp3lame', '-b:a', '128k',
       audioPath,
     ], 'audio-silent');
@@ -736,16 +745,30 @@ async function generateVideo(config) {
     }
     logStep('photos saved to disk');
 
+    let ttsPath = null;
+    let ttsDur = 0;
+    if (includeVoice && voiceScript) {
+      ttsPath = await generateTTS(config, voiceScript, workDir);
+      if (ttsPath && fs.existsSync(ttsPath)) {
+        ttsDur = await ffprobeDuration(ttsPath);
+        console.log('[VideoGen] TTS duration:', ttsDur.toFixed(1), 's');
+      }
+    }
+    logStep('tts generated');
+
+    const videoDuration = ttsDur > 0 ? ttsDur + 4 : duration;
+    console.log('[VideoGen] videoDuration:', videoDuration.toFixed(1), 's', ttsDur > 0 ? `(tts ${ttsDur.toFixed(1)}s + 4s)` : `(config ${duration}s)`);
+
     const fixedDur = OPENING_DUR + CLOSING_DUR;
     const totalTransitionDur = (numPhotoScenes + 1) * TRANSITION_DUR;
-    const availableDur = Math.max(duration - fixedDur - totalTransitionDur, numPhotoScenes * 2);
+    const availableDur = Math.max(videoDuration - fixedDur - totalTransitionDur, numPhotoScenes * 2);
     const photoClipDur = availableDur / numPhotoScenes;
 
-  const [openingClip, closingClip, audioPath] = await Promise.all([
-    generateOpeningClip(dims, style, workDir),
-    generateClosingClip(dims, style, workDir),
-    generateAudio({ style, duration, music, includeVoice }, voiceScript, workDir),
-  ]);
+    const [openingClip, closingClip, audioPath] = await Promise.all([
+      generateOpeningClip(dims, style, workDir),
+      generateClosingClip(dims, style, workDir),
+      generateAudio(config, voiceScript, workDir, videoDuration, ttsPath),
+    ]);
     logStep('opening+closing+audio parallel');
 
     const mainClips = [];
@@ -778,7 +801,7 @@ async function generateVideo(config) {
     mainVideoPath = await addWatermarkAndFrame(mainVideoPath, dims, workDir);
     logStep('watermark+frame');
 
-    const videoFilename = `promo-${style}-${duration}s-${format}-${Date.now()}.mp4`;
+    const videoFilename = `promo-${style}-${Math.round(videoDuration)}s-${format}-${Date.now()}.mp4`;
     const finalVideoPath = path.join(VIDEO_OUTPUT_DIR, videoFilename);
 
     await muxAudioVideo(mainVideoPath, audioPath, finalVideoPath);
