@@ -653,16 +653,28 @@ async function addWatermarkAndFrame(videoPath, dims, workDir) {
   return outPath;
 }
 
-async function muxAudioVideo(videoPath, audioPath, outputPath) {
+async function muxAudioVideo(videoPath, audioPath, outputPath, videoDuration) {
   console.log('[Mux] video:', videoPath, fs.existsSync(videoPath) ? fs.statSync(videoPath).size : 'missing');
   console.log('[Mux] audio:', audioPath, fs.existsSync(audioPath) ? fs.statSync(audioPath).size : 'missing');
 
   await runFfmpeg([
     '-y', '-i', videoPath, '-i', audioPath,
     '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
-    '-shortest', '-movflags', '+faststart',
+    '-t', String(videoDuration),
+    '-movflags', '+faststart',
     outputPath,
   ], 'mux');
+}
+
+async function trimVideo(videoPath, duration, workDir) {
+  const outPath = path.join(workDir, 'trimmed.mp4');
+  await runFfmpeg([
+    '-y', '-i', videoPath,
+    '-c:v', 'copy', '-t', String(duration), '-an',
+    outPath,
+  ], 'trim');
+  try { fs.unlinkSync(videoPath); } catch {}
+  return outPath;
 }
 
 async function getRandomReunionPhotos(limit = 8) {
@@ -761,7 +773,7 @@ async function generateVideo(config) {
 
     const fixedDur = OPENING_DUR + CLOSING_DUR;
     const totalTransitionDur = (numPhotoScenes + 1) * TRANSITION_DUR;
-    const availableDur = Math.max(videoDuration - fixedDur - totalTransitionDur, numPhotoScenes * 2);
+    const availableDur = Math.max(videoDuration - fixedDur + totalTransitionDur, numPhotoScenes * 2);
     const photoClipDur = availableDur / numPhotoScenes;
 
     const [openingClip, closingClip, audioPath] = await Promise.all([
@@ -801,10 +813,13 @@ async function generateVideo(config) {
     mainVideoPath = await addWatermarkAndFrame(mainVideoPath, dims, workDir);
     logStep('watermark+frame');
 
+    mainVideoPath = await trimVideo(mainVideoPath, videoDuration, workDir);
+    logStep('trim to videoDuration');
+
     const videoFilename = `promo-${style}-${Math.round(videoDuration)}s-${format}-${Date.now()}.mp4`;
     const finalVideoPath = path.join(VIDEO_OUTPUT_DIR, videoFilename);
 
-    await muxAudioVideo(mainVideoPath, audioPath, finalVideoPath);
+    await muxAudioVideo(mainVideoPath, audioPath, finalVideoPath, videoDuration);
     logStep('mux audio+video');
 
     const thumbFilename = videoFilename.replace('.mp4', '_thumb.jpg');
