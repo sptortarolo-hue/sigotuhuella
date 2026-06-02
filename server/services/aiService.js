@@ -203,16 +203,3 @@ export async function generateVideoImages(imagePrompts) {
   }
   return images;
 }
-
-  const images = [];
-  for (const prompt of imagePrompts) {
-    try {
-      const result = await generateImage(prompt);
-      images.push(result.imageData);
-    } catch (err) {
-      console.warn('Failed to generate AI image:', err.message);
-      images.push(null);
-    }
-  }
-  return images;
-}
