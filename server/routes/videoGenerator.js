@@ -1,7 +1,7 @@
 import express from 'express';
 import { requireAuth, requireAdmin } from '../auth.js';
 import pool from '../db.js';
-import { generateVideo, getRandomReunionPhotos, getGlobalStats, getPetImages, getPetInfo, getNewsImage, getNewsData } from '../lib/videoAssembler.js';
+import { generateVideo, getRandomReunionPhotos, getGlobalStats, getPetImages, getPetInfo, getNewsImage, getNewsData, fetchRandomPetPhotos } from '../lib/videoAssembler.js';
 import { generateVideoContent, generateVideoImages } from '../services/aiService.js';
 import fs from 'fs';
 import path from 'path';
@@ -120,22 +120,45 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
     let resolvedScenes = [];
     let sceneDescriptions = [];
 
-    if (mode === 'ai') {
-      const numScenes = Math.max(3, Math.min(10, scenes.length || 5));
-      const aiContent = await generateVideoContent(topic, style, numScenes);
-      const aiImages = await generateVideoImages(aiContent.imagePrompts);
+if (mode === 'ai') {
+  const numScenes = Math.max(3, Math.min(10, scenes.length || 5));
+  const aiContent = await generateVideoContent(topic, style, numScenes);
 
-      for (let i = 0; i < numScenes; i++) {
-        if (aiImages[i]) {
-          resolvedScenes.push({
-            type: 'photo',
-            imageBase64: aiImages[i],
-            overlayText: aiContent.overlayTexts[i] || '',
-          });
-        }
-      }
+  let aiImages = [];
+  if (aiContent.imagePrompts && aiContent.imagePrompts.length > 0) {
+    aiImages = await generateVideoImages(aiContent.imagePrompts);
+  }
 
-      var finalVoiceScript = aiContent.voiceScript || voiceScript;
+  const nullCount = numScenes - aiImages.filter(Boolean).length;
+  let webPhotos = [];
+  if (nullCount > 0) {
+    webPhotos = await fetchRandomPetPhotos(nullCount);
+  }
+
+  let webIdx = 0;
+  for (let i = 0; i < numScenes; i++) {
+    const img = aiImages[i] || webPhotos[webIdx++];
+    if (img) {
+      resolvedScenes.push({
+        type: 'photo',
+        imageBase64: img,
+        overlayText: aiContent.overlayTexts[i] || '',
+      });
+    }
+  }
+
+  if (resolvedScenes.length === 0) {
+    webPhotos = await fetchRandomPetPhotos(numScenes);
+    for (let i = 0; i < webPhotos.length; i++) {
+      resolvedScenes.push({
+        type: 'photo',
+        imageBase64: webPhotos[i],
+        overlayText: aiContent.overlayTexts[i] || '',
+      });
+    }
+  }
+
+  var finalVoiceScript = aiContent.voiceScript || voiceScript;
     } else {
       for (const scene of scenes) {
         if (scene.source === 'pet' && scene.petId) {

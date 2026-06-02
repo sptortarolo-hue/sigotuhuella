@@ -455,7 +455,7 @@ export default function VideoGeneratorTab() {
               <Sparkles className={cn("w-5 h-5 shrink-0", mode === 'ai' ? "text-brand-secondary" : "text-gray-400")} />
               <div>
                 <div className={cn("text-sm font-bold", mode === 'ai' ? "text-brand-secondary" : "text-gray-700")}>Generado con IA</div>
-                <div className="text-xs text-gray-400">Gemini + Cloudflare Flux</div>
+                <div className="text-xs text-gray-400">Gemini guion + imagenes IA</div>
               </div>
             </button>
           </div>
@@ -486,7 +486,7 @@ export default function VideoGeneratorTab() {
               {aiLoading ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Generando contenido...</>
               ) : (
-                <><Sparkles className="w-4 h-4" /> Generar guion e imágenes con IA</>
+                <><Sparkles className="w-4 h-4" /> Generar guion e imagenes con IA</>
               )}
             </button>
 
@@ -506,16 +506,20 @@ export default function VideoGeneratorTab() {
                     </div>
                   </div>
                 )}
-                {aiContent.imagePrompts.length > 0 && (
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Prompts de imagen ({aiContent.imagePrompts.length} escenas)</label>
-                    <div className="mt-1 space-y-1 max-h-32 overflow-y-auto">
-                      {aiContent.imagePrompts.map((p, i) => (
-                        <p key={i} className="text-xs text-gray-500 truncate">{i + 1}. {p}</p>
-                      ))}
-                    </div>
-                  </div>
-                )}
+      {aiContent.imagePrompts.length > 0 ? (
+        <div>
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Prompts de imagen ({aiContent.imagePrompts.length} escenas)</label>
+          <div className="mt-1 space-y-1 max-h-32 overflow-y-auto">
+            {aiContent.imagePrompts.map((p, i) => (
+              <p key={i} className="text-xs text-gray-500 truncate">{i + 1}. {p}</p>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="text-xs text-brand-secondary bg-brand-secondary/5 px-3 py-2 rounded-lg">
+          Se usaran fotos de mascotas de la web como fondo del video
+        </div>
+      )}
               </div>
             )}
           </div>

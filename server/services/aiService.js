@@ -167,10 +167,42 @@ ${hasSceneDescriptions ? '- imagePrompts: array vacío [] porque las imágenes s
   }
 }
 
+export async function generateImagePollinations(prompt) {
+  const seed = Math.floor(Math.random() * 999999);
+  const url = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?model=flux&width=1024&height=1024&seed=${seed}&nologo=true`;
+  const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  if (!response.ok) throw new Error(`Pollinations ${response.status}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return {
+    imageData: buffer.toString('base64'),
+    mimeType: 'image/png',
+  };
+}
+
 export async function generateVideoImages(imagePrompts) {
-  if (!CF_ACCOUNT_ID || !CF_API_TOKEN) {
-    throw new Error('CLOUDFLARE_ACCOUNT_ID y CLOUDFLARE_API_TOKEN requeridos');
+  const images = [];
+  for (const prompt of imagePrompts) {
+    let imageData = null;
+    if (CF_ACCOUNT_ID && CF_API_TOKEN) {
+      try {
+        const result = await generateImage(prompt);
+        imageData = result.imageData;
+      } catch (err) {
+        console.warn('Cloudflare image gen failed, trying Pollinations:', err.message);
+      }
+    }
+    if (!imageData) {
+      try {
+        const result = await generateImagePollinations(prompt);
+        imageData = result.imageData;
+      } catch (err) {
+        console.warn('Pollinations image gen failed:', err.message);
+      }
+    }
+    images.push(imageData);
   }
+  return images;
+}
 
   const images = [];
   for (const prompt of imagePrompts) {

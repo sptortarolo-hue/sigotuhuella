@@ -264,6 +264,26 @@ function getFontPath() {
   return null;
 }
 
+function wrapText(text, maxCharsPerLine) {
+  const words = text.split(' ').filter(Boolean);
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    if (current.length + 1 + word.length > maxCharsPerLine && current.length > 0) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = current ? `${current} ${word}` : word;
+    }
+    if (lines.length >= 3) break;
+  }
+  if (current && lines.length < 3) lines.push(current);
+  if (lines.length === 3 && words.slice(lines.slice(0, 3).join(' ').split(' ').length).length > 0) {
+    lines[2] = lines[2].replace(/.{3}$/, '...');
+  }
+  return lines;
+}
+
 function escDrawText(text) {
   return text
     .replace(/\\/g, '\\\\\\')
@@ -352,22 +372,32 @@ async function addDrawTextToClip(clipPath, overlayText, clipDur, dims, workDir, 
   const outPath = path.join(workDir, `text_${index}.mp4`);
   const { w, h } = dims;
   const fontPath = getFontPath();
-  const fontSize = h > w ? 48 : 36;
-  const textY = h > w ? Math.round(h * 0.72) : Math.round(h * 0.78);
-  const escaped = escDrawText(overlayText);
+  const isVertical = h > w;
+  const fontSize = isVertical ? 56 : 44;
+  const lineSpacing = 10;
+  const maxChars = isVertical ? 28 : 40;
+  const textY = isVertical ? Math.round(h * 0.68) : Math.round(h * 0.72);
+  const enableExpr = `between(t\\,0.3\\,${clipDur})`;
 
-  const drawboxPart = `drawbox=x=0:y=${textY - 10}:w=iw:h=${fontSize + 24}:color=0x5A5A40@0.6:t=fill:enable='between(t\\,0.3\\,${clipDur})'`;
+  const lines = wrapText(overlayText, maxChars);
+  const boxH = fontSize * lines.length + lineSpacing * (lines.length - 1) + 24;
 
-  let drawtextPart;
-  if (fontPath) {
-    drawtextPart = `drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.3\\,${clipDur})'`;
-  } else {
-    drawtextPart = `drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${textY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.3\\,${clipDur})'`;
+  const filterParts = [];
+  filterParts.push(`drawbox=x=0:y=${textY - 12}:w=iw:h=${boxH}:color=0x5A5A40@0.6:t=fill:enable='${enableExpr}'`);
+
+  for (let li = 0; li < lines.length; li++) {
+    const escaped = escDrawText(lines[li]);
+    const y = textY + li * (fontSize + lineSpacing);
+    if (fontPath) {
+      filterParts.push(`drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${y}:shadowcolor=black:shadowx=2:shadowy=2:enable='${enableExpr}'`);
+    } else {
+      filterParts.push(`drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${y}:shadowcolor=black:shadowx=2:shadowy=2:enable='${enableExpr}'`);
+    }
   }
 
   await runFfmpeg([
     '-y', '-i', clipPath,
-    '-vf', `${drawboxPart},${drawtextPart}`,
+    '-vf', filterParts.join(','),
     '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
     '-pix_fmt', 'yuv420p', '-an',
     outPath,
@@ -442,10 +472,10 @@ async function generateClosingClip(dims, style, workDir) {
 
   const titleText = escDrawText('SIGO TU HUELLA');
   const urlText = escDrawText('sigotuhuella.online');
-  const ctaText = escDrawText('Visita nuestra web - Descarga la app gratis');
+  const ctaText = escDrawText('Visita nuestra web - Descarga la app gratis ↓');
 
   const titleFontSize = isVertical ? 52 : 40;
-  const urlFontSize = isVertical ? 32 : 24;
+  const urlFontSize = isVertical ? 40 : 30;
   const ctaFontSize = isVertical ? 24 : 18;
 
   const logoW = Math.round(Math.min(w, h) * 0.18);
@@ -453,7 +483,7 @@ async function generateClosingClip(dims, style, workDir) {
   const titleY = Math.round(h * 0.42);
   const lineY = titleY + Math.round(titleFontSize * 0.8);
   const urlY = lineY + 20;
-  const ctaY = urlY + Math.round(urlFontSize * 1.5);
+  const ctaY = urlY + Math.round(urlFontSize * 1.8);
 
   const lineW = Math.round(w * 0.30);
 
@@ -723,6 +753,55 @@ async function getPetInfo(petId) {
   return null;
 }
 
+async function fetchRandomPetPhotos(count) {
+  const photos = [];
+  const dogCount = Math.ceil(count / 2);
+  const catCount = count - dogCount;
+
+  try {
+    const dogRes = await fetch(`https://dog.ceo/api/breeds/image/random/${dogCount}`, { signal: AbortSignal.timeout(15000) });
+    if (dogRes.ok) {
+      const dogData = await dogRes.json();
+      if (dogData.message && Array.isArray(dogData.message)) {
+        for (const url of dogData.message) {
+          try {
+            const imgRes = await fetch(url, { signal: AbortSignal.timeout(15000) });
+            if (imgRes.ok) {
+              const buf = Buffer.from(await imgRes.arrayBuffer());
+              photos.push(buf.toString('base64'));
+            }
+          } catch { /* skip failed dog image */ }
+        }
+      }
+    }
+  } catch (err) { console.warn('[fetchRandomPetPhotos] Dog CEO failed:', err.message); }
+
+  for (let i = 0; i < catCount; i++) {
+    try {
+      const catRes = await fetch('https://cataas.com/cat?json=true', { signal: AbortSignal.timeout(15000) });
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        if (catData.url) {
+          const imgUrl = catData.url.startsWith('http') ? catData.url : `https://cataas.com${catData.url}`;
+          const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(15000) });
+          if (imgRes.ok) {
+            const buf = Buffer.from(await imgRes.arrayBuffer());
+            photos.push(buf.toString('base64'));
+          }
+        }
+      }
+    } catch { /* skip failed cat image */ }
+  }
+
+  for (let i = photos.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [photos[i], photos[j]] = [photos[j], photos[i]];
+  }
+
+  console.log('[fetchRandomPetPhotos] fetched', photos.length, '/', count, 'photos from web');
+  return photos;
+}
+
 async function generateVideo(config) {
   const {
     style = 'emotive',
@@ -856,4 +935,4 @@ async function generateVideo(config) {
   }
 }
 
-export { generateVideo, getRandomReunionPhotos, getGlobalStats, getPetImages, getPetInfo, getNewsImage, getNewsData };
+export { generateVideo, getRandomReunionPhotos, getGlobalStats, getPetImages, getPetInfo, getNewsImage, getNewsData, fetchRandomPetPhotos };
