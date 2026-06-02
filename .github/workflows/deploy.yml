@@ -33,7 +33,6 @@ jobs:
 
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ffmpeg
-      ffmpeg -version 2>&1 | head -1 || true
 
           if [ -n "$AZURE_TTS_KEY" ]; then
             grep -q "^AZURE_TTS_KEY=" server/.env 2>/dev/null && sed -i "s|^AZURE_TTS_KEY=.*|AZURE_TTS_KEY=$AZURE_TTS_KEY|" server/.env || echo "AZURE_TTS_KEY=$AZURE_TTS_KEY" >> server/.env
