@@ -207,7 +207,7 @@ async function generateTTS(config, voiceScript, workDir) {
   return null;
 }
 
-async function synthesizeWithRetry(ssml, voice, outputPath) {
+async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
   const keys = [process.env.AZURE_TTS_KEY, process.env.AZURE_TTS_KEY2].filter(Boolean);
   const region = process.env.AZURE_TTS_REGION || 'eastus';
   const resourceName = process.env.AZURE_TTS_RESOURCE || 'sigoth';
@@ -242,6 +242,8 @@ async function synthesizeWithRetry(ssml, voice, outputPath) {
         console.warn('[TTS] SDK speakSsmlAsync failed:', err.message);
       }
     }
+
+    if (fastOnly) continue;
 
     if (sdk) {
       try {
@@ -289,22 +291,21 @@ async function generateBothVoices(script, workDir, ttsPath) {
     voice: 'es-AR-ElenaNeural',
     params: VOICE_PARAMS.elena,
   });
-  console.log('[TTS-both] Generating', blocks.length, 'voice clips');
+  console.log('[TTS-both] Generating', blocks.length, 'voice clips in parallel');
 
-  const clipPaths = [];
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i];
+  const results = await Promise.all(blocks.map(async (block, i) => {
     const clipPath = path.join(workDir, `tts_clip_${i}.mp3`);
     const ssml = buildSSML(block.text, block.voice, block.params);
-    const ok = await synthesizeWithRetry(ssml, block.voice, clipPath);
+    const ok = await synthesizeWithRetry(ssml, block.voice, clipPath, true);
     if (ok && fs.existsSync(clipPath)) {
-      clipPaths.push(clipPath);
       console.log('[TTS-both] Clip', i, block.voice.slice(6, 11), 'ok');
-    } else {
-      console.warn('[TTS-both] Clip', i, 'failed, skipping');
+      return clipPath;
     }
-  }
+    console.warn('[TTS-both] Clip', i, 'failed');
+    return null;
+  }));
 
+  const clipPaths = results.filter(Boolean);
   if (clipPaths.length === 0) {
     console.warn('[TTS-both] No clips generated');
     return null;
@@ -314,10 +315,6 @@ async function generateBothVoices(script, workDir, ttsPath) {
     fs.renameSync(clipPaths[0], ttsPath);
     return ttsPath;
   }
-
-  const listPath = path.join(workDir, 'tts_clips.txt');
-  const listContent = clipPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n');
-  fs.writeFileSync(listPath, listContent);
 
   const breakPath = path.join(workDir, 'silence_400ms.mp3');
   await new Promise((resolve, reject) => {
