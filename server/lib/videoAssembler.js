@@ -130,13 +130,14 @@ function escapeXml(str) {
     .replace(/'/g, '&apos;');
 }
 
-function buildSSML(script, voice, params) {
+function buildSSML(script, voice, params, { appendClosing = true } = {}) {
   const { rate, pitch } = params;
-  const cleaned = escapeXml(script.trim().replace(/[ \t]+/g, ' '));
+  const cleaned = escapeXml(script.trim().replace(/\s+/g, ' '));
+  const closing = appendClosing ? `\n<break time="600ms"/>\nsigotuhuella.online` : '';
   return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
 <voice name="${voice}">
 <prosody rate="${rate}" pitch="${pitch}">
-${cleaned}
+${cleaned}${closing}
 </prosody>
 </voice>
 </speak>`;
@@ -210,8 +211,6 @@ async function generateTTS(config, voiceScript, workDir) {
 async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
   const keys = [process.env.AZURE_TTS_KEY, process.env.AZURE_TTS_KEY2].filter(Boolean);
   const region = process.env.AZURE_TTS_REGION || 'eastus';
-  const resourceName = process.env.AZURE_TTS_RESOURCE || 'sigoth';
-  const endpoint = `wss://${resourceName}.cognitiveservices.azure.com/stt/speech/universal/v2`;
   const sdk = await getSpeechSdk();
 
   for (const key of keys) {
@@ -221,7 +220,6 @@ async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
         const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
         speechConfig.speechSynthesisVoiceName = voice;
         speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
-        try { speechConfig.endpointId = endpoint; } catch {}
 
         const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
         const result = await new Promise((resolve, reject) => {
@@ -297,7 +295,7 @@ async function generateBothVoices(script, workDir, ttsPath) {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
     const clipPath = path.join(workDir, `tts_clip_${i}.mp3`);
-    const ssml = buildSSML(block.text, block.voice, block.params);
+    const ssml = buildSSML(block.text, block.voice, block.params, { appendClosing: false });
     try {
       const ok = await Promise.race([
         synthesizeSingleSdk(ssml, block.voice, clipPath),
@@ -364,8 +362,6 @@ async function generateBothVoices(script, workDir, ttsPath) {
 async function synthesizeSingleSdk(ssml, voice, outputPath) {
   const keys = [process.env.AZURE_TTS_KEY, process.env.AZURE_TTS_KEY2].filter(Boolean);
   const region = process.env.AZURE_TTS_REGION || 'eastus';
-  const resourceName = process.env.AZURE_TTS_RESOURCE || 'sigoth';
-  const endpoint = `wss://${resourceName}.cognitiveservices.azure.com/stt/speech/universal/v2`;
   const sdk = await getSpeechSdk();
   if (!sdk) return false;
 
@@ -374,7 +370,6 @@ async function synthesizeSingleSdk(ssml, voice, outputPath) {
       const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
       speechConfig.speechSynthesisVoiceName = voice;
       speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
-      try { speechConfig.endpointId = endpoint; } catch {}
 
       const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
       const result = await new Promise((resolve, reject) => {
