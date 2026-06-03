@@ -39,12 +39,14 @@ const STYLE_VOICES = {
 const VOICE_OPTIONS = {
   elena: 'es-AR-ElenaNeural',
   tomas: 'es-AR-TomasNeural',
+  mateo: 'es-UY-MateoNeural',
   both: 'es-AR-ElenaNeural',
 };
 
 const VOICE_PARAMS = {
   elena: { rate: '-10%', pitch: '-5%' },
-  tomas: { rate: '-15%', pitch: '-3%' },
+  tomas: { rate: '-15%', pitch: '-3%', contour: '(0%,-3%) (25%,-1%) (50%,+2%) (75%,-1%) (100%,-5%)' },
+  mateo: { rate: '-12%', pitch: '-2%', contour: '(0%,-2%) (30%,+1%) (60%,+3%) (100%,-2%)' },
 };
 
 const STYLE_VOICE_PARAMS = {
@@ -132,12 +134,13 @@ function escapeXml(str) {
 }
 
 function buildSSML(script, voice, params, { appendClosing = true } = {}) {
-  const { rate, pitch } = params;
+  const { rate, pitch, contour } = params;
   const cleaned = escapeXml(script.trim().replace(/\s+/g, ' '));
   const closing = appendClosing ? `\n<break time="600ms"/>\nsigotuhuella.online` : '';
+  const contourAttr = contour ? ` contour="${contour}"` : '';
   return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
 <voice name="${voice}">
-<prosody rate="${rate}" pitch="${pitch}">
+<prosody rate="${rate}" pitch="${pitch}"${contourAttr}>
 ${cleaned}${closing}
 </prosody>
 </voice>
@@ -149,7 +152,7 @@ function splitByParagraphs(script) {
   if (paragraphs.length >= 2) {
     return paragraphs.map((text, i) => ({
       text,
-      voice: i % 2 === 0 ? 'es-AR-ElenaNeural' : 'es-AR-TomasNeural',
+      voice: i % 2 === 0 ? VOICE_OPTIONS.elena : VOICE_OPTIONS.tomas,
       params: i % 2 === 0 ? VOICE_PARAMS.elena : VOICE_PARAMS.tomas,
     }));
   }
@@ -160,7 +163,7 @@ function splitByParagraphs(script) {
   }
   return blocks.map((text, i) => ({
     text,
-    voice: i % 2 === 0 ? 'es-AR-ElenaNeural' : 'es-AR-TomasNeural',
+    voice: i % 2 === 0 ? VOICE_OPTIONS.elena : VOICE_OPTIONS.tomas,
     params: i % 2 === 0 ? VOICE_PARAMS.elena : VOICE_PARAMS.tomas,
   }));
 }
@@ -199,8 +202,8 @@ async function generateTTS(config, voiceScript, workDir) {
     return await generateBothVoices(script, workDir, ttsPath);
   }
 
-  const voice = voiceOption === 'tomas' ? VOICE_OPTIONS.tomas : VOICE_OPTIONS.elena;
-  const voiceKey = voiceOption === 'tomas' ? 'tomas' : 'elena';
+  const voiceKey = ['elena', 'tomas', 'mateo'].includes(voiceOption) ? voiceOption : 'elena';
+  const voice = VOICE_OPTIONS[voiceKey];
   const params = VOICE_PARAMS[voiceKey];
   const ssml = buildSSML(script, voice, params);
   const ok = await synthesizeWithRetry(ssml, voice, ttsPath);

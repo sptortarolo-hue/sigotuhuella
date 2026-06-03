@@ -765,12 +765,13 @@ export default function VideoGeneratorTab() {
       {config.includeVoice && (
         <div>
           <label className="block text-sm font-bold text-gray-600 mb-2">Voz</label>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { value: 'elena', label: 'Elena', desc: 'Femenina' },
-              { value: 'tomas', label: 'Tomas', desc: 'Masculina' },
-              { value: 'both', label: 'Ambas', desc: 'Alternan' },
-            ].map(opt => (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { value: 'elena', label: 'Elena', desc: 'Femenina AR' },
+                { value: 'tomas', label: 'Tomas', desc: 'Masculina AR' },
+                { value: 'mateo', label: 'Mateo', desc: 'Masculina UY' },
+                { value: 'both', label: 'Ambas', desc: 'Alternan' },
+              ].map(opt => (
               <button
                 key={opt.value}
                 onClick={() => setConfig(c => ({ ...c, voice: opt.value }))}
