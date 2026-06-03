@@ -321,7 +321,7 @@ async function generateBothVoices(script, workDir, ttsPath) {
 
   const breakPath = path.join(workDir, 'silence_400ms.mp3');
   await new Promise((resolve, reject) => {
-    const cmd = spawn(ffmpegPath, [
+    const cmd = spawn('ffmpeg', [
       '-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono',
       '-t', '0.4', '-acodec', 'libmp3lame', '-b:a', '32k', '-y', breakPath,
     ], { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -339,7 +339,7 @@ async function generateBothVoices(script, workDir, ttsPath) {
   fs.writeFileSync(concatListPath, concatContent);
 
   await new Promise((resolve, reject) => {
-    const cmd = spawn(ffmpegPath, [
+    const cmd = spawn('ffmpeg', [
       '-f', 'concat', '-safe', '0', '-i', concatListPath,
       '-acodec', 'libmp3lame', '-b:a', '32k', '-y', ttsPath,
     ], { stdio: ['pipe', 'pipe', 'pipe'] });
