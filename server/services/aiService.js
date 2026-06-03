@@ -141,7 +141,7 @@ Respondé ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
 }
 
 Reglas:
-- voiceScript: texto natural para voz en off, sin emojis, sin comillas, sin formato markdown
+- voiceScript: texto natural para voz en off, sin emojis, sin comillas, sin formato markdown. Separá los párrafos con doble salto de línea (\\n\\n) para alternar entre voces cuando se usan dos voces. Cada párrafo es un bloque con sentido completo.
 - overlayTexts: exactamente ${numScenes} textos cortos (máx 8 palabras cada uno) que aparecen en pantalla, uno por escena de foto
 ${hasSceneDescriptions ? '- imagePrompts: array vacío [] porque las imágenes son fotos reales' : '- imagePrompts: exactamente ' + numScenes + ' prompts en INGLÉS para generar imágenes con IA (Flux). Cada prompt debe describir una escena visual concreta, fotorrealista, con iluminación cinematográfica. NO incluir texto en las imágenes. Estilo: fotografía profesional, colores cálidos, 4K quality.'}`;
 

@@ -42,6 +42,11 @@ const VOICE_OPTIONS = {
   both: 'es-AR-ElenaNeural',
 };
 
+const VOICE_PARAMS = {
+  elena: { rate: '-10%', pitch: '-5%' },
+  tomas: { rate: '+5%', pitch: '+3%' },
+};
+
 const STYLE_VOICE_PARAMS = {
   emotive: { rate: '-10%', pitch: '-5%' },
   informative: { rate: '+0%', pitch: '+0%' },
@@ -126,10 +131,9 @@ function escapeXml(str) {
 }
 
 function buildSSML(script, voice, params, secondVoice) {
-  const { rate, pitch } = params;
-  const cleaned = escapeXml(script.trim().replace(/\s+/g, ' '));
-
   if (!secondVoice || secondVoice === voice) {
+    const { rate, pitch } = params;
+    const cleaned = escapeXml(script.trim().replace(/[ \t]+/g, ' '));
     return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
 <voice name="${voice}">
 <prosody rate="${rate}" pitch="${pitch}">
@@ -141,16 +145,37 @@ sigotuhuella.online
 </speak>`;
   }
 
-  const sentences = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean);
-  const voiceParts = [];
-  for (let i = 0; i < sentences.length; i++) {
-    const v = i % 2 === 0 ? voice : secondVoice;
-    voiceParts.push(`<voice name="${v}"><prosody rate="${rate}" pitch="${pitch}">${sentences[i]}</prosody></voice>`);
+  const paragraphs = script.trim().split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  let blocks;
+  if (paragraphs.length >= 2) {
+    blocks = paragraphs.map(p => escapeXml(p.replace(/[ \t]+/g, ' ')));
+  } else {
+    const sentences = script.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+    const grouped = [];
+    for (let i = 0; i < sentences.length; i += 2) {
+      const chunk = sentences.slice(i, i + 2).join(' ');
+      grouped.push(escapeXml(chunk.replace(/[ \t]+/g, ' ')));
+    }
+    blocks = grouped;
   }
-  voiceParts.push(`<voice name="${voice}"><prosody rate="${rate}" pitch="${pitch}"><break time="600ms"/>sigotuhuella.online</prosody></voice>`);
+
+  const elenaParams = VOICE_PARAMS.elena;
+  const tomasParams = VOICE_PARAMS.tomas;
+  const parts = [];
+
+  for (let i = 0; i < blocks.length; i++) {
+    const isEven = i % 2 === 0;
+    const v = isEven ? 'es-AR-ElenaNeural' : 'es-AR-TomasNeural';
+    const p = isEven ? elenaParams : tomasParams;
+    if (i > 0) parts.push(`<break time="400ms"/>`);
+    parts.push(`<voice name="${v}"><prosody rate="${p.rate}" pitch="${p.pitch}">${blocks[i]}</prosody></voice>`);
+  }
+
+  parts.push(`<break time="400ms"/>`);
+  parts.push(`<voice name="es-AR-ElenaNeural"><prosody rate="${elenaParams.rate}" pitch="${elenaParams.pitch}"><break time="600ms"/>sigotuhuella.online</prosody></voice>`);
 
   return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
-${voiceParts.join('\n')}
+${parts.join('\n')}
 </speak>`;
 }
 
@@ -159,17 +184,16 @@ function buildAutoScript(style, stats) {
   let script = '';
   if (style === 'emotive') {
     script = 'En Sigo Tu Huella, cada historia de reencuentro nos llena el corazón. ';
-    script += `Ya reunimos más de ${reunited} mascotas con sus familias. `;
+    script += `Ya reunimos más de ${reunited} mascotas con sus familias.\n\n`;
     script += `Más de ${users} vecinos confían en nosotros. `;
   } else if (style === 'informative') {
     script = '¿Perdiste a tu mascota? ¿Encontraste un animal? ';
-    script += 'Sigo Tu Huella es la plataforma que conecta a toda la comunidad. ';
+    script += 'Sigo Tu Huella es la plataforma que conecta a toda la comunidad.\n\n';
     script += `Contamos con ${users} usuarios activos y ${reunited} reencuentros exitosos. `;
   } else {
     script = '¡La comunidad se mueve! ';
-    script += `Más de ${reunited} mascotas ya volvieron a casa. `;
-    script += '¿Vos ya descargaste la app? ';
-    script += 'Unite a la red que devuelve sonrisas. ';
+    script += `Más de ${reunited} mascotas ya volvieron a casa.\n\n`;
+    script += '¿Vos ya descargaste la app? Unite a la red que devuelve sonrisas. ';
   }
   script += 'Descargá Sigo Tu Huella gratis en sigotuhuella.online y sé parte del cambio.';
   return script;
@@ -186,7 +210,8 @@ async function generateTTS(config, voiceScript, workDir) {
   const voiceOption = config.voice || 'elena';
   const voice = voiceOption === 'tomas' ? VOICE_OPTIONS.tomas : VOICE_OPTIONS.elena;
   const secondVoice = voiceOption === 'both' ? VOICE_OPTIONS.tomas : null;
-  const params = STYLE_VOICE_PARAMS[config.style] || STYLE_VOICE_PARAMS.emotive;
+  const voiceKey = voiceOption === 'tomas' ? 'tomas' : 'elena';
+  const params = secondVoice ? VOICE_PARAMS.elena : VOICE_PARAMS[voiceKey];
   const ssml = buildSSML(script, voice, params, secondVoice);
 
   let ttsOk = false;
