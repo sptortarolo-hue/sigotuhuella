@@ -130,53 +130,37 @@ function escapeXml(str) {
     .replace(/'/g, '&apos;');
 }
 
-function buildSSML(script, voice, params, secondVoice) {
-  if (!secondVoice || secondVoice === voice) {
-    const { rate, pitch } = params;
-    const cleaned = escapeXml(script.trim().replace(/[ \t]+/g, ' '));
-    return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
+function buildSSML(script, voice, params) {
+  const { rate, pitch } = params;
+  const cleaned = escapeXml(script.trim().replace(/[ \t]+/g, ' '));
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
 <voice name="${voice}">
 <prosody rate="${rate}" pitch="${pitch}">
 ${cleaned}
-<break time="600ms"/>
-sigotuhuella.online
 </prosody>
 </voice>
 </speak>`;
-  }
+}
 
+function splitByParagraphs(script) {
   const paragraphs = script.trim().split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  let blocks;
   if (paragraphs.length >= 2) {
-    blocks = paragraphs.map(p => escapeXml(p.replace(/[ \t]+/g, ' ')));
-  } else {
-    const sentences = script.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
-    const grouped = [];
-    for (let i = 0; i < sentences.length; i += 2) {
-      const chunk = sentences.slice(i, i + 2).join(' ');
-      grouped.push(escapeXml(chunk.replace(/[ \t]+/g, ' ')));
-    }
-    blocks = grouped;
+    return paragraphs.map((text, i) => ({
+      text,
+      voice: i % 2 === 0 ? 'es-AR-ElenaNeural' : 'es-AR-TomasNeural',
+      params: i % 2 === 0 ? VOICE_PARAMS.elena : VOICE_PARAMS.tomas,
+    }));
   }
-
-  const elenaParams = VOICE_PARAMS.elena;
-  const tomasParams = VOICE_PARAMS.tomas;
-  const parts = [];
-
-  for (let i = 0; i < blocks.length; i++) {
-    const isEven = i % 2 === 0;
-    const v = isEven ? 'es-AR-ElenaNeural' : 'es-AR-TomasNeural';
-    const p = isEven ? elenaParams : tomasParams;
-    if (i > 0) parts.push(`<break time="400ms"/>`);
-    parts.push(`<voice name="${v}"><prosody rate="${p.rate}" pitch="${p.pitch}">${blocks[i]}</prosody></voice>`);
+  const sentences = script.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+  const blocks = [];
+  for (let i = 0; i < sentences.length; i += 2) {
+    blocks.push(sentences.slice(i, i + 2).join(' '));
   }
-
-  parts.push(`<break time="400ms"/>`);
-  parts.push(`<voice name="es-AR-ElenaNeural"><prosody rate="${elenaParams.rate}" pitch="${elenaParams.pitch}"><break time="600ms"/>sigotuhuella.online</prosody></voice>`);
-
-  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
-${parts.join('\n')}
-</speak>`;
+  return blocks.map((text, i) => ({
+    text,
+    voice: i % 2 === 0 ? 'es-AR-ElenaNeural' : 'es-AR-TomasNeural',
+    params: i % 2 === 0 ? VOICE_PARAMS.elena : VOICE_PARAMS.tomas,
+  }));
 }
 
 function buildAutoScript(style, stats) {
@@ -202,29 +186,35 @@ function buildAutoScript(style, stats) {
 async function generateTTS(config, voiceScript, workDir) {
   const stats = await getGlobalStats();
   const script = voiceScript || buildAutoScript(config.style, stats);
-  console.log('[TTS] generateTTS start — includeVoice:', config.includeVoice, 'script length:', script?.length);
+  console.log('[TTS] generateTTS start — includeVoice:', config.includeVoice, 'voice:', config.voice, 'script length:', script?.length);
 
   const ttsPath = path.join(workDir, 'tts.mp3');
   if (!config.includeVoice || !script) return null;
 
   const voiceOption = config.voice || 'elena';
-  const voice = voiceOption === 'tomas' ? VOICE_OPTIONS.tomas : VOICE_OPTIONS.elena;
-  const secondVoice = voiceOption === 'both' ? VOICE_OPTIONS.tomas : null;
-  const voiceKey = voiceOption === 'tomas' ? 'tomas' : 'elena';
-  const params = secondVoice ? VOICE_PARAMS.elena : VOICE_PARAMS[voiceKey];
-  const ssml = buildSSML(script, voice, params, secondVoice);
 
-  let ttsOk = false;
+  if (voiceOption === 'both') {
+    return await generateBothVoices(script, workDir, ttsPath);
+  }
+
+  const voice = voiceOption === 'tomas' ? VOICE_OPTIONS.tomas : VOICE_OPTIONS.elena;
+  const voiceKey = voiceOption === 'tomas' ? 'tomas' : 'elena';
+  const params = VOICE_PARAMS[voiceKey];
+  const ssml = buildSSML(script, voice, params);
+  const ok = await synthesizeWithRetry(ssml, voice, ttsPath);
+  if (ok) return ttsPath;
+  console.warn('[TTS] All TTS methods failed');
+  return null;
+}
+
+async function synthesizeWithRetry(ssml, voice, outputPath) {
   const keys = [process.env.AZURE_TTS_KEY, process.env.AZURE_TTS_KEY2].filter(Boolean);
   const region = process.env.AZURE_TTS_REGION || 'eastus';
   const resourceName = process.env.AZURE_TTS_RESOURCE || 'sigoth';
   const endpoint = `wss://${resourceName}.cognitiveservices.azure.com/stt/speech/universal/v2`;
-
   const sdk = await getSpeechSdk();
 
   for (const key of keys) {
-    if (ttsOk) break;
-
     if (sdk) {
       try {
         console.log('[TTS] Trying SDK speakSsmlAsync with key', key.slice(0, 8) + '...');
@@ -241,9 +231,9 @@ async function generateTTS(config, voiceScript, workDir) {
 
         if (result && result.audioData && result.audioData.byteLength > 0
           && result.reason !== sdk.ResultReason.Canceled) {
-          fs.writeFileSync(ttsPath, Buffer.from(result.audioData));
+          fs.writeFileSync(outputPath, Buffer.from(result.audioData));
           console.log('[TTS] SDK speakSsmlAsync success, byteLength:', result.audioData.byteLength);
-          ttsOk = true;
+          return true;
         } else if (result && result.reason === sdk.ResultReason.Canceled) {
           const c = sdk.CancellationDetails.fromResult(result);
           console.warn('[TTS] SDK speakSsmlAsync canceled:', c.reason, c.errorDetails);
@@ -253,50 +243,117 @@ async function generateTTS(config, voiceScript, workDir) {
       }
     }
 
-    if (!ttsOk && sdk) {
+    if (sdk) {
       try {
         console.log('[TTS] Trying SDK speakTextAsync with key', key.slice(0, 8) + '...');
         const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
         speechConfig.speechSynthesisVoiceName = voice;
         speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
 
+        const text = ssml.replace(/<[^>]+>/g, '').trim();
         const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
         const result = await new Promise((resolve, reject) => {
-          synthesizer.speakTextAsync(script, res => resolve(res), err => reject(err));
+          synthesizer.speakTextAsync(text, res => resolve(res), err => reject(err));
         });
         synthesizer.close();
 
         if (result && result.audioData && result.audioData.byteLength > 0) {
-          fs.writeFileSync(ttsPath, Buffer.from(result.audioData));
+          fs.writeFileSync(outputPath, Buffer.from(result.audioData));
           console.log('[TTS] SDK speakTextAsync success, byteLength:', result.audioData.byteLength);
-          ttsOk = true;
+          return true;
         }
       } catch (err2) {
         console.warn('[TTS] SDK speakTextAsync also failed:', err2.message);
       }
     }
 
-    if (!ttsOk) {
-      try {
-        console.log('[TTS] Trying REST API with key', key.slice(0, 8) + '...');
-        const size = await synthesizeREST(ssml, ttsPath, key);
-        if (size > 0) {
-          ttsOk = true;
-          console.log('[TTS] REST API success, size:', size);
-        }
-      } catch (err) {
-        console.warn('[TTS] REST API failed:', err.message);
+    try {
+      console.log('[TTS] Trying REST API with key', key.slice(0, 8) + '...');
+      const size = await synthesizeREST(ssml, outputPath, key);
+      if (size > 0) {
+        console.log('[TTS] REST API success, size:', size);
+        return true;
       }
+    } catch (err) {
+      console.warn('[TTS] REST API failed:', err.message);
     }
   }
 
-  if (ttsOk && fs.existsSync(ttsPath)) {
-    console.log('[TTS] TTS file ready:', ttsPath);
+  return false;
+}
+
+async function generateBothVoices(script, workDir, ttsPath) {
+  const blocks = splitByParagraphs(script);
+  blocks.push({
+    text: 'sigotuhuella.online',
+    voice: 'es-AR-ElenaNeural',
+    params: VOICE_PARAMS.elena,
+  });
+  console.log('[TTS-both] Generating', blocks.length, 'voice clips');
+
+  const clipPaths = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const clipPath = path.join(workDir, `tts_clip_${i}.mp3`);
+    const ssml = buildSSML(block.text, block.voice, block.params);
+    const ok = await synthesizeWithRetry(ssml, block.voice, clipPath);
+    if (ok && fs.existsSync(clipPath)) {
+      clipPaths.push(clipPath);
+      console.log('[TTS-both] Clip', i, block.voice.slice(6, 11), 'ok');
+    } else {
+      console.warn('[TTS-both] Clip', i, 'failed, skipping');
+    }
+  }
+
+  if (clipPaths.length === 0) {
+    console.warn('[TTS-both] No clips generated');
+    return null;
+  }
+
+  if (clipPaths.length === 1) {
+    fs.renameSync(clipPaths[0], ttsPath);
     return ttsPath;
   }
 
-  console.warn('[TTS] All TTS methods failed');
-  return null;
+  const listPath = path.join(workDir, 'tts_clips.txt');
+  const listContent = clipPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n');
+  fs.writeFileSync(listPath, listContent);
+
+  const breakPath = path.join(workDir, 'silence_400ms.mp3');
+  await new Promise((resolve, reject) => {
+    const cmd = spawn(ffmpegPath, [
+      '-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono',
+      '-t', '0.4', '-acodec', 'libmp3lame', '-b:a', '32k', '-y', breakPath,
+    ], { stdio: ['pipe', 'pipe', 'pipe'] });
+    cmd.on('close', code => code === 0 ? resolve() : reject(new Error(`silence exit ${code}`)));
+  });
+
+  const concatPaths = [];
+  for (let i = 0; i < clipPaths.length; i++) {
+    concatPaths.push(clipPaths[i]);
+    if (i < clipPaths.length - 1) concatPaths.push(breakPath);
+  }
+
+  const concatListPath = path.join(workDir, 'tts_concat.txt');
+  const concatContent = concatPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n');
+  fs.writeFileSync(concatListPath, concatContent);
+
+  await new Promise((resolve, reject) => {
+    const cmd = spawn(ffmpegPath, [
+      '-f', 'concat', '-safe', '0', '-i', concatListPath,
+      '-acodec', 'libmp3lame', '-b:a', '32k', '-y', ttsPath,
+    ], { stdio: ['pipe', 'pipe', 'pipe'] });
+    cmd.on('close', code => code === 0 ? resolve() : reject(new Error(`concat exit ${code}`)));
+  });
+
+  if (fs.existsSync(ttsPath)) {
+    console.log('[TTS-both] Final TTS ready:', ttsPath);
+    return ttsPath;
+  }
+
+  console.warn('[TTS-both] Concat failed, using first clip as fallback');
+  fs.copyFileSync(clipPaths[0], ttsPath);
+  return ttsPath;
 }
 
 function getFontPath() {
