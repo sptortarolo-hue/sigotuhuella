@@ -291,21 +291,29 @@ async function generateBothVoices(script, workDir, ttsPath) {
     voice: 'es-AR-ElenaNeural',
     params: VOICE_PARAMS.elena,
   });
-  console.log('[TTS-both] Generating', blocks.length, 'voice clips in parallel');
+  console.log('[TTS-both] Generating', blocks.length, 'voice clips sequentially');
 
-  const results = await Promise.all(blocks.map(async (block, i) => {
+  const clipPaths = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
     const clipPath = path.join(workDir, `tts_clip_${i}.mp3`);
     const ssml = buildSSML(block.text, block.voice, block.params);
-    const ok = await synthesizeWithRetry(ssml, block.voice, clipPath, true);
-    if (ok && fs.existsSync(clipPath)) {
-      console.log('[TTS-both] Clip', i, block.voice.slice(6, 11), 'ok');
-      return clipPath;
+    try {
+      const ok = await Promise.race([
+        synthesizeSingleSdk(ssml, block.voice, clipPath),
+        new Promise(resolve => setTimeout(() => resolve(false), 15000)),
+      ]);
+      if (ok && fs.existsSync(clipPath)) {
+        clipPaths.push(clipPath);
+        console.log('[TTS-both] Clip', i, block.voice.slice(6, 11), 'ok');
+      } else {
+        console.warn('[TTS-both] Clip', i, 'failed or timed out');
+      }
+    } catch (err) {
+      console.warn('[TTS-both] Clip', i, 'error:', err.message);
     }
-    console.warn('[TTS-both] Clip', i, 'failed');
-    return null;
-  }));
+  }
 
-  const clipPaths = results.filter(Boolean);
   if (clipPaths.length === 0) {
     console.warn('[TTS-both] No clips generated');
     return null;
@@ -351,6 +359,43 @@ async function generateBothVoices(script, workDir, ttsPath) {
   console.warn('[TTS-both] Concat failed, using first clip as fallback');
   fs.copyFileSync(clipPaths[0], ttsPath);
   return ttsPath;
+}
+
+async function synthesizeSingleSdk(ssml, voice, outputPath) {
+  const keys = [process.env.AZURE_TTS_KEY, process.env.AZURE_TTS_KEY2].filter(Boolean);
+  const region = process.env.AZURE_TTS_REGION || 'eastus';
+  const resourceName = process.env.AZURE_TTS_RESOURCE || 'sigoth';
+  const endpoint = `wss://${resourceName}.cognitiveservices.azure.com/stt/speech/universal/v2`;
+  const sdk = await getSpeechSdk();
+  if (!sdk) return false;
+
+  for (const key of keys) {
+    try {
+      const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
+      speechConfig.speechSynthesisVoiceName = voice;
+      speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+      try { speechConfig.endpointId = endpoint; } catch {}
+
+      const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
+      const result = await new Promise((resolve, reject) => {
+        synthesizer.speakSsmlAsync(ssml, res => resolve(res), err => reject(err));
+      });
+      synthesizer.close();
+
+      if (result && result.audioData && result.audioData.byteLength > 0
+        && result.reason !== sdk.ResultReason.Canceled) {
+        fs.writeFileSync(outputPath, Buffer.from(result.audioData));
+        console.log('[TTS] SDK speakSsmlAsync success for', voice, 'byteLength:', result.audioData.byteLength);
+        return true;
+      } else if (result && result.reason === sdk.ResultReason.Canceled) {
+        const c = sdk.CancellationDetails.fromResult(result);
+        console.warn('[TTS] SDK speakSsmlAsync canceled:', c.reason, c.errorDetails);
+      }
+    } catch (err) {
+      console.warn('[TTS] SDK speakSsmlAsync failed for', voice, ':', err.message);
+    }
+  }
+  return false;
 }
 
 function getFontPath() {
