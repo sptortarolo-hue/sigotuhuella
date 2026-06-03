@@ -110,11 +110,12 @@ export default function VideoGeneratorTab() {
 
   const [mode, setMode] = useState<'real' | 'ai'>('real');
   const [config, setConfig] = useState({
-    style: 'emotive',
-    duration: 30,
-    music: 'emotional',
-    includeVoice: true,
-    format: 'vertical',
+  style: 'emotive',
+  duration: 30,
+  music: 'emotional',
+  includeVoice: true,
+  format: 'vertical',
+  voice: 'elena',
   });
 
   const [petFilter, setPetFilter] = useState('');
@@ -325,14 +326,15 @@ export default function VideoGeneratorTab() {
 
     setGenerating(true);
     try {
-      const body: any = {
-        style: config.style,
-        duration: config.duration,
-        music: config.music,
-        includeVoice: config.includeVoice,
-        format: config.format,
-        mode,
-      };
+    const body: any = {
+      style: config.style,
+      duration: config.duration,
+      music: config.music,
+      includeVoice: config.includeVoice,
+      format: config.format,
+      voice: config.voice,
+      mode,
+    };
 
       if (mode === 'ai') {
         body.topic = topic || undefined;
@@ -759,7 +761,34 @@ export default function VideoGeneratorTab() {
         <label htmlFor="voiceEnabled" className="font-bold text-gray-700">Incluir voz (TTS)</label>
         {!config.includeVoice && <span className="text-xs text-gray-400 ml-1">— duracion manual</span>}
       </div>
+
+      {config.includeVoice && (
+        <div>
+          <label className="block text-sm font-bold text-gray-600 mb-2">Voz</label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { value: 'elena', label: 'Elena', desc: 'Femenina' },
+              { value: 'tomas', label: 'Tomas', desc: 'Masculina' },
+              { value: 'both', label: 'Ambas', desc: 'Alternan' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setConfig(c => ({ ...c, voice: opt.value }))}
+                className={cn(
+                  "px-3 py-2 rounded-xl border-2 transition-all text-center",
+                  config.voice === opt.value
+                    ? "border-brand-primary bg-brand-primary/5"
+                    : "border-brand-accent bg-brand-bg hover:border-brand-primary/40"
+                )}
+              >
+                <div className={cn("text-sm font-bold", config.voice === opt.value ? "text-brand-primary" : "text-gray-700")}>{opt.label}</div>
+                <div className="text-xs text-gray-400">{opt.desc}</div>
+              </button>
+            ))}
+          </div>
         </div>
+      )}
+    </div>
 
         <div className="mb-6">
           <label className="block text-sm font-bold text-gray-600 mb-3">Formato</label>

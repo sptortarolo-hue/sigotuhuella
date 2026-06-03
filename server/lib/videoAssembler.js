@@ -36,6 +36,12 @@ const STYLE_VOICES = {
   viral: 'es-AR-ElenaNeural',
 };
 
+const VOICE_OPTIONS = {
+  elena: 'es-AR-ElenaNeural',
+  tomas: 'es-AR-TomasNeural',
+  both: 'es-AR-ElenaNeural',
+};
+
 const STYLE_VOICE_PARAMS = {
   emotive: { rate: '-10%', pitch: '-5%' },
   informative: { rate: '+0%', pitch: '+0%' },
@@ -119,11 +125,12 @@ function escapeXml(str) {
     .replace(/'/g, '&apos;');
 }
 
-function buildSSML(script, voice, params) {
+function buildSSML(script, voice, params, secondVoice) {
   const { rate, pitch } = params;
   const cleaned = escapeXml(script.trim().replace(/\s+/g, ' '));
 
-  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
+  if (!secondVoice || secondVoice === voice) {
+    return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
 <voice name="${voice}">
 <prosody rate="${rate}" pitch="${pitch}">
 ${cleaned}
@@ -131,6 +138,19 @@ ${cleaned}
 sigotuhuella.online
 </prosody>
 </voice>
+</speak>`;
+  }
+
+  const sentences = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const voiceParts = [];
+  for (let i = 0; i < sentences.length; i++) {
+    const v = i % 2 === 0 ? voice : secondVoice;
+    voiceParts.push(`<voice name="${v}"><prosody rate="${rate}" pitch="${pitch}">${sentences[i]}</prosody></voice>`);
+  }
+  voiceParts.push(`<voice name="${voice}"><prosody rate="${rate}" pitch="${pitch}"><break time="600ms"/>sigotuhuella.online</prosody></voice>`);
+
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
+${voiceParts.join('\n')}
 </speak>`;
 }
 
@@ -163,9 +183,11 @@ async function generateTTS(config, voiceScript, workDir) {
   const ttsPath = path.join(workDir, 'tts.mp3');
   if (!config.includeVoice || !script) return null;
 
-  const voice = STYLE_VOICES[config.style] || STYLE_VOICES.emotive;
+  const voiceOption = config.voice || 'elena';
+  const voice = voiceOption === 'tomas' ? VOICE_OPTIONS.tomas : VOICE_OPTIONS.elena;
+  const secondVoice = voiceOption === 'both' ? VOICE_OPTIONS.tomas : null;
   const params = STYLE_VOICE_PARAMS[config.style] || STYLE_VOICE_PARAMS.emotive;
-  const ssml = buildSSML(script, voice, params);
+  const ssml = buildSSML(script, voice, params, secondVoice);
 
   let ttsOk = false;
   const keys = [process.env.AZURE_TTS_KEY, process.env.AZURE_TTS_KEY2].filter(Boolean);
@@ -210,7 +232,7 @@ async function generateTTS(config, voiceScript, workDir) {
       try {
         console.log('[TTS] Trying SDK speakTextAsync with key', key.slice(0, 8) + '...');
         const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
-        speechConfig.speechSynthesisVoiceName = 'es-AR-ElenaNeural';
+        speechConfig.speechSynthesisVoiceName = voice;
         speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
 
         const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);

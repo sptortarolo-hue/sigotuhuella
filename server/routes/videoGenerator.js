@@ -83,15 +83,16 @@ router.post('/generate-ai-content', requireAuth, requireAdmin, async (req, res) 
 
 router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
   const {
-    style = 'emotive',
-    duration = 30,
-    music = 'emotional',
-    includeVoice = true,
-    format = 'vertical',
-    mode = 'real',
-    scenes = [],
-    voiceScript = '',
-    topic,
+  style = 'emotive',
+  duration = 30,
+  music = 'emotional',
+  includeVoice = true,
+  format = 'vertical',
+  mode = 'real',
+  scenes = [],
+  voiceScript = '',
+  voice = 'elena',
+  topic,
   } = req.body;
 
   try {
@@ -253,6 +254,7 @@ const title = mode === 'ai'
           includeVoice,
           format,
           voiceScript: finalVoiceScript,
+          voice,
           scenes: resolvedScenes,
         }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Video generation timeout (5 minutes)')), 300_000)),
