@@ -150,8 +150,9 @@ ${cleaned}${closing}
 function normalizeVoiceKeys(input) {
   const valid = ['elena', 'tomas', 'mateo'];
   const arr = Array.isArray(input) ? input : [input];
-  const filtered = arr.map(v => String(v).toLowerCase()).filter(v => valid.includes(v));
-  return filtered.length > 0 ? filtered : ['elena'];
+  const expanded = arr.flatMap(v => v === 'both' ? ['elena', 'tomas'] : v);
+  const filtered = expanded.map(v => String(v).toLowerCase()).filter(v => valid.includes(v));
+  return filtered.length > 0 ? [...new Set(filtered)] : ['elena'];
 }
 
 function splitByParagraphs(script, voiceKeys = ['elena', 'tomas']) {
