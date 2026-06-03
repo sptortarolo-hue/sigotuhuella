@@ -147,25 +147,27 @@ ${cleaned}${closing}
 </speak>`;
 }
 
-function splitByParagraphs(script) {
+function normalizeVoiceKeys(input) {
+  const valid = ['elena', 'tomas', 'mateo'];
+  const arr = Array.isArray(input) ? input : [input];
+  const filtered = arr.map(v => String(v).toLowerCase()).filter(v => valid.includes(v));
+  return filtered.length > 0 ? filtered : ['elena'];
+}
+
+function splitByParagraphs(script, voiceKeys = ['elena', 'tomas']) {
   const paragraphs = script.trim().split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-  if (paragraphs.length >= 2) {
-    return paragraphs.map((text, i) => ({
-      text,
-      voice: i % 2 === 0 ? VOICE_OPTIONS.elena : VOICE_OPTIONS.tomas,
-      params: i % 2 === 0 ? VOICE_PARAMS.elena : VOICE_PARAMS.tomas,
-    }));
-  }
-  const sentences = script.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
-  const blocks = [];
-  for (let i = 0; i < sentences.length; i += 2) {
-    blocks.push(sentences.slice(i, i + 2).join(' '));
-  }
-  return blocks.map((text, i) => ({
-    text,
-    voice: i % 2 === 0 ? VOICE_OPTIONS.elena : VOICE_OPTIONS.tomas,
-    params: i % 2 === 0 ? VOICE_PARAMS.elena : VOICE_PARAMS.tomas,
-  }));
+  const split = paragraphs.length >= 2 ? paragraphs : (() => {
+    const sentences = script.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
+    const blocks = [];
+    for (let i = 0; i < sentences.length; i += 2) {
+      blocks.push(sentences.slice(i, i + 2).join(' '));
+    }
+    return blocks;
+  })();
+  return split.map((text, i) => {
+    const key = voiceKeys[i % voiceKeys.length];
+    return { text, voice: VOICE_OPTIONS[key], params: VOICE_PARAMS[key] };
+  });
 }
 
 function buildAutoScript(style, stats) {
@@ -191,25 +193,23 @@ function buildAutoScript(style, stats) {
 async function generateTTS(config, voiceScript, workDir) {
   const stats = await getGlobalStats();
   const script = voiceScript || buildAutoScript(config.style, stats);
-  console.log('[TTS] generateTTS start — includeVoice:', config.includeVoice, 'voice:', config.voice, 'script length:', script?.length);
+  const voiceKeys = normalizeVoiceKeys(config.voices || [config.voice || 'elena']);
+  console.log('[TTS] generateTTS start — includeVoice:', config.includeVoice, 'voices:', voiceKeys, 'script length:', script?.length);
 
   const ttsPath = path.join(workDir, 'tts.mp3');
   if (!config.includeVoice || !script) return null;
 
-  const voiceOption = config.voice || 'elena';
-
-  if (voiceOption === 'both') {
-    return await generateBothVoices(script, workDir, ttsPath);
+  if (voiceKeys.length === 1) {
+    const voice = VOICE_OPTIONS[voiceKeys[0]] || VOICE_OPTIONS.elena;
+    const params = VOICE_PARAMS[voiceKeys[0]] || VOICE_PARAMS.elena;
+    const ssml = buildSSML(script, voice, params);
+    const ok = await synthesizeWithRetry(ssml, voice, ttsPath);
+    if (ok) return ttsPath;
+    console.warn('[TTS] All TTS methods failed');
+    return null;
   }
 
-  const voiceKey = ['elena', 'tomas', 'mateo'].includes(voiceOption) ? voiceOption : 'elena';
-  const voice = VOICE_OPTIONS[voiceKey];
-  const params = VOICE_PARAMS[voiceKey];
-  const ssml = buildSSML(script, voice, params);
-  const ok = await synthesizeWithRetry(ssml, voice, ttsPath);
-  if (ok) return ttsPath;
-  console.warn('[TTS] All TTS methods failed');
-  return null;
+  return await generateMultiVoice(script, voiceKeys, workDir, ttsPath);
 }
 
 async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
@@ -286,14 +286,14 @@ async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
   return false;
 }
 
-async function generateBothVoices(script, workDir, ttsPath) {
-  const blocks = splitByParagraphs(script);
+async function generateMultiVoice(script, voiceKeys, workDir, ttsPath) {
+  const blocks = splitByParagraphs(script, voiceKeys);
   blocks.push({
     text: 'sigotuhuella.online',
-    voice: 'es-AR-ElenaNeural',
-    params: VOICE_PARAMS.elena,
+    voice: VOICE_OPTIONS[voiceKeys[0]] || VOICE_OPTIONS.elena,
+    params: VOICE_PARAMS[voiceKeys[0]] || VOICE_PARAMS.elena,
   });
-  console.log('[TTS-both] Generating', blocks.length, 'voice clips');
+  console.log('[TTS-multi] Generating', blocks.length, 'voice clips with voices:', voiceKeys);
 
   const clipPaths = [];
   for (let i = 0; i < blocks.length; i++) {
@@ -303,14 +303,14 @@ async function generateBothVoices(script, workDir, ttsPath) {
     const ok = await synthesizeClipFast(ssml, block.voice, clipPath);
     if (ok && fs.existsSync(clipPath)) {
       clipPaths.push(clipPath);
-      console.log('[TTS-both] Clip', i, block.voice.slice(6, 11), 'ok');
+      console.log('[TTS-multi] Clip', i, block.voice.slice(6, 20), 'ok');
     } else {
-      console.warn('[TTS-both] Clip', i, 'failed');
+      console.warn('[TTS-multi] Clip', i, 'failed');
     }
   }
 
   if (clipPaths.length === 0) {
-    console.warn('[TTS-both] No clips generated');
+    console.warn('[TTS-multi] No clips generated');
     return null;
   }
 
@@ -347,11 +347,11 @@ async function generateBothVoices(script, workDir, ttsPath) {
   });
 
   if (fs.existsSync(ttsPath)) {
-    console.log('[TTS-both] Final TTS ready:', ttsPath);
+    console.log('[TTS-multi] Final TTS ready:', ttsPath);
     return ttsPath;
   }
 
-  console.warn('[TTS-both] Concat failed, using first clip as fallback');
+  console.warn('[TTS-multi] Concat failed, using first clip as fallback');
   fs.copyFileSync(clipPaths[0], ttsPath);
   return ttsPath;
 }
@@ -970,6 +970,7 @@ async function generateVideo(config) {
     format = 'vertical',
     voiceScript = '',
     scenes = [],
+    voices = ['elena'],
   } = config;
 
   const dims = FORMAT_DIMS[format] || FORMAT_DIMS.vertical;

@@ -110,12 +110,12 @@ export default function VideoGeneratorTab() {
 
   const [mode, setMode] = useState<'real' | 'ai'>('real');
   const [config, setConfig] = useState({
-  style: 'emotive',
-  duration: 30,
-  music: 'emotional',
-  includeVoice: true,
-  format: 'vertical',
-  voice: 'elena',
+    style: 'emotive',
+    duration: 30,
+    music: 'emotional',
+    includeVoice: true,
+    format: 'vertical',
+    voices: ['elena'] as string[],
   });
 
   const [petFilter, setPetFilter] = useState('');
@@ -332,7 +332,8 @@ export default function VideoGeneratorTab() {
       music: config.music,
       includeVoice: config.includeVoice,
       format: config.format,
-      voice: config.voice,
+      voice: config.voices.length === 1 ? config.voices[0] : 'both',
+      voices: config.voices,
       mode,
     };
 
@@ -762,33 +763,39 @@ export default function VideoGeneratorTab() {
         {!config.includeVoice && <span className="text-xs text-gray-400 ml-1">— duracion manual</span>}
       </div>
 
-      {config.includeVoice && (
-        <div>
-          <label className="block text-sm font-bold text-gray-600 mb-2">Voz</label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+{config.includeVoice && (
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-2">Voz{config.voices.length > 1 ? 'es (alternan)' : ''}</label>
+            <div className="grid grid-cols-3 gap-2">
               {[
                 { value: 'elena', label: 'Elena', desc: 'Femenina AR' },
                 { value: 'tomas', label: 'Tomas', desc: 'Masculina AR' },
                 { value: 'mateo', label: 'Mateo', desc: 'Masculina UY' },
-                { value: 'both', label: 'Ambas', desc: 'Alternan' },
-              ].map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => setConfig(c => ({ ...c, voice: opt.value }))}
-                className={cn(
-                  "px-3 py-2 rounded-xl border-2 transition-all text-center",
-                  config.voice === opt.value
-                    ? "border-brand-primary bg-brand-primary/5"
-                    : "border-brand-accent bg-brand-bg hover:border-brand-primary/40"
-                )}
-              >
-                <div className={cn("text-sm font-bold", config.voice === opt.value ? "text-brand-primary" : "text-gray-700")}>{opt.label}</div>
-                <div className="text-xs text-gray-400">{opt.desc}</div>
-              </button>
-            ))}
+              ].map(opt => {
+                const checked = config.voices.includes(opt.value);
+                return (
+                <button
+                  key={opt.value}
+                  onClick={() => setConfig(c => {
+                    const next = c.voices.includes(opt.value)
+                      ? c.voices.filter(v => v !== opt.value)
+                      : [...c.voices, opt.value];
+                    return { ...c, voices: next.length === 0 ? [opt.value] : next };
+                  })}
+                  className={cn(
+                    "px-3 py-2 rounded-xl border-2 transition-all text-center",
+                    checked
+                      ? "border-brand-primary bg-brand-primary/5"
+                      : "border-brand-accent bg-brand-bg hover:border-brand-primary/40"
+                  )}
+                >
+                  <div className={cn("text-sm font-bold", checked ? "text-brand-primary" : "text-gray-700")}>{opt.label}</div>
+                  <div className="text-xs text-gray-400">{opt.desc}</div>
+                </button>
+              );})}
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
 
         <div className="mb-6">
