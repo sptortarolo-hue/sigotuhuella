@@ -44,7 +44,7 @@ const VOICE_OPTIONS = {
 
 const VOICE_PARAMS = {
   elena: { rate: '-10%', pitch: '-5%' },
-  tomas: { rate: '+5%', pitch: '+3%' },
+  tomas: { rate: '-15%', pitch: '-3%' },
 };
 
 const STYLE_VOICE_PARAMS = {
