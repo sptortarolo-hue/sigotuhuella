@@ -107,6 +107,7 @@ async function synthesizeREST(ssml, outputPath, keyOverride) {
       'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
     },
     body: ssml,
+    signal: AbortSignal.timeout(10000),
   });
 
   if (!response.ok) {
@@ -289,26 +290,19 @@ async function generateBothVoices(script, workDir, ttsPath) {
     voice: 'es-AR-ElenaNeural',
     params: VOICE_PARAMS.elena,
   });
-  console.log('[TTS-both] Generating', blocks.length, 'voice clips sequentially');
+  console.log('[TTS-both] Generating', blocks.length, 'voice clips');
 
   const clipPaths = [];
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
     const clipPath = path.join(workDir, `tts_clip_${i}.mp3`);
     const ssml = buildSSML(block.text, block.voice, block.params, { appendClosing: false });
-    try {
-      const ok = await Promise.race([
-        synthesizeSingleSdk(ssml, block.voice, clipPath),
-        new Promise(resolve => setTimeout(() => resolve(false), 15000)),
-      ]);
-      if (ok && fs.existsSync(clipPath)) {
-        clipPaths.push(clipPath);
-        console.log('[TTS-both] Clip', i, block.voice.slice(6, 11), 'ok');
-      } else {
-        console.warn('[TTS-both] Clip', i, 'failed or timed out');
-      }
-    } catch (err) {
-      console.warn('[TTS-both] Clip', i, 'error:', err.message);
+    const ok = await synthesizeClipFast(ssml, block.voice, clipPath);
+    if (ok && fs.existsSync(clipPath)) {
+      clipPaths.push(clipPath);
+      console.log('[TTS-both] Clip', i, block.voice.slice(6, 11), 'ok');
+    } else {
+      console.warn('[TTS-both] Clip', i, 'failed');
     }
   }
 
@@ -359,35 +353,56 @@ async function generateBothVoices(script, workDir, ttsPath) {
   return ttsPath;
 }
 
-async function synthesizeSingleSdk(ssml, voice, outputPath) {
+async function synthesizeClipFast(ssml, voice, outputPath) {
   const keys = [process.env.AZURE_TTS_KEY, process.env.AZURE_TTS_KEY2].filter(Boolean);
   const region = process.env.AZURE_TTS_REGION || 'eastus';
   const sdk = await getSpeechSdk();
-  if (!sdk) return false;
 
   for (const key of keys) {
-    try {
-      const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
-      speechConfig.speechSynthesisVoiceName = voice;
-      speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+    if (sdk) {
+      let synthesizer = null;
+      try {
+        const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
+        speechConfig.speechSynthesisVoiceName = voice;
+        speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+        synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
 
-      const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
-      const result = await new Promise((resolve, reject) => {
-        synthesizer.speakSsmlAsync(ssml, res => resolve(res), err => reject(err));
-      });
-      synthesizer.close();
+        const result = await Promise.race([
+          new Promise((resolve, reject) => {
+            synthesizer.speakSsmlAsync(ssml, res => resolve(res), err => reject(err));
+          }),
+          new Promise(resolve => setTimeout(() => resolve('timeout'), 10000)),
+        ]);
 
-      if (result && result.audioData && result.audioData.byteLength > 0
-        && result.reason !== sdk.ResultReason.Canceled) {
-        fs.writeFileSync(outputPath, Buffer.from(result.audioData));
-        console.log('[TTS] SDK speakSsmlAsync success for', voice, 'byteLength:', result.audioData.byteLength);
-        return true;
-      } else if (result && result.reason === sdk.ResultReason.Canceled) {
-        const c = sdk.CancellationDetails.fromResult(result);
-        console.warn('[TTS] SDK speakSsmlAsync canceled:', c.reason, c.errorDetails);
+        if (result === 'timeout') {
+          console.warn('[TTS-clip] SDK timeout for', voice, '- closing synthesizer');
+          try { synthesizer.close(); } catch {}
+          continue;
+        }
+
+        try { synthesizer.close(); } catch {}
+
+        if (result && result.audioData && result.audioData.byteLength > 0
+          && result.reason !== sdk.ResultReason.Canceled) {
+          fs.writeFileSync(outputPath, Buffer.from(result.audioData));
+          console.log('[TTS-clip] SDK success for', voice, 'byteLength:', result.audioData.byteLength);
+          return true;
+        } else if (result && result.reason === sdk.ResultReason.Canceled) {
+          const c = sdk.CancellationDetails.fromResult(result);
+          console.warn('[TTS-clip] SDK canceled:', c.reason, c.errorDetails);
+        }
+      } catch (err) {
+        console.warn('[TTS-clip] SDK error for', voice, ':', err.message);
+        try { if (synthesizer) synthesizer.close(); } catch {}
       }
+    }
+
+    try {
+      await synthesizeREST(ssml, outputPath, key);
+      console.log('[TTS-clip] REST success for', voice);
+      return true;
     } catch (err) {
-      console.warn('[TTS] SDK speakSsmlAsync failed for', voice, ':', err.message);
+      console.warn('[TTS-clip] REST failed for', voice, ':', err.message);
     }
   }
   return false;
