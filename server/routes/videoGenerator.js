@@ -93,6 +93,9 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
     voiceScript = '',
     voice = 'elena',
     voices,
+    frame = 'none',
+    stickers = true,
+    confetti = false,
     topic,
   } = req.body;
 
@@ -254,10 +257,13 @@ const title = mode === 'ai'
           music,
           includeVoice,
           format,
-      voiceScript: finalVoiceScript,
-      voice,
-      voices: Array.isArray(voices) && voices.length > 0 ? voices : [voice || 'elena'],
-      scenes: resolvedScenes,
+          voiceScript: finalVoiceScript,
+          voice,
+          voices: Array.isArray(voices) && voices.length > 0 ? voices : [voice || 'elena'],
+          frame,
+          stickers,
+          confetti,
+          scenes: resolvedScenes,
         }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Video generation timeout (5 minutes)')), 300_000)),
       ]);

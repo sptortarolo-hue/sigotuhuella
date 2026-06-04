@@ -116,6 +116,9 @@ export default function VideoGeneratorTab() {
     includeVoice: true,
     format: 'vertical',
     voices: ['elena'] as string[],
+    frame: 'none',
+    stickers: true,
+    confetti: false,
   });
 
   const [petFilter, setPetFilter] = useState('');
@@ -334,6 +337,9 @@ export default function VideoGeneratorTab() {
       format: config.format,
       voice: config.voices.length === 1 ? config.voices[0] : 'both',
       voices: config.voices,
+      frame: config.frame,
+      stickers: config.stickers,
+      confetti: config.confetti,
       mode,
     };
 
@@ -822,7 +828,69 @@ export default function VideoGeneratorTab() {
                   </div>
                 </button>
               );
-            })}
+})}
+        </div>
+        </div>
+
+        <div className="mb-6">
+          <label className="block text-sm font-bold text-gray-600 mb-3">Efectos visuales</label>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Marco</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { value: 'none', label: 'Sin marco', desc: '' },
+                  { value: 'classic', label: 'Clasico', desc: 'Bordes + esquinas' },
+                  { value: 'polaroid', label: 'Polaroid', desc: 'Fondo crema' },
+                  { value: 'filmstrip', label: 'Filmstrip', desc: 'Rollo de pelicula' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setConfig(c => ({ ...c, frame: opt.value }))}
+                    className={cn(
+                      "px-3 py-2 rounded-xl border-2 transition-all text-center",
+                      config.frame === opt.value
+                        ? "border-brand-primary bg-brand-primary/5"
+                        : "border-brand-accent bg-brand-bg hover:border-brand-primary/40"
+                    )}
+                  >
+                    <div className={cn("text-sm font-bold", config.frame === opt.value ? "text-brand-primary" : "text-gray-700")}>{opt.label}</div>
+                    {opt.desc && <div className="text-xs text-gray-400">{opt.desc}</div>}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => setConfig(c => ({ ...c, stickers: !c.stickers }))}
+                className={cn(
+                  "flex-1 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-bold text-left",
+                  config.stickers
+                    ? "border-brand-primary bg-brand-primary/5 text-brand-primary"
+                    : "border-brand-accent bg-brand-bg text-gray-700 hover:border-brand-primary/40"
+                )}
+              >
+                {config.stickers ? '🐾 Stickers ON' : '🐾 Stickers OFF'}
+              </button>
+              <button
+                onClick={() => setConfig(c => ({ ...c, confetti: !c.confetti }))}
+                className={cn(
+                  "flex-1 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-bold text-left",
+                  config.confetti
+                    ? "border-brand-primary bg-brand-primary/5 text-brand-primary"
+                    : "border-brand-accent bg-brand-bg text-gray-700 hover:border-brand-primary/40"
+                )}
+              >
+                {config.confetti ? '🎉 Confetti ON' : '🎉 Confetti OFF'}
+              </button>
+            </div>
+            {config.stickers && (
+              <div className="text-xs text-gray-400 bg-brand-bg rounded-lg p-2">
+                {config.style === 'emotive' && 'Huellas + corazon con pata (fade-in suave)'}
+                {config.style === 'informative' && 'Huella olive discreta'}
+                {config.style === 'viral' && 'Estrella + huella + corazon (aparicion rapida)'}
+              </div>
+            )}
           </div>
         </div>
 

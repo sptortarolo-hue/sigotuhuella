@@ -15,6 +15,9 @@ const PROJECT_ROOT = process.env.PWD || process.cwd();
 const VIDEO_OUTPUT_DIR = path.join(PROJECT_ROOT, PUBLIC_DIR, 'generated', 'videos');
 const MUSIC_DIR = path.join(PROJECT_ROOT, PUBLIC_DIR, 'generated', 'music');
 const LOGO_PATH = path.join(PROJECT_ROOT, PUBLIC_DIR, 'sigotuhuella.jpg');
+const OVERLAYS_DIR = path.join(PROJECT_ROOT, PUBLIC_DIR, 'overlays');
+const STICKERS_DIR = path.join(OVERLAYS_DIR, 'stickers');
+const FRAMES_DIR = path.join(OVERLAYS_DIR, 'frames');
 if (!fs.existsSync(VIDEO_OUTPUT_DIR)) fs.mkdirSync(VIDEO_OUTPUT_DIR, { recursive: true });
 
 const MUSIC_TRACKS = {
@@ -804,8 +807,298 @@ async function concatenateSimple(clipPaths, workDir) {
   return outPath;
 }
 
+const STYLE_COLOR_GRADING = {
+  emotive: 'eq=saturation=0.85:gamma=0.95:contrast=1.05',
+  informative: 'eq=saturation=0.75:contrast=1.1:gamma=1.02',
+  viral: 'eq=saturation=1.2:contrast=1.15:gamma=0.95',
+};
+
+const STICKER_LAYOUTS = {
+  emotive: [
+    { file: 'paw-terracotta.png', pos: 'bottom-left', delay: 0.5, dur: 3 },
+    { file: 'heart-paw.png', pos: 'top-right', delay: 1.5, dur: 3 },
+  ],
+  informative: [
+    { file: 'paw-olive.png', pos: 'bottom-right', delay: 0.3, dur: 2.5 },
+  ],
+  viral: [
+    { file: 'star.png', pos: 'top-left', delay: 0.2, dur: 2 },
+    { file: 'paw-terracotta.png', pos: 'bottom-left', delay: 0.8, dur: 3 },
+    { file: 'heart.png', pos: 'bottom-right', delay: 1.5, dur: 2.5 },
+  ],
+};
+
+function stickerPosition(pos, w, h, stickerSize) {
+  const pad = Math.round(Math.min(w, h) * 0.05);
+  const positions = {
+    'top-left': `${pad}:${pad}`,
+    'top-right': `W-w-${pad}:${pad}`,
+    'bottom-left': `${pad}:H-h-${pad}`,
+    'bottom-right': `W-w-${pad}:H-h-${pad}`,
+  };
+  return positions[pos] || positions['bottom-left'];
+}
+
+async function addColorGrading(videoPath, style, workDir) {
+  const filter = STYLE_COLOR_GRADING[style];
+  if (!filter) return videoPath;
+  const outPath = path.join(workDir, 'graded.mp4');
+  try {
+    await runFfmpeg([
+      '-y', '-i', videoPath,
+      '-vf', `${filter},format=yuv420p`,
+      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+      '-pix_fmt', 'yuv420p', '-an',
+      outPath,
+    ], 'color-grading');
+    try { fs.unlinkSync(videoPath); } catch {}
+    return outPath;
+  } catch (err) {
+    console.warn('[ColorGrading] Failed, skipping:', err.message);
+    return videoPath;
+  }
+}
+
+async function addVignette(videoPath, workDir) {
+  const outPath = path.join(workDir, 'vignette.mp4');
+  try {
+    await runFfmpeg([
+      '-y', '-i', videoPath,
+      '-vf', 'vignette=angle=0.3:mode=forward,format=yuv420p',
+      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+      '-pix_fmt', 'yuv420p', '-an',
+      outPath,
+    ], 'vignette');
+    try { fs.unlinkSync(videoPath); } catch {}
+    return outPath;
+  } catch (err) {
+    console.warn('[Vignette] Failed, skipping:', err.message);
+    return videoPath;
+  }
+}
+
+async function addStickers(videoPath, style, clipDur, dims, workDir) {
+  const stickers = STICKER_LAYOUTS[style];
+  if (!stickers || !fs.existsSync(STICKERS_DIR)) return videoPath;
+  const { w, h } = dims;
+  const stickerSize = Math.round(Math.min(w, h) * 0.12);
+  const outPath = path.join(workDir, 'stickered.mp4');
+
+  const inputs = ['-y', '-i', videoPath];
+  const filterParts = [];
+  const overlayLabels = [];
+  let inputIdx = 1;
+
+  for (const sticker of stickers) {
+    const stickerPath = path.join(STICKERS_DIR, sticker.file);
+    if (!fs.existsSync(stickerPath)) continue;
+
+    inputs.push('-i', stickerPath);
+    const label = `s${inputIdx}`;
+    const pos = stickerPosition(sticker.pos, w, h, stickerSize);
+    const enable = `enable='between(t,${sticker.delay},${Math.min(sticker.delay + sticker.dur, clipDur)})'`;
+
+    filterParts.push(`[${inputIdx}:v]scale=${stickerSize}:-1,format=rgba,fade=in:st=${sticker.delay}:d=0.4:alpha=1,fade=out:st=${sticker.delay + sticker.dur - 0.4}:d=0.4:alpha=1[${label}]`);
+
+    if (overlayLabels.length === 0) {
+      overlayLabels.push(`[0:v][${label}]overlay=${pos}:${enable}:format=auto[o1]`);
+    } else {
+      const prev = overlayLabels.length;
+      overlayLabels.push(`[o${prev}][${label}]overlay=${pos}:${enable}:format=auto[o${prev + 1}]`);
+    }
+    inputIdx++;
+  }
+
+  if (filterParts.length === 0) return videoPath;
+
+  const allFilters = [...filterParts, ...overlayLabels];
+  const lastLabel = `o${overlayLabels.length}`;
+  allFilters.push(`[${lastLabel}]format=yuv420p[v]`);
+
+  try {
+    await runFfmpeg([
+      ...inputs,
+      '-filter_complex', allFilters.join(';'),
+      '-map', '[v]',
+      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+      '-pix_fmt', 'yuv420p', '-an',
+      outPath,
+    ], 'stickers');
+    try { fs.unlinkSync(videoPath); } catch {}
+    return outPath;
+  } catch (err) {
+    console.warn('[Stickers] Failed, skipping:', err.message);
+    return videoPath;
+  }
+}
+
+async function addFrameOverlay(videoPath, frameType, dims, workDir) {
+  if (!frameType || frameType === 'none') return videoPath;
+  const { w, h } = dims;
+  const formatName = h > w ? 'vertical' : (w === h ? 'square' : 'landscape');
+  const framePath = path.join(FRAMES_DIR, `${frameType}-${formatName}.png`);
+  if (!fs.existsSync(framePath)) {
+    console.warn('[Frame] Frame file not found:', framePath);
+    return videoPath;
+  }
+
+  const outPath = path.join(workDir, 'framed.mp4');
+  const filterParts = [
+    `[1:v]format=rgba[frm]`,
+    `[0:v][frm]overlay=0:0:format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`,
+  ];
+
+  try {
+    await runFfmpeg([
+      '-y', '-i', videoPath, '-i', framePath,
+      '-filter_complex', filterParts.join(';'),
+      '-map', '[v]',
+      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+      '-pix_fmt', 'yuv420p', '-an',
+      outPath,
+    ], 'frame-overlay');
+    try { fs.unlinkSync(videoPath); } catch {}
+    return outPath;
+  } catch (err) {
+    console.warn('[Frame] Failed, skipping:', err.message);
+    return videoPath;
+  }
+}
+
+let cachedConfettiPath = null;
+
+async function generateConfettiVideo(dims, workDir) {
+  if (cachedConfettiPath && fs.existsSync(cachedConfettiPath)) return cachedConfettiPath;
+  const { w, h } = dims;
+  const CONFETTI_DUR = 4;
+  const TOTAL_FRAMES = FPS * CONFETTI_DUR;
+  const NUM_PARTICLES = 50;
+  const COLORS_HEX = ['D48C70', '5A5A40', 'F5F5F0', 'E6E6DF', 'E8A598', '8B8B6E'];
+
+  const confettiCacheDir = path.join(OVERLAYS_DIR, 'confetti_cache');
+  fs.mkdirSync(confettiCacheDir, { recursive: true });
+  const cachedPath = path.join(confettiCacheDir, `confetti_${w}x${h}.mp4`);
+  if (fs.existsSync(cachedPath)) {
+    cachedConfettiPath = cachedPath;
+    return cachedPath;
+  }
+
+  const confettiFramesDir = path.join(workDir, 'confetti_frames');
+  fs.mkdirSync(confettiFramesDir, { recursive: true });
+
+  const particles = [];
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    particles.push({
+      x: Math.random() * w, y: Math.random() * h * -1,
+      size: 4 + Math.random() * 10,
+      color: COLORS_HEX[Math.floor(Math.random() * COLORS_HEX.length)],
+      vx: (Math.random() - 0.5) * 2, vy: 3 + Math.random() * 5,
+      rot: Math.random() * 360, rotV: (Math.random() - 0.5) * 8,
+      wobble: Math.random() * Math.PI * 2, shape: Math.floor(Math.random() * 3),
+    });
+  }
+  for (let i = 0; i < 20; i++) {
+    for (const p of particles) { p.y += p.vy; p.x += p.vx; p.rot += p.rotV; }
+  }
+
+  for (let f = 0; f < TOTAL_FRAMES; f++) {
+    const shapes = [];
+    for (const p of particles) {
+      p.y += p.vy; p.x += p.vx + Math.sin(p.wobble) * 1;
+      p.rot += p.rotV; p.wobble += 0.08; p.vy += 0.04;
+      if (p.y > h + 20) { p.y = -20 - Math.random() * 60; p.x = Math.random() * w; p.vy = 3 + Math.random() * 5; }
+      const s = p.size;
+      if (p.shape === 0) shapes.push(`<rect x="${p.x-s/2}" y="${p.y-s/2}" width="${s}" height="${s*0.6}" rx="1" fill="#${p.color}" transform="rotate(${p.rot},${p.x},${p.y})"/>`);
+      else if (p.shape === 1) shapes.push(`<circle cx="${p.x}" cy="${p.y}" r="${s/2}" fill="#${p.color}"/>`);
+      else shapes.push(`<polygon points="${p.x},${p.y-s/2} ${p.x+s*0.3},${p.y+s*0.2} ${p.x-s*0.3},${p.y+s*0.2}" fill="#${p.color}" transform="rotate(${p.rot},${p.x},${p.y})"/>`);
+    }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${shapes.join('')}</svg>`;
+    await sharp(Buffer.from(svg)).png().toFile(path.join(confettiFramesDir, `f_${String(f).padStart(4,'0')}.png`));
+  }
+
+  const listPath = path.join(workDir, 'confetti_list.txt');
+  fs.writeFileSync(listPath, Array.from({ length: TOTAL_FRAMES }, (_, i) =>
+    `file '${path.join(confettiFramesDir, `f_${String(i).padStart(4,'0')}.png`).replace(/\\/g, '/')}'`
+  ).join('\n'));
+
+  await runFfmpeg([
+    '-y', '-f', 'concat', '-safe', '0', '-i', listPath,
+    '-c:v', 'qtrle', '-pix_fmt', 'argb', cachedPath,
+  ], 'confetti-cache-qtrle').catch(async () => {
+    console.log('[Confetti] qtrle not available, trying libprores_kar...');
+    await runFfmpeg([
+      '-y', '-f', 'concat', '-safe', '0', '-i', listPath,
+      '-c:v', 'prores_ks', '-profile:v', 4444, '-pix_fmt', 'yuva444p10le', cachedPath,
+    ], 'confetti-cache-prores').catch(async () => {
+      console.log('[Confetti] prores4444 not available, using yuv420p with colorkey');
+      await runFfmpeg([
+        '-y', '-f', 'concat', '-safe', '0', '-i', listPath,
+        '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+        '-pix_fmt', 'yuv420p', '-an', cachedPath,
+      ], 'confetti-cache-h264');
+    });
+  });
+
+  try { rimraf.sync(confettiFramesDir); } catch {}
+  cachedConfettiPath = cachedPath;
+  return cachedPath;
+}
+
+async function addConfetti(videoPath, startTime, dims, workDir) {
+  const CONFETTI_DUR = 4;
+
+  try {
+    const confettiVidPath = await generateConfettiVideo(dims, workDir);
+    const outPath = path.join(workDir, 'with_confetti.mp4');
+
+    let filterParts;
+    try {
+      const probe = await runFfmpegProbe(confettiVidPath);
+      const hasAlpha = probe.includes('yuva') || probe.includes('argb') || probe.includes('ya');
+      if (hasAlpha) {
+        filterParts = [
+          `[1:v]format=rgba,colorchannelmixer=aa=0.8,fade=in:st=0:d=0.5:alpha=1,fade=out:st=${CONFETTI_DUR-1}:d=1:alpha=1[conf]`,
+          `[0:v][conf]overlay=0:0:enable='between(t,${startTime},${startTime+CONFETTI_DUR})':format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`,
+        ];
+      } else {
+        filterParts = [
+          `[1:v]colorkey=0x000000:0.01:0.1,fade=in:st=0:d=0.5:alpha=1,fade=out:st=${CONFETTI_DUR-1}:d=1:alpha=1[conf]`,
+          `[0:v][conf]overlay=0:0:enable='between(t,${startTime},${startTime+CONFETTI_DUR})':format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`,
+        ];
+      }
+    } catch {
+      filterParts = [
+        `[1:v]colorkey=0x000000:0.01:0.1[conf]`,
+        `[0:v][conf]overlay=0:0:enable='between(t,${startTime},${startTime+CONFETTI_DUR})':format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`,
+      ];
+    }
+
+    await runFfmpeg([
+      '-y', '-i', videoPath, '-i', confettiVidPath,
+      '-filter_complex', filterParts.join(';'),
+      '-map', '[v]',
+      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+      '-pix_fmt', 'yuv420p', '-an', outPath,
+    ], 'confetti-overlay');
+    try { fs.unlinkSync(videoPath); } catch {}
+    return outPath;
+  } catch (err) {
+    console.warn('[Confetti] Failed, skipping:', err.message);
+    return videoPath;
+  }
+}
+
+async function runFfmpegProbe(filePath) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('ffprobe', ['-v', 'quiet', '-show_streams', filePath], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let out = '';
+    proc.stdout.on('data', d => { out += d.toString(); });
+    proc.on('close', code => code === 0 ? resolve(out) : reject(new Error(`ffprobe exit ${code}`)));
+  });
+}
+
 async function addWatermarkAndFrame(videoPath, dims, workDir) {
-  const outPath = path.join(workDir, 'branded.mp4');
+const outPath = path.join(workDir, 'branded.mp4');
   const { w, h } = dims;
   const isVertical = h > w;
   const pad = Math.round(Math.min(w, h) * 0.03);
@@ -972,6 +1265,9 @@ async function generateVideo(config) {
     voiceScript = '',
     scenes = [],
     voices = ['elena'],
+    frame = 'none',
+    stickers = true,
+    confetti = false,
   } = config;
 
   const dims = FORMAT_DIMS[format] || FORMAT_DIMS.vertical;
@@ -1056,10 +1352,34 @@ async function generateVideo(config) {
       logStep('concat-simple fallback');
     }
 
-    mainVideoPath = await addWatermarkAndFrame(mainVideoPath, dims, workDir);
-    logStep('watermark+frame');
+mainVideoPath = await addWatermarkAndFrame(mainVideoPath, dims, workDir);
+  logStep('watermark+frame');
 
-    mainVideoPath = await trimVideo(mainVideoPath, videoDuration, workDir);
+  if (stickers) {
+    mainVideoPath = await addStickers(mainVideoPath, style, videoDuration, dims, workDir);
+    logStep('stickers');
+  }
+
+  if (frame && frame !== 'none') {
+    mainVideoPath = await addFrameOverlay(mainVideoPath, frame, dims, workDir);
+    logStep('frame-overlay');
+  }
+
+  mainVideoPath = await addColorGrading(mainVideoPath, style, workDir);
+  logStep('color-grading');
+
+  if (style === 'emotive') {
+    mainVideoPath = await addVignette(mainVideoPath, workDir);
+    logStep('vignette');
+  }
+
+  if (confetti) {
+    const closingStartTime = videoDuration - CLOSING_DUR;
+    mainVideoPath = await addConfetti(mainVideoPath, closingStartTime, dims, workDir);
+    logStep('confetti');
+  }
+
+  mainVideoPath = await trimVideo(mainVideoPath, videoDuration, workDir);
     logStep('trim to videoDuration');
 
     const videoFilename = `promo-${style}-${Math.round(videoDuration)}s-${format}-${Date.now()}.mp4`;
