@@ -74,6 +74,8 @@ export default function MyPetDetail() {
   const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const [photoLoading, setPhotoLoading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -130,8 +132,31 @@ export default function MyPetDetail() {
         taken_at: new Date().toISOString(),
       });
       await fetchPet();
-    } catch (e) { console.error(e); }
-    finally { setPhotoLoading(false); }
+    } catch (e) {
+      console.error(e);
+      alert('Error al subir la foto. Intentá de nuevo.');
+    } finally {
+      setPhotoLoading(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setAvatarLoading(true);
+      const compressed = await compressImage(file, 0.8);
+      const { data, mimeType } = await fileToBase64(compressed);
+      await api.myPets.update(id!, { avatar_image: data, avatar_mime_type: mimeType });
+      await fetchPet();
+    } catch (e) {
+      console.error(e);
+      alert('Error al cambiar la foto de perfil.');
+    } finally {
+      setAvatarLoading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
   };
 
   const handleDeletePhoto = async (photoId: string) => {
@@ -180,7 +205,13 @@ export default function MyPetDetail() {
 
       <div className="relative -mx-4 sm:-mx-6 lg:-mx-8 mb-6 bg-gradient-to-r from-brand-primary to-brand-secondary rounded-b-[3rem] px-6 py-8 shadow-xl overflow-hidden">
         <div className="flex items-center gap-4">
-          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-white/20 bg-white/10 shrink-0">
+          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+          <button
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={avatarLoading}
+            className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-white/20 bg-white/10 shrink-0 relative group"
+            title="Cambiar foto de perfil"
+          >
             {pet.avatar_image ? (
               <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name} className="w-full h-full object-cover" />
             ) : (
@@ -188,7 +219,14 @@ export default function MyPetDetail() {
                 <PawPrint className="w-10 h-10 text-white/60" />
               </div>
             )}
-          </div>
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+              {avatarLoading ? (
+                <Loader2 className="w-6 h-6 text-white animate-spin opacity-0 group-hover:opacity-100" />
+              ) : (
+                <Camera className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              )}
+            </div>
+          </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl sm:text-3xl font-semibold text-white truncate">{pet.name}</h1>
             <p className="text-white/80 text-sm">
@@ -330,7 +368,7 @@ export default function MyPetDetail() {
                 {pet.photos.map((photo: any) => (
                   <div key={photo.id} className="relative group rounded-2xl overflow-hidden aspect-square bg-brand-bg">
                     <img
-                      src={`/api/my-pets/${id}/photo/${photo.id}`}
+                      src={`/my-pet-photo/${photo.id}`}
                       alt={photo.caption || 'Foto'}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       onError={(e) => { (e.target as HTMLImageElement).src = '/sigotuhuella.jpg'; }}
