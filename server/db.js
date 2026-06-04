@@ -126,6 +126,54 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   auth_key TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS my_pets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  species VARCHAR(50) NOT NULL DEFAULT 'dog',
+  breed VARCHAR(255),
+  color VARCHAR(255),
+  gender VARCHAR(20) DEFAULT 'unknown',
+  birth_date DATE,
+  chip_id VARCHAR(100),
+  avatar_image TEXT,
+  avatar_mime_type VARCHAR(50),
+  cover_image TEXT,
+  cover_mime_type VARCHAR(50),
+  bio TEXT,
+  personality_tags JSONB DEFAULT '[]'::jsonb,
+  is_vaccinated BOOLEAN DEFAULT FALSE,
+  is_sterilized BOOLEAN DEFAULT FALSE,
+  is_dewormed BOOLEAN DEFAULT FALSE,
+  weight_kg DECIMAL(6,2),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS my_pet_photos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  my_pet_id UUID NOT NULL REFERENCES my_pets(id) ON DELETE CASCADE,
+  image_data TEXT NOT NULL,
+  mime_type VARCHAR(50) NOT NULL DEFAULT 'image/jpeg',
+  caption VARCHAR(500),
+  taken_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS my_pet_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  my_pet_id UUID NOT NULL REFERENCES my_pets(id) ON DELETE CASCADE,
+  event_type VARCHAR(50) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  event_date DATE NOT NULL,
+  next_date DATE,
+  photo_id UUID REFERENCES my_pet_photos(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS my_pet_id UUID REFERENCES my_pets(id) ON DELETE SET NULL;
 `;
 
 export async function initDb() {

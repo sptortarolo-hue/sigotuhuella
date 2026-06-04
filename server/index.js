@@ -17,6 +17,7 @@ import settingsRoutes from './routes/settings.js';
 import whatsappRoutes from './routes/whatsapp.js';
 import aiRoutes from './routes/ai.js';
 import videoGeneratorRoutes from './routes/videoGenerator.js';
+import myPetsRoutes from './routes/myPets.js';
 import pushRoutes from './routes/push.js';
 import { verifyToken } from './auth.js';
 
@@ -78,6 +79,25 @@ app.get('/og-news-image/:newsId', async (req, res) => {
   }
 });
 
+app.get('/my-pet-avatar/:petId', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT avatar_image, avatar_mime_type FROM my_pets WHERE id = $1',
+      [req.params.petId]
+    );
+    if (result.rows.length === 0 || !result.rows[0].avatar_image) return res.status(404).end();
+    const img = result.rows[0];
+    const buffer = Buffer.from(img.avatar_image, 'base64');
+    res.set('Content-Type', img.avatar_mime_type || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.end(buffer);
+  } catch (err) {
+    console.error('My-pet avatar error:', err);
+    res.status(500).end();
+  }
+});
+
 app.use(express.static(join(__dirname, '..', 'dist')));
 app.use('/generated', express.static(join(__dirname, '..', 'public', 'generated')));
 
@@ -99,6 +119,7 @@ app.use('/api/members', memberRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/my-pets', myPetsRoutes);
 
 app.use('/api/push', (req, res, next) => {
   const header = req.headers.authorization;

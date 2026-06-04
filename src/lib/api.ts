@@ -127,4 +127,28 @@ export const api = {
   completeRegistration: (data: { email?: string; token?: string; password: string }) =>
     request('/auth/complete-registration', { method: 'POST', body: JSON.stringify(data) }),
   validateToken: (token: string) => request(`/auth/validate-token/${token}`),
+
+  myPets: {
+    list: () => request('/my-pets'),
+    get: (id: string) => request(`/my-pets/${id}`),
+    create: (data: any) => request('/my-pets', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) => request(`/my-pets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/my-pets/${id}`, { method: 'DELETE' }),
+    photos: {
+      list: (petId: string) => request(`/my-pets/${petId}/photos`),
+      create: (petId: string, data: any) => request(`/my-pets/${petId}/photos`, { method: 'POST', body: JSON.stringify(data) }),
+      delete: (petId: string, photoId: string) => request(`/my-pets/${petId}/photos/${photoId}`, { method: 'DELETE' }),
+    },
+    events: {
+      list: (petId: string) => request(`/my-pets/${petId}/events`),
+      create: (petId: string, data: any) => request(`/my-pets/${petId}/events`, { method: 'POST', body: JSON.stringify(data) }),
+      delete: (petId: string, eventId: string) => request(`/my-pets/${petId}/events/${eventId}`, { method: 'DELETE' }),
+    },
+    records: {
+      list: (petId: string) => request(`/my-pets/${petId}/records`),
+      create: (petId: string, data: any) => request(`/my-pets/${petId}/records`, { method: 'POST', body: JSON.stringify(data) }),
+    },
+    reminders: (petId: string) => request(`/my-pets/${petId}/reminders`),
+    convert: (petId: string) => request(`/my-pets/convert/${petId}`, { method: 'POST' }),
+  },
 };

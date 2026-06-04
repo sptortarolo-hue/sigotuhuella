@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import {
   User, Lock, PawPrint, Mail, Phone, ArrowRight,
-  Loader2, Settings, PlusCircle, Edit3, ShieldAlert
+  Loader2, Settings, PlusCircle, Edit3, ShieldAlert, Heart
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -108,6 +108,13 @@ export default function Dashboard() {
       description: 'Nuevo reporte de mascota',
       color: 'bg-red-500/10 text-red-600',
       onClick: () => navigate('/reportar')
+    },
+    {
+      icon: <Heart className="w-6 h-6" />,
+      title: 'Mi Mascota',
+      description: 'Portal de tu mascota',
+      color: 'bg-brand-secondary/10 text-brand-secondary',
+      onClick: () => navigate('/mi-mascota')
     }
   ];
 
