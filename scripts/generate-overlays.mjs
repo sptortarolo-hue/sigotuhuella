@@ -126,15 +126,20 @@ function makeFrameSvg(w, h, borderWidth = 20, cornerSize = 80) {
 
 function makePolaroidFrameSvg(w, h) {
   const bw = Math.round(w * 0.04);
-  const topSide = Math.round(w * 0.03);
-  const bottom = Math.round(h * 0.15);
+  const topH = Math.round(w * 0.03);
+  const bottomH = Math.round(h * 0.12);
+  const innerTop = topH;
+  const innerBottom = h - bottomH;
+  const innerLeft = bw;
+  const innerRight = w - bw;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-    <rect x="0" y="0" width="${w}" height="${h}" fill="${BRAND.cream}" opacity="0.95"/>
-    <rect x="${bw}" y="${topSide}" width="${w - bw * 2}" height="${h - topSide - bottom}" fill="transparent"/>
-    <rect x="${bw + 2}" y="${topSide + 2}" width="${w - bw * 2 - 4}" height="${h - topSide - bottom - 4}" fill="black" opacity="0.05"/>
-    <line x1="${bw}" y1="${h - bottom}" x2="${w - bw}" y2="${h - bottom}" stroke="${BRAND.terracotta}" stroke-width="2" opacity="0.6"/>
-    <text x="${w / 2}" y="${h - bottom / 2 + 5}" font-family="sans-serif" font-size="${Math.round(bottom * 0.35)}" fill="${BRAND.olive}" text-anchor="middle" opacity="0.7">Sigo Tu Huella</text>
-  </svg>`;
+  <rect x="0" y="0" width="${w}" height="${topH}" fill="${BRAND.cream}" opacity="0.95"/>
+  <rect x="0" y="${innerBottom}" width="${w}" height="${bottomH}" fill="${BRAND.cream}" opacity="0.95"/>
+  <rect x="0" y="${topH}" width="${innerLeft}" height="${innerBottom - topH}" fill="${BRAND.cream}" opacity="0.95"/>
+  <rect x="${innerRight}" y="${topH}" width="${bw}" height="${innerBottom - topH}" fill="${BRAND.cream}" opacity="0.95"/>
+  <line x1="${bw}" y1="${innerBottom}" x2="${w - bw}" y2="${innerBottom}" stroke="${BRAND.terracotta}" stroke-width="2" opacity="0.6"/>
+  <text x="${w / 2}" y="${innerBottom + bottomH / 2 + 5}" font-family="sans-serif" font-size="${Math.round(bottomH * 0.35)}" fill="${BRAND.olive}" text-anchor="middle" opacity="0.7">Sigo Tu Huella</text>
+</svg>`;
 }
 
 function makeFilmstripFrameSvg(w, h) {

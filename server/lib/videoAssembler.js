@@ -53,10 +53,28 @@ const VOICE_PARAMS = {
 };
 
 const STYLE_VOICE_PARAMS = {
-  emotive: { rate: '-10%', pitch: '-5%' },
-  informative: { rate: '+0%', pitch: '+0%' },
-  viral: { rate: '+15%', pitch: '+3%' },
+  emotive: {
+    elena: { rate: '-10%', pitch: '-5%' },
+    tomas: { rate: '-15%', pitch: '-3%', contour: '(0%,-3%) (25%,-1%) (50%,+2%) (75%,-1%) (100%,-5%)' },
+    mateo: { rate: '-12%', pitch: '-2%', contour: '(0%,-2%) (30%,+1%) (60%,+3%) (100%,-2%)' },
+  },
+  informative: {
+    elena: { rate: '+0%', pitch: '+0%' },
+    tomas: { rate: '-5%', pitch: '+0%', contour: '(0%,+0%) (50%,+1%) (100%,+0%)' },
+    mateo: { rate: '-3%', pitch: '+0%', contour: '(0%,+0%) (50%,+1%) (100%,+0%)' },
+  },
+  viral: {
+    elena: { rate: '+5%', pitch: '+3%' },
+    tomas: { rate: '+0%', pitch: '+2%', contour: '(0%,+2%) (25%,+5%) (50%,+3%) (75%,+5%) (100%,+2%)' },
+    mateo: { rate: '+3%', pitch: '+3%', contour: '(0%,+2%) (30%,+4%) (60%,+5%) (100%,+2%)' },
+  },
 };
+
+function getVoiceParams(voiceKey, style) {
+  const styleParams = STYLE_VOICE_PARAMS[style]?.[voiceKey];
+  if (styleParams) return styleParams;
+  return VOICE_PARAMS[voiceKey] || VOICE_PARAMS.elena;
+}
 
 const STYLE_TRANSITIONS = {
   emotive: 'fade',
@@ -158,7 +176,7 @@ function normalizeVoiceKeys(input) {
   return filtered.length > 0 ? [...new Set(filtered)] : ['elena'];
 }
 
-function splitByParagraphs(script, voiceKeys = ['elena', 'tomas']) {
+function splitByParagraphs(script, voiceKeys = ['elena', 'tomas'], style = 'emotive') {
   const paragraphs = script.trim().split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
   const split = paragraphs.length >= 2 ? paragraphs : (() => {
     const sentences = script.trim().split(/(?<=[.!?])\s+/).filter(Boolean);
@@ -170,7 +188,7 @@ function splitByParagraphs(script, voiceKeys = ['elena', 'tomas']) {
   })();
   return split.map((text, i) => {
     const key = voiceKeys[i % voiceKeys.length];
-    return { text, voice: VOICE_OPTIONS[key], params: VOICE_PARAMS[key] };
+    return { text, voice: VOICE_OPTIONS[key], params: getVoiceParams(key, style) };
   });
 }
 
@@ -205,7 +223,7 @@ async function generateTTS(config, voiceScript, workDir) {
 
   if (voiceKeys.length === 1) {
     const voice = VOICE_OPTIONS[voiceKeys[0]] || VOICE_OPTIONS.elena;
-    const params = VOICE_PARAMS[voiceKeys[0]] || VOICE_PARAMS.elena;
+    const params = getVoiceParams(voiceKeys[0], config.style);
     const ssml = buildSSML(script, voice, params);
     const ok = await synthesizeWithRetry(ssml, voice, ttsPath);
     if (ok) return ttsPath;
@@ -213,7 +231,7 @@ async function generateTTS(config, voiceScript, workDir) {
     return null;
   }
 
-  return await generateMultiVoice(script, voiceKeys, workDir, ttsPath);
+  return await generateMultiVoice(script, voiceKeys, workDir, ttsPath, config.style);
 }
 
 async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
@@ -290,12 +308,12 @@ async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
   return false;
 }
 
-async function generateMultiVoice(script, voiceKeys, workDir, ttsPath) {
-  const blocks = splitByParagraphs(script, voiceKeys);
+async function generateMultiVoice(script, voiceKeys, workDir, ttsPath, style = 'emotive') {
+  const blocks = splitByParagraphs(script, voiceKeys, style);
   blocks.push({
     text: 'sigotuhuella.online',
     voice: VOICE_OPTIONS[voiceKeys[0]] || VOICE_OPTIONS.elena,
-    params: VOICE_PARAMS[voiceKeys[0]] || VOICE_PARAMS.elena,
+    params: getVoiceParams(voiceKeys[0], style),
   });
   console.log('[TTS-multi] Generating', blocks.length, 'voice clips with voices:', voiceKeys);
 
@@ -877,12 +895,16 @@ async function addVignette(videoPath, workDir) {
   }
 }
 
-async function addStickers(videoPath, style, clipDur, dims, workDir) {
-  const stickers = STICKER_LAYOUTS[style];
-  if (!stickers || !fs.existsSync(STICKERS_DIR)) return videoPath;
+async function addStickers(videoPath, style, clipDur, dims, workDir, clipIndex) {
+  const layout = STICKER_LAYOUTS[style];
+  if (!layout || !fs.existsSync(STICKERS_DIR)) return videoPath;
   const { w, h } = dims;
   const stickerSize = Math.round(Math.min(w, h) * 0.12);
-  const outPath = path.join(workDir, 'stickered.mp4');
+  const outPath = path.join(workDir, `stickered_${clipIndex}.mp4`);
+
+  const offset = (clipIndex * 2) % layout.length;
+  const stickers = layout.slice(offset, offset + 2);
+  if (stickers.length === 0) return videoPath;
 
   const inputs = ['-y', '-i', videoPath];
   const filterParts = [];
@@ -896,9 +918,12 @@ async function addStickers(videoPath, style, clipDur, dims, workDir) {
     inputs.push('-i', stickerPath);
     const label = `s${inputIdx}`;
     const pos = stickerPosition(sticker.pos, w, h, stickerSize);
-    const enable = `enable='between(t,${sticker.delay},${Math.min(sticker.delay + sticker.dur, clipDur)})'`;
+    const delay = Math.min(sticker.delay, clipDur * 0.3);
+    const dur = Math.min(sticker.dur, clipDur - delay);
+    if (dur <= 0) continue;
+    const enable = `enable='between(t,${delay},${delay + dur})'`;
 
-    filterParts.push(`[${inputIdx}:v]scale=${stickerSize}:-1,format=rgba,fade=in:st=${sticker.delay}:d=0.4:alpha=1,fade=out:st=${sticker.delay + sticker.dur - 0.4}:d=0.4:alpha=1[${label}]`);
+    filterParts.push(`[${inputIdx}:v]scale=${stickerSize}:-1,format=rgba,fade=in:st=${delay}:d=0.4:alpha=1,fade=out:st=${delay + dur - 0.3}:d=0.3:alpha=1[${label}]`);
 
     if (overlayLabels.length === 0) {
       overlayLabels.push(`[0:v][${label}]overlay=${pos}:${enable}:format=auto[o1]`);
@@ -923,7 +948,7 @@ async function addStickers(videoPath, style, clipDur, dims, workDir) {
       '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
       '-pix_fmt', 'yuv420p', '-an',
       outPath,
-    ], 'stickers');
+    ], `stickers-clip${clipIndex}`);
     try { fs.unlinkSync(videoPath); } catch {}
     return outPath;
   } catch (err) {
@@ -1328,17 +1353,22 @@ async function generateVideo(config) {
     const mainClips = [];
     mainClips.push(openingClip);
 
-    for (let i = 0; i < numPhotoScenes; i++) {
-      const scene = photoScenes[i];
-      let clipPath = await generatePhotoClip(photoPaths[i], photoClipDur, zoompan, dims, workDir, i);
-      logStep(`photo clip ${i} zoompan`);
+  for (let i = 0; i < numPhotoScenes; i++) {
+    const scene = photoScenes[i];
+    let clipPath = await generatePhotoClip(photoPaths[i], photoClipDur, zoompan, dims, workDir, i);
+    logStep(`photo clip ${i} zoompan`);
 
-      const overlayText = scene.overlayText || '';
-      clipPath = await addDrawTextToClip(clipPath, overlayText, photoClipDur, dims, workDir, i);
-      logStep(`photo clip ${i} drawtext`);
+    const overlayText = scene.overlayText || '';
+    clipPath = await addDrawTextToClip(clipPath, overlayText, photoClipDur, dims, workDir, i);
+    logStep(`photo clip ${i} drawtext`);
 
-      mainClips.push(clipPath);
+    if (stickers) {
+      clipPath = await addStickers(clipPath, style, photoClipDur, dims, workDir, i);
+      logStep(`photo clip ${i} stickers`);
     }
+
+    mainClips.push(clipPath);
+  }
 
     mainClips.push(closingClip);
 
@@ -1352,13 +1382,8 @@ async function generateVideo(config) {
       logStep('concat-simple fallback');
     }
 
-mainVideoPath = await addWatermarkAndFrame(mainVideoPath, dims, workDir);
+  mainVideoPath = await addWatermarkAndFrame(mainVideoPath, dims, workDir);
   logStep('watermark+frame');
-
-  if (stickers) {
-    mainVideoPath = await addStickers(mainVideoPath, style, videoDuration, dims, workDir);
-    logStep('stickers');
-  }
 
   if (frame && frame !== 'none') {
     mainVideoPath = await addFrameOverlay(mainVideoPath, frame, dims, workDir);
