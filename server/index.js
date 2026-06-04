@@ -20,6 +20,7 @@ import videoGeneratorRoutes from './routes/videoGenerator.js';
 import myPetsRoutes from './routes/myPets.js';
 import pushRoutes from './routes/push.js';
 import { verifyToken } from './auth.js';
+import { sendPushToUser } from './services/pushService.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -250,12 +251,44 @@ async function seedAdmin() {
   }
 }
 
+async function checkReminders() {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const result = await pool.query(`
+      SELECT DISTINCT mp.user_id, mp.name AS pet_name,
+             e.title AS event_title, e.next_date,
+             r.title AS record_title
+      FROM my_pets mp
+      LEFT JOIN my_pet_events e ON e.my_pet_id = mp.id
+        AND e.next_date <= $1 AND e.next_date >= $1::date - interval '3 days'
+      LEFT JOIN pet_records r ON r.my_pet_id = mp.id
+        AND r.next_date <= $1 AND r.next_date >= $1::date - interval '3 days'
+      WHERE e.id IS NOT NULL OR r.id IS NOT NULL
+    `, [today]);
+    for (const row of result.rows) {
+      const title = row.event_title || row.record_title;
+      await sendPushToUser(row.user_id, {
+        title: `Recordatorio para ${row.pet_name}`,
+        body: `${title} — ${row.next_date?.toLocaleDateString?.('es-AR') || today}`,
+        tag: `reminder-${row.pet_name}`,
+      });
+    }
+    if (result.rows.length > 0) {
+      console.log(`[reminders] Sent ${result.rows.length} reminder notifications`);
+    }
+  } catch (err) {
+    console.error('[reminders] Error:', err);
+  }
+}
+
 async function start() {
   await initDb();
   await seedAdmin();
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
+  setInterval(checkReminders, 6 * 60 * 60 * 1000);
+  checkReminders();
 }
 
 start().catch(err => {

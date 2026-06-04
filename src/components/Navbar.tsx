@@ -171,26 +171,29 @@ export default function Navbar() {
                           <button onClick={() => handleNavClick('/dashboard')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
                             <PawPrint className="w-4 h-4 text-brand-primary" /> Mi Panel
                           </button>
-                          <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
-                            <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
-                          </button>
-                          {isMember && (
-                            <button onClick={() => handleNavClick('/mi-carnet')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
-                              <CreditCard className="w-4 h-4 text-brand-primary" /> Mi Carnet
-                            </button>
-                          )}
-                          <button onClick={() => handleNavClick('/perfil')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
-                            <Settings className="w-4 h-4 text-brand-primary" /> Editar Perfil
-                          </button>
-                          <button onClick={handleLogout} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors">
-                            <LogOut className="w-4 h-4" /> Cerrar Sesión
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </>)}
+        <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
+        </button>
+        <button onClick={() => handleNavClick('/mi-mascota')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <Heart className="w-4 h-4 text-brand-secondary" /> Mi Mascota
+        </button>
+        {isMember && (
+          <button onClick={() => handleNavClick('/mi-carnet')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+            <CreditCard className="w-4 h-4 text-brand-primary" /> Mi Carnet
+          </button>
+        )}
+        <button onClick={() => handleNavClick('/perfil')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <Settings className="w-4 h-4 text-brand-primary" /> Editar Perfil
+        </button>
+        <button onClick={handleLogout} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors">
+          <LogOut className="w-4 h-4" /> Cerrar Sesión
+        </button>
+      </div>
+    </motion.div>
+  )}
+</AnimatePresence>
+</div>
+</>)}
             </div>
           </div>
 
@@ -244,27 +247,30 @@ export default function Navbar() {
                         <button onClick={() => handleNavClick('/dashboard')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
                           <PawPrint className="w-4 h-4 text-brand-primary" /> Mi Panel
                         </button>
-                        <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
-                          <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
-                        </button>
-                        {isMember && (
-                          <button onClick={() => handleNavClick('/mi-carnet')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
-                            <CreditCard className="w-4 h-4 text-brand-primary" /> Mi Carnet
-                          </button>
-                        )}
-                        <button onClick={() => handleNavClick('/perfil')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
-                          <Settings className="w-4 h-4 text-brand-primary" /> Editar Perfil
-                        </button>
-                        <button onClick={handleLogout} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors">
-                          <LogOut className="w-4 h-4" /> Cerrar Sesión
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+        <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
+        </button>
+        <button onClick={() => handleNavClick('/mi-mascota')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <Heart className="w-4 h-4 text-brand-secondary" /> Mi Mascota
+        </button>
+        {isMember && (
+          <button onClick={() => handleNavClick('/mi-carnet')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+            <CreditCard className="w-4 h-4 text-brand-primary" /> Mi Carnet
+          </button>
         )}
-        {pushEnabled !== null && (
+        <button onClick={() => handleNavClick('/perfil')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <Settings className="w-4 h-4 text-brand-primary" /> Editar Perfil
+        </button>
+        <button onClick={handleLogout} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-red-50 text-red-600 transition-colors">
+          <LogOut className="w-4 h-4" /> Cerrar Sesión
+        </button>
+      </div>
+    </motion.div>
+  )}
+</AnimatePresence>
+</div>
+)}
+{pushEnabled !== null && (
           <button
             onClick={handleBellClick}
             title={pushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}

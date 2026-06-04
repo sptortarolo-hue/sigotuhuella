@@ -8,7 +8,7 @@ import PetCard from '@/src/components/PetCard';
 import PetMap from '@/src/components/PetMap';
 import MapLoader from '@/src/components/MapLoader';
 import PetRecordsModal from '@/src/components/PetRecordsModal';
-import { Search, Loader2, Grid, Map as MapIcon, ArrowLeft, PawPrint, X, Save, HeartHandshake, Activity } from 'lucide-react';
+import { Search, Loader2, Grid, Map as MapIcon, ArrowLeft, PawPrint, X, Save, HeartHandshake, Activity, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
@@ -72,6 +72,17 @@ export default function MyPets() {
       (p.color && p.color.toLowerCase().includes(q))
     );
   });
+
+  const handleConvert = async (petId: string) => {
+    if (!confirm('¿Convertir esta mascota en "Mi Mascota"? Se creará su perfil en el portal.')) return;
+    try {
+      const result = await api.myPets.convert(petId);
+      navigate(`/mi-mascota/${result.myPet.id}`);
+    } catch (e) {
+      console.error(e);
+      alert('Error al convertir la mascota.');
+    }
+  };
 
   const handleReencuentro = async (petId: string) => {
     if (!confirm('¿Marcar esta mascota como "Hubo reencuentro"?')) return;
@@ -226,15 +237,24 @@ export default function MyPets() {
                     </button>
                   </div>
                 )}
-                {pet.status === PetStatus.REUNITED && (
-                  <button
-                    onClick={() => setActiveRecordsPet({ id: pet.id, name: pet.name || 'Mascota' })}
-                    className="mt-3 w-full py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-colors"
-                  >
-                    <Activity className="w-4 h-4" />
-                    Historial Médico
-                  </button>
-                )}
+        {pet.status === PetStatus.REUNITED && (
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => handleConvert(pet.id)}
+              className="flex-1 py-2.5 bg-brand-secondary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-secondary/90 transition-colors"
+            >
+              <Heart className="w-4 h-4" />
+              Mi Mascota
+            </button>
+            <button
+              onClick={() => setActiveRecordsPet({ id: pet.id, name: pet.name || 'Mascota' })}
+              className="flex-1 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-colors"
+            >
+              <Activity className="w-4 h-4" />
+              Historial Médico
+            </button>
+          </div>
+        )}
               </div>
             ))}
           </div>
