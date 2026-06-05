@@ -23,14 +23,14 @@ const EVENT_TYPES = [
 ];
 
 const RECORD_TYPES = [
-  { value: 'vaccine', label: 'Vacuna' },
-  { value: 'medication', label: 'Medicación' },
-  { value: 'appointment', label: 'Turno' },
-  { value: 'surgery', label: 'Cirugía' },
-  { value: 'study', label: 'Estudio' },
-  { value: 'expense', label: 'Gasto' },
-  { value: 'note', label: 'Nota' },
-  { value: 'weight', label: 'Peso' },
+  { value: 'vaccine', label: 'Vacuna', icon: '💉' },
+  { value: 'medication', label: 'Medicación', icon: '💊' },
+  { value: 'appointment', label: 'Turno', icon: '🩺' },
+  { value: 'surgery', label: 'Cirugía', icon: '🏥' },
+  { value: 'study', label: 'Estudio', icon: '🔬' },
+  { value: 'expense', label: 'Gasto', icon: '💰' },
+  { value: 'note', label: 'Nota', icon: '📝' },
+  { value: 'weight', label: 'Peso', icon: '⚖️' },
 ];
 
 const RECORD_ICONS: Record<string, string> = {
@@ -847,7 +847,7 @@ export default function MyPetDetail() {
                     <div className="flex items-start justify-between">
                       <div>
                         <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-brand-secondary">
-                          {record.record_type}
+                          {RECORD_ICONS[record.record_type]} {RECORD_TYPES.find(t => t.value === record.record_type)?.label || record.record_type}
                         </span>
                         <h4 className="text-sm font-bold text-gray-800">{record.title}</h4>
                         {record.description && <p className="text-xs text-gray-500 mt-0.5">{record.description}</p>}
@@ -906,7 +906,7 @@ export default function MyPetDetail() {
                                   : 'bg-brand-bg text-gray-500 border border-transparent hover:border-brand-accent'
                               }`}
                             >
-                              {t.label}
+                              {t.icon} {t.label}
                             </button>
                           ))}
                         </div>
