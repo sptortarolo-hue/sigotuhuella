@@ -283,6 +283,30 @@ router.post('/public/:shareToken/found', async (req, res) => {
   }
 });
 
+function drawArcText(doc, text, cx, cy, radius, startDeg, endDeg, color, reverse) {
+  const startRad = startDeg * Math.PI / 180;
+  const endRad = endDeg * Math.PI / 180;
+  let span = endRad - startRad;
+  if (span < 0) span += 2 * Math.PI;
+  const arcLen = radius * span * 0.85;
+  let fs = 14;
+  doc.fontSize(fs).font('Helvetica-Bold');
+  let tw = doc.widthOfString(text);
+  if (tw > arcLen) { fs *= arcLen / tw; doc.fontSize(fs).font('Helvetica-Bold'); }
+  const step = span / (text.length + 1);
+  for (let i = 0; i < text.length; i++) {
+    const a = startRad + step * (i + 0.5);
+    const x = cx + radius * Math.cos(a);
+    const y = cy + radius * Math.sin(a);
+    const rot = (Math.atan2(radius * Math.cos(a), -radius * Math.sin(a)) * 180 / Math.PI) + (reverse ? 180 : 0);
+    doc.save();
+    doc.translate(x, y);
+    doc.rotate(rot);
+    doc.fontSize(fs).fillColor(color).text(text[i], -fs * 0.15, -fs * 0.35, { width: fs * 0.7, align: 'center' });
+    doc.restore();
+  }
+}
+
 router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
@@ -301,6 +325,7 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
     const CIRCLE_D = CIRCLE_R * 2;
     const QR_SIZE = Math.round(CIRCLE_D * 0.70);
     const QR_Y_OFFSET = -8;
+    const COLORS = { olive: '#5A5A40', terracotta: '#D48C70' };
     const COL_W = (PAGE_W - MARGIN_X * 2) / 2;
     const ROW_H = (PAGE_H - MARGIN_Y - 25) / 5;
     const logoPng = readFileSync(join(__dirname, '..', '..', 'public', 'qr-logo.png'));
@@ -340,6 +365,8 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
           doc.circle(cx, cy, CIRCLE_R).fill('#ffffff');
           doc.image(logoPng, cx - CIRCLE_R, cy - CIRCLE_R, { width: CIRCLE_R * 2 });
           doc.circle(cx, cy, CIRCLE_R).lineWidth(1.5).strokeColor('#5A5A40').stroke();
+          drawArcText(doc, 'SI ME VES PERDIDO', cx, cy, CIRCLE_R, 190, 350, COLORS.olive, false);
+          drawArcText(doc, 'ESCANEÁ EL QR', cx, cy, CIRCLE_R, 10, 170, COLORS.terracotta, true);
         }
       }
     }
