@@ -192,11 +192,21 @@ export default function Admin() {
     }
   };
 
-  const handleQrPdf = async (batchId: string) => {
+  const handleQrPdf = async (batchId: string, mirror?: boolean) => {
     try {
-      await api.qr.batchPdf(batchId);
+      await api.qr.batchPdf(batchId, mirror);
     } catch (e: any) {
       alert(e.message || 'Error al descargar PDF');
+    }
+  };
+
+  const handleQrCleanup = async () => {
+    if (!confirm('¿Eliminar todos los QR sin asignar?')) return;
+    try {
+      await api.qr.cleanup();
+      await fetchQrData();
+    } catch (e: any) {
+      alert(e.message || 'Error al limpiar QRs');
     }
   };
 
@@ -1537,8 +1547,16 @@ export default function Admin() {
           className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
         >
           {qrBatchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
-          Generar
+           Generar
         </button>
+        {qrUnassigned.length > 0 && (
+          <button
+            onClick={handleQrCleanup}
+            className="px-6 py-3 bg-red-50 text-red-600 rounded-xl font-bold text-sm hover:bg-red-100 transition-all flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" /> Limpiar no asignados
+          </button>
+        )}
       </div>
     </div>
 
@@ -1578,14 +1596,21 @@ export default function Admin() {
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
         <h3 className="text-lg font-bold text-brand-primary mb-4">QRs sin asignar ({qrUnassigned.length})</h3>
         <div className="flex flex-wrap gap-2 mb-4">
-          {[...new Set(qrUnassigned.map((q: any) => q.batch_id))].map(batchId => (
-            <button
-              key={batchId}
-              onClick={() => handleQrPdf(batchId)}
-              className="px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
-            >
-              <Download className="w-3 h-3" /> PDF {batchId?.replace('batch-', '').slice(0, 6)}
-            </button>
+          {[...new Set<string>(qrUnassigned.map((q: any) => q.batch_id))].map((batchId: string) => (
+            <div key={batchId} className="flex gap-1">
+              <button
+                onClick={() => handleQrPdf(batchId)}
+                className="px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
+              >
+                <Download className="w-3 h-3" /> PDF {batchId?.replace('batch-', '').slice(0, 6)}
+              </button>
+              <button
+                onClick={() => handleQrPdf(batchId, true)}
+                className="px-3 py-1.5 bg-brand-secondary/10 text-brand-secondary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-secondary/20 transition-colors"
+              >
+                <Download className="w-3 h-3" /> Sublimar
+              </button>
+            </div>
           ))}
         </div>
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">

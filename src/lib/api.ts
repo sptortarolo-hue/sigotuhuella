@@ -163,9 +163,11 @@ export const api = {
     claim: (code: string, myPetId: string) => request('/qr/claim', { method: 'POST', body: JSON.stringify({ code, my_pet_id: myPetId }) }),
     public: (token: string) => request(`/qr/public/${token}`),
     found: (token: string, data: any) => request(`/qr/public/${token}/found`, { method: 'POST', body: JSON.stringify(data) }),
-    batchPdf: (batchId: string) => {
+    cleanup: () => request('/qr/cleanup', { method: 'DELETE' }),
+    batchPdf: (batchId: string, mirror?: boolean) => {
       const token = getToken();
-      return fetch(`/api/qr/batch/${batchId}/pdf`, {
+      const suffix = mirror ? '-sublimar' : '';
+      return fetch(`/api/qr/batch/${batchId}/pdf${mirror ? '?mirror=1' : ''}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       }).then(async res => {
         if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Error al descargar PDF'); }
@@ -173,7 +175,7 @@ export const api = {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `qr-${batchId}.pdf`;
+        a.download = `qr-${batchId}${suffix}.pdf`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
