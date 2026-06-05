@@ -20,6 +20,7 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
         envs: AZURE_TTS_KEY,AZURE_TTS_KEY2,AZURE_TTS_REGION
+        script_stop: true
         script: |
           cd /var/www/sigotuhuella
           git pull
@@ -41,7 +42,15 @@ jobs:
             grep -q "^AZURE_TTS_REGION=" server/.env 2>/dev/null && sed -i "s|^AZURE_TTS_REGION=.*|AZURE_TTS_REGION=$AZURE_TTS_REGION|" server/.env || echo "AZURE_TTS_REGION=$AZURE_TTS_REGION" >> server/.env
           fi
           npm install
-          npm run build
-          if ! pm2 restart sigotuhuella; then
-            pm2 start npm --name sigotuhuella -- start
+          cp -r dist dist_backup 2>/dev/null || true
+          if npm run build; then
+            rm -rf dist_backup
+            if ! pm2 restart sigotuhuella; then
+              pm2 start npm --name sigotuhuella -- start
+            fi
+          else
+            echo "BUILD FAILED - restoring backup"
+            rm -rf dist
+            mv dist_backup dist 2>/dev/null || true
+            pm2 restart sigotuhuella
           fi
