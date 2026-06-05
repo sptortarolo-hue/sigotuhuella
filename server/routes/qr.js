@@ -303,65 +303,7 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
     const QR_Y_OFFSET = -8;
     const COL_W = (PAGE_W - MARGIN_X * 2) / 2;
     const ROW_H = (PAGE_H - MARGIN_Y - 25) / 5;
-    const ICON_SIZE = 84;
-    const ICON_R = ICON_SIZE / 2;
-    const ICON_CX = 100;
-    const ICON_CY = 100;
-    const logoCirclePath = join(__dirname, '..', 'public', 'logo-circle.png');
-
-    let logoPng;
-    try {
-      const iconPng = readFileSync(logoCirclePath);
-      const bgSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
-        <rect width="200" height="200" fill="#F5F5F0"/>
-        <circle cx="100" cy="100" r="97" fill="#F5F5F0" stroke="#5A5A40" stroke-width="2.5"/>
-      </svg>`);
-      const textSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
-        <circle cx="${ICON_CX}" cy="${ICON_CY}" r="${ICON_R}" fill="none" stroke="#D48C70" stroke-width="1.5"/>
-        <path id="topArc" d="M 28,100 A 72,72 0 0,1 172,100" fill="none"/>
-        <path id="bottomArc" d="M 24,108 A 76,76 0 0,0 176,108" fill="none"/>
-        <text font-family="Arial,Helvetica,sans-serif" font-size="11.5" fill="#5A5A40" font-weight="bold" letter-spacing="2">
-          <textPath href="#topArc" startOffset="50%" text-anchor="middle">SI ME VES PERDIDO</textPath>
-        </text>
-        <text font-family="Arial,Helvetica,sans-serif" font-size="10.5" fill="#D48C70" font-weight="bold" letter-spacing="1.5">
-          <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">ESCANEÁ EL QR</textPath>
-        </text>
-      </svg>`);
-      const bgPng = await sharp(bgSvg).png().toBuffer();
-      logoPng = await sharp(bgPng)
-        .composite([
-          { input: iconPng, left: ICON_CX - ICON_R, top: ICON_CY - ICON_R },
-          { input: textSvg }
-        ])
-        .png()
-        .toBuffer();
-    } catch (logoErr) {
-      console.error('Logo generation failed, using fallback SVG:', logoErr.message);
-      const fallbackSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-        <rect width="200" height="200" fill="#F5F5F0"/>
-        <circle cx="100" cy="100" r="97" fill="#F5F5F0" stroke="#5A5A40" stroke-width="2.5"/>
-        <path id="topArc" d="M 28,100 A 72,72 0 0,1 172,100" fill="none"/>
-        <path id="bottomArc" d="M 24,108 A 76,76 0 0,0 176,108" fill="none"/>
-        <text font-family="Arial,Helvetica,sans-serif" font-size="11.5" fill="#5A5A40" font-weight="bold" letter-spacing="2">
-          <textPath href="#topArc" startOffset="50%" text-anchor="middle">SI ME VES PERDIDO</textPath>
-        </text>
-        <text font-family="Arial,Helvetica,sans-serif" font-size="10.5" fill="#D48C70" font-weight="bold" letter-spacing="1.5">
-          <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">ESCANEÁ EL QR</textPath>
-        </text>
-        <circle cx="100" cy="100" r="42" fill="#5A5A40"/>
-        <g transform="translate(74,68) scale(0.42)" fill="#F5F5F0">
-          <ellipse cx="26" cy="10" rx="8" ry="10"/>
-          <ellipse cx="50" cy="6" rx="7" ry="9"/>
-          <ellipse cx="4" cy="16" rx="7" ry="8"/>
-          <ellipse cx="72" cy="14" rx="6" ry="8"/>
-          <path d="M 10,28 C 10,55 30,70 38,70 C 46,70 66,55 66,28 C 66,18 56,22 38,22 C 20,22 10,18 10,28 Z"/>
-        </g>
-        <text x="100" y="116" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" fill="#F5F5F0" font-weight="bold">SIGO TU</text>
-        <text x="100" y="128" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" fill="#F5F5F0" font-weight="bold">HUELLA</text>
-        <circle cx="100" cy="100" r="42" fill="none" stroke="#D48C70" stroke-width="1.5"/>
-      </svg>`);
-      logoPng = await sharp(fallbackSvg).png().toBuffer();
-    }
+    const logoPng = readFileSync(join(__dirname, '..', 'public', 'qr-logo.png'));
 
     const doc = new PDFDocument({ size: 'A4', margin: 0 });
     res.set('Content-Type', 'application/pdf');
