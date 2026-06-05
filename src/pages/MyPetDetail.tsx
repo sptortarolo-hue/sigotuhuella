@@ -123,7 +123,7 @@ export default function MyPetDetail() {
     if (!file) return;
     try {
       setPhotoLoading(true);
-      const compressed = await compressImage(file, 0.85);
+      const compressed = await compressImage(file, 1200, 0.85);
       const { data, mimeType } = await fileToBase64(compressed);
       await api.myPets.photos.create(id!, {
         image_data: data,
@@ -146,7 +146,7 @@ export default function MyPetDetail() {
     if (!file) return;
     try {
       setAvatarLoading(true);
-      const compressed = await compressImage(file, 0.8);
+      const compressed = await compressImage(file, 800, 0.8);
       const { data, mimeType } = await fileToBase64(compressed);
       await api.myPets.update(id!, { avatar_image: data, avatar_mime_type: mimeType });
       await fetchPet();
@@ -213,7 +213,7 @@ export default function MyPetDetail() {
             title="Cambiar foto de perfil"
           >
             {pet.avatar_image ? (
-              <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name} className="w-full h-full object-cover" />
+              <img src={`/my-pet-avatar/${pet.id}?t=${Date.now()}`} alt={pet.name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <PawPrint className="w-10 h-10 text-white/60" />

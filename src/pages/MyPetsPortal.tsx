@@ -89,7 +89,7 @@ export default function MyPetsPortal() {
       let avatarData = undefined;
       let avatarMime = undefined;
       if (avatarFile) {
-        const compressed = await compressImage(avatarFile, 0.8);
+        const compressed = await compressImage(avatarFile, 800, 0.8);
         const { data, mimeType } = await fileToBase64(compressed);
         avatarData = data;
         avatarMime = mimeType;
