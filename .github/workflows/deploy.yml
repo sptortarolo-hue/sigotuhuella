@@ -48,11 +48,8 @@ jobs:
 
           npm install
 
-  npm run build
-  if [ $? -ne 0 ]; then
-    echo "BUILD FAILED — keeping previous dist"
-    exit 1
-  fi
+  npm run build || (echo "BUILD FAILED" && exit 1)
+
   if ! pm2 restart sigotuhuella; then
             pm2 start npm --name sigotuhuella -- start
           fi
