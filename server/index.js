@@ -20,6 +20,7 @@ import videoGeneratorRoutes from './routes/videoGenerator.js';
 import myPetsRoutes from './routes/myPets.js';
 import qrRoutes from './routes/qr.js';
 import pushRoutes from './routes/push.js';
+import feedRoutes from './routes/feed.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
 
@@ -149,6 +150,8 @@ app.use('/api/push', (req, res, next) => {
   }
   next();
 }, pushRoutes);
+
+app.use('/api/feed', feedRoutes);
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

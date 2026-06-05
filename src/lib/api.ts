@@ -183,4 +183,11 @@ export const api = {
       });
     },
   },
+  feed: {
+    list: (page = 1) => request(`/feed?page=${page}`),
+    create: (data: any) => request('/feed', { method: 'POST', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/feed/${id}`, { method: 'DELETE' }),
+    like: (id: string) => request(`/feed/${id}/like`, { method: 'POST' }),
+    unlike: (id: string) => request(`/feed/${id}/unlike`, { method: 'POST' }),
+  },
 };

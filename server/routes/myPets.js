@@ -4,6 +4,12 @@ import { requireAuth, requireAdmin, sendAdminNotificationEmail } from '../auth.j
 import { sendPushToAdmins } from '../services/pushService.js';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
+import PDFDocument from 'pdfkit';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const router = Router();
 
@@ -566,6 +572,151 @@ router.post('/convert/:petId', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('my-pet convert error:', err);
     res.status(500).json({ error: 'Error al convertir mascota' });
+  }
+});
+
+router.get('/:id/pasaporte', requireAuth, async (req, res) => {
+  try {
+    const petResult = await pool.query(
+      `SELECT mp.*, u.display_name as owner_name, u.phone as owner_phone
+       FROM my_pets mp JOIN users u ON u.id = mp.user_id WHERE mp.id = $1 AND mp.user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    const pet = petResult.rows[0];
+
+    const photosResult = await pool.query(
+      'SELECT id, image_data, mime_type, caption FROM my_pet_photos WHERE my_pet_id = $1 ORDER BY COALESCE(taken_at, created_at) ASC',
+      [pet.id]
+    );
+    const eventsResult = await pool.query(
+      'SELECT * FROM my_pet_events WHERE my_pet_id = $1 ORDER BY event_date DESC, created_at DESC',
+      [pet.id]
+    );
+    const recordsResult = await pool.query(
+      'SELECT * FROM pet_records WHERE my_pet_id = $1 ORDER BY record_date DESC, created_at DESC',
+      [pet.id]
+    );
+
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const dateStr = new Date().toLocaleDateString('es-AR').replace(/\//g, '-');
+    const safeName = (pet.name || 'mascota').replace(/[^a-zA-Z0-9\u00C0-\u024F\s]/g, '').trim().replace(/\s+/g, '_');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="pasaporte-${safeName}-${dateStr}.pdf"`);
+    doc.pipe(res);
+
+    const watermarkText = 'SIGO TU HUELLA';
+    const addWatermark = () => {
+      doc.save();
+      doc.fontSize(60).font('Helvetica-Bold').fillColor('#e0e0e0');
+      for (let x = 0; x < 600; x += 200) {
+        for (let y = 0; y < 900; y += 200) {
+          doc.save();
+          doc.translate(x + 100, y + 100);
+          doc.rotate(-30);
+          doc.text(watermarkText, -doc.widthOfString(watermarkText) / 2, 0);
+          doc.restore();
+        }
+      }
+      doc.restore();
+    };
+
+    const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otro';
+
+    // Cover page
+    doc.fontSize(24).font('Helvetica-Bold').fillColor('#5A5A40')
+      .text('PASAPORTE DIGITAL', { align: 'center' });
+    doc.fontSize(12).font('Helvetica').fillColor('#666')
+      .text(`Sigo Tu Huella — ${pet.name}`, { align: 'center' });
+    doc.moveDown(2);
+
+    addWatermark();
+
+    // Pet photo on cover
+    if (photosResult.rows.length > 0) {
+      try {
+        const coverPhoto = Buffer.from(photosResult.rows[0].image_data, 'base64');
+        doc.image(coverPhoto, doc.page.width / 2 - 75, doc.y, { width: 150, height: 150 });
+        doc.y += 170;
+      } catch { }
+    }
+
+    doc.moveDown(2);
+    doc.fontSize(16).font('Helvetica-Bold').fillColor('#5A5A40')
+      .text(pet.name, { align: 'center' });
+    doc.fontSize(11).font('Helvetica').fillColor('#333')
+      .text(`${speciesLabel}${pet.breed ? ` — ${pet.breed}` : ''}${pet.color ? ` — ${pet.color}` : ''}`, { align: 'center' });
+    doc.moveDown(1);
+
+    doc.fontSize(9).fillColor('#666');
+    const infoLines = [
+      ['Sexo', pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : '-'],
+      ['Fecha de nacimiento', pet.birth_date ? new Date(pet.birth_date).toLocaleDateString('es-AR') : '-'],
+      ['Peso', pet.weight_kg ? `${pet.weight_kg} kg` : '-'],
+      ['Microchip', pet.chip_id || '-'],
+      ['Dueño', pet.owner_name],
+      ['Contacto', pet.owner_phone || '-'],
+    ];
+    for (const [label, value] of infoLines) {
+      doc.text(`  ${label}: ${value}`);
+    }
+
+    doc.addPage();
+
+    // Health badges
+    doc.fontSize(14).font('Helvetica-Bold').fillColor('#5A5A40').text('SALUD').moveDown(0.5);
+    doc.fontSize(10).font('Helvetica').fillColor('#333');
+    doc.text(`✓ Vacunado: ${pet.is_vaccinated ? 'Sí' : 'No'}`);
+    doc.text(`✓ Esterilizado: ${pet.is_sterilized ? 'Sí' : 'No'}`);
+    doc.text(`✓ Desparasitado: ${pet.is_dewormed ? 'Sí' : 'No'}`);
+    if (pet.bio) { doc.moveDown(0.3); doc.fontSize(9).fillColor('#666').text(`"${pet.bio}"`); }
+    doc.moveDown(0.5);
+
+    // Personality tags
+    if (pet.personality_tags?.length > 0) {
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#5A5A40').text('PERSONALIDAD').moveDown(0.3);
+      doc.fontSize(9).font('Helvetica').fillColor('#333')
+        .text(pet.personality_tags.join(' · '));
+      doc.moveDown(0.5);
+    }
+
+    // Events
+    if (eventsResult.rows.length > 0) {
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#5A5A40').text('EVENTOS').moveDown(0.3);
+      for (const ev of eventsResult.rows) {
+        if (doc.y > 700) doc.addPage();
+        const date = ev.event_date ? new Date(ev.event_date).toLocaleDateString('es-AR') : '-';
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#333').text(`${date} — ${ev.title}`);
+        if (ev.description) doc.fontSize(8).font('Helvetica').fillColor('#666').text(`   ${ev.description}`);
+        doc.moveDown(0.2);
+      }
+      doc.moveDown(0.3);
+    }
+
+    // Records
+    if (recordsResult.rows.length > 0) {
+      if (doc.y > 650) doc.addPage();
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#5A5A40').text('REGISTROS MÉDICOS').moveDown(0.3);
+      for (const rec of recordsResult.rows) {
+        if (doc.y > 700) doc.addPage();
+        const date = rec.record_date ? new Date(rec.record_date).toLocaleDateString('es-AR') : '-';
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#333').text(`${date} — ${rec.title || rec.record_type}`);
+        doc.fontSize(8).font('Helvetica').fillColor('#555');
+        if (rec.vet_name) doc.text(`   Veterinario: ${rec.vet_name}`);
+        if (rec.description) doc.text(`   ${rec.description}`);
+        if (rec.next_date) doc.text(`   Próximo: ${new Date(rec.next_date).toLocaleDateString('es-AR')}`);
+        doc.moveDown(0.2);
+      }
+    }
+
+    // Footer
+    doc.moveDown(1);
+    doc.fontSize(7).fillColor('#aaa').text('Sigo Tu Huella — Identificación Digital · sigotuhuella.com', { align: 'center' });
+
+    doc.end();
+  } catch (err) {
+    console.error('pasaporte pdf error:', err);
+    res.status(500).json({ error: 'Error al generar pasaporte' });
   }
 });
 

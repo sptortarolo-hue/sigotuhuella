@@ -190,6 +190,25 @@ ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS qr_requested BOOLEAN DEFAULT FALSE;
 ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS vet_share_token UUID;
 ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS vet_share_enabled BOOLEAN DEFAULT FALSE;
 ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+
+CREATE TABLE IF NOT EXISTS feed_posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  my_pet_id UUID NOT NULL REFERENCES my_pets(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  event_id UUID REFERENCES my_pet_events(id) ON DELETE SET NULL,
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  photo_ids TEXT[],
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS feed_likes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID NOT NULL REFERENCES feed_posts(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(post_id, user_id)
+);
 `;
 
 export async function initDb() {

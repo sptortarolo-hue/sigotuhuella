@@ -8,7 +8,7 @@ import {
   PawPrint, ArrowLeft, Loader2, Syringe, Scissors, Bug, Weight,
   Calendar, Plus, X, Save, Camera, Trash2, Sparkles, Heart,
   Dog, Cat, Edit3, Image as ImageIcon, Activity, Clock,
-  QrCode, Share2, Stethoscope, Copy, Check,
+  QrCode, Share2, Stethoscope, Copy, Check, FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'qrcode';
@@ -87,6 +87,7 @@ export default function MyPetDetail() {
   const [vetShareToken, setVetShareToken] = useState<string | null>(null);
   const [vetShareLoading, setVetShareLoading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [pasaporteLoading, setPasaporteLoading] = useState(false);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -156,6 +157,28 @@ export default function MyPetDetail() {
     navigator.clipboard.writeText(text);
     setCopied(label);
     setTimeout(() => setCopied(null), 2000);
+  };
+
+  const downloadPasaporte = async () => {
+    try {
+      setPasaporteLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/my-pets/${id}/pasaporte`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pasaporte-${pet?.name || 'mascota'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } finally {
+      setPasaporteLoading(false);
+    }
   };
 
   const handleAddEvent = async () => {
@@ -238,6 +261,19 @@ export default function MyPetDetail() {
     try {
       await api.myPets.events.delete(id!, eventId);
       await fetchPet();
+    } catch (e) { console.error(e); }
+  };
+
+  const shareToFeed = async (event: any) => {
+    try {
+      const photoIds = (pet?.photos || []).slice(0, 3).map((p: any) => p.id);
+      await api.feed.create({
+        my_pet_id: id,
+        title: event.title,
+        description: event.description || '',
+        event_id: event.id,
+        photo_ids: photoIds.length > 0 ? photoIds : null,
+      });
     } catch (e) { console.error(e); }
   };
 
@@ -468,6 +504,17 @@ export default function MyPetDetail() {
                   </p>
                 )}
               </div>
+
+              <div className="pt-2">
+                <button
+                  onClick={downloadPasaporte}
+                  disabled={pasaporteLoading}
+                  className="px-4 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-brand-primary/20 transition-colors disabled:opacity-50 w-full justify-center"
+                >
+                  {pasaporteLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                  Descargar pasaporte PDF
+                </button>
+              </div>
             </div>
 
             <div className="mt-6 pt-4 border-t border-brand-accent flex justify-end">
@@ -578,13 +625,21 @@ export default function MyPetDetail() {
                             </p>
                             {event.description && <p className="text-xs text-gray-500 mt-1">{event.description}</p>}
                           </div>
-                          <button onClick={() => handleDeleteEvent(event.id)}
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => shareToFeed(event)}
+                              className="p-1 hover:bg-brand-primary/10 rounded-lg transition-colors text-gray-300 hover:text-brand-primary"
+                              title="Compartir en comunidad"
+                            >
+                              <Share2 className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => handleDeleteEvent(event.id)}
                             className="p-1 hover:bg-red-50 rounded-lg transition-colors text-gray-300 hover:text-red-500"
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
                       </div>
+                    </div>
                     </motion.div>
                   );
                 })}

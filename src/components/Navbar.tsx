@@ -162,15 +162,15 @@ export default function Navbar() {
                           <p className="text-sm font-bold text-brand-primary truncate">{user.display_name || user.email}</p>
                           <p className="text-xs text-gray-500 truncate">{user.email}</p>
                         </div>
-                        <div className="py-1">
-                          {isAdmin && (
-                            <button onClick={() => handleNavClick('/admin')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-primary/5 text-brand-primary font-bold transition-colors border-b border-brand-accent">
-                              <Settings className="w-4 h-4 text-brand-primary animate-pulse" /> Panel Admin
-                            </button>
-                          )}
-                          <button onClick={() => handleNavClick('/dashboard')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
-                            <PawPrint className="w-4 h-4 text-brand-primary" /> Mi Panel
-                          </button>
+      <div className="py-1">
+        {isAdmin && (
+          <button onClick={() => handleNavClick('/admin')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-primary/5 text-brand-primary font-bold transition-colors border-b border-brand-accent">
+            <Settings className="w-4 h-4 text-brand-primary animate-pulse" /> Panel Admin
+          </button>
+        )}
+        <button onClick={() => handleNavClick('/dashboard')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <PawPrint className="w-4 h-4 text-brand-primary" /> Mi Panel
+        </button>
         <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
           <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
         </button>
@@ -182,6 +182,9 @@ export default function Navbar() {
             <CreditCard className="w-4 h-4 text-brand-primary" /> Mi Carnet
           </button>
         )}
+        <button onClick={() => handleNavClick('/feed')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <Sparkles className="w-4 h-4 text-brand-primary" /> Comunidad
+        </button>
         <button onClick={() => handleNavClick('/perfil')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
           <Settings className="w-4 h-4 text-brand-primary" /> Editar Perfil
         </button>
@@ -258,6 +261,9 @@ export default function Navbar() {
             <CreditCard className="w-4 h-4 text-brand-primary" /> Mi Carnet
           </button>
         )}
+        <button onClick={() => handleNavClick('/feed')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <Sparkles className="w-4 h-4 text-brand-primary" /> Comunidad
+        </button>
         <button onClick={() => handleNavClick('/perfil')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
           <Settings className="w-4 h-4 text-brand-primary" /> Editar Perfil
         </button>

@@ -180,6 +180,7 @@ router.get('/public/:shareToken', async (req, res) => {
     const qrResult = await pool.query(
       `SELECT qi.*, mp.id as pet_id, mp.name, mp.species, mp.breed, mp.color,
               mp.bio, mp.personality_tags, mp.is_vaccinated, mp.is_sterilized, mp.is_dewormed,
+              mp.avatar_image IS NOT NULL as has_avatar,
               u.display_name as owner_name
        FROM qr_identifiers qi
        JOIN my_pets mp ON mp.id = qi.my_pet_id
@@ -210,6 +211,7 @@ router.get('/public/:shareToken', async (req, res) => {
         is_vaccinated: row.is_vaccinated,
         is_sterilized: row.is_sterilized,
         is_dewormed: row.is_dewormed,
+        has_avatar: row.has_avatar,
         owner_name: row.owner_name,
         photos: photosResult.rows,
         code: row.code,
