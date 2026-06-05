@@ -15,14 +15,9 @@ import QRCode from 'qrcode';
 import HealthTips from '@/src/components/HealthTips';
 
 const EVENT_TYPES = [
-  { value: 'vaccine', label: 'Vacuna', icon: '💉' },
-  { value: 'deworm', label: 'Desparasitación', icon: '💊' },
-  { value: 'vet', label: 'Vet', icon: '🩺' },
-  { value: 'surgery', label: 'Cirugía', icon: '🏥' },
   { value: 'birthday', label: 'Cumpleaños', icon: '🎂' },
   { value: 'adoption', label: 'Adopción', icon: '🏠' },
   { value: 'milestone', label: 'Hito', icon: '⭐' },
-  { value: 'weight', label: 'Peso', icon: '⚖️' },
   { value: 'grooming', label: 'Peluquería', icon: '✂️' },
   { value: 'other', label: 'Otro', icon: '📋' },
 ];
@@ -37,6 +32,11 @@ const RECORD_TYPES = [
   { value: 'note', label: 'Nota' },
   { value: 'weight', label: 'Peso' },
 ];
+
+const RECORD_ICONS: Record<string, string> = {
+  vaccine: '💉', medication: '💊', appointment: '🩺', surgery: '🏥',
+  study: '🔬', expense: '💰', note: '📝', weight: '⚖️',
+};
 
 function getAge(birthDate: string) {
   if (!birthDate) return null;
@@ -75,6 +75,9 @@ export default function MyPetDetail() {
   const [showRecordForm, setShowRecordForm] = useState(false);
   const [recordForm, setRecordForm] = useState({ record_type: 'vaccine', title: '', description: '', record_date: '', next_date: '', vet_name: '', clinic_name: '', medication_name: '', dosage: '', amount: '' });
   const [recordLoading, setRecordLoading] = useState(false);
+  const [recordPhotos, setRecordPhotos] = useState<File[]>([]);
+  const [recordPhotoPreviews, setRecordPhotoPreviews] = useState<string[]>([]);
+  const recordPhotoInputRef = useRef<HTMLInputElement>(null);
 
   const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -128,6 +131,13 @@ export default function MyPetDetail() {
       .filter((r: any) => !isNaN(r.weight))
       .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [pet?.records]);
+
+  const timelineItems = useMemo(() => {
+    const items: any[] = [];
+    (pet?.events || []).forEach((e: any) => items.push({ ...e, _type: 'event', _date: e.event_date }));
+    (pet?.records || []).forEach((r: any) => items.push({ ...r, _type: 'record', _date: r.record_date || r.created_at }));
+    return items.sort((a, b) => new Date(b._date).getTime() - new Date(a._date).getTime());
+  }, [pet?.events, pet?.records]);
 
   const handleRequestQr = async () => {
     try {
@@ -194,15 +204,48 @@ export default function MyPetDetail() {
     finally { setEventLoading(false); }
   };
 
+  const handleRecordPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const remaining = 3 - recordPhotos.length;
+    const toAdd = files.slice(0, remaining);
+    if (toAdd.length === 0) return;
+    const previews: string[] = [];
+    for (const file of toAdd) {
+      const compressed = await compressImage(file, 1200, 0.85);
+      const { data } = await fileToBase64(compressed);
+      previews.push(data);
+    }
+    setRecordPhotos(prev => [...prev, ...toAdd]);
+    setRecordPhotoPreviews(prev => [...prev, ...previews]);
+    if (recordPhotoInputRef.current) recordPhotoInputRef.current.value = '';
+  };
+
+  const removeRecordPhoto = (index: number) => {
+    setRecordPhotos(prev => prev.filter((_, i) => i !== index));
+    setRecordPhotoPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleAddRecord = async () => {
     if (!recordForm.title) return;
     try {
       setRecordLoading(true);
+      const uploadedIds: string[] = [];
+      for (const file of recordPhotos) {
+        const compressed = await compressImage(file, 1200, 0.85);
+        const { data, mimeType } = await fileToBase64(compressed);
+        const res = await api.myPets.photos.create(id!, {
+          image_data: data, mime_type: mimeType, caption: '', taken_at: new Date().toISOString(),
+        });
+        uploadedIds.push(res.photo.id);
+      }
       const payload: any = { ...recordForm };
       if (payload.amount === '') payload.amount = null;
+      payload.photo_ids = uploadedIds.length > 0 ? uploadedIds : undefined;
       await api.myPets.records.create(id!, payload);
       setShowRecordForm(false);
       setRecordForm({ record_type: 'vaccine', title: '', description: '', record_date: '', next_date: '', vet_name: '', clinic_name: '', medication_name: '', dosage: '', amount: '' });
+      setRecordPhotos([]);
+      setRecordPhotoPreviews([]);
       await fetchPet();
     } catch (e) { console.error(e); }
     finally { setRecordLoading(false); }
@@ -297,7 +340,7 @@ export default function MyPetDetail() {
     { key: 'ficha', label: 'Ficha', icon: <PawPrint className="w-4 h-4" /> },
     { key: 'galeria', label: 'Galería', icon: <ImageIcon className="w-4 h-4" /> },
     { key: 'timeline', label: 'Timeline', icon: <Clock className="w-4 h-4" /> },
-    { key: 'salud', label: 'Salud', icon: <Activity className="w-4 h-4" /> },
+    { key: 'salud', label: 'Libreta Sanitaria', icon: <FileText className="w-4 h-4" /> },
   ];
 
   return (
@@ -604,10 +647,10 @@ export default function MyPetDetail() {
               </button>
             </div>
 
-            {pet.events?.length === 0 ? (
+            {timelineItems.length === 0 ? (
               <div className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-8 text-center">
                 <Clock className="w-12 h-12 text-brand-accent mx-auto mb-3" />
-                <p className="text-gray-400">Todavía no hay eventos en el timeline</p>
+                <p className="text-gray-400">Todavía no hay actividad en el timeline</p>
                 <button onClick={() => setShowEventForm(true)}
                   className="mt-4 px-4 py-2 bg-brand-primary text-white rounded-xl text-xs font-bold">
                   Agregar primer evento
@@ -615,47 +658,73 @@ export default function MyPetDetail() {
               </div>
             ) : (
               <div className="space-y-4">
-                {pet.events.map((event: any, i: number) => {
-                  const typeInfo = EVENT_TYPES.find(t => t.value === event.event_type) || EVENT_TYPES[EVENT_TYPES.length - 1];
+                {timelineItems.map((item: any, i: number) => {
+                  const isEvent = item._type === 'event';
+                  const icon = isEvent
+                    ? (EVENT_TYPES.find(t => t.value === item.event_type)?.icon || '📋')
+                    : (RECORD_ICONS[item.record_type] || '📋');
                   return (
-                    <motion.div key={event.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                    <motion.div key={`${item._type}-${item.id}`} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
                       className="flex gap-4 items-start"
                     >
                       <div className="flex flex-col items-center">
                         <div className="w-10 h-10 rounded-xl bg-brand-bg flex items-center justify-center text-lg shrink-0">
-                          {typeInfo.icon}
+                          {icon}
                         </div>
-                        {i < pet.events.length - 1 && <div className="w-0.5 h-full bg-brand-accent mt-1" />}
+                        {i < timelineItems.length - 1 && <div className="w-0.5 h-full bg-brand-accent mt-1" />}
                       </div>
                       <div className="flex-1 bg-white rounded-2xl border border-brand-accent p-4">
                         <div className="flex items-start justify-between">
                           <div>
-                            <h4 className="text-sm font-bold text-gray-800">{event.title}</h4>
+                            <h4 className="text-sm font-bold text-gray-800">{item.title}</h4>
                             <p className="text-xs text-gray-400">
-                              {new Date(event.event_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                              {event.next_date && (
+                              {new Date(item._date).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                              {item.next_date && (
                                 <span className="ml-2 text-amber-600">
-                                  Próximo: {new Date(event.next_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                                  Próximo: {new Date(item.next_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
                                 </span>
                               )}
                             </p>
-                            {event.description && <p className="text-xs text-gray-500 mt-1">{event.description}</p>}
+                            {item.description && <p className="text-xs text-gray-500 mt-1">{item.description}</p>}
+                            {!isEvent && (
+                              <div className="flex flex-wrap gap-2 mt-1.5 text-xs text-gray-400">
+                                {item.vet_name && <span>· Vet: {item.vet_name}</span>}
+                                {item.clinic_name && <span>· {item.clinic_name}</span>}
+                                {item.medication_name && <span>· {item.medication_name} {item.dosage}</span>}
+                                {item.amount && item.record_type !== 'weight' && <span className="text-emerald-600 font-medium">· ${item.amount}</span>}
+                                {item.record_type === 'weight' && item.amount && <span className="text-brand-primary font-medium">· {item.amount} kg</span>}
+                              </div>
+                            )}
+                            {item.photo_ids?.length > 0 && (
+                              <div className="grid grid-cols-3 gap-2 mt-2">
+                                {item.photo_ids.map((pid: string) => (
+                                  <img key={pid} src={`/my-pet-photo/${pid}`}
+                                    className="aspect-square object-cover rounded-xl"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => shareToFeed(event)}
-                              className="p-1 hover:bg-brand-primary/10 rounded-lg transition-colors text-gray-300 hover:text-brand-primary"
-                              title="Compartir en comunidad"
-                            >
-                              <Share2 className="w-3 h-3" />
-                            </button>
-                            <button onClick={() => handleDeleteEvent(event.id)}
-                            className="p-1 hover:bg-red-50 rounded-lg transition-colors text-gray-300 hover:text-red-500"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isEvent && (
+                              <button onClick={() => shareToFeed(item)}
+                                className="p-1 hover:bg-brand-primary/10 rounded-lg transition-colors text-gray-300 hover:text-brand-primary"
+                                title="Compartir en comunidad"
+                              >
+                                <Share2 className="w-3 h-3" />
+                              </button>
+                            )}
+                            {isEvent && (
+                              <button onClick={() => handleDeleteEvent(item.id)}
+                                className="p-1 hover:bg-red-50 rounded-lg transition-colors text-gray-300 hover:text-red-500"
+                                title="Eliminar"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
                     </motion.div>
                   );
                 })}
@@ -696,7 +765,7 @@ export default function MyPetDetail() {
                       <div>
                         <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Título</label>
                         <input value={eventForm.title} onChange={e => setEventForm(prev => ({ ...prev, title: e.target.value }))}
-                          className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Ej: Vacuna antirrábica" />
+                          className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Ej: Cumpleaños de Luna" />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -714,17 +783,17 @@ export default function MyPetDetail() {
                         <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Detalle</label>
                         <textarea value={eventForm.description} onChange={e => setEventForm(prev => ({ ...prev, description: e.target.value }))}
                           className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm resize-none" rows={2} />
+                        </div>
                       </div>
-                    </div>
-                    <button onClick={handleAddEvent} disabled={eventLoading || !eventForm.title || !eventForm.event_date}
-                      className="w-full mt-5 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {eventLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                      Guardar evento
-                    </button>
+                      <button onClick={handleAddEvent} disabled={eventLoading || !eventForm.title || !eventForm.event_date}
+                        className="w-full mt-5 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {eventLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Guardar evento
+                      </button>
+                    </motion.div>
                   </motion.div>
-                </motion.div>
-              )}
+                )}
             </AnimatePresence>
           </motion.div>
         )}
@@ -796,6 +865,15 @@ export default function MyPetDetail() {
                           )}
                         </div>
                       </div>
+                      {record.photo_ids?.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 mt-3">
+                          {record.photo_ids.map((pid: string) => (
+                            <img key={pid} src={`/my-pet-photo/${pid}`}
+                              className="aspect-square object-cover rounded-xl"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -842,6 +920,31 @@ export default function MyPetDetail() {
                         <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Detalle</label>
                         <textarea value={recordForm.description} onChange={e => setRecordForm(prev => ({ ...prev, description: e.target.value }))}
                           className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm resize-none" rows={2} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">
+                          Fotos {recordPhotos.length > 0 && <span className="text-brand-secondary">({recordPhotos.length}/3)</span>}
+                        </label>
+                        <input ref={recordPhotoInputRef} type="file" accept="image/*" capture="environment" multiple
+                          className="hidden" onChange={handleRecordPhotoSelect} />
+                        <div className="flex flex-wrap gap-2">
+                          {recordPhotoPreviews.map((preview, i) => (
+                            <div key={i} className="relative w-16 h-16 rounded-xl overflow-hidden bg-brand-bg">
+                              <img src={`data:image/jpeg;base64,${preview}`} alt=""
+                                className="w-full h-full object-cover" />
+                              <button onClick={() => removeRecordPhoto(i)}
+                                className="absolute top-0.5 right-0.5 p-0.5 bg-red-500/80 text-white rounded-md text-[10px]">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                          {recordPhotos.length < 3 && (
+                            <button onClick={() => recordPhotoInputRef.current?.click()}
+                              className="w-16 h-16 rounded-xl border-2 border-dashed border-brand-accent flex items-center justify-center text-brand-accent hover:border-brand-primary hover:text-brand-primary transition-colors">
+                              <Camera className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
