@@ -23,33 +23,25 @@ jobs:
         script: |
           cd /var/www/sigotuhuella
           git pull
-
           if [ ! -f /swapfile ]; then
             sudo fallocate -l 1G /swapfile
             sudo chmod 600 /swapfile
             sudo mkswap /swapfile
             sudo swapon /swapfile
           fi
-
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ffmpeg
-
           if [ -n "$AZURE_TTS_KEY" ]; then
             grep -q "^AZURE_TTS_KEY=" server/.env 2>/dev/null && sed -i "s|^AZURE_TTS_KEY=.*|AZURE_TTS_KEY=$AZURE_TTS_KEY|" server/.env || echo "AZURE_TTS_KEY=$AZURE_TTS_KEY" >> server/.env
           fi
-
           if [ -n "$AZURE_TTS_KEY2" ]; then
             grep -q "^AZURE_TTS_KEY2=" server/.env 2>/dev/null && sed -i "s|^AZURE_TTS_KEY2=.*|AZURE_TTS_KEY2=$AZURE_TTS_KEY2|" server/.env || echo "AZURE_TTS_KEY2=$AZURE_TTS_KEY2" >> server/.env
           fi
-
           if [ -n "$AZURE_TTS_REGION" ]; then
             grep -q "^AZURE_TTS_REGION=" server/.env 2>/dev/null && sed -i "s|^AZURE_TTS_REGION=.*|AZURE_TTS_REGION=$AZURE_TTS_REGION|" server/.env || echo "AZURE_TTS_REGION=$AZURE_TTS_REGION" >> server/.env
           fi
-
           npm install
-
-  npm run build
-
-  if ! pm2 restart sigotuhuella; then
+          npm run build
+          if ! pm2 restart sigotuhuella; then
             pm2 start npm --name sigotuhuella -- start
           fi
