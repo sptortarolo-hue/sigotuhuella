@@ -21,7 +21,7 @@ function nextPrefix(prefix) {
 }
 
 async function getNextCodes(count) {
-  const last = await pool.query("SELECT code FROM qr_identifiers ORDER BY created_at DESC LIMIT 1");
+  const last = await pool.query("SELECT code FROM qr_identifiers ORDER BY code DESC LIMIT 1");
   let prefix = 'AAA';
   let num = 0;
   if (last.rows.length > 0) {
