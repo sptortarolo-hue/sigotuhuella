@@ -24,6 +24,8 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
 }
 
 export const api = {
+  get: (path: string) => request(path),
+  post: (path: string, body?: any) => request(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   auth: {
     login: (email: string, password: string) =>
       request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
@@ -154,6 +156,8 @@ export const api = {
     reminders: (petId: string) => request(`/my-pets/${petId}/reminders`),
     convert: (petId: string, extra?: { bio?: string; birth_date?: string; weight_kg?: number; personality_tags?: string[] }) =>
       request(`/my-pets/convert/${petId}`, { method: 'POST', body: extra ? JSON.stringify(extra) : undefined }),
+    generateVideo: (petId: string) => request(`/my-pets/${petId}/generate-video`, { method: 'POST' }),
+    healthTips: (petId: string) => request(`/my-pets/${petId}/health-tips`),
   },
   qr: {
     batch: (count: number) => request('/qr/batch', { method: 'POST', body: JSON.stringify({ count }) }),
@@ -189,5 +193,10 @@ export const api = {
     delete: (id: string) => request(`/feed/${id}`, { method: 'DELETE' }),
     like: (id: string) => request(`/feed/${id}/like`, { method: 'POST' }),
     unlike: (id: string) => request(`/feed/${id}/unlike`, { method: 'POST' }),
+    comments: {
+      list: (postId: string) => request(`/feed/${postId}/comments`),
+      create: (postId: string, content: string) => request(`/feed/${postId}/comments`, { method: 'POST', body: JSON.stringify({ content }) }),
+      delete: (postId: string, commentId: string) => request(`/feed/${postId}/comments/${commentId}`, { method: 'DELETE' }),
+    },
   },
 };

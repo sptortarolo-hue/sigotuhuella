@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth } from '../auth.js';
+import { sendPushToUser } from '../services/pushService.js';
+import { awardPoints, checkChallenge } from './gamification.js';
 
 const router = Router();
 
@@ -51,8 +53,13 @@ router.post('/', requireAuth, async (req, res) => {
     const result = await pool.query(
       `INSERT INTO feed_posts (my_pet_id, user_id, title, description, event_id, photo_ids)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [my_pet_id, req.user.id, title, description || null, event_id || null, photo_ids || null]
+      [my_pet_id, req.user.id, title || null, description || null, event_id || null, photo_ids || null]
     );
+
+    awardPoints(req.user.id, 5, 'Nueva publicación en comunidad');
+    checkChallenge(req.user.id, 'first_post');
+    checkChallenge(req.user.id, 'five_posts');
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('feed create error:', err);
@@ -84,6 +91,22 @@ router.post('/:id/like', requireAuth, async (req, res) => {
       'SELECT COUNT(*)::int as count FROM feed_likes WHERE post_id = $1',
       [req.params.id]
     );
+
+    const post = await pool.query(
+      'SELECT user_id, title FROM feed_posts WHERE id = $1',
+      [req.params.id]
+    );
+    if (post.rows.length > 0 && post.rows[0].user_id !== req.user.id) {
+      sendPushToUser(post.rows[0].user_id, {
+        title: '❤️ Nuevo like',
+        body: `A alguien le gustó tu publicación "${post.rows[0].title}"`,
+        tag: `feed-like-${req.params.id}`,
+      });
+      awardPoints(post.rows[0].user_id, 1, 'Recibió un like');
+      checkChallenge(post.rows[0].user_id, 'first_like_received');
+      checkChallenge(post.rows[0].user_id, 'ten_likes_received');
+    }
+
     res.json({ liked: true, count: count.rows[0].count });
   } catch (err) {
     console.error('feed like error:', err);
@@ -105,6 +128,72 @@ router.post('/:id/unlike', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('feed unlike error:', err);
     res.status(500).json({ error: 'Error al quitar like' });
+  }
+});
+
+router.get('/:id/comments', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT fc.*, u.display_name as user_name, u.avatar_data IS NOT NULL as has_avatar, u.avatar_type
+       FROM feed_comments fc
+       JOIN users u ON u.id = fc.user_id
+       WHERE fc.post_id = $1
+       ORDER BY fc.created_at ASC`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('comments list error:', err);
+    res.status(500).json({ error: 'Error al obtener comentarios' });
+  }
+});
+
+router.post('/:id/comments', requireAuth, async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'El comentario no puede estar vacío' });
+    }
+    const result = await pool.query(
+      `INSERT INTO feed_comments (post_id, user_id, content) VALUES ($1, $2, $3) RETURNING *`,
+      [req.params.id, req.user.id, content.trim()]
+    );
+    const comment = result.rows[0];
+
+    const post = await pool.query('SELECT user_id, title FROM feed_posts WHERE id = $1', [req.params.id]);
+    if (post.rows.length > 0 && post.rows[0].user_id !== req.user.id) {
+      sendPushToUser(post.rows[0].user_id, {
+        title: '💬 Nuevo comentario',
+        body: `${req.user.display_name || 'Alguien'} comentó en "${post.rows[0].title}"`,
+        tag: `feed-comment-${req.params.id}`,
+      });
+    }
+
+    awardPoints(req.user.id, 2, 'Comentó en una publicación');
+
+    const enriched = await pool.query(
+      `SELECT fc.*, u.display_name as user_name, u.avatar_data IS NOT NULL as has_avatar, u.avatar_type
+       FROM feed_comments fc JOIN users u ON u.id = fc.user_id WHERE fc.id = $1`,
+      [comment.id]
+    );
+
+    res.status(201).json(enriched.rows[0]);
+  } catch (err) {
+    console.error('comment create error:', err);
+    res.status(500).json({ error: 'Error al comentar' });
+  }
+});
+
+router.delete('/:postId/comments/:commentId', requireAuth, async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM feed_comments WHERE id = $1 AND user_id = $2',
+      [req.params.commentId, req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('comment delete error:', err);
+    res.status(500).json({ error: 'Error al eliminar comentario' });
   }
 });
 

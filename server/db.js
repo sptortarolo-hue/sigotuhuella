@@ -209,6 +209,67 @@ CREATE TABLE IF NOT EXISTS feed_likes (
   created_at TIMESTAMP DEFAULT NOW(),
   UNIQUE(post_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS feed_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID NOT NULL REFERENCES feed_posts(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS monthly_contests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  is_active BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS contest_nominees (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  contest_id UUID NOT NULL REFERENCES monthly_contests(id) ON DELETE CASCADE,
+  my_pet_id UUID NOT NULL REFERENCES my_pets(id) ON DELETE CASCADE,
+  votes_count INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(contest_id, my_pet_id)
+);
+
+CREATE TABLE IF NOT EXISTS contest_votes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nominee_id UUID NOT NULL REFERENCES contest_nominees(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(nominee_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_challenges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  challenge_key VARCHAR(100) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  icon VARCHAR(50) DEFAULT '🏆',
+  progress INTEGER DEFAULT 0,
+  target INTEGER NOT NULL DEFAULT 1,
+  completed BOOLEAN DEFAULT FALSE,
+  completed_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, challenge_key)
+);
+
+CREATE TABLE IF NOT EXISTS user_points (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+  points INTEGER DEFAULT 0,
+  level INTEGER DEFAULT 1,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1;
 `;
 
 export async function initDb() {

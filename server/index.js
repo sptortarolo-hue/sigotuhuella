@@ -21,6 +21,8 @@ import myPetsRoutes from './routes/myPets.js';
 import qrRoutes from './routes/qr.js';
 import pushRoutes from './routes/push.js';
 import feedRoutes from './routes/feed.js';
+import contestRoutes from './routes/contests.js';
+import gamificationRoutes from './routes/gamification.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
 
@@ -152,6 +154,8 @@ app.use('/api/push', (req, res, next) => {
 }, pushRoutes);
 
 app.use('/api/feed', feedRoutes);
+app.use('/api/contests', contestRoutes);
+app.use('/api/gamification', gamificationRoutes);
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

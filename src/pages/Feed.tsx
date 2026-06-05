@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
-import { PawPrint, Loader2, Heart, MessageCircle, Trash2, Sparkles } from 'lucide-react';
+import { PawPrint, Loader2, Heart, MessageCircle, Trash2, Sparkles, Send } from 'lucide-react';
 
 export default function Feed() {
   const { user } = useAuth();
@@ -10,6 +10,10 @@ export default function Feed() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [comments, setComments] = useState<Record<string, any[]>>({});
+  const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
 
   const fetchPosts = useCallback(async (p: number) => {
     try {
@@ -47,6 +51,29 @@ export default function Feed() {
       await api.feed.delete(postId);
       setPosts(prev => prev.filter(p => p.id !== postId));
     } catch (e) { console.error(e); }
+  };
+
+  const toggleComments = async (postId: string) => {
+    const willOpen = !openComments[postId];
+    setOpenComments(prev => ({ ...prev, [postId]: willOpen }));
+    if (willOpen && !comments[postId]) {
+      try {
+        const res = await api.feed.comments.list(postId);
+        setComments(prev => ({ ...prev, [postId]: res }));
+      } catch (e) { console.error(e); }
+    }
+  };
+
+  const submitComment = async (postId: string) => {
+    const text = commentInputs[postId]?.trim();
+    if (!text) return;
+    setCommentLoading(prev => ({ ...prev, [postId]: true }));
+    try {
+      const res = await api.feed.comments.create(postId, text);
+      setComments(prev => ({ ...prev, [postId]: [...(prev[postId] || []), res] }));
+      setCommentInputs(prev => ({ ...prev, [postId]: '' }));
+    } catch (e) { console.error(e); }
+    finally { setCommentLoading(prev => ({ ...prev, [postId]: false })); }
   };
 
   const speciesEmoji = (s: string) => s === 'dog' ? '🐶' : s === 'cat' ? '🐱' : '🐾';
@@ -127,11 +154,61 @@ export default function Feed() {
                     <Heart className={`w-4 h-4 ${post.user_liked ? 'fill-current' : ''}`} />
                     {post.like_count || 0}
                   </button>
+                  <button onClick={() => toggleComments(post.id)} className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${openComments[post.id] ? 'text-brand-primary' : 'text-gray-400 hover:text-brand-primary'}`}>
+                    <MessageCircle className="w-4 h-4" />
+                    {comments[post.id]?.length || 0}
+                  </button>
                   <span className="text-[10px] text-gray-400">
                     {new Date(post.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
               </div>
+
+              {openComments[post.id] && (
+                <div className="border-t border-brand-accent/50 bg-brand-bg/50 px-4 sm:px-5 py-3">
+                  {comments[post.id]?.length > 0 && (
+                    <div className="space-y-2 mb-3 max-h-48 overflow-y-auto">
+                      {comments[post.id].map((c: any) => (
+                        <div key={c.id} className="flex items-start gap-2">
+                          <div className="w-6 h-6 rounded-full bg-brand-primary/10 flex items-center justify-center text-[10px] font-bold text-brand-primary shrink-0">
+                            {c.user_name?.[0]?.toUpperCase() || '?'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs">
+                              <span className="font-bold text-gray-700">{c.user_name}</span>
+                              <span className="text-gray-500 ml-1">{c.content}</span>
+                            </p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {new Date(c.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          {user?.id === c.user_id && (
+                            <button onClick={async () => { try { await api.feed.comments.delete(post.id, c.id); setComments(prev => ({ ...prev, [post.id]: prev[post.id].filter((x: any) => x.id !== c.id) })); } catch {} }}
+                              className="text-gray-300 hover:text-red-400 transition-colors shrink-0">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {user && (
+                    <div className="flex gap-2">
+                      <input
+                        value={commentInputs[post.id] || ''}
+                        onChange={e => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && submitComment(post.id)}
+                        placeholder="Escribí un comentario..."
+                        className="flex-1 px-3 py-1.5 text-xs rounded-xl border border-brand-accent bg-white focus:outline-none focus:border-brand-primary transition-colors"
+                      />
+                      <button onClick={() => submitComment(post.id)} disabled={commentLoading[post.id] || !commentInputs[post.id]?.trim()}
+                        className="p-1.5 rounded-xl bg-brand-primary text-white hover:bg-brand-primary/90 transition-colors disabled:opacity-50 shrink-0">
+                        {commentLoading[post.id] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -8,10 +8,11 @@ import {
   PawPrint, ArrowLeft, Loader2, Syringe, Scissors, Bug, Weight,
   Calendar, Plus, X, Save, Camera, Trash2, Sparkles, Heart,
   Dog, Cat, Edit3, Image as ImageIcon, Activity, Clock,
-  QrCode, Share2, Stethoscope, Copy, Check, FileText,
+  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'qrcode';
+import HealthTips from '@/src/components/HealthTips';
 
 const EVENT_TYPES = [
   { value: 'vaccine', label: 'Vacuna', icon: '💉' },
@@ -517,6 +518,8 @@ export default function MyPetDetail() {
               </div>
             </div>
 
+            <HealthTips petId={id} />
+
             <div className="mt-6 pt-4 border-t border-brand-accent flex justify-end">
               <button onClick={() => navigate('/mi-mascota')}
                 className="px-4 py-2 text-xs text-gray-400 hover:text-brand-primary flex items-center gap-1 transition-colors"
@@ -529,7 +532,7 @@ export default function MyPetDetail() {
 
         {activeTab === 'galeria' && (
           <motion.div key="galeria" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="flex justify-end mb-4">
+            <div className="flex justify-end gap-2 mb-4">
               <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
               <button
                 onClick={() => photoInputRef.current?.click()}
@@ -538,6 +541,19 @@ export default function MyPetDetail() {
               >
                 {photoLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />} Subir foto
               </button>
+              {pet.photos?.length >= 3 && (
+                <button onClick={() => {
+                  if (confirm('Generar un video con las fotos de ' + pet.name + '?')) {
+                    api.myPets.generateVideo(id!).then((r: any) => {
+                      if (r.videoUrl) window.open(r.videoUrl, '_blank');
+                      alert('Video generado correctamente');
+                    }).catch((e: any) => alert(e.message));
+                  }
+                }}
+                  className="px-4 py-2 bg-amber-500 text-white rounded-xl font-bold text-xs hover:shadow-lg transition-all flex items-center gap-2">
+                  <Play className="w-3 h-3" /> Video
+                </button>
+              )}
             </div>
 
             {pet.photos?.length === 0 ? (

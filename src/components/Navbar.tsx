@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard, FileText, Share2, Bell, BellOff } from 'lucide-react';
+import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard, FileText, Share2, Bell, BellOff, Trophy } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -182,6 +182,9 @@ export default function Navbar() {
             <CreditCard className="w-4 h-4 text-brand-primary" /> Mi Carnet
           </button>
         )}
+        <button onClick={() => handleNavClick('/concursos')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <Trophy className="w-4 h-4 text-amber-600" /> Concursos
+        </button>
         <button onClick={() => handleNavClick('/feed')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
           <Sparkles className="w-4 h-4 text-brand-primary" /> Comunidad
         </button>
@@ -370,6 +373,12 @@ export default function Navbar() {
                     <CreditCard className="w-5 h-5 shrink-0" /> Mi Carnet
                   </Link>
                 )}
+                <Link to="/concursos" onClick={() => handleNavClick('/concursos')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
+                  <Trophy className="w-5 h-5 shrink-0 text-amber-600" /> Concursos
+                </Link>
+                <Link to="/feed" onClick={() => handleNavClick('/feed')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
+                  <Sparkles className="w-5 h-5 shrink-0 text-brand-primary" /> Comunidad
+                </Link>
                 <Link to="/perfil" onClick={() => handleNavClick('/perfil')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
                   <Settings className="w-5 h-5 shrink-0" /> Editar Perfil
                 </Link>

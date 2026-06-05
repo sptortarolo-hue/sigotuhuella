@@ -342,6 +342,14 @@ router.post('/:id/events', requireAuth, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [req.params.id, event_type, title, description || null, event_date, next_date || null, photo_id || null]
     );
+
+    try {
+      const { awardPoints, checkChallenge } = await import('./gamification.js');
+      awardPoints(req.user.id, 10, 'Agregó evento al timeline');
+      checkChallenge(req.user.id, 'add_event');
+      checkChallenge(req.user.id, 'five_events');
+    } catch {}
+
     res.status(201).json({ event: result.rows[0] });
   } catch (err) {
     console.error('my-pet event create error:', err);
@@ -717,6 +725,126 @@ router.get('/:id/pasaporte', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('pasaporte pdf error:', err);
     res.status(500).json({ error: 'Error al generar pasaporte' });
+  }
+});
+
+// Health tips pre-escritos por especie
+const TIPS_DB = {
+  dog: [
+    { title: '🐶 Vacunación anual', tip: 'Mantené al día las vacunas de tu perro. La triple (polivalente) se refuerza cada año y la antirrábica según calendario local.' },
+    { title: '🐶 Desparasitación', tip: 'Desparasitá a tu perro cada 3 meses (cada mes si es cachorro). La prevención es clave contra parásitos intestinales y pulgas.' },
+    { title: '🐶 Paseos diarios', tip: 'Los perros necesitan al menos 30 minutos de ejercicio diario. Los paseos regulares previenen obesidad y problemas de conducta.' },
+    { title: '🐶 Salud dental', tip: 'Cepillale los dientes a tu perro 2-3 veces por semana. La acumulación de sarro puede causar enfermedades cardíacas y renales.' },
+    { title: '🐶 Alimentación adecuada', tip: 'Elegí un alimento balanceado según su edad, tamaño y nivel de actividad. Evitá darle comida humana, especialmente chocolate y uvas.' },
+    { title: '🐶 Corte de uñas', tip: 'Revisá las uñas de tu perro cada mes. Si escuchás que hacen ruido al caminar sobre el piso, es momento de cortarlas.' },
+    { title: '🐶 Hidratación', tip: 'Asegurate que siempre tenga agua fresca y limpia. Los perros necesitan entre 50-100ml de agua por kg de peso al día.' },
+  ],
+  cat: [
+    { title: '🐱 Esterilización', tip: 'Esterilizar a tu gato previene camadas no deseadas, reduce el marcaje territorial y disminuye el riesgo de cáncer en hembras.' },
+    { title: '🐱 Alimentación húmeda', tip: 'Incorporá alimento húmedo en la dieta de tu gato. Ayuda a prevenir problemas urinarios y aporta hidratación adicional.' },
+    { title: '🐱 Rascadores', tip: 'Proveé rascadores a tu gato para que pueda afilarse las uñas. Esto evita que dañe muebles y lo ayuda a marcar territorio de forma saludable.' },
+    { title: '🐱 Caja de arena', tip: 'Mantené la caja de arena siempre limpia. Los gatos son muy limpios y pueden estresarse si la caja está sucia.' },
+    { title: '🐱 Control de peso', tip: 'La obesidad felina es un problema grave. Controlá las porciones y fomentá el juego activo al menos 15-20 minutos al día.' },
+    { title: '🐱 Visitas al veterinario', tip: 'Llevá a tu gato al veterinario al menos una vez al año. Los gatos son expertos en ocultar síntomas de enfermedad.' },
+  ],
+  other: [
+    { title: '🐾 Visita regular al vet', tip: 'Todas las mascotas necesitan controles veterinarios periódicos. La prevención es la mejor medicina.' },
+    { title: '🐾 Alimentación balanceada', tip: 'Investigá la dieta específica para tu especie de mascota. Cada animal tiene necesidades nutricionales únicas.' },
+    { title: '🐾 Identificación', tip: 'Asegurate de que tu mascota tenga identificación visible. El QR de Sigo Tu Huella es una excelente opción.' },
+  ],
+};
+
+router.get('/:id/health-tips', requireAuth, async (req, res) => {
+  try {
+    const pet = await pool.query('SELECT species, age, is_vaccinated FROM my_pets WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+
+    const species = pet.rows[0].species;
+    const tips = TIPS_DB[species] || TIPS_DB.other;
+
+    res.json(tips);
+  } catch (err) {
+    console.error('health tips error:', err);
+    res.status(500).json({ error: 'Error al obtener tips' });
+  }
+});
+
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { rimraf } from 'rimraf';
+import path from 'path';
+import os from 'os';
+import fs from 'fs';
+
+const execFileAsync = promisify(execFile);
+
+router.post('/:id/generate-video', requireAuth, async (req, res) => {
+  let tmpDir = null;
+  try {
+    const pet = await pool.query(
+      'SELECT id, name FROM my_pets WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+
+    const photos = await pool.query(
+      'SELECT id, image_data, mime_type FROM my_pet_photos WHERE my_pet_id = $1 ORDER BY created_at ASC LIMIT 20',
+      [req.params.id]
+    );
+    if (photos.rows.length === 0) return res.status(400).json({ error: 'No hay fotos para generar video' });
+
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pet-video-'));
+    const imageFiles = [];
+
+    for (const photo of photos.rows) {
+      const ext = photo.mime_type === 'image/png' ? '.png' : '.jpg';
+      const filePath = path.join(tmpDir, `photo-${photo.id}${ext}`);
+      fs.writeFileSync(filePath, Buffer.from(photo.image_data, 'base64'));
+      imageFiles.push(filePath);
+    }
+
+    const outputFileName = `pet-${pet.rows[0].id}-${uuidv4()}.mp4`;
+    const outputDir = path.join(process.cwd(), 'public', 'generated', 'videos');
+    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+    const outputPath = path.join(outputDir, outputFileName);
+
+    const inputListPath = path.join(tmpDir, 'inputs.txt');
+    const inputContent = imageFiles.map(f => `file '${f.replace(/\\/g, '/')}'\nduration 1.5`).join('\n');
+    fs.writeFileSync(inputListPath, inputContent);
+
+    try {
+      await execFileAsync('ffmpeg', [
+        '-f', 'concat', '-safe', '0', '-i', inputListPath,
+        '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=#5A5A40',
+        '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+        '-pix_fmt', 'yuv420p',
+        '-y', outputPath,
+      ], { timeout: 60000 });
+    } catch (ffmpegErr) {
+      console.error('ffmpeg error, trying simpler command:', ffmpegErr.message);
+      const concatLines = imageFiles.map(f => `file '${f.replace(/\\/g, '/')}'`).join('\n');
+      fs.writeFileSync(inputListPath, concatLines);
+      await execFileAsync('ffmpeg', [
+        '-f', 'concat', '-safe', '0', '-i', inputListPath,
+        '-vsync', 'vfr', '-pix_fmt', 'yuv420p',
+        '-y', outputPath,
+      ], { timeout: 60000 });
+    }
+
+    const videoUrl = `/generated/videos/${outputFileName}`;
+
+    await pool.query(
+      `INSERT INTO promotional_videos (title, video_data, format, status, created_by)
+       VALUES ($1, $2, 'vertical', 'completed', $3)`,
+      [`Video de ${pet.rows[0].name}`, videoUrl, req.user.id]
+    );
+
+    res.json({ videoUrl, message: 'Video generado correctamente' });
+  } catch (err) {
+    console.error('generate video error:', err);
+    res.status(500).json({ error: 'Error al generar video' });
+  } finally {
+    if (tmpDir) { try { await rimraf(tmpDir); } catch {} }
   }
 });
 
