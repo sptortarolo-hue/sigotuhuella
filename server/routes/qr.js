@@ -307,8 +307,19 @@ function drawArcText(doc, text, cx, cy, radius, startDeg, endDeg, color, reverse
   }
 }
 
+router.delete('/cleanup', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM qr_identifiers WHERE my_pet_id IS NULL');
+    res.json({ success: true, deleted: result.rowCount });
+  } catch (err) {
+    console.error('qr cleanup error:', err);
+    res.status(500).json({ error: 'Error al limpiar QRs' });
+  }
+});
+
 router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
   try {
+    const mirror = req.query.mirror === '1';
     const result = await pool.query(
       'SELECT code, share_token FROM qr_identifiers WHERE batch_id = $1 ORDER BY code ASC',
       [req.params.batchId]
@@ -332,11 +343,13 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
 
     const doc = new PDFDocument({ size: 'A4', margin: 0 });
     res.set('Content-Type', 'application/pdf');
-    res.set('Content-Disposition', `attachment; filename="qr-${req.params.batchId}.pdf"`);
+    res.set('Content-Disposition', `attachment; filename="qr-${req.params.batchId}${mirror ? '-sublimar' : ''}.pdf"`);
     doc.pipe(res);
 
     for (let page = 0; page < identifiers.length; page += PER_PAGE) {
       if (page > 0) doc.addPage();
+
+      if (mirror) { doc.save(); doc.translate(PAGE_W, 0).scale(-1, 1); }
 
       doc.fontSize(11).fillColor('#5A5A40')
         .text('Sigo Tu Huella — Identificación Digital', MARGIN_X, 18, { width: PAGE_W - MARGIN_X * 2, align: 'center' });
@@ -368,6 +381,8 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
           drawArcText(doc, 'SI ME VES PERDIDO', cx, cy, 41, 190, 350, COLORS.olive, false);
         }
       }
+
+      if (mirror) doc.restore();
     }
 
     doc.end();
