@@ -335,19 +335,20 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
     const identifiers = result.rows;
     const PER_PAGE = 18;
     const MARGIN_X = 25;
-    const MARGIN_Y = 45;
+    const MARGIN_Y = 36;
     const PAGE_W = 595.28;
     const PAGE_H = 841.89;
     const CIRCLE_R = 55;
     const CIRCLE_D = CIRCLE_R * 2;
     const QR_SIZE = Math.round(CIRCLE_D * 0.70);
     const QR_PX = 400;
-    const QR_Y_OFFSET = -8;
+    const QR_Y_OFFSET = 0;
+    const ICON_SIZE_R = 24;
     const COLORS = { olive: '#5A5A40', terracotta: '#D48C70' };
     const COLS = 3;
     const COL_W = (PAGE_W - MARGIN_X * 2) / COLS;
     const ROW_H = (PAGE_H - MARGIN_Y - 25) / 6;
-    const logoPng = readFileSync(join(__dirname, '..', '..', 'public', 'qr-logo.png'));
+    const sigotuhuella = readFileSync(join(__dirname, '..', '..', 'public', 'sigotuhuella.jpg'));
 
     const doc = new PDFDocument({ size: 'A4', margin: 0 });
     res.set('Content-Type', 'application/pdf');
@@ -358,9 +359,6 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
       if (page > 0) doc.addPage();
 
       if (mirror) { doc.save(); doc.translate(PAGE_W, 0).scale(-1, 1); }
-
-      doc.fontSize(11).fillColor('#5A5A40')
-        .text('Sigo Tu Huella — Identificación Digital', MARGIN_X, 18, { width: PAGE_W - MARGIN_X * 2, align: 'center' });
 
       for (let i = 0; i < PER_PAGE && (page + i) < identifiers.length; i++) {
         const col = i % COLS;
@@ -377,16 +375,21 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
           });
           const qrBuffer = Buffer.from(qrDataUrl.split(',')[1], 'base64');
 
-          doc.circle(cx, cy + QR_Y_OFFSET, CIRCLE_R).fill('#ffffff');
-          doc.image(qrBuffer, cx - QR_SIZE / 2, cy + QR_Y_OFFSET - QR_SIZE / 2, { width: QR_SIZE });
-          doc.circle(cx, cy + QR_Y_OFFSET, CIRCLE_R).lineWidth(1.5).strokeColor('#5A5A40').stroke();
+          doc.circle(cx, cy, CIRCLE_R).fill('#ffffff');
+          doc.image(qrBuffer, cx - QR_SIZE / 2, cy - QR_SIZE / 2, { width: QR_SIZE });
+          doc.circle(cx, cy, CIRCLE_R).lineWidth(1.5).strokeColor('#5A5A40').stroke();
           doc.fontSize(8).fillColor('#5A5A40')
-            .text(ident.code, cx - CIRCLE_R, cy + QR_Y_OFFSET + CIRCLE_R - 14, { width: CIRCLE_R * 2, align: 'center' });
+            .text(ident.code, cx - CIRCLE_R, cy + CIRCLE_R - 14, { width: CIRCLE_R * 2, align: 'center' });
         } else {
           doc.circle(cx, cy, CIRCLE_R).fill('#ffffff');
-          doc.image(logoPng, cx - CIRCLE_R, cy - CIRCLE_R, { width: CIRCLE_R * 2 });
+          doc.save();
+          doc.circle(cx, cy, ICON_SIZE_R).clip();
+          doc.image(sigotuhuella, cx - ICON_SIZE_R, cy - ICON_SIZE_R, { width: ICON_SIZE_R * 2, height: ICON_SIZE_R * 2 });
+          doc.restore();
           doc.circle(cx, cy, CIRCLE_R).lineWidth(1.5).strokeColor('#5A5A40').stroke();
           drawArcText(doc, 'SI ME VES PERDIDO', cx, cy, 41, 190, 350, COLORS.olive, false);
+          doc.fontSize(9).fillColor('#5A5A40')
+            .text('ESCANEÁ EL QR', cx - CIRCLE_R, cy + ICON_SIZE_R + 3, { width: CIRCLE_R * 2, align: 'center' });
         }
       }
 
