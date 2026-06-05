@@ -65,8 +65,8 @@ router.post('/batch', requireAdmin, async (req, res) => {
 
     res.status(201).json({ batch_id: batchId, identifiers: result.rows });
   } catch (err) {
-    console.error('qr batch error:', err);
-    res.status(500).json({ error: 'Error al generar QRs' });
+    console.error('qr batch error:', err.message, err.stack);
+    res.status(500).json({ error: `Error al generar QRs: ${err.message}` });
   }
 });
 
