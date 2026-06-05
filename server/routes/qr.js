@@ -5,7 +5,6 @@ import { sendPushToAdmins, sendPushToUser } from '../services/pushService.js';
 import QRCode from 'qrcode';
 import PDFDocument from 'pdfkit';
 import sharp from 'sharp';
-import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
@@ -302,25 +301,38 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
     const CIRCLE_R = 70;
     const QR_SIZE = Math.round(CIRCLE_R * 2 * 0.75);
     const QR_Y_OFFSET = -12;
+    const LOGO_SIZE = 200;
+
+    const logoBgSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${LOGO_SIZE} ${LOGO_SIZE}" width="${LOGO_SIZE}" height="${LOGO_SIZE}">
+      <rect width="${LOGO_SIZE}" height="${LOGO_SIZE}" fill="transparent"/>
+      <circle cx="100" cy="100" r="96" fill="#F5F5F0" stroke="#5A5A40" stroke-width="2.5"/>
+      <path id="topArc" d="M 28,100 A 72,72 0 0,1 172,100" fill="none"/>
+      <path id="bottomArc" d="M 24,108 A 76,76 0 0,0 176,108" fill="none"/>
+      <text font-family="Arial,Helvetica,sans-serif" font-size="11.5" fill="#5A5A40" font-weight="bold" letter-spacing="2">
+        <textPath href="#topArc" startOffset="50%" text-anchor="middle">SI ME VES PERDIDO</textPath>
+      </text>
+      <text font-family="Arial,Helvetica,sans-serif" font-size="10.5" fill="#D48C70" font-weight="bold" letter-spacing="1.5">
+        <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">ESCANEÁ EL QR</textPath>
+      </text>
+    </svg>`);
+
+    const circleMask = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104 104" width="104" height="104">
+      <circle cx="52" cy="52" r="52" fill="white"/>
+    </svg>`);
 
     const pwaIconPath = join(__dirname, '..', 'public', 'pwa-512x512.png');
-    const pwaIconBuf = readFileSync(pwaIconPath);
-    const logoCirclePng = await sharp({
-      input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-        <circle cx="100" cy="100" r="96" fill="#F5F5F0" stroke="#5A5A40" stroke-width="2.5"/>
-        <path id="topArc" d="M 28,100 A 72,72 0 0,1 172,100" fill="none"/>
-        <path id="bottomArc" d="M 24,108 A 76,76 0 0,0 176,108" fill="none"/>
-        <text font-family="Arial,Helvetica,sans-serif" font-size="11.5" fill="#5A5A40" font-weight="bold" letter-spacing="2">
-          <textPath href="#topArc" startOffset="50%" text-anchor="middle">SI ME VES PERDIDO</textPath>
-        </text>
-        <text font-family="Arial,Helvetica,sans-serif" font-size="10.5" fill="#D48C70" font-weight="bold" letter-spacing="1.5">
-          <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">ESCANEÁ EL QR</textPath>
-        </text>
-        <clipPath id="logoClip"><circle cx="100" cy="100" r="52"/></clipPath>
-        <image href="data:image/png;base64,${pwaIconBuf.toString('base64')}" x="48" y="48" width="104" height="104" clip-path="url(#logoClip)"/>
-        <circle cx="100" cy="100" r="52" fill="none" stroke="#5A5A40" stroke-width="1.5"/>
-      </svg>`),
-    }).png().toBuffer();
+    const iconResized = await sharp(pwaIconPath)
+      .resize(104, 104)
+      .composite([{ input: circleMask, blend: 'dest-in' }])
+      .png()
+      .toBuffer();
+
+    const logoBgPng = await sharp(logoBgSvg).png().toBuffer();
+
+    const logoCirclePng = await sharp(logoBgPng)
+      .composite([{ input: iconResized, left: 48, top: 48 }])
+      .png()
+      .toBuffer();
 
     const doc = new PDFDocument({ size: 'A4', margin: 0 });
     res.set('Content-Type', 'application/pdf');
