@@ -302,7 +302,7 @@ function drawArcText(doc, text, cx, cy, radius, startDeg, endDeg, color, reverse
     doc.save();
     doc.translate(x, y);
     doc.rotate(rot);
-    doc.fontSize(fs).fillColor(color).text(text[i], -fs * 0.15, -fs * 0.35, { width: fs * 0.7, align: 'center' });
+    doc.fontSize(fs).fillColor(color).text(text[i], 0, 0);
     doc.restore();
   }
 }
