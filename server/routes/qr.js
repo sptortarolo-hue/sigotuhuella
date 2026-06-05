@@ -299,10 +299,11 @@ function drawArcText(doc, text, cx, cy, radius, startDeg, endDeg, color, reverse
     const x = cx + radius * Math.cos(a);
     const y = cy + radius * Math.sin(a);
     const rot = (Math.atan2(radius * Math.cos(a), -radius * Math.sin(a)) * 180 / Math.PI) + (reverse ? 180 : 0);
+    const cw = doc.fontSize(fs).widthOfString(text[i]);
     doc.save();
     doc.translate(x, y);
     doc.rotate(rot);
-    doc.fontSize(fs).fillColor(color).text(text[i], 0, 0);
+    doc.fontSize(fs).fillColor(color).text(text[i], -cw / 2, 0);
     doc.restore();
   }
 }
