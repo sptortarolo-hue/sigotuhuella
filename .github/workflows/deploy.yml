@@ -5,63 +5,56 @@ on:
     branches: [main]
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@v1.2.5
-      env:
-        AZURE_TTS_KEY: ${{ secrets.AZURE_TTS_KEY }}
-        AZURE_TTS_KEY2: ${{ secrets.AZURE_TTS_KEY2 }}
-        AZURE_TTS_REGION: ${{ secrets.AZURE_TTS_REGION }}
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run build
+    - uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+    - name: Prep env file
+      run: |
+        echo "AZURE_TTS_KEY=${{ secrets.AZURE_TTS_KEY }}" >> server/.env
+        echo "AZURE_TTS_KEY2=${{ secrets.AZURE_TTS_KEY2 }}" >> server/.env
+        echo "AZURE_TTS_REGION=${{ secrets.AZURE_TTS_REGION }}" >> server/.env
+
+    - name: Copy dist to VPS
+      uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.SSH_HOST }}
         port: ${{ secrets.SSH_PORT }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
-        envs: AZURE_TTS_KEY,AZURE_TTS_KEY2,AZURE_TTS_REGION
-        script_stop: true
+        source: "dist/,server/,package.json"
+        target: /var/www/sigotuhuella
+        strip_components: 0
+
+    - name: Remote deploy
+      uses: appleboy/ssh-action@v1.2.5
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        port: ${{ secrets.SSH_PORT }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
         script: |
-            set -e
-            cd /var/www/sigotuhuella
-            echo "=== [1/6] git pull ==="
-            git pull
-            if [ ! -f /swapfile ]; then
-              echo "=== Creating swapfile ==="
-              sudo fallocate -l 1G /swapfile
-              sudo chmod 600 /swapfile
-              sudo mkswap /swapfile
-              sudo swapon /swapfile
-            fi
-            echo "=== [2/6] Installing ffmpeg ==="
-            sudo apt-get update -qq
-            sudo apt-get install -y --no-install-recommends ffmpeg
-            if [ -n "$AZURE_TTS_KEY" ]; then
-              grep -q "^AZURE_TTS_KEY=" server/.env 2>/dev/null && sed -i "s|^AZURE_TTS_KEY=.*|AZURE_TTS_KEY=$AZURE_TTS_KEY|" server/.env || echo "AZURE_TTS_KEY=$AZURE_TTS_KEY" >> server/.env
-            fi
-            if [ -n "$AZURE_TTS_KEY2" ]; then
-              grep -q "^AZURE_TTS_KEY2=" server/.env 2>/dev/null && sed -i "s|^AZURE_TTS_KEY2=.*|AZURE_TTS_KEY2=$AZURE_TTS_KEY2|" server/.env || echo "AZURE_TTS_KEY2=$AZURE_TTS_KEY2" >> server/.env
-            fi
-            if [ -n "$AZURE_TTS_REGION" ]; then
-              grep -q "^AZURE_TTS_REGION=" server/.env 2>/dev/null && sed -i "s|^AZURE_TTS_REGION=.*|AZURE_TTS_REGION=$AZURE_TTS_REGION|" server/.env || echo "AZURE_TTS_REGION=$AZURE_TTS_REGION" >> server/.env
-            fi
-            echo "=== [3/6] npm install ==="
-            npm install --no-optional
-            echo "=== [4/6] Backing up dist ==="
-            cp -r dist dist_backup 2>/dev/null || true
-            echo "=== [5/6] Building ==="
-            export NODE_OPTIONS="--max-old-space-size=512"
-            if npm run build; then
-              echo "=== Build succeeded ==="
-              rm -rf dist_backup
-            else
-              echo "!!! BUILD FAILED - restoring backup !!!"
-              rm -rf dist
-              mv dist_backup dist 2>/dev/null || true
-              exit 1
-            fi
-            echo "=== [6/6] Restarting PM2 ==="
-            if ! pm2 restart sigotuhuella; then
-              pm2 start npm --name sigotuhuella -- start
-            fi
-            echo "=== Deploy complete ==="
+          cd /var/www/sigotuhuella
+          if [ ! -f /swapfile ]; then
+            sudo fallocate -l 1G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          npm install --production
+          if ! pm2 restart sigotuhuella; then
+            pm2 start npm --name sigotuhuella -- start
+          fi
