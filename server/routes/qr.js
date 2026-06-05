@@ -5,11 +5,7 @@ import { sendPushToAdmins, sendPushToUser } from '../services/pushService.js';
 import QRCode from 'qrcode';
 import PDFDocument from 'pdfkit';
 import sharp from 'sharp';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const router = Router();
 
@@ -292,20 +288,19 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
 
     const identifiers = result.rows;
     const PER_PAGE = 10;
-    const MARGIN_X = 40;
-    const MARGIN_Y = 50;
+    const MARGIN_X = 35;
+    const MARGIN_Y = 45;
     const PAGE_W = 595.28;
     const PAGE_H = 841.89;
+    const CIRCLE_R = 55;
+    const CIRCLE_D = CIRCLE_R * 2;
+    const QR_SIZE = Math.round(CIRCLE_D * 0.75);
+    const QR_Y_OFFSET = -8;
     const COL_W = (PAGE_W - MARGIN_X * 2) / 2;
-    const ROW_H = (PAGE_H - MARGIN_Y - 30) / 5;
-    const CIRCLE_R = 70;
-    const QR_SIZE = Math.round(CIRCLE_R * 2 * 0.75);
-    const QR_Y_OFFSET = -12;
-    const LOGO_SIZE = 200;
+    const ROW_H = (PAGE_H - MARGIN_Y - 25) / 5;
 
-    const logoBgSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${LOGO_SIZE} ${LOGO_SIZE}" width="${LOGO_SIZE}" height="${LOGO_SIZE}">
-      <rect width="${LOGO_SIZE}" height="${LOGO_SIZE}" fill="transparent"/>
-      <circle cx="100" cy="100" r="96" fill="#F5F5F0" stroke="#5A5A40" stroke-width="2.5"/>
+    const logoSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+      <circle cx="100" cy="100" r="97" fill="#F5F5F0" stroke="#5A5A40" stroke-width="2.5"/>
       <path id="topArc" d="M 28,100 A 72,72 0 0,1 172,100" fill="none"/>
       <path id="bottomArc" d="M 24,108 A 76,76 0 0,0 176,108" fill="none"/>
       <text font-family="Arial,Helvetica,sans-serif" font-size="11.5" fill="#5A5A40" font-weight="bold" letter-spacing="2">
@@ -314,25 +309,19 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
       <text font-family="Arial,Helvetica,sans-serif" font-size="10.5" fill="#D48C70" font-weight="bold" letter-spacing="1.5">
         <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">ESCANEÁ EL QR</textPath>
       </text>
+      <circle cx="100" cy="100" r="42" fill="#5A5A40"/>
+      <g transform="translate(74,68) scale(0.42)" fill="#F5F5F0">
+        <ellipse cx="26" cy="10" rx="8" ry="10"/>
+        <ellipse cx="50" cy="6" rx="7" ry="9"/>
+        <ellipse cx="4" cy="16" rx="7" ry="8"/>
+        <ellipse cx="72" cy="14" rx="6" ry="8"/>
+        <path d="M 10,28 C 10,55 30,70 38,70 C 46,70 66,55 66,28 C 66,18 56,22 38,22 C 20,22 10,18 10,28 Z"/>
+      </g>
+      <text x="100" y="116" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" fill="#F5F5F0" font-weight="bold">SIGO TU</text>
+      <text x="100" y="128" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" fill="#F5F5F0" font-weight="bold">HUELLA</text>
+      <circle cx="100" cy="100" r="42" fill="none" stroke="#D48C70" stroke-width="1.5"/>
     </svg>`);
-
-    const circleMask = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104 104" width="104" height="104">
-      <circle cx="52" cy="52" r="52" fill="white"/>
-    </svg>`);
-
-    const pwaIconPath = join(__dirname, '..', 'public', 'pwa-512x512.png');
-    const iconResized = await sharp(pwaIconPath)
-      .resize(104, 104)
-      .composite([{ input: circleMask, blend: 'dest-in' }])
-      .png()
-      .toBuffer();
-
-    const logoBgPng = await sharp(logoBgSvg).png().toBuffer();
-
-    const logoCirclePng = await sharp(logoBgPng)
-      .composite([{ input: iconResized, left: 48, top: 48 }])
-      .png()
-      .toBuffer();
+    const logoPng = await sharp(logoSvg).png().toBuffer();
 
     const doc = new PDFDocument({ size: 'A4', margin: 0 });
     res.set('Content-Type', 'application/pdf');
@@ -367,7 +356,7 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
             .text(ident.code, cx - CIRCLE_R, cy + QR_Y_OFFSET + CIRCLE_R - 14, { width: CIRCLE_R * 2, align: 'center' });
         } else {
           doc.circle(cx, cy, CIRCLE_R).fill('#ffffff');
-          doc.image(logoCirclePng, cx - CIRCLE_R, cy - CIRCLE_R, { width: CIRCLE_R * 2 });
+          doc.image(logoPng, cx - CIRCLE_R, cy - CIRCLE_R, { width: CIRCLE_R * 2 });
           doc.circle(cx, cy, CIRCLE_R).lineWidth(1.5).strokeColor('#5A5A40').stroke();
         }
       }
