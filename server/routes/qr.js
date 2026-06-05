@@ -365,8 +365,7 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
           doc.circle(cx, cy, CIRCLE_R).fill('#ffffff');
           doc.image(logoPng, cx - CIRCLE_R, cy - CIRCLE_R, { width: CIRCLE_R * 2 });
           doc.circle(cx, cy, CIRCLE_R).lineWidth(1.5).strokeColor('#5A5A40').stroke();
-          drawArcText(doc, 'SI ME VES PERDIDO', cx, cy, CIRCLE_R, 190, 350, COLORS.olive, false);
-          drawArcText(doc, 'ESCANEÁ EL QR', cx, cy, CIRCLE_R, 10, 170, COLORS.terracotta, true);
+          drawArcText(doc, 'SI ME VES PERDIDO', cx, cy, 41, 190, 350, COLORS.olive, false);
         }
       }
     }
