@@ -333,18 +333,20 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Batch no encontrado' });
 
     const identifiers = result.rows;
-    const PER_PAGE = 10;
-    const MARGIN_X = 35;
+    const PER_PAGE = 18;
+    const MARGIN_X = 25;
     const MARGIN_Y = 45;
     const PAGE_W = 595.28;
     const PAGE_H = 841.89;
     const CIRCLE_R = 55;
     const CIRCLE_D = CIRCLE_R * 2;
     const QR_SIZE = Math.round(CIRCLE_D * 0.70);
+    const QR_PX = 400;
     const QR_Y_OFFSET = -8;
     const COLORS = { olive: '#5A5A40', terracotta: '#D48C70' };
-    const COL_W = (PAGE_W - MARGIN_X * 2) / 2;
-    const ROW_H = (PAGE_H - MARGIN_Y - 25) / 5;
+    const COLS = 3;
+    const COL_W = (PAGE_W - MARGIN_X * 2) / COLS;
+    const ROW_H = (PAGE_H - MARGIN_Y - 25) / 6;
     const logoPng = readFileSync(join(__dirname, '..', '..', 'public', 'qr-logo.png'));
 
     const doc = new PDFDocument({ size: 'A4', margin: 0 });
@@ -361,15 +363,15 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
         .text('Sigo Tu Huella — Identificación Digital', MARGIN_X, 18, { width: PAGE_W - MARGIN_X * 2, align: 'center' });
 
       for (let i = 0; i < PER_PAGE && (page + i) < identifiers.length; i++) {
-        const row = Math.floor(i / 2);
-        const isLeft = i % 2 === 0;
-        const cx = isLeft ? MARGIN_X + COL_W / 2 : MARGIN_X + COL_W + COL_W / 2;
+        const col = i % COLS;
+        const row = Math.floor(i / COLS);
+        const cx = MARGIN_X + col * COL_W + COL_W / 2;
         const cy = MARGIN_Y + row * ROW_H + ROW_H / 2;
         const ident = identifiers[page + i];
 
-        if (isLeft) {
+        if (i % 2 === 0) {
           const qrDataUrl = await QRCode.toDataURL(`${FRONTEND_URL}/mascota/${ident.share_token}`, {
-            width: QR_SIZE,
+            width: QR_PX,
             margin: 0,
             color: { dark: '#5A5A40', light: '#ffffff' },
           });
