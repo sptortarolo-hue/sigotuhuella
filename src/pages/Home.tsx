@@ -4,12 +4,16 @@ import { motion } from 'motion/react';
 import { useState, useEffect } from 'react';
 import NewsCarousel from '@/src/components/NewsCarousel';
 import { getNews } from '@/src/lib/newsService';
+import { api } from '@/src/lib/api';
+import { formatTag } from '@/src/lib/personalityTags';
 
 export default function Home() {
   const [news, setNews] = useState<any[]>([]);
+  const [featuredPet, setFeaturedPet] = useState<any>(null);
 
   useEffect(() => {
     getNews().then(setNews).catch(() => {});
+    api.myPets.featured().then((data: any) => { if (data.pet) setFeaturedPet(data.pet); }).catch(() => {});
   }, []);
 
   return (
@@ -86,6 +90,45 @@ export default function Home() {
 
       {/* News Carousel */}
       <NewsCarousel news={news} />
+
+      {/* Mascota del mes */}
+      {featuredPet && (
+        <section className="py-12 sm:py-16 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-2 mb-6">
+              <span className="px-3 py-1 bg-brand-secondary/10 text-brand-secondary rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+                Mascota del mes
+              </span>
+            </div>
+            <div className="bg-brand-bg rounded-[2.5rem] p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-6">
+              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl overflow-hidden bg-brand-accent shrink-0">
+                <img
+                  src={`/my-pet-avatar/${featuredPet.id}`}
+                  alt={featuredPet.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="text-center sm:text-left">
+                <h3 className="text-xl sm:text-2xl font-bold text-brand-primary">{featuredPet.name}</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {featuredPet.species === 'dog' ? 'Perro' : featuredPet.species === 'cat' ? 'Gato' : 'Otro'}
+                  {featuredPet.breed ? ` · ${featuredPet.breed}` : ''}
+                </p>
+                {featuredPet.bio && <p className="text-sm text-gray-600 mt-2 italic">"{featuredPet.bio}"</p>}
+                {featuredPet.personality_tags?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-3 justify-center sm:justify-start">
+                    {featuredPet.personality_tags.slice(0, 5).map((tag: string) => (
+                      <span key={tag} className="text-[10px] sm:text-xs px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded-full">
+                        {formatTag(tag)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Diffusion callout */}
       <section className="py-12 bg-brand-bg/30">

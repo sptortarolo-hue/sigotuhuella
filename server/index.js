@@ -18,6 +18,7 @@ import whatsappRoutes from './routes/whatsapp.js';
 import aiRoutes from './routes/ai.js';
 import videoGeneratorRoutes from './routes/videoGenerator.js';
 import myPetsRoutes from './routes/myPets.js';
+import qrRoutes from './routes/qr.js';
 import pushRoutes from './routes/push.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
@@ -139,6 +140,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/my-pets', myPetsRoutes);
+app.use('/api/qr', qrRoutes);
 
 app.use('/api/push', (req, res, next) => {
   const header = req.headers.authorization;
@@ -236,6 +238,109 @@ ${imageType ? `<meta property="og:image:type" content="${escapeHtml(imageType)}"
   } catch (err) {
     console.error('OG news error:', err);
     res.send(indexHtml);
+  }
+});
+
+app.get('/mascota/:token', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT mp.name, mp.species, mp.breed, mp.bio, mp.avatar_image IS NOT NULL as has_avatar, qi.code
+       FROM qr_identifiers qi JOIN my_pets mp ON mp.id = qi.my_pet_id
+       WHERE qi.share_token = $1`,
+      [req.params.token]
+    );
+    const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'https';
+    const baseUrl = `${protocol}://${req.get('host')}`;
+    let title = 'Mascota - Sigo Tu Huella';
+    let description = 'Identificación digital de mascotas - Sigo Tu Huella';
+    const image = `${baseUrl}/sigotuhuella.jpg`;
+    if (result.rows.length > 0) {
+      const pet = result.rows[0];
+      const speciesLabels = { dog: 'Perro', cat: 'Gato', other: 'Otro' };
+      title = `${pet.name} - ${speciesLabels[pet.species] || 'Mascota'} | Sigo Tu Huella`;
+      description = pet.bio ? pet.bio.substring(0, 160) : `${pet.name} — Identificado con QR ${pet.code}`;
+    }
+    const ogTags = `<meta property="og:title" content="${escapeHtml(title)}" />
+<meta property="og:description" content="${escapeHtml(description)}" />
+<meta property="og:url" content="${baseUrl}/mascota/${req.params.token}" />
+<meta property="og:type" content="website" />
+<meta property="og:locale" content="es_AR" />
+<meta property="og:image" content="${escapeHtml(image)}" />
+<meta name="twitter:card" content="summary" />
+</head>`;
+    res.send(indexHtml.replace('</head>', ogTags));
+  } catch (err) {
+    console.error('OG mascota error:', err);
+    res.send(indexHtml);
+  }
+});
+
+app.get('/vet/:token', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT mp.name, mp.species FROM my_pets mp WHERE mp.vet_share_token = $1 AND mp.vet_share_enabled = true`,
+      [req.params.token]
+    );
+    const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'https';
+    const baseUrl = `${protocol}://${req.get('host')}`;
+    let title = 'Perfil Veterinario - Sigo Tu Huella';
+    let description = 'Historia clínica compartida - Sigo Tu Huella';
+    const image = `${baseUrl}/sigotuhuella.jpg`;
+    if (result.rows.length > 0) {
+      const pet = result.rows[0];
+      title = `${pet.name} - Ficha Veterinaria | Sigo Tu Huella`;
+      description = `Historia clínica de ${pet.name}`;
+    }
+    const ogTags = `<meta property="og:title" content="${escapeHtml(title)}" />
+<meta property="og:description" content="${escapeHtml(description)}" />
+<meta property="og:url" content="${baseUrl}/vet/${req.params.token}" />
+<meta property="og:type" content="website" />
+<meta property="og:locale" content="es_AR" />
+<meta property="og:image" content="${escapeHtml(image)}" />
+<meta name="twitter:card" content="summary" />
+</head>`;
+    res.send(indexHtml.replace('</head>', ogTags));
+  } catch (err) {
+    console.error('OG vet error:', err);
+    res.send(indexHtml);
+  }
+});
+
+app.get('/api/vet/:token', async (req, res) => {
+  try {
+    const petResult = await pool.query(
+      `SELECT mp.*, u.display_name as owner_name, u.phone as owner_phone, u.email as owner_email
+       FROM my_pets mp JOIN users u ON u.id = mp.user_id
+       WHERE mp.vet_share_token = $1 AND mp.vet_share_enabled = true`,
+      [req.params.token]
+    );
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'Token inválido o deshabilitado' });
+
+    const pet = petResult.rows[0];
+    const recordsResult = await pool.query(
+      'SELECT * FROM pet_records WHERE my_pet_id = $1 ORDER BY COALESCE(record_date, created_at) DESC',
+      [pet.id]
+    );
+    const eventsResult = await pool.query(
+      'SELECT * FROM my_pet_events WHERE my_pet_id = $1 ORDER BY event_date DESC',
+      [pet.id]
+    );
+
+    res.json({
+      pet: {
+        id: pet.id, name: pet.name, species: pet.species, breed: pet.breed,
+        color: pet.color, gender: pet.gender, birth_date: pet.birth_date,
+        weight_kg: pet.weight_kg, chip_id: pet.chip_id,
+        is_vaccinated: pet.is_vaccinated, is_sterilized: pet.is_sterilized,
+        is_dewormed: pet.is_dewormed, bio: pet.bio,
+        owner_name: pet.owner_name, owner_phone: pet.owner_phone,
+        owner_email: pet.owner_email,
+        records: recordsResult.rows, events: eventsResult.rows,
+      },
+    });
+  } catch (err) {
+    console.error('vet API error:', err);
+    res.status(500).json({ error: 'Error al obtener perfil veterinario' });
   }
 });
 

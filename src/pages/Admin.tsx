@@ -23,14 +23,14 @@ import VideoGeneratorTab from '@/src/pages/admin/VideoGeneratorTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw,   HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award, MessageSquare, FlaskConical, Map, Film
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award, MessageSquare, FlaskConical, Map, Film, QrCode, Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'public'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'public' | 'videos' | 'qr'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -131,13 +131,20 @@ export default function Admin() {
   const [waMessages, setWaMessages] = useState<any[]>([]);
   const [waMessagesLoading, setWaMessagesLoading] = useState(false);
 
+  // QR State
+  const [qrUnassigned, setQrUnassigned] = useState<any[]>([]);
+  const [qrRequests, setQrRequests] = useState<any[]>([]);
+  const [qrBatchCount, setQrBatchCount] = useState(12);
+  const [qrBatchLoading, setQrBatchLoading] = useState(false);
+  const [qrAssignLoading, setQrAssignLoading] = useState<string | null>(null);
+
   useEffect(() => {
     fetchAll();
   }, []);
 
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchPets(), fetchAccounts(), fetchVolunteers(), fetchUsers(), fetchNews(), fetchSettings()]);
+    await Promise.all([fetchPets(), fetchAccounts(), fetchVolunteers(), fetchUsers(), fetchNews(), fetchSettings(), fetchQrData()]);
     setLoading(false);
   };
 
@@ -148,6 +155,49 @@ export default function Admin() {
       data.forEach((s: any) => { map[s.key] = s.value; });
       setWhatsappSettings(map);
     } catch (e) { console.error(e); }
+  };
+
+  const fetchQrData = async () => {
+    try {
+      const [unassigned, requests] = await Promise.all([
+        api.qr.unassigned(),
+        api.qr.requests(),
+      ]);
+      setQrUnassigned(unassigned.identifiers || []);
+      setQrRequests(requests.requests || []);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleQrBatch = async () => {
+    try {
+      setQrBatchLoading(true);
+      await api.qr.batch(qrBatchCount);
+      await fetchQrData();
+    } catch (e: any) {
+      alert(e.message || 'Error al generar QRs');
+    } finally {
+      setQrBatchLoading(false);
+    }
+  };
+
+  const handleQrAssign = async (qrId: string, myPetId: string) => {
+    try {
+      setQrAssignLoading(myPetId);
+      await api.qr.assign(qrId, myPetId);
+      await fetchQrData();
+    } catch (e: any) {
+      alert(e.message || 'Error al asignar QR');
+    } finally {
+      setQrAssignLoading(null);
+    }
+  };
+
+  const handleQrPdf = async (batchId: string) => {
+    try {
+      await api.qr.batchPdf(batchId);
+    } catch (e: any) {
+      alert(e.message || 'Error al descargar PDF');
+    }
   };
 
   const fetchWaMessages = async () => {
@@ -579,6 +629,7 @@ export default function Admin() {
           { id: 'public', label: 'Reportes Públicos', icon: FileText },
           { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
           { id: 'videos', label: 'Videos', icon: Film },
+  { id: 'qr', label: 'QR', icon: QrCode },
         ].map(tab => (
           <button
             key={tab.id}
@@ -1461,9 +1512,105 @@ export default function Admin() {
            )}
 
            {/* ====== VIDEOS ====== */}
-           {activeTab === 'videos' && (
-             <VideoGeneratorTab />
-           )}
+{activeTab === 'videos' && (
+  <VideoGeneratorTab />
+)}
+
+{activeTab === 'qr' && (
+  <div className="space-y-6">
+    <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+      <h3 className="text-lg font-bold text-brand-primary mb-4 flex items-center gap-2">
+        <QrCode className="w-5 h-5" /> Generar lote de QRs
+      </h3>
+      <div className="flex items-end gap-4">
+        <div>
+          <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Cantidad</label>
+          <input
+            type="number" min={1} max={500} value={qrBatchCount}
+            onChange={e => setQrBatchCount(parseInt(e.target.value) || 12)}
+            className="w-24 mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+          />
+        </div>
+        <button
+          onClick={handleQrBatch}
+          disabled={qrBatchLoading}
+          className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+        >
+          {qrBatchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+          Generar
+        </button>
+      </div>
+    </div>
+
+    {qrRequests.length > 0 && (
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <h3 className="text-lg font-bold text-brand-primary mb-4">Solicitudes de QR ({qrRequests.length})</h3>
+        <div className="space-y-3">
+          {qrRequests.map((req: any) => (
+            <div key={req.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-brand-bg rounded-2xl">
+              <div>
+                <p className="text-sm font-bold text-gray-800">{req.name} <span className="font-normal text-gray-400">({req.species}{req.breed ? ` · ${req.breed}` : ''})</span></p>
+                <p className="text-xs text-gray-400">De: {req.display_name} {req.email ? `· ${req.email}` : ''}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  onChange={async (e) => {
+                    if (e.target.value) await handleQrAssign(e.target.value, req.id);
+                  }}
+                  disabled={qrAssignLoading === req.id}
+                  className="px-3 py-2 bg-white rounded-xl border border-brand-accent text-xs outline-none"
+                  defaultValue=""
+                >
+                  <option value="" disabled>Asignar QR...</option>
+                  {qrUnassigned.map(qr => (
+                    <option key={qr.id} value={qr.id}>{qr.code}</option>
+                  ))}
+                </select>
+                {qrAssignLoading === req.id && <Loader2 className="w-4 h-4 animate-spin text-brand-primary" />}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {qrUnassigned.length > 0 && (
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <h3 className="text-lg font-bold text-brand-primary mb-4">QRs sin asignar ({qrUnassigned.length})</h3>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {[...new Set(qrUnassigned.map((q: any) => q.batch_id))].map(batchId => (
+            <button
+              key={batchId}
+              onClick={() => handleQrPdf(batchId)}
+              className="px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
+            >
+              <Download className="w-3 h-3" /> PDF {batchId?.replace('batch-', '').slice(0, 6)}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+          {qrUnassigned.slice(0, 48).map((qr: any) => (
+            <div key={qr.id} className="p-2 bg-brand-bg rounded-xl text-center">
+              <p className="text-xs font-mono font-bold text-brand-primary">{qr.code}</p>
+            </div>
+          ))}
+          {qrUnassigned.length > 48 && (
+            <div className="p-2 bg-brand-bg rounded-xl text-center flex items-center justify-center">
+              <p className="text-xs text-gray-400">+{qrUnassigned.length - 48}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+
+    {qrRequests.length === 0 && qrUnassigned.length === 0 && (
+      <div className="bg-white rounded-[2.5rem] border border-dashed border-brand-accent p-8 text-center">
+        <QrCode className="w-12 h-12 text-brand-accent mx-auto mb-3" />
+        <p className="text-gray-400">No hay QRs generados ni solicitudes pendientes.</p>
+      </div>
+    )}
+  </div>
+)}
           </div>
         )}
 

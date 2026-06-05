@@ -134,6 +134,9 @@ export const api = {
     create: (data: any) => request('/my-pets', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => request(`/my-pets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/my-pets/${id}`, { method: 'DELETE' }),
+    requestQr: (id: string) => request(`/my-pets/${id}/request-qr`, { method: 'POST' }),
+    vetShare: (id: string, enabled: boolean) => request(`/my-pets/${id}/vet-share`, { method: 'POST', body: JSON.stringify({ enabled }) }),
+    featured: () => request('/my-pets/featured'),
     photos: {
       list: (petId: string) => request(`/my-pets/${petId}/photos`),
       create: (petId: string, data: any) => request(`/my-pets/${petId}/photos`, { method: 'POST', body: JSON.stringify(data) }),
@@ -149,6 +152,33 @@ export const api = {
       create: (petId: string, data: any) => request(`/my-pets/${petId}/records`, { method: 'POST', body: JSON.stringify(data) }),
     },
     reminders: (petId: string) => request(`/my-pets/${petId}/reminders`),
-    convert: (petId: string) => request(`/my-pets/convert/${petId}`, { method: 'POST' }),
+    convert: (petId: string, extra?: { bio?: string; birth_date?: string; weight_kg?: number; personality_tags?: string[] }) =>
+      request(`/my-pets/convert/${petId}`, { method: 'POST', body: extra ? JSON.stringify(extra) : undefined }),
+  },
+  qr: {
+    batch: (count: number) => request('/qr/batch', { method: 'POST', body: JSON.stringify({ count }) }),
+    unassigned: () => request('/qr/unassigned'),
+    requests: () => request('/qr/requests'),
+    assign: (qrId: string, myPetId: string) => request('/qr/assign', { method: 'POST', body: JSON.stringify({ qr_id: qrId, my_pet_id: myPetId }) }),
+    claim: (code: string, myPetId: string) => request('/qr/claim', { method: 'POST', body: JSON.stringify({ code, my_pet_id: myPetId }) }),
+    public: (token: string) => request(`/qr/public/${token}`),
+    found: (token: string, data: any) => request(`/qr/public/${token}/found`, { method: 'POST', body: JSON.stringify(data) }),
+    batchPdf: (batchId: string) => {
+      const token = getToken();
+      return fetch(`/api/qr/batch/${batchId}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).then(async res => {
+        if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Error al descargar PDF'); }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `qr-${batchId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    },
   },
 };

@@ -174,6 +174,22 @@ CREATE TABLE IF NOT EXISTS my_pet_events (
 );
 
 ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS my_pet_id UUID REFERENCES my_pets(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS qr_identifiers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code VARCHAR(8) UNIQUE NOT NULL,
+  share_token UUID UNIQUE NOT NULL,
+  my_pet_id UUID REFERENCES my_pets(id),
+  batch_id VARCHAR(50),
+  assigned_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS qr_id UUID REFERENCES qr_identifiers(id);
+ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS qr_requested BOOLEAN DEFAULT FALSE;
+ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS vet_share_token UUID;
+ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS vet_share_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
 `;
 
 export async function initDb() {

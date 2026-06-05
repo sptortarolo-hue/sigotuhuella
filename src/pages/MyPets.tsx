@@ -8,9 +8,10 @@ import PetCard from '@/src/components/PetCard';
 import PetMap from '@/src/components/PetMap';
 import MapLoader from '@/src/components/MapLoader';
 import PetRecordsModal from '@/src/components/PetRecordsModal';
-import { Search, Loader2, Grid, Map as MapIcon, ArrowLeft, PawPrint, X, Save, HeartHandshake, Activity, Heart } from 'lucide-react';
+import { Search, Loader2, Grid, Map as MapIcon, ArrowLeft, PawPrint, X, Save, HeartHandshake, Activity, Heart, ChevronRight, ChevronLeft, Check, Calendar, Weight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { ALL_TAGS, formatTag } from '@/src/lib/personalityTags';
 
 const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
 
@@ -22,6 +23,41 @@ export default function MyPets() {
   const [filter, setFilter] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
   const [activeRecordsPet, setActiveRecordsPet] = useState<{id: string, name: string} | null>(null);
+
+  const [convertWizard, setConvertWizard] = useState<{ pet: Pet; step: 1 | 2 } | null>(null);
+  const [convertLoading, setConvertLoading] = useState(false);
+  const [convertBio, setConvertBio] = useState('');
+  const [convertBirthDate, setConvertBirthDate] = useState('');
+  const [convertWeight, setConvertWeight] = useState('');
+  const [convertTags, setConvertTags] = useState<string[]>([]);
+
+  const openConvertWizard = (pet: Pet) => {
+    setConvertBio(pet.description || '');
+    setConvertBirthDate('');
+    setConvertWeight('');
+    setConvertTags([]);
+    setConvertWizard({ pet, step: 1 });
+  };
+
+  const handleConvert = async () => {
+    if (!convertWizard) return;
+    setConvertLoading(true);
+    try {
+      const extra: any = {};
+      if (convertBio) extra.bio = convertBio;
+      if (convertBirthDate) extra.birth_date = convertBirthDate;
+      if (convertWeight) extra.weight_kg = parseFloat(convertWeight);
+      if (convertTags.length > 0) extra.personality_tags = convertTags;
+      const result = await api.myPets.convert(convertWizard.pet.id, Object.keys(extra).length > 0 ? extra : undefined);
+      setConvertWizard(null);
+      navigate(`/mi-mascota/${result.myPet.id}`);
+    } catch (e) {
+      console.error(e);
+      alert('Error al convertir la mascota.');
+    } finally {
+      setConvertLoading(false);
+    }
+  };
 
   // Edit state
   const [showForm, setShowForm] = useState(false);
@@ -72,17 +108,6 @@ export default function MyPets() {
       (p.color && p.color.toLowerCase().includes(q))
     );
   });
-
-  const handleConvert = async (petId: string) => {
-    if (!confirm('¿Convertir esta mascota en "Mi Mascota"? Se creará su perfil en el portal.')) return;
-    try {
-      const result = await api.myPets.convert(petId);
-      navigate(`/mi-mascota/${result.myPet.id}`);
-    } catch (e) {
-      console.error(e);
-      alert('Error al convertir la mascota.');
-    }
-  };
 
   const handleReencuentro = async (petId: string) => {
     if (!confirm('¿Marcar esta mascota como "Hubo reencuentro"?')) return;
@@ -237,15 +262,14 @@ export default function MyPets() {
                     </button>
                   </div>
                 )}
-        {pet.status === PetStatus.REUNITED && (
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={() => handleConvert(pet.id)}
-              className="flex-1 py-2.5 bg-brand-secondary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-secondary/90 transition-colors"
-            >
-              <Heart className="w-4 h-4" />
-              Mi Mascota
-            </button>
+                {pet.status === PetStatus.REUNITED && (
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => openConvertWizard(pet)}
+                      className="flex-1 py-2.5 bg-brand-secondary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-secondary/90 transition-colors"
+                    >
+                      <Heart className="w-4 h-4" /> Mi Mascota
+                    </button>
             <button
               onClick={() => setActiveRecordsPet({ id: pet.id, name: pet.name || 'Mascota' })}
               className="flex-1 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-colors"
@@ -397,6 +421,104 @@ export default function MyPets() {
             petName={activeRecordsPet.name}
             onClose={() => setActiveRecordsPet(null)}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {convertWizard && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setConvertWizard(null)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+              <div className="p-6 sm:p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+                <h2 className="text-xl sm:text-2xl font-serif font-bold text-brand-primary">
+                  {convertWizard.step === 1 ? 'Datos que se copiarán' : 'Completá su perfil'}
+                </h2>
+                <button onClick={() => setConvertWizard(null)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
+              </div>
+
+              <div className="p-6 sm:p-8 overflow-y-auto">
+                {convertWizard.step === 1 && (() => {
+                  const p = convertWizard.pet;
+                  const speciesLabel = p.species === 'dog' ? 'Perro' : p.species === 'cat' ? 'Gato' : 'Otro';
+                  const genderLabel = p.gender === 'male' ? 'Macho' : p.gender === 'female' ? 'Hembra' : 'Desconocido';
+                  const rows = [
+                    ['Nombre', p.name],
+                    ['Especie', speciesLabel],
+                    ['Raza', p.breed],
+                    ['Color', p.color],
+                    ['Sexo', genderLabel],
+                    ['Vacunado', p.is_vaccinated ? 'Sí' : 'No'],
+                    ['Castrado', p.is_sterilized ? 'Sí' : 'No'],
+                    ['Desparasitado', p.is_dewormed ? 'Sí' : 'No'],
+                  ];
+                  return (
+                    <div className="space-y-4">
+                      <p className="text-sm text-gray-500">Estos datos se copiarán de la publicación original al nuevo perfil Mi Mascota:</p>
+                      <div className="space-y-2">
+                        {rows.map(([label, value]) => (
+                          <div key={label} className="flex justify-between items-center py-2 border-b border-brand-accent/50">
+                            <span className="text-xs font-bold uppercase text-gray-400">{label}</span>
+                            <span className={cn("text-sm font-medium", value ? "text-gray-800" : "text-gray-300 italic")}>{value || 'Sin dato'}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {p.description && (
+                        <div>
+                          <p className="text-xs font-bold uppercase text-gray-400 mb-1">Descripción → Bio</p>
+                          <p className="text-sm text-gray-700 bg-brand-bg rounded-xl p-3">{p.description}</p>
+                          <p className="text-xs text-brand-secondary mt-1">Podés editar la bio en el siguiente paso</p>
+                        </div>
+                      )}
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                        <p className="text-xs text-amber-700">Fecha de nacimiento, peso y personalidad no tienen equivalente en la publicación original. Podés completarlos en el siguiente paso.</p>
+                      </div>
+                      <button onClick={() => setConvertWizard({ ...convertWizard, step: 2 })} className="w-full py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-colors">
+                        Siguiente <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {convertWizard.step === 2 && (
+                  <div className="space-y-5">
+                    <div>
+                      <label className="text-xs font-bold uppercase text-gray-400">Bio</label>
+                      <textarea rows={3} className="w-full mt-1 px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm" value={convertBio} onChange={e => setConvertBio(e.target.value)} placeholder="Contá algo sobre tu mascota..." />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold uppercase text-gray-400 flex items-center gap-1"><Calendar className="w-3 h-3" /> Fecha de nacimiento</label>
+                        <input type="date" className="w-full mt-1 px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm" value={convertBirthDate} onChange={e => setConvertBirthDate(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase text-gray-400 flex items-center gap-1"><Weight className="w-3 h-3" /> Peso (kg)</label>
+                        <input type="number" step="0.1" min="0" className="w-full mt-1 px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm" value={convertWeight} onChange={e => setConvertWeight(e.target.value)} placeholder="Ej: 8.5" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase text-gray-400 block mb-2">Personalidad</label>
+                      <div className="flex flex-wrap gap-2">
+                        {ALL_TAGS.map(tag => (
+                          <button key={tag} type="button" onClick={() => setConvertTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
+                            className={cn("px-3 py-1.5 rounded-full text-xs font-medium transition-all border", convertTags.includes(tag) ? "bg-brand-primary text-white border-brand-primary" : "bg-brand-bg text-gray-600 border-brand-accent hover:border-brand-primary")}>
+                            {formatTag(tag)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                      <button onClick={() => setConvertWizard({ ...convertWizard, step: 1 })} className="flex-1 py-3 bg-brand-accent text-brand-primary rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-brand-accent/80 transition-colors">
+                        <ChevronLeft className="w-4 h-4" /> Volver
+                      </button>
+                      <button onClick={handleConvert} disabled={convertLoading} className="flex-1 py-3 bg-brand-secondary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-brand-secondary/90 transition-colors disabled:opacity-50">
+                        {convertLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Crear Mi Mascota
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

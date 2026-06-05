@@ -1,14 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { compressImage, fileToBase64 } from '@/src/lib/storageService';
+import { formatTag } from '@/src/lib/personalityTags';
 import {
   PawPrint, ArrowLeft, Loader2, Syringe, Scissors, Bug, Weight,
   Calendar, Plus, X, Save, Camera, Trash2, Sparkles, Heart,
   Dog, Cat, Edit3, Image as ImageIcon, Activity, Clock,
+  QrCode, Share2, Stethoscope, Copy, Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import QRCode from 'qrcode';
 
 const EVENT_TYPES = [
   { value: 'vaccine', label: 'Vacuna', icon: '💉' },
@@ -31,6 +34,7 @@ const RECORD_TYPES = [
   { value: 'study', label: 'Estudio' },
   { value: 'expense', label: 'Gasto' },
   { value: 'note', label: 'Nota' },
+  { value: 'weight', label: 'Peso' },
 ];
 
 function getAge(birthDate: string) {
@@ -76,6 +80,13 @@ export default function MyPetDetail() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrRequested, setQrRequested] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [vetShareEnabled, setVetShareEnabled] = useState(false);
+  const [vetShareToken, setVetShareToken] = useState<string | null>(null);
+  const [vetShareLoading, setVetShareLoading] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -88,8 +99,63 @@ export default function MyPetDetail() {
       setLoading(true);
       const data = await api.myPets.get(id!);
       setPet(data.myPet);
+      setQrRequested(data.myPet.qr_requested || false);
+      setVetShareEnabled(data.myPet.vet_share_enabled || false);
+      setVetShareToken(data.myPet.vet_share_token || null);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    if (pet?.qr_id?.share_token) {
+      const token = pet.qr_id.share_token;
+      QRCode.toDataURL(`${window.location.origin}/mascota/${token}`, {
+        width: 200, margin: 1, color: { dark: '#5A5A40', light: '#ffffff' },
+      }).then(setQrDataUrl).catch(() => {});
+    }
+  }, [pet?.qr_id]);
+
+  const weightRecords = useMemo(() => {
+    if (!pet?.records) return [];
+    return pet.records
+      .filter((r: any) => r.record_type === 'weight' && r.amount)
+      .map((r: any) => ({
+        date: r.record_date || r.created_at,
+        weight: parseFloat(r.amount),
+      }))
+      .filter((r: any) => !isNaN(r.weight))
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [pet?.records]);
+
+  const handleRequestQr = async () => {
+    try {
+      setQrLoading(true);
+      await api.myPets.requestQr(id!);
+      setQrRequested(true);
+    } catch (e: any) {
+      alert(e.message || 'Error al solicitar QR');
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const handleVetShareToggle = async () => {
+    try {
+      setVetShareLoading(true);
+      const result = await api.myPets.vetShare(id!, !vetShareEnabled);
+      setVetShareEnabled(!vetShareEnabled);
+      if (result.vet_share_token) setVetShareToken(result.vet_share_token);
+    } catch (e: any) {
+      alert(e.message || 'Error');
+    } finally {
+      setVetShareLoading(false);
+    }
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   const handleAddEvent = async () => {
@@ -237,7 +303,7 @@ export default function MyPetDetail() {
             {pet.personality_tags?.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {pet.personality_tags.map((tag: string) => (
-                  <span key={tag} className="text-[10px] sm:text-xs px-2 py-0.5 bg-white/20 text-white rounded-full">{tag}</span>
+                  <span key={tag} className="text-[10px] sm:text-xs px-2 py-0.5 bg-white/20 text-white rounded-full">{formatTag(tag)}</span>
                 ))}
               </div>
             )}
@@ -329,6 +395,79 @@ export default function MyPetDetail() {
                   <Bug className="w-3 h-3" /> Desparasitado
                 </span>
               )}
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-brand-accent space-y-4">
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
+                  <QrCode className="w-4 h-4" /> Identificación QR
+                </h4>
+                {qrDataUrl ? (
+                  <div className="p-4 bg-brand-bg rounded-2xl flex items-center gap-4">
+                    <img src={qrDataUrl} alt="QR" className="w-32 h-32 rounded-xl" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-brand-primary">{pet.qr_id?.code}</p>
+                      <p className="text-xs text-gray-400 mt-1">Escaneá para ver el perfil público</p>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => copyToClipboard(`${window.location.origin}/mascota/${pet.qr_id?.share_token}`, 'qr')}
+                          className="px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
+                        >
+                          {copied === 'qr' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                          {copied === 'qr' ? 'Copiado' : 'Copiar link'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : qrRequested ? (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-700">
+                    Solicitud de QR enviada. El admin te lo asignará pronto.
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleRequestQr}
+                    disabled={qrLoading}
+                    className="px-4 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-brand-primary/20 transition-colors disabled:opacity-50"
+                  >
+                    {qrLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrCode className="w-3 h-3" />}
+                    Solicitar identificación QR
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
+                  <Stethoscope className="w-4 h-4" /> Compartir con veterinario
+                </h4>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleVetShareToggle}
+                    disabled={vetShareLoading}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                      vetShareEnabled
+                        ? 'bg-brand-primary text-white'
+                        : 'bg-brand-bg text-gray-500 border border-brand-accent hover:border-brand-primary/50'
+                    }`}
+                  >
+                    {vetShareLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                    {vetShareEnabled ? 'Compartiendo' : 'Compartir ficha'}
+                  </button>
+                  {vetShareEnabled && vetShareToken && (
+                    <button
+                      onClick={() => copyToClipboard(`${window.location.origin}/vet/${vetShareToken}`, 'vet')}
+                      className="px-3 py-2 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
+                    >
+                      {copied === 'vet' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      {copied === 'vet' ? 'Copiado' : 'Copiar link vet'}
+                    </button>
+                  )}
+                </div>
+                {vetShareEnabled && (
+                  <p className="text-[10px] text-gray-400 mt-2">
+                    Tu veterinario podrá ver ficha médica, registros y tu contacto.
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="mt-6 pt-4 border-t border-brand-accent flex justify-end">
@@ -519,7 +658,7 @@ export default function MyPetDetail() {
           </motion.div>
         )}
 
-        {activeTab === 'salud' && (
+          {activeTab === 'salud' && (
           <motion.div key="salud" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="flex justify-end mb-4">
               <button onClick={() => setShowRecordForm(true)}
@@ -528,6 +667,29 @@ export default function MyPetDetail() {
                 <Plus className="w-3 h-3" /> Agregar registro
               </button>
             </div>
+
+            {weightRecords.length >= 2 && (
+              <div className="bg-white rounded-2xl border border-brand-accent p-4 mb-4">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
+                  <Weight className="w-4 h-4" /> Evolución de peso
+                </h4>
+                <div className="h-40 flex items-end gap-1 px-2">
+                  {weightRecords.map((wr: any, i: number) => {
+                    const maxW = Math.max(...weightRecords.map((w: any) => w.weight));
+                    const minW = Math.min(...weightRecords.map((w: any) => w.weight));
+                    const range = maxW - minW || 1;
+                    const height = 20 + ((wr.weight - minW) / range) * 80;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${wr.weight} kg — ${new Date(wr.date).toLocaleDateString('es-AR')}`}>
+                        <span className="text-[10px] font-bold text-brand-primary">{wr.weight}</span>
+                        <div className="w-full bg-brand-secondary/80 rounded-t-md" style={{ height: `${height}%` }} />
+                        <span className="text-[8px] text-gray-400">{new Date(wr.date).toLocaleDateString('es-AR', { month: 'short' })}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {pet.records?.length === 0 ? (
               <div className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-8 text-center">
@@ -554,7 +716,8 @@ export default function MyPetDetail() {
                           {record.vet_name && <span>· Vet: {record.vet_name}</span>}
                           {record.clinic_name && <span>· {record.clinic_name}</span>}
                           {record.medication_name && <span>· {record.medication_name} {record.dosage}</span>}
-                          {record.amount && <span className="text-emerald-600 font-medium">· ${record.amount}</span>}
+                          {record.amount && record.record_type !== 'weight' && <span className="text-emerald-600 font-medium">· ${record.amount}</span>}
+                    {record.record_type === 'weight' && record.amount && <span className="text-brand-primary font-medium">· {record.amount} kg</span>}
                           {record.next_date && (
                             <span className="text-amber-600 font-medium">
                               · Próximo: {new Date(record.next_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
@@ -647,13 +810,20 @@ export default function MyPetDetail() {
                           </div>
                         </div>
                       )}
-                      {recordForm.record_type === 'expense' && (
-                        <div>
-                          <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Monto ($)</label>
-                          <input type="number" step="0.01" value={recordForm.amount} onChange={e => setRecordForm(prev => ({ ...prev, amount: e.target.value }))}
-                            className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" />
-                        </div>
-                      )}
+              {recordForm.record_type === 'expense' && (
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Monto ($)</label>
+                  <input type="number" step="0.01" value={recordForm.amount} onChange={e => setRecordForm(prev => ({ ...prev, amount: e.target.value }))}
+                    className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" />
+                </div>
+              )}
+              {recordForm.record_type === 'weight' && (
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Peso (kg)</label>
+                  <input type="number" step="0.1" value={recordForm.amount} onChange={e => setRecordForm(prev => ({ ...prev, amount: e.target.value }))}
+                    className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Ej: 12.5" />
+                </div>
+              )}
                     </div>
                     <div className="p-6 sm:p-8 border-t border-brand-accent">
                       <button onClick={handleAddRecord} disabled={recordLoading || !recordForm.title}

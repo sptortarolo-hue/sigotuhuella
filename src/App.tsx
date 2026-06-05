@@ -31,6 +31,8 @@ const LostPetReport = lazy(() => import('@/src/pages/LostPetReport'));
 const CompleteRegistration = lazy(() => import('@/src/pages/CompleteRegistration'));
 const MyPetsPortal = lazy(() => import('@/src/pages/MyPetsPortal'));
 const MyPetDetail = lazy(() => import('@/src/pages/MyPetDetail'));
+const PublicPetProfile = lazy(() => import('@/src/pages/PublicPetProfile'));
+const VetPetProfile = lazy(() => import('@/src/pages/VetPetProfile'));
 
 function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin?: boolean }) {
   const { user, isAdmin: isUserAdmin, loading } = useAuth();
@@ -84,6 +86,8 @@ export default function App() {
           <Route path="/mis-publicaciones" element={<MyPets />} />
           <Route path="/mi-mascota" element={<ProtectedRoute><MyPetsPortal /></ProtectedRoute>} />
           <Route path="/mi-mascota/:id" element={<ProtectedRoute><MyPetDetail /></ProtectedRoute>} />
+          <Route path="/mascota/:shareToken" element={<PublicPetProfile />} />
+          <Route path="/vet/:token" element={<VetPetProfile />} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/login" element={<Login />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />

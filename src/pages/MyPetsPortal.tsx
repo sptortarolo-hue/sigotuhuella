@@ -3,11 +3,14 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { compressImage, fileToBase64 } from '@/src/lib/storageService';
+import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
 import {
   PawPrint, Plus, Loader2, X, Save, Dog, Cat, Heart,
   Syringe, Scissors, Bug, Weight, Calendar, Sparkles, ChevronRight,
+  QrCode, ShieldCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import QrClaimModal from '@/src/components/QrClaimModal';
 
 const SPECIES_OPTIONS = [
   { value: 'dog', label: 'Perro', icon: <Dog className="w-5 h-5" /> },
@@ -58,6 +61,7 @@ export default function MyPetsPortal() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showQrClaim, setShowQrClaim] = useState(false);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -163,12 +167,18 @@ export default function MyPetsPortal() {
             </h1>
             <p className="text-white/80 text-sm mt-1">El portal de tus companeros</p>
           </div>
-          <button
-            onClick={() => { setEditingId(null); setForm({ ...emptyForm }); setAvatarPreview(null); setAvatarFile(null); setShowForm(true); }}
-            className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-white/30 transition-all flex items-center gap-2 border border-white/20"
-          >
-            <Plus className="w-4 h-4" /> Registrar
-          </button>
+        <button
+          onClick={() => { setEditingId(null); setForm({ ...emptyForm }); setAvatarPreview(null); setAvatarFile(null); setShowForm(true); }}
+          className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-white/30 transition-all flex items-center gap-2 border border-white/20"
+        >
+          <Plus className="w-4 h-4" /> Registrar
+        </button>
+        <button
+          onClick={() => setShowQrClaim(true)}
+          className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-white/30 transition-all flex items-center gap-2 border border-white/20"
+        >
+          <QrCode className="w-4 h-4" /> Asociar QR
+        </button>
         </div>
       </div>
 
@@ -206,7 +216,14 @@ export default function MyPetsPortal() {
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 pt-12">
-                  <h3 className="text-lg font-bold text-white">{pet.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-white">{pet.name}</h3>
+                    {pet.qr_id && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-white/20 backdrop-blur-sm rounded-full text-[10px] text-white font-medium">
+                        <QrCode className="w-3 h-3" /> Identificado
+                      </span>
+                    )}
+                  </div>
                   <p className="text-white/80 text-xs">
                     {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otro'}
                     {pet.breed ? ` · ${pet.breed}` : ''}
@@ -217,8 +234,8 @@ export default function MyPetsPortal() {
               <div className="p-4">
                 {pet.personality_tags?.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-3">
-                    {pet.personality_tags.slice(0, 4).map((tag: string) => (
-                      <span key={tag} className="text-[10px] sm:text-xs px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded-full">{tag}</span>
+                {pet.personality_tags.slice(0, 4).map((tag: string) => (
+                  <span key={tag} className="text-[10px] sm:text-xs px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded-full">{formatTag(tag)}</span>
                     ))}
                     {pet.personality_tags.length > 4 && (
                       <span className="text-[10px] sm:text-xs px-2 py-0.5 bg-brand-accent text-gray-500 rounded-full">+{pet.personality_tags.length - 4}</span>
@@ -364,17 +381,17 @@ export default function MyPetsPortal() {
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Personalidad</label>
                   <div className="flex flex-wrap gap-2">
-                    {PERSONALITY_TAGS.map(tag => (
-                      <button key={tag}
-                        onClick={() => toggleTag(tag)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                          form.personality_tags.includes(tag)
-                            ? 'bg-brand-primary text-white'
-                            : 'bg-brand-bg text-gray-500 hover:bg-brand-accent'
-                        }`}
-                      >
-                        {tag}
-                      </button>
+              {PERSONALITY_TAGS.map(tag => (
+                <button key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    form.personality_tags.includes(tag)
+                      ? 'bg-brand-primary text-white'
+                      : 'bg-brand-bg text-gray-500 hover:bg-brand-accent'
+                  }`}
+                >
+                  {PERSONALITY_TAG_EMOJIS[tag]} {tag}
+                </button>
                     ))}
                   </div>
                 </div>
@@ -413,6 +430,16 @@ export default function MyPetsPortal() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showQrClaim && (
+          <QrClaimModal
+            onClose={() => setShowQrClaim(false)}
+            onSuccess={async () => { setShowQrClaim(false); await fetchPets(); }}
+            myPets={myPets}
+          />
         )}
       </AnimatePresence>
     </div>

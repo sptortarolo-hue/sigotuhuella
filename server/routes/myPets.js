@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireAdmin, sendAdminNotificationEmail } from '../auth.js';
+import { sendPushToAdmins } from '../services/pushService.js';
+import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 
 const router = Router();
@@ -61,6 +63,20 @@ router.get('/', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('my-pets list error:', err);
     res.status(500).json({ error: 'Error al obtener mascotas' });
+  }
+});
+
+router.get('/featured', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT mp.id, mp.name, mp.species, mp.breed, mp.bio, mp.personality_tags, mp.avatar_image IS NOT NULL as has_avatar
+       FROM my_pets mp WHERE mp.is_featured = true LIMIT 1`
+    );
+    if (result.rows.length === 0) return res.json({ pet: null });
+    res.json({ pet: result.rows[0] });
+  } catch (err) {
+    console.error('featured list error:', err);
+    res.status(500).json({ error: 'Error al obtener mascota del mes' });
   }
 });
 
@@ -360,6 +376,88 @@ router.delete('/:id/events/:eventId', requireAuth, async (req, res) => {
   }
 });
 
+router.post('/:id/request-qr', requireAuth, async (req, res) => {
+  try {
+    const petResult = await pool.query(
+      'SELECT * FROM my_pets WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    if (petResult.rows[0].qr_id) return res.status(400).json({ error: 'Esta mascota ya tiene QR asignado' });
+    if (petResult.rows[0].qr_requested) return res.status(400).json({ error: 'Ya solicitaste QR para esta mascota' });
+
+    await pool.query('UPDATE my_pets SET qr_requested = true WHERE id = $1', [req.params.id]);
+
+    const pet = petResult.rows[0];
+    const userResult = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
+    const userName = userResult.rows[0]?.display_name || 'Usuario';
+
+    sendPushToAdmins({
+      title: 'Solicitud de identificación QR',
+      body: `${userName} solicita QR para ${pet.name}`,
+      tag: `qr-request-${pet.id}`,
+    }).catch(() => {});
+
+    sendAdminNotificationEmail(
+      'Nueva solicitud de identificación QR',
+      `<p><strong>${userName}</strong> solicita un código QR para <strong>${pet.name}</strong> (${pet.species}${pet.breed ? ' - ' + pet.breed : ''}).</p>
+       <p><a href="https://sigotuhuella.online/admin" style="background:#5A5A40;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Ir al panel admin</a></p>`
+    ).catch(() => {});
+
+    res.json({ success: true, message: 'Solicitud de QR enviada' });
+  } catch (err) {
+    console.error('request-qr error:', err);
+    res.status(500).json({ error: 'Error al solicitar QR' });
+  }
+});
+
+router.post('/:id/vet-share', requireAuth, async (req, res) => {
+  try {
+    const petResult = await pool.query(
+      'SELECT * FROM my_pets WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled (boolean) es requerido' });
+
+    let vet_share_token = petResult.rows[0].vet_share_token;
+    if (enabled && !vet_share_token) {
+      vet_share_token = uuidv4();
+    }
+
+    await pool.query(
+      'UPDATE my_pets SET vet_share_enabled = $1, vet_share_token = $2 WHERE id = $3',
+      [enabled, enabled ? vet_share_token : null, req.params.id]
+    );
+
+    res.json({ success: true, vet_share_token: enabled ? vet_share_token : null });
+  } catch (err) {
+    console.error('vet-share error:', err);
+    res.status(500).json({ error: 'Error al configurar compartir con veterinario' });
+  }
+});
+
+router.post('/:id/featured', requireAdmin, async (req, res) => {
+  try {
+    const petResult = await pool.query('SELECT * FROM my_pets WHERE id = $1', [req.params.id]);
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+
+    if (petResult.rows[0].is_featured) {
+      await pool.query('UPDATE my_pets SET is_featured = false WHERE id = $1', [req.params.id]);
+      res.json({ success: true, is_featured: false });
+    } else {
+      await pool.query('UPDATE my_pets SET is_featured = false WHERE is_featured = true');
+      await pool.query('UPDATE my_pets SET is_featured = true WHERE id = $1', [req.params.id]);
+      res.json({ success: true, is_featured: true });
+    }
+  } catch (err) {
+    console.error('featured error:', err);
+    res.status(500).json({ error: 'Error al cambiar mascota del mes' });
+  }
+});
+
 router.post('/:id/records', requireAuth, async (req, res) => {
   try {
     const petCheck = await pool.query(
@@ -377,63 +475,26 @@ router.post('/:id/records', requireAuth, async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO pet_records (pet_id, my_pet_id, record_type, title, description, amount,
-        record_date, next_date, vet_name, clinic_name, medication_name, dosage, created_by)
-       VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      record_date, next_date, vet_name, clinic_name, medication_name, dosage, created_by)
+      VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
       [
         req.params.id, record_type, title, description || null, amount || null,
         record_date || null, next_date || null, vet_name || null, clinic_name || null,
         medication_name || null, dosage || null, req.user.id,
       ]
     );
+
+    if (record_type === 'weight' && amount) {
+      const weightVal = parseFloat(amount);
+      if (!isNaN(weightVal) && weightVal > 0 && weightVal < 500) {
+        await pool.query('UPDATE my_pets SET weight_kg = $1 WHERE id = $2', [weightVal, req.params.id]);
+      }
+    }
+
     res.status(201).json({ record: result.rows[0] });
   } catch (err) {
     console.error('my-pet record create error:', err);
     res.status(500).json({ error: 'Error al crear registro médico' });
-  }
-});
-
-router.get('/:id/records', requireAuth, async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM pet_records WHERE my_pet_id = $1 ORDER BY COALESCE(record_date, created_at) DESC',
-      [req.params.id]
-    );
-    res.json({ records: result.rows });
-  } catch (err) {
-    console.error('my-pet records list error:', err);
-    res.status(500).json({ error: 'Error al obtener registros' });
-  }
-});
-
-router.get('/:id/reminders', requireAuth, async (req, res) => {
-  try {
-    const petCheck = await pool.query(
-      'SELECT id, name FROM my_pets WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
-    if (petCheck.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
-
-    const eventsResult = await pool.query(
-      `SELECT id, event_type, title, next_date as due_date, 'event' as source
-       FROM my_pet_events WHERE my_pet_id = $1 AND next_date IS NOT NULL AND next_date >= CURRENT_DATE
-       ORDER BY next_date ASC`,
-      [req.params.id]
-    );
-
-    const recordsResult = await pool.query(
-      `SELECT id, record_type as event_type, title, next_date as due_date, 'record' as source
-       FROM pet_records WHERE my_pet_id = $1 AND next_date IS NOT NULL AND next_date >= CURRENT_DATE
-       ORDER BY next_date ASC`,
-      [req.params.id]
-    );
-
-    const reminders = [...eventsResult.rows, ...recordsResult.rows]
-      .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
-
-    res.json({ reminders });
-  } catch (err) {
-    console.error('my-pet reminders error:', err);
-    res.status(500).json({ error: 'Error al obtener recordatorios' });
   }
 });
 
@@ -448,6 +509,8 @@ router.post('/convert/:petId', requireAuth, async (req, res) => {
     }
 
     const pet = petResult.rows[0];
+    const { bio, birth_date, weight_kg, personality_tags } = req.body || {};
+
     const imagesResult = await pool.query(
       'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1',
       [pet.id]
@@ -464,20 +527,26 @@ router.post('/convert/:petId', requireAuth, async (req, res) => {
       avatarMime = compressed.mimeType;
     }
 
+    const finalBio = bio !== undefined ? bio : pet.description;
+    const finalTags = personality_tags || null;
+    const finalBirthDate = birth_date || null;
+    const finalWeight = weight_kg || null;
+
     const myPetResult = await pool.query(
-      `INSERT INTO my_pets (user_id, name, species, breed, color, gender, age,
-        is_vaccinated, is_sterilized, is_dewormed, description, avatar_image, avatar_mime_type)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      `INSERT INTO my_pets (user_id, name, species, breed, color, gender,
+        is_vaccinated, is_sterilized, is_dewormed, bio, avatar_image, avatar_mime_type,
+        birth_date, weight_kg, personality_tags)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
       [
         req.user.id, pet.name || 'Mi mascota', pet.species, pet.breed, pet.color,
-        pet.gender, pet.age, pet.is_vaccinated, pet.is_sterilized, pet.is_dewormed,
-        pet.description, avatarData, avatarMime,
+        pet.gender, pet.is_vaccinated, pet.is_sterilized, pet.is_dewormed,
+        finalBio, avatarData, avatarMime, finalBirthDate, finalWeight, finalTags,
       ]
     );
 
     await pool.query(
       `INSERT INTO my_pet_events (my_pet_id, event_type, title, description, event_date)
-       VALUES ($1, 'milestone', 'Reencontrado', 'Se reencontró con su familia gracias a Sigo Tu Huella', CURRENT_DATE)`,
+      VALUES ($1, 'milestone', 'Reencontrado', 'Se reencontró con su familia gracias a Sigo Tu Huella', CURRENT_DATE)`,
       [myPetResult.rows[0].id]
     );
 
