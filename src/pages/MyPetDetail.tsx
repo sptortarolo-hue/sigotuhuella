@@ -132,6 +132,16 @@ export default function MyPetDetail() {
       .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [pet?.records]);
 
+  const recordPhotoIds = useMemo(() => {
+    const ids = new Set<string>();
+    (pet?.records || []).forEach((r: any) => (r.photo_ids || []).forEach((pid: string) => ids.add(pid)));
+    return ids;
+  }, [pet?.records]);
+
+  const galleryPhotos = useMemo(() => {
+    return (pet?.photos || []).filter((p: any) => !recordPhotoIds.has(p.id));
+  }, [pet?.photos, recordPhotoIds]);
+
   const timelineItems = useMemo(() => {
     const items: any[] = [];
     (pet?.events || []).forEach((e: any) => items.push({ ...e, _type: 'event', _date: e.event_date }));
@@ -584,7 +594,7 @@ export default function MyPetDetail() {
               >
                 {photoLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />} Subir foto
               </button>
-              {pet.photos?.length >= 3 && (
+              {galleryPhotos.length >= 3 && (
                 <button onClick={() => {
                   if (confirm('Generar un video con las fotos de ' + pet.name + '?')) {
                     api.myPets.generateVideo(id!).then((r: any) => {
@@ -599,7 +609,7 @@ export default function MyPetDetail() {
               )}
             </div>
 
-            {pet.photos?.length === 0 ? (
+            {galleryPhotos.length === 0 ? (
               <div className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-8 text-center">
                 <Camera className="w-12 h-12 text-brand-accent mx-auto mb-3" />
                 <p className="text-gray-400">Todavía no hay fotos</p>
@@ -610,7 +620,7 @@ export default function MyPetDetail() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {pet.photos.map((photo: any) => (
+                {galleryPhotos.map((photo: any) => (
                   <div key={photo.id} className="relative group rounded-2xl overflow-hidden aspect-square bg-brand-bg">
                     <img
                       src={`/my-pet-photo/${photo.id}`}
