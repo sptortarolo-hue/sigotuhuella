@@ -303,7 +303,7 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
     const QR_Y_OFFSET = -8;
     const COL_W = (PAGE_W - MARGIN_X * 2) / 2;
     const ROW_H = (PAGE_H - MARGIN_Y - 25) / 5;
-    const logoPng = readFileSync(join(__dirname, '..', 'public', 'qr-logo.png'));
+    const logoPng = readFileSync(join(__dirname, '..', '..', 'public', 'qr-logo.png'));
 
     const doc = new PDFDocument({ size: 'A4', margin: 0 });
     res.set('Content-Type', 'application/pdf');
