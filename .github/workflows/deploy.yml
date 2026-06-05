@@ -48,7 +48,7 @@ jobs:
 
           npm install
 
-  npm run build || (echo "BUILD FAILED" && exit 1)
+  npm run build
 
   if ! pm2 restart sigotuhuella; then
             pm2 start npm --name sigotuhuella -- start
