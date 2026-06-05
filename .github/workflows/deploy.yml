@@ -19,9 +19,9 @@ jobs:
         port: ${{ secrets.SSH_PORT }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
-          envs: AZURE_TTS_KEY,AZURE_TTS_KEY2,AZURE_TTS_REGION
-          script_stop: true
-          script: |
+        envs: AZURE_TTS_KEY,AZURE_TTS_KEY2,AZURE_TTS_REGION
+        script_stop: true
+        script: |
             set -e
             cd /var/www/sigotuhuella
             echo "=== [1/6] git pull ==="
