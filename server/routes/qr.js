@@ -294,29 +294,34 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
     const PAGE_H = 841.89;
     const COL_W = (PAGE_W - MARGIN_X * 2) / 2;
     const ROW_H = (PAGE_H - MARGIN_Y - 30) / 5;
-    const CIRCLE_R = 62;
-    const QR_SIZE = 108;
+    const CIRCLE_R = 70;
+    const QR_SIZE = Math.round(CIRCLE_R * 2 * 0.8);
+    const QR_Y_OFFSET = -10;
 
     const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-      <circle cx="100" cy="100" r="96" fill="#F5F5F0" stroke="#5A5A40" stroke-width="3"/>
-      <path id="topArc" d="M 30,100 A 70,70 0 0,1 170,100" fill="none"/>
-      <path id="bottomArc" d="M 25,110 A 75,75 0 0,0 175,110" fill="none"/>
-      <text font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#5A5A40" font-weight="bold">
+      <circle cx="100" cy="100" r="96" fill="#F5F5F0" stroke="#5A5A40" stroke-width="2.5"/>
+      <path id="topArc" d="M 28,100 A 72,72 0 0,1 172,100" fill="none"/>
+      <path id="bottomArc" d="M 24,108 A 76,76 0 0,0 176,108" fill="none"/>
+      <text font-family="Arial,Helvetica,sans-serif" font-size="11.5" fill="#5A5A40" font-weight="bold" letter-spacing="2">
         <textPath href="#topArc" startOffset="50%" text-anchor="middle">SI ME VES PERDIDO</textPath>
       </text>
-      <text font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#D48C70" font-weight="bold">
+      <text font-family="Arial,Helvetica,sans-serif" font-size="10.5" fill="#D48C70" font-weight="bold" letter-spacing="1.5">
         <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">ESCANEÁ EL QR</textPath>
       </text>
-      <circle cx="100" cy="100" r="38" fill="#5A5A40"/>
-      <g transform="translate(82,72) scale(0.35)" fill="#F5F5F0">
-        <ellipse cx="26" cy="10" rx="8" ry="10"/>
-        <ellipse cx="50" cy="6" rx="7" ry="9"/>
-        <ellipse cx="4" cy="16" rx="7" ry="8"/>
-        <ellipse cx="72" cy="14" rx="6" ry="8"/>
-        <path d="M 10,28 C 10,55 30,70 38,70 C 46,70 66,55 66,28 C 66,18 56,22 38,22 C 20,22 10,18 10,28 Z"/>
+      <clipPath id="logoClip"><circle cx="100" cy="100" r="52"/></clipPath>
+      <g clip-path="url(#logoClip)">
+        <circle cx="100" cy="100" r="52" fill="#5A5A40"/>
+        <g transform="translate(62,58) scale(0.5)" fill="#F5F5F0">
+          <ellipse cx="26" cy="10" rx="8" ry="10"/>
+          <ellipse cx="50" cy="6" rx="7" ry="9"/>
+          <ellipse cx="4" cy="16" rx="7" ry="8"/>
+          <ellipse cx="72" cy="14" rx="6" ry="8"/>
+          <path d="M 10,28 C 10,55 30,70 38,70 C 46,70 66,55 66,28 C 66,18 56,22 38,22 C 20,22 10,18 10,28 Z"/>
+        </g>
+        <text x="100" y="118" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" fill="#F5F5F0" font-weight="bold">SIGO TU</text>
+        <text x="100" y="130" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" fill="#F5F5F0" font-weight="bold">HUELLA</text>
       </g>
-      <text x="100" y="115" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="8" fill="#F5F5F0" font-weight="bold">SIGO TU</text>
-      <text x="100" y="125" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="8" fill="#F5F5F0" font-weight="bold">HUELLA</text>
+      <circle cx="100" cy="100" r="52" fill="none" stroke="#5A5A40" stroke-width="1.5"/>
     </svg>`;
     const logoPng = await sharp(Buffer.from(logoSvg)).png().toBuffer();
 
@@ -328,7 +333,7 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
     for (let page = 0; page < identifiers.length; page += PER_PAGE) {
       if (page > 0) doc.addPage();
 
-      doc.fontSize(12).fillColor('#5A5A40')
+      doc.fontSize(11).fillColor('#5A5A40')
         .text('Sigo Tu Huella — Identificación Digital', MARGIN_X, 18, { width: PAGE_W - MARGIN_X * 2, align: 'center' });
 
       for (let i = 0; i < PER_PAGE && (page + i) < identifiers.length; i++) {
@@ -341,16 +346,16 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
         if (isLeft) {
           const qrDataUrl = await QRCode.toDataURL(`${FRONTEND_URL}/mascota/${ident.share_token}`, {
             width: QR_SIZE,
-            margin: 1,
+            margin: 0,
             color: { dark: '#5A5A40', light: '#ffffff' },
           });
           const qrBuffer = Buffer.from(qrDataUrl.split(',')[1], 'base64');
 
-          doc.circle(cx, cy, CIRCLE_R).fill('#ffffff');
-          doc.image(qrBuffer, cx - QR_SIZE / 2, cy - QR_SIZE / 2, { width: QR_SIZE });
-          doc.circle(cx, cy, CIRCLE_R).lineWidth(1.5).strokeColor('#5A5A40').stroke();
-          doc.fontSize(9).fillColor('#5A5A40')
-            .text(ident.code, cx - COL_W / 2, cy + CIRCLE_R + 4, { width: COL_W, align: 'center' });
+          doc.circle(cx, cy + QR_Y_OFFSET, CIRCLE_R).fill('#ffffff');
+          doc.image(qrBuffer, cx - QR_SIZE / 2, cy + QR_Y_OFFSET - QR_SIZE / 2, { width: QR_SIZE });
+          doc.circle(cx, cy + QR_Y_OFFSET, CIRCLE_R).lineWidth(1.5).strokeColor('#5A5A40').stroke();
+          doc.fontSize(8).fillColor('#5A5A40')
+            .text(ident.code, cx - CIRCLE_R, cy + QR_Y_OFFSET + CIRCLE_R - 14, { width: CIRCLE_R * 2, align: 'center' });
         } else {
           doc.circle(cx, cy, CIRCLE_R).fill('#ffffff');
           doc.image(logoPng, cx - CIRCLE_R, cy - CIRCLE_R, { width: CIRCLE_R * 2 });
