@@ -5,6 +5,7 @@ import { sendPushToAdmins, sendPushToUser } from '../services/pushService.js';
 import QRCode from 'qrcode';
 import PDFDocument from 'pdfkit';
 import sharp from 'sharp';
+import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
@@ -307,23 +308,22 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
 
     let logoPng;
     try {
-      const circleMask = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${ICON_SIZE} ${ICON_SIZE}" width="${ICON_SIZE}" height="${ICON_SIZE}">
-        <circle cx="${ICON_SIZE / 2}" cy="${ICON_SIZE / 2}" r="${ICON_SIZE / 2}" fill="white"/>
-      </svg>`);
+      const logoBase64 = readFileSync(logoImgPath).toString('base64');
+      const logoDataUri = `data:image/jpeg;base64,${logoBase64}`;
+      const ICON_R = ICON_SIZE / 2;
+      const ICON_CX = 100;
+      const ICON_CY = 100;
 
-      const iconPng = await sharp(logoImgPath)
-        .resize(ICON_SIZE, ICON_SIZE, { fit: 'cover' })
-        .composite([{ input: circleMask, blend: 'dest-in' }])
-        .png()
-        .toBuffer();
-
-      const bgLayer = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+      const logoSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+        <defs>
+          <clipPath id="iconClip">
+            <circle cx="${ICON_CX}" cy="${ICON_CY}" r="${ICON_R}"/>
+          </clipPath>
+        </defs>
         <rect width="200" height="200" fill="#F5F5F0"/>
         <circle cx="100" cy="100" r="97" fill="#F5F5F0" stroke="#5A5A40" stroke-width="2.5"/>
-        <circle cx="100" cy="100" r="46" fill="#F5F5F0"/>
-      </svg>`);
-
-      const textOverlay = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+        <image href="${logoDataUri}" x="${ICON_CX - ICON_R}" y="${ICON_CY - ICON_R}" width="${ICON_SIZE}" height="${ICON_SIZE}" clip-path="url(#iconClip)"/>
+        <circle cx="${ICON_CX}" cy="${ICON_CY}" r="${ICON_R}" fill="none" stroke="#D48C70" stroke-width="1.5"/>
         <path id="topArc" d="M 28,100 A 72,72 0 0,1 172,100" fill="none"/>
         <path id="bottomArc" d="M 24,108 A 76,76 0 0,0 176,108" fill="none"/>
         <text font-family="Arial,Helvetica,sans-serif" font-size="11.5" fill="#5A5A40" font-weight="bold" letter-spacing="2">
@@ -333,14 +333,7 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
           <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">ESCANEÁ EL QR</textPath>
         </text>
       </svg>`);
-
-      logoPng = await sharp(bgLayer)
-        .composite([
-          { input: iconPng, left: 100 - ICON_SIZE / 2, top: 100 - ICON_SIZE / 2 },
-          { input: textOverlay }
-        ])
-        .png()
-        .toBuffer();
+      logoPng = await sharp(logoSvg).png().toBuffer();
     } catch (logoErr) {
       console.error('Logo generation failed, using fallback SVG:', logoErr.message);
       const fallbackSvg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
