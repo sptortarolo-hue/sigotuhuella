@@ -16,7 +16,6 @@ export default function Navbar() {
 
   const isMember = user && user.volunteer_status === 'active';
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
-  const [bellHidden, setBellHidden] = useState(false);
 
   useEffect(() => {
     isSupported().then(async (ok) => {
@@ -25,13 +24,6 @@ export default function Navbar() {
       setPushEnabled(sub);
     });
   }, []);
-
-  useEffect(() => {
-    if (pushEnabled !== false) { setBellHidden(false); return; }
-    setBellHidden(false);
-    const timer = setTimeout(() => setBellHidden(true), 2000);
-    return () => clearTimeout(timer);
-  }, [pushEnabled]);
 
   const handleBellClick = async () => {
     if (pushEnabled) {
@@ -124,7 +116,7 @@ export default function Navbar() {
                     pushEnabled ? "text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20" : "text-gray-400 hover:text-brand-primary hover:bg-brand-primary/10"
                   )}
                 >
-                  {pushEnabled || bellHidden ? <Bell className="w-4 h-4 sm:w-5 sm:h-5" /> : <BellOff className="w-4 h-4 sm:w-5 sm:h-5" />}
+                  {pushEnabled ? <Bell className="w-4 h-4 sm:w-5 sm:h-5" /> : <BellOff className="w-4 h-4 sm:w-5 sm:h-5" />}
                 </button>
               )}
               <div className="w-px h-6 bg-gray-300" />
@@ -296,7 +288,7 @@ export default function Navbar() {
               pushEnabled ? "text-brand-primary bg-brand-primary/10" : "text-gray-400"
             )}
           >
-            {pushEnabled || bellHidden ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+            {pushEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
           </button>
         )}
         <button
