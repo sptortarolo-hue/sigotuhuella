@@ -428,6 +428,9 @@ def send_to_webhook(webhook_url, webhook_token, posts):
     if not posts:
         logger.info("No posts to send.")
         return
+    # Force HTTPS to avoid 301 redirect stripping POST body
+    if webhook_url.startswith("http://"):
+        webhook_url = "https://" + webhook_url[7:]
     payload = {"posts": posts}
     headers = {"Authorization": f"Bearer {webhook_token}", "Content-Type": "application/json"}
     try:
