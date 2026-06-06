@@ -392,9 +392,11 @@ app.get('/buscar-facebook', (_req, res) => {
 <meta property="og:url" content="${baseUrl}/buscar-facebook" />
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="es_AR" />
-<meta property="og:image" content="${baseUrl}/og-facebook-search.jpg" />
+<meta property="og:image" content="${baseUrl}/sigotuhuella.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="${baseUrl}/og-facebook-search.jpg" />
+<meta name="twitter:image" content="${baseUrl}/sigotuhuella.jpg" />
 </head>`;
   res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
 });
