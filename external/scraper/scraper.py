@@ -254,7 +254,12 @@ async def async_scrape_group(group_name, group_url, max_posts=50):
 
 def scrape_group(group_name, group_url, max_posts=50):
     """Synchronous wrapper around async_scrape_group."""
-    return asyncio.run(async_scrape_group(group_name, group_url, max_posts))
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(async_scrape_group(group_name, group_url, max_posts))
+    finally:
+        loop.close()
 
 
 # ---------------------------------------------------------------------------
