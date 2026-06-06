@@ -139,6 +139,7 @@ export default function Admin() {
   // QR State
   const [qrUnassigned, setQrUnassigned] = useState<any[]>([]);
   const [qrRequests, setQrRequests] = useState<any[]>([]);
+  const [qrAssigned, setQrAssigned] = useState<any[]>([]);
   const [qrBatchCount, setQrBatchCount] = useState(12);
   const [qrBatchLoading, setQrBatchLoading] = useState(false);
   const [qrAssignLoading, setQrAssignLoading] = useState<string | null>(null);
@@ -167,12 +168,14 @@ export default function Admin() {
 
   const fetchQrData = async () => {
     try {
-      const [unassigned, requests] = await Promise.all([
+      const [unassigned, requests, assigned] = await Promise.all([
         api.qr.unassigned(),
         api.qr.requests(),
+        api.qr.assigned(),
       ]);
       setQrUnassigned(unassigned.identifiers || []);
       setQrRequests(requests.requests || []);
+      setQrAssigned(assigned.assigned || []);
     } catch (e) { console.error(e); }
   };
 
@@ -1699,7 +1702,48 @@ export default function Admin() {
       </div>
     )}
 
-    {qrRequests.length === 0 && qrUnassigned.length === 0 && (
+    {qrAssigned.length > 0 && (
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <h3 className="text-lg font-bold text-brand-primary mb-4">QRs asignados ({qrAssigned.length})</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm min-w-[500px]">
+            <thead>
+              <tr className="border-b border-brand-accent">
+                <th className="pb-2 font-bold text-gray-500 text-xs uppercase tracking-widest">Código</th>
+                <th className="pb-2 font-bold text-gray-500 text-xs uppercase tracking-widest">Mascota</th>
+                <th className="pb-2 font-bold text-gray-500 text-xs uppercase tracking-widest">Dueño</th>
+                <th className="pb-2 font-bold text-gray-500 text-xs uppercase tracking-widest hidden sm:table-cell">Asignado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {qrAssigned.slice(0, 50).map((item: any) => (
+                <tr key={item.code} className="border-b border-brand-accent/50 hover:bg-brand-bg/50 transition-colors">
+                  <td className="py-3 pr-4 font-mono text-brand-primary font-bold text-xs">{item.code}</td>
+                  <td className="py-3 pr-4">
+                    <span className="font-medium text-gray-800">{item.pet_name}</span>
+                    <span className="text-gray-400 text-xs ml-1">
+                      ({item.species === 'dog' ? 'Perro' : item.species === 'cat' ? 'Gato' : 'Otro'}{item.breed ? ` · ${item.breed}` : ''})
+                    </span>
+                  </td>
+                  <td className="py-3 pr-4">
+                    <p className="text-gray-800">{item.owner_name}</p>
+                    <p className="text-xs text-gray-400">{item.owner_email}</p>
+                  </td>
+                  <td className="py-3 text-xs text-gray-400 hidden sm:table-cell">
+                    {item.assigned_at ? new Date(item.assigned_at).toLocaleDateString('es-AR') : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {qrAssigned.length > 50 && (
+            <p className="text-xs text-gray-400 mt-3 text-center">Mostrando las últimas 50 asignaciones</p>
+          )}
+        </div>
+      </div>
+    )}
+
+    {qrRequests.length === 0 && qrUnassigned.length === 0 && qrAssigned.length === 0 && (
       <div className="bg-white rounded-[2.5rem] border border-dashed border-brand-accent p-8 text-center">
         <QrCode className="w-12 h-12 text-brand-accent mx-auto mb-3" />
         <p className="text-gray-400">No hay QRs generados ni solicitudes pendientes.</p>

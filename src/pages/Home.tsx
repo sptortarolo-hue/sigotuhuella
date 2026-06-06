@@ -295,7 +295,7 @@ export default function Home() {
                 <button
                   onClick={() => {
                     setShowChapitaModal(false);
-                    navigate(user ? '/mis-mascotas' : '/login', user ? {} : { state: { from: '/mis-mascotas' } });
+                    navigate(user ? '/mis-mascotas' : '/solicitar-chapita');
                   }}
                   className="w-full py-3.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all mt-2"
                 >

@@ -315,6 +315,24 @@ function drawArcText(doc, text, cx, cy, radius, startDeg, endDeg, color, reverse
   }
 }
 
+router.get('/assigned', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT qi.code, qi.assigned_at, mp.id as pet_id, mp.name as pet_name, mp.species, mp.breed,
+              u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone
+       FROM qr_identifiers qi
+       JOIN my_pets mp ON mp.id = qi.my_pet_id
+       JOIN users u ON u.id = mp.user_id
+       WHERE qi.my_pet_id IS NOT NULL
+       ORDER BY qi.assigned_at DESC`
+    );
+    res.json({ assigned: result.rows });
+  } catch (err) {
+    console.error('qr assigned error:', err);
+    res.status(500).json({ error: 'Error al obtener QRs asignados' });
+  }
+});
+
 router.delete('/cleanup', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM qr_identifiers WHERE my_pet_id IS NULL');

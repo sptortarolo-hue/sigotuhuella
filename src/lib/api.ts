@@ -125,6 +125,7 @@ export const api = {
     getMessage: (id: string) => request(`/whatsapp/messages/${id}`),
   },
   lostReport: (data: any) => request('/pets/lost-report', { method: 'POST', body: JSON.stringify(data) }),
+  requestChapita: (data: any) => request('/request-chapita', { method: 'POST', body: JSON.stringify(data) }),
   checkEmail: (email: string) => request('/auth/check-email', { method: 'POST', body: JSON.stringify({ email }) }),
   completeRegistration: (data: { email?: string; token?: string; password: string }) =>
     request('/auth/complete-registration', { method: 'POST', body: JSON.stringify(data) }),
@@ -168,6 +169,7 @@ export const api = {
     public: (token: string) => request(`/qr/public/${token}`),
     found: (token: string, data: any) => request(`/qr/public/${token}/found`, { method: 'POST', body: JSON.stringify(data) }),
     cleanup: () => request('/qr/cleanup', { method: 'DELETE' }),
+    assigned: () => request('/qr/assigned'),
     batchPdf: (batchId: string, mirror?: boolean) => {
       const token = getToken();
       const suffix = mirror ? '-sublimar' : '';

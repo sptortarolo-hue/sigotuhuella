@@ -23,6 +23,7 @@ import pushRoutes from './routes/push.js';
 import feedRoutes from './routes/feed.js';
 import contestRoutes from './routes/contests.js';
 import gamificationRoutes from './routes/gamification.js';
+import requestChapitaRoutes from './routes/requestChapita.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
 
@@ -153,6 +154,7 @@ app.use('/api/push', (req, res, next) => {
   next();
 }, pushRoutes);
 
+app.use('/api/request-chapita', requestChapitaRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/contests', contestRoutes);
 app.use('/api/gamification', gamificationRoutes);

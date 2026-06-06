@@ -35,6 +35,7 @@ const PublicPetProfile = lazy(() => import('@/src/pages/PublicPetProfile'));
 const VetPetProfile = lazy(() => import('@/src/pages/VetPetProfile'));
 const Feed = lazy(() => import('@/src/pages/Feed'));
 const Contests = lazy(() => import('@/src/pages/Contests'));
+const SolicitarChapita = lazy(() => import('@/src/pages/SolicitarChapita'));
 
 function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin?: boolean }) {
   const { user, isAdmin: isUserAdmin, loading } = useAuth();
@@ -81,7 +82,8 @@ export default function App() {
                <Route path="/compartir-qr" element={<DiffusionPage />} />
 
               <Route path="/colaborar" element={<Collaborate />} />
-              <Route path="/sumate" element={<Join />} />
+               <Route path="/solicitar-chapita" element={<SolicitarChapita />} />
+               <Route path="/sumate" element={<Join />} />
               <Route path="/perfil" element={<Profile />} />
               <Route path="/mi-carnet" element={<ProtectedRoute><MemberCardPage /></ProtectedRoute>} />
               <Route path="/verificar/:memberNumber" element={<VerifyMember />} />
