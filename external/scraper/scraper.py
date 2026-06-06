@@ -80,6 +80,21 @@ def extract_group_id(url):
     return match.group(1) if match else url
 
 
+def load_cookies():
+    """Load cookies from cookies.txt (Netscape format) if present."""
+    cookies_path = Path(__file__).parent / "cookies.txt"
+    if cookies_path.exists():
+        try:
+            import http.cookiejar
+            cj = http.cookiejar.MozillaCookieJar(str(cookies_path))
+            cj.load()
+            logger.info(f"Loaded {len(cj)} cookies from cookies.txt")
+            return cj
+        except Exception as e:
+            logger.warning(f"Failed to load cookies: {e}")
+    return None
+
+
 def scrape_group(group_name, group_url, max_posts=50):
     """Scrape posts from a Facebook group."""
     group_id = extract_group_id(group_url)
@@ -87,7 +102,11 @@ def scrape_group(group_name, group_url, max_posts=50):
 
     posts = []
     try:
-        for post in get_posts(group_id, pages=5, options={"posts_per_page": max_posts}):
+        opts = {"posts_per_page": max_posts}
+        cookies = load_cookies()
+        if cookies:
+            opts["cookies"] = cookies
+        for post in get_posts(group_id, pages=5, options=opts):
             post_data = {
                 "group_id": None,
                 "group_name": group_name,
