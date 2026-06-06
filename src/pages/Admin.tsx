@@ -131,6 +131,11 @@ export default function Admin() {
   const [waMessages, setWaMessages] = useState<any[]>([]);
   const [waMessagesLoading, setWaMessagesLoading] = useState(false);
 
+  // Banner state
+  const [bannerChapitaVisible, setBannerChapitaVisible] = useState(true);
+  const [bannerChapitaPrice, setBannerChapitaPrice] = useState('500');
+  const [bannerChapitaIsFree, setBannerChapitaIsFree] = useState(true);
+
   // QR State
   const [qrUnassigned, setQrUnassigned] = useState<any[]>([]);
   const [qrRequests, setQrRequests] = useState<any[]>([]);
@@ -154,6 +159,9 @@ export default function Admin() {
       const map: Record<string, string> = {};
       data.forEach((s: any) => { map[s.key] = s.value; });
       setWhatsappSettings(map);
+      if (map.banner_chapita_visible !== undefined) setBannerChapitaVisible(map.banner_chapita_visible !== 'false');
+      if (map.banner_chapita_price !== undefined) setBannerChapitaPrice(map.banner_chapita_price);
+      if (map.banner_chapita_is_free !== undefined) setBannerChapitaIsFree(map.banner_chapita_is_free === 'true');
     } catch (e) { console.error(e); }
   };
 
@@ -1527,7 +1535,70 @@ export default function Admin() {
 )}
 
 {activeTab === 'qr' && (
-  <div className="space-y-6">
+  <>
+    {/* Banner settings */}
+    <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 mb-6">
+      <h3 className="text-lg font-bold text-brand-primary mb-4 flex items-center gap-2">
+        <Sparkles className="w-5 h-5" /> Chappita identificadora — Banner en inicio
+      </h3>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-700">Mostrar banner</span>
+          <button
+            onClick={() => setBannerChapitaVisible(!bannerChapitaVisible)}
+            className={cn("w-12 h-7 rounded-full transition-colors relative", bannerChapitaVisible ? "bg-brand-primary" : "bg-gray-300")}
+          >
+            <div className={cn("w-5 h-5 bg-white rounded-full absolute top-1 transition-transform shadow-sm", bannerChapitaVisible ? "left-[26px]" : "left-1")} />
+          </button>
+        </div>
+        <div>
+          <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Precio</label>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-sm text-gray-500">$</span>
+            <input type="number" min={0} value={bannerChapitaPrice}
+              onChange={e => setBannerChapitaPrice(e.target.value)}
+              className="w-24 p-2.5 rounded-xl border border-brand-accent outline-none text-sm" />
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" checked={bannerChapitaIsFree}
+            onChange={e => setBannerChapitaIsFree(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300" />
+          Mostrar como "Gratis"
+        </label>
+        <div className="p-3 bg-brand-bg rounded-xl text-xs text-gray-500">
+          Vista previa: {bannerChapitaVisible ? 'Visible' : 'Oculto'} —
+          {bannerChapitaIsFree && parseInt(bannerChapitaPrice) > 0
+            ? <> <s>${bannerChapitaPrice}</s> <span className="text-brand-secondary font-bold">Gratis</span></>
+            : bannerChapitaIsFree && parseInt(bannerChapitaPrice) === 0
+            ? ' Gratis'
+            : ` $${bannerChapitaPrice}`}
+        </div>
+        <button
+          onClick={async () => {
+            setSettingsLoading(true);
+            try {
+              await Promise.all([
+                api.settings.update('banner_chapita_visible', String(bannerChapitaVisible)),
+                api.settings.update('banner_chapita_price', bannerChapitaPrice),
+                api.settings.update('banner_chapita_is_free', String(bannerChapitaIsFree)),
+              ]);
+              alert('Configuración guardada');
+            } catch (e) {
+              alert('Error al guardar');
+            }
+            setSettingsLoading(false);
+          }}
+          disabled={settingsLoading}
+          className="px-6 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+        >
+          {settingsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Guardar
+        </button>
+      </div>
+    </div>
+
+    <div className="space-y-6">
     <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
       <h3 className="text-lg font-bold text-brand-primary mb-4 flex items-center gap-2">
         <QrCode className="w-5 h-5" /> Generar lote de QRs
@@ -1635,6 +1706,7 @@ export default function Admin() {
       </div>
     )}
   </div>
+  </>
 )}
           </div>
         )}

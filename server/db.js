@@ -106,6 +106,12 @@ ALTER TABLE promotional_videos ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAU
 ALTER TABLE promotional_videos ADD COLUMN IF NOT EXISTS error_msg TEXT;
 ALTER TABLE promotional_videos ALTER COLUMN video_data SET DEFAULT '';
 
+CREATE TABLE IF NOT EXISTS settings (
+  key VARCHAR(255) PRIMARY KEY,
+  value TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Insert default settings
 INSERT INTO settings (key, value) VALUES
   ('whatsapp_enabled', 'false'),
@@ -115,7 +121,10 @@ INSERT INTO settings (key, value) VALUES
   ('whatsapp_business_phone', ''),
   ('matching_radius_km', '20'),
   ('matching_min_score', '70'),
-  ('whatsapp_greeting', '🐾 ¡Gracias por contactar a Sigo Tu Huella! ¿Qué querés reportar?\n1️⃣ Avistaje (viste una mascota)\n2️⃣ Necesita atención (mascota herida/en riesgo)\n3️⃣ Accidentada')
+  ('whatsapp_greeting', '🐾 ¡Gracias por contactar a Sigo Tu Huella! ¿Qué querés reportar?\n1️⃣ Avistaje (viste una mascota)\n2️⃣ Necesita atención (mascota herida/en riesgo)\n3️⃣ Accidentada'),
+  ('banner_chapita_visible', 'true'),
+  ('banner_chapita_price', '500'),
+  ('banner_chapita_is_free', 'true')
 ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (

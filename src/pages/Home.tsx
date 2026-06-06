@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom';
-import { Heart, Search, ShieldCheck, Share2, PawPrint } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Heart, Search, ShieldCheck, Share2, PawPrint, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import NewsCarousel from '@/src/components/NewsCarousel';
 import { getNews } from '@/src/lib/newsService';
@@ -8,12 +8,22 @@ import { api } from '@/src/lib/api';
 import { formatTag } from '@/src/lib/personalityTags';
 
 export default function Home() {
+  const navigate = useNavigate();
   const [news, setNews] = useState<any[]>([]);
   const [featuredPet, setFeaturedPet] = useState<any>(null);
+  const [bannerVisible, setBannerVisible] = useState(true);
+  const [bannerPrice, setBannerPrice] = useState('500');
+  const [bannerIsFree, setBannerIsFree] = useState(true);
+  const [showChapitaModal, setShowChapitaModal] = useState(false);
 
   useEffect(() => {
     getNews().then(setNews).catch(() => {});
     api.myPets.featured().then((data: any) => { if (data.pet) setFeaturedPet(data.pet); }).catch(() => {});
+    api.settings.getPublic().then((data: any) => {
+      if (data.banner_chapita_visible !== undefined) setBannerVisible(data.banner_chapita_visible !== 'false');
+      if (data.banner_chapita_price !== undefined) setBannerPrice(data.banner_chapita_price);
+      if (data.banner_chapita_is_free !== undefined) setBannerIsFree(data.banner_chapita_is_free === 'true');
+    }).catch(() => {});
   }, []);
 
   return (
@@ -87,6 +97,47 @@ export default function Home() {
           </motion.div>
         </div>
       </section>
+
+      {/* Chappita identificadora banner */}
+      {bannerVisible && (
+        <section className="py-6 sm:py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+          <div className="bg-gradient-to-r from-brand-primary/[0.03] to-brand-secondary/[0.03] rounded-[2.5rem] border border-brand-accent p-5 sm:p-8 flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+            <img src="/chapita.png" alt="Chappita" className="w-20 h-20 sm:w-24 sm:h-24 object-contain shrink-0" />
+            <div className="flex-1 min-w-0 text-center sm:text-left">
+              <h3 className="text-xl sm:text-2xl font-bold text-brand-primary">
+                Chappita identificadora <span className="text-brand-secondary">gratis</span>
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Protegé a tu mascota con una chappita QR gratuita. Cualquier persona que la encuentre podrá escanear el código y acceder a tus datos de contacto.
+              </p>
+              {bannerIsFree && parseInt(bannerPrice) > 0 && (
+                <p className="text-xs text-gray-400 mt-1"><s>${bannerPrice}</s> <span className="text-brand-secondary font-bold">Gratis</span></p>
+              )}
+              {bannerIsFree && parseInt(bannerPrice) === 0 && (
+                <p className="text-xs text-brand-secondary font-bold mt-1">Gratis</p>
+              )}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 shrink-0 w-full sm:w-auto">
+              <button onClick={() => setShowChapitaModal(true)}
+                className="w-full sm:w-auto px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">
+                Solicitar
+              </button>
+              <button onClick={() => {
+                if (navigator.share) {
+                  navigator.share({
+                    title: 'Chappita identificadora gratis - Sigo Tu Huella',
+                    text: 'Protegé a tu mascota con una chappita QR gratuita de Sigo Tu Huella. ¡Solicitala ahora!',
+                    url: window.location.href,
+                  }).catch(() => {});
+                }
+              }}
+                className="w-full sm:w-auto px-6 py-3 bg-white border border-brand-accent text-brand-primary rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                <Share2 className="w-4 h-4" /> Compartir
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* News Carousel */}
       <NewsCarousel news={news} />
@@ -184,6 +235,62 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Chapita info modal */}
+      <AnimatePresence>
+        {showChapitaModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowChapitaModal(false)}
+              className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              <div className="p-6 sm:p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+                <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-2">
+                  <img src="/chapita.png" alt="" className="w-8 h-8" />
+                  Chappita identificadora
+                </h2>
+                <button onClick={() => setShowChapitaModal(false)} className="p-2 hover:bg-brand-accent rounded-full">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 sm:p-8 overflow-y-auto space-y-4">
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  La identificación de tu mascota es fundamental para protegerla. Con una chappita QR, cualquier persona que la encuentre podrá escanear el código y acceder a tus datos de contacto al instante.
+                </p>
+                <ul className="space-y-2 text-sm text-gray-600">
+                  <li className="flex items-start gap-2">
+                    <span className="text-brand-secondary mt-0.5">•</span>
+                    <span><strong>Localización rápida:</strong> Si se pierde, quien la encuentre sabe cómo contactarte.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-brand-secondary mt-0.5">•</span>
+                    <span><strong>Seguridad:</strong> No necesita collar ni chapita metálica, el QR va en una chappita liviana y resistente.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-brand-secondary mt-0.5">•</span>
+                    <span><strong>Gratuita:</strong> Las chappitas son sin cargo para los vecinos de la zona.</span>
+                  </li>
+                </ul>
+                <button
+                  onClick={() => { setShowChapitaModal(false); navigate('/mis-mascotas'); }}
+                  className="w-full py-3.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all mt-2"
+                >
+                  Pedir chappita identificatoria
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

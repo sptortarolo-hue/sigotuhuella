@@ -19,7 +19,7 @@ router.get('/', requireAdmin, async (_req, res) => {
 router.get('/public', async (_req, res) => {
   try {
     const result = await pool.query(
-      `SELECT key, value FROM settings WHERE key IN ('whatsapp_enabled', 'whatsapp_business_phone')`
+      `SELECT key, value FROM settings WHERE key IN ('whatsapp_enabled', 'whatsapp_business_phone', 'banner_chapita_visible', 'banner_chapita_price', 'banner_chapita_is_free')`
     );
     const data = {};
     result.rows.forEach(r => { data[r.key] = r.value; });
