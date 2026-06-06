@@ -1572,7 +1572,7 @@ export default function Admin() {
             ? <> <s>${bannerChapitaPrice}</s> <span className="text-brand-secondary font-bold">Gratis</span></>
             : bannerChapitaIsFree && parseInt(bannerChapitaPrice) === 0
             ? ' Gratis'
-            : ` $${bannerChapitaPrice}`}
+            : ` $${bannerChapitaPrice} — El dinero recaudado se destina a asistir a las mascotas del barrio.`}
         </div>
         <button
           onClick={async () => {

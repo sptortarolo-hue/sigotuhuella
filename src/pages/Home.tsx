@@ -105,16 +105,19 @@ export default function Home() {
             <img src="/chapita.png" alt="Chappita" className="w-20 h-20 sm:w-24 sm:h-24 object-contain shrink-0" />
             <div className="flex-1 min-w-0 text-center sm:text-left">
               <h3 className="text-xl sm:text-2xl font-bold text-brand-primary">
-                Chappita identificadora <span className="text-brand-secondary">gratis</span>
+                Chappita identificadora {bannerIsFree && <span className="text-brand-secondary">gratis</span>}
               </h3>
               <p className="text-sm text-gray-600 mt-1">
-                Protegé a tu mascota con una chappita QR gratuita. Cualquier persona que la encuentre podrá escanear el código y acceder a tus datos de contacto.
+                Protegé a tu mascota con una chappita QR{bannerIsFree ? ' gratuita' : ''}. Cualquier persona que la encuentre podrá escanear el código y acceder a tus datos de contacto.
               </p>
               {bannerIsFree && parseInt(bannerPrice) > 0 && (
                 <p className="text-xs text-gray-400 mt-1"><s>${bannerPrice}</s> <span className="text-brand-secondary font-bold">Gratis</span></p>
               )}
               {bannerIsFree && parseInt(bannerPrice) === 0 && (
                 <p className="text-xs text-brand-secondary font-bold mt-1">Gratis</p>
+              )}
+              {!bannerIsFree && (
+                <p className="text-xs text-gray-500 mt-1">${bannerPrice} — El dinero recaudado se destina a asistir a las mascotas del barrio.</p>
               )}
             </div>
             <div className="flex flex-col sm:flex-row gap-2 shrink-0 w-full sm:w-auto">
@@ -125,8 +128,8 @@ export default function Home() {
               <button onClick={() => {
                 if (navigator.share) {
                   navigator.share({
-                    title: 'Chappita identificadora gratis - Sigo Tu Huella',
-                    text: 'Protegé a tu mascota con una chappita QR gratuita de Sigo Tu Huella. ¡Solicitala ahora!',
+                    title: `Chappita identificadora${bannerIsFree ? ' gratis' : ''} - Sigo Tu Huella`,
+                    text: `Protegé a tu mascota con una chappita QR${bannerIsFree ? ' gratuita' : ''} de Sigo Tu Huella. ${bannerIsFree ? '¡Solicitala ahora!' : 'Solicitala ahora!'}`,
                     url: window.location.href,
                   }).catch(() => {});
                 }
@@ -275,10 +278,17 @@ export default function Home() {
                     <span className="text-brand-secondary mt-0.5">•</span>
                     <span><strong>Seguridad:</strong> No necesita collar ni chapita metálica, el QR va en una chappita liviana y resistente.</span>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-brand-secondary mt-0.5">•</span>
-                    <span><strong>Gratuita:</strong> Las chappitas son sin cargo para los vecinos de la zona.</span>
-                  </li>
+                  {bannerIsFree ? (
+                    <li className="flex items-start gap-2">
+                      <span className="text-brand-secondary mt-0.5">•</span>
+                      <span><strong>Gratuita:</strong> Las chappitas son sin cargo para los vecinos de la zona.</span>
+                    </li>
+                  ) : (
+                    <li className="flex items-start gap-2">
+                      <span className="text-brand-secondary mt-0.5">•</span>
+                      <span><strong>Solidaria:</strong> El costo de la chappita se destina a asistir a las mascotas del barrio.</span>
+                    </li>
+                  )}
                 </ul>
                 <button
                   onClick={() => { setShowChapitaModal(false); navigate('/mis-mascotas'); }}
