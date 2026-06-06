@@ -750,6 +750,23 @@ function ConfigSection() {
           </div>
 
           <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Intervalo de scrape (hs)</label>
+            <input type="number" value={settings.fb_scraper_interval_hours || '6'}
+              onChange={(e) => setSettings(p => ({ ...p, fb_scraper_interval_hours: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
+              min="1" max="72" />
+            <p className="text-xs text-gray-400 mt-1">Cada cuántas horas el scraper revisa los grupos.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Posts máximos por grupo</label>
+            <input type="number" value={settings.fb_scraper_max_posts || '50'}
+              onChange={(e) => setSettings(p => ({ ...p, fb_scraper_max_posts: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
+              min="5" max="200" />
+            <p className="text-xs text-gray-400 mt-1">Cantidad máxima de posts a scrapear por grupo por ciclo.</p>
+          </div>
+
+          <div>
             <label className="block text-sm font-bold text-gray-600 mb-1">Score mínimo (%)</label>
             <input type="number" value={settings.fb_matching_min_score || '50'}
               onChange={(e) => setSettings(p => ({ ...p, fb_matching_min_score: e.target.value }))}

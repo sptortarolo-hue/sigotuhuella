@@ -3,10 +3,12 @@ Facebook Group Scraper — Sigo Tu Huella
 Scrapes configured Facebook groups and sends posts to the webhook.
 
 Usage:
-  python scraper.py              # Run once
+  python scraper.py              # Run once (fetches config from API)
   python scraper.py --daemon     # Run as scheduled daemon
 
-Requires: pip install facebook-scraper requests schedule
+Config priority:
+  1. Command-line argument --api-base-url (or API_BASE_URL env var)
+  2. config.json (legacy local config)
 """
 
 import json
@@ -28,21 +30,31 @@ logging.basicConfig(
 logger = logging.getLogger("fb-scraper")
 
 
-def load_config():
+def get_api_base_url():
+    """Return API base URL from CLI arg, env var, or config.json fallback."""
+    for arg in sys.argv:
+        if arg.startswith("--api-base-url="):
+            return arg.split("=", 1)[1]
+    env_url = os.environ.get("API_BASE_URL")
+    if env_url:
+        return env_url
     config_path = Path(__file__).parent / "config.json"
-    if not config_path.exists():
-        example = Path(__file__).parent / "config.json.example"
-        if example.exists():
-            logger.error(
-                "config.json not found. Copy config.json.example to config.json "
-                "and fill in your groups and webhook URL."
-            )
-        else:
-            logger.error("config.json not found.")
-        sys.exit(1)
+    if config_path.exists():
+        with open(config_path) as f:
+            cfg = json.load(f)
+        if "api_base_url" in cfg:
+            return cfg["api_base_url"]
+    return None
 
-    with open(config_path) as f:
-        return json.load(f)
+
+def fetch_config(api_base_url, webhook_token):
+    """Fetch scraper config from the app API."""
+    url = f"{api_base_url.rstrip('/')}/api/facebook/scraper-config"
+    headers = {"Authorization": f"Bearer {webhook_token}"}
+    logger.info(f"Fetching config from {url}")
+    resp = requests.get(url, headers=headers, timeout=15)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def scrape_group(group_name, group_url, max_posts=50):
@@ -97,14 +109,10 @@ def send_to_webhook(webhook_url, webhook_token, posts):
         logger.error(f"Error sending to webhook: {e}")
 
 
-def run():
-    config = load_config()
-    webhook_url = config["webhook_url"]
-    webhook_token = config["webhook_token"]
-    max_posts = config.get("max_posts_per_group", 50)
-
+def run_with_config(webhook_url, webhook_token, groups, max_posts):
+    """Scrape all groups and send to webhook."""
     all_posts = []
-    for group in config["groups"]:
+    for group in groups:
         if not group.get("url"):
             continue
         posts = scrape_group(group["name"], group["url"], max_posts)
@@ -114,6 +122,49 @@ def run():
     send_to_webhook(webhook_url, webhook_token, all_posts)
 
 
+def run():
+    api_base_url = get_api_base_url()
+    config_path = Path(__file__).parent / "config.json"
+
+    if api_base_url:
+        # Auto-configure from API
+        logger.info("Auto-config mode: fetching from API")
+        token = os.environ.get("API_TOKEN") or getattr(
+            json.loads(config_path.read_text()) if config_path.exists() else {},
+            "webhook_token",
+            None,
+        )
+        if not token:
+            logger.error("API_TOKEN required when using --api-base-url")
+            sys.exit(1)
+
+        cfg = fetch_config(api_base_url, token)
+        run_with_config(
+            cfg["webhook_url"],
+            cfg["webhook_token"],
+            cfg["groups"],
+            cfg["max_posts_per_group"],
+        )
+    else:
+        # Legacy: read config.json
+        logger.info("Legacy mode: reading config.json")
+        if not config_path.exists():
+            logger.error(
+                "config.json not found. Provide --api-base-url or create config.json"
+            )
+            sys.exit(1)
+
+        with open(config_path) as f:
+            cfg = json.load(f)
+
+        run_with_config(
+            cfg["webhook_url"],
+            cfg["webhook_token"],
+            cfg["groups"],
+            cfg.get("max_posts_per_group", 50),
+        )
+
+
 def run_daemon():
     try:
         import schedule
@@ -121,17 +172,57 @@ def run_daemon():
         logger.error("schedule library required for daemon mode. pip install schedule")
         sys.exit(1)
 
-    config = load_config()
-    interval = config.get("scrape_interval_hours", 6)
+    api_base_url = get_api_base_url()
 
-    logger.info(f"Starting daemon mode — scraping every {interval} hours")
-    run()
+    if api_base_url:
+        token = os.environ.get("API_TOKEN") or "sihuella-scraper-2024"
+        logger.info("Daemon mode: fetching config from API every cycle")
 
-    schedule.every(interval).hours.do(run)
+        def job():
+            try:
+                cfg = fetch_config(api_base_url, token)
+                run_with_config(
+                    cfg["webhook_url"],
+                    cfg["webhook_token"],
+                    cfg["groups"],
+                    cfg["max_posts_per_group"],
+                )
+            except Exception as e:
+                logger.error(f"Daemon cycle error: {e}")
+            # Re-schedule with updated interval
+            try:
+                cfg = fetch_config(api_base_url, token)
+                interval = cfg.get("scrape_interval_hours", 6)
+                schedule.clear("fb")
+                schedule.every(interval).hours.do(job).tag("fb")
+                logger.info(f"Re-scheduled: every {interval} hours")
+            except Exception as e:
+                logger.error(f"Error re-scheduling: {e}")
 
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
+        job()
+        schedule.every(6).hours.do(job).tag("fb")
+
+        while True:
+            schedule.run_pending()
+            time.sleep(60)
+    else:
+        # Legacy daemon mode
+        config_path = Path(__file__).parent / "config.json"
+        if not config_path.exists():
+            logger.error("config.json not found")
+            sys.exit(1)
+
+        with open(config_path) as f:
+            cfg = json.load(f)
+
+        interval = cfg.get("scrape_interval_hours", 6)
+        logger.info(f"Starting legacy daemon — scraping every {interval} hours")
+        run()
+        schedule.every(interval).hours.do(run)
+
+        while True:
+            schedule.run_pending()
+            time.sleep(60)
 
 
 if __name__ == "__main__":

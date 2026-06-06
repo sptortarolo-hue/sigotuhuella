@@ -15,26 +15,30 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-echo "=== Creando config.json ==="
-if [ ! -f config.json ]; then
-  cp config.json.example config.json
-  echo "¡EDITÁ config.json con tus grupos y token!"
-  echo "  - webhook_token: el mismo que configuraste en Admin > Facebook > Configuración"
-  echo "  - groups: los URLs de los grupos de Facebook a scrapear"
+# Read APP_URL and APP_TOKEN from arguments or .env
+APP_URL="${1:-https://sigotuhuella.online}"
+APP_TOKEN="${2}"
+
+if [ -z "$APP_TOKEN" ]; then
+  if [ -f .env ]; then
+    set -a; source .env; set +a
+  fi
+  APP_TOKEN="${APP_TOKEN:-${API_TOKEN:-}}"
 fi
 
 echo "=== Instalando servicio systemd ==="
 SERVICE_FILE=/etc/systemd/system/sihuella-scraper.service
-sudo tee "$SERVICE_FILE" > /dev/null <<'SERVICEEOF'
+sudo tee "$SERVICE_FILE" > /dev/null <<SERVICEEOF
 [Unit]
 Description=Sigo Tu Huella — Facebook Scraper
 After=network.target
 
 [Service]
 Type=simple
-User=www-data
+User=root
 WorkingDirectory=/opt/sihuella/scraper
-ExecStart=/opt/sihuella/scraper/venv/bin/python scraper.py --daemon
+ExecStart=/opt/sihuella/scraper/venv/bin/python scraper.py --daemon --api-base-url=${APP_URL}
+Environment=API_TOKEN=${APP_TOKEN}
 Restart=on-failure
 RestartSec=30
 StandardOutput=journal
@@ -53,7 +57,7 @@ echo ""
 echo "=== Listo ==="
 echo "  Estado:  systemctl status sihuella-scraper"
 echo "  Logs:    journalctl -u sihuella-scraper -f"
-echo "  Probar:  python scraper.py"
+echo "  Probar:  python scraper.py --api-base-url=${APP_URL}"
 echo ""
-echo "⚠  No olvides editar config.json con los grupos correctos"
-echo "   y el webhook_token que configuraste en el admin."
+echo "  El scraper se autoconfigura desde ${APP_URL}/api/facebook/scraper-config"
+echo "  Grupos y token se gestionan desde el panel admin."

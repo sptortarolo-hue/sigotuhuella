@@ -172,27 +172,26 @@ className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-96"
 
 ## Scraper Facebook (VPS)
 
-El scraper Python está en `external/scraper/`. Se instala manualmente en el VPS:
+El scraper Python está en `external/scraper/`. Se autoconfigura desde la API — no necesita editar config.json.
 
 ```bash
 # 1. Copiar la carpeta al VPS
 rsync -avz external/scraper/ user@vps:/opt/sihuella/scraper/
 
 # 2. Ejecutar setup (crea venv, instala deps, configura systemd)
+#    TOKEN = el mismo que está en Admin > Facebook > Configuración > Token del scraper
 cd /opt/sihuella/scraper
-bash setup.sh
+bash setup.sh https://sigotuhuella.online TU_TOKEN
 
-# 3. Editar config.json con grupos reales y token
-nano /opt/sihuella/scraper/config.json
-
-# 4. Ver estado
+# 3. Ver estado
 systemctl status sihuella-scraper
 journalctl -u sihuella-scraper -f
 ```
 
 - `webhook_token` debe coincidir con el setting `fb_scraper_token` del admin
-- Para probar manual: `python scraper.py`
-- Para producción: el servicio systemd corre en modo `--daemon`, scrapea cada 6hs
+- Grupos, URL del webhook, intervalo etc se gestionan **desde el panel admin**
+- Para probar manual: `python scraper.py --api-base-url=https://sigotuhuella.online`
+- Para producción: el servicio systemd corre en modo `--daemon`
 - ~50MB RAM aprox
 
 ## Checklist al agregar una nueva página/componente

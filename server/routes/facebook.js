@@ -83,6 +83,44 @@ router.delete('/groups/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// ==================== SCRAPER CONFIG ====================
+
+router.get('/scraper-config', async (req, res) => {
+  const auth = req.headers.authorization;
+  const token = await getScraperToken();
+  if (!auth || auth !== `Bearer ${token}`) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+
+  const enabled = await isScrapingEnabled();
+  if (!enabled) {
+    return res.status(403).json({ error: 'Scraping deshabilitado' });
+  }
+
+  try {
+    const groupsRes = await pool.query(
+      "SELECT name, url FROM facebook_groups WHERE is_active = true ORDER BY name"
+    );
+
+    const settingsRes = await pool.query(
+      "SELECT key, value FROM settings WHERE key IN ('fb_scraper_token', 'fb_scraper_interval_hours', 'fb_scraper_max_posts')"
+    );
+    const s = {};
+    settingsRes.rows.forEach(r => (s[r.key] = r.value));
+
+    res.json({
+      webhook_url: `${req.protocol}://${req.get('host')}/api/facebook/webhook`,
+      webhook_token: s.fb_scraper_token || token,
+      groups: groupsRes.rows,
+      scrape_interval_hours: parseInt(s.fb_scraper_interval_hours, 10) || 6,
+      max_posts_per_group: parseInt(s.fb_scraper_max_posts, 10) || 50,
+    });
+  } catch (err) {
+    console.error('Error fetching scraper config:', err);
+    res.status(500).json({ error: 'Error al obtener configuración' });
+  }
+});
+
 // ==================== POSTS ====================
 
 router.get('/posts', requireAdmin, async (req, res) => {

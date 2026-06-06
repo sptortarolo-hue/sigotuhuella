@@ -346,6 +346,8 @@ INSERT INTO settings (key, value) VALUES
   ('fb_matching_min_score', '50'),
   ('fb_image_matching_enabled', 'false'),
   ('fb_image_matching_weight', '20'),
+  ('fb_scraper_interval_hours', '6'),
+  ('fb_scraper_max_posts', '50'),
   ('fb_neighborhoods', '[]')
 ON CONFLICT (key) DO NOTHING;
 `;
