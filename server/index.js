@@ -291,18 +291,22 @@ app.get('/mascota/:token', async (req, res) => {
 app.get('/vet/:token', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT mp.name, mp.species FROM my_pets mp WHERE mp.vet_share_token = $1 AND mp.vet_share_enabled = true`,
+      `SELECT mp.id as pet_id, mp.name, mp.species, mp.avatar_image IS NOT NULL as has_avatar
+       FROM my_pets mp WHERE mp.vet_share_token = $1 AND mp.vet_share_enabled = true`,
       [req.params.token]
     );
     const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'https';
     const baseUrl = `${protocol}://${req.get('host')}`;
     let title = 'Perfil Veterinario - Sigo Tu Huella';
     let description = 'Historia clínica compartida - Sigo Tu Huella';
-    const image = `${baseUrl}/sigotuhuella.jpg`;
+    let image = `${baseUrl}/sigotuhuella.jpg`;
     if (result.rows.length > 0) {
       const pet = result.rows[0];
       title = `${pet.name} - Ficha Veterinaria | Sigo Tu Huella`;
       description = `Historia clínica de ${pet.name}`;
+      if (pet.has_avatar) {
+        image = `${baseUrl}/my-pet-avatar/${pet.pet_id}`;
+      }
     }
     const ogTags = `<meta property="og:title" content="${escapeHtml(title)}" />
 <meta property="og:description" content="${escapeHtml(description)}" />
@@ -310,7 +314,10 @@ app.get('/vet/:token', async (req, res) => {
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="es_AR" />
 <meta property="og:image" content="${escapeHtml(image)}" />
-<meta name="twitter:card" content="summary" />
+<meta property="og:image:width" content="400" />
+<meta property="og:image:height" content="400" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="${escapeHtml(image)}" />
 </head>`;
     res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
   } catch (err) {

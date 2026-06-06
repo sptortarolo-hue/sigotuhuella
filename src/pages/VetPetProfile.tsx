@@ -4,8 +4,9 @@ import { api } from '@/src/lib/api';
 import {
   PawPrint, Loader2, Syringe, Scissors, Bug, Phone, Mail, Weight,
   Calendar, Activity, Clock, ShieldCheck, ArrowLeft, Stethoscope,
+  ChevronDown, ChevronUp, ExternalLink,
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 const RECORD_TYPE_LABELS: Record<string, string> = {
   vaccine: 'Vacuna', medication: 'Medicación', appointment: 'Turno',
@@ -23,6 +24,8 @@ export default function VetPetProfile() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProfile();
@@ -85,9 +88,13 @@ export default function VetPetProfile() {
           <div className="relative bg-gradient-to-r from-brand-primary to-brand-secondary px-6 py-8">
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-white/20 bg-white/10 shrink-0">
-                <div className="w-full h-full flex items-center justify-center">
-                  <PawPrint className="w-10 h-10 text-white/60" />
-                </div>
+                {pet.avatar_image ? (
+                  <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <PawPrint className="w-10 h-10 text-white/60" />
+                  </div>
+                )}
               </div>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-white">{pet.name}</h1>
@@ -159,27 +166,79 @@ export default function VetPetProfile() {
             </h3>
             <div className="space-y-3">
               {pet.records.map((record: any) => (
-                <div key={record.id} className="p-4 bg-brand-bg rounded-2xl">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-brand-secondary">
-                        {RECORD_TYPE_LABELS[record.record_type] || record.record_type}
-                      </span>
-                      <h4 className="text-sm font-bold text-gray-800">{record.title}</h4>
-                      {record.description && <p className="text-xs text-gray-500 mt-0.5">{record.description}</p>}
-                      <div className="flex flex-wrap gap-2 mt-2 text-xs text-gray-400">
-                        {record.record_date && <span>{new Date(record.record_date).toLocaleDateString('es-AR')}</span>}
-                        {record.vet_name && <span>· Vet: {record.vet_name}</span>}
-                        {record.clinic_name && <span>· {record.clinic_name}</span>}
-                        {record.medication_name && <span>· {record.medication_name} {record.dosage}</span>}
-                        {record.next_date && (
-                          <span className="text-amber-600 font-medium">
-                            · Próximo: {new Date(record.next_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
-                          </span>
+                <div key={record.id}>
+                  <button
+                    onClick={() => setExpandedId(expandedId === record.id ? null : record.id)}
+                    className="w-full text-left p-4 bg-brand-bg rounded-2xl hover:bg-brand-accent/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-brand-secondary">
+                          {RECORD_TYPE_LABELS[record.record_type] || record.record_type}
+                        </span>
+                        <h4 className="text-sm font-bold text-gray-800 truncate">{record.title}</h4>
+                        <div className="flex flex-wrap gap-2 mt-1 text-xs text-gray-400">
+                          {record.record_date && <span>{new Date(record.record_date).toLocaleDateString('es-AR')}</span>}
+                          {record.vet_name && <span>· Vet: {record.vet_name}</span>}
+                          {record.amount && (
+                            <span className={record.record_type === 'weight' ? 'text-brand-primary font-medium' : 'text-emerald-600 font-medium'}>
+                              · {record.record_type === 'weight' ? `${record.amount} kg` : `$${record.amount}`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0 mt-1">
+                        {expandedId === record.id ? (
+                          <ChevronUp className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
                         )}
                       </div>
                     </div>
-                  </div>
+                  </button>
+
+                  <AnimatePresence>
+                    {expandedId === record.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-4 pb-4 bg-brand-bg rounded-b-2xl -mt-2">
+                          {record.description && (
+                            <p className="text-xs text-gray-500 mt-2">{record.description}</p>
+                          )}
+                          <div className="flex flex-wrap gap-2 mt-2 text-xs text-gray-400">
+                            {record.clinic_name && <span>· Clínica: {record.clinic_name}</span>}
+                            {record.medication_name && <span>· {record.medication_name} {record.dosage}</span>}
+                            {record.next_date && (
+                              <span className="text-amber-600 font-medium">
+                                · Próximo: {new Date(record.next_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                              </span>
+                            )}
+                          </div>
+                          {record.link_url && (
+                            <a href={record.link_url} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 mt-3 text-xs text-blue-600 hover:text-blue-700 underline break-all"
+                            >
+                              <ExternalLink className="w-3 h-3" /> {record.link_url}
+                            </a>
+                          )}
+                          {record.photo_ids?.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-3">
+                              {record.photo_ids.map((pid: string) => (
+                                <img key={pid} src={`/my-pet-photo/${pid}`}
+                                  className="w-16 h-16 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity border border-brand-accent"
+                                  onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}`)}
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               ))}
             </div>
@@ -193,17 +252,58 @@ export default function VetPetProfile() {
             </h3>
             <div className="space-y-3">
               {pet.events.map((event: any) => (
-                <div key={event.id} className="flex gap-3 items-start">
-                  <div className="w-8 h-8 rounded-lg bg-brand-bg flex items-center justify-center text-sm shrink-0">
-                    {EVENT_TYPE_ICONS[event.event_type] || '📋'}
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-gray-800">{event.title}</h4>
-                    <p className="text-xs text-gray-400">
-                      {new Date(event.event_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                    </p>
-                    {event.description && <p className="text-xs text-gray-500 mt-0.5">{event.description}</p>}
-                  </div>
+                <div key={event.id}>
+                  <button
+                    onClick={() => setExpandedId(expandedId === event.id ? null : event.id)}
+                    className="w-full text-left flex gap-3 items-start p-3 bg-brand-bg rounded-2xl hover:bg-brand-accent/50 transition-colors"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-brand-bg flex items-center justify-center text-sm shrink-0">
+                      {EVENT_TYPE_ICONS[event.event_type] || '📋'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-gray-800 truncate">{event.title}</h4>
+                      <p className="text-xs text-gray-400">
+                        {new Date(event.event_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <div className="shrink-0 mt-1">
+                      {expandedId === event.id ? (
+                        <ChevronUp className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                      )}
+                    </div>
+                  </button>
+
+                  <AnimatePresence>
+                    {expandedId === event.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-4 pb-4 bg-brand-bg rounded-b-2xl -mt-2">
+                          {event.description && (
+                            <p className="text-xs text-gray-500 mt-2">{event.description}</p>
+                          )}
+                          {event.next_date && (
+                            <p className="text-xs text-amber-600 font-medium mt-1">
+                              Próximo: {new Date(event.next_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                            </p>
+                          )}
+                          {event.photo_id && (
+                            <div className="mt-3">
+                              <img src={`/my-pet-photo/${event.photo_id}`}
+                                className="w-24 h-24 object-cover rounded-xl cursor-pointer hover:opacity-80 transition-opacity border border-brand-accent"
+                                onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${event.photo_id}`)}
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               ))}
             </div>
@@ -214,6 +314,20 @@ export default function VetPetProfile() {
           Sigo Tu Huella — Ficha Veterinaria Compartida
         </p>
       </div>
+
+      <AnimatePresence>
+        {previewPhotoUrl && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80"
+            onClick={() => setPreviewPhotoUrl(null)}
+          >
+            <img src={previewPhotoUrl}
+              className="max-w-full max-h-[90vh] object-contain rounded-2xl"
+              onClick={(e) => e.stopPropagation()} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
