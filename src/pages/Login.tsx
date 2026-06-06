@@ -463,9 +463,24 @@ export default function Login() {
               </div>
             )}
 
-            {/* Login mode */}
+            {/* Login mode — Google first, then email */}
             {mode === 'login' && (
               <>
+                {GOOGLE_CLIENT_ID && (
+                  <div ref={googleButtonRef} className="w-full min-h-[40px]" />
+                )}
+
+                {GOOGLE_CLIENT_ID && (
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-brand-accent"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white px-3 text-gray-400 font-bold">O</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
                     <Mail className="w-3 h-3" /> Email
@@ -502,20 +517,6 @@ export default function Login() {
                     ¿Olvidaste tu contraseña?
                   </button>
                 </div>
-
-                {GOOGLE_CLIENT_ID && (
-                  <>
-                    <div className="relative my-4">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-brand-accent"></div>
-                      </div>
-                      <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-white px-3 text-gray-400 font-bold">O</span>
-                      </div>
-                    </div>
-                    <div ref={googleButtonRef} className="w-full min-h-[40px]"></div>
-                  </>
-                )}
               </>
             )}
 
