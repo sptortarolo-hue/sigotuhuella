@@ -93,10 +93,16 @@ export default function MyPetsPortal() {
       let avatarData = undefined;
       let avatarMime = undefined;
       if (avatarFile) {
-        const compressed = await compressImage(avatarFile, 800, 0.8);
-        const { data, mimeType } = await fileToBase64(compressed);
-        avatarData = data;
-        avatarMime = mimeType;
+        try {
+          const compressed = await compressImage(avatarFile, 800, 0.8);
+          const { data, mimeType } = await fileToBase64(compressed);
+          avatarData = data;
+          avatarMime = mimeType;
+        } catch {
+          const { data, mimeType } = await fileToBase64(avatarFile);
+          avatarData = data;
+          avatarMime = mimeType;
+        }
       }
 
       const payload: any = { ...form };
