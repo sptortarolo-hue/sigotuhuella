@@ -97,6 +97,7 @@ export default function Login() {
     try {
       const data = await api.auth.googleLogin(response.credential);
       if (data.needsPassword) {
+        (window as any).__pendingGoogleCred = response.credential;
         setLinkingEmail(data.email);
         setMode('link-google');
         return;
