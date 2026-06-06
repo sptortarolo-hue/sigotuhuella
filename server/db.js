@@ -130,8 +130,7 @@ INSERT INTO settings (key, value) VALUES
   ('banner_chapita_is_free', 'true')
 ON CONFLICT (key) DO NOTHING;
 
--- Set existing users as email_verified
-UPDATE users SET email_verified = TRUE WHERE email_verified = FALSE;
+
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id SERIAL PRIMARY KEY,
