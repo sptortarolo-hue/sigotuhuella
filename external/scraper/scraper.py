@@ -47,6 +47,22 @@ def get_api_base_url():
     return None
 
 
+def get_api_token():
+    """Return API token from CLI arg, env var, or config.json fallback."""
+    for arg in sys.argv:
+        if arg.startswith("--api-token="):
+            return arg.split("=", 1)[1]
+    token = os.environ.get("API_TOKEN")
+    if token:
+        return token
+    config_path = Path(__file__).parent / "config.json"
+    if config_path.exists():
+        with open(config_path) as f:
+            cfg = json.load(f)
+        return cfg.get("webhook_token")
+    return None
+
+
 def fetch_config(api_base_url, webhook_token):
     """Fetch scraper config from the app API."""
     url = f"{api_base_url.rstrip('/')}/api/facebook/scraper-config"
@@ -129,13 +145,9 @@ def run():
     if api_base_url:
         # Auto-configure from API
         logger.info("Auto-config mode: fetching from API")
-        token = os.environ.get("API_TOKEN") or getattr(
-            json.loads(config_path.read_text()) if config_path.exists() else {},
-            "webhook_token",
-            None,
-        )
+        token = get_api_token()
         if not token:
-            logger.error("API_TOKEN required when using --api-base-url")
+            logger.error("API_TOKEN required when using --api-base-url. Use --api-token=TOKEN or set API_TOKEN env var")
             sys.exit(1)
 
         cfg = fetch_config(api_base_url, token)
@@ -175,7 +187,10 @@ def run_daemon():
     api_base_url = get_api_base_url()
 
     if api_base_url:
-        token = os.environ.get("API_TOKEN") or "sihuella-scraper-2024"
+        token = get_api_token()
+        if not token:
+            logger.error("API_TOKEN required in daemon mode")
+            sys.exit(1)
         logger.info("Daemon mode: fetching config from API every cycle")
 
         def job():
