@@ -16,6 +16,7 @@ export default function Navbar() {
 
   const isMember = user && user.volunteer_status === 'active';
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
+  const [bellHidden, setBellHidden] = useState(false);
 
   useEffect(() => {
     isSupported().then(async (ok) => {
@@ -24,6 +25,12 @@ export default function Navbar() {
       setPushEnabled(sub);
     });
   }, []);
+
+  useEffect(() => {
+    if (pushEnabled === null) return;
+    const timer = setTimeout(() => setBellHidden(true), 2000);
+    return () => clearTimeout(timer);
+  }, [pushEnabled]);
 
   const handleBellClick = async () => {
     if (pushEnabled) {
@@ -107,7 +114,7 @@ export default function Navbar() {
             </div>
 
             <div className="flex items-center gap-3">
-              {pushEnabled !== null && (
+              {!bellHidden && pushEnabled !== null && (
                 <button
                   onClick={handleBellClick}
                   title={pushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}
@@ -279,7 +286,7 @@ export default function Navbar() {
 </AnimatePresence>
 </div>
 )}
-{pushEnabled !== null && (
+        {!bellHidden && pushEnabled !== null && (
           <button
             onClick={handleBellClick}
             title={pushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}
