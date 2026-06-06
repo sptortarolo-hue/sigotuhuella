@@ -27,7 +27,8 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    if (pushEnabled === null) return;
+    if (pushEnabled !== false) { setBellHidden(false); return; }
+    setBellHidden(false);
     const timer = setTimeout(() => setBellHidden(true), 2000);
     return () => clearTimeout(timer);
   }, [pushEnabled]);
@@ -114,7 +115,7 @@ export default function Navbar() {
             </div>
 
             <div className="flex items-center gap-3">
-              {!bellHidden && pushEnabled !== null && (
+              {pushEnabled !== null && (pushEnabled || !bellHidden) && (
                 <button
                   onClick={handleBellClick}
                   title={pushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}
@@ -286,7 +287,7 @@ export default function Navbar() {
 </AnimatePresence>
 </div>
 )}
-        {!bellHidden && pushEnabled !== null && (
+        {pushEnabled !== null && (pushEnabled || !bellHidden) && (
           <button
             onClick={handleBellClick}
             title={pushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}
