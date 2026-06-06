@@ -296,34 +296,34 @@ async def extract_posts_via_js(page, group_name):
 
 
 async def wait_for_posts(page, group_name, timeout=30):
-    """Wait until post elements appear in the DOM, scrolling as needed."""
+    """Wait until actual post elements appear in the DOM, scrolling as needed."""
     start = time.time()
     scroll_attempts = 0
     while time.time() - start < timeout:
-        # Check for post-related DOM elements
-        has_content = await page.evaluate("""() => {
-            const selectors = [
-                'a[href*="story_fbid"]',
-                'a[href*="/posts/"]',
-                'a[href*="/permalink/"]',
-                'div[role="article"]',
-                '[data-pagelet^="FeedUnit"]',
-                'div.x1yztbdb',
-            ];
-            for (const sel of selectors) {
-                if (document.querySelector(sel)) return true;
+        has_posts = await page.evaluate("""() => {
+            // Only look for actual post links, not sidebar/nav links
+            const links = document.querySelectorAll('a[href*="story_fbid"], a[href*="/posts/"], a[href*="/permalink/"]');
+            for (const link of links) {
+                // Exclude links in navigation/sidebar by checking parents
+                const closestFeed = link.closest('[role="article"], [data-pagelet^="Feed"], [id*="feed"], [id*="post"], .x1yztbdb');
+                if (closestFeed) return true;
+                // Check if link is near visible text content (not in nav)
+                const rect = link.getBoundingClientRect();
+                if (rect.top > 0 && rect.top < 5000) return true;
             }
-            // Also check if body text contains "h" (logged in indicator)
             return false;
         }""")
-        if has_content:
+        if has_posts:
             logger.info(f"[{group_name}] Posts appeared after {time.time()-start:.1f}s")
-            await asyncio.sleep(2)  # let them fully render
+            await asyncio.sleep(2)
             return True
         scroll_attempts += 1
         await page.evaluate(f"window.scrollBy(0, {scroll_attempts * 400})")
         await asyncio.sleep(1.5)
     logger.warning(f"[{group_name}] No posts appeared after {timeout}s")
+    # Log page text for diagnosis
+    body_text = await page.evaluate("document.body?.innerText?.substring(0, 300) || ''")
+    logger.info(f"[{group_name}] Page body text: {body_text[:200]}")
     return False
 
 
@@ -432,8 +432,14 @@ def send_to_webhook(webhook_url, webhook_token, posts):
     headers = {"Authorization": f"Bearer {webhook_token}", "Content-Type": "application/json"}
     try:
         resp = requests.post(webhook_url, json=payload, headers=headers, timeout=60)
-        resp.raise_for_status()
-        logger.info(f"Webhook response: {resp.json()}")
+        logger.info(f"Webhook response: HTTP {resp.status_code} ({len(resp.content)} bytes)")
+        if resp.status_code >= 400:
+            logger.error(f"Webhook error body: {resp.text[:500]}")
+        else:
+            try:
+                logger.info(f"Webhook JSON: {resp.json()}")
+            except Exception:
+                logger.warning(f"Webhook response is not JSON: {resp.text[:200]}")
     except requests.exceptions.RequestException as e:
         logger.error(f"Error sending to webhook: {e}")
 
