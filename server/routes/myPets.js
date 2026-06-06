@@ -482,19 +482,19 @@ router.post('/:id/records', requireAuth, async (req, res) => {
 
     const {
       record_type, title, description, amount, record_date, next_date,
-      vet_name, clinic_name, medication_name, dosage, photo_ids,
+      vet_name, clinic_name, medication_name, dosage, photo_ids, link_url,
     } = req.body;
 
     if (!record_type || !title) return res.status(400).json({ error: 'Tipo y título son requeridos' });
 
     const result = await pool.query(
       `INSERT INTO pet_records (pet_id, my_pet_id, record_type, title, description, amount,
-      record_date, next_date, vet_name, clinic_name, medication_name, dosage, photo_ids, created_by)
-      VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      record_date, next_date, vet_name, clinic_name, medication_name, dosage, photo_ids, link_url, created_by)
+      VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
       [
         req.params.id, record_type, title, description || null, amount || null,
         record_date || null, next_date || null, vet_name || null, clinic_name || null,
-        medication_name || null, dosage || null, photo_ids || [], req.user.id,
+        medication_name || null, dosage || null, photo_ids || [], link_url || null, req.user.id,
       ]
     );
 

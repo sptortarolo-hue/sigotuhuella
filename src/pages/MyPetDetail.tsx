@@ -73,7 +73,7 @@ export default function MyPetDetail() {
   const [eventLoading, setEventLoading] = useState(false);
 
   const [showRecordForm, setShowRecordForm] = useState(false);
-  const [recordForm, setRecordForm] = useState({ record_type: 'vaccine', title: '', description: '', record_date: '', next_date: '', vet_name: '', clinic_name: '', medication_name: '', dosage: '', amount: '' });
+  const [recordForm, setRecordForm] = useState({ record_type: 'vaccine', title: '', description: '', record_date: '', next_date: '', vet_name: '', clinic_name: '', medication_name: '', dosage: '', amount: '', link_url: '' });
   const [recordLoading, setRecordLoading] = useState(false);
   const [recordPhotos, setRecordPhotos] = useState<File[]>([]);
   const [recordPhotoPreviews, setRecordPhotoPreviews] = useState<string[]>([]);
@@ -271,7 +271,7 @@ export default function MyPetDetail() {
       payload.photo_ids = uploadedIds.length > 0 ? uploadedIds : undefined;
       await api.myPets.records.create(id!, payload);
       setShowRecordForm(false);
-      setRecordForm({ record_type: 'vaccine', title: '', description: '', record_date: '', next_date: '', vet_name: '', clinic_name: '', medication_name: '', dosage: '', amount: '' });
+      setRecordForm({ record_type: 'vaccine', title: '', description: '', record_date: '', next_date: '', vet_name: '', clinic_name: '', medication_name: '', dosage: '', amount: '', link_url: '' });
       setRecordPhotos([]);
       setRecordPhotoPreviews([]);
       await fetchPet();
@@ -716,6 +716,13 @@ export default function MyPetDetail() {
                                 {item.record_type === 'weight' && item.amount && <span className="text-brand-primary font-medium">· {item.amount} kg</span>}
                               </div>
                             )}
+                            {!isEvent && item.link_url && (
+                              <a href={item.link_url} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 mt-2 text-xs text-blue-600 hover:text-blue-700 underline break-all"
+                              >
+                                <span className="text-base">🔗</span> {item.link_url}
+                              </a>
+                            )}
                             {item.photo_ids?.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 mt-2">
                                 {item.photo_ids.map((pid: string) => (
@@ -887,6 +894,13 @@ export default function MyPetDetail() {
                           )}
                         </div>
                       </div>
+                      {record.link_url && (
+                        <a href={record.link_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 mt-3 text-xs text-blue-600 hover:text-blue-700 underline break-all"
+                        >
+                          <span className="text-base">🔗</span> {record.link_url}
+                        </a>
+                      )}
                       {record.photo_ids?.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mt-3">
                           {record.photo_ids.map((pid: string) => (
@@ -968,6 +982,13 @@ export default function MyPetDetail() {
                             </button>
                           )}
                         </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">
+                          Link a estudio <span className="text-brand-secondary">(opcional)</span>
+                        </label>
+                        <input value={recordForm.link_url} onChange={e => setRecordForm(prev => ({ ...prev, link_url: e.target.value }))}
+                          className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="https://drive.google.com/..." />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
