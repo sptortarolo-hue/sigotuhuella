@@ -217,53 +217,74 @@ async def extract_posts_via_js(page, group_name):
     try:
         data = await page.evaluate("""() => {
             const posts = [];
-            // Try to find post containers by common Facebook class patterns
-            const containers = document.querySelectorAll(
-                'div[role="article"], ' +
-                'div[data-pagelet^="FeedUnit"], ' +
-                'div.x1yztbdb, ' +
-                'div[data-ad-rendering-role="feed_unit"], ' +
-                'div[data-testid="post"]
-            ');
-            containers.forEach(container => {
-                // Post ID via story links
-                const links = container.querySelectorAll('a[href*="story_fbid"], a[href*="/posts/"]');
+            // Find all links that contain story_fbid or /posts/ or /permalink/
+            const links = document.querySelectorAll(
+                'a[href*="story_fbid"], a[href*="/posts/"], a[href*="/permalink/"]'
+            );
+            const seen = new Set();
+            links.forEach(link => {
+                const href = link.href || '';
                 let fb_id = '';
-                links.forEach(a => {
-                    const m = a.href.match(/(?:story_fbid=|\\/posts\\/|fbid=)(\\d+)/);
-                    if (m) fb_id = m[1];
-                });
+                // story_fbid=12345
+                let m = href.match(/story_fbid=(\\d+)/);
+                if (m) fb_id = m[1];
+                // /posts/12345 or /posts/permalink/12345
                 if (!fb_id) {
-                    const m2 = container.outerHTML.match(/post_id[=:]\\s*["']?(\\d+)/);
-                    if (m2) fb_id = m2[1];
+                    m = href.match(/\\/posts\\/(\\d+)/);
+                    if (m) fb_id = m[1];
                 }
-                if (!fb_id) return;
+                // /permalink/12345
+                if (!fb_id) {
+                    m = href.match(/\\/permalink\\/(\\d+)/);
+                    if (m) fb_id = m[1];
+                }
+                if (!fb_id || seen.has(fb_id)) return;
+                seen.add(fb_id);
 
-                // Author
-                const authorEl = container.querySelector('h3, h4, strong, a[role="link"]');
+                // Try to find the post container by walking up from the link
+                let container = link;
+                for (let i = 0; i < 10; i++) {
+                    if (!container.parentElement) break;
+                    container = container.parentElement;
+                    if (container.getAttribute('role') === 'article') break;
+                    if (container.hasAttribute('data-pagelet')) break;
+                }
+
+                // Author from first strong/a/h3
+                const authorEl = container.querySelector('strong, h3, h4, a[role="link"]');
                 const author = authorEl ? authorEl.innerText.trim() : '';
 
-                // Content
+                // Content text - the container text minus metadata
                 let content = '';
-                const msgEl = container.querySelector('div[data-ad-preview="message"], div[dir="auto"], span[dir="auto"]');
+                const msgEl = container.querySelector(
+                    'div[data-ad-preview="message"], ' +
+                    'div[dir="auto"], ' +
+                    'span[dir="auto"]'
+                );
                 if (msgEl) content = msgEl.innerText.trim();
-                if (!content || content.length < 20) content = container.innerText.trim().substring(0, 500);
+                if (!content || content.length < 20) {
+                    content = container.innerText.trim();
+                    // Remove common FB UI text
+                    content = content.replace(/Reacciones?\\s*.*/, '').trim();
+                    content = content.substring(0, 500);
+                }
 
-                // Images
+                // Find images
                 const images = [];
-                container.querySelectorAll('img[src*="scontent"], img[src*="fbcdn"]').forEach(img => {
-                    if (img.src && !images.includes(img.src)) images.push(img.src);
+                container.querySelectorAll('img').forEach(img => {
+                    const src = img.src || '';
+                    if ((src.includes('scontent') || src.includes('fbcdn')) &&
+                        !images.includes(src)) {
+                        images.push(src);
+                    }
                 });
 
                 posts.push({
-                    group_id: null,
-                    group_name: null,
                     fb_post_id: fb_id,
                     fb_post_url: 'https://www.facebook.com/' + fb_id,
                     author_name: author,
                     content: content,
                     image_urls: images.slice(0, 5),
-                    posted_at: '',
                 });
             });
             return JSON.stringify(posts);
@@ -272,6 +293,38 @@ async def extract_posts_via_js(page, group_name):
     except Exception as e:
         logger.warning(f"[{group_name}] JS extraction error: {e}")
         return []
+
+
+async def wait_for_posts(page, group_name, timeout=30):
+    """Wait until post elements appear in the DOM, scrolling as needed."""
+    start = time.time()
+    scroll_attempts = 0
+    while time.time() - start < timeout:
+        # Check for post-related DOM elements
+        has_content = await page.evaluate("""() => {
+            const selectors = [
+                'a[href*="story_fbid"]',
+                'a[href*="/posts/"]',
+                'a[href*="/permalink/"]',
+                'div[role="article"]',
+                '[data-pagelet^="FeedUnit"]',
+                'div.x1yztbdb',
+            ];
+            for (const sel of selectors) {
+                if (document.querySelector(sel)) return true;
+            }
+            // Also check if body text contains "h" (logged in indicator)
+            return false;
+        }""")
+        if has_content:
+            logger.info(f"[{group_name}] Posts appeared after {time.time()-start:.1f}s")
+            await asyncio.sleep(2)  # let them fully render
+            return True
+        scroll_attempts += 1
+        await page.evaluate(f"window.scrollBy(0, {scroll_attempts * 400})")
+        await asyncio.sleep(1.5)
+    logger.warning(f"[{group_name}] No posts appeared after {timeout}s")
+    return False
 
 
 async def async_scrape_group(group_name, group_url, max_posts=50):
@@ -292,6 +345,9 @@ async def async_scrape_group(group_name, group_url, max_posts=50):
             "--disable-dev-shm-usage",
             "--disable-gpu",
         ],
+        handleSIGINT=False,
+        handleSIGTERM=False,
+        handleSIGHUP=False,
     )
     try:
         page = await browser.newPage()
@@ -306,45 +362,40 @@ async def async_scrape_group(group_name, group_url, max_posts=50):
         if fb_cookies:
             await page.setCookie(*fb_cookies)
 
-        # First, visit facebook.com to establish session
-        try:
-            await page.goto("https://www.facebook.com/", waitUntil="load", timeout=30000)
-        except Exception:
-            logger.info(f"[{group_name}] Facebook.com timed out, continuing anyway...")
-        await asyncio.sleep(3)
-
-        # Now navigate to group with recent-activity sort (more reliable HTML)
+        # Navigate directly to group
         group_url_full = f"https://www.facebook.com/groups/{group_id}/?sorting_setting=RECENT_ACTIVITY"
         logger.info(f"Navigating to {group_url_full}")
         try:
             await page.goto(group_url_full, waitUntil="load", timeout=60000)
-        except Exception:
-            logger.warning(f"[{group_name}] Group page load timed out, trying with domcontentloaded...")
-            try:
-                await page.goto(group_url_full, waitUntil="domcontentloaded", timeout=30000)
-            except Exception:
-                logger.warning(f"[{group_name}] Group page navigation failed completely")
-        await asyncio.sleep(3)
+        except Exception as e:
+            logger.warning(f"[{group_name}] goto timeout: {e}")
 
         await page_diagnostics(page, group_name)
 
+        # Wait for posts to appear via lazy loading / API
+        posts_appeared = await wait_for_posts(page, group_name, timeout=30)
+
         # Try JS extraction first (more reliable)
-        posts = await extract_posts_via_js(page, group_name)
+        posts = []
+        if posts_appeared:
+            # Scroll more to load all posts
+            for _ in range(5):
+                await page.evaluate("window.scrollBy(0, 1500)")
+                await asyncio.sleep(1)
+            # Try the new JS-based extraction
+            posts = await extract_posts_via_js(page, group_name)
 
-        # Fallback: HTML parsing
         if not posts:
-            logger.info(f"[{group_name}] JS extraction returned 0, trying HTML parse...")
-            # Scroll to trigger lazy loading
-            for _ in range(4):
-                await page.evaluate("window.scrollBy(0, 1200)")
-                await asyncio.sleep(2)
-
+            logger.info(f"[{group_name}] JS extraction returned 0 posts, dumping diagnostics...")
+            # Take screenshot for debugging
+            screenshot_file = Path(__file__).parent / f"debug_{group_id}.png"
+            await page.screenshot({"path": str(screenshot_file)})
+            logger.info(f"[{group_name}] Saved screenshot to {screenshot_file}")
+            # Dump HTML snippet
             html = await page.content()
-            logger.info(f"[{group_name}] Page HTML length={len(html)}")
-            # Save a snippet for debugging
             snippet_file = Path(__file__).parent / f"debug_{group_id}.html"
             with open(snippet_file, "w") as f:
-                f.write(html[:10000])
+                f.write(html[:20000])
             logger.info(f"[{group_name}] Saved HTML snippet to {snippet_file}")
 
             posts = parse_post_elements(html, group_name)
