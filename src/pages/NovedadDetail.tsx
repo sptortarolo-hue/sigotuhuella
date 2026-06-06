@@ -88,7 +88,7 @@ export default function NovedadDetail() {
   const handleShareNews = async () => {
     if (!item) return;
 
-    const newsUrl = `${import.meta.env.VITE_FRONTEND_URL}/novedad/${item.id}`;
+    const newsUrl = `${window.location.origin}/novedad/${item.id}`;
 
     try {
       const W = 1200, H = 630;

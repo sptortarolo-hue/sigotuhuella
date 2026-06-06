@@ -93,7 +93,7 @@ export default function Novedades() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      const url = `${import.meta.env.VITE_FRONTEND_URL}/novedad/${item.id}`;
+                      const url = `${window.location.origin}/novedad/${item.id}`;
                       const msg = encodeURIComponent(`📰 ${item.title}\n\n${item.content.substring(0, 150)}...\n\n👉 ${url}`);
                       window.open(`https://wa.me/?text=${msg}`, '_blank');
                     }}

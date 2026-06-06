@@ -6,7 +6,7 @@ import { compressImage } from '@/src/lib/storageService';
 import LocationPicker from '@/src/components/LocationPicker';
 import MapLoader from '@/src/components/MapLoader';
 
-const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || '';
+const FRONTEND_URL = window.location.origin;
 
 const SPECIES_OPTIONS = [
   { value: 'perro', label: 'Perro', icon: '🐕' },
