@@ -338,6 +338,7 @@ CREATE TABLE IF NOT EXISTS facebook_matches (
 );
 
 INSERT INTO settings (key, value) VALUES
+  ('fb_scraper_token', 'sihuella-scraper-2024'),
   ('fb_scraping_enabled', 'false'),
   ('fb_polygon_vertices', '[{"lat":-34.856,"lng":-57.984},{"lat":-34.876,"lng":-57.964},{"lat":-34.891,"lng":-57.995}]'),
   ('fb_polygon_amplitude', '100'),

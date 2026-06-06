@@ -384,6 +384,21 @@ app.get('/solicitar-chapita', (_req, res) => {
   res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
 });
 
+app.get('/buscar-facebook', (_req, res) => {
+  const protocol = _req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'https';
+  const baseUrl = `${protocol}://${_req.get('host')}`;
+  const ogTags = `<meta property="og:title" content="Buscar mascotas en Facebook - Sigo Tu Huella" />
+<meta property="og:description" content="Encontrá publicaciones de mascotas perdidas y encontradas en grupos de Facebook de Zona Sur." />
+<meta property="og:url" content="${baseUrl}/buscar-facebook" />
+<meta property="og:type" content="website" />
+<meta property="og:locale" content="es_AR" />
+<meta property="og:image" content="${baseUrl}/og-facebook-search.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="${baseUrl}/og-facebook-search.jpg" />
+</head>`;
+  res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
+});
+
 // Video generator admin routes
  app.use('/api/admin/videos', videoGeneratorRoutes);
 

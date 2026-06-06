@@ -127,10 +127,11 @@ export default function App() {
               <div>
                 <h4 className="font-bold text-gray-800 mb-4 uppercase text-xs tracking-widest">Navegación</h4>
                 <ul className="space-y-2 text-gray-600 text-sm">
-                  <li><Link to="/perdidos" className="hover:text-brand-primary">Mascotas Reportadas</Link></li>
-                  <li><Link to="/adopcion" className="hover:text-brand-primary">Adopción</Link></li>
-                  <li><Link to="/reportar" className="hover:text-brand-primary">Publicar</Link></li>
-                  <li><Link to="/reportar-rapido" className="hover:text-brand-primary">Reporte Rápido</Link></li>
+          <li><Link to="/perdidos" className="hover:text-brand-primary">Mascotas Reportadas</Link></li>
+          <li><Link to="/adopcion" className="hover:text-brand-primary">Adopción</Link></li>
+          <li><Link to="/reportar" className="hover:text-brand-primary">Publicar</Link></li>
+          <li><Link to="/reportar-rapido" className="hover:text-brand-primary">Reporte Rápido</Link></li>
+          <li><Link to="/buscar-facebook" className="hover:text-brand-primary">Buscar en Facebook</Link></li>
                 </ul>
               </div>
               <div>

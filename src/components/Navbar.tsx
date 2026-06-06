@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard, FileText, Share2, Bell, BellOff, Trophy } from 'lucide-react';
+import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard, FileText, Share2, Bell, BellOff, Trophy, ExternalLink } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -44,6 +44,7 @@ export default function Navbar() {
     { name: 'Difusión', path: '/difusion', icon: Share2 },
     { name: isMember ? 'Asociado' : 'Sumate', path: '/sumate', icon: Users },
     { name: 'Novedades', path: '/novedades', icon: Sparkles },
+    { name: 'Facebook', path: '/buscar-facebook', icon: ExternalLink },
   ];
 
   useEffect(() => {

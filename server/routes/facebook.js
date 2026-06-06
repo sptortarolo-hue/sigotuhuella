@@ -6,7 +6,15 @@ import { findMatchesForPost, findMatchesForPet, runFullMatching } from '../servi
 
 const router = Router();
 
-const WEBHOOK_TOKEN = process.env.FB_SCRAPER_TOKEN || 'sihuella-scraper-2024';
+async function getScraperToken() {
+  const result = await pool.query("SELECT value FROM settings WHERE key = 'fb_scraper_token'");
+  return result.rows[0]?.value || process.env.FB_SCRAPER_TOKEN || 'sihuella-scraper-2024';
+}
+
+async function isScrapingEnabled() {
+  const result = await pool.query("SELECT value FROM settings WHERE key = 'fb_scraping_enabled'");
+  return result.rows[0]?.value === 'true';
+}
 
 // ==================== GROUPS ====================
 
@@ -185,8 +193,14 @@ router.delete('/posts/:id', requireAdmin, async (req, res) => {
 
 router.post('/webhook', async (req, res) => {
   const auth = req.headers.authorization;
-  if (!auth || auth !== `Bearer ${WEBHOOK_TOKEN}`) {
+  const token = await getScraperToken();
+  if (!auth || auth !== `Bearer ${token}`) {
     return res.status(401).json({ error: 'Token inválido' });
+  }
+
+  const enabled = await isScrapingEnabled();
+  if (!enabled) {
+    return res.status(403).json({ error: 'Scraping deshabilitado' });
   }
 
   try {

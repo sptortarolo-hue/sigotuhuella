@@ -740,6 +740,15 @@ function ConfigSection() {
             <label htmlFor="fb_scraping_enabled" className="font-bold text-brand-primary">Activar scraping automático</label>
           </div>
 
+          <div className="col-span-full">
+            <label className="block text-sm font-bold text-gray-600 mb-1">Token del scraper</label>
+            <input type="text" value={settings.fb_scraper_token || ''}
+              onChange={(e) => setSettings(p => ({ ...p, fb_scraper_token: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm font-mono"
+              placeholder="sihuella-scraper-2024" />
+            <p className="text-xs text-gray-400 mt-1">Token que el scraper Python usa para autenticarse en el webhook.</p>
+          </div>
+
           <div>
             <label className="block text-sm font-bold text-gray-600 mb-1">Score mínimo (%)</label>
             <input type="number" value={settings.fb_matching_min_score || '50'}
