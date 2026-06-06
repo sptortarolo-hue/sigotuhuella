@@ -3,6 +3,7 @@ import pool from '../db.js';
 import { generateToken, hashPassword, comparePassword, requireAuth, sendPasswordResetEmail, generateResetToken, sendVerificationEmail, generateVerificationToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
 import crypto from 'crypto';
 import { sendPushToAdmins } from '../services/pushService.js';
+import { OAuth2Client } from 'google-auth-library';
 
 const router = Router();
 
@@ -344,6 +345,90 @@ router.post('/resend-verification', async (req, res) => {
   } catch (err) {
     console.error('Resend verification error:', err);
     res.status(500).json({ error: 'Error al reenviar email de verificación' });
+  }
+});
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+async function verifyGoogleToken(credential) {
+  const ticket = await googleClient.verifyIdToken({
+    idToken: credential,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  });
+  return ticket.getPayload();
+}
+
+// Google login
+router.post('/google', async (req, res) => {
+  const { credential } = req.body;
+  if (!credential) {
+    return res.status(400).json({ error: 'Credential is required' });
+  }
+  try {
+    const payload = await verifyGoogleToken(credential);
+    const { email, name, sub: googleId } = payload;
+
+    const existing = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+
+    if (existing.rows.length > 0) {
+      const user = existing.rows[0];
+      if (user.google_id) {
+        const token = generateToken(user);
+        return res.json({ token, user: { id: user.id, email: user.email, display_name: user.display_name, phone: user.phone, role: user.role, avatar_data: user.avatar_data, avatar_mime_type: user.avatar_mime_type, avatar_type: user.avatar_type, member_number: user.member_number, volunteer_status: user.volunteer_status, badges: user.badges || [] } });
+      }
+      return res.json({ needsPassword: true, email: user.email });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO users (email, display_name, role, email_verified, google_id)
+       VALUES ($1, $2, 'user', TRUE, $3)
+       RETURNING id, email, display_name, phone, role, created_at, avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges`,
+      [email, name || email.split('@')[0], googleId]
+    );
+    const user = result.rows[0];
+    const token = generateToken(user);
+
+    sendWelcomeEmail(user.email, user.display_name).catch(err => console.error('Welcome email error:', err));
+
+    res.json({ token, user: { ...user, badges: user.badges || [] } });
+  } catch (err) {
+    console.error('Google login error:', err);
+    res.status(500).json({ error: 'Error al iniciar sesión con Google' });
+  }
+});
+
+// Link Google to existing account
+router.post('/link-google', async (req, res) => {
+  const { credential, password } = req.body;
+  if (!credential || !password) {
+    return res.status(400).json({ error: 'Credential and password are required' });
+  }
+  try {
+    const payload = await verifyGoogleToken(credential);
+    const { email, sub: googleId } = payload;
+
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    const user = result.rows[0];
+
+    if (!user.password_hash) {
+      return res.status(400).json({ error: 'Esta cuenta no tiene contraseña. Usá Google para iniciar sesión.' });
+    }
+
+    const valid = await comparePassword(password, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+
+    await pool.query('UPDATE users SET google_id = $1 WHERE id = $2', [googleId, user.id]);
+
+    const token = generateToken(user);
+    res.json({ token, user: { id: user.id, email: user.email, display_name: user.display_name, phone: user.phone, role: user.role, avatar_data: user.avatar_data, avatar_mime_type: user.avatar_mime_type, avatar_type: user.avatar_type, member_number: user.member_number, volunteer_status: user.volunteer_status, badges: user.badges || [] } });
+  } catch (err) {
+    console.error('Link google error:', err);
+    res.status(500).json({ error: 'Error al vincular cuenta de Google' });
   }
 });
 

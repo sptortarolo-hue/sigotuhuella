@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as PhoneIcon, Eye, EyeOff, KeyRound, CheckCircle2, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 export default function Login() {
   const { user, isAdmin, loading, login, logout } = useAuth();
@@ -12,7 +14,7 @@ export default function Login() {
   const from = (location.state as any)?.from || '/';
   const [authLoading, setAuthLoading] = useState(false);
   const [error, setError] = useState('');
-  const [mode, setMode] = useState<'login' | 'register' | 'complete-registration' | 'verify-email'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'complete-registration' | 'verify-email' | 'link-google'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,6 +23,10 @@ export default function Login() {
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [resending, setResending] = useState(false);
   const [resentMessage, setResentMessage] = useState('');
+  const [linkingEmail, setLinkingEmail] = useState('');
+  const [linkingPassword, setLinkingPassword] = useState('');
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+  const googleInitedRef = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +90,69 @@ export default function Login() {
       setAuthLoading(false);
     }
   };
+
+  const handleGoogleResponse = async (response: { credential: string }) => {
+    setAuthLoading(true);
+    setError('');
+    try {
+      const data = await api.auth.googleLogin(response.credential);
+      if (data.needsPassword) {
+        setLinkingEmail(data.email);
+        setMode('link-google');
+        return;
+      }
+      login(data.token, data.user);
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setError(err.message || 'Error al iniciar sesión con Google');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLinkGoogle = async () => {
+    if (!linkingPassword) { setError('Ingresá tu contraseña'); return; }
+    setAuthLoading(true);
+    setError('');
+    try {
+      const googleCred = (window as any).__pendingGoogleCred;
+      if (!googleCred) { setError('Error de sesión de Google. Intentá de nuevo.'); setAuthLoading(false); return; }
+      const data = await api.auth.linkGoogle(googleCred, linkingPassword);
+      (window as any).__pendingGoogleCred = null;
+      login(data.token, data.user);
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setError(err.message || 'Error al vincular cuenta');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || googleInitedRef.current) return;
+    const init = () => {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleResponse,
+        });
+        if (googleButtonRef.current) {
+          window.google.accounts.id.renderButton(googleButtonRef.current, {
+            type: 'standard',
+            size: 'large',
+            width: '100%',
+            text: 'signin_with',
+            shape: 'rectangular',
+            logo_alignment: 'left',
+          });
+        }
+        googleInitedRef.current = true;
+      } else {
+        setTimeout(init, 500);
+      }
+    };
+    init();
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -154,14 +223,16 @@ export default function Login() {
             )}
           </div>
           <h1 className="text-3xl font-serif font-bold text-brand-primary">
-            {mode === 'complete-registration' ? 'Completá tu registro' : mode === 'verify-email' ? 'Confirmá tu email' : 'Iniciá Sesión'}
+            {mode === 'complete-registration' ? 'Completá tu registro' : mode === 'verify-email' ? 'Confirmá tu email' : mode === 'link-google' ? 'Vinculá tu cuenta' : 'Iniciá Sesión'}
           </h1>
           <p className="text-gray-500 text-sm mt-2">
             {mode === 'complete-registration'
               ? 'Creá tu contraseña para acceder a tu cuenta.'
               : mode === 'verify-email'
                 ? 'Te enviamos un enlace de verificación. Revisá tu casilla de correo.'
-                : 'Ingresá para publicar reportes, gestionar tus publicaciones y colaborar con la comunidad.'}
+                : mode === 'link-google'
+                  ? 'Ya tenés una cuenta con este email. Ingresá tu contraseña para vincularla con Google.'
+                  : 'Ingresá para publicar reportes, gestionar tus publicaciones y colaborar con la comunidad.'}
           </p>
         </div>
 
@@ -239,6 +310,39 @@ export default function Login() {
                 Volver a iniciar sesión
               </button>
             </div>
+        ) : mode === 'link-google' ? (
+          <div className="space-y-6">
+            <div className="p-4 bg-blue-50 rounded-2xl border border-blue-200 text-sm text-blue-800">
+              <p className="font-bold mb-1">🔗 Cuenta existente</p>
+              <p>Ya hay una cuenta con <strong>{linkingEmail}</strong>. Ingresá tu contraseña para vincularla con Google y poder iniciar sesión con ambos métodos.</p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                <Lock className="w-3 h-3" /> Contraseña
+              </label>
+              <input
+                type="password" required
+                className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
+                placeholder="Tu contraseña"
+                value={linkingPassword}
+                onChange={e => setLinkingPassword(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={handleLinkGoogle}
+              disabled={authLoading}
+              className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+            >
+              {authLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-5 h-5" />}
+              Vincular y entrar
+            </button>
+            <button
+              onClick={() => { setMode('login'); setError(''); setLinkingPassword(''); }}
+              className="w-full text-center text-sm text-brand-primary font-bold hover:underline"
+            >
+              Volver a iniciar sesión
+            </button>
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
@@ -397,6 +501,20 @@ export default function Login() {
                     ¿Olvidaste tu contraseña?
                   </button>
                 </div>
+
+                {GOOGLE_CLIENT_ID && (
+                  <>
+                    <div className="relative my-4">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-brand-accent"></div>
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-white px-3 text-gray-400 font-bold">O</span>
+                      </div>
+                    </div>
+                    <div ref={googleButtonRef} className="w-full min-h-[40px]"></div>
+                  </>
+                )}
               </>
             )}
 

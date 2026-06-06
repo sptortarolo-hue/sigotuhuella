@@ -39,6 +39,10 @@ export const api = {
     verifyEmail: (token: string) => request(`/auth/verify-email/${token}`),
     resendVerification: (email: string) =>
       request('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) }),
+    googleLogin: (credential: string) =>
+      request('/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }),
+    linkGoogle: (credential: string, password: string) =>
+      request('/auth/link-google', { method: 'POST', body: JSON.stringify({ credential, password }) }),
   },
   pets: {
     list: (status?: string) => request(`/pets${status ? `?status=${status}` : ''}`),
