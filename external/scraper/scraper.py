@@ -1,24 +1,25 @@
 """
 Facebook Group Scraper — Sigo Tu Huella
-Scrapes configured Facebook groups via mbasic.facebook.com and sends posts to the webhook.
+Scrapes configured Facebook groups via pyppeteer (headless Chrome) and sends posts to the webhook.
 
 Usage:
-  python scraper.py                              # Run once (fetches config from API)
+  python scraper.py                              # Run once
   python scraper.py --daemon                     # Run as scheduled daemon
   python scraper.py --api-base-url=URL --api-token=TOKEN
 
 Requires cookies.txt (Netscape format) from a logged-in Facebook session.
+Chromium is auto-downloaded by pyppeteer on first run.
 """
 
+import asyncio
 import json
+import logging
 import os
 import re
 import sys
 import time
-import logging
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -30,26 +31,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger("fb-scraper")
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
-    "Accept": "text/html,application/xhtml+xml",
-}
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def get_api_base_url():
     for arg in sys.argv:
         if arg.startswith("--api-base-url="):
             return arg.split("=", 1)[1]
-    env_url = os.environ.get("API_BASE_URL")
-    if env_url:
-        return env_url
-    config_path = Path(__file__).parent / "config.json"
-    if config_path.exists():
-        with open(config_path) as f:
+    env = os.environ.get("API_BASE_URL")
+    if env:
+        return env
+    cfg_path = Path(__file__).parent / "config.json"
+    if cfg_path.exists():
+        with open(cfg_path) as f:
             cfg = json.load(f)
-        if "api_base_url" in cfg:
-            return cfg["api_base_url"]
+        return cfg.get("api_base_url")
     return None
 
 
@@ -60,9 +58,9 @@ def get_api_token():
     token = os.environ.get("API_TOKEN")
     if token:
         return token
-    config_path = Path(__file__).parent / "config.json"
-    if config_path.exists():
-        with open(config_path) as f:
+    cfg_path = Path(__file__).parent / "config.json"
+    if cfg_path.exists():
+        with open(cfg_path) as f:
             cfg = json.load(f)
         return cfg.get("webhook_token")
     return None
@@ -83,143 +81,185 @@ def extract_group_id(url):
     return raw.split('?')[0].split('/')[0]
 
 
-def load_cookies_jar():
-    cookies_path = Path(__file__).parent / "cookies.txt"
-    if not cookies_path.exists():
-        return None
+def load_netscape_cookies(filepath):
+    """Parse Netscape-format cookies.txt and return list of pyppeteer-compatible cookie dicts."""
+    cookies = []
     try:
-        import http.cookiejar
-        cj = http.cookiejar.MozillaCookieJar(str(cookies_path))
-        cj.load()
-        logger.info(f"Loaded {len(cj)} cookies from cookies.txt")
-        return cj
+        with open(filepath) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or line.startswith("HttpOnly"):
+                    continue
+                parts = line.split("\t")
+                if len(parts) >= 7:
+                    domain = parts[0] if parts[0].startswith(".") else "." + parts[0]
+                    cookies.append({
+                        "name": parts[5],
+                        "value": parts[6],
+                        "domain": domain,
+                        "path": parts[2] if parts[2] else "/",
+                        "secure": parts[3].upper() == "TRUE",
+                        "httpOnly": parts[1].upper() == "TRUE",
+                    })
+        logger.info(f"Loaded {len(cookies)} cookies from {filepath}")
     except Exception as e:
         logger.warning(f"Failed to load cookies: {e}")
-    return None
+    return cookies
 
 
-def make_session():
-    session = requests.Session()
-    session.headers.update(HEADERS)
-    cj = load_cookies_jar()
-    if cj:
-        session.cookies.update(cj)
-    return session
+def parse_post_elements(html, group_name):
+    """Parse Facebook post data from rendered HTML."""
+    soup = BeautifulSoup(html, "html.parser")
+    posts = []
+    seen_ids = set()
+
+    # Try finding posts via aria-label or role="article"
+    for article in soup.find_all("div", attrs={"role": "article"}) or soup.find_all("article"):
+        try:
+            html_str = str(article)
+
+            # post ID: look for story.php or posts/ in links
+            fb_id = None
+            for a in article.find_all("a", href=True):
+                m = re.search(r'(?:story_fbid=|/posts/|fbid=)(\d+)', a["href"])
+                if m:
+                    fb_id = m.group(1)
+                    break
+            if not fb_id:
+                m2 = re.search(r'"post_id":\s*"(\d+)"', html_str)
+                if m2:
+                    fb_id = m2.group(1)
+            if not fb_id:
+                continue
+            if fb_id in seen_ids:
+                continue
+            seen_ids.add(fb_id)
+
+            # author
+            author = ""
+            for sel in ["h3", "h4", "strong", "a[role='link']"]:
+                tag = article.find(sel)
+                if tag:
+                    author = tag.get_text(strip=True)
+                    if author:
+                        break
+
+            # content
+            content = ""
+            for sel in ["div[data-ad-preview='message']", "div[dir='auto']", "span[dir='auto']"]:
+                tag = article.select_one(sel)
+                if tag:
+                    text = tag.get_text("\n", strip=True)
+                    if len(text) > 20:
+                        content = text
+                        break
+            if not content:
+                content = article.get_text("\n", strip=True)[:500]
+
+            # images
+            images = []
+            for img in soup.find_all("img", src=re.compile(r"^https?://.*scontent")):
+                src = img.get("src", "")
+                if src and src not in images:
+                    images.append(src)
+
+            # time
+            posted_at = ""
+            for t in article.find_all(["time", "span"]):
+                for attr in ["title", "datetime", "data-utime"]:
+                    val = t.get(attr, "")
+                    if val:
+                        posted_at = val
+                        break
+                if posted_at:
+                    break
+
+            posts.append({
+                "group_id": None,
+                "group_name": group_name,
+                "fb_post_id": fb_id,
+                "fb_post_url": f"https://www.facebook.com/{fb_id}" if fb_id else "",
+                "author_name": author,
+                "content": content,
+                "image_urls": images[:5],
+                "posted_at": posted_at,
+            })
+        except Exception:
+            continue
+
+    return posts
 
 
-def parse_mbasic_post(article, group_name):
-    """Parse a single post from mbasic.facebook.com HTML."""
-    try:
-        # post id from the article anchor or data
-        post_link = article.find("a", href=re.compile(r"/story\.php\?story_fbid=|/posts/"))
-        if not post_link:
-            post_link = article.find("a", href=re.compile(r"mbasic\.facebook\.com"))
-        if not post_link:
-            return None
+# ---------------------------------------------------------------------------
+# Scraper
+# ---------------------------------------------------------------------------
 
-        href = post_link.get("href", "")
-        fb_id_match = re.search(r'story_fbid=(\d+)|/posts/(\d+)', href)
-        fb_post_id = fb_id_match.group(1) or fb_id_match.group(2) if fb_id_match else None
-        fb_post_url = urljoin("https://mbasic.facebook.com", href) if href else None
-
-        # author name
-        author_tag = article.find("h3")
-        if not author_tag:
-            author_tag = article.find("strong")
-        author_name = author_tag.get_text(strip=True) if author_tag else ""
-
-        # content text
-        content_div = article.find("div", class_="msg")
-        if not content_div:
-            content_div = article.find("div", attrs={"data-sigil": "message"})
-        if not content_div:
-            content_div = article.find("span", class_="message")
-        if not content_div:
-            content_div = article.find("p")
-        content = ""
-        if content_div:
-            content = content_div.get_text("\n", strip=True)
-        if not content:
-            content = article.get_text("\n", strip=True)[:500]
-
-        # images
-        images = []
-        for img in article.find_all("img", src=re.compile(r"^https?")):
-            src = img.get("src", "")
-            if src and "scontent" in src and src not in images:
-                images.append(src)
-
-        # time
-        time_tag = article.find("abbr") or article.find("time")
-        posted_at = time_tag.get("title", "") if time_tag else ""
-
-        if not fb_post_id:
-            return None
-
-        return {
-            "group_id": None,
-            "group_name": group_name,
-            "fb_post_id": fb_post_id,
-            "fb_post_url": fb_post_url,
-            "author_name": author_name,
-            "content": content,
-            "image_urls": images[:5],
-            "posted_at": posted_at,
-        }
-    except Exception as e:
-        logger.debug(f"Error parsing post: {e}")
-        return None
-
-
-def scrape_group(group_name, group_url, max_posts=50):
+async def async_scrape_group(group_name, group_url, max_posts=50):
+    """Scrape a Facebook group using pyppeteer headless browser."""
     group_id = extract_group_id(group_url)
     logger.info(f"Scraping group: {group_name} — ID: {group_id}")
 
-    session = make_session()
-    posts = []
-    url = f"https://mbasic.facebook.com/groups/{group_id}"
+    cookies_file = Path(__file__).parent / "cookies.txt"
+    fb_cookies = load_netscape_cookies(cookies_file) if cookies_file.exists() else []
 
+    from pyppeteer import launch
+
+    browser = await launch(
+        headless=True,
+        args=[
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+        ],
+    )
     try:
-        resp = session.get(url, timeout=30)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+        page = await browser.newPage()
+        await page.setUserAgent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/125.0.0.0 Safari/537.36"
+        )
+        await page.setViewport({"width": 1280, "height": 800})
 
-        # Find all article elements (each is a post)
-        articles = soup.find_all("article")
-        logger.info(f"Found {len(articles)} articles on page")
+        # Set cookies before navigating
+        if fb_cookies:
+            await page.setCookie(*fb_cookies)
 
-        for article in articles:
-            post = parse_mbasic_post(article, group_name)
-            if post and post["fb_post_id"]:
-                if not any(p["fb_post_id"] == post["fb_post_id"] for p in posts):
-                    posts.append(post)
-            if len(posts) >= max_posts:
-                break
+        url = f"https://www.facebook.com/groups/{group_id}"
+        logger.info(f"Navigating to {url}")
+        await page.goto(url, waitUntil="networkidle2", timeout=60000)
 
-        # Try next page if available
-        next_link = soup.find("a", href=re.compile(r"/groups/.*?story"))
-        if next_link and len(posts) < max_posts:
-            try:
-                next_url = urljoin("https://mbasic.facebook.com", next_link["href"])
-                resp2 = session.get(next_url, timeout=30)
-                resp2.raise_for_status()
-                soup2 = BeautifulSoup(resp2.text, "html.parser")
-                for article in soup2.find_all("article"):
-                    post = parse_mbasic_post(article, group_name)
-                    if post and post["fb_post_id"]:
-                        if not any(p["fb_post_id"] == post["fb_post_id"] for p in posts):
-                            posts.append(post)
-                    if len(posts) >= max_posts:
-                        break
-            except Exception as e:
-                logger.debug(f"Next page error: {e}")
+        # Wait for posts to render
+        try:
+            await page.waitForSelector('[role="article"]', timeout=15000)
+        except Exception:
+            logger.warning("No [role='article'] found, trying scroll...")
+            # scroll to trigger lazy loading
+            for _ in range(3):
+                await page.evaluate("window.scrollBy(0, 800)")
+                await asyncio.sleep(2)
 
-    except Exception as e:
-        logger.error(f"Error scraping {group_name}: {e}")
+        html = await page.content()
+        logger.info(f"Page loaded, length={len(html)}")
 
-    logger.info(f"Got {len(posts)} posts from {group_name}")
-    return posts
+        posts = parse_post_elements(html, group_name)
+        logger.info(f"Found {len(posts)} posts")
 
+    finally:
+        await browser.close()
+
+    return posts[:max_posts]
+
+
+def scrape_group(group_name, group_url, max_posts=50):
+    """Synchronous wrapper around async_scrape_group."""
+    return asyncio.run(async_scrape_group(group_name, group_url, max_posts))
+
+
+# ---------------------------------------------------------------------------
+# Communication
+# ---------------------------------------------------------------------------
 
 def send_to_webhook(webhook_url, webhook_token, posts):
     if not posts:
@@ -248,7 +288,7 @@ def run_with_config(webhook_url, webhook_token, groups, max_posts):
 
 def run():
     api_base_url = get_api_base_url()
-    config_path = Path(__file__).parent / "config.json"
+    cfg_path = Path(__file__).parent / "config.json"
 
     if api_base_url:
         logger.info("Auto-config mode: fetching from API")
@@ -260,10 +300,10 @@ def run():
         run_with_config(cfg["webhook_url"], cfg["webhook_token"], cfg["groups"], cfg["max_posts_per_group"])
     else:
         logger.info("Legacy mode: reading config.json")
-        if not config_path.exists():
-            logger.error("config.json not found. Provide --api-base-url or create config.json")
+        if not cfg_path.exists():
+            logger.error("config.json not found")
             sys.exit(1)
-        with open(config_path) as f:
+        with open(cfg_path) as f:
             cfg = json.load(f)
         run_with_config(cfg["webhook_url"], cfg["webhook_token"], cfg["groups"], cfg.get("max_posts_per_group", 50))
 
@@ -272,7 +312,7 @@ def run_daemon():
     try:
         import schedule
     except ImportError:
-        logger.error("schedule library required for daemon mode. pip install schedule")
+        logger.error("schedule library required for daemon mode")
         sys.exit(1)
 
     api_base_url = get_api_base_url()
@@ -304,11 +344,11 @@ def run_daemon():
             schedule.run_pending()
             time.sleep(60)
     else:
-        config_path = Path(__file__).parent / "config.json"
-        if not config_path.exists():
+        cfg_path = Path(__file__).parent / "config.json"
+        if not cfg_path.exists():
             logger.error("config.json not found")
             sys.exit(1)
-        with open(config_path) as f:
+        with open(cfg_path) as f:
             cfg = json.load(f)
         interval = cfg.get("scrape_interval_hours", 6)
         logger.info(f"Starting legacy daemon — scraping every {interval} hours")
