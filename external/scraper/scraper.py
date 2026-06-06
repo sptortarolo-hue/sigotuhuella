@@ -194,6 +194,86 @@ def parse_post_elements(html, group_name):
 # Scraper
 # ---------------------------------------------------------------------------
 
+async def page_diagnostics(page, group_name):
+    """Log diagnostics about current page state."""
+    current_url = page.url
+    logger.info(f"[{group_name}] Final URL: {current_url}")
+    title = await page.title()
+    logger.info(f"[{group_name}] Page title: {title}")
+
+    # Check for common non-content indicators
+    body_text = await page.evaluate("document.body?.innerText?.substring(0, 500) || ''")
+    lower = body_text.lower()
+    if "log in" in lower or "login" in lower or "sign in" in lower:
+        logger.warning(f"[{group_name}] Page shows login wall — cookies may be expired")
+    if "confirm" in lower and "identity" in lower:
+        logger.warning(f"[{group_name}] Page shows identity confirmation — cookies need refresh")
+    if "this content isn't available" in lower:
+        logger.warning(f"[{group_name}] Content not available — group may not be accessible")
+
+
+async def extract_posts_via_js(page, group_name):
+    """Try extracting post data via JavaScript evaluate()."""
+    try:
+        data = await page.evaluate("""() => {
+            const posts = [];
+            // Try to find post containers by common Facebook class patterns
+            const containers = document.querySelectorAll(
+                'div[role="article"], ' +
+                'div[data-pagelet^="FeedUnit"], ' +
+                'div.x1yztbdb, ' +
+                'div[data-ad-rendering-role="feed_unit"], ' +
+                'div[data-testid="post"]
+            ');
+            containers.forEach(container => {
+                // Post ID via story links
+                const links = container.querySelectorAll('a[href*="story_fbid"], a[href*="/posts/"]');
+                let fb_id = '';
+                links.forEach(a => {
+                    const m = a.href.match(/(?:story_fbid=|\\/posts\\/|fbid=)(\\d+)/);
+                    if (m) fb_id = m[1];
+                });
+                if (!fb_id) {
+                    const m2 = container.outerHTML.match(/post_id[=:]\\s*["']?(\\d+)/);
+                    if (m2) fb_id = m2[1];
+                }
+                if (!fb_id) return;
+
+                // Author
+                const authorEl = container.querySelector('h3, h4, strong, a[role="link"]');
+                const author = authorEl ? authorEl.innerText.trim() : '';
+
+                // Content
+                let content = '';
+                const msgEl = container.querySelector('div[data-ad-preview="message"], div[dir="auto"], span[dir="auto"]');
+                if (msgEl) content = msgEl.innerText.trim();
+                if (!content || content.length < 20) content = container.innerText.trim().substring(0, 500);
+
+                // Images
+                const images = [];
+                container.querySelectorAll('img[src*="scontent"], img[src*="fbcdn"]').forEach(img => {
+                    if (img.src && !images.includes(img.src)) images.push(img.src);
+                });
+
+                posts.push({
+                    group_id: null,
+                    group_name: null,
+                    fb_post_id: fb_id,
+                    fb_post_url: 'https://www.facebook.com/' + fb_id,
+                    author_name: author,
+                    content: content,
+                    image_urls: images.slice(0, 5),
+                    posted_at: '',
+                });
+            });
+            return JSON.stringify(posts);
+        }""")
+        return json.loads(data)
+    except Exception as e:
+        logger.warning(f"[{group_name}] JS extraction error: {e}")
+        return []
+
+
 async def async_scrape_group(group_name, group_url, max_posts=50):
     """Scrape a Facebook group using pyppeteer headless browser."""
     group_id = extract_group_id(group_url)
@@ -226,29 +306,46 @@ async def async_scrape_group(group_name, group_url, max_posts=50):
         if fb_cookies:
             await page.setCookie(*fb_cookies)
 
-        url = f"https://www.facebook.com/groups/{group_id}"
-        logger.info(f"Navigating to {url}")
-        await page.goto(url, waitUntil="networkidle2", timeout=60000)
+        # First, visit facebook.com to establish session
+        await page.goto("https://www.facebook.com/", waitUntil="networkidle2", timeout=30000)
+        await asyncio.sleep(2)
 
-        # Wait for posts to render
-        try:
-            await page.waitForSelector('[role="article"]', timeout=15000)
-        except Exception:
-            logger.warning("No [role='article'] found, trying scroll...")
-            # scroll to trigger lazy loading
-            for _ in range(3):
-                await page.evaluate("window.scrollBy(0, 800)")
+        # Now navigate to group with recent-activity sort (more reliable HTML)
+        group_url_full = f"https://www.facebook.com/groups/{group_id}/?sorting_setting=RECENT_ACTIVITY"
+        logger.info(f"Navigating to {group_url_full}")
+        await page.goto(group_url_full, waitUntil="networkidle2", timeout=60000)
+        await asyncio.sleep(3)
+
+        await page_diagnostics(page, group_name)
+
+        # Try JS extraction first (more reliable)
+        posts = await extract_posts_via_js(page, group_name)
+
+        # Fallback: HTML parsing
+        if not posts:
+            logger.info(f"[{group_name}] JS extraction returned 0, trying HTML parse...")
+            # Scroll to trigger lazy loading
+            for _ in range(4):
+                await page.evaluate("window.scrollBy(0, 1200)")
                 await asyncio.sleep(2)
 
-        html = await page.content()
-        logger.info(f"Page loaded, length={len(html)}")
+            html = await page.content()
+            logger.info(f"[{group_name}] Page HTML length={len(html)}")
+            # Save a snippet for debugging
+            snippet_file = Path(__file__).parent / f"debug_{group_id}.html"
+            with open(snippet_file, "w") as f:
+                f.write(html[:10000])
+            logger.info(f"[{group_name}] Saved HTML snippet to {snippet_file}")
 
-        posts = parse_post_elements(html, group_name)
-        logger.info(f"Found {len(posts)} posts")
+            posts = parse_post_elements(html, group_name)
+
+        logger.info(f"[{group_name}] Found {len(posts)} posts")
 
     finally:
         await browser.close()
 
+    for post in posts:
+        post["group_name"] = group_name
     return posts[:max_posts]
 
 
