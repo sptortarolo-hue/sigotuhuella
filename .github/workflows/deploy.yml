@@ -15,6 +15,8 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - run: npm run build
+      env:
+        VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
     - uses: actions/upload-artifact@v4
       with:
         name: dist
@@ -25,6 +27,7 @@ jobs:
         echo "AZURE_TTS_KEY=${{ secrets.AZURE_TTS_KEY }}" >> server/.env
         echo "AZURE_TTS_KEY2=${{ secrets.AZURE_TTS_KEY2 }}" >> server/.env
         echo "AZURE_TTS_REGION=${{ secrets.AZURE_TTS_REGION }}" >> server/.env
+        echo "GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}" >> server/.env
 
     - name: Copy dist to VPS
       uses: appleboy/scp-action@v0.1.7
