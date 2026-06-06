@@ -13,6 +13,7 @@ Config priority:
 
 import json
 import os
+import re
 import sys
 import time
 import logging
@@ -73,13 +74,20 @@ def fetch_config(api_base_url, webhook_token):
     return resp.json()
 
 
+def extract_group_id(url):
+    """Extract group ID from a Facebook group URL."""
+    match = re.search(r'/groups/([^/?]+)', url)
+    return match.group(1) if match else url
+
+
 def scrape_group(group_name, group_url, max_posts=50):
     """Scrape posts from a Facebook group."""
-    logger.info(f"Scraping group: {group_name} ({group_url})")
+    group_id = extract_group_id(group_url)
+    logger.info(f"Scraping group: {group_name} ({group_url}) — ID: {group_id}")
 
     posts = []
     try:
-        for post in get_posts(group_url, pages=5, options={"posts_per_page": max_posts}):
+        for post in get_posts(group_id, pages=5, options={"posts_per_page": max_posts}):
             post_data = {
                 "group_id": None,
                 "group_name": group_name,
