@@ -5,7 +5,7 @@ import { sendPushToAdmins } from '../services/pushService.js';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
-import { readFileSync } from 'fs';
+import fs from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -769,17 +769,9 @@ router.get('/:id/health-tips', requireAuth, async (req, res) => {
   }
 });
 
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import { rimraf } from 'rimraf';
-import path from 'path';
-import os from 'os';
-import fs from 'fs';
-
-const execFileAsync = promisify(execFile);
+import { generateVideo } from '../lib/videoAssembler.js';
 
 router.post('/:id/generate-video', requireAuth, async (req, res) => {
-  let tmpDir = null;
   try {
     const pet = await pool.query(
       'SELECT id, name FROM my_pets WHERE id = $1 AND user_id = $2',
@@ -787,64 +779,52 @@ router.post('/:id/generate-video', requireAuth, async (req, res) => {
     );
     if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
 
+    const { photo_ids, title, music = 'emotional', format = 'vertical', per_photo_dur = 2 } = req.body;
+    if (!photo_ids || photo_ids.length < 3)
+      return res.status(400).json({ error: 'Seleccioná al menos 3 fotos' });
+
     const photos = await pool.query(
-      'SELECT id, image_data, mime_type FROM my_pet_photos WHERE my_pet_id = $1 ORDER BY created_at ASC LIMIT 20',
-      [req.params.id]
+      'SELECT id, image_data FROM my_pet_photos WHERE my_pet_id = $1 AND id = ANY($2::uuid[]) ORDER BY created_at ASC',
+      [req.params.id, photo_ids]
     );
-    if (photos.rows.length === 0) return res.status(400).json({ error: 'No hay fotos para generar video' });
+    if (photos.rows.length === 0) return res.status(400).json({ error: 'Fotos no encontradas' });
 
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pet-video-'));
-    const imageFiles = [];
+    const scenes = photos.rows.map(p => ({
+      type: 'photo',
+      imageBase64: p.image_data,
+      overlayText: title || '',
+    }));
 
-    for (const photo of photos.rows) {
-      const ext = photo.mime_type === 'image/png' ? '.png' : '.jpg';
-      const filePath = path.join(tmpDir, `photo-${photo.id}${ext}`);
-      fs.writeFileSync(filePath, Buffer.from(photo.image_data, 'base64'));
-      imageFiles.push(filePath);
-    }
+    const numScenes = scenes.length;
+    const fixedDur = 8;
+    const totalTransDur = (numScenes + 1) * 0.5;
+    const duration = Math.round(numScenes * per_photo_dur + fixedDur - totalTransDur);
 
-    const outputFileName = `pet-${pet.rows[0].id}-${uuidv4()}.mp4`;
-    const outputDir = path.join(process.cwd(), 'public', 'generated', 'videos');
-    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-    const outputPath = path.join(outputDir, outputFileName);
+    const result = await generateVideo({
+      style: 'emotive',
+      duration: Math.max(duration, 15),
+      music,
+      includeVoice: false,
+      format,
+      scenes,
+      frame: 'none',
+      stickers: true,
+      confetti: false,
+    });
 
-    const inputListPath = path.join(tmpDir, 'inputs.txt');
-    const inputContent = imageFiles.map(f => `file '${f.replace(/\\/g, '/')}'\nduration 1.5`).join('\n');
-    fs.writeFileSync(inputListPath, inputContent);
-
-    try {
-      await execFileAsync('ffmpeg', [
-        '-f', 'concat', '-safe', '0', '-i', inputListPath,
-        '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=#5A5A40',
-        '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
-        '-pix_fmt', 'yuv420p',
-        '-y', outputPath,
-      ], { timeout: 60000 });
-    } catch (ffmpegErr) {
-      console.error('ffmpeg error, trying simpler command:', ffmpegErr.message);
-      const concatLines = imageFiles.map(f => `file '${f.replace(/\\/g, '/')}'`).join('\n');
-      fs.writeFileSync(inputListPath, concatLines);
-      await execFileAsync('ffmpeg', [
-        '-f', 'concat', '-safe', '0', '-i', inputListPath,
-        '-vsync', 'vfr', '-pix_fmt', 'yuv420p',
-        '-y', outputPath,
-      ], { timeout: 60000 });
-    }
-
-    const videoUrl = `/generated/videos/${outputFileName}`;
+    const videoUrl = `/generated/videos/${result.filename}`;
+    const thumbUrl = result.thumbnail ? `/generated/videos/${result.thumbnail}` : null;
 
     await pool.query(
-      `INSERT INTO promotional_videos (title, video_data, format, status, created_by)
-       VALUES ($1, $2, 'vertical', 'completed', $3)`,
-      [`Video de ${pet.rows[0].name}`, videoUrl, req.user.id]
+      `INSERT INTO promotional_videos (title, video_data, thumbnail_data, format, status, created_by)
+       VALUES ($1, $2, $3, $4, 'ready', $5)`,
+      [title || `Video de ${pet.rows[0].name}`, videoUrl, result.thumbnail, format, req.user.id]
     );
 
-    res.json({ videoUrl, message: 'Video generado correctamente' });
+    res.json({ videoUrl, thumbnailUrl: thumbUrl, message: 'Video generado correctamente' });
   } catch (err) {
     console.error('generate video error:', err);
     res.status(500).json({ error: 'Error al generar video' });
-  } finally {
-    if (tmpDir) { try { await rimraf(tmpDir); } catch {} }
   }
 });
 

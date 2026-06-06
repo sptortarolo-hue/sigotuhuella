@@ -79,6 +79,16 @@ export default function MyPetDetail() {
   const [recordPhotoPreviews, setRecordPhotoPreviews] = useState<string[]>([]);
   const recordPhotoInputRef = useRef<HTMLInputElement>(null);
 
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [videoTitle, setVideoTitle] = useState('');
+  const [videoMusic, setVideoMusic] = useState('emotional');
+  const [videoFormat, setVideoFormat] = useState('vertical');
+  const [videoPerPhotoDur, setVideoPerPhotoDur] = useState(2);
+  const [videoSelectedIds, setVideoSelectedIds] = useState<string[]>([]);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoResult, setVideoResult] = useState<{url: string; thumbUrl: string | null} | null>(null);
+  const videoModalRef = useRef<HTMLDivElement>(null);
+
   const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const [photoLoading, setPhotoLoading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -595,14 +605,7 @@ export default function MyPetDetail() {
                 {photoLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />} Subir foto
               </button>
               {galleryPhotos.length >= 3 && (
-                <button onClick={() => {
-                  if (confirm('Generar un video con las fotos de ' + pet.name + '?')) {
-                    api.myPets.generateVideo(id!).then((r: any) => {
-                      if (r.videoUrl) window.open(r.videoUrl, '_blank');
-                      alert('Video generado correctamente');
-                    }).catch((e: any) => alert(e.message));
-                  }
-                }}
+                <button onClick={() => { setVideoSelectedIds(galleryPhotos.map((p: any) => p.id)); setVideoResult(null); setVideoTitle(''); setShowVideoModal(true); }}
                   className="px-4 py-2 bg-amber-500 text-white rounded-xl font-bold text-xs hover:shadow-lg transition-all flex items-center gap-2">
                   <Play className="w-3 h-3" /> Video
                 </button>
@@ -1024,6 +1027,161 @@ export default function MyPetDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showVideoModal && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+        >
+          <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={() => { setShowVideoModal(false); setVideoResult(null); }} />
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            ref={videoModalRef}
+            className="relative w-full max-w-lg bg-white rounded-[2.5rem] max-h-[90vh] flex flex-col shadow-2xl"
+          >
+            <div className="p-6 sm:p-8 border-b border-brand-accent flex items-center justify-between shrink-0">
+              <h3 className="text-lg font-bold text-brand-primary flex items-center gap-2">
+                <Play className="w-5 h-5" /> Crear video
+              </h3>
+              <button onClick={() => { setShowVideoModal(false); setVideoResult(null); }} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+
+            {videoResult ? (
+              <div className="p-6 sm:p-8 overflow-y-auto space-y-6 text-center">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-100 flex items-center justify-center">
+                  <span className="text-3xl">✅</span>
+                </div>
+                <p className="text-sm font-bold text-gray-800">Video generado correctamente</p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <a href={videoResult.url} download
+                    className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+                  >
+                    <Play className="w-4 h-4" /> Descargar video
+                  </a>
+                  {navigator.share && (
+                    <button onClick={() => navigator.share({ title: pet.name, text: videoTitle || `Video de ${pet.name}`, url: videoResult.url })}
+                      className="px-6 py-3 bg-brand-bg text-brand-primary rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-brand-accent hover:shadow-lg transition-all"
+                    >
+                      <span className="text-lg">📤</span> Compartir
+                    </button>
+                  )}
+                </div>
+                <button onClick={() => setVideoResult(null)} className="text-xs text-gray-400 hover:text-brand-primary transition-colors">
+                  Crear otro video
+                </button>
+              </div>
+            ) : (
+              <div className="p-6 sm:p-8 overflow-y-auto space-y-5">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Título (opcional)</label>
+                  <input value={videoTitle} onChange={e => setVideoTitle(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Ej: Mis mejores momentos" />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">
+                    Fotos ({videoSelectedIds.length}/{Math.min(galleryPhotos.length, 20)} seleccionadas)
+                  </label>
+                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto p-1">
+                    {galleryPhotos.slice(0, 20).map((photo: any) => {
+                      const selected = videoSelectedIds.includes(photo.id);
+                      return (
+                        <button key={photo.id} onClick={() => {
+                          setVideoSelectedIds(prev => selected ? prev.filter(id => id !== photo.id) : [...prev, photo.id]);
+                          setVideoResult(null);
+                        }}
+                          className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${selected ? 'border-brand-primary ring-2 ring-brand-primary/30' : 'border-transparent hover:border-brand-accent'}`}
+                        >
+                          <img src={`/my-pet-photo/${photo.id}`} alt="" className="w-full h-full object-cover" />
+                          {selected && (
+                            <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-[10px] font-bold">
+                              ✓
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {galleryPhotos.length > 20 && (
+                    <p className="text-[10px] text-gray-400 mt-1">Mostrando las primeras 20 fotos</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Música</label>
+                    <select value={videoMusic} onChange={e => setVideoMusic(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm bg-white"
+                    >
+                      <option value="emotional">🎵 Emocional</option>
+                      <option value="latin">🎵 Latina</option>
+                      <option value="calm">🎵 Calma</option>
+                      <option value="energetic">🎵 Energética</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Formato</label>
+                    <div className="flex gap-1 p-1 bg-brand-bg rounded-xl">
+                      {[
+                        { value: 'vertical', label: '↕️' },
+                        { value: 'square', label: '⬜' },
+                        { value: 'landscape', label: '↔️' },
+                      ].map(f => (
+                        <button key={f.value} onClick={() => setVideoFormat(f.value)}
+                          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${videoFormat === f.value ? 'bg-white shadow-sm text-brand-primary' : 'text-gray-400'}`}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Duración por foto</label>
+                  <div className="flex gap-2">
+                    {[1.5, 2, 3].map(d => (
+                      <button key={d} onClick={() => setVideoPerPhotoDur(d)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all border ${videoPerPhotoDur === d ? 'bg-brand-primary/10 text-brand-primary border-brand-primary' : 'bg-white text-gray-500 border-brand-accent hover:border-brand-primary/50'}`}
+                      >
+                        {d}s
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!videoResult && (
+              <div className="p-6 sm:p-8 border-t border-brand-accent shrink-0">
+                <button onClick={async () => {
+                  if (videoSelectedIds.length < 3) return;
+                  try {
+                    setVideoLoading(true);
+                    setVideoResult(null);
+                    const r = await api.myPets.generateVideo(id!, {
+                      photo_ids: videoSelectedIds,
+                      title: videoTitle,
+                      music: videoMusic,
+                      format: videoFormat,
+                      per_photo_dur: videoPerPhotoDur,
+                    });
+                    setVideoResult({ url: r.videoUrl, thumbUrl: r.thumbnailUrl || null });
+                  } catch (e: any) {
+                    alert(e.message || 'Error al generar video');
+                  } finally {
+                    setVideoLoading(false);
+                  }
+                }}
+                  disabled={videoLoading || videoSelectedIds.length < 3}
+                  className="w-full py-3 bg-amber-500 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:shadow-lg transition-all"
+                >
+                  {videoLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  {videoLoading ? 'Generando...' : `Generar video (${videoSelectedIds.length} fotos)`}
+                </button>
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }

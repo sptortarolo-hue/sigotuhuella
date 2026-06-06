@@ -156,7 +156,7 @@ export const api = {
     reminders: (petId: string) => request(`/my-pets/${petId}/reminders`),
     convert: (petId: string, extra?: { bio?: string; birth_date?: string; weight_kg?: number; personality_tags?: string[] }) =>
       request(`/my-pets/convert/${petId}`, { method: 'POST', body: extra ? JSON.stringify(extra) : undefined }),
-    generateVideo: (petId: string) => request(`/my-pets/${petId}/generate-video`, { method: 'POST' }),
+    generateVideo: (petId: string, options?: any) => request(`/my-pets/${petId}/generate-video`, { method: 'POST', body: options ? JSON.stringify(options) : undefined }),
     healthTips: (petId: string) => request(`/my-pets/${petId}/health-tips`),
   },
   qr: {
