@@ -103,6 +103,8 @@ export default function MyPetDetail() {
   const [vetShareLoading, setVetShareLoading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [pasaporteLoading, setPasaporteLoading] = useState(false);
+  const [editingBio, setEditingBio] = useState(false);
+  const [bioDraft, setBioDraft] = useState('');
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -349,6 +351,19 @@ export default function MyPetDetail() {
     } catch (e) { console.error(e); }
   };
 
+  const handleSaveBio = async () => {
+    try {
+      await api.myPets.update(id!, { bio: bioDraft || null });
+      await fetchPet();
+      setEditingBio(false);
+    } catch (e) { console.error(e); }
+  };
+
+  const startEditBio = () => {
+    setBioDraft(pet.bio || '');
+    setEditingBio(true);
+  };
+
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center text-brand-primary">
@@ -462,9 +477,34 @@ export default function MyPetDetail() {
           <motion.div key="ficha" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="bg-white rounded-[2rem] border border-brand-accent p-6 sm:p-8"
           >
-            {pet.bio && (
-              <div className="mb-6 p-4 bg-brand-bg rounded-2xl">
-                <p className="text-sm text-gray-600 italic">"{pet.bio}"</p>
+            {editingBio ? (
+              <div className="mb-6">
+                <textarea value={bioDraft} onChange={e => setBioDraft(e.target.value)}
+                  className="w-full p-4 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm resize-none" rows={3}
+                  placeholder="Contanos cómo es tu mascota, sus señas particulares..."
+                />
+                <p className="text-[10px] sm:text-xs text-gray-400 mt-1 mb-3">Esta información es importante para encontrarla si se pierde</p>
+                <div className="flex gap-2">
+                  <button onClick={handleSaveBio} className="px-4 py-2 bg-brand-primary text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all flex items-center gap-1">
+                    <Save className="w-3 h-3" /> Guardar
+                  </button>
+                  <button onClick={() => setEditingBio(false)} className="px-4 py-2 border border-brand-accent text-gray-500 rounded-xl text-xs font-bold hover:bg-brand-bg transition-all">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : pet.bio ? (
+              <div className="mb-6 p-4 bg-brand-bg rounded-2xl flex items-start gap-3">
+                <p className="text-sm text-gray-600 italic flex-1">"{pet.bio}"</p>
+                <button onClick={startEditBio} className="p-1.5 hover:bg-brand-accent rounded-lg transition-colors shrink-0" title="Editar descripción">
+                  <Edit3 className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
+            ) : (
+              <div className="mb-6">
+                <button onClick={startEditBio} className="w-full p-4 border-2 border-dashed border-brand-accent rounded-2xl text-sm text-gray-400 hover:text-brand-primary hover:border-brand-primary/50 transition-all flex items-center justify-center gap-2">
+                  <Plus className="w-4 h-4" /> Agregar descripción
+                </button>
               </div>
             )}
 

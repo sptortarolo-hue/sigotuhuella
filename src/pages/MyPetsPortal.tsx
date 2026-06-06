@@ -372,10 +372,11 @@ export default function MyPetsPortal() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Presentación</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Descripción / Señas particulares</label>
                   <textarea value={form.bio} onChange={e => setForm(prev => ({ ...prev, bio: e.target.value }))}
                     className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm resize-none" rows={2}
-                    placeholder="Contá quién es tu mascota..." />
+                    placeholder="Contanos cómo es tu mascota, sus señas particulares, manchas, cicatrices, comportamiento..." />
+                  <p className="text-[10px] sm:text-xs text-gray-400 mt-1">Esta información es importante para encontrarla si se pierde</p>
                 </div>
 
                 <div>
