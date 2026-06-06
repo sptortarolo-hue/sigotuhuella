@@ -163,6 +163,10 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
+function stripOgTags(html) {
+  return html.replace(/<meta\s+(?:property|name)="(?:og:|twitter:)[^"]*"[^>]*\/?>/gi, '');
+}
+
 const indexHtml = readFileSync(join(__dirname, '..', 'dist', 'index.html'), 'utf-8');
 
 app.get('/pet/:id', async (req, res) => {
@@ -201,7 +205,7 @@ ${pet && pet.mime_type ? `<meta property="og:image:type" content="${escapeHtml(p
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="${escapeHtml(image)}" />
 </head>`;
-    res.send(indexHtml.replace('</head>', ogTags));
+    res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
   } catch (err) {
     console.error('OG error:', err);
     res.send(indexHtml);
@@ -243,7 +247,7 @@ ${imageType ? `<meta property="og:image:type" content="${escapeHtml(imageType)}"
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="${escapeHtml(image)}" />
 </head>`;
-    res.send(indexHtml.replace('</head>', ogTags));
+    res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
   } catch (err) {
     console.error('OG news error:', err);
     res.send(indexHtml);
@@ -277,7 +281,7 @@ app.get('/mascota/:token', async (req, res) => {
 <meta property="og:image" content="${escapeHtml(image)}" />
 <meta name="twitter:card" content="summary" />
 </head>`;
-    res.send(indexHtml.replace('</head>', ogTags));
+    res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
   } catch (err) {
     console.error('OG mascota error:', err);
     res.send(indexHtml);
@@ -308,7 +312,7 @@ app.get('/vet/:token', async (req, res) => {
 <meta property="og:image" content="${escapeHtml(image)}" />
 <meta name="twitter:card" content="summary" />
 </head>`;
-    res.send(indexHtml.replace('</head>', ogTags));
+    res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
   } catch (err) {
     console.error('OG vet error:', err);
     res.send(indexHtml);
@@ -368,7 +372,7 @@ app.get('/solicitar-chapita', (_req, res) => {
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="${baseUrl}/chapita.png" />
 </head>`;
-  res.send(indexHtml.replace('</head>', ogTags));
+  res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
 });
 
 // Video generator admin routes
