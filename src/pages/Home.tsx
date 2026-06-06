@@ -132,7 +132,7 @@ export default function Home() {
                   navigator.share({
                     title: `Chappita identificadora${bannerIsFree ? ' gratis' : ''} - Sigo Tu Huella`,
                     text: `Protegé a tu mascota con una chappita QR${bannerIsFree ? ' gratuita' : ''} de Sigo Tu Huella. ${bannerIsFree ? '¡Solicitala ahora!' : `$${bannerPrice} — El dinero recaudado se destina a asistir a las mascotas del barrio. Solicitala ahora!`}`,
-                    url: window.location.href,
+                    url: `${window.location.origin}/solicitar-chapita`,
                   }).catch(() => {});
                 }
               }}

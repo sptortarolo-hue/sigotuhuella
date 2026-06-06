@@ -353,6 +353,24 @@ app.get('/api/vet/:token', async (req, res) => {
   }
 });
 
+// Solicitar chapita OG tags
+app.get('/solicitar-chapita', (_req, res) => {
+  const protocol = _req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'https';
+  const baseUrl = `${protocol}://${_req.get('host')}`;
+  const ogTags = `<meta property="og:title" content="Chappita identificadora - Sigo Tu Huella" />
+<meta property="og:description" content="Protegé a tu mascota con una chappita QR. Identificación digital gratuita para tu perro o gato." />
+<meta property="og:url" content="${baseUrl}/solicitar-chapita" />
+<meta property="og:type" content="website" />
+<meta property="og:locale" content="es_AR" />
+<meta property="og:image" content="${baseUrl}/chapita.png" />
+<meta property="og:image:width" content="512" />
+<meta property="og:image:height" content="512" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="${baseUrl}/chapita.png" />
+</head>`;
+  res.send(indexHtml.replace('</head>', ogTags));
+});
+
 // Video generator admin routes
  app.use('/api/admin/videos', videoGeneratorRoutes);
 
