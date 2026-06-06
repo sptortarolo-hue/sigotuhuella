@@ -47,6 +47,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS badges JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS contribution_areas JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_pending BOOLEAN DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_token VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(255);
 
 CREATE TABLE IF NOT EXISTS pets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -126,6 +128,9 @@ INSERT INTO settings (key, value) VALUES
   ('banner_chapita_price', '500'),
   ('banner_chapita_is_free', 'true')
 ON CONFLICT (key) DO NOTHING;
+
+-- Set existing users as email_verified
+UPDATE users SET email_verified = TRUE WHERE email_verified = FALSE;
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id SERIAL PRIMARY KEY,

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { generateToken, hashPassword, verifyToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
+import { generateToken, hashPassword, verifyToken, sendVerificationEmail, generateVerificationToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
@@ -14,14 +14,12 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Nombre y especie de la mascota son requeridos' });
   }
 
-  let authToken = null;
-  let newUser = null;
-
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     let userId;
+    let needsVerification = false;
     const authHeader = req.headers.authorization;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -46,15 +44,23 @@ router.post('/', async (req, res) => {
 
       const passwordHash = await hashPassword(userData.password);
       const displayName = userData.displayName || userData.email.split('@')[0];
+      const verificationToken = generateVerificationToken();
       const userResult = await client.query(
-        `INSERT INTO users (email, password_hash, display_name, phone, role)
-         VALUES ($1, $2, $3, $4, 'user')
+        `INSERT INTO users (email, password_hash, display_name, phone, role, email_verified, email_verification_token)
+         VALUES ($1, $2, $3, $4, 'user', FALSE, $5)
          RETURNING id, email, display_name, phone, role, created_at`,
-        [userData.email, passwordHash, displayName, userData.phone || null]
+        [userData.email, passwordHash, displayName, userData.phone || null, verificationToken]
       );
-      newUser = userResult.rows[0];
+      needsVerification = true;
+      const newUser = userResult.rows[0];
       userId = newUser.id;
-      authToken = generateToken(newUser);
+
+      await pool.query(
+        'UPDATE users SET email_verification_token = $1, email_verified = FALSE WHERE id = $2',
+        [verificationToken, userId]
+      );
+
+      sendVerificationEmail(newUser.email, newUser.display_name, verificationToken).catch(err => console.error('Verification email error:', err));
     }
 
     const petResult = await client.query(
@@ -79,7 +85,7 @@ router.post('/', async (req, res) => {
 
     await client.query('COMMIT');
 
-    const userName = newUser?.display_name || 'Usuario';
+    const userName = userData?.displayName || userData?.email?.split('@')[0] || 'Usuario';
     sendPushToAdmins({
       title: 'Solicitud de chappita QR',
       body: `${userName} solicita QR para ${myPet.name}`,
@@ -92,15 +98,17 @@ router.post('/', async (req, res) => {
        <p><a href="https://sigotuhuella.online/admin" style="background:#5A5A40;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Ir al panel admin</a></p>`
     ).catch(() => {});
 
-    if (newUser) {
-      sendWelcomeEmail(newUser.email, newUser.display_name).catch(err => console.error('Welcome email error:', err));
+    if (needsVerification) {
+      res.status(201).json({
+        requiresVerification: true,
+        email: userData.email,
+        myPet,
+      });
+    } else {
+      res.status(201).json({
+        myPet,
+      });
     }
-
-    res.status(201).json({
-      token: authToken,
-      user: newUser ? { id: newUser.id, email: newUser.email, display_name: newUser.display_name, phone: newUser.phone, role: newUser.role } : null,
-      myPet,
-    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('request-chapita error:', err);

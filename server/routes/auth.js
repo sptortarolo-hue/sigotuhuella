@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { generateToken, hashPassword, comparePassword, requireAuth, sendPasswordResetEmail, generateResetToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
+import { generateToken, hashPassword, comparePassword, requireAuth, sendPasswordResetEmail, generateResetToken, sendVerificationEmail, generateVerificationToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
 import crypto from 'crypto';
 import { sendPushToAdmins } from '../services/pushService.js';
 
@@ -17,22 +17,22 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ error: 'Email already registered' });
     }
     const passwordHash = await hashPassword(password);
+    const verificationToken = generateVerificationToken();
     const result = await pool.query(
-      `INSERT INTO users (email, password_hash, display_name, phone, role)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (email, password_hash, display_name, phone, role, email_verified, email_verification_token)
+       VALUES ($1, $2, $3, $4, $5, FALSE, $6)
        RETURNING id, email, display_name, phone, role, created_at,
                  avatar_data, avatar_mime_type, avatar_type,
                  member_number, volunteer_status, badges`,
-      [email, passwordHash, displayName || email.split('@')[0], phone || null, 'user']
+      [email, passwordHash, displayName || email.split('@')[0], phone || null, 'user', verificationToken]
     );
     const user = result.rows[0];
-    const token = generateToken(user);
-    sendWelcomeEmail(user.email, user.display_name).catch(err => console.error('Failed to send welcome email:', err));
-    
-    // Notify administrators of the new registration
+
+    sendVerificationEmail(user.email, user.display_name, verificationToken).catch(err => console.error('Failed to send verification email:', err));
+
     const adminSubject = `🔔 Nuevo Usuario Registrado: ${user.display_name}`;
     const adminHtml = `
-      <p>Se ha registrado un nuevo usuario en la plataforma:</p>
+      <p>Se ha registrado un nuevo usuario en la plataforma (email no verificado):</p>
       <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
         <tr>
           <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; font-weight: bold; width: 120px; color: #475569;">Nombre:</td>
@@ -54,13 +54,13 @@ router.post('/register', async (req, res) => {
     `;
     sendAdminNotificationEmail(adminSubject, adminHtml).catch(err => console.error('Failed to send admin signup notification:', err));
 
-      sendPushToAdmins({
-        title: '🔔 Nuevo usuario registrado',
-        body: `${user.display_name} se registró en la plataforma`,
-        url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/admin`,
-      }).catch(err => console.error('Push error:', err));
+    sendPushToAdmins({
+      title: '🔔 Nuevo usuario registrado',
+      body: `${user.display_name} se registró en la plataforma (pendiente verificación)`,
+      url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/admin`,
+    }).catch(err => console.error('Push error:', err));
 
-    res.status(201).json({ token, user: { ...user, badges: user.badges || [] } });
+    res.status(201).json({ message: 'Registro exitoso. Revisá tu email para verificar tu cuenta.', requiresVerification: true, email: user.email });
   } catch (err) {
     console.error('Register error:', err);
     res.status(500).json({ error: 'Registration failed' });
@@ -81,6 +81,13 @@ router.post('/login', async (req, res) => {
     const valid = await comparePassword(password, user.password_hash);
     if (!valid) {
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    if (!user.email_verified) {
+      return res.status(403).json({
+        error: 'Email no verificado. Revisá tu casilla de correo y hacé click en el enlace de confirmación.',
+        requiresVerification: true,
+        email: user.email,
+      });
     }
     const token = generateToken(user);
     res.json({
@@ -276,6 +283,59 @@ router.post('/complete-registration', async (req, res) => {
   } catch (err) {
     console.error('Complete registration error:', err);
     res.status(500).json({ error: 'Failed to complete registration' });
+  }
+});
+
+// Verify email
+router.get('/verify-email/:token', async (req, res) => {
+  const { token } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT id, email, display_name, phone, role FROM users WHERE email_verification_token = $1 AND email_verified = FALSE',
+      [token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(400).json({ valid: false, error: 'Token inválido o cuenta ya verificada' });
+    }
+    const user = result.rows[0];
+    await pool.query(
+      'UPDATE users SET email_verified = TRUE, email_verification_token = NULL WHERE id = $1',
+      [user.id]
+    );
+    const jwtToken = generateToken(user);
+    sendWelcomeEmail(user.email, user.display_name).catch(err => console.error('Welcome email error:', err));
+    res.json({ valid: true, token: jwtToken, user: { id: user.id, email: user.email, display_name: user.display_name, phone: user.phone, role: user.role } });
+  } catch (err) {
+    console.error('Verify email error:', err);
+    res.status(500).json({ error: 'Error al verificar email' });
+  }
+});
+
+// Resend verification email
+router.post('/resend-verification', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+  try {
+    const result = await pool.query(
+      'SELECT id, email, display_name, email_verification_token FROM users WHERE email = $1 AND email_verified = FALSE',
+      [email]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado o ya verificado' });
+    }
+    const user = result.rows[0];
+    let token = user.email_verification_token;
+    if (!token) {
+      token = generateVerificationToken();
+      await pool.query('UPDATE users SET email_verification_token = $1 WHERE id = $2', [token, user.id]);
+    }
+    await sendVerificationEmail(user.email, user.display_name, token);
+    res.json({ message: 'Email de verificación reenviado' });
+  } catch (err) {
+    console.error('Resend verification error:', err);
+    res.status(500).json({ error: 'Error al reenviar email de verificación' });
   }
 });
 

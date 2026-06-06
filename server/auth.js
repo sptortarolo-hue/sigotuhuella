@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import pool from './db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
@@ -110,6 +111,52 @@ export async function hashPassword(password) {
 
 export async function comparePassword(password, hash) {
   return bcrypt.compare(password, hash);
+}
+
+export function generateVerificationToken() {
+  return uuidv4().replace(/-/g, '') + crypto.randomBytes(16).toString('hex');
+}
+
+export async function sendVerificationEmail(email, displayName, verificationToken) {
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+  const verifyUrl = `${frontendUrl}/verificar-email?token=${verificationToken}`;
+
+  try {
+    await transporter.sendMail({
+      from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: 'Confirmá tu email — Sigo Tu Huella',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <div style="background-color: #5A5A40; color: white; width: 60px; height: 60px; line-height: 60px; font-size: 30px; border-radius: 20px; display: inline-block; text-align: center; margin: 0 auto;">🐾</div>
+          </div>
+          <h2 style="color: #5A5A40; text-align: center; font-size: 24px; margin-bottom: 10px;">¡Casi listo, ${displayName}!</h2>
+          <p style="color: #4a5568; font-size: 16px; line-height: 1.6; text-align: center;">
+            Gracias por registrarte en <strong>Sigo Tu Huella</strong>. Hacé click en el botón para confirmar tu email y activar tu cuenta.
+          </p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verifyUrl}"
+               style="background-color: #5A5A40; color: white; padding: 14px 28px;
+                      text-decoration: none; border-radius: 12px; font-weight: bold;
+                      display: inline-block; box-shadow: 0 4px 6px rgba(90, 90, 64, 0.15);">
+              Confirmar mi email
+            </a>
+          </div>
+          <p style="color: #718096; font-size: 14px; text-align: center;">
+            Si no creaste esta cuenta, podés ignorar este mensaje.
+          </p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 25px 0;">
+          <p style="color: #a0aec0; font-size: 12px; text-align: center;">
+            Si el botón no funciona, copiá y pegá este enlace en tu navegador:<br>
+            ${verifyUrl}
+          </p>
+        </div>
+      `,
+    });
+  } catch (err) {
+    console.error('Verification email error:', err);
+  }
 }
 
 export async function sendWelcomeEmail(email, displayName) {

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/src/lib/api';
-import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as PhoneIcon, Eye, EyeOff, KeyRound, CheckCircle2 } from 'lucide-react';
+import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as PhoneIcon, Eye, EyeOff, KeyRound, CheckCircle2, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Login() {
@@ -12,13 +12,15 @@ export default function Login() {
   const from = (location.state as any)?.from || '/';
   const [authLoading, setAuthLoading] = useState(false);
   const [error, setError] = useState('');
-  const [mode, setMode] = useState<'login' | 'register' | 'complete-registration'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'complete-registration' | 'verify-email'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resentMessage, setResentMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,9 +51,9 @@ export default function Login() {
           setAuthLoading(false);
           return;
         }
-        const data = await api.auth.register(email, password, displayName, phone);
-        login(data.token, data.user);
-        setRegistrationSuccess(true);
+        await api.auth.register(email, password, displayName, phone);
+        setMode('verify-email');
+        setRegistrationSuccess(false);
         setAuthLoading(false);
         return;
       }
@@ -72,7 +74,12 @@ export default function Login() {
       login(data.token, data.user);
       navigate(from, { replace: true });
     } catch (err: any) {
-      setError(err.message || 'Error al procesar la solicitud');
+      if (err.message?.includes('Email no verificado') || err.message?.includes('email no verificado')) {
+        setMode('verify-email');
+        setError('');
+      } else {
+        setError(err.message || 'Error al procesar la solicitud');
+      }
     } finally {
       setAuthLoading(false);
     }
@@ -105,16 +112,27 @@ export default function Login() {
           <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary mb-3">
             {greeting}
           </h1>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 mb-2">
             Tu cuenta fue creada exitosamente.
             {displayName && <span> ¡Nos alegra tenerte acá, <strong>{displayName}</strong>!</span>}
           </p>
-          <button
-            onClick={() => navigate(from, { replace: true })}
-            className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all"
-          >
-            Continuar
-          </button>
+          <p className="text-sm text-gray-500 mb-6">
+            Ahora solo falta confirmar tu email. Te enviamos un enlace de verificación a <strong>{email}</strong>.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => setMode('verify-email')}
+              className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all"
+            >
+              Revisar mi email
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              className="w-full px-6 py-3 bg-white text-gray-600 border border-brand-accent rounded-xl font-bold hover:bg-gray-50 transition-all"
+            >
+              Ir al inicio
+            </button>
+          </div>
         </motion.div>
       </div>
     );
@@ -136,12 +154,14 @@ export default function Login() {
             )}
           </div>
           <h1 className="text-3xl font-serif font-bold text-brand-primary">
-            {mode === 'complete-registration' ? 'Completá tu registro' : 'Iniciá Sesión'}
+            {mode === 'complete-registration' ? 'Completá tu registro' : mode === 'verify-email' ? 'Confirmá tu email' : 'Iniciá Sesión'}
           </h1>
           <p className="text-gray-500 text-sm mt-2">
             {mode === 'complete-registration'
               ? 'Creá tu contraseña para acceder a tu cuenta.'
-              : 'Ingresá para publicar reportes, gestionar tus publicaciones y colaborar con la comunidad.'}
+              : mode === 'verify-email'
+                ? 'Te enviamos un enlace de verificación. Revisá tu casilla de correo.'
+                : 'Ingresá para publicar reportes, gestionar tus publicaciones y colaborar con la comunidad.'}
           </p>
         </div>
 
@@ -177,6 +197,47 @@ export default function Login() {
               </button>
             </div>
           </div>
+        ) : mode === 'verify-email' ? (
+            <div className="space-y-6">
+              <div className="p-5 bg-amber-50 rounded-2xl border border-amber-200 text-sm text-amber-800">
+                <p className="font-bold mb-1">📧 Revisá tu bandeja de entrada</p>
+                <p>Te enviamos un email de verificación a <strong>{email}</strong>. Hacé click en el enlace para activar tu cuenta.</p>
+                <p className="mt-2 text-amber-700">Si no lo encontrás, revisá la carpeta de <strong>correo no deseado</strong> o spam.</p>
+              </div>
+
+              {resentMessage && (
+                <div className="p-4 bg-green-50 rounded-xl border border-green-200 text-sm text-green-700 text-center">
+                  {resentMessage}
+                </div>
+              )}
+
+              <button
+                onClick={async () => {
+                  setResending(true);
+                  setResentMessage('');
+                  try {
+                    await api.auth.resendVerification(email);
+                    setResentMessage('Email reenviado exitosamente. Revisá tu casilla.');
+                  } catch (e: any) {
+                    setResentMessage('Error al reenviar. Intentá de nuevo más tarde.');
+                  } finally {
+                    setResending(false);
+                  }
+                }}
+                disabled={resending}
+                className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+              >
+                {resending ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                Reenviar email
+              </button>
+
+              <button
+                onClick={() => { setMode('login'); setError(''); }}
+                className="w-full text-center text-sm text-brand-primary font-bold hover:underline"
+              >
+                Volver a iniciar sesión
+              </button>
+            </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
@@ -373,7 +434,7 @@ export default function Login() {
               </button>
             )}
           </form>
-        )}
+          )}
       </motion.div>
     </div>
   );

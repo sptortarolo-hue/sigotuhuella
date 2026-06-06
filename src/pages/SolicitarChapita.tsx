@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { compressImage, fileToBase64 } from '@/src/lib/storageService';
 import {
   PawPrint, ArrowLeft, Loader2, CheckCircle2, Dog, Cat,
-  QrCode, Mail, Lock, Phone, User, Camera, Syringe, Scissors, Bug,
+  QrCode, Mail, Lock, Phone, User, Camera, Syringe, Scissors, Bug, RefreshCw,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -44,6 +44,9 @@ export default function SolicitarChapita() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [requiresVerification, setRequiresVerification] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resentMessage, setResentMessage] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -114,8 +117,9 @@ export default function SolicitarChapita() {
 
       const data = await api.requestChapita(payload);
 
-      if (data.token && data.user) {
-        login(data.token, data.user);
+      if (data.requiresVerification) {
+        setRequiresVerification(true);
+        return;
       }
 
       setSuccess(true);
@@ -125,6 +129,69 @@ export default function SolicitarChapita() {
       setLoading(false);
     }
   };
+
+  if (requiresVerification) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center px-4">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="text-center max-w-md"
+        >
+          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Mail className="w-10 h-10 text-amber-600" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary mb-3">
+            ¡Casi listo!
+          </h1>
+          <p className="text-gray-600 mb-2">
+            {pet.name} ya está en lista para recibir su chappita QR.
+          </p>
+          <p className="text-gray-500 text-sm mb-6">
+            Solo falta confirmar tu email. Te enviamos un enlace de verificación a <strong>{email}</strong>.
+            Hacé click en el enlace para activar tu cuenta.
+          </p>
+          <p className="text-gray-500 text-xs mb-6">
+            Si no lo encontrás, revisá la carpeta de <strong>correo no deseado</strong> o spam.
+          </p>
+
+          {resentMessage && (
+            <div className="mb-4 p-4 bg-green-50 rounded-xl border border-green-200 text-sm text-green-700">
+              {resentMessage}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={async () => {
+                setResending(true);
+                setResentMessage('');
+                try {
+                  await api.auth.resendVerification(email);
+                  setResentMessage('Email reenviado. Revisá tu casilla.');
+                } catch {
+                  setResentMessage('Error al reenviar. Intentá de nuevo.');
+                } finally {
+                  setResending(false);
+                }
+              }}
+              disabled={resending}
+              className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+            >
+              {resending ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+              Reenviar email
+            </button>
+            <Link
+              to="/login"
+              className="w-full py-3 bg-white text-gray-600 border border-brand-accent rounded-xl font-bold text-center hover:bg-gray-50 transition-all text-sm"
+            >
+              Ir a iniciar sesión
+            </Link>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (success) {
     return (
