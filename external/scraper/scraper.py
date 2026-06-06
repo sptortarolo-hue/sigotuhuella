@@ -95,6 +95,15 @@ def load_cookies():
     return None
 
 
+def get_fb_credentials():
+    """Return Facebook login credentials from env vars."""
+    email = os.environ.get("FB_EMAIL") or os.environ.get("FACEBOOK_EMAIL")
+    password = os.environ.get("FB_PASSWORD") or os.environ.get("FACEBOOK_PASSWORD")
+    if email and password:
+        return {"email": email, "password": password}
+    return None
+
+
 def scrape_group(group_name, group_url, max_posts=50):
     """Scrape posts from a Facebook group."""
     group_id = extract_group_id(group_url)
@@ -106,6 +115,9 @@ def scrape_group(group_name, group_url, max_posts=50):
         cookies = load_cookies()
         if cookies:
             opts["cookies"] = cookies
+        creds = get_fb_credentials()
+        if creds:
+            opts["credentials"] = creds
         for post in get_posts(group_id, pages=5, options=opts):
             post_data = {
                 "group_id": None,
