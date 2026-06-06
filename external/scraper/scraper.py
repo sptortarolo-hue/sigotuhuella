@@ -111,14 +111,15 @@ def scrape_group(group_name, group_url, max_posts=50):
 
     posts = []
     try:
-        opts = {"posts_per_page": max_posts}
-        cookies = load_cookies()
-        if cookies:
-            opts["cookies"] = cookies
-        creds = get_fb_credentials()
-        if creds:
-            opts["credentials"] = creds
-        for post in get_posts(group_id, pages=5, options=opts):
+        fb_opts = {"posts_per_page": max_posts}
+        fb_cookies = load_cookies()
+        fb_creds = get_fb_credentials()
+        kwargs = {"pages": 5, "options": fb_opts}
+        if fb_cookies:
+            kwargs["cookies"] = fb_cookies
+        if fb_creds:
+            kwargs["credentials"] = fb_creds
+        for post in get_posts(group_id, **kwargs):
             post_data = {
                 "group_id": None,
                 "group_name": group_name,
