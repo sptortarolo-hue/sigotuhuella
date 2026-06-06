@@ -88,6 +88,7 @@ export default function MyPetDetail() {
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoResult, setVideoResult] = useState<{url: string; thumbUrl: string | null} | null>(null);
   const videoModalRef = useRef<HTMLDivElement>(null);
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
 
   const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -129,6 +130,13 @@ export default function MyPetDetail() {
       }).then(setQrDataUrl).catch(() => {});
     }
   }, [pet?.qr_id]);
+
+  useEffect(() => {
+    if (!previewPhotoUrl) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setPreviewPhotoUrl(null); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [previewPhotoUrl]);
 
   const weightRecords = useMemo(() => {
     if (!pet?.records) return [];
@@ -709,10 +717,11 @@ export default function MyPetDetail() {
                               </div>
                             )}
                             {item.photo_ids?.length > 0 && (
-                              <div className="grid grid-cols-3 gap-2 mt-2">
+                              <div className="flex flex-wrap gap-1.5 mt-2">
                                 {item.photo_ids.map((pid: string) => (
                                   <img key={pid} src={`/my-pet-photo/${pid}`}
-                                    className="aspect-square object-cover rounded-xl"
+                                    className="w-12 h-12 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                                    onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}`)}
                                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                                 ))}
                               </div>
@@ -879,10 +888,11 @@ export default function MyPetDetail() {
                         </div>
                       </div>
                       {record.photo_ids?.length > 0 && (
-                        <div className="grid grid-cols-3 gap-2 mt-3">
+                        <div className="flex flex-wrap gap-1.5 mt-3">
                           {record.photo_ids.map((pid: string) => (
                             <img key={pid} src={`/my-pet-photo/${pid}`}
-                              className="aspect-square object-cover rounded-xl"
+                              className="w-12 h-12 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}`)}
                               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                           ))}
                         </div>
@@ -1180,6 +1190,17 @@ export default function MyPetDetail() {
               </div>
             )}
           </motion.div>
+        </motion.div>
+      )}
+
+      {previewPhotoUrl && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80"
+          onClick={() => setPreviewPhotoUrl(null)}
+        >
+          <img src={previewPhotoUrl}
+            className="max-w-full max-h-[90vh] object-contain rounded-2xl"
+            onClick={(e) => e.stopPropagation()} />
         </motion.div>
       )}
     </div>
