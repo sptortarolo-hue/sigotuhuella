@@ -165,7 +165,7 @@ export default function MyPetsPortal() {
             <h1 className="text-2xl sm:text-3xl font-semibold text-white flex items-center gap-3">
               <PawPrint className="w-8 h-8" /> Mis Mascotas
             </h1>
-            <p className="text-white/80 text-sm mt-1">El portal de tus companeros</p>
+            <p className="text-white/80 text-sm mt-1">El portal de tus compañeros</p>
           </div>
         <button
           onClick={() => { setEditingId(null); setForm({ ...emptyForm }); setAvatarPreview(null); setAvatarFile(null); setShowForm(true); }}
@@ -188,7 +188,7 @@ export default function MyPetsPortal() {
         >
           <PawPrint className="w-16 h-16 text-brand-accent mx-auto mb-4" />
           <h3 className="text-xl font-bold text-brand-primary mb-2">Todavía no registraste mascotas</h3>
-          <p className="text-gray-500 mb-6">Registra a tus companeros para llevar su ficha, galería, timeline y salud.</p>
+          <p className="text-gray-500 mb-6">Registra a tus compañeros para llevar su ficha, galería, timeline y salud.</p>
           <button
             onClick={() => { setEditingId(null); setForm({ ...emptyForm }); setAvatarPreview(null); setAvatarFile(null); setShowForm(true); }}
             className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all"
