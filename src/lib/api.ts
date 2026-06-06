@@ -138,6 +138,52 @@ export const api = {
     request('/auth/complete-registration', { method: 'POST', body: JSON.stringify(data) }),
   validateToken: (token: string) => request(`/auth/validate-token/${token}`),
 
+  facebook: {
+    groups: {
+      list: () => request('/facebook/groups'),
+      create: (data: { name: string; url: string }) => request('/facebook/groups', { method: 'POST', body: JSON.stringify(data) }),
+      update: (id: string, data: any) => request(`/facebook/groups/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (id: string) => request(`/facebook/groups/${id}`, { method: 'DELETE' }),
+    },
+    posts: {
+      list: (params?: { group_id?: string; classification?: string; species?: string; search?: string; limit?: number; offset?: number }) => {
+        const q = new URLSearchParams();
+        if (params?.group_id) q.set('group_id', params.group_id);
+        if (params?.classification) q.set('classification', params.classification);
+        if (params?.species) q.set('species', params.species);
+        if (params?.search) q.set('search', params.search);
+        if (params?.limit) q.set('limit', String(params.limit));
+        if (params?.offset) q.set('offset', String(params.offset));
+        return request(`/facebook/posts?${q.toString()}`);
+      },
+      get: (id: string) => request(`/facebook/posts/${id}`),
+      update: (id: string, data: any) => request(`/facebook/posts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      delete: (id: string) => request(`/facebook/posts/${id}`, { method: 'DELETE' }),
+      classify: (id: string) => request(`/facebook/classify/${id}`, { method: 'POST' }),
+    },
+    matches: {
+      list: (params?: { status?: string; limit?: number; offset?: number }) => {
+        const q = new URLSearchParams();
+        if (params?.status) q.set('status', params.status);
+        if (params?.limit) q.set('limit', String(params.limit));
+        if (params?.offset) q.set('offset', String(params.offset));
+        return request(`/facebook/matches?${q.toString()}`);
+      },
+      confirm: (id: string) => request(`/facebook/matches/${id}/confirm`, { method: 'POST' }),
+      reject: (id: string) => request(`/facebook/matches/${id}/reject`, { method: 'POST' }),
+    },
+    runMatching: (postId?: string) => request('/facebook/run-matching', { method: 'POST', body: JSON.stringify({ post_id: postId }) }),
+    search: (params?: { species?: string; color?: string; location?: string; classification?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.species) q.set('species', params.species);
+      if (params?.color) q.set('color', params.color);
+      if (params?.location) q.set('location', params.location);
+      if (params?.classification) q.set('classification', params.classification);
+      return request(`/facebook/search?${q.toString()}`);
+    },
+    stats: () => request('/facebook/stats'),
+  },
+
   myPets: {
     list: () => request('/my-pets'),
     get: (id: string) => request(`/my-pets/${id}`),

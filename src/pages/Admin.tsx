@@ -20,17 +20,18 @@ import PetCard from '@/src/components/PetCard';
 import SocialShareModal from '@/src/components/SocialShareModal';
 import { BADGE_CONFIG } from '@/src/components/MemberCard';
 import VideoGeneratorTab from '@/src/pages/admin/VideoGeneratorTab';
+import FacebookTab from '@/src/components/admin/FacebookTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award, MessageSquare, FlaskConical, Map, Film, QrCode, Check
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award, MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'public' | 'videos' | 'qr'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'public' | 'videos' | 'qr' | 'facebook'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -649,6 +650,7 @@ export default function Admin() {
           { id: 'news', label: 'Novedades', icon: Sparkles },
           { id: 'public', label: 'Reportes Públicos', icon: FileText },
           { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
+          { id: 'facebook', label: 'Facebook', icon: Globe },
           { id: 'videos', label: 'Videos', icon: Film },
   { id: 'qr', label: 'QR', icon: QrCode },
         ].map(tab => (
@@ -1530,9 +1532,14 @@ export default function Admin() {
                 </div>
                </div>
              </div>
-           )}
+            )}
 
-           {/* ====== VIDEOS ====== */}
+            {/* ====== FACEBOOK ====== */}
+            {activeTab === 'facebook' && (
+              <FacebookTab />
+            )}
+
+            {/* ====== VIDEOS ====== */}
 {activeTab === 'videos' && (
   <VideoGeneratorTab />
 )}

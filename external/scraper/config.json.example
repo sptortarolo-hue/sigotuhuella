@@ -1,0 +1,16 @@
+{
+  "webhook_url": "https://sigotuhuella.online/api/facebook/webhook",
+  "webhook_token": "sihuella-scraper-2024",
+  "groups": [
+    {
+      "name": "Animales Perdidos Zona Sur",
+      "url": "https://www.facebook.com/groups/animalesperdidoszonasur"
+    },
+    {
+      "name": "Mascotas Perdidas La Plata",
+      "url": "https://www.facebook.com/groups/mascotasperdidaslaplata"
+    }
+  ],
+  "scrape_interval_hours": 6,
+  "max_posts_per_group": 50
+}

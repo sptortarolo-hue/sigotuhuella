@@ -287,6 +287,66 @@ CREATE TABLE IF NOT EXISTS user_points (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS points INTEGER DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1;
+
+CREATE TABLE IF NOT EXISTS facebook_groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  url TEXT UNIQUE NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  last_scraped_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS facebook_posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id UUID REFERENCES facebook_groups(id) ON DELETE CASCADE,
+  fb_post_id VARCHAR(255) UNIQUE NOT NULL,
+  fb_post_url TEXT,
+  author_name VARCHAR(255),
+  content TEXT,
+  image_urls TEXT[] DEFAULT '{}',
+  posted_at TIMESTAMP,
+  scraped_at TIMESTAMP DEFAULT NOW(),
+  classification VARCHAR(50) DEFAULT 'unclassified',
+  species VARCHAR(50),
+  color VARCHAR(255),
+  location_hint VARCHAR(500),
+  phone VARCHAR(100),
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  is_matched BOOLEAN DEFAULT FALSE,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS facebook_matches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_type VARCHAR(50) NOT NULL,
+  source_id UUID NOT NULL,
+  target_type VARCHAR(50) NOT NULL,
+  target_id UUID NOT NULL,
+  score DECIMAL(5,2) DEFAULT 0,
+  reasons TEXT[] DEFAULT '{}',
+  method VARCHAR(50) DEFAULT 'text',
+  status VARCHAR(50) DEFAULT 'pending',
+  confirmed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  confirmed_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(source_type, source_id, target_type, target_id)
+);
+
+INSERT INTO settings (key, value) VALUES
+  ('fb_scraping_enabled', 'false'),
+  ('fb_polygon_vertices', '[{"lat":-34.856,"lng":-57.984},{"lat":-34.876,"lng":-57.964},{"lat":-34.891,"lng":-57.995}]'),
+  ('fb_polygon_amplitude', '100'),
+  ('fb_matching_enabled', 'false'),
+  ('fb_matching_min_score', '50'),
+  ('fb_image_matching_enabled', 'false'),
+  ('fb_image_matching_weight', '20'),
+  ('fb_neighborhoods', '[]')
+ON CONFLICT (key) DO NOTHING;
 `;
 
 export async function initDb() {
