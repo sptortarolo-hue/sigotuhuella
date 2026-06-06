@@ -307,13 +307,23 @@ async def async_scrape_group(group_name, group_url, max_posts=50):
             await page.setCookie(*fb_cookies)
 
         # First, visit facebook.com to establish session
-        await page.goto("https://www.facebook.com/", waitUntil="networkidle2", timeout=30000)
-        await asyncio.sleep(2)
+        try:
+            await page.goto("https://www.facebook.com/", waitUntil="load", timeout=30000)
+        except Exception:
+            logger.info(f"[{group_name}] Facebook.com timed out, continuing anyway...")
+        await asyncio.sleep(3)
 
         # Now navigate to group with recent-activity sort (more reliable HTML)
         group_url_full = f"https://www.facebook.com/groups/{group_id}/?sorting_setting=RECENT_ACTIVITY"
         logger.info(f"Navigating to {group_url_full}")
-        await page.goto(group_url_full, waitUntil="networkidle2", timeout=60000)
+        try:
+            await page.goto(group_url_full, waitUntil="load", timeout=60000)
+        except Exception:
+            logger.warning(f"[{group_name}] Group page load timed out, trying with domcontentloaded...")
+            try:
+                await page.goto(group_url_full, waitUntil="domcontentloaded", timeout=30000)
+            except Exception:
+                logger.warning(f"[{group_name}] Group page navigation failed completely")
         await asyncio.sleep(3)
 
         await page_diagnostics(page, group_name)
