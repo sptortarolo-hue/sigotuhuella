@@ -45,19 +45,20 @@ router.post('/', async (req, res) => {
       const passwordHash = await hashPassword(userData.password);
       const displayName = userData.displayName || userData.email.split('@')[0];
       const verificationToken = generateVerificationToken();
+      const verificationExpires = new Date(Date.now() + 48 * 60 * 60 * 1000);
       const userResult = await client.query(
-        `INSERT INTO users (email, password_hash, display_name, phone, role, email_verified, email_verification_token)
-         VALUES ($1, $2, $3, $4, 'user', FALSE, $5)
+        `INSERT INTO users (email, password_hash, display_name, phone, role, email_verified, email_verification_token, email_verification_expires)
+         VALUES ($1, $2, $3, $4, 'user', FALSE, $5, $6)
          RETURNING id, email, display_name, phone, role, created_at`,
-        [userData.email, passwordHash, displayName, userData.phone || null, verificationToken]
+        [userData.email, passwordHash, displayName, userData.phone || null, verificationToken, verificationExpires]
       );
       needsVerification = true;
       const newUser = userResult.rows[0];
       userId = newUser.id;
 
       await pool.query(
-        'UPDATE users SET email_verification_token = $1, email_verified = FALSE WHERE id = $2',
-        [verificationToken, userId]
+        'UPDATE users SET email_verification_token = $1, email_verification_expires = $2, email_verified = FALSE WHERE id = $3',
+        [verificationToken, verificationExpires, userId]
       );
 
       sendVerificationEmail(newUser.email, newUser.display_name, verificationToken).catch(err => console.error('Verification email error:', err));

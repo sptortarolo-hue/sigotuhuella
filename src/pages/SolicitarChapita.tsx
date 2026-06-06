@@ -151,9 +151,10 @@ export default function SolicitarChapita() {
             Solo falta confirmar tu email. Te enviamos un enlace de verificación a <strong>{email}</strong>.
             Hacé click en el enlace para activar tu cuenta.
           </p>
-          <p className="text-gray-500 text-xs mb-6">
+          <p className="text-gray-500 text-xs mb-1">
             Si no lo encontrás, revisá la carpeta de <strong>correo no deseado</strong> o spam.
           </p>
+          <p className="text-gray-400 text-xs mb-6">El enlace vence en 48 horas. Si expiró, podés solicitar uno nuevo abajo.</p>
 
           {resentMessage && (
             <div className="mb-4 p-4 bg-green-50 rounded-xl border border-green-200 text-sm text-green-700">

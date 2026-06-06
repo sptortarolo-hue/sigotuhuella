@@ -203,6 +203,7 @@ export default function Login() {
                 <p className="font-bold mb-1">📧 Revisá tu bandeja de entrada</p>
                 <p>Te enviamos un email de verificación a <strong>{email}</strong>. Hacé click en el enlace para activar tu cuenta.</p>
                 <p className="mt-2 text-amber-700">Si no lo encontrás, revisá la carpeta de <strong>correo no deseado</strong> o spam.</p>
+                <p className="mt-1 text-amber-600 text-xs">El enlace vence en 48 horas. Si expiró, podés solicitar uno nuevo abajo.</p>
               </div>
 
               {resentMessage && (

@@ -18,13 +18,14 @@ router.post('/register', async (req, res) => {
     }
     const passwordHash = await hashPassword(password);
     const verificationToken = generateVerificationToken();
+    const verificationExpires = new Date(Date.now() + 48 * 60 * 60 * 1000);
     const result = await pool.query(
-      `INSERT INTO users (email, password_hash, display_name, phone, role, email_verified, email_verification_token)
-       VALUES ($1, $2, $3, $4, $5, FALSE, $6)
+      `INSERT INTO users (email, password_hash, display_name, phone, role, email_verified, email_verification_token, email_verification_expires)
+       VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7)
        RETURNING id, email, display_name, phone, role, created_at,
                  avatar_data, avatar_mime_type, avatar_type,
                  member_number, volunteer_status, badges`,
-      [email, passwordHash, displayName || email.split('@')[0], phone || null, 'user', verificationToken]
+      [email, passwordHash, displayName || email.split('@')[0], phone || null, 'user', verificationToken, verificationExpires]
     );
     const user = result.rows[0];
 
@@ -84,7 +85,7 @@ router.post('/login', async (req, res) => {
     }
     if (!user.email_verified) {
       return res.status(403).json({
-        error: 'Email no verificado. Revisá tu casilla de correo y hacé click en el enlace de confirmación.',
+        error: 'Email no verificado. Revisá tu casilla (y la carpeta de correo no deseado). Si no encuentras el enlace, solicita uno nuevo.',
         requiresVerification: true,
         email: user.email,
       });
@@ -291,15 +292,18 @@ router.get('/verify-email/:token', async (req, res) => {
   const { token } = req.params;
   try {
     const result = await pool.query(
-      'SELECT id, email, display_name, phone, role FROM users WHERE email_verification_token = $1 AND email_verified = FALSE',
+      'SELECT id, email, display_name, phone, role, email_verification_expires FROM users WHERE email_verification_token = $1 AND email_verified = FALSE',
       [token]
     );
     if (result.rows.length === 0) {
       return res.status(400).json({ valid: false, error: 'Token inválido o cuenta ya verificada' });
     }
     const user = result.rows[0];
+    if (user.email_verification_expires && new Date(user.email_verification_expires) < new Date()) {
+      return res.status(400).json({ valid: false, error: 'El enlace de verificación expiró. Solicitá uno nuevo desde la pantalla de inicio de sesión.', expired: true });
+    }
     await pool.query(
-      'UPDATE users SET email_verified = TRUE, email_verification_token = NULL WHERE id = $1',
+      'UPDATE users SET email_verified = TRUE, email_verification_token = NULL, email_verification_expires = NULL WHERE id = $1',
       [user.id]
     );
     const jwtToken = generateToken(user);
@@ -329,8 +333,12 @@ router.post('/resend-verification', async (req, res) => {
     let token = user.email_verification_token;
     if (!token) {
       token = generateVerificationToken();
-      await pool.query('UPDATE users SET email_verification_token = $1 WHERE id = $2', [token, user.id]);
     }
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    await pool.query(
+      'UPDATE users SET email_verification_token = $1, email_verification_expires = $2 WHERE id = $3',
+      [token, expiresAt, user.id]
+    );
     await sendVerificationEmail(user.email, user.display_name, token);
     res.json({ message: 'Email de verificación reenviado' });
   } catch (err) {
