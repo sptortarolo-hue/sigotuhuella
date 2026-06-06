@@ -14,7 +14,7 @@ router.post('/register', async (req, res) => {
   try {
     const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'Email already registered' });
+      return res.status(409).json({ error: 'Este email ya está registrado. Iniciá sesión o usá otro email.' });
     }
     const passwordHash = await hashPassword(password);
     const verificationToken = generateVerificationToken();
