@@ -6,9 +6,11 @@ import NewsCarousel from '@/src/components/NewsCarousel';
 import { getNews } from '@/src/lib/newsService';
 import { api } from '@/src/lib/api';
 import { formatTag } from '@/src/lib/personalityTags';
+import { useAuth } from '@/src/hooks/useAuth';
 
 export default function Home() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [news, setNews] = useState<any[]>([]);
   const [featuredPet, setFeaturedPet] = useState<any>(null);
   const [bannerVisible, setBannerVisible] = useState(true);
@@ -291,7 +293,10 @@ export default function Home() {
                   )}
                 </ul>
                 <button
-                  onClick={() => { setShowChapitaModal(false); navigate('/mis-mascotas'); }}
+                  onClick={() => {
+                    setShowChapitaModal(false);
+                    navigate(user ? '/mis-mascotas' : '/login', user ? {} : { state: { from: '/mis-mascotas' } });
+                  }}
                   className="w-full py-3.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all mt-2"
                 >
                   Pedir chappita identificatoria
