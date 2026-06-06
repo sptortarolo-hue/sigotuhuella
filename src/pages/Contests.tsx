@@ -192,7 +192,7 @@ export default function Contests() {
           >
             <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={() => setShowNominate(false)} />
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="relative w-full max-w-md bg-white rounded-[2.5rem] p-6 sm:p-8"
+              className="relative w-full max-w-md bg-white rounded-[2.5rem] p-6 sm:p-8 max-h-[90vh] flex flex-col overflow-y-auto"
             >
               <h2 className="text-xl font-bold text-gray-800 mb-4">Nominar mascota</h2>
               {myPets.length === 0 ? (

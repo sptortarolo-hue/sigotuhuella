@@ -941,7 +941,7 @@ export default function Admin() {
                 </button>
               </div>
               <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-x-auto">
-                <table className="w-full text-left">
+                <table className="w-full text-left min-w-max">
                   <thead>
                     <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
                       <th className="px-6 py-4">Título</th>
@@ -1879,12 +1879,12 @@ export default function Admin() {
         {showCollabForm && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCollabForm(false)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="p-6 sm:p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50 shrink-0">
                 <h2 className="text-2xl font-serif font-bold text-brand-primary">{editingAccount ? 'Editar Cuenta' : 'Nueva Cuenta'}</h2>
                 <button onClick={() => setShowCollabForm(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
               </div>
-              <form onSubmit={handleCollabSubmit} className="p-8 space-y-4">
+              <form onSubmit={handleCollabSubmit} className="p-6 sm:p-8 space-y-4 overflow-y-auto">
                 <div><label className="text-xs font-bold uppercase text-gray-500">Título</label><input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.title} onChange={e => setCollabData({...collabData, title: e.target.value})} /></div>
                 <div><label className="text-xs font-bold uppercase text-gray-500">Descripción</label><textarea rows={2} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={collabData.description} onChange={e => setCollabData({...collabData, description: e.target.value})} /></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
