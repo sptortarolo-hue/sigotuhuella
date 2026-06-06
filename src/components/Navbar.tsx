@@ -115,7 +115,7 @@ export default function Navbar() {
             </div>
 
             <div className="flex items-center gap-3">
-              {pushEnabled !== null && (pushEnabled || !bellHidden) && (
+              {pushEnabled !== null && (
                 <button
                   onClick={handleBellClick}
                   title={pushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}
@@ -124,7 +124,7 @@ export default function Navbar() {
                     pushEnabled ? "text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20" : "text-gray-400 hover:text-brand-primary hover:bg-brand-primary/10"
                   )}
                 >
-                  {pushEnabled ? <Bell className="w-4 h-4 sm:w-5 sm:h-5" /> : <BellOff className="w-4 h-4 sm:w-5 sm:h-5" />}
+                  {pushEnabled || bellHidden ? <Bell className="w-4 h-4 sm:w-5 sm:h-5" /> : <BellOff className="w-4 h-4 sm:w-5 sm:h-5" />}
                 </button>
               )}
               <div className="w-px h-6 bg-gray-300" />
@@ -287,7 +287,7 @@ export default function Navbar() {
 </AnimatePresence>
 </div>
 )}
-        {pushEnabled !== null && (pushEnabled || !bellHidden) && (
+        {pushEnabled !== null && (
           <button
             onClick={handleBellClick}
             title={pushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}
@@ -296,7 +296,7 @@ export default function Navbar() {
               pushEnabled ? "text-brand-primary bg-brand-primary/10" : "text-gray-400"
             )}
           >
-            {pushEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+            {pushEnabled || bellHidden ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
           </button>
         )}
         <button
