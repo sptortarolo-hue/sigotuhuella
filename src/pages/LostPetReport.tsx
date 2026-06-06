@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, MapPin, PawPrint, Mail, Phone, Share2, User } from 'lucide-react';
+import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, MapPin, PawPrint, Mail, Phone, Share2, User, X, Plus } from 'lucide-react';
+import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage } from '@/src/lib/storageService';
 import { api } from '@/src/lib/api';
@@ -36,6 +37,7 @@ const DEFAULT_CENTER = { lat: -34.9507, lng: -57.9583 };
 
 export default function LostPetReport() {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
 
   const [species, setSpecies] = useState('');
   const [name, setName] = useState('');
@@ -56,6 +58,10 @@ export default function LostPetReport() {
   const [pageStatus, setPageStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [createdId, setCreatedId] = useState('');
+
+  const [showPetSelector, setShowPetSelector] = useState(false);
+  const [userPets, setUserPets] = useState<any[]>([]);
+  const [loadingPets, setLoadingPets] = useState(true);
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isValid = species && description.trim().length >= 10 && location.trim().length >= 3 &&
@@ -151,6 +157,77 @@ export default function LostPetReport() {
     setPageStatus('idle'); setErrorMsg(''); setCreatedId('');
   };
 
+  useEffect(() => {
+    if (authLoading) return;
+    if (user) {
+      api.myPets.list()
+        .then(data => {
+          const pets = data.myPets || [];
+          setUserPets(pets);
+          if (pets.length > 0) {
+            setShowPetSelector(true);
+          } else {
+            setReporterName(user.display_name || '');
+            setEmail(user.email || '');
+            setPhone(user.phone || '');
+          }
+        })
+        .catch(() => {
+          setReporterName(user.display_name || '');
+          setEmail(user.email || '');
+          setPhone(user.phone || '');
+        })
+        .finally(() => setLoadingPets(false));
+    } else {
+      setLoadingPets(false);
+    }
+  }, [user, authLoading]);
+
+  const selectPet = (pet: any) => {
+    setName(pet.name || '');
+    const speciesMap: Record<string, string> = { dog: 'perro', cat: 'gato', other: 'otro' };
+    setSpecies(speciesMap[pet.species] || '');
+    setBreed(pet.breed || '');
+    setColor(pet.color || '');
+    setGender(pet.gender || '');
+
+    if (pet.birth_date) {
+      const birth = new Date(pet.birth_date);
+      const now = new Date();
+      let ageYears = now.getFullYear() - birth.getFullYear();
+      const monthDiff = now.getMonth() - birth.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
+        ageYears--;
+      }
+      if (ageYears < 1) setAge('cachorro');
+      else if (ageYears <= 3) setAge('joven');
+      else if (ageYears <= 8) setAge('adulto');
+      else setAge('mayor');
+    }
+
+    if (user) {
+      setReporterName(user.display_name || '');
+      setEmail(user.email || '');
+      setPhone(user.phone || '');
+    }
+
+    if (pet.avatar_image) {
+      setImages([pet.avatar_image]);
+      setImageMimeTypes([pet.avatar_mime_type || 'image/jpeg']);
+    }
+
+    setShowPetSelector(false);
+  };
+
+  const skipPetSelection = () => {
+    if (user) {
+      setReporterName(user.display_name || '');
+      setEmail(user.email || '');
+      setPhone(user.phone || '');
+    }
+    setShowPetSelector(false);
+  };
+
   if (pageStatus === 'success') {
     return (
       <div className="min-h-[80vh] flex items-center justify-center px-4">
@@ -201,7 +278,12 @@ export default function LostPetReport() {
 
   return (
     <div className="min-h-[80vh] py-8 sm:py-12 px-4">
-      <div className="max-w-lg mx-auto">
+      {loadingPets ? (
+        <div className="max-w-lg mx-auto flex items-center justify-center min-h-[50vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
+        </div>
+      ) : (
+        <div className="max-w-lg mx-auto">
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary mb-6 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Volver
         </button>
@@ -400,7 +482,71 @@ export default function LostPetReport() {
             <p>Te enviaremos un email con el resumen de tu reporte y te avisaremos automáticamente si aparece una mascota similar en la zona.</p>
           </div>
         </div>
-      </div>
+        </div>
+      )}
+
+      {showPetSelector && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+        >
+          <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={skipPetSelection} />
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="relative w-full max-w-lg bg-white rounded-[2.5rem] max-h-[90vh] flex flex-col shadow-2xl"
+          >
+            <div className="p-6 sm:p-8 border-b border-brand-accent flex items-center justify-between">
+              <h2 className="text-lg font-bold text-brand-primary">Seleccioná tu mascota</h2>
+              <button onClick={skipPetSelection} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-6 sm:p-8 overflow-y-auto">
+              <p className="text-sm text-gray-500 mb-5">¿Cuál de tus mascotas se perdió?</p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {userPets.map(pet => (
+                  <button
+                    key={pet.id}
+                    onClick={() => selectPet(pet)}
+                    className="flex flex-col items-center gap-2 p-3 rounded-xl border-2 border-brand-accent hover:border-brand-primary hover:bg-brand-primary/5 transition-all group"
+                  >
+                    <div className="w-16 h-16 rounded-xl bg-brand-bg flex items-center justify-center overflow-hidden shrink-0">
+                      {pet.avatar_image ? (
+                        <img src={`data:${pet.avatar_mime_type || 'image/jpeg'};base64,${pet.avatar_image}`} alt={pet.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      ) : (
+                        <PawPrint className="w-8 h-8 text-brand-accent" />
+                      )}
+                    </div>
+                    <div className="text-center min-w-0">
+                      <p className="text-sm font-bold text-gray-700 truncate w-full">{pet.name}</p>
+                      <p className="text-[10px] text-gray-400">
+                        {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otro'}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-5 pt-5 border-t border-brand-accent">
+                <button
+                  onClick={skipPetSelection}
+                  className="w-full flex items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-brand-accent hover:border-brand-primary/50 text-gray-500 hover:text-brand-primary transition-all"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span className="font-bold text-sm">Mascota no registrada</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 }
