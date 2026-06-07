@@ -45,7 +45,7 @@ export async function getNeighborhoods() {
   try {
     const result = await pool.query("SELECT value FROM settings WHERE key = 'fb_neighborhoods'");
     const raw = result.rows[0]?.value || '[]';
-    _neighborhoodCache = JSON.parse(raw);
+    _neighborhoodCache = JSON.parse(raw).filter(n => n.enabled !== false);
   } catch {
     _neighborhoodCache = [];
   }

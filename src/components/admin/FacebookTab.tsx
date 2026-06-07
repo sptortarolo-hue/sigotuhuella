@@ -6,7 +6,7 @@ import PolygonEditor from '@/src/components/admin/PolygonEditor';
 import {
   Save, Loader2, Plus, X, Trash2, Edit2, ExternalLink,
   Search, RefreshCw, Check, XCircle, MessageSquare, Map,
-  Globe, Users, Sliders, FlaskConical,
+  Globe, Users, Sliders, FlaskConical, GripVertical,
 } from 'lucide-react';
 
 type SubTab = 'groups' | 'posts' | 'matches' | 'config';
@@ -692,10 +692,11 @@ function ConfigSection() {
   } catch {}
   const amplitude = parseInt(settings.fb_polygon_amplitude || '100', 10);
 
-  let neighborhoods: { name: string; lat: number; lng: number }[] = [];
+  let neighborhoods: { name: string; lat: number; lng: number; enabled?: boolean }[] = [];
   try {
     if (settings.fb_neighborhoods) neighborhoods = JSON.parse(settings.fb_neighborhoods);
   } catch {}
+  const enabledNeighborhoods = neighborhoods.filter(n => n.lat && n.lng && n.enabled !== false);
 
   return (
     <div className="space-y-8">
@@ -712,7 +713,7 @@ function ConfigSection() {
         <PolygonEditor
           vertices={vertices}
           amplitude={amplitude}
-          neighborhoods={neighborhoods}
+          neighborhoods={enabledNeighborhoods}
           onChange={handlePolygonChange}
         />
       </div>
@@ -794,21 +795,79 @@ function ConfigSection() {
 
       {/* Barrios */}
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-        <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
+        <h2 className="text-xl font-serif font-bold text-brand-primary mb-2 flex items-center gap-3">
           <Map className="w-6 h-6" /> Barrios y Zonas
         </h2>
         <p className="text-sm text-gray-500 mb-4">
-          Lista de barrios con coordenadas para ayudar a la clasificación geográfica.
-          Se muestran como marcadores azules en el mapa del polígono.
-          Formato JSON:
-          <code className="block mt-2 p-3 bg-gray-50 rounded-xl text-xs">
-            [{"{"}"name": "Barrio", "lat": -34.85, "lng": -57.98{"}"}]
-          </code>
+          Definí los barrios con coordenadas. Solo los habilitados (☑) se muestran en el mapa y se usan para clasificación geográfica.
         </p>
-        <textarea value={settings.fb_neighborhoods || '[]'}
-          onChange={(e) => setSettings(p => ({ ...p, fb_neighborhoods: e.target.value }))}
-          className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm h-32 font-mono"
-          placeholder='[{"name": "Parque Sicardi", "lat": -34.856, "lng": -57.984}]' />
+
+        {(() => {
+          let neighborhoods: { name: string; lat: number; lng: number; enabled?: boolean }[] = [];
+          try { if (settings.fb_neighborhoods) neighborhoods = JSON.parse(settings.fb_neighborhoods); } catch {}
+          if (!Array.isArray(neighborhoods)) neighborhoods = [];
+
+          return (
+            <div className="space-y-3">
+              {neighborhoods.length === 0 && (
+                <p className="text-sm text-gray-400 italic py-4 text-center">No hay barrios configurados. Agregá uno abajo.</p>
+              )}
+              {neighborhoods.map((n, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                  <input type="checkbox"
+                    checked={n.enabled !== false}
+                    onChange={() => {
+                      const copy = [...neighborhoods];
+                      copy[i] = { ...copy[i], enabled: copy[i].enabled === false ? true : false };
+                      setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
+                    }}
+                    className="w-4 h-4 rounded accent-brand-primary shrink-0"
+                  />
+                  <input type="text" value={n.name}
+                    onChange={(e) => {
+                      const copy = [...neighborhoods];
+                      copy[i] = { ...copy[i], name: e.target.value };
+                      setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
+                    }}
+                    className="flex-1 min-w-0 px-3 py-1.5 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-sm font-medium"
+                  />
+                  <input type="number" step="0.001" value={n.lat}
+                    onChange={(e) => {
+                      const copy = [...neighborhoods];
+                      copy[i] = { ...copy[i], lat: parseFloat(e.target.value) || 0 };
+                      setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
+                    }}
+                    className="w-28 px-2 py-1.5 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-xs font-mono text-right"
+                    placeholder="lat"
+                  />
+                  <input type="number" step="0.001" value={n.lng}
+                    onChange={(e) => {
+                      const copy = [...neighborhoods];
+                      copy[i] = { ...copy[i], lng: parseFloat(e.target.value) || 0 };
+                      setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
+                    }}
+                    className="w-28 px-2 py-1.5 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-xs font-mono text-right"
+                    placeholder="lng"
+                  />
+                  <button onClick={() => {
+                    const copy = neighborhoods.filter((_, j) => j !== i);
+                    setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
+                  }}
+                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              <button onClick={() => {
+                const copy = [...neighborhoods, { name: '', lat: 0, lng: 0, enabled: true }];
+                setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
+              }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-brand-primary border-2 border-dashed border-brand-accent rounded-xl hover:border-brand-primary hover:bg-brand-bg transition-all w-full justify-center">
+                <Plus className="w-4 h-4" /> Agregar barrio
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Save button */}
