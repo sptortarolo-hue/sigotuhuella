@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { api } from '@/src/lib/api';
-import { Search, MapPin, Phone, Calendar, Filter, X } from 'lucide-react';
+import { Search, MapPin, Phone, Calendar, Filter, X, ExternalLink } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 interface FacebookPost {
@@ -149,6 +149,15 @@ export default function BuscarFacebook() {
 
                 <p className="text-sm text-gray-700 line-clamp-3 mb-3">{post.content}</p>
 
+                {post.image_urls && post.image_urls.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    {post.image_urls.slice(0, 4).map((url, i) => (
+                      <img key={i} src={url} alt={`Foto ${i + 1}`}
+                        className="aspect-square object-cover rounded-xl bg-gray-100" />
+                    ))}
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2 mb-3">
                   {post.species && (
                     <span className="text-[10px] px-2 py-1 bg-brand-bg rounded-full font-bold text-brand-primary">
@@ -176,6 +185,13 @@ export default function BuscarFacebook() {
 
                 {post.author_name && (
                   <p className="text-[10px] text-gray-400 mb-3">Publicado por: {post.author_name}</p>
+                )}
+
+                {post.fb_post_url && (
+                  <a href={post.fb_post_url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                    <ExternalLink className="w-3.5 h-3.5 shrink-0" /> Ver publicación original en Facebook
+                  </a>
                 )}
 
               </div>

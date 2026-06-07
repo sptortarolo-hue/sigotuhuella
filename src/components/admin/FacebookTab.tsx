@@ -367,6 +367,10 @@ function PostsSection() {
                   <div className="flex gap-1">
                     <button onClick={() => handleClassify(p.id)} title="Clasificar"
                       className="p-1.5 text-gray-400 hover:text-brand-primary transition-colors"><RefreshCw className="w-3.5 h-3.5" /></button>
+                    {p.fb_post_url && (
+                      <a href={p.fb_post_url} target="_blank" rel="noopener noreferrer" title="Abrir en Facebook"
+                        className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"><ExternalLink className="w-3.5 h-3.5" /></a>
+                    )}
                     <button onClick={() => handleRunMatching(p.id)} disabled={matching} title="Buscar matches"
                       className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40"><FlaskConical className="w-3.5 h-3.5" /></button>
                     <button onClick={() => setSelectedPost(p)} title="Ver detalle"
@@ -404,6 +408,7 @@ ${post.content}
 
 ${post.phone ? `📞 Contacto: ${post.phone}` : ''}
 ${post.location_hint ? `📍 Zona: ${post.location_hint}` : ''}
+${post.fb_post_url ? `🔗 Publicación original: ${post.fb_post_url}` : ''}
 
 🔗 Ver más en Sigo Tu Huella: https://sigotuhuella.online`;
     navigator.clipboard.writeText(text);
@@ -420,7 +425,15 @@ ${post.location_hint ? `📍 Zona: ${post.location_hint}` : ''}
         </div>
         <div className="p-6 sm:p-8 overflow-y-auto space-y-4">
           <div className="bg-brand-bg rounded-2xl p-4">
-            <p className="text-xs text-gray-400 mb-1">Contenido original</p>
+            <div className="flex items-start justify-between gap-2 mb-1">
+              <p className="text-xs text-gray-400">Contenido original</p>
+              {post.fb_post_url && (
+                <a href={post.fb_post_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 shrink-0">
+                  <ExternalLink className="w-3 h-3" /> Ver en Facebook
+                </a>
+              )}
+            </div>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{post.content}</p>
           </div>
 

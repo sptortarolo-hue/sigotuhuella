@@ -599,15 +599,42 @@ async def extract_posts_via_js(page, group_name):
                     content = content.substring(0, 500);
                 }
 
-                // Find images
+                // Find images - try multiple modern Facebook CDN patterns
                 const images = [];
                 container.querySelectorAll('img').forEach(img => {
-                    const src = img.getAttribute('src') || img.getAttribute('data-src') || '';
-                    if ((src.includes('scontent') || src.includes('fbcdn') || src.includes('safe_image')) &&
+                    const src = img.getAttribute('src') || img.getAttribute('data-src') ||
+                                img.getAttribute('data-lazy-src') || img.getAttribute('data-imgperflogname') || '';
+                    if ((src.includes('scontent') || src.includes('fbcdn') || src.includes('safe_image') ||
+                         src.includes('cdninstagram') || src.includes('xx.fbcdn') || src.includes('external')) &&
                         !images.includes(src)) {
                         images.push(src);
                     }
                 });
+                // Also check background-image and divs with image style
+                if (images.length === 0) {
+                    container.querySelectorAll('div[style*="background-image"], div[style*="url("]').forEach(div => {
+                        const style = div.getAttribute('style') || '';
+                        const m = style.match(/url\(["']?(https?:\/\/[^"'\s)]+)["']?\)/);
+                        if (m && (m[1].includes('scontent') || m[1].includes('fbcdn') || m[1].includes('safe_image'))) {
+                            images.push(m[1]);
+                        }
+                    });
+                }
+
+                // Posted time
+                let posted_at = '';
+                const timeEl = container.querySelector('time');
+                if (timeEl) {
+                    posted_at = timeEl.getAttribute('datetime') || timeEl.getAttribute('title') || '';
+                }
+                if (!posted_at) {
+                    // Try abbr[data-utime] (older FB pattern)
+                    const abbr = container.querySelector('abbr[data-utime]');
+                    if (abbr) {
+                        const utime = abbr.getAttribute('data-utime');
+                        if (utime) posted_at = new Date(parseInt(utime) * 1000).toISOString();
+                    }
+                }
 
                 posts.push({
                     fb_post_id: fb_id,
@@ -615,6 +642,7 @@ async def extract_posts_via_js(page, group_name):
                     author_name: author,
                     content: content,
                     image_urls: images.slice(0, 5),
+                    posted_at: posted_at,
                 });
             });
             return JSON.stringify(posts);
