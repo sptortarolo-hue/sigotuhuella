@@ -397,11 +397,12 @@ async def ensure_logged_in(fb_email, fb_password):
 
     Cookies are saved to cookies.txt for subsequent group scrapes.
     """
+    cookies_file = Path(__file__).parent / "cookies.txt"
+    # If cookies already exist, skip the login — saves time and avoids checkpoints
+    if cookies_file.exists():
+        logger.info("cookies.txt found — skipping pyppeteer login")
+        return True
     if not fb_email or not fb_password:
-        logger.info("FB_EMAIL/FB_PASSWORD not set — relying on existing cookies.txt")
-        cookies_file = Path(__file__).parent / "cookies.txt"
-        if cookies_file.exists():
-            return True
         logger.error("No cookies.txt found and no FB credentials provided")
         return False
     from pyppeteer import launch
