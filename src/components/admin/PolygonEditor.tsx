@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Polygon, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Tooltip, Polygon, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { MapPin, Plus, Trash2 } from 'lucide-react';
@@ -11,6 +11,15 @@ const vertexIcon = L.divIcon({
   ),
   iconSize: [24, 24],
   iconAnchor: [12, 24],
+  className: 'custom-leaflet-icon',
+});
+
+const neighborhoodIcon = L.divIcon({
+  html: renderToStaticMarkup(
+    <div className="text-blue-400"><MapPin className="w-5 h-5 fill-white stroke-[2.5px]" /></div>
+  ),
+  iconSize: [20, 20],
+  iconAnchor: [10, 20],
   className: 'custom-leaflet-icon',
 });
 
@@ -28,9 +37,16 @@ interface Vertex {
   lng: number;
 }
 
+interface Neighborhood {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
 interface PolygonEditorProps {
   vertices: Vertex[];
   amplitude: number;
+  neighborhoods?: Neighborhood[];
   onChange: (vertices: Vertex[], amplitude: number) => void;
 }
 
@@ -67,7 +83,7 @@ function CenterUpdater({ center }: { center: { lat: number; lng: number } }) {
   return null;
 }
 
-export default function PolygonEditor({ vertices, amplitude, onChange }: PolygonEditorProps) {
+export default function PolygonEditor({ vertices, amplitude, neighborhoods = [], onChange }: PolygonEditorProps) {
   const [localVertices, setLocalVertices] = useState<Vertex[]>(vertices);
   const [localAmplitude, setLocalAmplitude] = useState(amplitude);
 
@@ -175,6 +191,14 @@ export default function PolygonEditor({ vertices, amplitude, onChange }: Polygon
           {center && (
             <Marker position={[center.lat, center.lng]} icon={centerIcon} />
           )}
+
+          {neighborhoods.filter(n => n.lat && n.lng).map((n, i) => (
+            <Marker key={i} position={[n.lat, n.lng]} icon={neighborhoodIcon}>
+              <Tooltip direction="top" offset={[0, -10]} permanent>
+                <span className="text-xs font-bold">{n.name}</span>
+              </Tooltip>
+            </Marker>
+          ))}
         </MapContainer>
 
         <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-brand-accent text-[10px] font-bold text-brand-primary shadow-sm pointer-events-none z-[1000]">

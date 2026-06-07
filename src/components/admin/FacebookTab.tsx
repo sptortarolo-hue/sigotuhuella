@@ -692,6 +692,11 @@ function ConfigSection() {
   } catch {}
   const amplitude = parseInt(settings.fb_polygon_amplitude || '100', 10);
 
+  let neighborhoods: { name: string; lat: number; lng: number }[] = [];
+  try {
+    if (settings.fb_neighborhoods) neighborhoods = JSON.parse(settings.fb_neighborhoods);
+  } catch {}
+
   return (
     <div className="space-y-8">
       {/* Polygon Editor */}
@@ -701,11 +706,13 @@ function ConfigSection() {
         </h2>
         <p className="text-sm text-gray-500 mb-4">
           Definí el polígono de cobertura. Los posts fuera de esta área se marcarán como "fuera de zona".
+          Los puntos azules son los barrios configurados en "Barrios y Zonas".
           Doble click en el mapa para agregar vértices. Arrastrá los marcadores para ajustar.
         </p>
         <PolygonEditor
           vertices={vertices}
           amplitude={amplitude}
+          neighborhoods={neighborhoods}
           onChange={handlePolygonChange}
         />
       </div>
@@ -788,10 +795,12 @@ function ConfigSection() {
       {/* Barrios */}
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
         <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
-          <Users className="w-6 h-6" /> Barrios y Zonas
+          <Map className="w-6 h-6" /> Barrios y Zonas
         </h2>
         <p className="text-sm text-gray-500 mb-4">
-          Lista de barrios con coordenadas para ayudar a la clasificación geográfica. Formato JSON:
+          Lista de barrios con coordenadas para ayudar a la clasificación geográfica.
+          Se muestran como marcadores azules en el mapa del polígono.
+          Formato JSON:
           <code className="block mt-2 p-3 bg-gray-50 rounded-xl text-xs">
             [{"{"}"name": "Barrio", "lat": -34.85, "lng": -57.98{"}"}]
           </code>

@@ -257,8 +257,8 @@ router.post('/webhook', async (req, res) => {
         const classification = await classifyAndExtract(content || '', image_urls || []);
 
         await pool.query(
-          `INSERT INTO facebook_posts (group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, classification, species, color, location_hint, phone)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          `INSERT INTO facebook_posts (group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, classification, species, color, location_hint, phone, latitude, longitude)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
            ON CONFLICT (fb_post_id) DO UPDATE SET
              content = EXCLUDED.content,
              image_urls = EXCLUDED.image_urls,
@@ -270,6 +270,7 @@ router.post('/webhook', async (req, res) => {
             content || '', image_urls || [], posted_at ? new Date(posted_at) : null,
             classification.classification, classification.species, classification.color,
             classification.location_hint, classification.phone,
+            classification.location_lat, classification.location_lng,
           ]
         );
 
@@ -444,9 +445,9 @@ router.post('/classify/:id', requireAdmin, async (req, res) => {
     await pool.query(
       `UPDATE facebook_posts SET
         classification = $1, species = $2, color = $3,
-        location_hint = $4, phone = $5, updated_at = NOW()
-       WHERE id = $6`,
-      [result.classification, result.species, result.color, result.location_hint, result.phone, req.params.id]
+        location_hint = $4, phone = $5, latitude = $6, longitude = $7, updated_at = NOW()
+       WHERE id = $8`,
+      [result.classification, result.species, result.color, result.location_hint, result.phone, result.location_lat, result.location_lng, req.params.id]
     );
 
     res.json({ ok: true, classification: result });

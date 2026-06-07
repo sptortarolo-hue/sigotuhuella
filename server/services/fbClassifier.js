@@ -38,6 +38,35 @@ const LOCATION_PATTERNS = [
   /([\w\sáéíóúñÁÉÍÓÚ,.-]{3,60})\s*(?:zona|barrio|localidad|partido)/i,
 ];
 
+let _neighborhoodCache = null;
+
+export async function getNeighborhoods() {
+  if (_neighborhoodCache) return _neighborhoodCache;
+  try {
+    const result = await pool.query("SELECT value FROM settings WHERE key = 'fb_neighborhoods'");
+    const raw = result.rows[0]?.value || '[]';
+    _neighborhoodCache = JSON.parse(raw);
+  } catch {
+    _neighborhoodCache = [];
+  }
+  return _neighborhoodCache;
+}
+
+export function clearNeighborhoodCache() {
+  _neighborhoodCache = null;
+}
+
+export function fuzzyMatchNeighborhood(locationName, neighborhoods) {
+  const loc = locationName.toLowerCase().trim();
+  for (const n of neighborhoods) {
+    const name = n.name.toLowerCase().trim();
+    if (loc === name || loc.includes(name) || name.includes(loc)) {
+      return n;
+    }
+  }
+  return null;
+}
+
 const ARGENTINE_PHONE_PATTERNS = [
   /(\+?54\s?)?(?:11|15|2\d{2}|3\d{2}|4\d{2}|5\d{2}|6\d{2}|7\d{2}|8\d{2}|9\d{2})[\s-]?\d{2,4}[\s-]?\d{2,4}[\s-]?\d{2,4}/g,
   /(15|11)\s?\d{3,4}\s?\d{3,4}/g,
@@ -72,15 +101,24 @@ export function extractPhone(text) {
   return null;
 }
 
-export function extractLocation(text) {
+export async function extractLocation(text) {
   const lower = text.toLowerCase();
+  let locationName = null;
   for (const pattern of LOCATION_PATTERNS) {
     const match = lower.match(pattern);
     if (match && match[1].trim().length >= 3) {
-      return match[1].trim().replace(/^[,\s]+|[,\s]+$/g, '');
+      locationName = match[1].trim().replace(/^[,\s]+|[,\s]+$/g, '');
+      break;
     }
   }
-  return null;
+  if (!locationName) return { location_hint: null, lat: null, lng: null };
+  const neighborhoods = await getNeighborhoods();
+  const match = fuzzyMatchNeighborhood(locationName, neighborhoods);
+  return {
+    location_hint: locationName,
+    lat: match ? match.lat : null,
+    lng: match ? match.lng : null,
+  };
 }
 
 export function classifyPost(text) {
@@ -165,7 +203,7 @@ export async function classifyAndExtract(text, imageUrls = []) {
   const species = extractSpecies(text);
   const colors = extractColors(text);
   const phone = extractPhone(text);
-  const locationHint = extractLocation(text);
+  const { location_hint: locationHint, lat: locationLat, lng: locationLng } = await extractLocation(text);
   const classification = classifyPost(text);
 
   let confidence = 0;
@@ -182,6 +220,8 @@ export async function classifyAndExtract(text, imageUrls = []) {
     color: colors.length > 0 ? colors.join(', ') : null,
     phone,
     location_hint: locationHint,
+    location_lat: locationLat,
+    location_lng: locationLng,
     confidence,
     image_count: imageUrls.length,
   };
