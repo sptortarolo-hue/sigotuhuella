@@ -37,7 +37,7 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
         source: "dist/,server/,package.json"
-        target: /var/www/sigotuhuella
+        target: /opt/sihuella
         strip_components: 0
 
     - name: Remote deploy
@@ -48,7 +48,8 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
         script: |
-          cd /var/www/sigotuhuella
+          cd /opt/sihuella
+          kill -9 $(lsof -t -i:3000) 2>/dev/null || true
           if [ ! -f /swapfile ]; then
             sudo fallocate -l 1G /swapfile
             sudo chmod 600 /swapfile
@@ -58,6 +59,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ffmpeg
           npm install --production
-          if ! pm2 restart sigotuhuella; then
-            pm2 start npm --name sigotuhuella -- start
+          if pm2 list | grep -q sigotuhuella; then
+            pm2 delete sigotuhuella
           fi
+          pm2 start npm --name sigotuhuella -- start
+          pm2 save
