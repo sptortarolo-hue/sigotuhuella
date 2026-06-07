@@ -67,36 +67,33 @@ export default function ReportPet() {
       alert('Máximo 3 imágenes permitidas');
       return;
     }
-    try {
-      const selectedFiles: File[] = await Promise.all(rawFiles.map(f => compressImage(f)));
-      const startIdx = files.length;
-      const newFiles = [...files, ...selectedFiles];
-      setFiles(newFiles);
-      if (selectedFiles.length > 0) {
-        setCropFile(selectedFiles[0]);
-        setCroppingIndex(startIdx);
-      }
-    } catch (e) {
-      console.error('Image processing failed:', e);
-      alert('Error al procesar la imagen. Probá con otra foto.');
-    }
+    const startIdx = files.length;
+    setFiles(prev => [...prev, ...rawFiles]);
+    setCropFile(rawFiles[0]);
+    setCroppingIndex(startIdx);
   };
 
-  const handleCropComplete = (croppedBlob: Blob, cropX: number, cropY: number) => {
+  const handleCropComplete = async (croppedBlob: Blob, cropX: number, cropY: number) => {
     if (croppingIndex === null || !cropFile) return;
 
-    // Update crop coords for this file index
     const newCropInfo = new Map(cropInfo);
     newCropInfo.set(croppingIndex, { cropX, cropY });
     setCropInfo(newCropInfo);
 
-    // Create preview from cropped blob
+    try {
+      const compressed = await compressImage(cropFile);
+      const newFiles = [...files];
+      newFiles[croppingIndex] = compressed;
+      setFiles(newFiles);
+    } catch (e) {
+      console.error('Compression after crop failed:', e);
+    }
+
     const previewUrl = URL.createObjectURL(croppedBlob);
     const newPreviews = [...previews];
     newPreviews[croppingIndex] = previewUrl;
     setPreviews(newPreviews);
 
-    // Check if there are more new files to crop
     const nextIdx = croppingIndex + 1;
     if (nextIdx < files.length && cropInfo.get(nextIdx) === undefined) {
       setCropFile(files[nextIdx]);
@@ -108,7 +105,6 @@ export default function ReportPet() {
   };
 
   const handleCropCancel = () => {
-    // Remove the uncropped file
     if (croppingIndex !== null) {
       const newFiles = [...files];
       newFiles.splice(croppingIndex, 1);

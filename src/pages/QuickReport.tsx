@@ -70,33 +70,38 @@ export default function QuickReport() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFiles = e.target.files;
     if (!rawFiles) return;
-    try {
-      const compressed = await Promise.all(
-        Array.from(rawFiles).slice(0, 3 - images.length).map(f => compressImage(f))
-      );
-      if (compressed.length > 0) {
-        setCropFile(compressed[0]);
-        setCroppingIndex(images.length);
-      }
-    } catch (e) {
-      console.error('Image processing failed:', e);
-      alert('Error al procesar la imagen. Probá con otra foto.');
-    }
+    const file = Array.from(rawFiles).slice(0, 3 - images.length)[0];
+    if (!file) return;
+    setCropFile(file);
+    setCroppingIndex(images.length);
   };
 
-  const handleCropComplete = (croppedBlob: Blob, cropX: number, cropY: number) => {
+  const handleCropComplete = async (croppedBlob: Blob, cropX: number, cropY: number) => {
     if (croppingIndex === null || !cropFile) return;
     const newCropInfo = new Map(cropInfo);
     newCropInfo.set(croppingIndex, { cropX, cropY });
     setCropInfo(newCropInfo);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = ev.target?.result as string;
-      const base64 = result.split(',')[1];
-      setImages(prev => [...prev, base64]);
-      setImageMimeTypes(prev => [...prev, 'image/jpeg']);
-    };
-    reader.readAsDataURL(cropFile);
+    try {
+      const compressed = await compressImage(cropFile);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        const base64 = result.split(',')[1];
+        setImages(prev => [...prev, base64]);
+        setImageMimeTypes(prev => [...prev, 'image/jpeg']);
+      };
+      reader.readAsDataURL(compressed);
+    } catch (e) {
+      console.error('Compression after crop failed:', e);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        const base64 = result.split(',')[1];
+        setImages(prev => [...prev, base64]);
+        setImageMimeTypes(prev => [...prev, 'image/jpeg']);
+      };
+      reader.readAsDataURL(cropFile);
+    }
     setCroppingIndex(null);
     setCropFile(null);
   };
