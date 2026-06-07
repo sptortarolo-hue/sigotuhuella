@@ -74,12 +74,17 @@ export default function LostPetReport() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFiles = e.target.files;
     if (!rawFiles) return;
-    const compressed = await Promise.all(
-      Array.from(rawFiles).slice(0, 3 - images.length).map(f => compressImage(f))
-    );
-    if (compressed.length > 0) {
-      setCropFile(compressed[0]);
-      setCroppingIndex(images.length);
+    try {
+      const compressed = await Promise.all(
+        Array.from(rawFiles).slice(0, 3 - images.length).map(f => compressImage(f))
+      );
+      if (compressed.length > 0) {
+        setCropFile(compressed[0]);
+        setCroppingIndex(images.length);
+      }
+    } catch (e) {
+      console.error('Image processing failed:', e);
+      alert('Error al procesar la imagen. Probá con otra foto.');
     }
   };
 

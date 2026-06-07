@@ -78,7 +78,7 @@ export default function ImageCropper({ file, aspect = 1, onCropComplete, onCance
           </button>
         </div>
 
-        <div className="relative flex-1 min-h-[300px] bg-black/10 touch-none">
+        <div className="relative h-[50vh] min-h-[300px] bg-black/10">
           <Cropper
             image={imageUrl}
             crop={crop}
@@ -88,6 +88,9 @@ export default function ImageCropper({ file, aspect = 1, onCropComplete, onCance
             onZoomChange={onZoomChange}
             onCropComplete={onCropAreaComplete}
           />
+          <p className="absolute bottom-3 left-1/2 -translate-x-1/2 text-white/80 text-xs font-medium drop-shadow-md pointer-events-none z-10">
+            Arrastrá la imagen para encuadrarla
+          </p>
         </div>
 
         <div className="flex items-center justify-center gap-4 px-6 py-4 border-t border-gray-100 shrink-0">

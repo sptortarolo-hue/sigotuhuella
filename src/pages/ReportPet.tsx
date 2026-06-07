@@ -61,22 +61,24 @@ export default function ReportPet() {
   });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const rawFiles = Array.from(e.target.files);
-      if (files.length + rawFiles.length > 3) {
-        alert('Máximo 3 imágenes permitidas');
-        return;
-      }
+    if (!e.target.files) return;
+    const rawFiles = Array.from(e.target.files);
+    if (files.length + rawFiles.length > 3) {
+      alert('Máximo 3 imágenes permitidas');
+      return;
+    }
+    try {
       const selectedFiles: File[] = await Promise.all(rawFiles.map(f => compressImage(f)));
       const startIdx = files.length;
       const newFiles = [...files, ...selectedFiles];
       setFiles(newFiles);
-
-      // Open cropper for first new file
       if (selectedFiles.length > 0) {
         setCropFile(selectedFiles[0]);
         setCroppingIndex(startIdx);
       }
+    } catch (e) {
+      console.error('Image processing failed:', e);
+      alert('Error al procesar la imagen. Probá con otra foto.');
     }
   };
 
