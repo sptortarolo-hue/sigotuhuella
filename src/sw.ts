@@ -2,6 +2,11 @@ import { precacheAndRoute } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { StaleWhileRevalidate } from 'workbox-strategies';
 
+self.skipWaiting();
+self.addEventListener('activate', () => {
+  clients.claim();
+});
+
 precacheAndRoute(self.__WB_MANIFEST);
 
 registerRoute(

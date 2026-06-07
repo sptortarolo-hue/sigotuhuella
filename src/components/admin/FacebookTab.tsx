@@ -405,7 +405,7 @@ ${post.content}
 ${post.phone ? `📞 Contacto: ${post.phone}` : ''}
 ${post.location_hint ? `📍 Zona: ${post.location_hint}` : ''}
 
-🔗 Ver más en Sigo Tu Huella: https://sigotuhuella.online/buscar-facebook`;
+🔗 Ver más en Sigo Tu Huella: https://sigotuhuella.online`;
     navigator.clipboard.writeText(text);
     alert('Texto copiado al portapapeles');
   };

@@ -17,7 +17,7 @@ const Join = lazy(() => import('@/src/pages/Join'));
 const Profile = lazy(() => import('@/src/pages/Profile'));
 const MyPets = lazy(() => import('@/src/pages/MyPets'));
 const Dashboard = lazy(() => import('@/src/pages/Dashboard'));
-const BuscarFacebook = lazy(() => import('@/src/pages/BuscarFacebook'));
+
 const PetDetail = lazy(() => import('@/src/pages/PetDetail'));
 const Novedades = lazy(() => import('@/src/pages/Novedades'));
 const NovedadDetail = lazy(() => import('@/src/pages/NovedadDetail'));
@@ -82,8 +82,6 @@ export default function App() {
                <Route path="/difusion" element={<DiffusionPage />} />
                 <Route path="/descargar-cartel" element={<DiffusionPage />} />
                 <Route path="/compartir-qr" element={<DiffusionPage />} />
-               <Route path="/buscar-facebook" element={<BuscarFacebook />} />
-
               <Route path="/colaborar" element={<Collaborate />} />
                <Route path="/solicitar-chapita" element={<SolicitarChapita />} />
                <Route path="/verificar-email" element={<VerifyEmail />} />
