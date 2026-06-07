@@ -248,9 +248,10 @@ router.post('/', requireAuth, async (req, res) => {
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
       for (const img of images) {
+        const processed = await smartCropImage(img.data, img.mimeType || 'image/jpeg', 800, img.crop_x, img.crop_y);
         await client.query(
-          'INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)',
-          [pet.id, img.data, img.mimeType || 'image/jpeg']
+          'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
+          [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
         );
       }
     }

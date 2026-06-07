@@ -5,6 +5,7 @@ import { createPet, PetStatus } from '@/src/lib/petService';
 import { filesToBase64, compressImage } from '@/src/lib/storageService';
 import MapLoader from '@/src/components/MapLoader';
 import LocationPicker from '@/src/components/LocationPicker';
+import ImageCropper from '@/src/components/ImageCropper';
 import {
   Camera,
   MapPin,
@@ -37,6 +38,9 @@ export default function ReportPet() {
 
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [cropInfo, setCropInfo] = useState<Map<number, { cropX: number; cropY: number }>>(new Map());
+  const [croppingIndex, setCroppingIndex] = useState<number | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -63,16 +67,55 @@ export default function ReportPet() {
         alert('Máximo 3 imágenes permitidas');
         return;
       }
-      const selectedFiles = await Promise.all(rawFiles.map(f => compressImage(f)));
+      const selectedFiles: File[] = await Promise.all(rawFiles.map(f => compressImage(f)));
+      const startIdx = files.length;
       const newFiles = [...files, ...selectedFiles];
       setFiles(newFiles);
 
-      const newPreviews = selectedFiles.map((file: File) => URL.createObjectURL(file));
-      setPreviews([...previews, ...newPreviews]);
+      // Open cropper for first new file
+      if (selectedFiles.length > 0) {
+        setCropFile(selectedFiles[0]);
+        setCroppingIndex(startIdx);
+      }
     }
   };
 
-  
+  const handleCropComplete = (croppedBlob: Blob, cropX: number, cropY: number) => {
+    if (croppingIndex === null || !cropFile) return;
+
+    // Update crop coords for this file index
+    const newCropInfo = new Map(cropInfo);
+    newCropInfo.set(croppingIndex, { cropX, cropY });
+    setCropInfo(newCropInfo);
+
+    // Create preview from cropped blob
+    const previewUrl = URL.createObjectURL(croppedBlob);
+    const newPreviews = [...previews];
+    newPreviews[croppingIndex] = previewUrl;
+    setPreviews(newPreviews);
+
+    // Check if there are more new files to crop
+    const nextIdx = croppingIndex + 1;
+    if (nextIdx < files.length && cropInfo.get(nextIdx) === undefined) {
+      setCropFile(files[nextIdx]);
+      setCroppingIndex(nextIdx);
+    } else {
+      setCroppingIndex(null);
+      setCropFile(null);
+    }
+  };
+
+  const handleCropCancel = () => {
+    // Remove the uncropped file
+    if (croppingIndex !== null) {
+      const newFiles = [...files];
+      newFiles.splice(croppingIndex, 1);
+      setFiles(newFiles);
+      setCroppingIndex(null);
+      setCropFile(null);
+    }
+  };
+
   const removeFile = (index: number) => {
     const newFiles = [...files];
     newFiles.splice(index, 1);
@@ -82,6 +125,15 @@ export default function ReportPet() {
     URL.revokeObjectURL(newPreviews[index]);
     newPreviews.splice(index, 1);
     setPreviews(newPreviews);
+
+    const newCropInfo = new Map(cropInfo);
+    newCropInfo.delete(index);
+    const reindexed = new Map<number, { cropX: number; cropY: number }>();
+    newCropInfo.forEach((v: { cropX: number; cropY: number }, k: number) => {
+      if (k > index) reindexed.set(k - 1, v);
+      else reindexed.set(k, v);
+    });
+    setCropInfo(reindexed);
   };
 
 const handleSubmit = async (e: React.FormEvent) => {
@@ -113,11 +165,19 @@ const handleSubmit = async (e: React.FormEvent) => {
        return;
      }
 
-     setLoading(true);
-     try {
-       const images = await filesToBase64(files);
+      setLoading(true);
+      try {
+        const base64Images = await filesToBase64(files);
+        const images = base64Images.map((img, i) => {
+          const crop = cropInfo.get(i);
+          return {
+            ...img,
+            crop_x: crop?.cropX ?? 0.5,
+            crop_y: crop?.cropY ?? 0.5,
+          };
+        });
 
-       const petData = {
+        const petData = {
          name: formData.name || null,
          species: formData.species,
          breed: formData.breed || null,
@@ -178,6 +238,15 @@ const handleSubmit = async (e: React.FormEvent) => {
       <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold mb-6">
         <ArrowLeft className="w-4 h-4" /> Volver
       </button>
+
+      {croppingIndex !== null && cropFile && (
+        <ImageCropper
+          file={cropFile}
+          aspect={1}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+        />
+      )}
 
       <AnimatePresence mode="wait">
         {success && previewPet ? (

@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { compressImage, fileToBase64 } from '@/src/lib/storageService';
 import { formatTag } from '@/src/lib/personalityTags';
+import ImageCropper from '@/src/components/ImageCropper';
 import {
   PawPrint, ArrowLeft, Loader2, Syringe, Scissors, Bug, Weight,
   Calendar, Plus, X, Save, Camera, Trash2, Sparkles, Heart,
@@ -95,6 +96,8 @@ export default function MyPetDetail() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [cropMode, setCropMode] = useState<'photo' | 'avatar' | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [qrRequested, setQrRequested] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
@@ -287,21 +290,51 @@ export default function MyPetDetail() {
     try {
       setPhotoLoading(true);
       const compressed = await compressImage(file, 1200, 0.85);
-      const { data, mimeType } = await fileToBase64(compressed);
-      await api.myPets.photos.create(id!, {
-        image_data: data,
-        mime_type: mimeType,
-        caption: '',
-        taken_at: new Date().toISOString(),
-      });
-      await fetchPet();
+      setCropFile(compressed);
+      setCropMode('photo');
     } catch (e) {
       console.error(e);
-      alert('Error al subir la foto. Intentá de nuevo.');
+      alert('Error al procesar la foto.');
     } finally {
       setPhotoLoading(false);
-      if (photoInputRef.current) photoInputRef.current.value = '';
     }
+  };
+
+  const handleCropComplete = async (croppedBlob: Blob, cropX: number, cropY: number) => {
+    if (!cropFile || !cropMode) return;
+    try {
+      if (cropMode === 'photo') {
+        const { data, mimeType } = await fileToBase64(cropFile);
+        await api.myPets.photos.create(id!, {
+          image_data: data,
+          mime_type: mimeType,
+          caption: '',
+          taken_at: new Date().toISOString(),
+          crop_x: cropX,
+          crop_y: cropY,
+        });
+        await fetchPet();
+      } else if (cropMode === 'avatar') {
+        const { data, mimeType } = await fileToBase64(cropFile);
+        await api.myPets.update(id!, { avatar_image: data, avatar_mime_type: mimeType, avatar_crop_x: cropX, avatar_crop_y: cropY });
+        await fetchPet();
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error al subir la foto.');
+    } finally {
+      setCropFile(null);
+      setCropMode(null);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
+  const handleCropCancel = () => {
+    setCropFile(null);
+    setCropMode(null);
+    if (photoInputRef.current) photoInputRef.current.value = '';
+    if (avatarInputRef.current) avatarInputRef.current.value = '';
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -310,15 +343,13 @@ export default function MyPetDetail() {
     try {
       setAvatarLoading(true);
       const compressed = await compressImage(file, 800, 0.8);
-      const { data, mimeType } = await fileToBase64(compressed);
-      await api.myPets.update(id!, { avatar_image: data, avatar_mime_type: mimeType });
-      await fetchPet();
+      setCropFile(compressed);
+      setCropMode('avatar');
     } catch (e) {
       console.error(e);
-      alert('Error al cambiar la foto de perfil.');
+      alert('Error al procesar la foto.');
     } finally {
       setAvatarLoading(false);
-      if (avatarInputRef.current) avatarInputRef.current.value = '';
     }
   };
 
@@ -387,7 +418,11 @@ export default function MyPetDetail() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+    <>
+      {cropMode && cropFile && (
+        <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+      )}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
       <button onClick={() => navigate('/mi-mascota')} className="flex items-center gap-2 text-gray-400 hover:text-brand-primary transition-colors mb-4 text-sm">
         <ArrowLeft className="w-4 h-4" /> Volver a mis mascotas
       </button>
@@ -768,7 +803,7 @@ export default function MyPetDetail() {
                                 {item.photo_ids.map((pid: string) => (
                                   <img key={pid} src={`/my-pet-photo/${pid}`}
                                     className="w-12 h-12 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                                    onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}`)}
+                                    onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}?full=1`)}
                                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                                 ))}
                               </div>
@@ -946,7 +981,7 @@ export default function MyPetDetail() {
                           {record.photo_ids.map((pid: string) => (
                             <img key={pid} src={`/my-pet-photo/${pid}`}
                               className="w-12 h-12 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}`)}
+                              onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}?full=1`)}
                               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                           ))}
                         </div>
@@ -1264,6 +1299,6 @@ export default function MyPetDetail() {
             onClick={(e) => e.stopPropagation()} />
         </motion.div>
       )}
-    </div>
+    </div></>
   );
 }

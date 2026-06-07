@@ -139,7 +139,7 @@ router.post('/', requireAuth, async (req, res) => {
     const {
       name, species, breed, color, gender, birth_date, chip_id,
       bio, personality_tags, is_vaccinated, is_sterilized, is_dewormed,
-      weight_kg, avatar_image, avatar_mime_type,
+      weight_kg, avatar_image, avatar_mime_type, crop_x, crop_y,
     } = req.body;
 
     if (!name || !species) return res.status(400).json({ error: 'Nombre y especie son requeridos' });
@@ -187,7 +187,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     const {
       name, species, breed, color, gender, birth_date, chip_id,
       bio, personality_tags, is_vaccinated, is_sterilized, is_dewormed,
-      weight_kg, avatar_image, avatar_mime_type,
+      weight_kg, avatar_image, avatar_mime_type, crop_x, crop_y,
     } = req.body;
 
     const sets = [];

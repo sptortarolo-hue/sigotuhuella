@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { compressImage } from '@/src/lib/storageService';
 import LocationPicker from '@/src/components/LocationPicker';
 import MapLoader from '@/src/components/MapLoader';
+import ImageCropper from '@/src/components/ImageCropper';
 
 const FRONTEND_URL = window.location.origin;
 
@@ -34,6 +35,9 @@ export default function QuickReport() {
   const [contactInfo, setContactInfo] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [imageMimeTypes, setImageMimeTypes] = useState<string[]>([]);
+  const [cropInfo, setCropInfo] = useState<Map<number, { cropX: number; cropY: number }>>(new Map());
+  const [croppingIndex, setCroppingIndex] = useState<number | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   // Install prompt state
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -69,21 +73,45 @@ export default function QuickReport() {
     const compressed = await Promise.all(
       Array.from(rawFiles).slice(0, 3 - images.length).map(f => compressImage(f))
     );
-    for (const file of compressed) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const result = ev.target?.result as string;
-        const base64 = result.split(',')[1];
-        setImages(prev => [...prev, base64]);
-        setImageMimeTypes(prev => [...prev, 'image/jpeg']);
-      };
-      reader.readAsDataURL(file);
+    if (compressed.length > 0) {
+      setCropFile(compressed[0]);
+      setCroppingIndex(images.length);
     }
+  };
+
+  const handleCropComplete = (croppedBlob: Blob, cropX: number, cropY: number) => {
+    if (croppingIndex === null || !cropFile) return;
+    const newCropInfo = new Map(cropInfo);
+    newCropInfo.set(croppingIndex, { cropX, cropY });
+    setCropInfo(newCropInfo);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      const base64 = result.split(',')[1];
+      setImages(prev => [...prev, base64]);
+      setImageMimeTypes(prev => [...prev, 'image/jpeg']);
+    };
+    reader.readAsDataURL(cropFile);
+    setCroppingIndex(null);
+    setCropFile(null);
+  };
+
+  const handleCropCancel = () => {
+    setCroppingIndex(null);
+    setCropFile(null);
   };
 
   const removeImage = (idx: number) => {
     setImages(prev => prev.filter((_, i) => i !== idx));
     setImageMimeTypes(prev => prev.filter((_, i) => i !== idx));
+    const newCropInfo = new Map(cropInfo);
+    newCropInfo.delete(idx);
+    const reindexed = new Map<number, { cropX: number; cropY: number }>();
+    newCropInfo.forEach((v: { cropX: number; cropY: number }, k: number) => {
+      if (k > idx) reindexed.set(k - 1, v);
+      else reindexed.set(k, v);
+    });
+    setCropInfo(reindexed);
   };
 
   const getLocation = () => {
@@ -131,7 +159,10 @@ export default function QuickReport() {
       }
       if (contactInfo && status === 'retained') body.contact_info = contactInfo;
       if (images.length > 0) {
-        body.images = images.map((data, i) => ({ data, mimeType: imageMimeTypes[i] || 'image/jpeg' }));
+        body.images = images.map((data, i) => {
+          const crop = cropInfo.get(i);
+          return { data, mimeType: imageMimeTypes[i] || 'image/jpeg', crop_x: crop?.cropX ?? 0.5, crop_y: crop?.cropY ?? 0.5 };
+        });
       }
       const res = await fetch('/api/pets/public', {
         method: 'POST',
@@ -363,6 +394,9 @@ export default function QuickReport() {
   // Menu - landing with 3 options
   return (
     <>
+      {croppingIndex !== null && cropFile && (
+        <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+      )}
       <div className="min-h-[80vh] py-8 sm:py-12 px-4">
         <div className="max-w-lg mx-auto">
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary mb-6 transition-colors">

@@ -230,7 +230,7 @@ export default function VetPetProfile() {
                               {record.photo_ids.map((pid: string) => (
                                 <img key={pid} src={`/my-pet-photo/${pid}`}
                                   className="w-16 h-16 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity border border-brand-accent"
-                                  onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}`)}
+                                  onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}?full=1`)}
                                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                               ))}
                             </div>
@@ -296,7 +296,7 @@ export default function VetPetProfile() {
                             <div className="mt-3">
                               <img src={`/my-pet-photo/${event.photo_id}`}
                                 className="w-24 h-24 object-cover rounded-xl cursor-pointer hover:opacity-80 transition-opacity border border-brand-accent"
-                                onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${event.photo_id}`)}
+                                onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${event.photo_id}?full=1`)}
                                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                             </div>
                           )}

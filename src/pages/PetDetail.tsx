@@ -58,7 +58,12 @@ export default function PetDetail() {
     );
   }
 
-  const images = getPetImageUrls(pet);
+  const images = pet.images?.map((img: any, idx: number) => {
+    if (img.has_original) return `/og-image/${pet.id}/${idx}?full=1`;
+    return `data:${img.mime_type};base64,${img.image_data}`;
+  }) || [];
+
+  const isOriginal = pet.images?.some((img: any) => img.has_original);
 
   const waMessage = `Hola! Estoy escribiendo por la publicación de ${pet.name || 'la mascota'} en Sigo Tu Huella. 
 📍 Ubicación: ${pet.location}
@@ -100,13 +105,13 @@ Me gustaría obtener más información.`;
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* Galería de Imágenes */}
         <div className="space-y-4">
-          <div className="relative aspect-square rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-xl group">
+          <div className={`relative rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-xl group ${isOriginal ? 'max-h-[75vh]' : 'aspect-square'}`}>
             {images.length > 0 ? (
               <>
                 <img 
                   src={images[currentImageIdx]} 
                   alt={pet.name} 
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                  className={`w-full h-full transition-transform duration-500 group-hover:scale-105 ${isOriginal ? 'object-contain' : 'object-cover'}`}
                 />
                 {images.length > 1 && (
                   <div className="absolute bottom-4 right-4 px-3 py-1 bg-black/50 text-white text-xs font-bold rounded-full backdrop-blur-sm">
@@ -115,7 +120,7 @@ Me gustaría obtener más información.`;
                 )}
               </>
             ) : (
-              <div className="w-full h-full bg-brand-bg flex items-center justify-center">
+              <div className="w-full aspect-square bg-brand-bg flex items-center justify-center">
                 <img src="/sigotuhuella.jpg" alt="" className="w-2/3 h-2/3 object-contain opacity-15" />
               </div>
             )}
