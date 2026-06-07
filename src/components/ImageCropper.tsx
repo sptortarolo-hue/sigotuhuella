@@ -78,7 +78,7 @@ export default function ImageCropper({ file, aspect = 1, onCropComplete, onCance
           </button>
         </div>
 
-        <div className="relative flex-1 min-h-0 bg-black/10">
+        <div className="relative flex-1 min-h-[300px] bg-black/10 touch-none">
           <Cropper
             image={imageUrl}
             crop={crop}
