@@ -1,8 +1,16 @@
 import { Router } from 'express';
+import multer from 'multer';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { classifyAndExtract, getPolygonSettings } from '../services/fbClassifier.js';
 import { findMatchesForPost, findMatchesForPet, runFullMatching } from '../services/fbMatchingService.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const COOKIES_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'cookies.txt');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 } }); // 512KB max
 
 const router = Router();
 
@@ -454,6 +462,52 @@ router.post('/classify/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error classifying post:', err);
     res.status(500).json({ error: 'Error al clasificar publicación' });
+  }
+});
+
+// ==================== COOKIES ====================
+
+function parseCookiesInfo(filepath) {
+  if (!existsSync(filepath)) return { exists: false, count: 0, expires: null };
+  const content = readFileSync(filepath, 'utf-8');
+  const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('HttpOnly'));
+  const parsed = lines.map(l => l.split('\t')).filter(p => p.length >= 7);
+  const expires = parsed
+    .map(p => parseInt(p[4], 10))
+    .filter(e => e > 0)
+    .sort((a, b) => a - b);
+  return {
+    exists: true,
+    count: parsed.length,
+    expires: expires.length > 0 ? new Date(expires[0] * 1000).toISOString() : null,
+  };
+}
+
+router.get('/cookies-status', requireAdmin, (_req, res) => {
+  try {
+    res.json(parseCookiesInfo(COOKIES_PATH));
+  } catch (err) {
+    console.error('Error reading cookies status:', err);
+    res.status(500).json({ error: 'Error al leer cookies' });
+  }
+});
+
+router.post('/upload-cookies', requireAdmin, upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No se envió ningún archivo' });
+    const content = req.file.buffer.toString('utf-8');
+    // Validate basic Netscape format: must contain .facebook.com
+    if (!content.includes('.facebook.com') && !content.includes('facebook.com')) {
+      return res.status(400).json({ error: 'Formato inválido: no se encontraron cookies de facebook.com' });
+    }
+    const dir = dirname(COOKIES_PATH);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(COOKIES_PATH, content, 'utf-8');
+    const info = parseCookiesInfo(COOKIES_PATH);
+    res.json({ ok: true, count: info.count, expires: info.expires });
+  } catch (err) {
+    console.error('Error uploading cookies:', err);
+    res.status(500).json({ error: 'Error al guardar cookies' });
   }
 });
 

@@ -8,6 +8,8 @@ Usage:
   python scraper.py --api-base-url=URL --api-token=TOKEN
 
 Requires cookies.txt (Netscape format) from a logged-in Facebook session.
+If cookies are expired, auto-login with FB_EMAIL/FB_PASSWORD env vars (or --fb-email / --fb-password).
+
 Chromium is auto-downloaded by pyppeteer on first run.
 """
 
@@ -30,6 +32,19 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("fb-scraper")
+
+# Load .env from same directory as this script
+_env_path = Path(__file__).parent / ".env"
+if _env_path.exists():
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                _k = _k.strip()
+                _v = _v.strip().strip("'\"")
+                if _k and not os.environ.get(_k):
+                    os.environ[_k] = _v
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +79,20 @@ def get_api_token():
             cfg = json.load(f)
         return cfg.get("webhook_token")
     return None
+
+
+def get_fb_email():
+    for arg in sys.argv:
+        if arg.startswith("--fb-email="):
+            return arg.split("=", 1)[1]
+    return os.environ.get("FB_EMAIL")
+
+
+def get_fb_password():
+    for arg in sys.argv:
+        if arg.startswith("--fb-password="):
+            return arg.split("=", 1)[1]
+    return os.environ.get("FB_PASSWORD")
 
 
 def fetch_config(api_base_url, webhook_token):
@@ -105,6 +134,290 @@ def load_netscape_cookies(filepath):
     except Exception as e:
         logger.warning(f"Failed to load cookies: {e}")
     return cookies
+
+
+def save_cookies(page, filepath):
+    """Persist current page cookies to Netscape-format cookies.txt."""
+    import datetime
+    cookies = page.cookies()
+    lines = ["# Netscape HTTP Cookie File", "# https://curl.haxx.se/docs/http-cookies.html"]
+    for c in cookies:
+        domain = c.get("domain", ".facebook.com")
+        if domain.startswith("."):
+            domain = domain[1:]
+        secure = "TRUE" if c.get("secure", False) else "FALSE"
+        path = c.get("path", "/")
+        http_only = "TRUE" if c.get("httpOnly", False) else "FALSE"
+        expires = int(c.get("expires", 0))
+        if expires < 0:
+            expires = 0
+        lines.append(f"{domain}\t{http_only}\t{path}\t{secure}\t{expires}\t{c['name']}\t{c['value']}")
+    with open(filepath, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    logger.info(f"Saved {len(cookies)} cookies to {filepath}")
+
+
+async def setup_page(page):
+    """Common page setup: UA, viewport, headless evasion."""
+    await page.setUserAgent(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/125.0.0.0 Safari/537.36"
+    )
+    await page.setViewport({"width": 1280, "height": 800})
+    # Bypass headless detection
+    await page.evaluateOnNewDocument("""() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    }""")
+
+
+def get_browser_args():
+    return [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-blink-features=AutomationControlled",
+    ]
+
+
+async def login_to_facebook(browser, fb_email, fb_password):
+    """Log into Facebook using email/password via pyppeteer.
+
+    Returns True if login succeeds or we are already logged in.
+    Saves cookies to cookies.txt on success.
+    """
+    page = await browser.newPage()
+    await setup_page(page)
+    cookies_file = Path(__file__).parent / "cookies.txt"
+    debug_dir = Path(__file__).parent / "debug"
+    debug_dir.mkdir(exist_ok=True)
+
+    # Load existing cookies
+    fb_cookies = load_netscape_cookies(cookies_file) if cookies_file.exists() else []
+    if fb_cookies:
+        await page.setCookie(*fb_cookies)
+
+    # Go to Facebook
+    try:
+        await page.goto("https://www.facebook.com", waitUntil="load", timeout=30000)
+    except Exception as e:
+        logger.warning(f"Facebook homepage load: {e}")
+    await asyncio.sleep(3)
+
+    title = await page.title()
+    logger.info(f"Facebook page title: {title}")
+
+    # Determine if we're on a login page
+    body_text = await page.evaluate("document.body?.innerText?.substring(0, 2000) || ''")
+    html_snippet = await page.evaluate("document.body?.innerHTML?.substring(0, 3000) || ''")
+    logger.info(f"Login page body text (first 300): {body_text[:300]}")
+    logger.debug(f"Login page HTML (first 500): {html_snippet[:500]}")
+
+    # Login detection: look for email/phone input
+    is_login_page = bool(await page.querySelector("input[name='email']"))
+    if not is_login_page:
+        is_login_page = bool(await page.querySelector("#email"))
+    if not is_login_page:
+        is_login_page = "login" in body_text.lower() and "email" in html_snippet.lower()
+
+    if not is_login_page:
+        logger.info("Already logged in to Facebook — cookies valid")
+        save_cookies(page, cookies_file)
+        await page.close()
+        return True
+
+    if not fb_email or not fb_password:
+        logger.error("Login required but FB_EMAIL / FB_PASSWORD not provided")
+        await page.close()
+        return False
+
+    logger.info("Login wall detected — attempting login with credentials")
+
+    # Save pre-login screenshot for debugging
+    await page.screenshot({"path": str(debug_dir / "login_before.png")})
+
+    try:
+        # Fill email
+        email_el = await page.querySelector("input[name='email']")
+        if not email_el:
+            email_el = await page.querySelector("#email")
+        if email_el:
+            await email_el.click()
+            await page.evaluate("() => document.querySelector('input[name=\"email\"]').value = ''")
+            await email_el.type(fb_email, delay=40)
+            logger.info("Email field filled")
+        else:
+            logger.error("Email field not found on login page")
+            html_dump = await page.content()
+            with open(debug_dir / "login_no_email.html", "w") as f:
+                f.write(html_dump[:20000])
+            await page.screenshot({"path": str(debug_dir / "login_no_email.png")})
+            await page.close()
+            return False
+
+        # Fill password
+        pass_el = await page.querySelector("input[name='pass']")
+        if not pass_el:
+            pass_el = await page.querySelector("#pass")
+        if pass_el:
+            await pass_el.click()
+            await page.evaluate("() => document.querySelector('input[name=\"pass\"]').value = ''")
+            await pass_el.type(fb_password, delay=30)
+            logger.info("Password field filled")
+        else:
+            logger.error("Password field not found")
+            await page.close()
+            return False
+
+        await asyncio.sleep(1)
+
+        # Submit form via keyboard (Tab + Enter) instead of clicking
+        # This triggers React event handlers properly
+        logger.info("Pressing Enter to submit login form")
+        await page.keyboard.press("Enter")
+
+        # Wait for navigation / redirect after login
+        try:
+            await page.waitForNavigation({"timeout": 15000, "waitUntil": "load"})
+        except Exception as e:
+            logger.warning(f"waitForNavigation after login: {e}")
+        await asyncio.sleep(3)
+
+        current_url = page.url
+        logger.info(f"URL after login: {current_url}")
+
+        is_checkpoint = "checkpoint" in current_url.lower() or "two_step" in current_url.lower()
+
+        if is_checkpoint:
+            logger.info("Checkpoint page detected — waiting for React render...")
+            await asyncio.sleep(4)
+
+            # Extract visible text from checkpoint page
+            body_text = await page.evaluate("""() => {
+                const el = document.body;
+                if (!el) return '';
+                const walker = document.createTreeWalker(el, 4, null, false);
+                const texts = [];
+                let node;
+                while (node = walker.nextNode()) {
+                    const t = node.textContent.trim();
+                    if (t) texts.push(t);
+                }
+                return texts.join(' | ').substring(0, 3000);
+            }""")
+            logger.info(f"Checkpoint text: {body_text[:1000]}")
+            await page.screenshot({"path": str(debug_dir / "checkpoint.png"), "fullPage": True})
+            with open(debug_dir / "checkpoint_text.txt", "w") as f:
+                f.write(body_text[:3000])
+
+            # Try to find and click approval buttons on checkpoint page
+            logger.info("Looking for approve/continue button on checkpoint page...")
+            clicked = await page.evaluate("""() => {
+                const text = document.body.innerText || '';
+                const buttons = document.querySelectorAll('button, div[role="button"], a[role="button"]');
+                const keywords = ['continue', 'this was me', 'confirm', 'approve',
+                                  'continuar', 'esta fui yo', 'confirmar', 'aprobar',
+                                  '继续', '这是我', '确认', '批准'];
+                for (const btn of buttons) {
+                    const t = (btn.textContent || '').toLowerCase();
+                    for (const kw of keywords) {
+                        if (t.includes(kw)) {
+                            btn.click();
+                            return kw;
+                        }
+                    }
+                }
+                return '';
+            }""")
+            if clicked:
+                logger.info(f"Clicked checkpoint button: '{clicked}' — waiting for redirect...")
+                await asyncio.sleep(5)
+                try:
+                    await page.waitForNavigation({"timeout": 15000, "waitUntil": "load"})
+                except Exception:
+                    pass
+                await asyncio.sleep(3)
+                final_url = page.url
+                logger.info(f"Post-approval URL: {final_url}")
+                # Check if logged in
+                if "login" not in final_url.lower() and "checkpoint" not in final_url.lower():
+                    logger.info("Checkpoint approved! Login successful.")
+                    save_cookies(page, cookies_file)
+                    await page.close()
+                    return True
+                else:
+                    logger.error("Checkpoint approval didn't work")
+                    await page.screenshot({"path": str(debug_dir / "checkpoint_after_click.png")})
+                    await page.close()
+                    return False
+            else:
+                logger.error("No approval button found on checkpoint — manual intervention needed")
+                logger.info(f"Checkpoint screenshot saved to {debug_dir / 'checkpoint.png'}")
+                await page.close()
+                return False
+
+        # Not a checkpoint — navigate to homepage to verify
+        try:
+            await page.goto("https://www.facebook.com", waitUntil="load", timeout=30000)
+        except Exception as e:
+            logger.warning(f"Post-login navigation: {e}")
+        await asyncio.sleep(3)
+
+        final_url = page.url
+        title2 = await page.title()
+
+        # Check if login succeeded (no login form on page)
+        still_login = bool(await page.querySelector("input[name='email']"))
+        if still_login or "login" in final_url.lower():
+            logger.error("Login failed — still on login page")
+            await page.screenshot({"path": str(debug_dir / "login_fail.png")})
+            await page.close()
+            return False
+
+        logger.info("Login successful!")
+        save_cookies(page, cookies_file)
+        await page.close()
+        return True
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        await page.screenshot({"path": str(debug_dir / "login_error.png")})
+        try:
+            html_dump = await page.content()
+            with open(debug_dir / "login_error.html", "w") as f:
+                f.write(html_dump[:20000])
+        except Exception:
+            pass
+        await page.close()
+        return False
+
+
+async def ensure_logged_in(fb_email, fb_password):
+    """Spin up a browser once, log in if needed, then close.
+
+    Cookies are saved to cookies.txt for subsequent group scrapes.
+    """
+    if not fb_email or not fb_password:
+        logger.info("FB_EMAIL/FB_PASSWORD not set — relying on existing cookies.txt")
+        cookies_file = Path(__file__).parent / "cookies.txt"
+        if cookies_file.exists():
+            return True
+        logger.error("No cookies.txt found and no FB credentials provided")
+        return False
+    from pyppeteer import launch
+    browser = await launch(
+        headless=True,
+        args=get_browser_args(),
+        handleSIGINT=False,
+        handleSIGTERM=False,
+        handleSIGHUP=False,
+    )
+    success = False
+    try:
+        success = await login_to_facebook(browser, fb_email, fb_password)
+    finally:
+        await browser.close()
+    return success
 
 
 def parse_post_elements(html, group_name):
@@ -339,24 +652,14 @@ async def async_scrape_group(group_name, group_url, max_posts=50):
 
     browser = await launch(
         headless=True,
-        args=[
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-gpu",
-        ],
+        args=get_browser_args(),
         handleSIGINT=False,
         handleSIGTERM=False,
         handleSIGHUP=False,
     )
     try:
         page = await browser.newPage()
-        await page.setUserAgent(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/125.0.0.0 Safari/537.36"
-        )
-        await page.setViewport({"width": 1280, "height": 800})
+        await setup_page(page)
 
         # Set cookies before navigating
         if fb_cookies:
@@ -447,7 +750,19 @@ def send_to_webhook(webhook_url, webhook_token, posts):
         logger.error(f"Error sending to webhook: {e}")
 
 
-def run_with_config(webhook_url, webhook_token, groups, max_posts):
+def sync_ensure_logged_in(fb_email, fb_password):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(ensure_logged_in(fb_email, fb_password))
+    finally:
+        loop.close()
+
+
+def run_with_config(webhook_url, webhook_token, groups, max_posts, fb_email=None, fb_password=None):
+    # Ensure logged in to Facebook before scraping groups
+    if not sync_ensure_logged_in(fb_email, fb_password):
+        logger.warning("Facebook login skipped or failed — scraping with existing cookies")
     all_posts = []
     for group in groups:
         if not group.get("url"):
@@ -461,6 +776,8 @@ def run_with_config(webhook_url, webhook_token, groups, max_posts):
 def run():
     api_base_url = get_api_base_url()
     cfg_path = Path(__file__).parent / "config.json"
+    fb_email = get_fb_email()
+    fb_password = get_fb_password()
 
     if api_base_url:
         logger.info("Auto-config mode: fetching from API")
@@ -469,7 +786,7 @@ def run():
             logger.error("API_TOKEN required. Use --api-token=TOKEN or set API_TOKEN env var")
             sys.exit(1)
         cfg = fetch_config(api_base_url, token)
-        run_with_config(cfg["webhook_url"], cfg["webhook_token"], cfg["groups"], cfg["max_posts_per_group"])
+        run_with_config(cfg["webhook_url"], cfg["webhook_token"], cfg["groups"], cfg["max_posts_per_group"], fb_email, fb_password)
     else:
         logger.info("Legacy mode: reading config.json")
         if not cfg_path.exists():
@@ -477,7 +794,7 @@ def run():
             sys.exit(1)
         with open(cfg_path) as f:
             cfg = json.load(f)
-        run_with_config(cfg["webhook_url"], cfg["webhook_token"], cfg["groups"], cfg.get("max_posts_per_group", 50))
+        run_with_config(cfg["webhook_url"], cfg["webhook_token"], cfg["groups"], cfg.get("max_posts_per_group", 50), fb_email, fb_password)
 
 
 def run_daemon():
@@ -488,6 +805,8 @@ def run_daemon():
         sys.exit(1)
 
     api_base_url = get_api_base_url()
+    fb_email = get_fb_email()
+    fb_password = get_fb_password()
 
     if api_base_url:
         token = get_api_token()
@@ -498,7 +817,7 @@ def run_daemon():
         def job():
             try:
                 cfg = fetch_config(api_base_url, token)
-                run_with_config(cfg["webhook_url"], cfg["webhook_token"], cfg["groups"], cfg["max_posts_per_group"])
+                run_with_config(cfg["webhook_url"], cfg["webhook_token"], cfg["groups"], cfg["max_posts_per_group"], fb_email, fb_password)
             except Exception as e:
                 logger.error(f"Daemon cycle error: {e}")
             try:
