@@ -47,8 +47,10 @@ export async function compressImage(file: File, maxDimension = 1200, quality = 0
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0, width, height);
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
         canvas.toBlob(blob => {
           if (!blob) return reject(new Error('Compression failed'));
           resolve(new File([blob], processedFile.name, { type: 'image/jpeg' }));

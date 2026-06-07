@@ -32,12 +32,24 @@ const EVENT_TYPE_ICONS = {
 async function compressAvatar(imageData, mimeType, cropX = 0.5, cropY = 0.5) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
-    const meta = await sharp(buffer).metadata();
-    const cx = Math.round(cropX * (meta.width || 400));
-    const cy = Math.round(cropY * (meta.height || 400));
+    const pipeline = sharp(buffer);
+    const meta = await pipeline.metadata();
+    const w = meta.width || 400;
+    const h = meta.height || 400;
+    const size = 400;
+
+    const scale = Math.max(size / w, size / h);
+    const scaledW = Math.round(w * scale);
+    const scaledH = Math.round(h * scale);
+    const focusX = Math.round(cropX * scaledW);
+    const focusY = Math.round(cropY * scaledH);
+    const left = Math.max(0, Math.min(focusX - size / 2, scaledW - size));
+    const top = Math.max(0, Math.min(focusY - size / 2, scaledH - size));
+
     const [thumb, original] = await Promise.all([
       sharp(buffer)
-        .resize(400, 400, { fit: 'cover', position: { x: cx, y: cy } })
+        .resize(scaledW, scaledH)
+        .extract({ left, top, width: size, height: size })
         .jpeg({ quality: 80 })
         .toBuffer(),
       sharp(buffer)
@@ -53,12 +65,24 @@ async function compressAvatar(imageData, mimeType, cropX = 0.5, cropY = 0.5) {
 async function compressPhoto(imageData, mimeType, cropX = 0.5, cropY = 0.5) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
-    const meta = await sharp(buffer).metadata();
-    const cx = Math.round(cropX * (meta.width || 1200));
-    const cy = Math.round(cropY * (meta.height || 1200));
+    const pipeline = sharp(buffer);
+    const meta = await pipeline.metadata();
+    const w = meta.width || 1200;
+    const h = meta.height || 1200;
+    const size = 1200;
+
+    const scale = Math.max(size / w, size / h);
+    const scaledW = Math.round(w * scale);
+    const scaledH = Math.round(h * scale);
+    const focusX = Math.round(cropX * scaledW);
+    const focusY = Math.round(cropY * scaledH);
+    const left = Math.max(0, Math.min(focusX - size / 2, scaledW - size));
+    const top = Math.max(0, Math.min(focusY - size / 2, scaledH - size));
+
     const [thumb, original] = await Promise.all([
       sharp(buffer)
-        .resize(1200, 1200, { fit: 'cover', position: { x: cx, y: cy } })
+        .resize(scaledW, scaledH)
+        .extract({ left, top, width: size, height: size })
         .jpeg({ quality: 85 })
         .toBuffer(),
       sharp(buffer)

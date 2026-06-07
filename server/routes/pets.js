@@ -11,12 +11,26 @@ import crypto from 'crypto';
 async function smartCropImage(imageData, mimeType, size = 800, cropX = 0.5, cropY = 0.5) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
-    const meta = await sharp(buffer).metadata();
-    const cx = Math.round(cropX * (meta.width || size));
-    const cy = Math.round(cropY * (meta.height || size));
+    const pipeline = sharp(buffer);
+    const meta = await pipeline.metadata();
+    const w = meta.width || size;
+    const h = meta.height || size;
+
+    const scaleW = size / w;
+    const scaleH = size / h;
+    const scale = Math.max(scaleW, scaleH);
+    const scaledW = Math.round(w * scale);
+    const scaledH = Math.round(h * scale);
+
+    const focusX = Math.round(cropX * scaledW);
+    const focusY = Math.round(cropY * scaledH);
+    const left = Math.max(0, Math.min(focusX - size / 2, scaledW - size));
+    const top = Math.max(0, Math.min(focusY - size / 2, scaledH - size));
+
     const [thumb, original] = await Promise.all([
       sharp(buffer)
-        .resize(size, size, { fit: 'cover', position: { x: cx, y: cy } })
+        .resize(scaledW, scaledH)
+        .extract({ left, top, width: size, height: size })
         .jpeg({ quality: 85 })
         .toBuffer(),
       sharp(buffer)
@@ -27,8 +41,8 @@ async function smartCropImage(imageData, mimeType, size = 800, cropX = 0.5, crop
       data: thumb.toString('base64'),
       original_data: original.toString('base64'),
       mimeType: 'image/jpeg',
-      width: meta.width || size,
-      height: meta.height || size,
+      width: w,
+      height: h,
     };
   } catch (err) {
     console.warn('Smart crop failed, using original:', err.message);
