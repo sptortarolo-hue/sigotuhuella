@@ -433,10 +433,15 @@ def parse_post_elements(html, group_name):
 
             # post ID: look for story.php or posts/ in links
             fb_id = None
+            fb_post_url = ""
             for a in article.find_all("a", href=True):
                 m = re.search(r'(?:story_fbid=|/posts/|fbid=)(\d+)', a["href"])
                 if m:
                     fb_id = m.group(1)
+                    href = a["href"]
+                    if href.startswith("/"):
+                        href = "https://www.facebook.com" + href
+                    fb_post_url = href
                     break
             if not fb_id:
                 m2 = re.search(r'"post_id":\s*"(\d+)"', html_str)
@@ -471,10 +476,11 @@ def parse_post_elements(html, group_name):
 
             # images
             images = []
-            for img in soup.find_all("img", src=re.compile(r"^https?://.*scontent")):
-                src = img.get("src", "")
-                if src and src not in images:
-                    images.append(src)
+            for img in article.find_all("img"):
+                src = img.get("src") or img.get("data-src") or ""
+                if src and re.search(r"(scontent|fbcdn|safe_image)", src):
+                    if src not in images:
+                        images.append(src)
 
             # time
             posted_at = ""
@@ -491,7 +497,7 @@ def parse_post_elements(html, group_name):
                 "group_id": None,
                 "group_name": group_name,
                 "fb_post_id": fb_id,
-                "fb_post_url": f"https://www.facebook.com/{fb_id}" if fb_id else "",
+                "fb_post_url": fb_post_url,
                 "author_name": author,
                 "content": content,
                 "image_urls": images[:5],
@@ -585,8 +591,8 @@ async def extract_posts_via_js(page, group_name):
                 // Find images
                 const images = [];
                 container.querySelectorAll('img').forEach(img => {
-                    const src = img.src || '';
-                    if ((src.includes('scontent') || src.includes('fbcdn')) &&
+                    const src = img.getAttribute('src') || img.getAttribute('data-src') || '';
+                    if ((src.includes('scontent') || src.includes('fbcdn') || src.includes('safe_image')) &&
                         !images.includes(src)) {
                         images.push(src);
                     }
@@ -594,7 +600,7 @@ async def extract_posts_via_js(page, group_name):
 
                 posts.push({
                     fb_post_id: fb_id,
-                    fb_post_url: 'https://www.facebook.com/' + fb_id,
+                    fb_post_url: href,
                     author_name: author,
                     content: content,
                     image_urls: images.slice(0, 5),
