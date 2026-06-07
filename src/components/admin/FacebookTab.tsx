@@ -694,7 +694,9 @@ function ConfigSection() {
         const map: Record<string, string> = {};
         data.forEach((s: any) => { map[s.key] = s.value; });
         setSettings(map);
-        const cook = await fetch('/api/facebook/cookies-status');
+        const cook = await fetch('/api/facebook/cookies-status', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
         if (cook.ok) setCookieStatus(await cook.json());
       } catch (e) { console.error(e); }
       setLoading(false);
@@ -732,7 +734,11 @@ function ConfigSection() {
     try {
       const form = new FormData();
       form.append('file', file);
-      const resp = await fetch('/api/facebook/upload-cookies', { method: 'POST', body: form });
+      const resp = await fetch('/api/facebook/upload-cookies', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: form,
+      });
       if (!resp.ok) {
         const err = await resp.json();
         alert(err.error || 'Error al subir cookies');
