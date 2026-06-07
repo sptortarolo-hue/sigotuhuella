@@ -33,6 +33,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("fb-scraper")
 
+# Posts containing any of these keywords (case-insensitive) will be skipped
+FORBIDDEN_KEYWORDS = [
+    "vendo", "compro", "alquilo", "trabajo", "curso",
+    "evento", "clase", "servicio", "promoción", "promocion",
+    "oferta", "producto", "tarjeta", "servicios", "profesional",
+]
+
+# Minimum content length to consider a post relevant
+MIN_CONTENT_LENGTH = 50
+
 # Load .env from same directory as this script
 _env_path = Path(__file__).parent / ".env"
 if _env_path.exists():
@@ -734,10 +744,31 @@ def scrape_group(group_name, group_url, max_posts=50):
 # Communication
 # ---------------------------------------------------------------------------
 
+def is_post_relevant(post):
+    """Check if a post is relevant (not commercial/too short)."""
+    content = (post.get("content") or "").strip()
+    if len(content) < MIN_CONTENT_LENGTH:
+        return False
+    lower = content.lower()
+    for kw in FORBIDDEN_KEYWORDS:
+        if kw in lower:
+            return False
+    return True
+
+
 def send_to_webhook(webhook_url, webhook_token, posts):
     if not posts:
         logger.info("No posts to send.")
         return
+    # Filter irrelevant posts
+    filtered = [p for p in posts if is_post_relevant(p)]
+    skipped = len(posts) - len(filtered)
+    if skipped:
+        logger.info(f"Skipped {skipped} irrelevant posts")
+    if not filtered:
+        logger.info("No relevant posts after filtering.")
+        return
+    posts = filtered
     # Force HTTPS to avoid 301 redirect stripping POST body
     if webhook_url.startswith("http://"):
         webhook_url = "https://" + webhook_url[7:]

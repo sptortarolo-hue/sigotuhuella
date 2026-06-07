@@ -17,8 +17,10 @@ const CLASSIFICATION_KEYWORDS = {
     'se perdió', 'se perdio', 'se busca', 'lo busco', 'la busco',
     'perdido', 'perdida', 'extraviado', 'extraviada', 'desapareció',
     'desaparecio', 'desaparecido', 'se fue', 'no vuelve', 'no aparece',
-    'urgente', 'ayuda', 'rosario',
+    'rosario',
   ],
+  // Only count these lost keywords when a species keyword is present
+  conditional_lost: ['urgente', 'ayuda'],
   found: [
     'encontré', 'encontre', 'encontrado', 'encontrada', 'apareció',
     'aparecio', 'apareció', 'hallé', 'halle', 'hallado', 'hallada',
@@ -32,6 +34,8 @@ const CLASSIFICATION_KEYWORDS = {
     'dar en adopción', 'dar en adopcion', 'adoptame', 'adóptame',
   ],
 };
+
+const MIN_KEYWORD_MATCHES = 2;
 
 const LOCATION_PATTERNS = [
   /(?:en|zona|barrio|localidad|partido|ciudad|calle|esquina)\s+([\w\sáéíóúñÁÉÍÓÚ,.-]{3,60})/i,
@@ -121,12 +125,18 @@ export async function extractLocation(text) {
   };
 }
 
-export function classifyPost(text) {
+export function classifyPost(text, species) {
   const lower = text.toLowerCase();
+  const hasSpecies = species === 'dog' || species === 'cat';
   let classification = 'other';
   let maxScore = 0;
 
   for (const [type, keywords] of Object.entries(CLASSIFICATION_KEYWORDS)) {
+    if (type === 'conditional_lost') continue;
+
+    // For lost/found without species, skip
+    if ((type === 'lost' || type === 'found') && !hasSpecies) continue;
+
     let score = 0;
     for (const kw of keywords) {
       if (lower.includes(kw)) {
@@ -134,10 +144,25 @@ export function classifyPost(text) {
         score += count;
       }
     }
+
+    // If species is detected, also count conditional lost keywords for lost type
+    if (type === 'lost' && hasSpecies) {
+      for (const kw of CLASSIFICATION_KEYWORDS.conditional_lost) {
+        if (lower.includes(kw)) {
+          const count = (lower.match(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+          score += count;
+        }
+      }
+    }
+
     if (score > maxScore) {
       maxScore = score;
       classification = type;
     }
+  }
+
+  if (maxScore < MIN_KEYWORD_MATCHES) {
+    classification = 'other';
   }
 
   return classification;
@@ -204,7 +229,7 @@ export async function classifyAndExtract(text, imageUrls = []) {
   const colors = extractColors(text);
   const phone = extractPhone(text);
   const { location_hint: locationHint, lat: locationLat, lng: locationLng } = await extractLocation(text);
-  const classification = classifyPost(text);
+  const classification = classifyPost(text, species);
 
   let confidence = 0;
   if (classification !== 'other') confidence += 30;
@@ -213,8 +238,11 @@ export async function classifyAndExtract(text, imageUrls = []) {
   if (phone) confidence += 15;
   if (locationHint) confidence += 10;
 
+  const finalClassification =
+    classification !== 'other' && confidence < 30 ? 'other' : classification;
+
   return {
-    classification,
+    classification: finalClassification,
     species,
     colors,
     color: colors.length > 0 ? colors.join(', ') : null,
