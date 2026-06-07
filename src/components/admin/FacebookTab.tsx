@@ -6,7 +6,7 @@ import PolygonEditor from '@/src/components/admin/PolygonEditor';
 import {
   Save, Loader2, Plus, X, Trash2, Edit2, ExternalLink,
   Search, RefreshCw, Check, XCircle, MessageSquare, Map,
-  Globe, Users, Sliders, FlaskConical, GripVertical,
+  Globe, Users, Sliders, FlaskConical, GripVertical, MapPin,
 } from 'lucide-react';
 
 type SubTab = 'groups' | 'posts' | 'matches' | 'config';
@@ -647,6 +647,43 @@ function ConfigSection() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [suggestions, setSuggestions] = useState<Record<number, { name: string; lat: number; lng: number }[]>>({});
+  const [activeSuggestion, setActiveSuggestion] = useState<number | null>(null);
+  const debounceTimers = React.useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+
+  const searchNominatim = React.useCallback(async (query: string, index: number) => {
+    if (query.length < 3) {
+      setSuggestions(prev => ({ ...prev, [index]: [] }));
+      return;
+    }
+    try {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=ar`,
+        { headers: { 'User-Agent': 'SigoTuHuella/1.0' } }
+      );
+      const data = await resp.json();
+      setSuggestions(prev => ({
+        ...prev,
+        [index]: data.map((r: any) => ({
+          name: r.display_name.split(',')[0],
+          lat: parseFloat(r.lat),
+          lng: parseFloat(r.lon),
+        })),
+      }));
+    } catch {
+      setSuggestions(prev => ({ ...prev, [index]: [] }));
+    }
+  }, []);
+
+  const handleNameChange = (value: string, i: number) => {
+    const neighborhoods: any[] = [];
+    try { if (settings.fb_neighborhoods) neighborhoods.push(...JSON.parse(settings.fb_neighborhoods)); } catch {}
+    const copy = [...neighborhoods];
+    copy[i] = { ...copy[i], name: value };
+    setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
+    if (debounceTimers.current[i]) clearTimeout(debounceTimers.current[i]);
+    debounceTimers.current[i] = setTimeout(() => searchNominatim(value, i), 400);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -823,14 +860,36 @@ function ConfigSection() {
                     }}
                     className="w-4 h-4 rounded accent-brand-primary shrink-0"
                   />
-                  <input type="text" value={n.name}
-                    onChange={(e) => {
-                      const copy = [...neighborhoods];
-                      copy[i] = { ...copy[i], name: e.target.value };
-                      setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
-                    }}
-                    className="flex-1 min-w-0 px-3 py-1.5 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-sm font-medium"
-                  />
+                  <div className="flex-1 min-w-0 relative">
+                    <input type="text" value={n.name}
+                      onChange={(e) => handleNameChange(e.target.value, i)}
+                      onFocus={() => setActiveSuggestion(i)}
+                      onBlur={() => setTimeout(() => setActiveSuggestion(null), 200)}
+                      className="w-full px-3 py-1.5 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-sm font-medium"
+                      placeholder="Ej: Parque Sicardi"
+                      autoComplete="off"
+                    />
+                    {activeSuggestion === i && (suggestions[i] || []).length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl border border-brand-accent shadow-xl z-50 max-h-48 overflow-y-auto">
+                        {suggestions[i].map((s, si) => (
+                          <button key={si} type="button"
+                            onMouseDown={() => {
+                              const copy = [...neighborhoods];
+                              copy[i] = { ...copy[i], name: s.name, lat: s.lat, lng: s.lng };
+                              setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
+                              setSuggestions(prev => ({ ...prev, [i]: [] }));
+                              setActiveSuggestion(null);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-100 last:border-0 flex items-center gap-2"
+                          >
+                            <MapPin className="w-3 h-3 shrink-0 text-gray-400" />
+                            <span className="flex-1 truncate">{s.name}</span>
+                            <span className="text-[10px] text-gray-400 shrink-0">{s.lat.toFixed(3)}, {s.lng.toFixed(3)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <input type="number" step="0.001" value={n.lat}
                     onChange={(e) => {
                       const copy = [...neighborhoods];
