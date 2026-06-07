@@ -29,29 +29,45 @@ const EVENT_TYPE_ICONS = {
   grooming: '✂️', other: '📋',
 };
 
-async function compressAvatar(imageData, mimeType) {
+async function compressAvatar(imageData, mimeType, cropX = 0.5, cropY = 0.5) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
-    const processed = await sharp(buffer)
-      .resize(400, 400, { fit: 'cover', position: 'attention' })
-      .jpeg({ quality: 80 })
-      .toBuffer();
-    return { data: processed.toString('base64'), mimeType: 'image/jpeg' };
+    const meta = await sharp(buffer).metadata();
+    const cx = Math.round(cropX * (meta.width || 400));
+    const cy = Math.round(cropY * (meta.height || 400));
+    const [thumb, original] = await Promise.all([
+      sharp(buffer)
+        .resize(400, 400, { fit: 'cover', position: { x: cx, y: cy } })
+        .jpeg({ quality: 80 })
+        .toBuffer(),
+      sharp(buffer)
+        .jpeg({ quality: 85 })
+        .toBuffer(),
+    ]);
+    return { data: thumb.toString('base64'), original_data: original.toString('base64'), mimeType: 'image/jpeg' };
   } catch {
-    return { data: imageData, mimeType };
+    return { data: imageData, mimeType, original_data: imageData };
   }
 }
 
-async function compressPhoto(imageData, mimeType) {
+async function compressPhoto(imageData, mimeType, cropX = 0.5, cropY = 0.5) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
-    const processed = await sharp(buffer)
-      .resize(1200, 1200, { fit: 'cover', position: 'attention' })
-      .jpeg({ quality: 85 })
-      .toBuffer();
-    return { data: processed.toString('base64'), mimeType: 'image/jpeg' };
+    const meta = await sharp(buffer).metadata();
+    const cx = Math.round(cropX * (meta.width || 1200));
+    const cy = Math.round(cropY * (meta.height || 1200));
+    const [thumb, original] = await Promise.all([
+      sharp(buffer)
+        .resize(1200, 1200, { fit: 'cover', position: { x: cx, y: cy } })
+        .jpeg({ quality: 85 })
+        .toBuffer(),
+      sharp(buffer)
+        .jpeg({ quality: 85 })
+        .toBuffer(),
+    ]);
+    return { data: thumb.toString('base64'), original_data: original.toString('base64'), mimeType: 'image/jpeg' };
   } catch {
-    return { data: imageData, mimeType };
+    return { data: imageData, mimeType, original_data: imageData };
   }
 }
 
@@ -130,17 +146,19 @@ router.post('/', requireAuth, async (req, res) => {
 
     let avatarData = null;
     let avatarMime = null;
+    let avatarOriginal = null;
     if (avatar_image) {
-      const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg');
+      const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg', crop_x || 0.5, crop_y || 0.5);
       avatarData = compressed.data;
       avatarMime = compressed.mimeType;
+      avatarOriginal = compressed.original_data;
     }
 
     const result = await pool.query(
       `INSERT INTO my_pets (user_id, name, species, breed, color, gender, birth_date, chip_id,
         bio, personality_tags, is_vaccinated, is_sterilized, is_dewormed, weight_kg,
-        avatar_image, avatar_mime_type)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        avatar_image, avatar_mime_type, crop_x, crop_y, original_avatar_data)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING *`,
       [
         req.user.id, name, species, breed || null, color || null, gender || 'unknown',
@@ -148,6 +166,7 @@ router.post('/', requireAuth, async (req, res) => {
         JSON.stringify(personality_tags || []),
         is_vaccinated || false, is_sterilized || false, is_dewormed || false,
         weight_kg || null, avatarData, avatarMime,
+        crop_x ?? 0.5, crop_y ?? 0.5, avatarOriginal,
       ]
     );
     res.status(201).json({ myPet: result.rows[0] });
@@ -192,9 +211,12 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (weight_kg !== undefined) addField('weight_kg', weight_kg || null);
 
     if (avatar_image !== undefined) {
-      const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg');
+      const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg', crop_x || 0.5, crop_y || 0.5);
       addField('avatar_image', compressed.data);
       addField('avatar_mime_type', compressed.mimeType);
+      addField('crop_x', crop_x ?? 0.5);
+      addField('crop_y', crop_y ?? 0.5);
+      addField('original_avatar_data', compressed.original_data);
     }
 
     if (sets.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
@@ -235,15 +257,16 @@ router.post('/:id/photos', requireAuth, async (req, res) => {
     );
     if (petCheck.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
 
-    const { image_data, mime_type, caption, taken_at } = req.body;
+    const { image_data, mime_type, caption, taken_at, crop_x, crop_y } = req.body;
     if (!image_data) return res.status(400).json({ error: 'Imagen requerida' });
 
-    const compressed = await compressPhoto(image_data, mime_type || 'image/jpeg');
+    const compressed = await compressPhoto(image_data, mime_type || 'image/jpeg', crop_x || 0.5, crop_y || 0.5);
 
     const result = await pool.query(
-      `INSERT INTO my_pet_photos (my_pet_id, image_data, mime_type, caption, taken_at)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, caption, taken_at, created_at, mime_type`,
-      [req.params.id, compressed.data, compressed.mimeType, caption || null, taken_at || null]
+      `INSERT INTO my_pet_photos (my_pet_id, image_data, mime_type, caption, taken_at, crop_x, crop_y, original_image_data)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, caption, taken_at, created_at, mime_type`,
+      [req.params.id, compressed.data, compressed.mimeType, caption || null, taken_at || null,
+       crop_x ?? 0.5, crop_y ?? 0.5, compressed.original_data]
     );
     res.status(201).json({ photo: result.rows[0] });
   } catch (err) {
@@ -526,19 +549,27 @@ router.post('/convert/:petId', requireAuth, async (req, res) => {
     const { bio, birth_date, weight_kg, personality_tags } = req.body || {};
 
     const imagesResult = await pool.query(
-      'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1',
+      'SELECT image_data, mime_type, original_image_data, crop_x, crop_y FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1',
       [pet.id]
     );
 
     let avatarData = null;
     let avatarMime = null;
+    let avatarOriginal = null;
+    let cropX = 0.5, cropY = 0.5;
     if (imagesResult.rows.length > 0) {
+      const img = imagesResult.rows[0];
       const compressed = await compressAvatar(
-        imagesResult.rows[0].image_data,
-        imagesResult.rows[0].mime_type
+        img.image_data,
+        img.mime_type,
+        img.crop_x ?? 0.5,
+        img.crop_y ?? 0.5
       );
       avatarData = compressed.data;
       avatarMime = compressed.mimeType;
+      avatarOriginal = compressed.original_data;
+      cropX = img.crop_x ?? 0.5;
+      cropY = img.crop_y ?? 0.5;
     }
 
     const finalBio = bio !== undefined ? bio : pet.description;
@@ -549,12 +580,13 @@ router.post('/convert/:petId', requireAuth, async (req, res) => {
     const myPetResult = await pool.query(
       `INSERT INTO my_pets (user_id, name, species, breed, color, gender,
         is_vaccinated, is_sterilized, is_dewormed, bio, avatar_image, avatar_mime_type,
-        birth_date, weight_kg, personality_tags)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+        birth_date, weight_kg, personality_tags, crop_x, crop_y, original_avatar_data)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
       [
         req.user.id, pet.name || 'Mi mascota', pet.species, pet.breed, pet.color,
         pet.gender, pet.is_vaccinated, pet.is_sterilized, pet.is_dewormed,
         finalBio, avatarData, avatarMime, finalBirthDate, finalWeight, finalTags,
+        cropX, cropY, avatarOriginal,
       ]
     );
 

@@ -357,6 +357,27 @@ export async function initDb() {
   try {
     await client.query(schema);
     console.log('Database schema initialized');
+
+    // Migrations: add crop support columns for image upload
+    await client.query(`
+      ALTER TABLE pet_images
+        ADD COLUMN IF NOT EXISTS crop_x REAL DEFAULT 0.5,
+        ADD COLUMN IF NOT EXISTS crop_y REAL DEFAULT 0.5,
+        ADD COLUMN IF NOT EXISTS original_image_data TEXT
+    `);
+    await client.query(`
+      ALTER TABLE my_pet_photos
+        ADD COLUMN IF NOT EXISTS crop_x REAL DEFAULT 0.5,
+        ADD COLUMN IF NOT EXISTS crop_y REAL DEFAULT 0.5,
+        ADD COLUMN IF NOT EXISTS original_image_data TEXT
+    `);
+    await client.query(`
+      ALTER TABLE my_pets
+        ADD COLUMN IF NOT EXISTS crop_x REAL DEFAULT 0.5,
+        ADD COLUMN IF NOT EXISTS crop_y REAL DEFAULT 0.5,
+        ADD COLUMN IF NOT EXISTS original_avatar_data TEXT
+    `);
+    console.log('Database migrations complete');
   } finally {
     client.release();
   }

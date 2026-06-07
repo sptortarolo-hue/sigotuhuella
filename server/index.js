@@ -49,8 +49,11 @@ app.use((_req, res, next) => {
 // Serve pet images for OG preview (before static middleware to avoid conflicts)
 app.get('/og-image/:petId/:index', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2',
+    const full = req.query.full === '1';
+    const sql = full
+      ? 'SELECT COALESCE(original_image_data, image_data) AS image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2'
+      : 'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2';
+    const result = await pool.query(sql,
       [req.params.petId, parseInt(req.params.index) || 0]
     );
     if (result.rows.length === 0) return res.status(404).end();
@@ -108,15 +111,18 @@ app.get('/my-pet-avatar/:petId', async (req, res) => {
 
 app.get('/my-pet-photo/:photoId', async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT image_data, mime_type FROM my_pet_photos WHERE id = $1',
-      [req.params.photoId]
-    );
+    const full = req.query.full === '1';
+    const sql = full
+      ? 'SELECT COALESCE(original_image_data, image_data) AS image_data, mime_type FROM my_pet_photos WHERE id = $1'
+      : 'SELECT image_data, mime_type FROM my_pet_photos WHERE id = $1';
+    const result = await pool.query(sql, [req.params.photoId]);
     if (result.rows.length === 0) return res.status(404).end();
     const img = result.rows[0];
     const buffer = Buffer.from(img.image_data, 'base64');
     res.set('Content-Type', img.mime_type || 'image/jpeg');
+    res.set('Content-Length', buffer.length);
     res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.set('Access-Control-Allow-Origin', '*');
     res.end(buffer);
   } catch (err) {
     console.error('My-pet photo error:', err);

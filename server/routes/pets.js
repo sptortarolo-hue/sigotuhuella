@@ -8,17 +8,31 @@ import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 
-async function smartCropImage(imageData, mimeType, size = 800) {
+async function smartCropImage(imageData, mimeType, size = 800, cropX = 0.5, cropY = 0.5) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
-    const processed = await sharp(buffer)
-      .resize(size, size, { fit: 'cover', position: 'attention' })
-      .jpeg({ quality: 85 })
-      .toBuffer();
-    return { data: processed.toString('base64'), mimeType: 'image/jpeg' };
+    const meta = await sharp(buffer).metadata();
+    const cx = Math.round(cropX * (meta.width || size));
+    const cy = Math.round(cropY * (meta.height || size));
+    const [thumb, original] = await Promise.all([
+      sharp(buffer)
+        .resize(size, size, { fit: 'cover', position: { x: cx, y: cy } })
+        .jpeg({ quality: 85 })
+        .toBuffer(),
+      sharp(buffer)
+        .jpeg({ quality: 85 })
+        .toBuffer(),
+    ]);
+    return {
+      data: thumb.toString('base64'),
+      original_data: original.toString('base64'),
+      mimeType: 'image/jpeg',
+      width: meta.width || size,
+      height: meta.height || size,
+    };
   } catch (err) {
     console.warn('Smart crop failed, using original:', err.message);
-    return { data: imageData, mimeType };
+    return { data: imageData, mimeType, original_data: imageData };
   }
 }
 
@@ -164,7 +178,7 @@ router.get('/', async (req, res) => {
     const { status, isPublic, limit } = req.query;
     let query = `
       SELECT p.*, 
-        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
       FROM pets p
       LEFT JOIN pet_images pi ON pi.pet_id = p.id
     `;
@@ -197,7 +211,7 @@ router.get('/:id', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.*, 
-        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
       FROM pets p
       LEFT JOIN pet_images pi ON pi.pet_id = p.id
       WHERE p.id = $1
@@ -241,7 +255,7 @@ router.post('/', requireAuth, async (req, res) => {
       }
     }
     const imagesResult = await client.query(
-      `SELECT json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) as images
+      `SELECT json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) as images
       FROM pet_images pi WHERE pi.pet_id = $1`,
       [pet.id]
     );
@@ -317,20 +331,20 @@ router.put('/:id', requireAuth, async (req, res) => {
     }
     if (req.body.newImages && req.body.newImages.length > 0) {
       for (const img of req.body.newImages) {
-        const processed = await smartCropImage(img.data, img.mimeType);
+        const processed = await smartCropImage(img.data, img.mimeType, 800, img.crop_x, img.crop_y);
         await pool.query(
-          'INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)',
-          [petId, processed.data, processed.mimeType]
+          'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
+          [petId, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
         );
       }
     } else if (req.body.images && req.body.images.length > 0) {
       // Fallback for legacy behavior
       await pool.query('DELETE FROM pet_images WHERE pet_id = $1', [petId]);
       for (const img of req.body.images) {
-        const processed = await smartCropImage(img.data, img.mimeType);
+        const processed = await smartCropImage(img.data, img.mimeType, 800, img.crop_x, img.crop_y);
         await pool.query(
-          'INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)',
-          [petId, processed.data, processed.mimeType]
+          'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
+          [petId, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
         );
       }
     }
@@ -356,7 +370,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     // Return pet with images
     const updated = await pool.query(
       `SELECT p.*, 
-        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
       FROM pets p
       LEFT JOIN pet_images pi ON pi.pet_id = p.id
       WHERE p.id = $1
@@ -525,7 +539,7 @@ router.get('/:petId/records/report', async (req, res) => {
   try {
     const petResult = await pool.query(
       `SELECT p.*, 
-        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
       FROM pets p
       LEFT JOIN pet_images pi ON pi.pet_id = p.id
       WHERE p.id = $1
@@ -648,15 +662,15 @@ router.post('/public', async (req, res) => {
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
       for (const img of images) {
-        const processed = await smartCropImage(img.data, img.mimeType);
+        const processed = await smartCropImage(img.data, img.mimeType, 800, img.crop_x, img.crop_y);
         await client.query(
-          'INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)',
-          [pet.id, processed.data, processed.mimeType]
+          'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
+          [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
         );
       }
     }
     const imagesResult = await client.query(
-      `SELECT json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) as images
+      `SELECT json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) as images
        FROM pet_images pi WHERE pi.pet_id = $1`,
       [pet.id]
     );
@@ -752,15 +766,15 @@ router.post('/lost-report', async (req, res) => {
 
     // Process images
     for (const img of images) {
-      const processed = await smartCropImage(img.data, img.mimeType);
+      const processed = await smartCropImage(img.data, img.mimeType, 800, img.crop_x, img.crop_y);
       await client.query(
-        'INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)',
-        [pet.id, processed.data, processed.mimeType]
+        'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
+        [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
       );
     }
 
     const imagesResult = await client.query(
-      `SELECT json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) as images
+      `SELECT json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) as images
        FROM pet_images pi WHERE pi.pet_id = $1`,
       [pet.id]
     );

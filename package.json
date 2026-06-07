@@ -38,6 +38,7 @@
     "qrcode": "^1.5.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-easy-crop": "^5.5.7",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.15.0",
     "recharts": "^3.8.1",

@@ -15,6 +15,7 @@ export interface PetImage {
   id: string;
   image_data: string;
   mime_type: string;
+  has_original?: boolean;
 }
 
 export interface Pet {
@@ -48,6 +49,12 @@ export function getPetImageUrl(pet: Pet): string | undefined {
 
 export function getPetImageUrls(pet: Pet): string[] {
   return pet.images?.map(img => `data:${img.mime_type};base64,${img.image_data}`) || [];
+}
+
+export function getPetOriginalImageUrl(pet: Pet): string | undefined {
+  if (!pet.images?.[0]) return undefined;
+  const img = pet.images[0];
+  return img.has_original ? `/og-image/${pet.id}/0?full=1` : undefined;
 }
 
 export function getPetCoordinates(pet: Pet): { lat: number; lng: number } | null {
