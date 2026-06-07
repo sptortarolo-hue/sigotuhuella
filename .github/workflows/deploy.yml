@@ -59,8 +59,12 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ffmpeg
           npm install --production
+          # Restore DATABASE_URL from persistent storage (never overwritten by deploy)
+          if [ -f /root/.sihuella-db.env ]; then
+            cat /root/.sihuella-db.env >> server/.env
+          fi
           if pm2 list | grep -q sigotuhuella; then
             pm2 delete sigotuhuella
           fi
-          pm2 start npm --name sigotuhuella -- start
+          pm2 start npm --name sigotuhuella -- start --update-env
           pm2 save
