@@ -131,7 +131,6 @@ export default function App() {
           <li><Link to="/adopcion" className="hover:text-brand-primary">Adopción</Link></li>
           <li><Link to="/reportar" className="hover:text-brand-primary">Publicar</Link></li>
           <li><Link to="/reportar-rapido" className="hover:text-brand-primary">Reporte Rápido</Link></li>
-          <li><Link to="/buscar-facebook" className="hover:text-brand-primary">Buscar en Facebook</Link></li>
                 </ul>
               </div>
               <div>

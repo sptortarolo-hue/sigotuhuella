@@ -44,7 +44,6 @@ export default function Navbar() {
     { name: 'Difusión', path: '/difusion', icon: Share2 },
     { name: isMember ? 'Asociado' : 'Sumate', path: '/sumate', icon: Users },
     { name: 'Novedades', path: '/novedades', icon: Sparkles },
-    { name: 'Facebook', path: '/buscar-facebook', icon: ExternalLink },
   ];
 
   useEffect(() => {
