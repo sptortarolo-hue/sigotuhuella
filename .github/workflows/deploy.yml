@@ -37,7 +37,7 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
         source: "dist/,server/,package.json"
-        target: /opt/sihuella
+        target: /var/www/sigotuhuella
         strip_components: 0
 
     - name: Remote deploy
@@ -48,7 +48,7 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
         script: |
-          cd /opt/sihuella
+          cd /var/www/sigotuhuella
           kill -9 $(lsof -t -i:3000) 2>/dev/null || true
           if [ ! -f /swapfile ]; then
             sudo fallocate -l 1G /swapfile
