@@ -91,6 +91,18 @@ export default function Home() {
                 <span className="text-red-400 text-xs">→</span>
               </Link>
             </div>
+
+            <Link to="/colaborar"
+              className="w-full bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 sm:p-5 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+              </div>
+              <div className="text-left flex-1 min-w-0">
+                <div className="font-bold text-amber-800 text-sm sm:text-base">Colaborá con el rescate</div>
+                <div className="text-xs text-amber-700/70 mt-0.5">Con tu ayuda, más mascotas reciben atención veterinaria, alimento y el cuidado que necesitan.</div>
+              </div>
+              <span className="shrink-0 text-amber-600 font-bold text-sm group-hover:translate-x-1 transition-transform">Quiero colaborar →</span>
+            </Link>
           </motion.div>
 
           <motion.div
