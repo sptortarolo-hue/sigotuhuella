@@ -6,6 +6,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { api } from '@/src/lib/api';
 import ZoneSelector from '@/src/components/ZoneSelector';
 import ImageCropper from '@/src/components/ImageCropper';
+import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
+
+function randomPointInBounds(bounds: { south: number; west: number; north: number; east: number }): { lat: number; lng: number } {
+  const lat = bounds.south + Math.random() * (bounds.north - bounds.south);
+  const lng = bounds.west + Math.random() * (bounds.east - bounds.west);
+  return { lat, lng };
+}
 
 const SPECIES_OPTIONS = [
   { value: 'perro', label: 'Perro', icon: '🐕' },
@@ -51,6 +58,7 @@ export default function LostPetReport() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [reporterName, setReporterName] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [imageMimeTypes, setImageMimeTypes] = useState<string[]>([]);
@@ -420,9 +428,25 @@ export default function LostPetReport() {
               <p className="text-xs text-green-600 mt-2">📍 Ubicación exacta marcada en el mapa</p>
             )}
 
-            <input value={location} onChange={e => setLocation(e.target.value)}
-              placeholder="Ej: Calle 7 y 52, Sicardi"
-              className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors mt-3" />
+            <div className="relative mt-3">
+              <input value={location}
+                onChange={e => { setLocation(e.target.value); setSelectedNeighborhoods([]); setShowSuggestions(true); }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                placeholder="Ej: Calle 7 y 52, Sicardi"
+                className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors" />
+              {showSuggestions && location.length > 0 && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-brand-accent rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                  {NEIGHBORHOODS.filter(n => n.name.toLowerCase().includes(location.toLowerCase())).map(n => (
+                    <button key={n.id}
+                      onMouseDown={e => { e.preventDefault(); setLocation(n.name); setSelectedNeighborhoods([n.id]); setCoordinates(randomPointInBounds(n.bounds)); setShowSuggestions(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-brand-accent transition-colors">
+                      {n.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Tu nombre */}
