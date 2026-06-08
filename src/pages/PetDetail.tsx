@@ -108,11 +108,12 @@ Me gustaría obtener más información.`;
           <div className={`relative rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-xl group ${isOriginal ? 'max-h-[75vh]' : 'aspect-square'}`}>
             {images.length > 0 ? (
               <>
-                <img 
-                  src={images[currentImageIdx]} 
-                  alt={pet.name} 
-                  className={`w-full h-full transition-transform duration-500 group-hover:scale-105 ${isOriginal ? 'object-contain' : 'object-cover'}`}
-                />
+        <img 
+          src={images[currentImageIdx]} 
+          alt={pet.name} 
+          onError={(e) => { (e.target as HTMLImageElement).src = '/sigotuhuella.jpg'; }}
+          className={`w-full h-full transition-transform duration-500 group-hover:scale-105 ${isOriginal ? 'object-contain' : 'object-cover'}`}
+        />
                 {images.length > 1 && (
                   <div className="absolute bottom-4 right-4 px-3 py-1 bg-black/50 text-white text-xs font-bold rounded-full backdrop-blur-sm">
                     {currentImageIdx + 1} / {images.length}
@@ -137,7 +138,8 @@ Me gustaría obtener más información.`;
                     currentImageIdx === idx ? "border-brand-primary scale-95 shadow-inner" : "border-transparent opacity-70 hover:opacity-100"
                   )}
                 >
-                  <img src={url} className="w-full h-full object-cover" alt={`Vista previa ${idx + 1}`} />
+                  <img src={url} className="w-full h-full object-cover" alt={`Vista previa ${idx + 1}`}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                 </button>
               ))}
             </div>

@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/src/lib/api';
-import { compressImage, fileToBase64 } from '@/src/lib/storageService';
+import { fileToBase64 } from '@/src/lib/storageService';
 import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
+import ImageCropper from '@/src/components/ImageCropper';
 import {
   PawPrint, Plus, Loader2, X, Save, Dog, Cat, Heart,
   Syringe, Scissors, Bug, Weight, Calendar, Sparkles, ChevronRight,
@@ -61,6 +62,7 @@ export default function MyPetsPortal() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [showQrClaim, setShowQrClaim] = useState(false);
 
   useEffect(() => {
@@ -77,13 +79,21 @@ export default function MyPetsPortal() {
     finally { setLoading(false); }
   };
 
-  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCropFile(file);
+  };
+
+  const handleCropComplete = (croppedBlob: Blob) => {
+    const file = new File([croppedBlob], 'avatar.jpg', { type: 'image/jpeg' });
     setAvatarFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
+    setAvatarPreview(URL.createObjectURL(croppedBlob));
+    setCropFile(null);
+  };
+
+  const handleCropCancel = () => {
+    setCropFile(null);
   };
 
   const handleSubmit = async () => {
@@ -93,16 +103,9 @@ export default function MyPetsPortal() {
       let avatarData = undefined;
       let avatarMime = undefined;
       if (avatarFile) {
-        try {
-          const compressed = await compressImage(avatarFile, 800, 0.8);
-          const { data, mimeType } = await fileToBase64(compressed);
-          avatarData = data;
-          avatarMime = mimeType;
-        } catch {
-          const { data, mimeType } = await fileToBase64(avatarFile);
-          avatarData = data;
-          avatarMime = mimeType;
-        }
+        const { data, mimeType } = await fileToBase64(avatarFile);
+        avatarData = data;
+        avatarMime = mimeType;
       }
 
       const payload: any = { ...form };
@@ -449,6 +452,10 @@ export default function MyPetsPortal() {
           />
         )}
       </AnimatePresence>
+
+      {cropFile && (
+        <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+      )}
     </div>
   );
 }

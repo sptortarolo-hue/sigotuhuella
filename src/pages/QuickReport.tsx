@@ -68,7 +68,7 @@ export default function QuickReport() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFiles = e.target.files;
     if (!rawFiles) return;
-    const file = Array.from(rawFiles).slice(0, 3 - images.length)[0];
+    const file = Array.from(rawFiles).slice(0, 1 - images.length)[0];
     if (!file) return;
     setCropFile(file);
     setCroppingIndex(images.length);
@@ -338,27 +338,25 @@ export default function QuickReport() {
               </div>
             )}
 
-            {/* Photos (only for retained) */}
-            {pageState === 'retained' && (
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Fotos (opcional, hasta 3)</label>
-                <div className="flex flex-wrap gap-3">
-                  {images.map((img, i) => (
-                    <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-brand-accent">
-                      <img src={`data:${imageMimeTypes[i] || 'image/jpeg'};base64,${img}`} alt="" className="w-full h-full object-cover" />
-                      <button onClick={() => removeImage(i)} className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600">✕</button>
-                    </div>
-                  ))}
-                  {images.length < 3 && (
-                    <label className="w-24 h-24 border-2 border-dashed border-brand-accent rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-brand-primary transition-colors">
-                      <Camera className="w-6 h-6 text-gray-400" />
-                      <span className="text-xs text-gray-400 mt-1">Agregar</span>
-                      <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                    </label>
-                  )}
-                </div>
+            {/* Photos (opcional, máximo 1) */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Foto (opcional)</label>
+              <div className="flex flex-wrap gap-3">
+                {images.map((img, i) => (
+                  <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-brand-accent">
+                    <img src={`data:${imageMimeTypes[i] || 'image/jpeg'};base64,${img}`} alt="" className="w-full h-full object-cover" />
+                    <button onClick={() => removeImage(i)} className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600">✕</button>
+                  </div>
+                ))}
+                {images.length < 1 && (
+                  <label className="w-24 h-24 border-2 border-dashed border-brand-accent rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-brand-primary transition-colors">
+                    <Camera className="w-6 h-6 text-gray-400" />
+                    <span className="text-xs text-gray-400 mt-1">Agregar</span>
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  </label>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Submit */}
             <button onClick={() => submitReport(pageState === 'sighted' ? 'sighted' : 'retained')}

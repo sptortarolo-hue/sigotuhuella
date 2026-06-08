@@ -17,7 +17,6 @@ async function processImage(imageData, mimeType, size = 800) {
       .toBuffer();
     return {
       data: processed.toString('base64'),
-      original_data: processed.toString('base64'),
       mimeType: 'image/jpeg',
     };
   } catch (err) {
@@ -241,7 +240,7 @@ router.post('/', requireAuth, async (req, res) => {
         const processed = await processImage(img.data, img.mimeType || 'image/jpeg', 800);
         await client.query(
           'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
-          [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
+          [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, null]
         );
       }
     }
@@ -325,7 +324,7 @@ router.put('/:id', requireAuth, async (req, res) => {
         const processed = await processImage(img.data, img.mimeType, 800);
         await pool.query(
           'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
-          [petId, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
+          [petId, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, null]
         );
       }
     } else if (req.body.images && req.body.images.length > 0) {
@@ -335,7 +334,7 @@ router.put('/:id', requireAuth, async (req, res) => {
         const processed = await processImage(img.data, img.mimeType, 800);
         await pool.query(
           'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
-          [petId, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
+          [petId, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, null]
         );
       }
     }
@@ -656,7 +655,7 @@ router.post('/public', async (req, res) => {
         const processed = await processImage(img.data, img.mimeType, 800);
         await client.query(
           'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
-          [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
+          [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, null]
         );
       }
     }
@@ -760,7 +759,7 @@ router.post('/lost-report', async (req, res) => {
       const processed = await processImage(img.data, img.mimeType, 800);
       await client.query(
         'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
-        [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
+        [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, null]
       );
     }
 

@@ -36,9 +36,9 @@ async function compressAvatar(imageData, mimeType, size = 400) {
       .resize(size, size, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 80 })
       .toBuffer();
-    return { data: processed.toString('base64'), original_data: processed.toString('base64'), mimeType: 'image/jpeg' };
+    return { data: processed.toString('base64'), mimeType: 'image/jpeg' };
   } catch {
-    return { data: imageData, mimeType, original_data: imageData };
+    return { data: imageData, mimeType };
   }
 }
 
@@ -49,9 +49,9 @@ async function compressPhoto(imageData, mimeType, size = 1200) {
       .resize(size, size, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 85 })
       .toBuffer();
-    return { data: processed.toString('base64'), original_data: processed.toString('base64'), mimeType: 'image/jpeg' };
+    return { data: processed.toString('base64'), mimeType: 'image/jpeg' };
   } catch {
-    return { data: imageData, mimeType, original_data: imageData };
+    return { data: imageData, mimeType };
   }
 }
 
@@ -135,7 +135,7 @@ router.post('/', requireAuth, async (req, res) => {
       const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg');
       avatarData = compressed.data;
       avatarMime = compressed.mimeType;
-      avatarOriginal = compressed.original_data;
+      avatarOriginal = null;
     }
 
     const result = await pool.query(
@@ -200,7 +200,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       addField('avatar_mime_type', compressed.mimeType);
       addField('crop_x', crop_x ?? 0.5);
       addField('crop_y', crop_y ?? 0.5);
-      addField('original_avatar_data', compressed.original_data);
+      addField('original_avatar_data', null);
     }
 
     if (sets.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
@@ -250,7 +250,7 @@ router.post('/:id/photos', requireAuth, async (req, res) => {
       `INSERT INTO my_pet_photos (my_pet_id, image_data, mime_type, caption, taken_at, crop_x, crop_y, original_image_data)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, caption, taken_at, created_at, mime_type`,
       [req.params.id, compressed.data, compressed.mimeType, caption || null, taken_at || null,
-       crop_x ?? 0.5, crop_y ?? 0.5, compressed.original_data]
+        crop_x ?? 0.5, crop_y ?? 0.5, null]
     );
     res.status(201).json({ photo: result.rows[0] });
   } catch (err) {
@@ -546,7 +546,7 @@ router.post('/convert/:petId', requireAuth, async (req, res) => {
       const compressed = await compressAvatar(img.image_data, img.mime_type);
       avatarData = compressed.data;
       avatarMime = compressed.mimeType;
-      avatarOriginal = compressed.original_data;
+      avatarOriginal = null;
       cropX = img.crop_x ?? 0.5;
       cropY = img.crop_y ?? 0.5;
     }

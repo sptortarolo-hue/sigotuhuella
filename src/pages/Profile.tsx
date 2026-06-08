@@ -4,6 +4,8 @@ import { api } from '@/src/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Save, Loader2, ArrowLeft, CheckCircle2, AlertCircle, Phone as PhoneIcon, Camera, Upload, PawPrint, CreditCard, TrendingUp, Award } from 'lucide-react';
 import { motion } from 'motion/react';
+import ImageCropper from '@/src/components/ImageCropper';
+import { fileToBase64 } from '@/src/lib/storageService';
 
 export default function Profile() {
   const { user, login, logout, updateUser } = useAuth();
@@ -42,6 +44,7 @@ export default function Profile() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const isMember = user?.member_number && user?.volunteer_status !== 'none';
 
@@ -58,53 +61,31 @@ export default function Profile() {
     }
   }, [user]);
 
-const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<{ base64: string, mimeType: string }> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.src = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(img.src);
-      const canvas = document.createElement('canvas');
-      const width = img.width;
-      const height = img.height;
-      const size = Math.min(width, height);
-      canvas.width = maxWidth;
-      canvas.height = maxHeight;
-      
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas context error'));
-        return;
-      }
-      const sx = (width - size) / 2;
-      const sy = (height - size) / 2;
-      ctx.drawImage(img, sx, sy, size, size, 0, 0, maxWidth, maxHeight);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      resolve({
-        base64: dataUrl.split(',')[1],
-        mimeType: 'image/jpeg'
-      });
-    };
-    img.onerror = (err) => reject(err);
-  });
-};
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCropFile(file);
+  };
+
+  const handleCropComplete = async (croppedBlob: Blob) => {
+    setCropFile(null);
     setAvatarLoading(true);
     setProfileMsg('');
     setProfileError('');
     try {
-      const resized = await resizeImage(file, 200, 200);
-      const data = await api.users.uploadAvatar(user.id, { imageData: resized.base64, mimeType: resized.mimeType });
-      updateUser({ avatar_data: data.avatar.avatar_data, avatar_mime_type: data.avatar.avatar_mime_type, avatar_type: data.avatar.avatar_type });
+      const { data, mimeType } = await fileToBase64(new File([croppedBlob], 'avatar.jpg', { type: 'image/jpeg' }));
+      const res = await api.users.uploadAvatar(user.id, { imageData: data, mimeType });
+      updateUser({ avatar_data: res.avatar.avatar_data, avatar_mime_type: res.avatar.avatar_mime_type, avatar_type: res.avatar.avatar_type });
       setProfileMsg('Foto de perfil actualizada');
     } catch (err: any) {
       setProfileError(err.message || 'Error al subir foto');
     } finally {
       setAvatarLoading(false);
     }
+  };
+
+  const handleCropCancel = () => {
+    setCropFile(null);
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -169,7 +150,7 @@ const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<{
               <PawPrint className="w-8 h-8 text-brand-primary" />
             )}
           </div>
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarSelect} className="hidden" />
           <button onClick={() => fileInputRef.current?.click()} disabled={avatarLoading}
             className="px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:shadow-lg transition-all disabled:opacity-50"
           >
@@ -252,6 +233,10 @@ const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<{
           <button type="submit" disabled={passwordLoading} className="w-full py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2">{passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}Cambiar Contraseña</button>
         </form>
       </motion.div>
+
+      {cropFile && (
+        <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+      )}
     </div>
   );
 }

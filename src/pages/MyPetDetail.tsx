@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/src/lib/api';
-import { compressImage, fileToBase64 } from '@/src/lib/storageService';
+import { fileToBase64 } from '@/src/lib/storageService';
 import { formatTag } from '@/src/lib/personalityTags';
 import ImageCropper from '@/src/components/ImageCropper';
 import {
@@ -80,6 +80,7 @@ export default function MyPetDetail() {
   const [recordPhotoPreviews, setRecordPhotoPreviews] = useState<string[]>([]);
   const recordPhotoInputRef = useRef<HTMLInputElement>(null);
 
+  const [recordCropFile, setRecordCropFile] = useState<File | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [videoTitle, setVideoTitle] = useState('');
   const [videoMusic, setVideoMusic] = useState('emotional');
@@ -237,20 +238,47 @@ export default function MyPetDetail() {
     finally { setEventLoading(false); }
   };
 
-  const handleRecordPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const handleRecordPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []) as File[];
     const remaining = 3 - recordPhotos.length;
     const toAdd = files.slice(0, remaining);
     if (toAdd.length === 0) return;
-    const previews: string[] = [];
-    for (const file of toAdd) {
-      const compressed = await compressImage(file, 1200, 0.85);
-      const { data } = await fileToBase64(compressed);
-      previews.push(data);
-    }
+    // Store raw files and open cropper for the first one
     setRecordPhotos(prev => [...prev, ...toAdd]);
-    setRecordPhotoPreviews(prev => [...prev, ...previews]);
-    if (recordPhotoInputRef.current) recordPhotoInputRef.current.value = '';
+    setRecordCropFile(toAdd[0]);
+    setRecordCropIndex(recordPhotos.length);
+  };
+
+  const [recordCropIndex, setRecordCropIndex] = useState<number | null>(null);
+
+  const handleRecordCropComplete = (croppedBlob: Blob) => {
+    if (recordCropIndex === null) return;
+    const file = new File([croppedBlob], 'record.jpg', { type: 'image/jpeg' });
+    // Store base64 as preview
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      const base64 = result.split(',')[1];
+      setRecordPhotoPreviews(prev => {
+        const newPreviews = [...prev];
+        newPreviews[recordCropIndex] = base64;
+        return newPreviews;
+      });
+    };
+    reader.readAsDataURL(croppedBlob);
+    // Replace the raw file with the cropped one
+    setRecordPhotos(prev => {
+      const newPhotos = [...prev];
+      newPhotos[recordCropIndex] = file;
+      return newPhotos;
+    });
+    setRecordCropFile(null);
+    setRecordCropIndex(null);
+  };
+
+  const handleRecordCropCancel = () => {
+    setRecordCropFile(null);
+    setRecordCropIndex(null);
   };
 
   const removeRecordPhoto = (index: number) => {
@@ -264,8 +292,7 @@ export default function MyPetDetail() {
       setRecordLoading(true);
       const uploadedIds: string[] = [];
       for (const file of recordPhotos) {
-        const compressed = await compressImage(file, 1200, 0.85);
-        const { data, mimeType } = await fileToBase64(compressed);
+        const { data, mimeType } = await fileToBase64(file);
         const res = await api.myPets.photos.create(id!, {
           image_data: data, mime_type: mimeType, caption: '', taken_at: new Date().toISOString(),
         });
@@ -403,6 +430,9 @@ export default function MyPetDetail() {
       {cropMode && cropFile && (
         <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
       )}
+      {recordCropFile && (
+        <ImageCropper file={recordCropFile} aspect={1} onCropComplete={handleRecordCropComplete} onCancel={handleRecordCropCancel} />
+      )}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
       <button onClick={() => navigate('/mi-mascota')} className="flex items-center gap-2 text-gray-400 hover:text-brand-primary transition-colors mb-4 text-sm">
         <ArrowLeft className="w-4 h-4" /> Volver a mis mascotas
@@ -417,9 +447,11 @@ export default function MyPetDetail() {
             className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-white/20 bg-white/10 shrink-0 relative group"
             title="Cambiar foto de perfil"
           >
-            {pet.avatar_image ? (
-              <img src={`/my-pet-avatar/${pet.id}?t=${Date.now()}`} alt={pet.name} className="w-full h-full object-cover" />
-            ) : (
+{pet.avatar_image ? (
+  <img src={`/my-pet-avatar/${pet.id}?t=${Date.now()}`} alt={pet.name}
+    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+    className="w-full h-full object-cover" />
+) : (
               <div className="w-full h-full flex items-center justify-center">
                 <PawPrint className="w-10 h-10 text-white/60" />
               </div>

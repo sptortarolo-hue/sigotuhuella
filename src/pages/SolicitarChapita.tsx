@@ -2,7 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
-import { compressImage, fileToBase64 } from '@/src/lib/storageService';
+import { fileToBase64 } from '@/src/lib/storageService';
+import ImageCropper from '@/src/components/ImageCropper';
 import {
   PawPrint, ArrowLeft, Loader2, CheckCircle2, Dog, Cat,
   QrCode, Mail, Lock, Phone, User, Camera, Syringe, Scissors, Bug, RefreshCw,
@@ -34,6 +35,7 @@ export default function SolicitarChapita() {
   const [pet, setPet] = useState({ ...emptyPetForm });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -50,13 +52,21 @@ export default function SolicitarChapita() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCropFile(file);
+  };
+
+  const handleCropComplete = (croppedBlob: Blob) => {
+    const file = new File([croppedBlob], 'avatar.jpg', { type: 'image/jpeg' });
     setAvatarFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
+    setAvatarPreview(URL.createObjectURL(croppedBlob));
+    setCropFile(null);
+  };
+
+  const handleCropCancel = () => {
+    setCropFile(null);
   };
 
   const handleSubmit = async () => {
@@ -91,8 +101,7 @@ export default function SolicitarChapita() {
       let avatarData: string | undefined;
       let avatarMime: string | undefined;
       if (avatarFile) {
-        const compressed = await compressImage(avatarFile, 800, 0.8);
-        const result = await fileToBase64(compressed);
+        const result = await fileToBase64(avatarFile);
         avatarData = result.data;
         avatarMime = result.mimeType;
       }
@@ -455,6 +464,10 @@ export default function SolicitarChapita() {
           </button>
         </div>
       </motion.div>
+
+      {cropFile && (
+        <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+      )}
     </div>
   );
 }

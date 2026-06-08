@@ -59,11 +59,12 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
 
         {imageUrls.length > 0 ? (
           <div className="w-full h-full relative">
-            <img 
-              src={imageUrl}
-              alt={pet.name || 'Mascota'} 
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-            />
+      <img 
+        src={imageUrl}
+        alt={pet.name || 'Mascota'} 
+        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+      />
             {imageUrls.length > 1 && (
               <div className="absolute bottom-4 right-4 px-2 py-1 bg-black/50 text-white text-[10px] font-bold rounded-md backdrop-blur-sm">
                 1 / {imageUrls.length}

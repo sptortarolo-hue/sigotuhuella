@@ -56,7 +56,7 @@ app.get('/og-image/:petId/:index', async (req, res) => {
     const result = await pool.query(sql,
       [req.params.petId, parseInt(req.params.index) || 0]
     );
-    if (result.rows.length === 0) return res.status(404).end();
+    if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).end();
     const img = result.rows[0];
     const buffer = Buffer.from(img.image_data, 'base64');
     res.set('Content-Type', img.mime_type);
@@ -111,12 +111,11 @@ app.get('/my-pet-avatar/:petId', async (req, res) => {
 
 app.get('/my-pet-photo/:photoId', async (req, res) => {
   try {
-    const full = req.query.full === '1';
-    const sql = full
-      ? 'SELECT COALESCE(original_image_data, image_data) AS image_data, mime_type FROM my_pet_photos WHERE id = $1'
-      : 'SELECT image_data, mime_type FROM my_pet_photos WHERE id = $1';
-    const result = await pool.query(sql, [req.params.photoId]);
-    if (result.rows.length === 0) return res.status(404).end();
+    const result = await pool.query(
+      'SELECT image_data, mime_type FROM my_pet_photos WHERE id = $1',
+      [req.params.photoId]
+    );
+    if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).end();
     const img = result.rows[0];
     const buffer = Buffer.from(img.image_data, 'base64');
     res.set('Content-Type', img.mime_type || 'image/jpeg');

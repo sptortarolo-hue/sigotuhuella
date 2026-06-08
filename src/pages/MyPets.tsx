@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { Pet, PetStatus, getPetCoordinates, deletePet, updatePet, getPetImageUrls } from '@/src/lib/petService';
-import { filesToBase64, compressImage } from '@/src/lib/storageService';
+import { filesToBase64 } from '@/src/lib/storageService';
 import { useNavigate } from 'react-router-dom';
 import PetCard from '@/src/components/PetCard';
 import PetMap from '@/src/components/PetMap';
 import MapLoader from '@/src/components/MapLoader';
 import PetRecordsModal from '@/src/components/PetRecordsModal';
+import ImageCropper from '@/src/components/ImageCropper';
 import { Search, Loader2, Grid, Map as MapIcon, ArrowLeft, PawPrint, X, Save, HeartHandshake, Activity, Heart, ChevronRight, ChevronLeft, Check, Calendar, Weight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -66,6 +67,41 @@ export default function MyPets() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [imagesToKeep, setImagesToKeep] = useState<string[]>([]);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [croppingIndex, setCroppingIndex] = useState<number | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
+  const handleCropComplete = (blob: Blob) => {
+    if (croppingIndex === null) return;
+    const file = new File([blob], 'pet.jpg', { type: 'image/jpeg' });
+    setSelectedFiles(prev => {
+      const next = [...prev];
+      next[croppingIndex] = file;
+      return next;
+    });
+    setPreviews(prev => {
+      const next = [...prev];
+      next[croppingIndex] = URL.createObjectURL(blob);
+      return next;
+    });
+    // Next pending file
+    if (pendingFiles.length > 0) {
+      const next = pendingFiles[0];
+      setPendingFiles(prev => prev.slice(1));
+      setCropFile(next);
+      setCroppingIndex(croppingIndex + 1);
+    } else {
+      setCropFile(null);
+      setCroppingIndex(null);
+    }
+  };
+
+  const handleCropCancel = () => {
+    setCropFile(null);
+    setCroppingIndex(null);
+    setPendingFiles([]);
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     species: 'dog' as 'dog' | 'cat' | 'other',
@@ -374,11 +410,12 @@ export default function MyPets() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Imágenes</label>
-                  <input type="file" accept="image/*" multiple onChange={async e => { 
-                    const raw = Array.from(e.target.files || []) as File[]; 
-                    const files = await Promise.all(raw.map(f => compressImage(f)));
-                    setSelectedFiles([...selectedFiles, ...files]); 
-                    setPreviews([...previews, ...files.map(f => URL.createObjectURL(f))]); 
+                  <input type="file" accept="image/*" multiple onChange={e => { 
+                    const raw = Array.from(e.target.files || []) as File[];
+                    if (raw.length === 0) return;
+                    setPendingFiles(raw.slice(1));
+                    setCropFile(raw[0]);
+                    setCroppingIndex(selectedFiles.length);
                   }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
                   {previews.length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
@@ -521,6 +558,10 @@ export default function MyPets() {
           </div>
         )}
       </AnimatePresence>
+
+      {cropFile && (
+        <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+      )}
     </div>
   );
 }

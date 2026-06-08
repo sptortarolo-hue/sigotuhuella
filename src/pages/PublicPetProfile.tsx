@@ -94,7 +94,9 @@ export default function PublicPetProfile() {
             <div className="flex items-center gap-5">
               <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-white/20 bg-white/10 shrink-0 shadow-lg">
                 {pet.has_avatar ? (
-                  <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name} className="w-full h-full object-cover" />
+                  <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <PawPrint className="w-12 h-12 text-white/60" />
@@ -166,6 +168,7 @@ export default function PublicPetProfile() {
                       <img
                         src={`/my-pet-photo/${photo.id}`}
                         alt={photo.caption || 'Foto'}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                         className="w-full h-full object-cover"
                       />
                     </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getPets, createPet, updatePet, deletePet, Pet, PetStatus, getPetImageUrl } from '@/src/lib/petService';
-import { filesToBase64, compressImage } from '@/src/lib/storageService';
+import { filesToBase64, fileToBase64, compressImage } from '@/src/lib/storageService';
+import ImageCropper from '@/src/components/ImageCropper';
 import {
   getCollaborationAccounts,
   createCollaborationAccount,
@@ -121,6 +122,7 @@ export default function Admin() {
   const [newsPreview, setNewsPreview] = useState<string | null>(null);
   const [newsImageData, setNewsImageData] = useState<string | null>(null);
   const [newsMimeType, setNewsMimeType] = useState<string | null>(null);
+  const [newsCropFile, setNewsCropFile] = useState<File | null>(null);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiType, setAiType] = useState('consejo_cuidado');
   const [aiTopic, setAiTopic] = useState('');
@@ -264,21 +266,29 @@ export default function Admin() {
     setShowNewsForm(true);
   };
 
-  const handleNewsFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNewsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setNewsCropFile(file);
+  };
+
+  const handleNewsCropComplete = async (croppedBlob: Blob) => {
+    setNewsCropFile(null);
+    const file = new File([croppedBlob], 'news.jpg', { type: 'image/jpeg' });
+    setNewsFile(file);
+    setNewsPreview(URL.createObjectURL(croppedBlob));
     try {
-      const compressed = await compressImage(file);
-      setNewsFile(compressed);
-      setNewsPreview(URL.createObjectURL(compressed));
-      const results = await filesToBase64([compressed]);
+      const results = await filesToBase64([file]);
       setNewsImageData(results[0]?.data || null);
       setNewsMimeType(results[0]?.mimeType || null);
     } catch (err) {
       console.error('Error al procesar imagen:', err);
-      alert('No se pudo procesar la imagen. Intentá con otra.');
-      e.target.value = '';
+      alert('No se pudo procesar la imagen.');
     }
+  };
+
+  const handleNewsCropCancel = () => {
+    setNewsCropFile(null);
   };
 
   const handleAiGenerate = async () => {
@@ -2174,6 +2184,10 @@ export default function Admin() {
           <SocialShareModal pet={sharePet} onClose={() => setSharePet(null)} />
         )}
       </AnimatePresence>
+
+      {newsCropFile && (
+        <ImageCropper file={newsCropFile} aspect={16/9} onCropComplete={handleNewsCropComplete} onCancel={handleNewsCropCancel} />
+      )}
     </div>
   );
 }

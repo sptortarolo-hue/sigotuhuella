@@ -89,7 +89,9 @@ export default function VetPetProfile() {
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-white/20 bg-white/10 shrink-0">
                 {pet.avatar_image ? (
-                  <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name} className="w-full h-full object-cover" />
+                  <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <PawPrint className="w-10 h-10 text-white/60" />
