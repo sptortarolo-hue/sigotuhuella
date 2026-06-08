@@ -73,10 +73,10 @@ export default function ImageCropper({ file, aspect = 1, onCropComplete, onCance
   }, [croppedAreaPixels, imageUrl, onCropComplete]);
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
-      <div className="relative w-full max-w-2xl bg-white rounded-[2.5rem] flex flex-col max-h-[90vh] overflow-hidden shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+      <div className="relative w-full max-w-2xl bg-white flex flex-col max-h-[90vh] overflow-hidden shadow-2xl sm:rounded-[2.5rem]">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 shrink-0">
           <h3 className="font-serif font-bold text-lg text-brand-primary">Ajustar foto</h3>
           <button onClick={onCancel} className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-5 h-5" />
@@ -98,33 +98,36 @@ export default function ImageCropper({ file, aspect = 1, onCropComplete, onCance
           </p>
         </div>
 
-        <div className="flex items-center justify-center gap-4 px-6 py-4 border-t border-gray-100 shrink-0">
-          <button onClick={() => onZoomChange(zoom - 0.2)}
-            className="p-2 text-gray-500 hover:text-brand-primary transition-colors">
-            <ZoomOut className="w-5 h-5" />
-          </button>
-          <input
-            type="range"
-            min={1}
-            max={3}
-            step={0.1}
-            value={zoom}
-            onChange={(e) => onZoomChange(parseFloat(e.target.value))}
-            className="w-40 accent-brand-primary"
-          />
-          <button onClick={() => onZoomChange(zoom + 0.2)}
-            className="p-2 text-gray-500 hover:text-brand-primary transition-colors">
-            <ZoomIn className="w-5 h-5" />
-          </button>
-          <div className="flex-1" />
-          <button onClick={onCancel}
-            className="px-5 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors">
-            Cancelar
-          </button>
-          <button onClick={handleConfirm}
-            className="px-6 py-2 bg-brand-primary text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all">
-            Confirmar
-          </button>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 px-4 sm:px-6 py-4 border-t border-gray-100 shrink-0">
+          <div className="flex items-center justify-center gap-2">
+            <button onClick={() => onZoomChange(zoom - 0.2)}
+              className="p-2 text-gray-500 hover:text-brand-primary transition-colors shrink-0">
+              <ZoomOut className="w-5 h-5" />
+            </button>
+            <input
+              type="range"
+              min={1}
+              max={3}
+              step={0.1}
+              value={zoom}
+              onChange={(e) => onZoomChange(parseFloat(e.target.value))}
+              className="flex-1 sm:w-40 accent-brand-primary"
+            />
+            <button onClick={() => onZoomChange(zoom + 0.2)}
+              className="p-2 text-gray-500 hover:text-brand-primary transition-colors shrink-0">
+              <ZoomIn className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex items-center justify-end gap-2 sm:flex-1">
+            <button onClick={onCancel}
+              className="flex-1 sm:flex-none px-5 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors">
+              Cancelar
+            </button>
+            <button onClick={handleConfirm}
+              className="flex-1 sm:flex-none px-6 py-2 bg-brand-primary text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all">
+              Confirmar
+            </button>
+          </div>
         </div>
       </div>
     </div>
