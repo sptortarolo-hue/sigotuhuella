@@ -38,6 +38,7 @@ const Feed = lazy(() => import('@/src/pages/Feed'));
 const Contests = lazy(() => import('@/src/pages/Contests'));
 const SolicitarChapita = lazy(() => import('@/src/pages/SolicitarChapita'));
 const VerifyEmail = lazy(() => import('@/src/pages/VerifyEmail'));
+const FlyerPage = lazy(() => import('@/src/pages/FlyerPage'));
 
 function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin?: boolean }) {
   const { user, isAdmin: isUserAdmin, loading } = useAuth();
@@ -81,6 +82,7 @@ export default function App() {
                <Route path="/completar-registro" element={<CompleteRegistration />} />
                <Route path="/difusion" element={<DiffusionPage />} />
                 <Route path="/descargar-cartel" element={<DiffusionPage />} />
+               <Route path="/flyer" element={<FlyerPage />} />
                 <Route path="/compartir-qr" element={<DiffusionPage />} />
               <Route path="/colaborar" element={<Collaborate />} />
                <Route path="/solicitar-chapita" element={<SolicitarChapita />} />
