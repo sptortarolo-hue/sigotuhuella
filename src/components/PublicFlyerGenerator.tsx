@@ -100,7 +100,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
     setPendingFile(null);
   };
 
-  const handleGenerate = async () => {
+  const handlePreview = async () => {
     if (!form.contact_info) {
       setError('WhatsApp / teléfono es obligatorio');
       return;
@@ -110,46 +110,20 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
       return;
     }
     setError('');
-    setSaving(true);
     try {
-      const encoded = await blobToBase64(photoBlob);
-      const res = await fetch('/api/pets/public', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          images: [{ data: encoded.data, mimeType: encoded.mimeType }],
-          neighborhoods: selectedNeighborhoodId ? [selectedNeighborhoodId] : [],
-          ...(selectedCoords ? { latitude: selectedCoords.lat, longitude: selectedCoords.lng } : {}),
-        }),
-      });
-      if (!res.ok) throw new Error('Error al guardar');
-      const data = await res.json();
-      const cn = data.pet.case_number || '';
-      setCaseNumber(cn);
-      setPetId(data.pet.id);
-
-      // Use the server-returned image as the source
-      const petImages = data.pet.images || [];
-      const imgSrc = petImages.length > 0 && petImages[0].image_data
-        ? `data:${petImages[0].mime_type || 'image/jpeg'};base64,${petImages[0].image_data}`
-        : photoUrl;
-
-      // Load both images in parallel, then render
-      const [petImg, logoImg] = await Promise.all([
-        loadImage(imgSrc!).catch(() => null),
-        loadImage('/sigotuhuella.jpg').catch(() => null),
-      ]);
-
-      // Render on hidden canvas only (preview canvas copies via useEffect)
       const dims = FORMAT_DIMS[format];
       const w = dims.w, h = dims.h;
       const flyerData = {
         name: form.name, status: form.status, species: form.species,
         breed: form.breed, location: form.location, contact_info: form.contact_info,
-        instagram: form.instagram, description: form.description, case_number: cn,
+        instagram: form.instagram, description: form.description, case_number: '',
       };
       const design = statusDesigns[form.status] || statusDesigns.lost;
+
+      const [petImg, logoImg] = await Promise.all([
+        loadImage(photoUrl!).catch(() => null),
+        loadImage('/sigotuhuella.jpg').catch(() => null),
+      ]);
 
       const canvas = canvasRef.current;
       if (canvas) {
@@ -162,15 +136,71 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
       }
 
       setStep('preview');
-      setSaving(false);
     } catch (e: any) {
-      setError(e.message || 'Error al generar flyer');
-      setSaving(false);
+      setError('Error al generar vista previa');
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!canvasRef.current) return;
+
+    if (!caseNumber) {
+      setSaving(true);
+      try {
+        const encoded = await blobToBase64(photoBlob!);
+        const res = await fetch('/api/pets/public', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...form,
+            images: [{ data: encoded.data, mimeType: encoded.mimeType }],
+            neighborhoods: selectedNeighborhoodId ? [selectedNeighborhoodId] : [],
+            ...(selectedCoords ? { latitude: selectedCoords.lat, longitude: selectedCoords.lng } : {}),
+          }),
+        });
+        if (!res.ok) throw new Error('Error al guardar');
+        const data = await res.json();
+        const cn = data.pet.case_number || '';
+        setCaseNumber(cn);
+        setPetId(data.pet.id);
+
+        // Redraw hidden canvas with real case_number
+        const petImages = data.pet.images || [];
+        const imgSrc = petImages.length > 0 && petImages[0].image_data
+          ? `data:${petImages[0].mime_type || 'image/jpeg'};base64,${petImages[0].image_data}`
+          : photoUrl;
+
+        const dims = FORMAT_DIMS[format];
+        const w = dims.w, h = dims.h;
+        const flyerData = {
+          name: form.name, status: form.status, species: form.species,
+          breed: form.breed, location: form.location, contact_info: form.contact_info,
+          instagram: form.instagram, description: form.description, case_number: cn,
+        };
+        const design = statusDesigns[form.status] || statusDesigns.lost;
+
+        const [petImg, logoImg] = await Promise.all([
+          loadImage(imgSrc!).catch(() => null),
+          loadImage('/sigotuhuella.jpg').catch(() => null),
+        ]);
+
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            canvas.width = w;
+            canvas.height = h;
+            drawFlyer(ctx, w, h, design, flyerData, petImg, logoImg);
+          }
+        }
+      } catch (e: any) {
+        setError(e.message || 'Error al publicar');
+        setSaving(false);
+        return;
+      }
+      setSaving(false);
+    }
+
     canvasRef.current.toBlob(blob => {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
@@ -347,13 +377,13 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
 
               {error && <p className="text-xs text-red-500 font-bold">{error}</p>}
 
-              <button onClick={handleGenerate} disabled={saving}
-                className="w-full py-3.5 bg-gradient-to-r from-brand-primary to-brand-secondary/80 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-70">
-                {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</> : <><PawPrint className="w-4 h-4" /> Generar flyer</>}
+              <button onClick={handlePreview}
+                className="w-full py-3.5 bg-gradient-to-r from-brand-primary to-brand-secondary/80 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:shadow-lg transition-all">
+                <PawPrint className="w-4 h-4" /> Vista previa
               </button>
 
               <p className="text-[10px] text-gray-400 text-center">
-                Al generar, se crea un caso anónimo. Tu número aparece en el flyer.
+                Solo se publica al descargar. Podés previsualizar antes.
               </p>
             </>
           )}
@@ -361,8 +391,8 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
           {step === 'preview' && (
             <div className="text-center space-y-4">
               <div className="flex items-center justify-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full" />
-                <span className="text-sm font-bold text-green-700">Flyer generado</span>
+                <span className="w-2 h-2 bg-amber-500 rounded-full" />
+                <span className="text-sm font-bold text-amber-700">Vista previa</span>
               </div>
 
               <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden pointer-events-none select-none max-w-full max-h-[55vh]"
@@ -373,14 +403,20 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                 />
               </div>
 
-              <p className="text-xs text-gray-500">
-                Caso: <span className="font-bold text-brand-primary">{caseNumber}</span>
+              <p className="text-xs text-gray-400">
+                Sin número de caso — se genera al descargar.
               </p>
 
-              <button onClick={handleDownload}
-                className="w-full py-3.5 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:shadow-lg transition-all">
-                <Download className="w-4 h-4" /> Descargar flyer
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button onClick={() => setStep('form')}
+                  className="flex-1 py-3 border-2 border-brand-accent text-gray-600 rounded-xl font-bold text-sm hover:bg-brand-accent transition-all">
+                  Volver
+                </button>
+                <button onClick={handleDownload} disabled={saving}
+                  className="flex-1 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-70">
+                  {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Publicando...</> : <><Download className="w-4 h-4" /> Descargar y publicar</>}
+                </button>
+              </div>
             </div>
           )}
 
