@@ -6,6 +6,10 @@ import { MapPin, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 
+const FEATURED_IDS = ['garibaldi_sicardi', 'ignacio_correas', 'el_peligro'];
+const featuredNeighborhoods = FEATURED_IDS.map(id => NEIGHBORHOODS.find(n => n.id === id)).filter(Boolean);
+const restNeighborhoods = NEIGHBORHOODS.filter(n => !FEATURED_IDS.includes(n.id));
+
 const customIcon = L.divIcon({
   html: renderToStaticMarkup(<div className="text-brand-primary"><MapPin className="w-8 h-8 fill-white stroke-[2.5px]" /></div>),
   iconSize: [32, 32],
@@ -40,7 +44,7 @@ function LocationMarker({ onSelect, selectedLocation }: { onSelect: (loc: {lat: 
 }
 
 export default function ZoneSelector({ initialCenter, selectedLocation, onLocationSelect, selectedNeighborhoods, onNeighborhoodsChange }: ZoneSelectorProps) {
-  const [showAll, setShowAll] = useState(false);
+  const [showRest, setShowRest] = useState(false);
   const toggleId = (id: string) => {
     if (selectedNeighborhoods.includes(id)) {
       onNeighborhoodsChange(selectedNeighborhoods.filter(n => n !== id));
@@ -112,17 +116,38 @@ export default function ZoneSelector({ initialCenter, selectedLocation, onLocati
         </div>
       )}
 
+      <label className="block text-xs font-bold text-gray-500 mt-4 mb-2">Zona principal</label>
+      <div className="flex flex-wrap gap-2">
+        {(featuredNeighborhoods as typeof NEIGHBORHOODS).map(n => {
+          const isSelected = selectedNeighborhoods.includes(n.id);
+          return (
+            <button
+              key={n.id}
+              onClick={() => toggleId(n.id)}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all"
+              style={{
+                borderColor: n.color,
+                backgroundColor: isSelected ? n.color : 'transparent',
+                color: isSelected ? '#fff' : n.color,
+              }}
+            >
+              {n.name}
+            </button>
+          );
+        })}
+      </div>
+
       <button
-        onClick={() => setShowAll(!showAll)}
+        onClick={() => setShowRest(!showRest)}
         className="flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-brand-primary mt-2 transition-colors"
       >
-        {showAll ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        Todos los barrios ({NEIGHBORHOODS.length})
+        {showRest ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        Más barrios ({restNeighborhoods.length})
       </button>
 
-      {showAll && (
+      {showRest && (
         <div className="flex flex-wrap gap-2 mt-2">
-          {NEIGHBORHOODS.map(n => {
+          {restNeighborhoods.map(n => {
             const isSelected = selectedNeighborhoods.includes(n.id);
             return (
               <button
