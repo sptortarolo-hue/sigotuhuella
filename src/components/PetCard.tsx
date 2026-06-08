@@ -23,6 +23,11 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
     const [showShareModal, setShowShareModal] = useState(false);
     const [currentIdx, setCurrentIdx] = useState(0);
     const touchStartX = useRef(0);
+    const petNeighborhoods: string[] = (() => {
+      if (Array.isArray(pet.neighborhoods)) return pet.neighborhoods;
+      if (typeof pet.neighborhoods === 'string') try { return JSON.parse(pet.neighborhoods); } catch { return []; }
+      return [];
+    })();
     const statusColors = {
 
      [PetStatus.LOST]: 'bg-red-100 text-red-700',
@@ -126,9 +131,9 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             <MapPin className="w-4 h-4 text-brand-secondary" />
             <span className="break-words">{pet.location}</span>
           </div>
-          {pet.neighborhoods?.length > 0 && (
+          {petNeighborhoods.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              {pet.neighborhoods.slice(0, 3).map(id => {
+              {petNeighborhoods.slice(0, 3).map(id => {
                 const n = NEIGHBORHOODS.find(x => x.id === id);
                 return n ? (
                   <span key={n.id} className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: n.color }}>
@@ -136,8 +141,8 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
                   </span>
                 ) : null;
               })}
-              {pet.neighborhoods.length > 3 && (
-                <span className="text-[10px] text-gray-400 font-bold">+{pet.neighborhoods.length - 3}</span>
+              {petNeighborhoods.length > 3 && (
+                <span className="text-[10px] text-gray-400 font-bold">+{petNeighborhoods.length - 3}</span>
               )}
             </div>
           )}
