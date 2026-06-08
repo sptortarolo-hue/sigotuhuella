@@ -55,7 +55,7 @@ export default function VerifyMember() {
 
   if (error || !member) {
     return (
-      <div className="max-w-md mx-auto px-4 py-20 text-center">
+      <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
         <XCircle className="w-20 h-20 mx-auto text-red-400 mb-6" />
         <h1 className="text-2xl font-serif font-bold text-gray-700 mb-2">Miembro no encontrado</h1>
         <p className="text-gray-500">{error || 'El código de verificación no es válido'}</p>
@@ -67,15 +67,15 @@ export default function VerifyMember() {
   const statusColor: Record<string, string> = { active: 'text-emerald-600', inactive: 'text-gray-400', pending: 'text-amber-600', suspended: 'text-gray-400' };
 
   return (
-    <div className="max-w-md mx-auto px-4 py-20">
+    <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-20">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-[2.5rem] border border-brand-accent shadow-xl overflow-hidden">
-        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 p-8 text-center">
+        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 p-6 sm:p-8 text-center">
           <CheckCircle2 className="w-16 h-16 mx-auto text-white mb-4" />
           <h1 className="text-2xl font-serif font-bold text-white">Verificado</h1>
           <p className="text-emerald-100 text-sm mt-1">Miembro confirmado de Sigo Tu Huella</p>
         </div>
 
-        <div className="p-8 space-y-6">
+        <div className="p-6 sm:p-8 space-y-6">
           <div className="flex items-center gap-4">
             <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-brand-accent shrink-0 bg-brand-bg flex items-center justify-center">
               {member.avatar_type === 'photo' && member.avatar_data ? (

@@ -285,7 +285,7 @@ export default function MyPets() {
                   onDelete={handleDelete}
                 />
                 {pet.status !== PetStatus.REUNITED && (
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex gap-2 mt-3 flex-wrap">
                     <button
                       onClick={() => handleReencuentro(pet.id)}
                       className="flex-1 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"
@@ -303,7 +303,7 @@ export default function MyPets() {
                   </div>
                 )}
                 {pet.status === PetStatus.REUNITED && (
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex gap-2 mt-3 flex-wrap">
                     <button
                       onClick={() => openConvertWizard(pet)}
                       className="flex-1 py-2.5 bg-brand-secondary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-secondary/90 transition-colors"
@@ -337,11 +337,11 @@ export default function MyPets() {
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowForm(false)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-              <div className="p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+              <div className="p-6 sm:p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
                 <h2 className="text-2xl font-serif font-bold text-brand-primary">Editar Publicación</h2>
                 <button onClick={() => setShowForm(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
               </div>
-              <form onSubmit={handlePetSubmit} className="p-8 overflow-y-auto space-y-6">
+              <form onSubmit={handlePetSubmit} className="p-6 sm:p-8 overflow-y-auto space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="text-xs font-bold uppercase text-gray-500">Nombre</label>
@@ -376,7 +376,7 @@ export default function MyPets() {
                     </select>
                   </div>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex gap-4 flex-wrap">
                   <label className="flex items-center gap-2 text-sm text-gray-600">
                     <input type="checkbox" className="w-4 h-4 rounded text-brand-primary" checked={formData.isVaccinated} onChange={e => setFormData({...formData, isVaccinated: e.target.checked})} /> Vacunado
                   </label>
@@ -547,7 +547,7 @@ export default function MyPets() {
                         ))}
                       </div>
                     </div>
-                    <div className="flex gap-3 pt-2">
+                    <div className="flex gap-3 pt-2 flex-wrap">
                       <button onClick={() => setConvertWizard({ ...convertWizard, step: 1 })} className="flex-1 py-3 bg-brand-accent text-brand-primary rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-brand-accent/80 transition-colors">
                         <ChevronLeft className="w-4 h-4" /> Volver
                       </button>

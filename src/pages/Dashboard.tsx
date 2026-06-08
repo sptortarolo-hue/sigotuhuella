@@ -133,7 +133,7 @@ export default function Dashboard() {
     : '—';
 
   return (
-    <div className="max-w-4xl mx-auto px-4 pb-20">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
       {/* Header */}
       <div className="relative -mx-4 -mt-4 mb-8 bg-gradient-to-r from-brand-primary to-brand-secondary rounded-b-[3rem] px-6 py-10 shadow-xl overflow-hidden">
         <div className="flex items-center gap-4">

@@ -416,7 +416,7 @@ export default function VideoGeneratorTab() {
 
   if (!canManage) {
     return (
-      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-8 text-center">
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 text-center">
         <Film className="w-12 h-12 mx-auto text-gray-300 mb-4" />
         <h3 className="text-xl font-bold text-gray-600 mb-2">Generador de Videos</h3>
         <p className="text-gray-500">Solo administradores pueden acceder.</p>

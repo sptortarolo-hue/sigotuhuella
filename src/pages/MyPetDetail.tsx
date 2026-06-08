@@ -604,7 +604,7 @@ export default function MyPetDetail() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-brand-primary">{pet.qr_id?.code}</p>
                       <p className="text-xs text-gray-400 mt-1">Escaneá para ver el perfil público</p>
-                      <div className="flex gap-2 mt-3">
+                      <div className="flex gap-2 mt-3 flex-wrap">
                         <button
                           onClick={() => copyToClipboard(`${window.location.origin}/mascota/${pet.qr_id?.share_token}`, 'qr')}
                           className="px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
@@ -709,7 +709,7 @@ export default function MyPetDetail() {
             </div>
 
             {galleryPhotos.length === 0 ? (
-              <div className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-8 text-center">
+              <div className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-6 sm:p-8 text-center">
                 <Camera className="w-12 h-12 text-brand-accent mx-auto mb-3" />
                 <p className="text-gray-400">Todavía no hay fotos</p>
                 <button onClick={() => photoInputRef.current?.click()}
@@ -757,7 +757,7 @@ export default function MyPetDetail() {
             </div>
 
             {timelineItems.length === 0 ? (
-              <div className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-8 text-center">
+              <div className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-6 sm:p-8 text-center">
                 <Clock className="w-12 h-12 text-brand-accent mx-auto mb-3" />
                 <p className="text-gray-400">Todavía no hay actividad en el timeline</p>
                 <button onClick={() => setShowEventForm(true)}
@@ -903,7 +903,7 @@ export default function MyPetDetail() {
                         </div>
                       </div>
                       <button onClick={handleAddEvent} disabled={eventLoading || !eventForm.title || !eventForm.event_date}
-                        className="w-full mt-5 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="w-full sm:w-auto mt-5 px-8 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
                       >
                         {eventLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                         Guardar evento
@@ -949,7 +949,7 @@ export default function MyPetDetail() {
             )}
 
             {pet.records?.length === 0 ? (
-              <div className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-8 text-center">
+              <div className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-6 sm:p-8 text-center">
                 <Activity className="w-12 h-12 text-brand-accent mx-auto mb-3" />
                 <p className="text-gray-400">Todavía no hay registros médicos</p>
                 <button onClick={() => setShowRecordForm(true)}
@@ -1090,7 +1090,7 @@ export default function MyPetDetail() {
                             className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Veterinario</label>
                           <input value={recordForm.vet_name} onChange={e => setRecordForm(prev => ({ ...prev, vet_name: e.target.value }))}
@@ -1103,7 +1103,7 @@ export default function MyPetDetail() {
                         </div>
                       </div>
                       {(recordForm.record_type === 'vaccine' || recordForm.record_type === 'medication') && (
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Medicamento</label>
                             <input value={recordForm.medication_name} onChange={e => setRecordForm(prev => ({ ...prev, medication_name: e.target.value }))}
@@ -1224,7 +1224,7 @@ export default function MyPetDetail() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Música</label>
                     <select value={videoMusic} onChange={e => setVideoMusic(e.target.value)}

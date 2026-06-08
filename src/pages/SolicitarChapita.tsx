@@ -314,7 +314,7 @@ export default function SolicitarChapita() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Raza</label>
                   <input value={pet.breed} onChange={e => setPet(prev => ({ ...prev, breed: e.target.value }))}
@@ -327,7 +327,7 @@ export default function SolicitarChapita() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Sexo</label>
                   <div className="grid grid-cols-3 gap-2 mt-1">

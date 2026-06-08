@@ -41,8 +41,8 @@ export default function ResetPassword() {
 
   if (!token) {
     return (
-      <div className="max-w-md mx-auto px-4 py-20">
-        <div className="bg-white p-8 rounded-[2rem] border border-red-200 shadow-xl text-center">
+      <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-red-200 shadow-xl text-center">
           <p className="text-red-600">Token de recuperación inválido</p>
           <button
             onClick={() => navigate('/forgot-password')}
@@ -56,11 +56,11 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-20">
+    <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-20">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl"
+        className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl"
       >
         <button
           onClick={() => navigate('/login')}
@@ -92,7 +92,7 @@ export default function ResetPassword() {
             </p>
             <button
               onClick={() => navigate('/login')}
-              className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all"
+              className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all"
             >
               Iniciar sesión
             </button>
@@ -147,7 +147,7 @@ export default function ResetPassword() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-50"
+              className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-50"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

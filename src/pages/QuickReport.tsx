@@ -211,7 +211,7 @@ export default function QuickReport() {
                 `🐾 Se reportó un ${createdSpecies} ${createdStatus === 'sighted' ? 'avistado' : 'retenido'} en ${createdLocation}.\n\nMás info: https://sigotuhuella.online/pet/${createdId}\n\nAyudanos a difundir 🙏`
               );
               window.open(`https://wa.me/?text=${msg}`, '_blank');
-            }} className="w-full mb-3 px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2">
+            }} className="w-full sm:w-auto mb-3 px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2">
               <Share2 className="w-5 h-5" /> Compartir en WhatsApp
             </button>
 
@@ -226,7 +226,7 @@ export default function QuickReport() {
                 </div>
               </div>
               <p className="text-xs text-gray-500 mb-3">Cuando alguien reporte una mascota similar, te avisamos por WhatsApp. Es gratis.</p>
-              <a href="/login" className="block w-full py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm text-center hover:shadow-lg transition-all">
+              <a href="/login" className="block w-full sm:w-auto py-2.5 px-6 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">
                 Registrarme
               </a>
             </div>
@@ -365,7 +365,7 @@ export default function QuickReport() {
             {/* Submit */}
             <button onClick={() => submitReport(pageState === 'sighted' ? 'sighted' : 'retained')}
               disabled={!isValid || pageState === 'submitting'}
-              className="w-full py-4 bg-brand-primary text-white font-bold text-base rounded-xl disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2">
+              className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white font-bold text-base rounded-xl disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2">
               {pageState === 'submitting' ? <><Loader2 className="w-5 h-5 animate-spin" /> Enviando...</> : 'Enviar reporte'}
             </button>
 
@@ -501,7 +501,7 @@ export default function QuickReport() {
                 </div>
 
                 <button onClick={() => setShowInstallModal(false)}
-                  className="w-full mt-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
+                  className="w-full sm:w-auto mt-6 px-8 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
                   Entendido
                 </button>
               </motion.div>

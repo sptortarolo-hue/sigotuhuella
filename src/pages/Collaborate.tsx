@@ -32,7 +32,7 @@ export default function Collaborate() {
   const hasMp = accounts.some(a => a.mercadopago_link);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12 md:py-20">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
       <header className="text-center mb-16">
         <div className="inline-flex p-3 bg-red-100 text-red-600 rounded-2xl mb-6">
           <Heart className="w-8 h-8 fill-current" />
@@ -134,7 +134,7 @@ export default function Collaborate() {
         </div>
       )}
 
-      <footer className="mt-12 sm:mt-20 text-center p-8 bg-brand-primary/5 rounded-[2.5rem] border border-brand-accent">
+      <footer className="mt-12 sm:mt-20 text-center p-6 sm:p-8 bg-brand-primary/5 rounded-[2.5rem] border border-brand-accent">
         <p className="text-sm text-gray-500 font-medium italic">
           "Pequeñas acciones generan grandes cambios. Gracias por ser parte de la red de Sigo tu Huella."
         </p>

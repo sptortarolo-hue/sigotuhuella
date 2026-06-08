@@ -238,7 +238,7 @@ export default function Navbar() {
                       exit={{ opacity: 0, scale: 0.95, y: -4 }}
                       transition={{ type: "spring", duration: 0.2 }}
                       style={{ transformOrigin: "top right" }}
-                      className="absolute right-0 top-full mt-2 mr-[-16px] w-56 bg-white rounded-2xl shadow-xl border border-brand-accent overflow-hidden z-50"
+                      className="absolute right-0 top-full mt-2 right-[-16px] w-56 bg-white rounded-2xl shadow-xl border border-brand-accent overflow-hidden z-50"
                     >
                       <div className="px-4 py-3 border-b border-brand-accent bg-brand-bg/50">
                         <p className="text-sm font-bold text-brand-primary truncate">{user.display_name || user.email}</p>
@@ -305,12 +305,20 @@ export default function Navbar() {
       {/* Mobile Nav */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden overflow-y-auto max-h-[calc(100dvh-4rem)] bg-brand-bg border-b border-brand-accent px-4 py-4 flex flex-col gap-2"
-          >
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsOpen(false)}
+              className="fixed inset-0 bg-black/20 z-40 md:hidden"
+            />
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden overflow-y-auto max-h-[calc(100dvh-4rem)] bg-brand-bg border-b border-brand-accent px-4 py-4 flex flex-col gap-2"
+            >
             {navItems.map((item) => (
               <Link
                 key={item.path}
@@ -396,6 +404,7 @@ export default function Navbar() {
               </Link>
             )}
           </motion.div>
+          </>
         )}
       </AnimatePresence>
     </nav>

@@ -114,13 +114,13 @@ export default function Join() {
 
   if (user && user.volunteer_status === 'pending') {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-12 md:py-20">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12 md:py-20">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center"
-        >
-          <div className="w-20 h-20 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse animate-duration-1000">
+          className="bg-white p-6 sm:p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center"
+          >
+            <div className="w-20 h-20 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse animate-duration-1000">
             <Clock className="w-12 h-12" />
           </div>
           <h1 className="text-3xl sm:text-4xl font-serif font-bold text-brand-primary mb-4">Solicitud en proceso</h1>
@@ -150,7 +150,7 @@ export default function Join() {
   if (!user) {
     return (
       <>
-        <div className="max-w-4xl mx-auto px-4 pt-20 pb-4">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-4">
           <div className="grid md:grid-cols-2 gap-12 items-center mb-12">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
@@ -186,13 +186,13 @@ export default function Join() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-12 md:py-20">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12 md:py-20">
       <AnimatePresence>
         {success ? (
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center"
+            className="bg-white p-6 sm:p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center"
           >
             <div className="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle2 className="w-12 h-12" />
@@ -210,7 +210,7 @@ export default function Join() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl"
+            className="bg-white p-6 sm:p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl"
           >
             <div className="mb-10">
               <h1 className="text-4xl font-serif font-bold text-brand-primary mb-2 text-center">Sumate al movimiento</h1>

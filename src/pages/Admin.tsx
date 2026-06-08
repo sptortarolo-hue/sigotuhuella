@@ -1164,12 +1164,12 @@ export default function Admin() {
                                    </div>
                                  )}
                                </div>
-                               <div className="flex gap-2">
-                                 {vol.status !== 'accepted' && vol.status !== 'suspended' && (
-                                   <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
-                                 )}
-                                 <a
-                                   href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
+                                <div className="flex gap-2 flex-wrap">
+                                  {vol.status !== 'accepted' && vol.status !== 'suspended' && (
+                                    <button onClick={() => handleVolunteerStatus(vol.id, 'accepted')} className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold hover:bg-green-100 transition-colors">Aceptar</button>
+                                  )}
+                                  <a
+                                    href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
                                    target="_blank"
                                    rel="noreferrer"
                                    className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
@@ -1281,9 +1281,9 @@ export default function Admin() {
                                        </div>
                                      </div>
                                   </div>
-                                  <div className="flex gap-2">
-                                    <a
-                                      href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
+                                   <div className="flex gap-2 flex-wrap">
+                                     <a
+                                       href={`https://wa.me/${vol.whatsapp.replace(/\D/g, '')}`}
                                       target="_blank"
                                       rel="noreferrer"
                                       className="px-4 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-100 transition-colors"
@@ -1723,7 +1723,7 @@ export default function Admin() {
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
         <h3 className="text-lg font-bold text-brand-primary mb-4">QRs asignados ({qrAssigned.length})</h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm min-w-[500px]">
+          <table className="w-full text-left text-sm min-w-max">
             <thead>
               <tr className="border-b border-brand-accent">
                 <th className="pb-2 font-bold text-gray-500 text-xs uppercase tracking-widest">Código</th>
@@ -1761,7 +1761,7 @@ export default function Admin() {
     )}
 
     {qrRequests.length === 0 && qrUnassigned.length === 0 && qrAssigned.length === 0 && (
-      <div className="bg-white rounded-[2.5rem] border border-dashed border-brand-accent p-8 text-center">
+      <div className="bg-white rounded-[2.5rem] border border-dashed border-brand-accent p-6 sm:p-8 text-center">
         <QrCode className="w-12 h-12 text-brand-accent mx-auto mb-3" />
         <p className="text-gray-400">No hay QRs generados ni solicitudes pendientes.</p>
       </div>
@@ -1778,11 +1778,11 @@ export default function Admin() {
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowForm(false)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-              <div className="p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+              <div className="p-6 sm:p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
                 <h2 className="text-2xl font-serif font-bold text-brand-primary">{editingPet ? 'Editar Reporte' : 'Nuevo Reporte'}</h2>
                 <button onClick={() => setShowForm(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
               </div>
-              <form onSubmit={handlePetSubmit} className="p-8 overflow-y-auto space-y-6">
+              <form onSubmit={handlePetSubmit} className="p-6 sm:p-8 overflow-y-auto space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="text-xs font-bold uppercase text-gray-500">Nombre</label>
@@ -1927,11 +1927,11 @@ export default function Admin() {
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowNewsForm(false)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-              <div className="p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+              <div className="p-6 sm:p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
                 <h2 className="text-2xl font-serif font-bold text-brand-primary">{editingNews ? 'Editar Novedad' : 'Nueva Novedad'}</h2>
                 <button onClick={() => { setShowNewsForm(false); resetNewsForm(); }} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
               </div>
-              <form onSubmit={handleNewsSubmit} className="p-8 overflow-y-auto space-y-6">
+              <form onSubmit={handleNewsSubmit} className="p-6 sm:p-8 overflow-y-auto space-y-6">
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Título</label>
                   <input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={newsFormData.title} onChange={e => setNewsFormData({...newsFormData, title: e.target.value})} />
@@ -2035,7 +2035,7 @@ export default function Admin() {
                     <div className="bg-white rounded-2xl border border-brand-accent overflow-hidden">
                       <div className="flex items-center justify-between p-3 bg-brand-bg/50 border-b border-brand-accent">
                         <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Vista previa</p>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <a href={pdfPreviewUrl} download={pdfFilename} className="px-3 py-1.5 bg-brand-primary text-white rounded-lg text-xs font-bold flex items-center gap-1 hover:shadow transition-all">
                             <Download className="w-3 h-3" /> Descargar
                           </a>

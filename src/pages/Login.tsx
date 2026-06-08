@@ -192,13 +192,13 @@ export default function Login() {
           <div className="flex flex-col gap-3">
             <button
               onClick={() => setMode('verify-email')}
-              className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all"
+              className="w-full sm:w-auto px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all"
             >
               Revisar mi email
             </button>
             <button
               onClick={() => navigate('/')}
-              className="w-full px-6 py-3 bg-white text-gray-600 border border-brand-accent rounded-xl font-bold hover:bg-gray-50 transition-all"
+              className="w-full sm:w-auto px-6 py-3 bg-white text-gray-600 border border-brand-accent rounded-xl font-bold hover:bg-gray-50 transition-all"
             >
               Ir al inicio
             </button>
@@ -209,7 +209,7 @@ export default function Login() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-20">
+    <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-20">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -255,14 +255,14 @@ export default function Login() {
               {isAdmin && (
                 <button
                   onClick={() => navigate('/admin')}
-                  className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all"
+                  className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all"
                 >
                   Ir al Panel de Control
                 </button>
               )}
               <button
                 onClick={handleLogout}
-                className="w-full py-4 bg-white text-gray-600 border border-brand-accent rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-50 transition-all"
+                className="w-full sm:w-auto px-8 py-4 bg-white text-gray-600 border border-brand-accent rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-50 transition-all"
               >
                 <LogOut className="w-4 h-4" />
                 Cerrar Sesión

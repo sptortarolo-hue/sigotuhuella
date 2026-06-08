@@ -106,12 +106,12 @@ export default function Profile() {
   };
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-12 space-y-8">
+    <div className="max-w-lg mx-auto px-4 sm:px-6 py-12 space-y-8">
       <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold">
         <ArrowLeft className="w-4 h-4" /> Volver
       </button>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl">
         <div className="flex items-center gap-4 mb-8">
           <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center"><User className="w-6 h-6" /></div>
           <div><h1 className="text-2xl font-serif font-bold text-brand-primary">Mi Perfil</h1><p className="text-sm text-gray-500">{user.email}</p></div>
@@ -130,11 +130,11 @@ export default function Profile() {
           </div>
           {profileMsg && <div className="p-3 bg-green-50 text-green-600 rounded-xl text-sm flex gap-2 items-center"><CheckCircle2 className="w-4 h-4" />{profileMsg}</div>}
           {profileError && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm flex gap-2 items-center"><AlertCircle className="w-4 h-4" />{profileError}</div>}
-          <button type="submit" disabled={profileLoading} className="w-full py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2">{profileLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}Guardar Cambios</button>
+          <button type="submit" disabled={profileLoading} className="w-full sm:w-auto px-8 py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2">{profileLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}Guardar Cambios</button>
         </form>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center"><Camera className="w-6 h-6" /></div>
           <div>
@@ -161,7 +161,7 @@ export default function Profile() {
       </motion.div>
 
       {isMember && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center">
               <CreditCard className="w-6 h-6 text-brand-primary" />
@@ -205,7 +205,7 @@ export default function Profile() {
                 </div>
               )}
 
-              <button onClick={() => navigate('/mi-carnet')} className="w-full py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">
+              <button onClick={() => navigate('/mi-carnet')} className="w-full sm:w-auto px-8 py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">
                 <CreditCard className="w-4 h-4" /> Ver Mi Carnet y Estadísticas
               </button>
             </>
@@ -213,7 +213,7 @@ export default function Profile() {
         </motion.div>
       )}
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl">
         <div className="flex items-center gap-4 mb-8">
           <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center"><Lock className="w-6 h-6" /></div>
           <div><h2 className="text-2xl font-serif font-bold text-brand-primary">Cambiar Contraseña</h2></div>
@@ -230,7 +230,7 @@ export default function Profile() {
           </div>
           {passwordMsg && <div className="p-3 bg-green-50 text-green-600 rounded-xl text-sm flex gap-2 items-center"><CheckCircle2 className="w-4 h-4" />{passwordMsg}</div>}
           {passwordError && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm flex gap-2 items-center"><AlertCircle className="w-4 h-4" />{passwordError}</div>}
-          <button type="submit" disabled={passwordLoading} className="w-full py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2">{passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}Cambiar Contraseña</button>
+          <button type="submit" disabled={passwordLoading} className="w-full sm:w-auto px-8 py-3 bg-brand-primary text-white rounded-xl font-bold flex items-center justify-center gap-2">{passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}Cambiar Contraseña</button>
         </form>
       </motion.div>
 

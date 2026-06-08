@@ -252,7 +252,7 @@ export default function MyPetsPortal() {
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     {pet.is_vaccinated && <Syringe className="w-4 h-4 text-emerald-500" title="Vacunado" />}
                     {pet.is_sterilized && <Scissors className="w-4 h-4 text-blue-500" title="Esterilizado" />}
                     {pet.is_dewormed && <Bug className="w-4 h-4 text-amber-500" title="Desparasitado" />}
@@ -329,7 +329,7 @@ export default function MyPetsPortal() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Raza</label>
                     <input value={form.breed} onChange={e => setForm(prev => ({ ...prev, breed: e.target.value }))}
@@ -342,7 +342,7 @@ export default function MyPetsPortal() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Sexo</label>
                     <div className="grid grid-cols-3 gap-2 mt-1">
@@ -367,7 +367,7 @@ export default function MyPetsPortal() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Chip ID</label>
                     <input value={form.chip_id} onChange={e => setForm(prev => ({ ...prev, chip_id: e.target.value }))}

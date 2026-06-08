@@ -215,7 +215,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-12">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold mb-6">
         <ArrowLeft className="w-4 h-4" /> Volver
       </button>
@@ -237,7 +237,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-8"
           >
-            <div className="bg-white p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center">
+            <div className="bg-white p-6 sm:p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center">
               <CheckCircle2 className="w-20 h-20 text-green-500 mx-auto mb-6" />
               <h1 className="text-4xl font-serif font-bold text-brand-primary mb-4">¡Publicado con éxito!</h1>
               <p className="text-gray-500 mb-8">Tu reporte ya es visible para toda la comunidad de Sicardi y Garibaldi.</p>
@@ -258,13 +258,13 @@ const handleSubmit = async (e: React.FormEvent) => {
               </div>
             </div>
 
-            <div className="bg-white p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl">
+            <div className="bg-white p-6 sm:p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl">
               <h2 className="text-2xl font-serif font-bold text-brand-primary mb-8 text-center">Vista previa de tu publicación</h2>
               <div className="max-w-sm mx-auto">
                 <PetCard pet={previewPet} />
               </div>
 
-              <div className="mt-12 p-8 bg-brand-bg rounded-[2.5rem] border border-brand-accent text-center">
+              <div className="mt-12 p-6 sm:p-8 bg-brand-bg rounded-[2.5rem] border border-brand-accent text-center">
                 <div className="w-12 h-12 bg-brand-secondary/10 text-brand-secondary rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <Share2 className="w-6 h-6" />
                 </div>
@@ -292,7 +292,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             key="form"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl"
+            className="bg-white p-6 sm:p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl"
           >
             <div className="mb-10 text-center">
               <h1 className="text-4xl font-serif font-bold text-brand-primary mb-2">Reportar Mascota</h1>
@@ -541,7 +541,7 @@ const handleSubmit = async (e: React.FormEvent) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-5 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 font-serif text-xl"
+                className="w-full sm:w-auto py-5 px-8 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 font-serif text-xl"
               >
                 {loading ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
                 Publicar Reporte

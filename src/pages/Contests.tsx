@@ -85,7 +85,7 @@ export default function Contests() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-20 flex items-center justify-center">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
       </div>
     );
@@ -93,7 +93,7 @@ export default function Contests() {
 
   if (!contest) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-12 sm:py-16 text-center">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 text-center">
         <Trophy className="w-16 h-16 text-brand-accent mx-auto mb-4" />
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Mascota del Mes</h1>
         <p className="text-gray-400 mb-8">No hay un concurso activo en este momento.</p>
@@ -103,7 +103,7 @@ export default function Contests() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       {/* Header */}
       <div className="text-center mb-8">
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 mb-4">
@@ -154,7 +154,7 @@ export default function Contests() {
               </div>
               {user && !nominee.user_voted ? (
                 <button onClick={() => handleVote(nominee.id)} disabled={votingId === nominee.id}
-                  className="w-full py-2 rounded-xl bg-brand-primary text-white text-sm font-bold hover:bg-brand-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-6 py-2 rounded-xl bg-brand-primary text-white text-sm font-bold hover:bg-brand-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {votingId === nominee.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className="w-4 h-4" />}
                   Votar

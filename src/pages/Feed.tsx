@@ -134,9 +134,9 @@ export default function Feed() {
                   )}
                 </div>
 
-                <h3 className="text-base font-bold text-gray-800 mb-1">{post.title}</h3>
+                <h3 className="text-base font-bold text-gray-800 mb-1 line-clamp-2">{post.title}</h3>
                 {post.description && (
-                  <p className="text-sm text-gray-600 mb-3">{post.description}</p>
+                  <p className="text-sm text-gray-600 mb-3 break-words">{post.description}</p>
                 )}
 
                 {post.photo_ids?.length > 0 && (

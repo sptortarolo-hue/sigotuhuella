@@ -94,13 +94,13 @@ export default function MemberCardPage() {
   const nextLevel = statsData?.nextLevel;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-12 space-y-8">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12 space-y-8">
       <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold">
         <ArrowLeft className="w-4 h-4" /> Volver
       </button>
 
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl">
         <div className="flex items-center gap-4 mb-8">
           <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center">
             <PawPrint className="w-6 h-6" />
@@ -147,7 +147,7 @@ export default function MemberCardPage() {
 
       {/* Level & Progress */}
       {isMember && !isSuspended && stats && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center">
               <TrendingUp className="w-6 h-6" />
@@ -185,7 +185,7 @@ export default function MemberCardPage() {
 
       {/* Badges */}
       {isMember && !isSuspended && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl">
           <h2 className="text-xl font-serif font-bold text-brand-primary mb-6">Mis Insignias</h2>
           {Array.isArray(memberData?.badges) && memberData.badges.length > 0 ? (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
@@ -211,7 +211,7 @@ export default function MemberCardPage() {
 
       {/* Avatar upload */}
       {isMember && !isSuspended && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="bg-white p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center"><Camera className="w-6 h-6" /></div>
             <div><h2 className="text-xl font-serif font-bold text-brand-primary">Foto de Perfil</h2><p className="text-xs text-gray-500">Subí una foto para tu carnet</p></div>
