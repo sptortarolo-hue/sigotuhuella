@@ -3,6 +3,7 @@ import { X, Download, Loader2, ArrowRight, Camera, PawPrint, Upload } from 'luci
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { statusDesigns, drawFlyer } from '@/src/lib/flyerRenderer';
+import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import ImageCropper from '@/src/components/ImageCropper';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
@@ -57,6 +58,17 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
   const [caseNumber, setCaseNumber] = useState('');
   const [petId, setPetId] = useState('');
 
+  const [format, setFormat] = useState<'1:1' | '4:5' | '9:16'>('1:1');
+  const FORMAT_DIMS = { '1:1': { w: 1080, h: 1080 }, '4:5': { w: 1080, h: 1350 }, '9:16': { w: 1080, h: 1920 } };
+  const FORMAT_OPTIONS: { key: '1:1' | '4:5' | '9:16'; label: string; desc: string }[] = [
+    { key: '1:1', label: '1:1', desc: 'Cuadrado' },
+    { key: '4:5', label: '4:5', desc: 'Retrato' },
+    { key: '9:16', label: '9:16', desc: 'Historia' },
+  ];
+
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState<string | null>(null);
+
   const cleanPhoto = () => {
     if (photoUrl) URL.revokeObjectURL(photoUrl);
     setPhotoBlob(null);
@@ -82,8 +94,8 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
   };
 
   const handleGenerate = async () => {
-    if (!form.location && !form.contact_info) {
-      setError('Completá al menos ubicación o teléfono');
+    if (!form.contact_info) {
+      setError('WhatsApp / teléfono es obligatorio');
       return;
     }
     if (!photoBlob) {
@@ -100,7 +112,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
         body: JSON.stringify({
           ...form,
           images: [{ data: encoded.data, mimeType: encoded.mimeType }],
-          neighborhoods: [],
+          neighborhoods: selectedNeighborhoodId ? [selectedNeighborhoodId] : [],
         }),
       });
       if (!res.ok) throw new Error('Error al guardar');
@@ -121,8 +133,9 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
         loadImage('/sigotuhuella.jpg').catch(() => null),
       ]);
 
-      // Render on hidden canvas and preview canvas
-      const w = 1080, h = 1080;
+      // Render on hidden canvas only (preview canvas copies via useEffect)
+      const dims = FORMAT_DIMS[format];
+      const w = dims.w, h = dims.h;
       const flyerData = {
         name: form.name, status: form.status, species: form.species,
         breed: form.breed, location: form.location, contact_info: form.contact_info,
@@ -130,14 +143,15 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
       };
       const design = statusDesigns[form.status] || statusDesigns.lost;
 
-      [canvasRef.current, previewCanvasRef.current].forEach(canvas => {
-        if (!canvas) return;
+      const canvas = canvasRef.current;
+      if (canvas) {
         const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        canvas.width = w;
-        canvas.height = h;
-        drawFlyer(ctx, w, h, design, flyerData, petImg, logoImg);
-      });
+        if (ctx) {
+          canvas.width = w;
+          canvas.height = h;
+          drawFlyer(ctx, w, h, design, flyerData, petImg, logoImg);
+        }
+      }
 
       setStep('preview');
       setSaving(false);
@@ -161,7 +175,21 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
     }, 'image/png');
   };
 
-  const previewScale = 240 / 1080;
+  const dims = FORMAT_DIMS[format];
+  const previewScale = 240 / dims.w;
+
+  useEffect(() => {
+    if (step === 'preview' && previewCanvasRef.current && canvasRef.current) {
+      const p = previewCanvasRef.current;
+      const c = canvasRef.current;
+      const ctx = p.getContext('2d');
+      if (ctx) {
+        p.width = c.width;
+        p.height = c.height;
+        ctx.drawImage(c, 0, 0);
+      }
+    }
+  }, [step]);
 
   useEffect(() => {
     return () => {
@@ -242,6 +270,30 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Formato</label>
+                <div className="flex gap-2">
+                  {FORMAT_OPTIONS.map(opt => (
+                    <button key={opt.key}
+                      onClick={() => setFormat(opt.key)}
+                      className={cn('flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all flex items-center justify-center gap-2',
+                        format === opt.key ? 'bg-brand-primary text-white border-brand-primary' : 'border-brand-accent text-gray-600'
+                      )}>
+                      <span className="inline-block">
+                        {opt.key === '1:1' ? (
+                          <span className="inline-block w-4 h-4 border-2 rounded-sm" style={{ borderColor: format === '1:1' ? 'white' : undefined }} />
+                        ) : opt.key === '4:5' ? (
+                          <span className="inline-block w-3 h-4 border-2 rounded-sm" style={{ borderColor: format === '4:5' ? 'white' : undefined }} />
+                        ) : (
+                          <span className="inline-block w-2.5 h-4 border-2 rounded-sm" style={{ borderColor: format === '9:16' ? 'white' : undefined }} />
+                        )}
+                      </span>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="space-y-3">
                 <input placeholder="Nombre de la mascota (opcional)"
                   value={form.name} onChange={e => updateField('name', e.target.value)}
@@ -256,10 +308,26 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                   <input placeholder="Raza (opcional)" value={form.breed} onChange={e => updateField('breed', e.target.value)}
                     className="flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
                 </div>
-                <input placeholder="Zona / barrio" value={form.location} onChange={e => updateField('location', e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
+                <div className="relative">
+                  <input placeholder="Zona / barrio" value={form.location}
+                    onChange={e => { updateField('location', e.target.value); setSelectedNeighborhoodId(null); setShowSuggestions(true); }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    className="w-full px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
+                  {showSuggestions && form.location.length > 0 && (
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-brand-accent rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                      {NEIGHBORHOODS.filter(n => n.name.toLowerCase().includes(form.location.toLowerCase())).map(n => (
+                        <button key={n.id}
+                          onMouseDown={e => { e.preventDefault(); updateField('location', n.name); setSelectedNeighborhoodId(n.id); setShowSuggestions(false); }}
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-brand-accent transition-colors">
+                          {n.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="flex gap-3">
-                  <input placeholder="Teléfono / WhatsApp" value={form.contact_info} onChange={e => updateField('contact_info', e.target.value)}
+                  <input placeholder="WhatsApp / teléfono *" value={form.contact_info} onChange={e => updateField('contact_info', e.target.value)}
                     className="flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
                   <input placeholder="@Instagram" value={form.instagram} onChange={e => updateField('instagram', e.target.value)}
                     className="flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
@@ -290,10 +358,10 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
               </div>
 
               <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden pointer-events-none select-none"
-                style={{ width: Math.round(1080 * previewScale), height: Math.round(1080 * previewScale) }}>
+                style={{ width: Math.round(dims.w * previewScale), height: Math.round(dims.h * previewScale) }}>
                 <canvas ref={previewCanvasRef}
                   className="block w-full h-full pointer-events-none select-none"
-                  style={{ width: Math.round(1080 * previewScale), height: Math.round(1080 * previewScale) }}
+                  style={{ width: Math.round(dims.w * previewScale), height: Math.round(dims.h * previewScale) }}
                 />
               </div>
 
