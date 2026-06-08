@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapContainer, TileLayer, Marker, Polygon, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Rectangle, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { MapPin, X, ChevronDown, ChevronUp } from 'lucide-react';
@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 
 const FEATURED_IDS = ['garibaldi_sicardi', 'ignacio_correas', 'el_peligro'];
-const featuredNeighborhoods = FEATURED_IDS.map(id => NEIGHBORHOODS.find(n => n.id === id)).filter(Boolean);
+const featuredNeighborhoods = FEATURED_IDS.map(id => NEIGHBORHOODS.find(n => n.id === id)).filter((n): n is Neighborhood => !!n);
 const restNeighborhoods = NEIGHBORHOODS.filter(n => !FEATURED_IDS.includes(n.id));
 
 const customIcon = L.divIcon({
@@ -43,6 +43,12 @@ function LocationMarker({ onSelect, selectedLocation }: { onSelect: (loc: {lat: 
   return selectedLocation ? <Marker position={selectedLocation} icon={customIcon} /> : null;
 }
 
+import { Neighborhood } from '@/src/lib/neighborhoods';
+
+function rectBounds(n: Neighborhood): [[number, number], [number, number]] {
+  return [[n.bounds.south, n.bounds.west], [n.bounds.north, n.bounds.east]];
+}
+
 export default function ZoneSelector({ initialCenter, selectedLocation, onLocationSelect, selectedNeighborhoods, onNeighborhoodsChange }: ZoneSelectorProps) {
   const [showRest, setShowRest] = useState(false);
   const toggleId = (id: string) => {
@@ -58,7 +64,7 @@ export default function ZoneSelector({ initialCenter, selectedLocation, onLocati
       <div className="w-full h-[250px] sm:h-[300px] rounded-2xl overflow-hidden border border-brand-accent shadow-sm relative z-0">
         <MapContainer
           center={[initialCenter.lat, initialCenter.lng]}
-          zoom={13}
+          zoom={12}
           scrollWheelZoom={true}
           style={{ width: '100%', height: '100%' }}
         >
@@ -66,28 +72,31 @@ export default function ZoneSelector({ initialCenter, selectedLocation, onLocati
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {NEIGHBORHOODS.map(n => (
-            <Polygon
-              key={n.id}
-              positions={n.polygon}
-              pathOptions={{
-                color: n.color,
-                fillColor: n.color,
-                fillOpacity: selectedNeighborhoods.includes(n.id) ? 0.35 : 0.12,
-                weight: selectedNeighborhoods.includes(n.id) ? 3 : 2,
-                opacity: 0.8,
-              }}
-              eventHandlers={{
-                click: () => toggleId(n.id),
-                mouseover: (e) => {
-                  e.target.setStyle({ fillOpacity: selectedNeighborhoods.includes(n.id) ? 0.45 : 0.22, weight: selectedNeighborhoods.includes(n.id) ? 3.5 : 2.5 });
-                },
-                mouseout: (e) => {
-                  e.target.setStyle({ fillOpacity: selectedNeighborhoods.includes(n.id) ? 0.35 : 0.12, weight: selectedNeighborhoods.includes(n.id) ? 3 : 2 });
-                },
-              }}
-            />
-          ))}
+          {NEIGHBORHOODS.map(n => {
+            const isSelected = selectedNeighborhoods.includes(n.id);
+            return (
+              <Rectangle
+                key={n.id}
+                bounds={rectBounds(n)}
+                pathOptions={{
+                  color: n.color,
+                  fillColor: n.color,
+                  fillOpacity: isSelected ? 0.35 : 0.12,
+                  weight: isSelected ? 3 : 2,
+                  opacity: 0.8,
+                }}
+                eventHandlers={{
+                  click: () => toggleId(n.id),
+                  mouseover: (e) => {
+                    e.target.setStyle({ fillOpacity: isSelected ? 0.45 : 0.22, weight: isSelected ? 3.5 : 2.5 });
+                  },
+                  mouseout: (e) => {
+                    e.target.setStyle({ fillOpacity: isSelected ? 0.35 : 0.12, weight: isSelected ? 3 : 2 });
+                  },
+                }}
+              />
+            );
+          })}
           <LocationMarker onSelect={onLocationSelect} selectedLocation={selectedLocation} />
           <FlyToLocation coords={selectedLocation} />
         </MapContainer>
@@ -118,7 +127,7 @@ export default function ZoneSelector({ initialCenter, selectedLocation, onLocati
 
       <label className="block text-xs font-bold text-gray-500 mt-4 mb-2">Zona principal</label>
       <div className="flex flex-wrap gap-2">
-        {(featuredNeighborhoods as typeof NEIGHBORHOODS).map(n => {
+        {featuredNeighborhoods.map(n => {
           const isSelected = selectedNeighborhoods.includes(n.id);
           return (
             <button
