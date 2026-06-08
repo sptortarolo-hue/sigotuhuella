@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Phone, MessageCircle, Share2 } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, Share2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
@@ -20,6 +20,8 @@ interface PetCardProps {
 export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: PetCardProps) {
     const navigate = useNavigate();
     const [showShareModal, setShowShareModal] = useState(false);
+    const [currentIdx, setCurrentIdx] = useState(0);
+    const touchStartX = useRef(0);
     const statusColors = {
 
      [PetStatus.LOST]: 'bg-red-100 text-red-700',
@@ -58,17 +60,36 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
        <div className="relative aspect-square overflow-hidden bg-gray-100">
 
         {imageUrls.length > 0 ? (
-          <div className="w-full h-full relative">
-      <img 
-        src={imageUrl}
-        alt={pet.name || 'Mascota'} 
-        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-      />
+          <div className="w-full h-full relative"
+            onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+            onTouchEnd={(e) => {
+              const diff = touchStartX.current - e.changedTouches[0].clientX;
+              if (Math.abs(diff) > 50) {
+                if (diff > 0 && currentIdx < imageUrls.length - 1) setCurrentIdx(i => i + 1);
+                if (diff < 0 && currentIdx > 0) setCurrentIdx(i => i - 1);
+              }
+            }}
+          >
+            <img 
+              src={imageUrls[currentIdx]}
+              alt={pet.name || 'Mascota'}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            />
             {imageUrls.length > 1 && (
-              <div className="absolute bottom-4 right-4 px-2 py-1 bg-black/50 text-white text-[10px] font-bold rounded-md backdrop-blur-sm">
-                1 / {imageUrls.length}
-              </div>
+              <>
+                <button onClick={(e) => { e.stopPropagation(); setCurrentIdx(i => Math.max(0, i - 1)); }} className={cn("absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md hover:bg-white transition-all", currentIdx === 0 && 'hidden')}>
+                  <ChevronLeft className="w-4 h-4 text-gray-700" />
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); setCurrentIdx(i => Math.min(imageUrls.length - 1, i + 1)); }} className={cn("absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md hover:bg-white transition-all", currentIdx === imageUrls.length - 1 && 'hidden')}>
+                  <ChevronRight className="w-4 h-4 text-gray-700" />
+                </button>
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+                  {imageUrls.map((_, i) => (
+                    <button key={i} onClick={(e) => { e.stopPropagation(); setCurrentIdx(i); }} className={cn("w-1.5 h-1.5 rounded-full transition-all", i === currentIdx ? "bg-white w-3" : "bg-white/50")} />
+                  ))}
+                </div>
+              </>
             )}
           </div>
         ) : (
