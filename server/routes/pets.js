@@ -640,18 +640,26 @@ router.get('/:petId/records/report', async (req, res) => {
 
 // Public endpoint (no auth) for quick anonymous reports
 router.post('/public', async (req, res) => {
-  const { species, description, location, latitude, longitude, contact_info, status, images, neighborhoods } = req.body;
+  const { species, description, location, latitude, longitude, contact_info, status, images, neighborhoods, name, instagram } = req.body;
   if (!species || !description || !location) {
     return res.status(400).json({ error: 'Species, description, and location are required' });
   }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // Generate sequential case number STH00001
+    const counterResult = await client.query(
+      "SELECT MAX(CAST(SUBSTRING(case_number FROM 4) AS INTEGER)) as max_num FROM pets WHERE case_number LIKE 'STH%'"
+    );
+    const nextNum = (parseInt(counterResult.rows[0]?.max_num) || 0) + 1;
+    const caseNumber = 'STH' + String(nextNum).padStart(5, '0');
+
     const petResult = await client.query(
-      `INSERT INTO pets (species, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified, neighborhoods)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO pets (species, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified, neighborhoods, name, instagram, case_number)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
-       [species, description, location, latitude || null, longitude || null, contact_info || null, status || 'sighted', null, false, JSON.stringify(neighborhoods || [])]
+       [species, description, location, latitude || null, longitude || null, contact_info || null, status || 'sighted', null, false, JSON.stringify(neighborhoods || []), name || null, instagram || null, caseNumber]
     );
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
@@ -673,14 +681,17 @@ router.post('/public', async (req, res) => {
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
     sendAdminNotificationEmail(
-      '🐾 Nuevo reporte público recibido',
+      `🐾 Nuevo reporte público (${caseNumber})`,
       `<p style="font-size:16px;margin-bottom:16px;">Se recibió un nuevo reporte a través del formulario público.</p>
+       <p style="font-size:14px;margin-bottom:12px;"><strong>Caso:</strong> ${caseNumber}</p>
        <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
          <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Especie</td><td style="padding:8px;border:1px solid #e2e8f0;">${species}</td></tr>
+         ${name ? `<tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Nombre</td><td style="padding:8px;border:1px solid #e2e8f0;">${name}</td></tr>` : ''}
          <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Descripción</td><td style="padding:8px;border:1px solid #e2e8f0;">${description}</td></tr>
          <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Ubicación</td><td style="padding:8px;border:1px solid #e2e8f0;">${location}${latitude && longitude ? ` (${latitude}, ${longitude})` : ''}</td></tr>
          <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Contacto</td><td style="padding:8px;border:1px solid #e2e8f0;">${contact_info || 'No informado'}</td></tr>
          <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Tipo</td><td style="padding:8px;border:1px solid #e2e8f0;">${status === 'sighted' ? 'Avistado' : status === 'retained' ? 'Retenido' : status || 'Avistado'}</td></tr>
+         ${instagram ? `<tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Instagram</td><td style="padding:8px;border:1px solid #e2e8f0;">${instagram}</td></tr>` : ''}
        </table>
        <p style="text-align:center;margin-top:16px;">
          <a href="${frontendUrl}/pet/${pet.id}" style="background-color:#3b82f6;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">Ver publicación</a>
@@ -688,8 +699,8 @@ router.post('/public', async (req, res) => {
         ).catch(err => console.error('Failed to send admin notification:', err));
 
         sendPushToAdmins({
-          title: '🐾 Nuevo reporte público',
-          body: `${species} — ${status === 'sighted' ? 'Avistado' : 'Retenido'} en ${location}`,
+          title: `🐾 ${caseNumber} — ${status === 'sighted' ? 'Avistado' : 'Retenido'}`,
+          body: `${name ? name + ' — ' : ''}${species} en ${location}`,
           url: `${frontendUrl}/pet/${pet.id}`,
         }).catch(err => console.error('Push error:', err));
 
@@ -814,6 +825,26 @@ router.post('/lost-report', async (req, res) => {
     res.status(500).json({ error: 'Failed to create lost pet report' });
   } finally {
     client.release();
+  }
+});
+
+// Link an anonymous pet case to a registered user (after registration)
+router.put('/link-case', requireAuth, async (req, res) => {
+  const { caseNumber } = req.body;
+  if (!caseNumber) return res.status(400).json({ error: 'caseNumber is required' });
+
+  try {
+    const result = await pool.query(
+      'UPDATE pets SET created_by = $1 WHERE case_number = $2 AND created_by IS NULL RETURNING id, case_number',
+      [req.user.id, caseNumber]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Case not found or already linked' });
+    }
+    res.json({ pet: result.rows[0] });
+  } catch (err) {
+    console.error('Link case error:', err);
+    res.status(500).json({ error: 'Failed to link case' });
   }
 });
 

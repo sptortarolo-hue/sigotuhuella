@@ -26,6 +26,12 @@ export default function Login() {
   const [linkingEmail, setLinkingEmail] = useState('');
   const [linkingPassword, setLinkingPassword] = useState('');
   const googleButtonRef = useRef<HTMLDivElement>(null);
+  const [pendingCase, setPendingCase] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('case')) setPendingCase(params.get('case')!);
+  }, [location.search]);
   const googleInitedRef = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,6 +84,9 @@ export default function Login() {
 
       const data = await api.auth.login(email, password);
       login(data.token, data.user);
+      if (pendingCase) {
+        try { await fetch('/api/pets/link-case', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` }, body: JSON.stringify({ caseNumber: pendingCase }) }); } catch {}
+      }
       navigate(from, { replace: true });
     } catch (err: any) {
       if (err.message?.includes('Email no verificado') || err.message?.includes('email no verificado')) {

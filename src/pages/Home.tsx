@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Heart, Search, ShieldCheck, Share2, PawPrint, X } from 'lucide-react';
+import { Heart, Search, ShieldCheck, Share2, PawPrint, X, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import NewsCarousel from '@/src/components/NewsCarousel';
@@ -7,6 +7,7 @@ import { getNews } from '@/src/lib/newsService';
 import { api } from '@/src/lib/api';
 import { formatTag } from '@/src/lib/personalityTags';
 import { useAuth } from '@/src/hooks/useAuth';
+import PublicFlyerGenerator from '@/src/components/PublicFlyerGenerator';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ export default function Home() {
   const [bannerPrice, setBannerPrice] = useState('500');
   const [bannerIsFree, setBannerIsFree] = useState(true);
   const [showChapitaModal, setShowChapitaModal] = useState(false);
+  const [showFlyerTool, setShowFlyerTool] = useState(false);
 
   useEffect(() => {
     getNews().then(setNews).catch(() => {});
@@ -46,9 +48,22 @@ export default function Home() {
               Sigo tu <br />
               <span className="text-brand-secondary">huella.</span>
             </h1>
-            <p className="text-base sm:text-lg text-gray-600 leading-relaxed mb-8 max-w-lg">
+            <p className="text-base sm:text-lg text-gray-600 leading-relaxed mb-6 max-w-lg">
               Movimiento de vecinos autoconvocados dedicado a la atención y abordaje de mascotas en situación de vulnerabilidad. Juntos construimos una comunidad más empática.
             </p>
+
+            <button onClick={() => setShowFlyerTool(true)}
+              className="w-full bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border border-brand-secondary/30 rounded-2xl p-4 sm:p-5 mb-6 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-brand-primary to-brand-secondary/80 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+              </div>
+              <div className="text-left flex-1 min-w-0">
+                <div className="font-bold text-brand-primary text-sm sm:text-base">Generá tu flyer para redes</div>
+                <div className="text-xs text-gray-500 mt-0.5">Compartí en Instagram, Facebook y WhatsApp. Gratis.</div>
+              </div>
+              <span className="shrink-0 text-brand-secondary font-bold text-sm group-hover:translate-x-1 transition-transform">→</span>
+            </button>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <Link to="/perdi-mi-mascota"
                 className="group bg-brand-primary/10 border border-brand-primary/30 rounded-2xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
@@ -240,6 +255,11 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Flyer generator modal */}
+      {showFlyerTool && (
+        <PublicFlyerGenerator onClose={() => setShowFlyerTool(false)} />
+      )}
 
       {/* Chapita info modal */}
       <AnimatePresence>
