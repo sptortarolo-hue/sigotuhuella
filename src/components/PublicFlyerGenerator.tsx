@@ -25,6 +25,12 @@ function blobToBase64(blob: Blob): Promise<{ data: string; mimeType: string }> {
   });
 }
 
+function randomPointInBounds(bounds: { south: number; west: number; north: number; east: number }): { lat: number; lng: number } {
+  const lat = bounds.south + Math.random() * (bounds.north - bounds.south);
+  const lng = bounds.west + Math.random() * (bounds.east - bounds.west);
+  return { lat, lng };
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -68,6 +74,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
 
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState<string | null>(null);
+  const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const cleanPhoto = () => {
     if (photoUrl) URL.revokeObjectURL(photoUrl);
@@ -113,6 +120,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
           ...form,
           images: [{ data: encoded.data, mimeType: encoded.mimeType }],
           neighborhoods: selectedNeighborhoodId ? [selectedNeighborhoodId] : [],
+          ...(selectedCoords ? { latitude: selectedCoords.lat, longitude: selectedCoords.lng } : {}),
         }),
       });
       if (!res.ok) throw new Error('Error al guardar');
@@ -310,7 +318,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                 </div>
                 <div className="relative">
                   <input placeholder="Zona / barrio" value={form.location}
-                    onChange={e => { updateField('location', e.target.value); setSelectedNeighborhoodId(null); setShowSuggestions(true); }}
+                    onChange={e => { updateField('location', e.target.value); setSelectedNeighborhoodId(null); setSelectedCoords(null); setShowSuggestions(true); }}
                     onFocus={() => setShowSuggestions(true)}
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                     className="w-full px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
@@ -318,7 +326,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                     <div className="absolute z-20 w-full mt-1 bg-white border border-brand-accent rounded-xl shadow-lg max-h-48 overflow-y-auto">
                       {NEIGHBORHOODS.filter(n => n.name.toLowerCase().includes(form.location.toLowerCase())).map(n => (
                         <button key={n.id}
-                          onMouseDown={e => { e.preventDefault(); updateField('location', n.name); setSelectedNeighborhoodId(n.id); setShowSuggestions(false); }}
+                          onMouseDown={e => { e.preventDefault(); updateField('location', n.name); setSelectedNeighborhoodId(n.id); setSelectedCoords(randomPointInBounds(n.bounds)); setShowSuggestions(false); }}
                           className="w-full text-left px-4 py-2.5 text-sm hover:bg-brand-accent transition-colors">
                           {n.name}
                         </button>
