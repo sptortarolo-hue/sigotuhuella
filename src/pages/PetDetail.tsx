@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
 import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
+import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 
 export default function PetDetail() {
   const { id } = useParams();
@@ -197,6 +198,21 @@ Me gustaría obtener más información.`;
                 {pet.is_sterilized && <span className="px-3 py-1 bg-green-50 text-green-700 border border-green-100 rounded-full text-xs font-bold">✓ Castrado</span>}
                 {pet.is_dewormed && <span className="px-3 py-1 bg-green-50 text-green-700 border border-green-100 rounded-full text-xs font-bold">✓ Desparasitado</span>}
               </div>
+              {pet.neighborhoods?.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-2">Zona / Barrio</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pet.neighborhoods.map(id => {
+                      const n = NEIGHBORHOODS.find(x => x.id === id);
+                      return n ? (
+                        <span key={n.id} className="px-2.5 py-1 rounded-full text-xs font-bold text-white" style={{ backgroundColor: n.color }}>
+                          {n.name}
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -218,7 +218,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', requireAuth, async (req, res) => {
-  const { name, species, breed, color, status, gender, age, size, isVaccinated, isSterilized, description, location, latitude, longitude, contactInfo, images } = req.body;
+  const { name, species, breed, color, status, gender, age, size, isVaccinated, isSterilized, description, location, latitude, longitude, contactInfo, images, neighborhoods } = req.body;
   if (!species || !status || !location) {
     return res.status(400).json({ error: 'Species, status, and location are required' });
   }
@@ -226,13 +226,13 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
     const petResult = await client.query(
-      `INSERT INTO pets (name, species, breed, color, status, gender, age, size, is_vaccinated, is_sterilized, is_dewormed, description, location, latitude, longitude, contact_info, created_by, is_admin_verified)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      `INSERT INTO pets (name, species, breed, color, status, gender, age, size, is_vaccinated, is_sterilized, is_dewormed, description, location, latitude, longitude, contact_info, created_by, is_admin_verified, neighborhoods)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *`,
       [name || null, species, breed || null, color || null, status, gender || 'unknown',
        age || null, size || null, isVaccinated || false, isSterilized || false, req.body.isDewormed || false,
        description || null, location, latitude || null, longitude || null,
-       contactInfo || null, req.user.id, false]
+       contactInfo || null, req.user.id, false, JSON.stringify(neighborhoods || [])]
     );
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
@@ -299,6 +299,10 @@ router.put('/:id', requireAuth, async (req, res) => {
       values.push(req.body.latitude);
       updates.push(`longitude = $${idx++}`);
       values.push(req.body.longitude);
+    }
+    if (req.body.neighborhoods !== undefined) {
+      updates.push(`neighborhoods = $${idx++}`);
+      values.push(JSON.stringify(req.body.neighborhoods));
     }
     if (updates.length === 0 && !req.body.images && !req.body.newImages && req.body.imagesToKeep === undefined) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -636,7 +640,7 @@ router.get('/:petId/records/report', async (req, res) => {
 
 // Public endpoint (no auth) for quick anonymous reports
 router.post('/public', async (req, res) => {
-  const { species, description, location, latitude, longitude, contact_info, status, images } = req.body;
+  const { species, description, location, latitude, longitude, contact_info, status, images, neighborhoods } = req.body;
   if (!species || !description || !location) {
     return res.status(400).json({ error: 'Species, description, and location are required' });
   }
@@ -644,10 +648,10 @@ router.post('/public', async (req, res) => {
   try {
     await client.query('BEGIN');
     const petResult = await client.query(
-      `INSERT INTO pets (species, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO pets (species, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified, neighborhoods)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-       [species, description, location, latitude || null, longitude || null, contact_info || null, status || 'sighted', null, false]
+       [species, description, location, latitude || null, longitude || null, contact_info || null, status || 'sighted', null, false, JSON.stringify(neighborhoods || [])]
     );
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
@@ -704,7 +708,7 @@ router.post('/public', async (req, res) => {
 
 // Lost pet report (no auth) for owner reporting a lost pet with full details
 router.post('/lost-report', async (req, res) => {
-  const { species, name, breed, color, gender, age, size, description, location, latitude, longitude, email, phone, images } = req.body;
+  const { species, name, breed, color, gender, age, size, description, location, latitude, longitude, email, phone, images, neighborhoods } = req.body;
   if (!species || !description || !location || !email) {
     return res.status(400).json({ error: 'Species, description, location, and email are required' });
   }
@@ -747,10 +751,10 @@ router.post('/lost-report', async (req, res) => {
     }
 
     const petResult = await client.query(
-      `INSERT INTO pets (species, name, breed, color, gender, age, size, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      `INSERT INTO pets (species, name, breed, color, gender, age, size, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified, neighborhoods)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *`,
-      [species, name || null, breed || null, color || null, gender || 'unknown', age || null, size || null, description, location, latitude || null, longitude || null, email, 'lost', userId, false]
+      [species, name || null, breed || null, color || null, gender || 'unknown', age || null, size || null, description, location, latitude || null, longitude || null, email, 'lost', userId, false, JSON.stringify(neighborhoods || [])]
     );
     const pet = petResult.rows[0];
 

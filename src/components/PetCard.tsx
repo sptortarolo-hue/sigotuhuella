@@ -7,6 +7,7 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
 import SocialShareModal from '@/src/components/SocialShareModal';
 import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
+import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import { AnimatePresence } from 'motion/react';
 
 interface PetCardProps {
@@ -125,6 +126,21 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             <MapPin className="w-4 h-4 text-brand-secondary" />
             <span className="break-words">{pet.location}</span>
           </div>
+          {pet.neighborhoods?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {pet.neighborhoods.slice(0, 3).map(id => {
+                const n = NEIGHBORHOODS.find(x => x.id === id);
+                return n ? (
+                  <span key={n.id} className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: n.color }}>
+                    {n.name}
+                  </span>
+                ) : null;
+              })}
+              {pet.neighborhoods.length > 3 && (
+                <span className="text-[10px] text-gray-400 font-bold">+{pet.neighborhoods.length - 3}</span>
+              )}
+            </div>
+          )}
           {pet.status === PetStatus.FOR_ADOPTION && (pet.age || pet.size) && (
             <div className="flex flex-wrap gap-2">
               {pet.age && <span className="text-[10px] px-2 py-1 bg-brand-bg rounded-full font-bold text-gray-500">{pet.age}</span>}

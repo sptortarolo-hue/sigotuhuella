@@ -4,8 +4,7 @@ import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, MapPin, PawPrint
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '@/src/lib/api';
-import LocationPicker from '@/src/components/LocationPicker';
-import MapLoader from '@/src/components/MapLoader';
+import ZoneSelector from '@/src/components/ZoneSelector';
 import ImageCropper from '@/src/components/ImageCropper';
 
 const SPECIES_OPTIONS = [
@@ -51,6 +50,7 @@ export default function LostPetReport() {
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<string[]>([]);
   const [reporterName, setReporterName] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [imageMimeTypes, setImageMimeTypes] = useState<string[]>([]);
@@ -152,6 +152,7 @@ export default function LostPetReport() {
       if (size) body.size = size;
       if (coordinates) { body.latitude = coordinates.lat; body.longitude = coordinates.lng; }
       if (phone) body.phone = phone;
+      if (selectedNeighborhoods.length > 0) body.neighborhoods = selectedNeighborhoods;
       body.images = images.map((data, i) => {
         return { data, mimeType: imageMimeTypes[i] || 'image/jpeg', crop_x: 0.5, crop_y: 0.5 };
       });
@@ -169,7 +170,7 @@ export default function LostPetReport() {
     setSpecies(''); setReporterName(''); setName(''); setBreed(''); setColor('');
     setGender(''); setAge(''); setSize(''); setDescription('');
     setLocation(''); setCoordinates(null); setEmail(''); setPhone('');
-    setImages([]); setImageMimeTypes([]);
+    setSelectedNeighborhoods([]); setImages([]); setImageMimeTypes([]);
     setPageStatus('idle'); setErrorMsg(''); setCreatedId('');
   };
 
@@ -408,15 +409,15 @@ export default function LostPetReport() {
               <MapPin className="w-4 h-4" /> Obtener mi ubicación actual
             </button>
 
-            <MapLoader>
-              <LocationPicker
-                initialCenter={coordinates || DEFAULT_CENTER}
-                selectedLocation={coordinates || undefined}
-                onLocationSelect={(coords) => setCoordinates(coords)}
-              />
-            </MapLoader>
+            <ZoneSelector
+              initialCenter={coordinates || DEFAULT_CENTER}
+              selectedLocation={coordinates || undefined}
+              onLocationSelect={(coords) => setCoordinates(coords)}
+              selectedNeighborhoods={selectedNeighborhoods}
+              onNeighborhoodsChange={setSelectedNeighborhoods}
+            />
             {coordinates && (
-              <p className="text-xs text-green-600 mt-2">📍 Ubicación seleccionada en el mapa</p>
+              <p className="text-xs text-green-600 mt-2">📍 Ubicación exacta marcada en el mapa</p>
             )}
 
             <input value={location} onChange={e => setLocation(e.target.value)}

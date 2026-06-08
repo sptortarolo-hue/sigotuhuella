@@ -36,6 +36,7 @@ export interface Pet {
   latitude: number | null;
   longitude: number | null;
   contact_info: string | null;
+  neighborhoods: string[];
   images: PetImage[];
   created_by: string;
   is_admin_verified: boolean;
