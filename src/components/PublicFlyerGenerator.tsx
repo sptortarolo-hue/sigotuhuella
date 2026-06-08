@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Download, Loader2, ArrowRight, Camera, PawPrint, Upload } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -57,11 +57,11 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
   const [caseNumber, setCaseNumber] = useState('');
   const [petId, setPetId] = useState('');
 
-  const cleanPhoto = useCallback(() => {
+  const cleanPhoto = () => {
     if (photoUrl) URL.revokeObjectURL(photoUrl);
     setPhotoBlob(null);
     setPhotoUrl(null);
-  }, [photoUrl]);
+  };
 
   const handleFilePick = () => {
     const input = document.createElement('input');
@@ -75,7 +75,6 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
   };
 
   const handleCropComplete = (blob: Blob) => {
-    cleanPhoto();
     setPhotoBlob(blob);
     setPhotoUrl(URL.createObjectURL(blob));
     setShowCropper(false);
@@ -165,8 +164,10 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
   const previewScale = 240 / 1080;
 
   useEffect(() => {
-    return () => { cleanPhoto(); };
-  }, [cleanPhoto]);
+    return () => {
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+    };
+  }, [photoUrl]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4">
