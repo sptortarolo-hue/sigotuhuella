@@ -1,13 +1,36 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Download, Loader2, ArrowRight, Camera, PawPrint, Upload } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { statusDesigns, drawFlyer } from '@/src/lib/flyerRenderer';
+import ImageCropper from '@/src/components/ImageCropper';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
 
 interface Props {
   onClose: () => void;
+}
+
+function blobToBase64(blob: Blob): Promise<{ data: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const b64 = result.split(',')[1];
+      resolve({ data: b64, mimeType: blob.type || 'image/jpeg' });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = src;
+  });
 }
 
 export default function PublicFlyerGenerator({ onClose }: Props) {
@@ -17,96 +40,46 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const [form, setForm] = useState({
-    name: '',
-    status: 'lost',
-    species: 'perro',
-    breed: '',
-    location: '',
-    contact_info: '',
-    instagram: '',
-    description: '',
+    name: '', status: 'lost', species: 'perro', breed: '',
+    location: '', contact_info: '', instagram: '', description: '',
   });
+  const updateField = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
-  const [photoB64, setPhotoB64] = useState('');
-  const [photoMime, setPhotoMime] = useState('');
-  const [photoPreview, setPhotoPreview] = useState('');
-  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+  // Photo state
+  const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
   const [caseNumber, setCaseNumber] = useState('');
   const [petId, setPetId] = useState('');
 
-  const updateField = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const cleanPhoto = useCallback(() => {
+    if (photoUrl) URL.revokeObjectURL(photoUrl);
+    setPhotoBlob(null);
+    setPhotoUrl(null);
+  }, [photoUrl]);
 
   const handleFilePick = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.onchange = async () => {
+    input.onchange = () => {
       const file = input.files?.[0];
-      if (!file) return;
-      const buf = await file.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-      setPhotoB64(btoa(binary));
-      setPhotoMime(file.type || 'image/jpeg');
-      setPhotoPreview(URL.createObjectURL(file));
+      if (file) { setPendingFile(file); setShowCropper(true); }
     };
     input.click();
   };
 
-  const removePhoto = () => {
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setPhotoB64('');
-    setPhotoMime('');
-    setPhotoPreview('');
-  };
-
-  // Load images and render flyer on hidden canvas
-  const renderFlyerFullRes = (imgSrc: string | null, caseNum: string, status: string) => {
-    return new Promise<string>((resolve) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1080;
-      canvas.height = 1080;
-      const ctx = canvas.getContext('2d')!;
-
-      const logoImg = new Image();
-      logoImg.crossOrigin = 'anonymous';
-
-      const doDraw = (img: HTMLImageElement | null, logo: HTMLImageElement | null) => {
-        drawFlyer(ctx, 1080, 1080, statusDesigns[status] || statusDesigns.lost, {
-          name: form.name,
-          status,
-          species: form.species,
-          breed: form.breed,
-          location: form.location,
-          contact_info: form.contact_info,
-          instagram: form.instagram,
-          description: form.description,
-          case_number: caseNum,
-        }, img, logo);
-        canvas.toBlob(blob => {
-          if (blob) resolve(URL.createObjectURL(blob));
-          else resolve('');
-        }, 'image/png');
-      };
-
-      const petImg = new Image();
-      const onBothReady = () => doDraw(petImg.complete && petImg.naturalWidth ? petImg : null, logoImg.complete && logoImg.naturalWidth ? logoImg : null);
-
-      logoImg.onload = onBothReady;
-      logoImg.onerror = onBothReady;
-      logoImg.src = '/sigotuhuella.jpg';
-
-      if (imgSrc) {
-        petImg.onload = onBothReady;
-        petImg.onerror = onBothReady;
-        petImg.src = imgSrc;
-      } else {
-        onBothReady();
-      }
-    });
+  const handleCropComplete = (blob: Blob) => {
+    cleanPhoto();
+    setPhotoBlob(blob);
+    setPhotoUrl(URL.createObjectURL(blob));
+    setShowCropper(false);
+    setPendingFile(null);
   };
 
   const handleGenerate = async () => {
@@ -114,19 +87,20 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
       setError('Completá al menos ubicación o teléfono');
       return;
     }
-    if (!photoB64) {
+    if (!photoBlob) {
       setError('Agregá una foto de la mascota');
       return;
     }
     setError('');
     setSaving(true);
     try {
+      const encoded = await blobToBase64(photoBlob);
       const res = await fetch('/api/pets/public', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          images: [{ data: photoB64, mimeType: photoMime }],
+          images: [{ data: encoded.data, mimeType: encoded.mimeType }],
           neighborhoods: [],
         }),
       });
@@ -136,15 +110,36 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
       setCaseNumber(cn);
       setPetId(data.pet.id);
 
-      // Use the server-returned image URL
+      // Use the server-returned image as the source
       const petImages = data.pet.images || [];
       const imgSrc = petImages.length > 0 && petImages[0].image_data
         ? `data:${petImages[0].mime_type || 'image/jpeg'};base64,${petImages[0].image_data}`
-        : null;
+        : photoUrl;
 
-      // Render flyer to get blob URL
-      const url = await renderFlyerFullRes(imgSrc, cn, form.status);
-      setGeneratedUrl(url);
+      // Load both images in parallel, then render
+      const [petImg, logoImg] = await Promise.all([
+        loadImage(imgSrc!).catch(() => null),
+        loadImage('/sigotuhuella.jpg').catch(() => null),
+      ]);
+
+      // Render on hidden canvas and preview canvas
+      const w = 1080, h = 1080;
+      const flyerData = {
+        name: form.name, status: form.status, species: form.species,
+        breed: form.breed, location: form.location, contact_info: form.contact_info,
+        instagram: form.instagram, description: form.description, case_number: cn,
+      };
+      const design = statusDesigns[form.status] || statusDesigns.lost;
+
+      [canvasRef.current, previewCanvasRef.current].forEach(canvas => {
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        canvas.width = w;
+        canvas.height = h;
+        drawFlyer(ctx, w, h, design, flyerData, petImg, logoImg);
+      });
+
       setStep('preview');
       setSaving(false);
     } catch (e: any) {
@@ -154,20 +149,24 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
   };
 
   const handleDownload = () => {
-    if (!generatedUrl) return;
-    const a = document.createElement('a');
-    a.download = `${caseNumber || 'flyer'}.png`;
-    a.href = generatedUrl;
-    a.click();
-    setStep('done');
+    if (!canvasRef.current) return;
+    canvasRef.current.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.download = `${caseNumber || 'flyer'}.png`;
+      a.href = url;
+      a.click();
+      URL.revokeObjectURL(url);
+      setStep('done');
+    }, 'image/png');
   };
 
+  const previewScale = 240 / 1080;
+
   useEffect(() => {
-    return () => {
-      if (generatedUrl) URL.revokeObjectURL(generatedUrl);
-      if (photoPreview && generatedUrl !== photoPreview) URL.revokeObjectURL(photoPreview);
-    };
-  }, [generatedUrl, photoPreview]);
+    return () => { cleanPhoto(); };
+  }, [cleanPhoto]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4">
@@ -197,10 +196,10 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                 <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">
                   Foto de la mascota
                 </label>
-                {photoPreview ? (
+                {photoUrl ? (
                   <div className="relative w-28 h-28 mx-auto">
-                    <img src={photoPreview} alt="" className="w-full h-full object-cover rounded-2xl border-2 border-brand-accent" />
-                    <button onClick={removePhoto}
+                    <img src={photoUrl} alt="" className="w-full h-full object-cover rounded-2xl border-2 border-brand-accent" />
+                    <button onClick={cleanPhoto}
                       className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md">
                       X
                     </button>
@@ -213,6 +212,15 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                   </button>
                 )}
               </div>
+
+              {showCropper && pendingFile && (
+                <ImageCropper
+                  file={pendingFile}
+                  aspect={1}
+                  onCropComplete={handleCropComplete}
+                  onCancel={() => { setShowCropper(false); setPendingFile(null); }}
+                />
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest">Estado</label>
@@ -237,7 +245,6 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                 <input placeholder="Nombre de la mascota (opcional)"
                   value={form.name} onChange={e => updateField('name', e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
-
                 <div className="flex gap-3">
                   <select value={form.species} onChange={e => updateField('species', e.target.value)}
                     className="flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary bg-white">
@@ -248,17 +255,14 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                   <input placeholder="Raza (opcional)" value={form.breed} onChange={e => updateField('breed', e.target.value)}
                     className="flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
                 </div>
-
                 <input placeholder="Zona / barrio" value={form.location} onChange={e => updateField('location', e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
-
                 <div className="flex gap-3">
                   <input placeholder="Teléfono / WhatsApp" value={form.contact_info} onChange={e => updateField('contact_info', e.target.value)}
                     className="flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
                   <input placeholder="@Instagram" value={form.instagram} onChange={e => updateField('instagram', e.target.value)}
                     className="flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
                 </div>
-
                 <textarea placeholder="Descripción corta (opcional)" value={form.description} onChange={e => updateField('description', e.target.value)}
                   rows={2}
                   className="w-full px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary resize-none" />
@@ -284,11 +288,13 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                 <span className="text-sm font-bold text-green-700">Flyer generado</span>
               </div>
 
-              {generatedUrl && (
-                <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden w-[240px] h-[240px]">
-                  <img src={generatedUrl} alt="Flyer preview" className="w-full h-full object-cover" />
-                </div>
-              )}
+              <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden pointer-events-none select-none"
+                style={{ width: Math.round(1080 * previewScale), height: Math.round(1080 * previewScale) }}>
+                <canvas ref={previewCanvasRef}
+                  className="block w-full h-full pointer-events-none select-none"
+                  style={{ width: Math.round(1080 * previewScale), height: Math.round(1080 * previewScale) }}
+                />
+              </div>
 
               <p className="text-xs text-gray-500">
                 Caso: <span className="font-bold text-brand-primary">{caseNumber}</span>
