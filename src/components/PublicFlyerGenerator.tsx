@@ -208,7 +208,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
         onClick={e => e.stopPropagation()}
         className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-y-auto max-h-[90vh]"
       >
-        <div className="p-6 sm:p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50 sticky top-0 z-10 bg-white">
+        <div className="p-4 sm:p-6 lg:p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50 sticky top-0 z-10 bg-white">
           <h2 className="text-xl sm:text-2xl font-serif font-bold text-brand-primary flex items-center gap-2">
             <Camera className="w-5 h-5 text-brand-secondary" />
             Flyer para redes
@@ -218,7 +218,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
           </button>
         </div>
 
-        <div className="p-6 sm:p-8 space-y-5">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-5">
           {step === 'form' && (
             <>
               <div>
@@ -279,13 +279,13 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                       className={cn('flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all flex items-center justify-center gap-2',
                         format === opt.key ? 'bg-brand-primary text-white border-brand-primary' : 'border-brand-accent text-gray-600'
                       )}>
-                      <span className="inline-block">
+                      <span className="hidden sm:inline-block">
                         {opt.key === '1:1' ? (
-                          <span className="inline-block w-4 h-4 border-2 rounded-sm" style={{ borderColor: format === '1:1' ? 'white' : undefined }} />
+                          <span className="inline-block w-4 h-4 border-2 rounded-sm" style={{ borderColor: format === '1:1' ? 'white' : 'currentColor' }} />
                         ) : opt.key === '4:5' ? (
-                          <span className="inline-block w-3 h-4 border-2 rounded-sm" style={{ borderColor: format === '4:5' ? 'white' : undefined }} />
+                          <span className="inline-block w-3 h-4 border-2 rounded-sm" style={{ borderColor: format === '4:5' ? 'white' : 'currentColor' }} />
                         ) : (
-                          <span className="inline-block w-2.5 h-4 border-2 rounded-sm" style={{ borderColor: format === '9:16' ? 'white' : undefined }} />
+                          <span className="inline-block w-2.5 h-4 border-2 rounded-sm" style={{ borderColor: format === '9:16' ? 'white' : 'currentColor' }} />
                         )}
                       </span>
                       {opt.label}
@@ -298,15 +298,15 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                 <input placeholder="Nombre de la mascota (opcional)"
                   value={form.name} onChange={e => updateField('name', e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <select value={form.species} onChange={e => updateField('species', e.target.value)}
-                    className="flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary bg-white">
+                    className="w-full sm:flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary bg-white">
                     <option value="perro">Perro</option>
                     <option value="gato">Gato</option>
                     <option value="otro">Otro</option>
                   </select>
                   <input placeholder="Raza (opcional)" value={form.breed} onChange={e => updateField('breed', e.target.value)}
-                    className="flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
+                    className="w-full sm:flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
                 </div>
                 <div className="relative">
                   <input placeholder="Zona / barrio" value={form.location}
@@ -326,11 +326,11 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                     </div>
                   )}
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <input placeholder="WhatsApp / teléfono *" value={form.contact_info} onChange={e => updateField('contact_info', e.target.value)}
-                    className="flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
+                    className="w-full sm:flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
                   <input placeholder="@Instagram" value={form.instagram} onChange={e => updateField('instagram', e.target.value)}
-                    className="flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
+                    className="w-full sm:flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
                 </div>
                 <textarea placeholder="Descripción corta (opcional)" value={form.description} onChange={e => updateField('description', e.target.value)}
                   rows={2}
@@ -357,7 +357,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                 <span className="text-sm font-bold text-green-700">Flyer generado</span>
               </div>
 
-              <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden pointer-events-none select-none"
+              <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden pointer-events-none select-none max-w-full max-h-[55vh]"
                 style={{ width: Math.round(dims.w * previewScale), height: Math.round(dims.h * previewScale) }}>
                 <canvas ref={previewCanvasRef}
                   className="block w-full h-full pointer-events-none select-none"

@@ -83,7 +83,7 @@ export default function ImageCropper({ file, aspect = 1, onCropComplete, onCance
           </button>
         </div>
 
-        <div className="relative h-[50vh] min-h-[300px] bg-black/10">
+        <div className="relative h-[45vh] min-h-[220px] bg-black/10">
           <Cropper
             image={imageUrl}
             crop={crop}
