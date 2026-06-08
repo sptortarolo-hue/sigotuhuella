@@ -8,45 +8,21 @@ import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 
-async function smartCropImage(imageData, mimeType, size = 800, cropX = 0.5, cropY = 0.5) {
+async function processImage(imageData, mimeType, size = 800) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
-    const pipeline = sharp(buffer);
-    const meta = await pipeline.metadata();
-    const w = meta.width || size;
-    const h = meta.height || size;
-
-    const scaleW = size / w;
-    const scaleH = size / h;
-    const scale = Math.max(scaleW, scaleH);
-    const scaledW = Math.round(w * scale);
-    const scaledH = Math.round(h * scale);
-
-    const focusX = Math.round(cropX * scaledW);
-    const focusY = Math.round(cropY * scaledH);
-    const left = Math.max(0, Math.min(focusX - size / 2, scaledW - size));
-    const top = Math.max(0, Math.min(focusY - size / 2, scaledH - size));
-
-    const [thumb, original] = await Promise.all([
-      sharp(buffer)
-        .resize(scaledW, scaledH)
-        .extract({ left, top, width: size, height: size })
-        .jpeg({ quality: 85 })
-        .toBuffer(),
-      sharp(buffer)
-        .jpeg({ quality: 85 })
-        .toBuffer(),
-    ]);
+    const processed = await sharp(buffer)
+      .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
     return {
-      data: thumb.toString('base64'),
-      original_data: original.toString('base64'),
+      data: processed.toString('base64'),
+      original_data: processed.toString('base64'),
       mimeType: 'image/jpeg',
-      width: w,
-      height: h,
     };
   } catch (err) {
-    console.warn('Smart crop failed, using original:', err.message);
-    return { data: imageData, mimeType, original_data: imageData };
+    console.error('Image processing failed:', err.message);
+    throw err;
   }
 }
 
@@ -262,7 +238,7 @@ router.post('/', requireAuth, async (req, res) => {
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
       for (const img of images) {
-        const processed = await smartCropImage(img.data, img.mimeType || 'image/jpeg', 800, img.crop_x, img.crop_y);
+        const processed = await processImage(img.data, img.mimeType || 'image/jpeg', 800);
         await client.query(
           'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
           [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
@@ -346,7 +322,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     }
     if (req.body.newImages && req.body.newImages.length > 0) {
       for (const img of req.body.newImages) {
-        const processed = await smartCropImage(img.data, img.mimeType, 800, img.crop_x, img.crop_y);
+        const processed = await processImage(img.data, img.mimeType, 800);
         await pool.query(
           'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
           [petId, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
@@ -356,7 +332,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       // Fallback for legacy behavior
       await pool.query('DELETE FROM pet_images WHERE pet_id = $1', [petId]);
       for (const img of req.body.images) {
-        const processed = await smartCropImage(img.data, img.mimeType, 800, img.crop_x, img.crop_y);
+        const processed = await processImage(img.data, img.mimeType, 800);
         await pool.query(
           'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
           [petId, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
@@ -677,7 +653,7 @@ router.post('/public', async (req, res) => {
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
       for (const img of images) {
-        const processed = await smartCropImage(img.data, img.mimeType, 800, img.crop_x, img.crop_y);
+        const processed = await processImage(img.data, img.mimeType, 800);
         await client.query(
           'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
           [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]
@@ -781,7 +757,7 @@ router.post('/lost-report', async (req, res) => {
 
     // Process images
     for (const img of images) {
-      const processed = await smartCropImage(img.data, img.mimeType, 800, img.crop_x, img.crop_y);
+      const processed = await processImage(img.data, img.mimeType, 800);
       await client.query(
         'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
         [pet.id, processed.data, processed.mimeType, img.crop_x ?? 0.5, img.crop_y ?? 0.5, processed.original_data]

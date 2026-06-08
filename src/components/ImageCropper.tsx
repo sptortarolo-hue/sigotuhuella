@@ -5,7 +5,7 @@ import { X, ZoomIn, ZoomOut } from 'lucide-react';
 interface ImageCropperProps {
   file: File;
   aspect?: number;
-  onCropComplete: (croppedBlob: Blob, cropX: number, cropY: number) => void;
+  onCropComplete: (croppedBlob: Blob) => void;
   onCancel: () => void;
 }
 
@@ -35,7 +35,6 @@ export default function ImageCropper({ file, aspect = 1, onCropComplete, onCance
       if (!ctx) return;
 
       const img = new Image();
-      img.crossOrigin = 'anonymous';
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
         img.onerror = reject;
@@ -51,17 +50,18 @@ export default function ImageCropper({ file, aspect = 1, onCropComplete, onCance
       canvas.width = outputSize;
       canvas.height = outputSize;
 
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, outputSize, outputSize);
       ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, outputSize, outputSize);
 
-      const blob = await new Promise<Blob>((resolve) =>
-        canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.85)
+      const blob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob((b) => {
+          if (b) resolve(b);
+          else reject(new Error('Canvas toBlob returned null'));
+        }, 'image/jpeg', 0.85)
       );
 
-      // Calculate center of crop as fraction of original image dimensions
-      const centerX = (cropX + cropW / 2) / img.naturalWidth;
-      const centerY = (cropY + cropH / 2) / img.naturalHeight;
-
-      onCropComplete(blob, centerX, centerY);
+      onCropComplete(blob);
     } catch (e) {
       console.error('Crop error:', e);
     }

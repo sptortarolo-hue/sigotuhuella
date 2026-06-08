@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { createPet, PetStatus } from '@/src/lib/petService';
-import { filesToBase64, compressImage } from '@/src/lib/storageService';
+import { filesToBase64 } from '@/src/lib/storageService';
 import MapLoader from '@/src/components/MapLoader';
 import LocationPicker from '@/src/components/LocationPicker';
 import ImageCropper from '@/src/components/ImageCropper';
@@ -38,7 +38,6 @@ export default function ReportPet() {
 
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
-  const [cropInfo, setCropInfo] = useState<Map<number, { cropX: number; cropY: number }>>(new Map());
   const [croppingIndex, setCroppingIndex] = useState<number | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
 
@@ -73,20 +72,16 @@ export default function ReportPet() {
     setCroppingIndex(startIdx);
   };
 
-  const handleCropComplete = async (croppedBlob: Blob, cropX: number, cropY: number) => {
+  const handleCropComplete = async (croppedBlob: Blob) => {
     if (croppingIndex === null || !cropFile) return;
 
-    const newCropInfo = new Map(cropInfo);
-    newCropInfo.set(croppingIndex, { cropX, cropY });
-    setCropInfo(newCropInfo);
-
     try {
-      const compressed = await compressImage(cropFile);
+      const croppedFile = new File([croppedBlob], 'photo.jpg', { type: 'image/jpeg' });
       const newFiles = [...files];
-      newFiles[croppingIndex] = compressed;
+      newFiles[croppingIndex] = croppedFile;
       setFiles(newFiles);
     } catch (e) {
-      console.error('Compression after crop failed:', e);
+      console.error('Failed to create cropped file:', e);
     }
 
     const previewUrl = URL.createObjectURL(croppedBlob);
@@ -95,7 +90,7 @@ export default function ReportPet() {
     setPreviews(newPreviews);
 
     const nextIdx = croppingIndex + 1;
-    if (nextIdx < files.length && cropInfo.get(nextIdx) === undefined) {
+    if (nextIdx < files.length) {
       setCropFile(files[nextIdx]);
       setCroppingIndex(nextIdx);
     } else {
@@ -123,15 +118,6 @@ export default function ReportPet() {
     URL.revokeObjectURL(newPreviews[index]);
     newPreviews.splice(index, 1);
     setPreviews(newPreviews);
-
-    const newCropInfo = new Map(cropInfo);
-    newCropInfo.delete(index);
-    const reindexed = new Map<number, { cropX: number; cropY: number }>();
-    newCropInfo.forEach((v: { cropX: number; cropY: number }, k: number) => {
-      if (k > index) reindexed.set(k - 1, v);
-      else reindexed.set(k, v);
-    });
-    setCropInfo(reindexed);
   };
 
 const handleSubmit = async (e: React.FormEvent) => {
@@ -164,16 +150,13 @@ const handleSubmit = async (e: React.FormEvent) => {
      }
 
       setLoading(true);
-      try {
-        const base64Images = await filesToBase64(files);
-        const images = base64Images.map((img, i) => {
-          const crop = cropInfo.get(i);
-          return {
-            ...img,
-            crop_x: crop?.cropX ?? 0.5,
-            crop_y: crop?.cropY ?? 0.5,
-          };
-        });
+       try {
+         const base64Images = await filesToBase64(files);
+         const images = base64Images.map(img => ({
+           ...img,
+           crop_x: 0.5,
+           crop_y: 0.5,
+         }));
 
         const petData = {
          name: formData.name || null,

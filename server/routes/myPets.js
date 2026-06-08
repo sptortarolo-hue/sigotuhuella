@@ -29,67 +29,27 @@ const EVENT_TYPE_ICONS = {
   grooming: '✂️', other: '📋',
 };
 
-async function compressAvatar(imageData, mimeType, cropX = 0.5, cropY = 0.5) {
+async function compressAvatar(imageData, mimeType, size = 400) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
-    const pipeline = sharp(buffer);
-    const meta = await pipeline.metadata();
-    const w = meta.width || 400;
-    const h = meta.height || 400;
-    const size = 400;
-
-    const scale = Math.max(size / w, size / h);
-    const scaledW = Math.round(w * scale);
-    const scaledH = Math.round(h * scale);
-    const focusX = Math.round(cropX * scaledW);
-    const focusY = Math.round(cropY * scaledH);
-    const left = Math.max(0, Math.min(focusX - size / 2, scaledW - size));
-    const top = Math.max(0, Math.min(focusY - size / 2, scaledH - size));
-
-    const [thumb, original] = await Promise.all([
-      sharp(buffer)
-        .resize(scaledW, scaledH)
-        .extract({ left, top, width: size, height: size })
-        .jpeg({ quality: 80 })
-        .toBuffer(),
-      sharp(buffer)
-        .jpeg({ quality: 85 })
-        .toBuffer(),
-    ]);
-    return { data: thumb.toString('base64'), original_data: original.toString('base64'), mimeType: 'image/jpeg' };
+    const processed = await sharp(buffer)
+      .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    return { data: processed.toString('base64'), original_data: processed.toString('base64'), mimeType: 'image/jpeg' };
   } catch {
     return { data: imageData, mimeType, original_data: imageData };
   }
 }
 
-async function compressPhoto(imageData, mimeType, cropX = 0.5, cropY = 0.5) {
+async function compressPhoto(imageData, mimeType, size = 1200) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
-    const pipeline = sharp(buffer);
-    const meta = await pipeline.metadata();
-    const w = meta.width || 1200;
-    const h = meta.height || 1200;
-    const size = 1200;
-
-    const scale = Math.max(size / w, size / h);
-    const scaledW = Math.round(w * scale);
-    const scaledH = Math.round(h * scale);
-    const focusX = Math.round(cropX * scaledW);
-    const focusY = Math.round(cropY * scaledH);
-    const left = Math.max(0, Math.min(focusX - size / 2, scaledW - size));
-    const top = Math.max(0, Math.min(focusY - size / 2, scaledH - size));
-
-    const [thumb, original] = await Promise.all([
-      sharp(buffer)
-        .resize(scaledW, scaledH)
-        .extract({ left, top, width: size, height: size })
-        .jpeg({ quality: 85 })
-        .toBuffer(),
-      sharp(buffer)
-        .jpeg({ quality: 85 })
-        .toBuffer(),
-    ]);
-    return { data: thumb.toString('base64'), original_data: original.toString('base64'), mimeType: 'image/jpeg' };
+    const processed = await sharp(buffer)
+      .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    return { data: processed.toString('base64'), original_data: processed.toString('base64'), mimeType: 'image/jpeg' };
   } catch {
     return { data: imageData, mimeType, original_data: imageData };
   }
@@ -172,7 +132,7 @@ router.post('/', requireAuth, async (req, res) => {
     let avatarMime = null;
     let avatarOriginal = null;
     if (avatar_image) {
-      const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg', crop_x || 0.5, crop_y || 0.5);
+      const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg');
       avatarData = compressed.data;
       avatarMime = compressed.mimeType;
       avatarOriginal = compressed.original_data;
@@ -235,7 +195,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (weight_kg !== undefined) addField('weight_kg', weight_kg || null);
 
     if (avatar_image !== undefined) {
-      const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg', crop_x || 0.5, crop_y || 0.5);
+      const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg');
       addField('avatar_image', compressed.data);
       addField('avatar_mime_type', compressed.mimeType);
       addField('crop_x', crop_x ?? 0.5);
@@ -284,7 +244,7 @@ router.post('/:id/photos', requireAuth, async (req, res) => {
     const { image_data, mime_type, caption, taken_at, crop_x, crop_y } = req.body;
     if (!image_data) return res.status(400).json({ error: 'Imagen requerida' });
 
-    const compressed = await compressPhoto(image_data, mime_type || 'image/jpeg', crop_x || 0.5, crop_y || 0.5);
+    const compressed = await compressPhoto(image_data, mime_type || 'image/jpeg');
 
     const result = await pool.query(
       `INSERT INTO my_pet_photos (my_pet_id, image_data, mime_type, caption, taken_at, crop_x, crop_y, original_image_data)
@@ -583,12 +543,7 @@ router.post('/convert/:petId', requireAuth, async (req, res) => {
     let cropX = 0.5, cropY = 0.5;
     if (imagesResult.rows.length > 0) {
       const img = imagesResult.rows[0];
-      const compressed = await compressAvatar(
-        img.image_data,
-        img.mime_type,
-        img.crop_x ?? 0.5,
-        img.crop_y ?? 0.5
-      );
+      const compressed = await compressAvatar(img.image_data, img.mime_type);
       avatarData = compressed.data;
       avatarMime = compressed.mimeType;
       avatarOriginal = compressed.original_data;

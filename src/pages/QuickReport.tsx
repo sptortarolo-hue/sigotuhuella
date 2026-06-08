@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, HeartHandshake, Frown, Camera, Loader2, CheckCircle2, AlertCircle, ArrowLeft, PawPrint, Share2, MapPin, Download, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { compressImage } from '@/src/lib/storageService';
 import LocationPicker from '@/src/components/LocationPicker';
 import MapLoader from '@/src/components/MapLoader';
 import ImageCropper from '@/src/components/ImageCropper';
@@ -35,7 +34,6 @@ export default function QuickReport() {
   const [contactInfo, setContactInfo] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [imageMimeTypes, setImageMimeTypes] = useState<string[]>([]);
-  const [cropInfo, setCropInfo] = useState<Map<number, { cropX: number; cropY: number }>>(new Map());
   const [croppingIndex, setCroppingIndex] = useState<number | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
 
@@ -76,32 +74,16 @@ export default function QuickReport() {
     setCroppingIndex(images.length);
   };
 
-  const handleCropComplete = async (croppedBlob: Blob, cropX: number, cropY: number) => {
+  const handleCropComplete = async (croppedBlob: Blob) => {
     if (croppingIndex === null || !cropFile) return;
-    const newCropInfo = new Map(cropInfo);
-    newCropInfo.set(croppingIndex, { cropX, cropY });
-    setCropInfo(newCropInfo);
-    try {
-      const compressed = await compressImage(cropFile);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const result = ev.target?.result as string;
-        const base64 = result.split(',')[1];
-        setImages(prev => [...prev, base64]);
-        setImageMimeTypes(prev => [...prev, 'image/jpeg']);
-      };
-      reader.readAsDataURL(compressed);
-    } catch (e) {
-      console.error('Compression after crop failed:', e);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const result = ev.target?.result as string;
-        const base64 = result.split(',')[1];
-        setImages(prev => [...prev, base64]);
-        setImageMimeTypes(prev => [...prev, 'image/jpeg']);
-      };
-      reader.readAsDataURL(cropFile);
-    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      const base64 = result.split(',')[1];
+      setImages(prev => [...prev, base64]);
+      setImageMimeTypes(prev => [...prev, 'image/jpeg']);
+    };
+    reader.readAsDataURL(croppedBlob);
     setCroppingIndex(null);
     setCropFile(null);
   };
@@ -114,14 +96,6 @@ export default function QuickReport() {
   const removeImage = (idx: number) => {
     setImages(prev => prev.filter((_, i) => i !== idx));
     setImageMimeTypes(prev => prev.filter((_, i) => i !== idx));
-    const newCropInfo = new Map(cropInfo);
-    newCropInfo.delete(idx);
-    const reindexed = new Map<number, { cropX: number; cropY: number }>();
-    newCropInfo.forEach((v: { cropX: number; cropY: number }, k: number) => {
-      if (k > idx) reindexed.set(k - 1, v);
-      else reindexed.set(k, v);
-    });
-    setCropInfo(reindexed);
   };
 
   const getLocation = () => {
@@ -170,8 +144,7 @@ export default function QuickReport() {
       if (contactInfo && status === 'retained') body.contact_info = contactInfo;
       if (images.length > 0) {
         body.images = images.map((data, i) => {
-          const crop = cropInfo.get(i);
-          return { data, mimeType: imageMimeTypes[i] || 'image/jpeg', crop_x: crop?.cropX ?? 0.5, crop_y: crop?.cropY ?? 0.5 };
+          return { data, mimeType: imageMimeTypes[i] || 'image/jpeg', crop_x: 0.5, crop_y: 0.5 };
         });
       }
       const res = await fetch('/api/pets/public', {

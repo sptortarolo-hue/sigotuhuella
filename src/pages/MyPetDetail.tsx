@@ -287,36 +287,26 @@ export default function MyPetDetail() {
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      setPhotoLoading(true);
-      const compressed = await compressImage(file, 1200, 0.85);
-      setCropFile(compressed);
-      setCropMode('photo');
-    } catch (e) {
-      console.error(e);
-      alert('Error al procesar la foto.');
-    } finally {
-      setPhotoLoading(false);
-    }
+    setCropFile(file);
+    setCropMode('photo');
   };
 
-  const handleCropComplete = async (croppedBlob: Blob, cropX: number, cropY: number) => {
+  const handleCropComplete = async (croppedBlob: Blob) => {
     if (!cropFile || !cropMode) return;
     try {
+      const { data, mimeType } = await fileToBase64(new File([croppedBlob], 'photo.jpg', { type: 'image/jpeg' }));
       if (cropMode === 'photo') {
-        const { data, mimeType } = await fileToBase64(cropFile);
         await api.myPets.photos.create(id!, {
           image_data: data,
           mime_type: mimeType,
           caption: '',
           taken_at: new Date().toISOString(),
-          crop_x: cropX,
-          crop_y: cropY,
+          crop_x: 0.5,
+          crop_y: 0.5,
         });
         await fetchPet();
       } else if (cropMode === 'avatar') {
-        const { data, mimeType } = await fileToBase64(cropFile);
-        await api.myPets.update(id!, { avatar_image: data, avatar_mime_type: mimeType, avatar_crop_x: cropX, avatar_crop_y: cropY });
+        await api.myPets.update(id!, { avatar_image: data, avatar_mime_type: mimeType, crop_x: 0.5, crop_y: 0.5 });
         await fetchPet();
       }
     } catch (e) {
@@ -340,17 +330,8 @@ export default function MyPetDetail() {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      setAvatarLoading(true);
-      const compressed = await compressImage(file, 800, 0.8);
-      setCropFile(compressed);
-      setCropMode('avatar');
-    } catch (e) {
-      console.error(e);
-      alert('Error al procesar la foto.');
-    } finally {
-      setAvatarLoading(false);
-    }
+    setCropFile(file);
+    setCropMode('avatar');
   };
 
   const handleDeletePhoto = async (photoId: string) => {
