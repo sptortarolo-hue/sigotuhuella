@@ -240,7 +240,11 @@ export default function MyPets() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <>
+      {cropFile && (
+        <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+      )}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold mb-8">
         <ArrowLeft className="w-4 h-4" /> Volver
       </button>
@@ -558,10 +562,7 @@ export default function MyPets() {
           </div>
         )}
       </AnimatePresence>
-
-      {cropFile && (
-        <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
-      )}
     </div>
+    </>
   );
 }

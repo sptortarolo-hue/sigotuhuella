@@ -247,8 +247,12 @@ export default function QuickReport() {
   // Forms for sighted/retained
   if (pageState === 'sighted' || pageState === 'retained') {
     return (
-      <div className="min-h-[80vh] py-8 sm:py-12 px-4">
-        <div className="max-w-lg mx-auto">
+      <>
+        {croppingIndex !== null && cropFile && (
+          <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+        )}
+        <div className="min-h-[80vh] py-8 sm:py-12 px-4">
+          <div className="max-w-lg mx-auto">
           <button onClick={goToMenu} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary mb-6 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Volver
           </button>
@@ -369,6 +373,7 @@ export default function QuickReport() {
           </div>
         </div>
       </div>
+      </>
     );
   }
 
