@@ -413,6 +413,13 @@ def login_to_facebook(driver, email, password):
             (By.XPATH, "//input[@type='email']"),
         ])
         if not email_el:
+            if _find_first(driver, [
+                (By.CSS_SELECTOR, "div[role='feed']"),
+                (By.CSS_SELECTOR, "a[aria-label='Home']"),
+                (By.CSS_SELECTOR, "div[aria-label='Home']"),
+            ], timeout=5):
+                logger.info("Already logged in (feed found instead of login form)")
+                return True
             _save_debug(driver, "login_no_email")
             logger.error("Could not find email input.")
             return False
