@@ -5,6 +5,7 @@ import L from 'leaflet';
 import { MapPin, X, ChevronDown, ChevronUp, Crosshair } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { NEIGHBORHOODS, Neighborhood } from '@/src/lib/neighborhoods';
+import { buildAddress } from '@/src/lib/grid';
 
 const FEATURED_IDS = ['parque_sicardi', 'villa_garibaldi', 'ignacio_correas'];
 const featuredNeighborhoods = FEATURED_IDS.map(id => NEIGHBORHOODS.find(n => n.id === id)).filter((n): n is Neighborhood => !!n);
@@ -88,8 +89,13 @@ export default function LocationInput({
         { headers: { 'Accept-Language': 'es' } }
       );
       const data = await res.json();
-      const addr = data.display_name || `${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`;
-      onLocationChange(addr.length > 200 ? addr.slice(0, 200) : addr);
+      const road = data.address?.road;
+      if (road) {
+        onLocationChange(buildAddress(road, latlng.lat, latlng.lng));
+      } else {
+        const locality = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality;
+        onLocationChange(locality || `${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`);
+      }
     } catch {
       onLocationChange(`${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`);
     } finally {
