@@ -249,19 +249,19 @@ function drawCardFlyer(
     badgeH = h * 0.17; photoTop = h * 0.22; photoH = h * 0.38;
     photoW = w * 0.84; photoRadius = w * 0.025;
     maxDescLines = 99; descFontSize = hasName ? w * 0.038 : w * 0.050;
-    infoFontSize = w * 0.032; detailsFontSize = hasName ? w * 0.028 : w * 0.034;
+    infoFontSize = w * 0.038; detailsFontSize = hasName ? w * 0.028 : w * 0.034;
     nameFontSize = w * 0.065; brandH = h * 0.055;
   } else if (layoutType === 'portrait') {
     badgeH = h * 0.16; photoTop = h * 0.19; photoH = h * 0.38;
     photoW = w * 0.84; photoRadius = w * 0.025;
     maxDescLines = 99; descFontSize = hasName ? w * 0.032 : w * 0.042;
-    infoFontSize = w * 0.03; detailsFontSize = hasName ? w * 0.026 : w * 0.032;
+    infoFontSize = w * 0.036; detailsFontSize = hasName ? w * 0.026 : w * 0.032;
     nameFontSize = w * 0.06; brandH = h * 0.055;
   } else {
     badgeH = h * 0.16; photoTop = h * 0.19; photoH = h * 0.32;
     photoW = w * 0.84; photoRadius = w * 0.025;
     maxDescLines = 99; descFontSize = hasName ? w * 0.030 : w * 0.040;
-    infoFontSize = w * 0.028; detailsFontSize = hasName ? w * 0.024 : w * 0.030;
+    infoFontSize = w * 0.034; detailsFontSize = hasName ? w * 0.024 : w * 0.030;
     nameFontSize = w * 0.055; brandH = h * 0.055;
   }
   const photoX = (w - photoW) / 2;
@@ -288,28 +288,49 @@ function drawCardFlyer(
   ctx.fillText(design.label, w / 2, badgePad + (badgeH - badgePad) / 2);
   drawRectPhoto(ctx, photoX, photoY, photoW, photoH, img, photoRadius);
 
-  // Info lines (location, contact, instagram) — from bottom up
+  // Info box (location, contact) — white rounded box near bottom
   const infoItems: string[] = [];
   if (location) infoItems.push(location);
   if (contactInfo) infoItems.push(contactInfo);
   if (instagram) infoItems.push(instagram);
 
-  const locationY = brandY - (infoItems.length > 1 ? infoFontSize * 1.2 * infoItems.length + infoFontSize * 0.3 : infoFontSize * 1.5);
-  let curInfoY = locationY;
+  let infoBoxTop = brandY;
+  if (infoItems.length > 0) {
+    const boxPadX = w * 0.04;
+    const boxPadY = infoFontSize * 0.3;
+    const lineHeight = infoFontSize * 1.35;
+    const boxRadius = w * 0.015;
+    const boxBottom = brandY - h * 0.01;
+    const boxH = infoItems.length * lineHeight + boxPadY * 2;
+    infoBoxTop = boxBottom - boxH;
+    const boxW = w * 0.88;
+    const boxX = (w - boxW) / 2;
 
-  for (const item of infoItems) {
-    if (curInfoY + infoFontSize > brandY) break;
-    if (curInfoY > photoY + photoH) {
-      ctx.font = `500 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.95)';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillText(item, contentX, curInfoY);
-      curInfoY += infoFontSize * 1.35;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.12)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    roundRect(ctx, boxX, infoBoxTop, boxW, boxH, boxRadius);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.font = `700 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.lineJoin = 'round';
+    let textY = infoBoxTop + boxPadY;
+    for (const item of infoItems) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+      ctx.lineWidth = 2.5;
+      ctx.strokeText(item, boxX + boxPadX, textY);
+      ctx.fillStyle = design.badgeColor;
+      ctx.fillText(item, boxX + boxPadX, textY);
+      textY += lineHeight;
     }
   }
 
-  const contentEndY = Math.min(locationY - h * 0.015, brandY - h * 0.05);
+  const contentEndY = Math.min(infoBoxTop - h * 0.015, brandY - h * 0.05);
   let contentY = photoY + photoH + h * 0.035;
   if (hasName && contentY + nameFontSize < contentEndY) {
     ctx.font = `800 ${nameFontSize}px system-ui, -apple-system, sans-serif`;
