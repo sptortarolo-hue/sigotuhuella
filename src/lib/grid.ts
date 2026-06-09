@@ -14,6 +14,8 @@ export interface RoadInfo {
 }
 
 const REF = { lat: -34.921, lng: -57.955 };
+const REF_A = 13;
+const REF_B = 53;
 
 const V1 = { lat: -0.001506, lng: -0.0000353 };
 const V2 = { lat: -0.00008652, lng: 0.0001112 };
@@ -55,7 +57,7 @@ export function buildAddress(road: string, lat: number, lng: number): string {
   if (p.axis === 'unknown' || p.num === null) return road;
 
   const g = latlngToGrid(lat, lng);
-  const entre = p.axis === 'a1' ? getEntreCalles(g.b) : getEntreCalles(g.a);
+  const entre = p.axis === 'a1' ? getEntreCalles(g.b + REF_B) : getEntreCalles(g.a + REF_A);
 
   return `${road} entre ${entre.from} y ${entre.to}`;
 }
