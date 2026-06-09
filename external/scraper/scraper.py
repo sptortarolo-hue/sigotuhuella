@@ -516,7 +516,7 @@ def run_daemon():
     except ImportError:
         logger.error("schedule library required")
         sys.exit(1)
-    threading.Thread(target=lambda: Flask(__name__).run(host="0.0.0.0", port=SYNC_PORT, debug=False, use_reloader=False), daemon=True).start()
+    threading.Thread(target=lambda: sync_app.run(host="0.0.0.0", port=SYNC_PORT, debug=False, use_reloader=False), daemon=True).start()
     logger.info(f"Sync server on port {SYNC_PORT}")
     def job():
         try:
