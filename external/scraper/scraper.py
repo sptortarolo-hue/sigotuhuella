@@ -631,6 +631,11 @@ def sync_config():
         return jsonify({"error": "invalid"}), 400
     save_config(data["groups"], data.get("scrape_interval_hours", 6), data.get("max_posts_per_group", 50))
     logger.info(f"Config received: {len(data['groups'])} groups")
+    cookies_txt = data.get("cookies_txt", "")
+    if cookies_txt:
+        with open(_DIR / "cookies.txt", "w") as f:
+            f.write(cookies_txt)
+        logger.info(f"Cookies updated from config push ({len(cookies_txt)} bytes)")
     return jsonify({"ok": True})
 
 def run_daemon():

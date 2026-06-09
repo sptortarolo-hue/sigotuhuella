@@ -7,6 +7,7 @@ import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { classifyPost } from '../services/geminiClassifier.js';
 import { matchPostToPet, matchPetToPosts, runFullMatching, detectReunion } from '../services/geminiMatching.js';
+import { pushConfig } from '../services/vpsSyncService.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const COOKIES_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'cookies.txt');
@@ -530,6 +531,7 @@ router.post('/upload-cookies', requireAdmin, upload.single('file'), (req, res) =
     const dir = dirname(COOKIES_PATH);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     writeFileSync(COOKIES_PATH, content, 'utf-8');
+    pushConfig().catch(() => {});
     const info = parseCookiesInfo(COOKIES_PATH);
     res.json({ ok: true, count: info.count, expires: info.expires });
   } catch (err) {

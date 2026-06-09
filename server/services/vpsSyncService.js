@@ -1,11 +1,17 @@
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
 import pool from '../db.js';
 import { classifyPost } from './geminiClassifier.js';
 import { matchPostToPet, detectReunion } from './geminiMatching.js';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const VPS_HOST = process.env.VPS_HOST || 'http://138.36.236.69:3001';
+const COOKIES_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'cookies.txt');
 let lastSync = null;
 
-async function pushConfig() {
+export async function pushConfig() {
   try {
     const groupsRes = await pool.query(
       "SELECT name, url FROM facebook_groups WHERE is_active = true"
@@ -15,17 +21,24 @@ async function pushConfig() {
     );
     const s = {};
     settingsRes.rows.forEach(r => (s[r.key] = r.value));
+    let cookies_txt = '';
+    try {
+      if (existsSync(COOKIES_PATH)) {
+        cookies_txt = readFileSync(COOKIES_PATH, 'utf-8');
+      }
+    } catch {}
     const body = {
       groups: groupsRes.rows,
       scrape_interval_hours: parseInt(s.fb_scraper_interval_hours, 10) || 6,
       max_posts_per_group: parseInt(s.fb_scraper_max_posts, 10) || 50,
+      cookies_txt,
     };
     const resp = await fetch(`${VPS_HOST}/config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (resp.ok) console.log(`Config pushed to VPS: ${groupsRes.rows.length} groups`);
+    if (resp.ok) console.log(`Config pushed to VPS: ${groupsRes.rows.length} groups${cookies_txt ? ` + cookies (${cookies_txt.length}B)` : ''}`);
   } catch (err) {
     console.error('Error pushing config to VPS:', err.message);
   }
