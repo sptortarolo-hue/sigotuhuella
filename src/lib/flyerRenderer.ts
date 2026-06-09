@@ -249,20 +249,20 @@ function drawCardFlyer(
   if (layoutType === 'story') {
     badgeH = h * 0.17; photoTop = h * 0.22; photoH = h * 0.38;
     photoW = w * 0.84; photoRadius = w * 0.025;
-    maxDescLines = 99; descFontSize = hasName ? w * 0.038 : w * 0.050;
-    infoFontSize = w * 0.038; detailsFontSize = hasName ? w * 0.028 : w * 0.034;
+    maxDescLines = 99; descFontSize = hasName ? w * 0.044 : w * 0.058;
+    infoFontSize = w * 0.048; detailsFontSize = hasName ? w * 0.028 : w * 0.034;
     nameFontSize = w * 0.065; brandH = h * 0.055;
   } else if (layoutType === 'portrait') {
     badgeH = h * 0.16; photoTop = h * 0.19; photoH = h * 0.38;
     photoW = w * 0.84; photoRadius = w * 0.025;
-    maxDescLines = 99; descFontSize = hasName ? w * 0.032 : w * 0.042;
-    infoFontSize = w * 0.036; detailsFontSize = hasName ? w * 0.026 : w * 0.032;
+    maxDescLines = 99; descFontSize = hasName ? w * 0.038 : w * 0.048;
+    infoFontSize = w * 0.044; detailsFontSize = hasName ? w * 0.026 : w * 0.032;
     nameFontSize = w * 0.06; brandH = h * 0.055;
   } else {
     badgeH = h * 0.16; photoTop = h * 0.19; photoH = h * 0.32;
     photoW = w * 0.84; photoRadius = w * 0.025;
-    maxDescLines = 99; descFontSize = hasName ? w * 0.030 : w * 0.040;
-    infoFontSize = w * 0.034; detailsFontSize = hasName ? w * 0.024 : w * 0.030;
+    maxDescLines = 99; descFontSize = hasName ? w * 0.036 : w * 0.046;
+    infoFontSize = w * 0.042; detailsFontSize = hasName ? w * 0.024 : w * 0.030;
     nameFontSize = w * 0.055; brandH = h * 0.055;
   }
   const photoX = (w - photoW) / 2;
