@@ -127,19 +127,12 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
       ]);
 
       const canvas = canvasRef.current;
-      const previewCanvas = previewCanvasRef.current;
-      if (canvas && previewCanvas) {
+      if (canvas) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           canvas.width = w;
           canvas.height = h;
           drawFlyer(ctx, w, h, design, flyerData, petImg, logoImg);
-        }
-        const previewCtx = previewCanvas.getContext('2d');
-        if (previewCtx) {
-          previewCanvas.width = w;
-          previewCanvas.height = h;
-          previewCtx.drawImage(canvas, 0, 0);
         }
       }
 
