@@ -1,7 +1,7 @@
 """
 Facebook Group Scraper — Sigo Tu Huella
 Scrapes configured Facebook groups via Selenium (headless Chrome),
-classifies posts with Gemini AI, saves to local SQLite,
+saves raw posts to local SQLite (DonWeb classifies via Gemini on sync),
 and exposes a sync endpoint for the production server.
 
 Usage:
@@ -25,7 +25,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from google import genai
+
 from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
 from selenium import webdriver
@@ -53,28 +53,6 @@ ENV_PATH = _DIR / ".env"
 MIN_CONTENT_LENGTH = 20
 CHROME_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 SYNC_PORT = int(os.environ.get("SYNC_PORT", "3001"))
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-
-CLASSIFICATION_PROMPT = """Eres un clasificador de publicaciones de Facebook sobre mascotas perdidas y encontradas para la app "Sigo Tu Huella".
-Analizá el post. Devolvé SOLO un JSON válido sin markdown:
-
-{
-  "classification": "lost" | "found" | "sighting" | "reunion" | "other",
-  "species": "dog" | "cat" | "other" | null,
-  "species_other": "string | null",
-  "color": "string | null",
-  "location": "string | null",
-  "phone": "string | null",
-  "confidence": 0-100
-}
-
-Reglas:
-- lost = reportando mascota perdida
-- found = reportando mascota encontrada
-- reunion = la mascota ya aparecio
-- other = no es sobre mascota perdida/encontrada
-- species: si no se puede determinar, null
-- confidence: 0-100 que tan seguro estás"""
 
 if ENV_PATH.exists():
     with open(ENV_PATH) as _f:
@@ -204,54 +182,11 @@ def save_config(groups, interval=6, max_posts=50):
         json.dump({"groups": groups, "scrape_interval_hours": interval, "max_posts_per_group": max_posts}, f, indent=2)
 
 # ---------------------------------------------------------------------------
-# Gemini classifier
+# Raw classifier (DonWeb does the real Gemini classification)
 # ---------------------------------------------------------------------------
 
 def classify_post(text, image_urls=None):
-    if not GEMINI_API_KEY:
-        logger.warning("GEMINI_API_KEY not set, using fallback")
-        return _fallback_classify(text)
-    parts = [text or "(sin texto)"]
-    if image_urls:
-        valid = [u for u in image_urls if u and u.startswith("http")][:3]
-        if valid:
-            parts.append("\n\nImagenes:\n" + "\n".join(f"[Imagen: {u}]" for u in valid))
-    prompt = CLASSIFICATION_PROMPT + "\n\nPost:\n" + "\n".join(parts)
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        resp = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config={"response_mime_type": "application/json"},
-        )
-        r = json.loads(resp.text)
-        return {
-            "classification": r["classification"] if r.get("classification") in ("lost", "found", "sighting", "reunion", "other") else "other",
-            "species": r["species"] if r.get("species") in ("dog", "cat", "other", None) else None,
-            "color": r.get("color"),
-            "location_hint": r.get("location"),
-            "phone": r.get("phone"),
-            "location_lat": None,
-            "location_lng": None,
-            "confidence": max(0, min(100, r.get("confidence", 0))),
-        }
-    except Exception as e:
-        logger.error(f"Gemini error: {e}")
-        return _fallback_classify(text)
-
-def _fallback_classify(text):
-    lower = (text or "").lower()
-    if any(w in lower for w in ["apareci", "encontr", "volvi", "regres", "ya esta", "gracias a todos"]):
-        cls = "reunion"
-    elif any(w in lower for w in ["perd", "perdi", "escap", "busco", "busca", "desapareci"]):
-        cls = "lost"
-    elif any(w in lower for w in ["encontr", "apareci", "rescata", "recog", "hall"]):
-        cls = "found"
-    else:
-        cls = "other"
-    species = "dog" if any(w in lower for w in ["perr", "can", "cachorr"]) else ("cat" if any(w in lower for w in ["gat", "felino", "mich"]) else None)
-    phone = re.search(r"(\d{7,15})", text or "")
-    return {"classification": cls, "species": species, "color": None, "location_hint": None, "phone": phone.group(1) if phone else None, "location_lat": None, "location_lng": None, "confidence": 30 if cls != "other" else 0}
+    return {"classification": "unclassified", "species": None, "color": None, "location_hint": None, "phone": None, "location_lat": None, "location_lng": None, "confidence": 0}
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -639,7 +574,7 @@ def run():
                 if pid:
                     save_comments(conn, pid, post.get("comments", []), [])
                     conn.commit()
-                    logger.info(f"Saved {post['fb_post_id']} → {cls['classification']}")
+                    logger.info(f"Saved {post['fb_post_id']} → raw")
     finally:
         driver.quit()
         conn.close()
