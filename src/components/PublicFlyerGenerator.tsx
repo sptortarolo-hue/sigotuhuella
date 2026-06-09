@@ -368,9 +368,12 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                   <input placeholder="@Instagram" value={form.instagram} onChange={e => updateField('instagram', e.target.value)}
                     className="w-full sm:flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
                 </div>
-                <textarea placeholder="Descripción corta (opcional)" value={form.description} onChange={e => updateField('description', e.target.value)}
-                  rows={2}
-                  className="w-full px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary resize-none" />
+                <div className="relative">
+                  <textarea placeholder="Descripción corta (opcional)" value={form.description} onChange={e => updateField('description', e.target.value)}
+                    rows={2}
+                    className="w-full px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary resize-none" />
+                  <span className="absolute bottom-2 right-3 text-[10px] text-gray-400 pointer-events-none">{form.description.length}/150</span>
+                </div>
               </div>
 
               {error && <p className="text-xs text-red-500 font-bold">{error}</p>}
