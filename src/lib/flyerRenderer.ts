@@ -330,8 +330,8 @@ function drawCardFlyer(
 
   // Pre-calculate description wrapped lines
   const infoItems: string[] = [];
-  if (location) infoItems.push(location);
-  if (contactInfo) infoItems.push(contactInfo);
+  if (location) infoItems.push(`📍 ${location}`);
+  if (contactInfo) infoItems.push(`📞 ${contactInfo}`);
   if (instagram) infoItems.push(instagram);
 
   let descLineCount = 0;
