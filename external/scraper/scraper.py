@@ -25,7 +25,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-import google.generativeai as genai
+from google import genai
 from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
 from selenium import webdriver
@@ -217,9 +217,12 @@ def classify_post(text, image_urls=None):
             parts.append("\n\nImagenes:\n" + "\n".join(f"[Imagen: {u}]" for u in valid))
     prompt = CLASSIFICATION_PROMPT + "\n\nPost:\n" + "\n".join(parts)
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        resp = model.generate_content(prompt, generation_config=genai.types.GenerationConfig(response_mime_type="application/json"))
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        resp = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config={"response_mime_type": "application/json"},
+        )
         r = json.loads(resp.text)
         return {
             "classification": r["classification"] if r.get("classification") in ("lost", "found", "sighting", "reunion", "other") else "other",
