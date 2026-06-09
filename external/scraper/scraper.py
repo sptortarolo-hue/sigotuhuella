@@ -226,6 +226,9 @@ def init_driver(headless=True):
     options.add_experimental_option("useAutomationExtension", False)
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
+    driver.set_page_load_timeout(180)
+    driver.set_script_timeout(30)
+    driver.implicitly_wait(10)
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
         "source": "Object.defineProperty(navigator, 'webdriver', { get: () => false })"
     })
@@ -488,9 +491,13 @@ def parse_post(article_soup, group_name):
 def scrape_group(driver, group_name, group_url, max_posts=50):
     group_id = extract_group_id(group_url)
     logger.info(f"Scraping {group_name} ({group_id})")
-    driver.get(f"https://www.facebook.com/groups/{group_id}/?sorting_setting=RECENT_ACTIVITY")
     try:
-        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, POST_CONTAINER_BS.replace(", ", ","))))
+        driver.get(f"https://www.facebook.com/groups/{group_id}/?sorting_setting=RECENT_ACTIVITY")
+    except Exception:
+        logger.warning(f"[{group_name}] Page load timeout")
+        return []
+    try:
+        WebDriverWait(driver, 25).until(EC.presence_of_element_located((By.CSS_SELECTOR, POST_CONTAINER_BS.replace(", ", ","))))
     except TimeoutException:
         logger.warning(f"[{group_name}] No posts appeared")
         return []
@@ -498,8 +505,12 @@ def scrape_group(driver, group_name, group_url, max_posts=50):
     scrolls, no_new = 0, 0
     while len(posts) < max_posts and scrolls < 30:
         scrolls += 1
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+        try:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+        except Exception:
+            logger.warning(f"[{group_name}] Scroll failed, continuing")
+            time.sleep(3)
         try:
             for btn in driver.find_elements(By.XPATH, ".//div[@role='button'][contains(.,'See more') or contains(.,'Ver más')] | .//a[contains(.,'See more') or contains(.,'Ver más')]"):
                 if btn.is_displayed():
@@ -507,7 +518,6 @@ def scrape_group(driver, group_name, group_url, max_posts=50):
                     time.sleep(0.3)
         except Exception:
             pass
-        time.sleep(1)
         try:
             WebDriverWait(driver, 5).until(lambda d: len(d.find_elements(By.CSS_SELECTOR, POST_CONTAINER_BS.replace(", ", ","))) > len(posts))
             no_new = 0
@@ -515,7 +525,12 @@ def scrape_group(driver, group_name, group_url, max_posts=50):
             no_new += 1
             if no_new >= 3 and posts:
                 break
-        for article in BeautifulSoup(driver.page_source, "html.parser").select(POST_CONTAINER_BS):
+        try:
+            source = driver.page_source
+        except Exception:
+            logger.warning(f"[{group_name}] page_source error, using cached")
+            continue
+        for article in BeautifulSoup(source, "html.parser").select(POST_CONTAINER_BS):
             if len(posts) >= max_posts:
                 break
             parsed = parse_post(article, group_name)
