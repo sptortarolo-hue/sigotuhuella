@@ -370,9 +370,13 @@ function drawCardFlyer(
     const descSectionH = hasDesc ? descLineCount * descLineH : 0;
     const infoSectionH = infoItems.length * infoLineH;
     const extraGap = hasDesc && infoItems.length > 0 ? gapDescInfo : 0;
-    const boxH = descSectionH + infoSectionH + boxPadY * 2 + extraGap;
+    const gapBadgePhoto = photoTop - badgeH;
+    const computedBoxH = descSectionH + infoSectionH + boxPadY * 2 + extraGap;
     const boxBottom = brandY - h * 0.01;
-    infoBoxTop = boxBottom - boxH;
+    const computedInfoBoxTop = boxBottom - computedBoxH;
+    const desiredBoxTop = photoY + photoH + gapBadgePhoto;
+    infoBoxTop = Math.min(computedInfoBoxTop, desiredBoxTop);
+    const boxH = boxBottom - infoBoxTop;
 
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.12)';
