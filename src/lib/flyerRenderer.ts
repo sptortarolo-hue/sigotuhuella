@@ -245,7 +245,7 @@ function drawCardFlyer(
       infoFontSize: number, detailsFontSize: number,
       nameFontSize: number, brandH: number;
   const hasName = name && name !== 'Sin nombre';
-  const descText = description && description.length > 140 ? description.slice(0, 140) + '…' : description;
+  const descText = description && description.length > 150 ? description.slice(0, 150) + '…' : description;
   if (layoutType === 'story') {
     badgeH = h * 0.17; photoTop = h * 0.22; photoH = h * 0.38;
     photoW = w * 0.84; photoRadius = w * 0.025;
