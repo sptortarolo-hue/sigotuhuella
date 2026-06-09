@@ -222,6 +222,20 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
   };
 
 
+  // Copy hidden canvas → preview canvas when entering preview step
+  useEffect(() => {
+    if (step === 'preview' && canvasRef.current && previewCanvasRef.current) {
+      const p = previewCanvasRef.current;
+      const c = canvasRef.current;
+      const ctx = p.getContext('2d');
+      if (ctx) {
+        p.width = c.width;
+        p.height = c.height;
+        ctx.drawImage(c, 0, 0);
+      }
+    }
+  }, [step]);
+
   useEffect(() => {
     return () => {
       if (photoUrl) URL.revokeObjectURL(photoUrl);
