@@ -267,8 +267,6 @@ function drawCardFlyer(
   }
   const photoX = (w - photoW) / 2;
   const photoY = photoTop;
-  const contentX = w * 0.08;
-  const contentMaxW = w * 0.84;
   const brandY = h - brandH - h * 0.01;
   const badgePad = h * 0.015;
   const maxBadgeTextW = w * 0.78;
@@ -288,6 +286,49 @@ function drawCardFlyer(
   ctx.textBaseline = 'middle';
   ctx.fillText(design.label, w / 2, badgePad + (badgeH - badgePad) / 2);
   drawRectPhoto(ctx, photoX, photoY, photoW, photoH, img, photoRadius);
+
+  // Pill badge — name + petDetails over bottom-left of photo
+  if (hasName) {
+    const pillPadX = w * 0.03;
+    const pillPadY = h * 0.012;
+    const pillRadius = w * 0.02;
+    const pillMaxW = photoW - w * 0.05;
+
+    let nameFs = nameFontSize;
+    ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
+    const nameW = ctx.measureText(name).width;
+    if (nameW > pillMaxW) nameFs = Math.max(w * 0.03, nameFs * (pillMaxW / nameW));
+
+    const hasSpecies = !!petDetails;
+    const speciesFs = hasSpecies ? Math.min(nameFs * 0.55, detailsFontSize) : 0;
+    const nameLineH = nameFs * 1.15;
+    const speciesLineH = hasSpecies ? speciesFs * 1.3 : 0;
+    const pillH = pillPadY + nameLineH + (hasSpecies ? speciesLineH : 0) + pillPadY;
+    const pillW = Math.min(pillMaxW + pillPadX * 2, ctx.measureText(name).width + pillPadX * 2);
+    const pillX = photoX + w * 0.025;
+    const pillY = photoY + photoH - pillH - h * 0.015;
+
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = design.badgeColor;
+    roundRect(ctx, pillX, pillY, pillW, pillH, pillRadius);
+    ctx.fill();
+    ctx.restore();
+
+    let textY = pillY + pillPadY;
+    ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(name, pillX + pillPadX, textY);
+    textY += nameLineH;
+
+    if (hasSpecies) {
+      ctx.font = `500 ${speciesFs}px system-ui, -apple-system, sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillText(petDetails, pillX + pillPadX, textY);
+    }
+  }
 
   // Pre-calculate description wrapped lines
   const infoItems: string[] = [];
@@ -359,31 +400,6 @@ function drawCardFlyer(
         textY += infoLineH;
       }
     }
-  }
-
-  const contentEndY = Math.min(infoBoxTop - h * 0.015, brandY - h * 0.05);
-  let contentY = photoY + photoH + h * 0.035;
-  if (hasName && contentY + nameFontSize < contentEndY) {
-    ctx.font = `800 ${nameFontSize}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = '#ffffff';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.shadowColor = 'rgba(0,0,0,0.2)';
-    ctx.shadowBlur = 4;
-    ctx.shadowOffsetY = 2;
-    ctx.fillText(name, contentX, contentY);
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-    contentY += nameFontSize * 1.2;
-  }
-  if (petDetails && contentY + detailsFontSize < contentEndY) {
-    ctx.font = `500 ${detailsFontSize}px system-ui, -apple-system, sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(petDetails, contentX, contentY);
-    contentY += detailsFontSize * 1.5;
   }
 }
 
