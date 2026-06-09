@@ -613,12 +613,16 @@ def sync_config():
         logger.info(f"Cookies updated from config push ({len(cookies_txt)} bytes)")
     return jsonify({"ok": True})
 
+def _clamp_interval(h):
+    return max(1, min(24, int(h or 6)))
+
 def run_daemon():
     try:
         import schedule
     except ImportError:
         logger.error("schedule library required")
         sys.exit(1)
+    import random
     threading.Thread(target=lambda: sync_app.run(host="0.0.0.0", port=SYNC_PORT, debug=False, use_reloader=False), daemon=True).start()
     logger.info(f"Sync server on port {SYNC_PORT}")
     def job():
@@ -626,10 +630,22 @@ def run_daemon():
             run()
         except Exception as e:
             logger.error(f"Cycle error: {e}")
+    def _reschedule(cfg_interval):
+        schedule.clear()
+        interval = _clamp_interval(cfg_interval)
+        minute = random.randint(5, 55)
+        schedule.every(interval).hours.at(f":{minute:02d}").do(job)
+        logger.info(f"Scrape scheduled every {interval}h at :{minute:02d}")
+        return interval
+    groups, cur_hours, _ = load_groups()
+    cur_hours = _reschedule(cur_hours)
     job()
-    schedule.every().hours.at(":00").do(job)
     while True:
         schedule.run_pending()
+        _, new_hours, _ = load_groups()
+        nh = _clamp_interval(new_hours)
+        if nh != cur_hours:
+            cur_hours = _reschedule(nh)
         time.sleep(60)
 
 # ---------------------------------------------------------------------------
