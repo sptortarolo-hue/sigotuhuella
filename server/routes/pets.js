@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
-import { findMatches } from '../services/matchingService.js';
+import { matchPetToPosts } from '../services/geminiMatching.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
@@ -705,7 +705,7 @@ router.post('/public', async (req, res) => {
         }).catch(err => console.error('Push error:', err));
 
         // Run matching in background
-        findMatches(pet).catch(err => console.error('Matching error:', err));
+        matchPetToPosts(pet).catch(err => console.error('Matching error:', err));
 
         res.status(201).json({ pet });
   } catch (err) {
@@ -816,7 +816,7 @@ router.post('/lost-report', async (req, res) => {
         }).catch(err => console.error('Push error:', err));
 
         // Run matching in background
-        findMatches(pet).catch(err => console.error('Matching error:', err));
+        matchPetToPosts(pet).catch(err => console.error('Matching error:', err));
 
         res.status(201).json({ pet, registrationPending: !!registrationToken });
   } catch (err) {

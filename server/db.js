@@ -325,6 +325,17 @@ CREATE TABLE IF NOT EXISTS facebook_posts (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS facebook_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID REFERENCES facebook_posts(id) ON DELETE CASCADE,
+  fb_comment_id VARCHAR(255),
+  author_name VARCHAR(255),
+  text TEXT,
+  posted_at TIMESTAMP,
+  classification VARCHAR(50) DEFAULT 'unclassified',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS facebook_matches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   source_type VARCHAR(50) NOT NULL,

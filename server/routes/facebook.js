@@ -5,8 +5,8 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
-import { classifyAndExtract, getPolygonSettings } from '../services/fbClassifier.js';
-import { findMatchesForPost, findMatchesForPet, runFullMatching } from '../services/fbMatchingService.js';
+import { classifyPost } from '../services/geminiClassifier.js';
+import { matchPostToPet, matchPetToPosts, runFullMatching, detectReunion } from '../services/geminiMatching.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const COOKIES_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'cookies.txt');
@@ -259,12 +259,13 @@ router.post('/webhook', async (req, res) => {
 
     for (const post of posts) {
       try {
-        const { group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at } = post;
+        const { group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, comments } = post;
         if (!fb_post_id) { results.errors++; continue; }
 
-        const classification = await classifyAndExtract(content || '', image_urls || []);
+        const classification = await classifyPost(content || '', image_urls || [], comments || []);
+        const cmtClassified = classification.comments || [];
 
-        await pool.query(
+        const postResult = await pool.query(
           `INSERT INTO facebook_posts (group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, classification, species, color, location_hint, phone, latitude, longitude)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
            ON CONFLICT (fb_post_id) DO UPDATE SET
@@ -281,6 +282,32 @@ router.post('/webhook', async (req, res) => {
             classification.location_lat, classification.location_lng,
           ]
         );
+
+        const postId = postResult.rows[0]?.id;
+
+        if (postId && comments && comments.length > 0) {
+          const rawComments = comments.slice(0, 20);
+          for (let i = 0; i < rawComments.length; i++) {
+            const cmt = rawComments[i];
+            const cmtClass = cmtClassified[i]?.classification || 'info';
+            await pool.query(
+              `INSERT INTO facebook_comments (post_id, fb_comment_id, author_name, text, posted_at, classification)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [
+                postId, cmt.id || null, cmt.author || null, cmt.text || '',
+                cmt.timestamp ? new Date(cmt.timestamp) : null, cmtClass,
+              ]
+            );
+          }
+        }
+
+        if (postId && classification.classification === 'lost') {
+          detectReunion(postId).catch(err => console.error('Reunion detection error:', err));
+        }
+
+        if (postId && (classification.classification === 'found' || classification.classification === 'lost')) {
+          matchPostToPet(postId).catch(err => console.error('Auto-matching error:', err));
+        }
 
         results.inserted++;
       } catch (err) {
@@ -304,7 +331,7 @@ router.post('/run-matching', requireAdmin, async (req, res) => {
     let matches;
 
     if (post_id) {
-      matches = await findMatchesForPost(post_id);
+      matches = await matchPostToPet(post_id);
     } else {
       const result = await runFullMatching();
       matches = result;
