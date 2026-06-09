@@ -246,7 +246,7 @@ function drawCardFlyer(
       nameFontSize: number, brandH: number;
   const hasName = name && name !== 'Sin nombre';
   if (layoutType === 'story') {
-    badgeH = h * 0.20; photoTop = h * 0.25; photoH = h * 0.38;
+    badgeH = h * 0.17; photoTop = h * 0.22; photoH = h * 0.38;
     photoW = w * 0.84; photoRadius = w * 0.025;
     maxDescLines = 99; descFontSize = hasName ? w * 0.038 : w * 0.050;
     infoFontSize = w * 0.032; detailsFontSize = hasName ? w * 0.028 : w * 0.034;
@@ -298,7 +298,7 @@ function drawCardFlyer(
   let curInfoY = locationY;
 
   for (const item of infoItems) {
-    if (curInfoY + infoFontSize > brandY - h * 0.01) break;
+    if (curInfoY + infoFontSize > brandY) break;
     if (curInfoY > photoY + photoH) {
       ctx.font = `500 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
       ctx.fillStyle = 'rgba(255,255,255,0.95)';

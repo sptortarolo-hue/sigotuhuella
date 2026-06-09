@@ -64,10 +64,9 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
   const [caseNumber, setCaseNumber] = useState('');
   const [petId, setPetId] = useState('');
 
-  const [format, setFormat] = useState<'1:1' | '4:5' | '9:16'>('1:1');
-  const FORMAT_DIMS = { '1:1': { w: 1080, h: 1080 }, '4:5': { w: 1080, h: 1350 }, '9:16': { w: 1080, h: 1920 } };
-  const FORMAT_OPTIONS: { key: '1:1' | '4:5' | '9:16'; label: string; desc: string }[] = [
-    { key: '1:1', label: '1:1', desc: 'Cuadrado' },
+  const [format, setFormat] = useState<'4:5' | '9:16'>('9:16');
+  const FORMAT_DIMS = { '4:5': { w: 1080, h: 1350 }, '9:16': { w: 1080, h: 1920 } };
+  const FORMAT_OPTIONS: { key: '4:5' | '9:16'; label: string; desc: string }[] = [
     { key: '4:5', label: '4:5', desc: 'Retrato' },
     { key: '9:16', label: '9:16', desc: 'Historia' },
   ];
