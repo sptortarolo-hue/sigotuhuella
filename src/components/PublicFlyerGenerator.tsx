@@ -369,7 +369,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                     className="w-full sm:flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
                 </div>
                 <div className="relative">
-                  <textarea placeholder="Descripción corta (opcional)" value={form.description} onChange={e => updateField('description', e.target.value)}
+                  <textarea placeholder="Descripción corta (opcional)" maxLength={150} value={form.description} onChange={e => updateField('description', e.target.value)}
                     rows={2}
                     className="w-full px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary resize-none" />
                   <span className="absolute bottom-2 right-3 text-[10px] text-gray-400 pointer-events-none">{form.description.length}/150</span>
