@@ -146,7 +146,7 @@ export const api = {
       delete: (id: string) => request(`/facebook/groups/${id}`, { method: 'DELETE' }),
     },
     posts: {
-      list: (params?: { group_id?: string; classification?: string; species?: string; search?: string; limit?: number; offset?: number }) => {
+      list: (params?: { group_id?: string; classification?: string; species?: string; search?: string; limit?: number; offset?: number; has_images?: boolean; is_spam?: boolean }) => {
         const q = new URLSearchParams();
         if (params?.group_id) q.set('group_id', params.group_id);
         if (params?.classification) q.set('classification', params.classification);
@@ -154,11 +154,14 @@ export const api = {
         if (params?.search) q.set('search', params.search);
         if (params?.limit) q.set('limit', String(params.limit));
         if (params?.offset) q.set('offset', String(params.offset));
+        if (params?.has_images) q.set('has_images', 'true');
+        if (params?.is_spam) q.set('is_spam', 'true');
         return request(`/facebook/posts?${q.toString()}`);
       },
       get: (id: string) => request(`/facebook/posts/${id}`),
       update: (id: string, data: any) => request(`/facebook/posts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
       delete: (id: string) => request(`/facebook/posts/${id}`, { method: 'DELETE' }),
+      bulkDelete: (ids: string[]) => request('/facebook/posts/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
       classify: (id: string) => request(`/facebook/classify/${id}`, { method: 'POST' }),
     },
     matches: {

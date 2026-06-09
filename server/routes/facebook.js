@@ -157,6 +157,15 @@ router.get('/posts', requireAdmin, async (req, res) => {
       params.push(`%${search}%`);
       paramIndex++;
     }
+    if (req.query.has_images === 'true') {
+      sql += ` AND fp.image_urls IS NOT NULL AND array_length(fp.image_urls, 1) > 0`;
+    }
+    if (req.query.has_images === 'false') {
+      sql += ` AND (fp.image_urls IS NULL OR array_length(fp.image_urls, 1) = 0)`;
+    }
+    if (req.query.is_spam === 'true') {
+      sql += ` AND fp.classification = 'other' AND (fp.image_urls IS NULL OR array_length(fp.image_urls, 1) = 0)`;
+    }
 
     sql += ' ORDER BY fp.posted_at DESC NULLS LAST, fp.created_at DESC';
     sql += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
@@ -233,6 +242,25 @@ router.delete('/posts/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error deleting post:', err);
     res.status(500).json({ error: 'Error al eliminar publicación' });
+  }
+});
+
+router.post('/posts/bulk-delete', requireAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Se requiere un array de IDs' });
+    }
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+    await pool.query(
+      `DELETE FROM facebook_matches WHERE (source_type = 'fb_post' AND source_id IN (${placeholders})) OR (target_type = 'fb_post' AND target_id IN (${placeholders}))`,
+      [...ids, ...ids]
+    );
+    await pool.query(`DELETE FROM facebook_posts WHERE id IN (${placeholders})`, ids);
+    res.json({ deleted: ids.length });
+  } catch (err) {
+    console.error('Error bulk-deleting posts:', err);
+    res.status(500).json({ error: 'Error al eliminar publicaciones' });
   }
 });
 

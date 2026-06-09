@@ -3,10 +3,14 @@ import { api } from '@/src/lib/api';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import PolygonEditor from '@/src/components/admin/PolygonEditor';
+import FacebookPostCard from '@/src/components/admin/FacebookPostCard';
+import FacebookMatchReview from '@/src/components/admin/FacebookMatchReview';
+import ImageLightbox from '@/src/components/admin/ImageLightbox';
 import {
   Save, Loader2, Plus, X, Trash2, Edit2, ExternalLink,
   Search, RefreshCw, Check, XCircle, MessageSquare, Map,
   Globe, Users, Sliders, FlaskConical, GripVertical, MapPin, Upload,
+  LayoutGrid, List, ImageIcon,
 } from 'lucide-react';
 
 type SubTab = 'groups' | 'posts' | 'matches' | 'config';
@@ -249,14 +253,17 @@ function GroupsSection() {
 function PostsSection() {
   const [posts, setPosts] = useState<FacebookPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ classification: 'all', species: 'all', search: '' });
+  const [filters, setFilters] = useState({ classification: 'all', species: 'all', search: '', has_images: '' as '' | 'true' | 'false' });
   const [selectedPost, setSelectedPost] = useState<FacebookPost | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null);
   const [matching, setMatching] = useState(false);
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.facebook.posts.list(filters);
+      const data = await api.facebook.posts.list(filters as any);
       setPosts(data.posts);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -267,6 +274,13 @@ function PostsSection() {
   const handleClassify = async (id: string) => {
     try {
       await api.facebook.posts.classify(id);
+      await fetchPosts();
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const handleUpdateClassification = async (id: string, classification: string) => {
+    try {
+      await api.facebook.posts.update(id, { classification });
       await fetchPosts();
     } catch (e: any) { alert(e.message); }
   };
@@ -287,16 +301,41 @@ function PostsSection() {
     } catch (e: any) { alert(e.message); }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('¿Eliminar esta publicación?')) return;
+    try {
+      await api.facebook.posts.delete(id);
+      setSelectedIds(p => { const s = new Set(p); s.delete(id); return s; });
+      await fetchPosts();
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`¿Eliminar ${selectedIds.size} publicaciones?`)) return;
+    try {
+      await api.facebook.posts.bulkDelete([...selectedIds]);
+      setSelectedIds(new Set());
+      await fetchPosts();
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(p => {
+      const s = new Set(p);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      return s;
+    });
+  };
+
   const classificationBadge = (cls: string) => {
     const styles: Record<string, string> = {
-      lost: 'bg-red-100 text-red-700',
-      found: 'bg-green-100 text-green-700',
-      adoption: 'bg-purple-100 text-purple-700',
-      other: 'bg-gray-100 text-gray-500',
-      unclassified: 'bg-yellow-100 text-yellow-700',
+      lost: 'bg-red-100 text-red-700', found: 'bg-green-100 text-green-700',
+      adoption: 'bg-purple-100 text-purple-700', reunion: 'bg-blue-100 text-blue-700',
+      other: 'bg-gray-100 text-gray-500', unclassified: 'bg-yellow-100 text-yellow-700',
     };
     const labels: Record<string, string> = {
-      lost: 'Perdido', found: 'Encontrado', adoption: 'Adopción',
+      lost: 'Perdido', found: 'Encontrado', reunion: 'Reunión', adoption: 'Adopción',
       other: 'Otro', unclassified: 'Sin clasificar',
     };
     return (
@@ -309,88 +348,165 @@ function PostsSection() {
   if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           <select value={filters.classification} onChange={e => setFilters(p => ({ ...p, classification: e.target.value }))}
             className="px-3 py-2 bg-white rounded-xl border border-brand-accent text-xs font-bold outline-none">
-            <option value="all">Todas las clasificaciones</option>
+            <option value="all">Todas</option>
             <option value="lost">Perdido</option>
             <option value="found">Encontrado</option>
+            <option value="reunion">Reunión</option>
             <option value="adoption">Adopción</option>
+            <option value="other">Otro</option>
             <option value="unclassified">Sin clasificar</option>
           </select>
           <select value={filters.species} onChange={e => setFilters(p => ({ ...p, species: e.target.value }))}
             className="px-3 py-2 bg-white rounded-xl border border-brand-accent text-xs font-bold outline-none">
-            <option value="all">Todas las especies</option>
+            <option value="all">Todas</option>
             <option value="dog">Perro</option>
             <option value="cat">Gato</option>
           </select>
+          <select value={filters.has_images} onChange={e => setFilters(p => ({ ...p, has_images: e.target.value as any }))}
+            className="px-3 py-2 bg-white rounded-xl border border-brand-accent text-xs font-bold outline-none">
+            <option value="">Con/Sin foto</option>
+            <option value="true">Con foto</option>
+            <option value="false">Sin foto</option>
+          </select>
+          <button onClick={() => setFilters(p => ({ ...p, classification: 'other', has_images: 'false' as any, search: '' }))}
+            className="px-3 py-2 bg-red-50 text-red-600 text-xs font-bold rounded-xl hover:bg-red-100 transition-colors">
+            Basura 🗑️
+          </button>
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input value={filters.search} onChange={e => setFilters(p => ({ ...p, search: e.target.value }))}
-            placeholder="Buscar en posts..."
-            className="w-48 sm:w-64 pl-9 pr-4 py-2 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" />
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input value={filters.search} onChange={e => setFilters(p => ({ ...p, search: e.target.value }))}
+              placeholder="Buscar..."
+              className="w-40 sm:w-48 pl-9 pr-4 py-2 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" />
+          </div>
+          <button onClick={() => setViewMode(p => p === 'cards' ? 'table' : 'cards')}
+            className="p-2 text-gray-400 hover:text-brand-primary transition-colors rounded-xl hover:bg-brand-bg" title={viewMode === 'cards' ? 'Vista tabla' : 'Vista cards'}>
+            {viewMode === 'cards' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+          </button>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-brand-accent">
-        <table className="w-full text-left text-sm min-w-max">
-          <thead>
-            <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
-              <th className="px-4 py-3">Grupo</th>
-              <th className="px-4 py-3">Autor</th>
-              <th className="px-4 py-3">Contenido</th>
-              <th className="px-4 py-3">Clasificación</th>
-              <th className="px-4 py-3">Especie</th>
-              <th className="px-4 py-3">Ubicación</th>
-              <th className="px-4 py-3">Match</th>
-              <th className="px-4 py-3">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-brand-accent">
-            {posts.map(p => (
-              <tr key={p.id} className="hover:bg-brand-bg/50 transition-colors">
-                <td className="px-4 py-3 font-bold text-brand-primary text-xs">{p.group_name || '—'}</td>
-                <td className="px-4 py-3 text-xs text-gray-500">{p.author_name || '—'}</td>
-                <td className="px-4 py-3 max-w-[200px]">
-                  <button onClick={() => setSelectedPost(p)} className="text-left text-xs text-gray-600 hover:text-brand-primary line-clamp-2">
-                    {p.content ? p.content.substring(0, 150) : 'Sin contenido'}
-                  </button>
-                </td>
-                <td className="px-4 py-3">{classificationBadge(p.classification)}</td>
-                <td className="px-4 py-3 text-xs text-gray-500">{p.species || '—'}</td>
-                <td className="px-4 py-3 text-xs text-gray-500">{p.location_hint || '—'}</td>
-                <td className="px-4 py-3">{p.is_matched ? <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-blue-100 text-blue-700">Sí</span> : '—'}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <button onClick={() => handleClassify(p.id)} title="Clasificar"
-                      className="p-1.5 text-gray-400 hover:text-brand-primary transition-colors"><RefreshCw className="w-3.5 h-3.5" /></button>
-                    {p.fb_post_url && (
-                      <a href={p.fb_post_url} target="_blank" rel="noopener noreferrer" title="Abrir en Facebook"
-                        className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"><ExternalLink className="w-3.5 h-3.5" /></a>
-                    )}
-                    <button onClick={() => handleRunMatching(p.id)} disabled={matching} title="Buscar matches"
-                      className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40"><FlaskConical className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => setSelectedPost(p)} title="Ver detalle"
-                      className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"><Search className="w-3.5 h-3.5" /></button>
-                  </div>
-                </td>
+      {/* Bulk actions */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-brand-bg rounded-2xl">
+          <span className="text-sm font-bold text-brand-primary">{selectedIds.size} seleccionados</span>
+          <button onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-gray-500 hover:text-gray-700">Deseleccionar</button>
+          <button onClick={handleBulkDelete}
+            className="ml-auto flex items-center gap-1.5 px-4 py-1.5 bg-red-500 text-white text-xs font-bold rounded-xl hover:bg-red-600 transition-colors">
+            <Trash2 className="w-3.5 h-3.5" /> Eliminar seleccionados
+          </button>
+        </div>
+      )}
+
+      {/* Stats */}
+      <p className="text-xs text-gray-400">{posts.length} publicaciones</p>
+
+      {/* Cards grid */}
+      {viewMode === 'cards' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {posts.map(p => (
+            <FacebookPostCard
+              key={p.id}
+              post={p}
+              selected={selectedIds.has(p.id)}
+              onToggleSelect={toggleSelect}
+              onClassify={handleClassify}
+              onDelete={handleDelete}
+              onMatch={handleRunMatching}
+              onViewDetail={setSelectedPost}
+              onUpdateClassification={handleUpdateClassification}
+              onImageClick={(images, idx) => setLightbox({ images, index: idx })}
+            />
+          ))}
+        </div>
+      ) : (
+        /* Table view */
+        <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+          <table className="w-full text-left text-sm min-w-max">
+            <thead>
+              <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                <th className="px-4 py-3 w-8">
+                  <input type="checkbox" checked={selectedIds.size === posts.length && posts.length > 0}
+                    onChange={() => selectedIds.size === posts.length ? setSelectedIds(new Set()) : setSelectedIds(new Set(posts.map(p => p.id)))}
+                    className="w-4 h-4 rounded accent-brand-primary" />
+                </th>
+                <th className="px-4 py-3">Grupo</th>
+                <th className="px-4 py-3">Autor</th>
+                <th className="px-4 py-3">Contenido</th>
+                <th className="px-4 py-3">Clasificación</th>
+                <th className="px-4 py-3">Especie</th>
+                <th className="px-4 py-3">Ubicación</th>
+                <th className="px-4 py-3">Match</th>
+                <th className="px-4 py-3">Acciones</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-brand-accent">
+              {posts.map(p => (
+                <tr key={p.id} className="hover:bg-brand-bg/50 transition-colors">
+                  <td className="px-4 py-3">
+                    <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)}
+                      className="w-4 h-4 rounded accent-brand-primary" />
+                  </td>
+                  <td className="px-4 py-3 font-bold text-brand-primary text-xs">{p.group_name || '—'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{p.author_name || '—'}</td>
+                  <td className="px-4 py-3 max-w-[200px]">
+                    <button onClick={() => setSelectedPost(p)} className="text-left text-xs text-gray-600 hover:text-brand-primary line-clamp-2">
+                      {p.content ? p.content.substring(0, 150) : 'Sin contenido'}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3">{classificationBadge(p.classification)}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{p.species || '—'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{p.location_hint || '—'}</td>
+                  <td className="px-4 py-3">{p.is_matched ? <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-blue-100 text-blue-700">Sí</span> : '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => handleClassify(p.id)} title="Clasificar"
+                        className="p-1.5 text-gray-400 hover:text-brand-primary transition-colors"><RefreshCw className="w-3.5 h-3.5" /></button>
+                      {p.fb_post_url && (
+                        <a href={p.fb_post_url} target="_blank" rel="noopener noreferrer" title="Abrir en Facebook"
+                          className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"><ExternalLink className="w-3.5 h-3.5" /></a>
+                      )}
+                      <button onClick={() => handleRunMatching(p.id)} disabled={matching} title="Buscar matches"
+                        className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40"><FlaskConical className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setSelectedPost(p)} title="Ver detalle"
+                        className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"><Search className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => handleDelete(p.id)} title="Eliminar"
+                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {selectedPost && (
-        <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} onUpdate={handleManualUpdate} />
+        <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} onUpdate={handleManualUpdate} onDelete={handleDelete} />
+      )}
+
+      {lightbox && (
+        <ImageLightbox
+          images={lightbox.images}
+          currentIndex={lightbox.index}
+          onClose={() => setLightbox(null)}
+          onChange={(idx) => setLightbox(p => p ? { ...p, index: idx } : null)}
+        />
       )}
     </div>
   );
 }
 
-function PostDetailModal({ post, onClose, onUpdate }: { post: FacebookPost; onClose: () => void; onUpdate: (id: string, data: any) => void }) {
+function PostDetailModal({ post, onClose, onUpdate, onDelete }: { post: FacebookPost; onClose: () => void; onUpdate: (id: string, data: any) => void; onDelete?: (id: string) => void }) {
+  const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null);
   const [editData, setEditData] = useState({
     classification: post.classification,
     species: post.species || '',
@@ -421,7 +537,13 @@ ${post.fb_post_url ? `🔗 Publicación original: ${post.fb_post_url}` : ''}
       <div className="relative w-full max-w-2xl bg-white rounded-[2.5rem] max-h-[90vh] flex flex-col shadow-2xl">
         <div className="flex items-center justify-between p-6 sm:p-8 border-b border-brand-accent">
           <h3 className="text-lg font-serif font-bold text-brand-primary">Detalle del Post</h3>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-2">
+            {onDelete && (
+              <button onClick={() => { if (window.confirm('¿Eliminar esta publicación?')) { onDelete(post.id); onClose(); } }}
+                className="p-2 text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+            )}
+            <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
         </div>
         <div className="p-6 sm:p-8 overflow-y-auto space-y-4">
           <div className="bg-brand-bg rounded-2xl p-4">
@@ -481,7 +603,9 @@ ${post.fb_post_url ? `🔗 Publicación original: ${post.fb_post_url}` : ''}
               <p className="text-xs font-bold text-gray-500 mb-2">Imágenes ({post.image_urls.length})</p>
               <div className="grid grid-cols-3 gap-2">
                 {post.image_urls.map((url, i) => (
-                  <img key={i} src={url} alt={`Imagen ${i + 1}`} className="rounded-xl aspect-square object-cover bg-gray-100" />
+                    <img key={i} src={url} alt={`Imagen ${i + 1}`}
+                      className="rounded-xl aspect-square object-cover bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setLightbox({ images: post.image_urls, index: i })} />
                 ))}
               </div>
             </div>
@@ -498,6 +622,14 @@ ${post.fb_post_url ? `🔗 Publicación original: ${post.fb_post_url}` : ''}
           </button>
         </div>
       </div>
+      {lightbox && (
+        <ImageLightbox
+          images={lightbox.images}
+          currentIndex={lightbox.index}
+          onClose={() => setLightbox(null)}
+          onChange={(idx) => setLightbox(p => p ? { ...p, index: idx } : null)}
+        />
+      )}
     </div>
   );
 }
@@ -507,6 +639,8 @@ function MatchesSection() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('pending');
   const [stats, setStats] = useState<FacebookStats | null>(null);
+  const [matchView, setMatchView] = useState<'review' | 'list'>('review');
+  const refreshKey = React.useRef(0);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -585,72 +719,96 @@ ${m.reasons?.length ? `📋 Razones: ${m.reasons.join(', ')}` : ''}
         </div>
       )}
 
-      <div className="flex gap-2">
-        {['pending', 'confirmed', 'rejected', 'all'].map(s => (
-          <button key={s} onClick={() => setStatusFilter(s)}
-            className={cn(
-              "px-3 py-1.5 text-xs font-bold rounded-xl transition-colors",
-              statusFilter === s ? "bg-brand-primary text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-            )}>
-            {s === 'pending' ? 'Pendientes' : s === 'confirmed' ? 'Confirmados' : s === 'rejected' ? 'Rechazados' : 'Todos'}
-          </button>
-        ))}
+      {/* View toggle */}
+      <div className="flex gap-2 border-b border-brand-accent pb-px">
+        <button onClick={() => setMatchView('review')}
+          className={cn("px-4 py-2 text-xs font-bold transition-all relative",
+            matchView === 'review' ? 'text-brand-primary' : 'text-gray-400 hover:text-gray-600')}>
+          Revisar
+          {matchView === 'review' && <motion.div layoutId="match-view" className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-primary rounded-t-full" />}
+        </button>
+        <button onClick={() => setMatchView('list')}
+          className={cn("px-4 py-2 text-xs font-bold transition-all relative",
+            matchView === 'list' ? 'text-brand-primary' : 'text-gray-400 hover:text-gray-600')}>
+          Lista
+          {matchView === 'list' && <motion.div layoutId="match-view" className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-primary rounded-t-full" />}
+        </button>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-brand-accent">
-        <table className="w-full text-left text-sm min-w-max">
-          <thead>
-            <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
-              <th className="px-4 py-3">Score</th>
-              <th className="px-4 py-3">Fuente</th>
-              <th className="px-4 py-3">Target</th>
-              <th className="px-4 py-3">Método</th>
-              <th className="px-4 py-3">Razones</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">Fecha</th>
-              <th className="px-4 py-3">Acción</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-brand-accent">
-            {matches.map(m => (
-              <tr key={m.id} className="hover:bg-brand-bg/50 transition-colors">
-                <td className="px-4 py-3">
-                  <span className={cn(
-                    "font-black text-sm",
-                    m.score >= 80 ? "text-green-600" : m.score >= 60 ? "text-yellow-600" : "text-gray-500"
-                  )}>{m.score}%</span>
-                </td>
-                <td className="px-4 py-3 max-w-[120px] truncate text-xs text-gray-500">{m.source_label || m.source_type}</td>
-                <td className="px-4 py-3 max-w-[120px] truncate text-xs text-gray-500">{m.target_label || m.target_type}</td>
-                <td className="px-4 py-3 text-xs text-gray-500">{m.method}</td>
-                <td className="px-4 py-3 max-w-[150px]">
-                  <div className="flex flex-wrap gap-1">
-                    {(m.reasons || []).map((r, i) => (
-                      <span key={i} className="text-[9px] px-1.5 py-0.5 bg-gray-100 rounded-full text-gray-500">{r}</span>
-                    ))}
-                  </div>
-                </td>
-                <td className="px-4 py-3">{statusBadge(m.status)}</td>
-                <td className="px-4 py-3 text-xs text-gray-500">{new Date(m.created_at).toLocaleDateString('es-AR')}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    {m.status === 'pending' && (
-                      <>
-                        <button onClick={() => handleConfirm(m.id)} title="Confirmar"
-                          className="p-1.5 text-green-500 hover:text-green-700"><Check className="w-4 h-4" /></button>
-                        <button onClick={() => handleReject(m.id)} title="Rechazar"
-                          className="p-1.5 text-red-400 hover:text-red-600"><XCircle className="w-4 h-4" /></button>
-                      </>
-                    )}
-                    <button onClick={() => handleCopyMatch(m)} title="Copiar texto"
-                      className="p-1.5 text-gray-400 hover:text-brand-primary"><MessageSquare className="w-4 h-4" /></button>
-                  </div>
-                </td>
-              </tr>
+      {matchView === 'review' ? (
+        <FacebookMatchReview
+          key={refreshKey.current}
+          matches={matches}
+          onConfirm={handleConfirm}
+          onReject={handleReject}
+          onRefresh={() => { refreshKey.current++; fetchData(); }}
+        />
+      ) : (
+        <>
+          <div className="flex gap-2">
+            {['pending', 'confirmed', 'rejected', 'all'].map(s => (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                className={cn("px-3 py-1.5 text-xs font-bold rounded-xl transition-colors",
+                  statusFilter === s ? "bg-brand-primary text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}>
+                {s === 'pending' ? 'Pendientes' : s === 'confirmed' ? 'Confirmados' : s === 'rejected' ? 'Rechazados' : 'Todos'}
+              </button>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+            <table className="w-full text-left text-sm min-w-max">
+              <thead>
+                <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                  <th className="px-4 py-3">Score</th>
+                  <th className="px-4 py-3">Fuente</th>
+                  <th className="px-4 py-3">Target</th>
+                  <th className="px-4 py-3">Método</th>
+                  <th className="px-4 py-3">Razones</th>
+                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-accent">
+                {matches.map(m => (
+                  <tr key={m.id} className="hover:bg-brand-bg/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className={cn("font-black text-sm",
+                        m.score >= 80 ? "text-green-600" : m.score >= 60 ? "text-yellow-600" : "text-gray-500")}>{m.score}%</span>
+                    </td>
+                    <td className="px-4 py-3 max-w-[120px] truncate text-xs text-gray-500">{m.source_label || m.source_type}</td>
+                    <td className="px-4 py-3 max-w-[120px] truncate text-xs text-gray-500">{m.target_label || m.target_type}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{m.method}</td>
+                    <td className="px-4 py-3 max-w-[150px]">
+                      <div className="flex flex-wrap gap-1">
+                        {(m.reasons || []).map((r, i) => (
+                          <span key={i} className="text-[9px] px-1.5 py-0.5 bg-gray-100 rounded-full text-gray-500">{r}</span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">{statusBadge(m.status)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{new Date(m.created_at).toLocaleDateString('es-AR')}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        {m.status === 'pending' && (
+                          <>
+                            <button onClick={() => handleConfirm(m.id)} title="Confirmar"
+                              className="p-1.5 text-green-500 hover:text-green-700"><Check className="w-4 h-4" /></button>
+                            <button onClick={() => handleReject(m.id)} title="Rechazar"
+                              className="p-1.5 text-red-400 hover:text-red-600"><XCircle className="w-4 h-4" /></button>
+                          </>
+                        )}
+                        <button onClick={() => handleCopyMatch(m)} title="Copiar texto"
+                          className="p-1.5 text-gray-400 hover:text-brand-primary"><MessageSquare className="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }
