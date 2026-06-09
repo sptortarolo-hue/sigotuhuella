@@ -303,7 +303,7 @@ def init_driver(headless=True):
 def check_session(driver):
     try:
         driver.get("https://www.facebook.com/")
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 20).until(
             EC.presence_of_element_located(
                 (By.CSS_SELECTOR, "div[role='feed'], a[aria-label='Home'], div[aria-label='Home'], div[data-pagelet*='Feed']")
             )
@@ -332,15 +332,38 @@ def save_cookies(driver, filepath):
 
 def load_cookies(driver, filepath):
     try:
-        with open(filepath) as f:
-            for line in f:
+        raw = open(filepath).read().strip()
+        loaded = 0
+        try:
+            entries = json.loads(raw)
+            if isinstance(entries, list):
+                for c in entries:
+                    if not isinstance(c, dict) or "name" not in c or "value" not in c:
+                        continue
+                    driver.add_cookie({
+                        "name": c["name"],
+                        "value": c["value"],
+                        "domain": c.get("domain", "").lstrip(".") or ".facebook.com",
+                        "path": c.get("path", "/"),
+                        "secure": c.get("secure", False),
+                        "httpOnly": c.get("httpOnly", False),
+                        "expiry": int(c.get("expirationDate", c.get("expiry", 0))),
+                    })
+                    loaded += 1
+        except (json.JSONDecodeError, TypeError):
+            for line in raw.split("\n"):
                 line = line.strip()
                 if not line or line.startswith("#") or line.startswith("HttpOnly"):
                     continue
                 parts = line.split("\t")
                 if len(parts) >= 7:
-                    driver.add_cookie({"name": parts[5], "value": parts[6], "domain": parts[0] if parts[0].startswith(".") else "." + parts[0], "path": parts[2] if parts[2] else "/"})
-        logger.info(f"Cookies loaded")
+                    driver.add_cookie({
+                        "name": parts[5], "value": parts[6],
+                        "domain": parts[0] if parts[0].startswith(".") else "." + parts[0],
+                        "path": parts[2] if parts[2] else "/",
+                    })
+                    loaded += 1
+        logger.info(f"Cookies loaded ({loaded} from {(len(raw))} bytes)")
     except Exception as e:
         logger.warning(f"Failed to load cookies: {e}")
 
