@@ -303,13 +303,22 @@ def init_driver(headless=True):
 def check_session(driver):
     try:
         driver.get("https://www.facebook.com/")
-        WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, "div[role='feed'], a[aria-label='Home'], div[aria-label='Home'], div[data-pagelet*='Feed']")
+        try:
+            WebDriverWait(driver, 30).until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, "div[role='feed'], a[aria-label='Home'], div[aria-label='Home'], div[data-pagelet*='Feed']")
+                )
             )
-        )
-        logger.info("Session valid — logged in")
-        return True
+            logger.info("Session valid — logged in")
+            return True
+        except TimeoutException:
+            title = driver.title.lower()
+            no_login = not driver.find_elements(By.CSS_SELECTOR, "input[name='email'], input#email")
+            if "facebook" in title and no_login:
+                logger.info("Session valid (detected via title)")
+                return True
+            logger.warning(f"Session check failed (title='{driver.title[:50]}')")
+            return False
     except (TimeoutException, NoSuchElementException, WebDriverException):
         logger.warning("Session check failed — likely logged out")
         return False
@@ -413,12 +422,13 @@ def login_to_facebook(driver, email, password):
             (By.XPATH, "//input[@type='email']"),
         ])
         if not email_el:
-            if _find_first(driver, [
+            fed = _find_first(driver, [
                 (By.CSS_SELECTOR, "div[role='feed']"),
                 (By.CSS_SELECTOR, "a[aria-label='Home']"),
                 (By.CSS_SELECTOR, "div[aria-label='Home']"),
-            ], timeout=5):
-                logger.info("Already logged in (feed found instead of login form)")
+            ], timeout=10)
+            if fed or ("facebook" in driver.title.lower()):
+                logger.info("Already logged in (feed/title found instead of login form)")
                 return True
             _save_debug(driver, "login_no_email")
             logger.error("Could not find email input.")
