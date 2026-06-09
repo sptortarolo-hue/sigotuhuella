@@ -288,23 +288,49 @@ function drawCardFlyer(
   ctx.fillText(design.label, w / 2, badgePad + (badgeH - badgePad) / 2);
   drawRectPhoto(ctx, photoX, photoY, photoW, photoH, img, photoRadius);
 
-  // Info box (location, contact) — white rounded box near bottom
+  // Pre-calculate description wrapped lines
   const infoItems: string[] = [];
   if (location) infoItems.push(location);
   if (contactInfo) infoItems.push(contactInfo);
   if (instagram) infoItems.push(instagram);
 
+  let descLineCount = 0;
+  if (description) {
+    const descInnerW = w * 0.80;
+    ctx.font = `italic 500 ${descFontSize}px system-ui, -apple-system, sans-serif`;
+    const words = description.split(' ');
+    let line = '';
+    for (const word of words) {
+      if (descLineCount >= maxDescLines) break;
+      const testLine = line + word + ' ';
+      if (ctx.measureText(testLine).width > descInnerW && line) {
+        descLineCount++;
+        line = word + ' ';
+      } else {
+        line = testLine;
+      }
+    }
+    if (line.trim() && descLineCount < maxDescLines) descLineCount++;
+  }
+
+  // White box — description + info items (black text, no stroke)
+  const descLineH = descFontSize * 1.35;
+  const infoLineH = infoFontSize * 1.35;
+  const hasDesc = descLineCount > 0;
+  const totalLines = (hasDesc ? descLineCount : 0) + infoItems.length;
+
   let infoBoxTop = brandY;
-  if (infoItems.length > 0) {
+  if (totalLines > 0) {
     const boxPadX = w * 0.04;
     const boxPadY = infoFontSize * 0.3;
-    const lineHeight = infoFontSize * 1.35;
     const boxRadius = w * 0.015;
-    const boxBottom = brandY - h * 0.01;
-    const boxH = infoItems.length * lineHeight + boxPadY * 2;
-    infoBoxTop = boxBottom - boxH;
     const boxW = w * 0.88;
     const boxX = (w - boxW) / 2;
+    const descSectionH = hasDesc ? descLineCount * descLineH : 0;
+    const infoSectionH = infoItems.length * infoLineH;
+    const boxH = descSectionH + infoSectionH + boxPadY * 2;
+    const boxBottom = brandY - h * 0.01;
+    infoBoxTop = boxBottom - boxH;
 
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.12)';
@@ -315,18 +341,19 @@ function drawCardFlyer(
     ctx.fill();
     ctx.restore();
 
-    ctx.font = `700 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.lineJoin = 'round';
     let textY = infoBoxTop + boxPadY;
-    for (const item of infoItems) {
-      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-      ctx.lineWidth = 2.5;
-      ctx.strokeText(item, boxX + boxPadX, textY);
-      ctx.fillStyle = design.badgeColor;
-      ctx.fillText(item, boxX + boxPadX, textY);
-      textY += lineHeight;
+    if (hasDesc) {
+      textY = drawWrappedText(ctx, description, boxX + boxPadX, textY, boxW - boxPadX * 2, descFontSize, descLineCount, 'italic 500', '#000000', 1.35, 'left');
+    }
+    if (infoItems.length > 0) {
+      ctx.font = `700 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = '#000000';
+      for (const item of infoItems) {
+        ctx.fillText(item, boxX + boxPadX, textY);
+        textY += infoLineH;
+      }
     }
   }
 
@@ -353,13 +380,6 @@ function drawCardFlyer(
     ctx.textBaseline = 'top';
     ctx.fillText(petDetails, contentX, contentY);
     contentY += detailsFontSize * 1.5;
-  }
-  if (description && contentY < contentEndY) {
-    const availableForDesc = contentEndY - contentY;
-    const descLineH = descFontSize * 1.35;
-    const maxLinesBySpace = Math.max(1, Math.floor(availableForDesc / descLineH));
-    const actualLines = Math.min(maxDescLines, maxLinesBySpace);
-    drawWrappedText(ctx, description, contentX, contentY, contentMaxW, descFontSize, actualLines, 'italic 500', 'rgba(255,255,255,0.85)', 1.35, 'left');
   }
 }
 
