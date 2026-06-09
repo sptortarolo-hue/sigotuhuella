@@ -510,25 +510,6 @@ def run():
         driver.quit()
         conn.close()
 
-def run_daemon():
-    try:
-        import schedule
-    except ImportError:
-        logger.error("schedule library required")
-        sys.exit(1)
-    threading.Thread(target=lambda: sync_app.run(host="0.0.0.0", port=SYNC_PORT, debug=False, use_reloader=False), daemon=True).start()
-    logger.info(f"Sync server on port {SYNC_PORT}")
-    def job():
-        try:
-            run()
-        except Exception as e:
-            logger.error(f"Cycle error: {e}")
-    job()
-    schedule.every().hours.at(":00").do(job)
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
-
 # ---------------------------------------------------------------------------
 # Flask sync routes
 # ---------------------------------------------------------------------------
@@ -557,6 +538,25 @@ def sync_config():
     save_config(data["groups"], data.get("scrape_interval_hours", 6), data.get("max_posts_per_group", 50))
     logger.info(f"Config received: {len(data['groups'])} groups")
     return jsonify({"ok": True})
+
+def run_daemon():
+    try:
+        import schedule
+    except ImportError:
+        logger.error("schedule library required")
+        sys.exit(1)
+    threading.Thread(target=lambda: sync_app.run(host="0.0.0.0", port=SYNC_PORT, debug=False, use_reloader=False), daemon=True).start()
+    logger.info(f"Sync server on port {SYNC_PORT}")
+    def job():
+        try:
+            run()
+        except Exception as e:
+            logger.error(f"Cycle error: {e}")
+    job()
+    schedule.every().hours.at(":00").do(job)
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
 
 # ---------------------------------------------------------------------------
 # Entry
