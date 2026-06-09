@@ -417,13 +417,25 @@ def login_to_facebook(driver, email, password):
         pass_el.clear()
         pass_el.send_keys(password)
         time.sleep(1)
-        if not _click_first(driver, [
+        login_ok = _click_first(driver, [
             (By.XPATH, "//button[contains(., 'Log in') or contains(., 'Iniciar sesión') or contains(., 'Entrar')]"),
             (By.CSS_SELECTOR, "button[type='submit']"),
             (By.NAME, "login"),
             (By.CSS_SELECTOR, "button[name='login']"),
             (By.XPATH, "//div[@role='button']//*[contains(text(), 'Log in') or contains(text(), 'Iniciar sesión')]"),
-        ]):
+            (By.CSS_SELECTOR, "div[role='button']"),
+            (By.XPATH, "//form//*[@type='submit']"),
+            (By.CSS_SELECTOR, "a[role='button']"),
+        ], timeout=2)
+        if not login_ok:
+            import subprocess  # fallback: press Enter via xdotool or direct JS submit
+            try:
+                driver.execute_script("document.querySelector('form')?.requestSubmit() || document.querySelector('input[type=\"password\"]')?.closest('form')?.requestSubmit()")
+                login_ok = True
+            except Exception:
+                pass
+        if not login_ok:
+            _save_debug(driver, "login_no_button")
             logger.error("Could not find login button")
             return False
         time.sleep(3)
