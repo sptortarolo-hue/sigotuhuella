@@ -70,6 +70,8 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
     { key: '4:5', label: '4:5', desc: 'Retrato' },
     { key: '9:16', label: '9:16', desc: 'Historia' },
   ];
+  const dims = FORMAT_DIMS[format];
+  const previewScale = Math.min(280 / dims.w, 420 / dims.h, 1);
 
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState<string | null>(null);
@@ -125,12 +127,19 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
       ]);
 
       const canvas = canvasRef.current;
-      if (canvas) {
+      const previewCanvas = previewCanvasRef.current;
+      if (canvas && previewCanvas) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           canvas.width = w;
           canvas.height = h;
           drawFlyer(ctx, w, h, design, flyerData, petImg, logoImg);
+        }
+        const previewCtx = previewCanvas.getContext('2d');
+        if (previewCtx) {
+          previewCanvas.width = w;
+          previewCanvas.height = h;
+          previewCtx.drawImage(canvas, 0, 0);
         }
       }
 
@@ -212,21 +221,6 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
     }, 'image/png');
   };
 
-  const dims = FORMAT_DIMS[format];
-  const previewScale = 240 / dims.w;
-
-  useEffect(() => {
-    if (step === 'preview' && previewCanvasRef.current && canvasRef.current) {
-      const p = previewCanvasRef.current;
-      const c = canvasRef.current;
-      const ctx = p.getContext('2d');
-      if (ctx) {
-        p.width = c.width;
-        p.height = c.height;
-        ctx.drawImage(c, 0, 0);
-      }
-    }
-  }, [step]);
 
   useEffect(() => {
     return () => {
@@ -317,9 +311,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                         format === opt.key ? 'bg-brand-primary text-white border-brand-primary' : 'border-brand-accent text-gray-600'
                       )}>
                       <span className="hidden sm:inline-block">
-                        {opt.key === '1:1' ? (
-                          <span className="inline-block w-4 h-4 border-2 rounded-sm" style={{ borderColor: format === '1:1' ? 'white' : 'currentColor' }} />
-                        ) : opt.key === '4:5' ? (
+                        {opt.key === '4:5' ? (
                           <span className="inline-block w-3 h-4 border-2 rounded-sm" style={{ borderColor: format === '4:5' ? 'white' : 'currentColor' }} />
                         ) : (
                           <span className="inline-block w-2.5 h-4 border-2 rounded-sm" style={{ borderColor: format === '9:16' ? 'white' : 'currentColor' }} />
@@ -394,11 +386,10 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                 <span className="text-sm font-bold text-amber-700">Vista previa</span>
               </div>
 
-              <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden pointer-events-none select-none max-w-full max-h-[55vh]"
+              <div className="rounded-3xl border-4 border-brand-accent shadow-xl mx-auto overflow-hidden pointer-events-none select-none"
                 style={{ width: Math.round(dims.w * previewScale), height: Math.round(dims.h * previewScale) }}>
                 <canvas ref={previewCanvasRef}
                   className="block w-full h-full pointer-events-none select-none"
-                  style={{ width: Math.round(dims.w * previewScale), height: Math.round(dims.h * previewScale) }}
                 />
               </div>
 
