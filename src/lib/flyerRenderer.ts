@@ -377,6 +377,7 @@ function drawCardFlyer(
     const desiredBoxTop = photoY + photoH + gapBadgePhoto;
     infoBoxTop = Math.min(computedInfoBoxTop, desiredBoxTop);
     const boxH = boxBottom - infoBoxTop;
+    const extraBoxPad = Math.max(0, (boxH - computedBoxH) / 2);
 
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.12)';
@@ -387,7 +388,7 @@ function drawCardFlyer(
     ctx.fill();
     ctx.restore();
 
-    let textY = infoBoxTop + boxPadY;
+    let textY = infoBoxTop + boxPadY + extraBoxPad;
     if (hasDesc) {
       textY = drawWrappedText(ctx, descText, boxX + boxPadX, textY, boxW - boxPadX * 2, descFontSize, descLineCount, 'italic 500', '#000000', 1.35, 'left');
       textY += extraGap;
