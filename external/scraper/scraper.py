@@ -31,6 +31,7 @@ from flask import Flask, jsonify, request
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
@@ -417,20 +418,20 @@ def login_to_facebook(driver, email, password):
         pass_el.clear()
         pass_el.send_keys(password)
         time.sleep(1)
+        pass_el.send_keys(Keys.RETURN)
+        time.sleep(2)
         login_ok = _click_first(driver, [
             (By.XPATH, "//button[contains(., 'Log in') or contains(., 'Iniciar sesión') or contains(., 'Entrar')]"),
             (By.CSS_SELECTOR, "button[type='submit']"),
             (By.NAME, "login"),
             (By.CSS_SELECTOR, "button[name='login']"),
-            (By.XPATH, "//div[@role='button']//*[contains(text(), 'Log in') or contains(text(), 'Iniciar sesión')]"),
             (By.CSS_SELECTOR, "div[role='button']"),
             (By.XPATH, "//form//*[@type='submit']"),
             (By.CSS_SELECTOR, "a[role='button']"),
         ], timeout=2)
         if not login_ok:
-            import subprocess  # fallback: press Enter via xdotool or direct JS submit
             try:
-                driver.execute_script("document.querySelector('form')?.requestSubmit() || document.querySelector('input[type=\"password\"]')?.closest('form')?.requestSubmit()")
+                driver.execute_script("document.querySelector('input[type=\"password\"]')?.closest('form')?.requestSubmit()")
                 login_ok = True
             except Exception:
                 pass
