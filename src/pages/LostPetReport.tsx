@@ -1,18 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, MapPin, PawPrint, Mail, Phone, Share2, User, X, Plus } from 'lucide-react';
+import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, PawPrint, Mail, Phone, Share2, User, X, Plus } from 'lucide-react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '@/src/lib/api';
-import ZoneSelector from '@/src/components/ZoneSelector';
+import LocationInput from '@/src/components/LocationInput';
 import ImageCropper from '@/src/components/ImageCropper';
-import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
-
-function randomPointInBounds(bounds: { south: number; west: number; north: number; east: number }): { lat: number; lng: number } {
-  const lat = bounds.south + Math.random() * (bounds.north - bounds.south);
-  const lng = bounds.west + Math.random() * (bounds.east - bounds.west);
-  return { lat, lng };
-}
 
 const SPECIES_OPTIONS = [
   { value: 'perro', label: 'Perro', icon: '🐕' },
@@ -58,7 +51,6 @@ export default function LostPetReport() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [reporterName, setReporterName] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [imageMimeTypes, setImageMimeTypes] = useState<string[]>([]);
@@ -110,18 +102,6 @@ export default function LostPetReport() {
   const removeImage = (idx: number) => {
     setImages(prev => prev.filter((_, i) => i !== idx));
     setImageMimeTypes(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const getLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Tu navegador no soporta geolocalización');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setCoordinates({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => alert('No se pudo obtener la ubicación. Permití el acceso al GPS o marcá la ubicación en el mapa.'),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
   };
 
   // Reverse geocoding: auto-fill address from coordinates
@@ -412,41 +392,15 @@ export default function LostPetReport() {
           {/* Location */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">¿Dónde se perdió? *</label>
-
-            <button onClick={getLocation} className="flex items-center gap-2 text-sm font-bold text-brand-primary bg-brand-primary/5 px-4 py-2.5 rounded-xl hover:bg-brand-primary/10 transition-colors mb-3">
-              <MapPin className="w-4 h-4" /> Obtener mi ubicación actual
-            </button>
-
-            <ZoneSelector
+            <LocationInput
               initialCenter={coordinates || DEFAULT_CENTER}
-              selectedLocation={coordinates || undefined}
-              onLocationSelect={(coords) => setCoordinates(coords)}
+              location={location}
+              onLocationChange={setLocation}
+              coordinates={coordinates}
+              onCoordinatesChange={setCoordinates}
               selectedNeighborhoods={selectedNeighborhoods}
               onNeighborhoodsChange={setSelectedNeighborhoods}
             />
-            {coordinates && (
-              <p className="text-xs text-green-600 mt-2">📍 Ubicación exacta marcada en el mapa</p>
-            )}
-
-            <div className="relative mt-3">
-              <input value={location}
-                onChange={e => { setLocation(e.target.value); setSelectedNeighborhoods([]); setShowSuggestions(true); }}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                placeholder="Ej: Calle 7 y 52, Sicardi"
-                className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors" />
-              {showSuggestions && location.length > 0 && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-brand-accent rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                  {NEIGHBORHOODS.filter(n => n.name.toLowerCase().includes(location.toLowerCase())).map(n => (
-                    <button key={n.id}
-                      onMouseDown={e => { e.preventDefault(); setLocation(n.name); setSelectedNeighborhoods([n.id]); setCoordinates(randomPointInBounds(n.bounds)); setShowSuggestions(false); }}
-                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-brand-accent transition-colors">
-                      {n.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Tu nombre */}

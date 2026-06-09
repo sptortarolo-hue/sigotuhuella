@@ -166,11 +166,18 @@ export const NEIGHBORHOODS: Neighborhood[] = [
     bounds: { south: -34.916, west: -58.055, north: -34.880, east: -58.020 },
   },
   {
-    id: 'garibaldi_sicardi',
-    name: 'Villa Garibaldi - P. Sicardi',
+    id: 'parque_sicardi',
+    name: 'Parque Sicardi',
     color: TEAL,
-    center: { lat: -34.982, lng: -57.882 },
-    bounds: { south: -35.020, west: -57.920, north: -34.945, east: -57.845 },
+    center: { lat: -34.962, lng: -57.892 },
+    bounds: { south: -34.982, west: -57.920, north: -34.945, east: -57.860 },
+  },
+  {
+    id: 'villa_garibaldi',
+    name: 'Villa Garibaldi',
+    color: BLUE,
+    center: { lat: -35.002, lng: -57.872 },
+    bounds: { south: -35.020, west: -57.905, north: -34.982, east: -57.845 },
   },
   {
     id: 'ignacio_correas',

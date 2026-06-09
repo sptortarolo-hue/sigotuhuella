@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getPets, Pet, PetStatus, getPetCoordinates } from '@/src/lib/petService';
+import { getPets, Pet, PetStatus } from '@/src/lib/petService';
+import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import PetCard from '@/src/components/PetCard';
 import PetMap from '@/src/components/PetMap';
 import MapLoader from '@/src/components/MapLoader';
@@ -63,16 +64,24 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
 
     if (filter.trim()) {
       const q = filter.toLowerCase();
-      result = result.filter(
-        p =>
+      result = result.filter(p => {
+        const ns = (() => {
+          if (Array.isArray(p.neighborhoods)) return p.neighborhoods;
+          if (typeof p.neighborhoods === 'string') try { return JSON.parse(p.neighborhoods); } catch { return []; }
+          return [];
+        })();
+        const neighborhoodNames = ns.map(id => NEIGHBORHOODS.find(n => n.id === id)?.name || '').join(' ');
+        return (
           p.location.toLowerCase().includes(q) ||
+          neighborhoodNames.toLowerCase().includes(q) ||
           (p.name && p.name.toLowerCase().includes(q)) ||
           (p.description && p.description.toLowerCase().includes(q)) ||
           (p.contact_info && p.contact_info.includes(q)) ||
           (p.species && p.species.toLowerCase().includes(q)) ||
           (p.breed && p.breed.toLowerCase().includes(q)) ||
           (p.color && p.color.toLowerCase().includes(q))
-      );
+        );
+      });
     }
 
     return result;
@@ -185,7 +194,7 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
             >
               <MapLoader>
                 <PetMap 
-                  pets={displayedPets.filter(p => !!getPetCoordinates(p))} 
+                  pets={displayedPets} 
                   center={DEFAULT_CENTER} 
                 />
               </MapLoader>

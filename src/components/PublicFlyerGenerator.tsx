@@ -3,8 +3,8 @@ import { X, Download, Loader2, ArrowRight, Camera, PawPrint, Upload } from 'luci
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { statusDesigns, drawFlyer } from '@/src/lib/flyerRenderer';
-import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import ImageCropper from '@/src/components/ImageCropper';
+import LocationInput from '@/src/components/LocationInput';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
 
@@ -23,12 +23,6 @@ function blobToBase64(blob: Blob): Promise<{ data: string; mimeType: string }> {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
-}
-
-function randomPointInBounds(bounds: { south: number; west: number; north: number; east: number }): { lat: number; lng: number } {
-  const lat = bounds.south + Math.random() * (bounds.north - bounds.south);
-  const lng = bounds.west + Math.random() * (bounds.east - bounds.west);
-  return { lat, lng };
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -73,8 +67,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
   const dims = FORMAT_DIMS[format];
   const previewScale = Math.min(280 / dims.w, 420 / dims.h, 1);
 
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState<string | null>(null);
+  const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<string[]>([]);
   const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const cleanPhoto = () => {
@@ -155,7 +148,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
           body: JSON.stringify({
             ...form,
             images: [{ data: encoded.data, mimeType: encoded.mimeType }],
-            neighborhoods: selectedNeighborhoodId ? [selectedNeighborhoodId] : [],
+            neighborhoods: selectedNeighborhoods.length > 0 ? selectedNeighborhoods : [],
             ...(selectedCoords ? { latitude: selectedCoords.lat, longitude: selectedCoords.lng } : {}),
           }),
         });
@@ -344,24 +337,15 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                   <input placeholder="Raza (opcional)" value={form.breed} onChange={e => updateField('breed', e.target.value)}
                     className="w-full sm:flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
                 </div>
-                <div className="relative">
-                  <input placeholder="Zona / barrio" value={form.location}
-                    onChange={e => { updateField('location', e.target.value); setSelectedNeighborhoodId(null); setSelectedCoords(null); setShowSuggestions(true); }}
-                    onFocus={() => setShowSuggestions(true)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                    className="w-full px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
-                  {showSuggestions && form.location.length > 0 && (
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-brand-accent rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                      {NEIGHBORHOODS.filter(n => n.name.toLowerCase().includes(form.location.toLowerCase())).map(n => (
-                        <button key={n.id}
-                          onMouseDown={e => { e.preventDefault(); updateField('location', n.name); setSelectedNeighborhoodId(n.id); setSelectedCoords(randomPointInBounds(n.bounds)); setShowSuggestions(false); }}
-                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-brand-accent transition-colors">
-                          {n.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <LocationInput
+                  initialCenter={{ lat: -34.9507, lng: -57.9583 }}
+                  location={form.location}
+                  onLocationChange={(v) => updateField('location', v)}
+                  coordinates={selectedCoords}
+                  onCoordinatesChange={setSelectedCoords}
+                  selectedNeighborhoods={selectedNeighborhoods}
+                  onNeighborhoodsChange={setSelectedNeighborhoods}
+                />
                 <div className="flex flex-col sm:flex-row gap-3">
                   <input placeholder="WhatsApp / teléfono *" value={form.contact_info} onChange={e => updateField('contact_info', e.target.value)}
                     className="w-full sm:flex-1 px-4 py-3 rounded-xl border border-brand-accent text-sm focus:outline-none focus:border-brand-primary" />
