@@ -287,7 +287,7 @@ function drawCardFlyer(
   ctx.fillText(design.label, w / 2, badgePad + (badgeH - badgePad) / 2);
   drawRectPhoto(ctx, photoX, photoY, photoW, photoH, img, photoRadius);
 
-  // Pill badge — name + petDetails over bottom-left of photo
+  // Pill badge — name over bottom-left of photo
   if (hasName) {
     const pillPadX = w * 0.03;
     const pillPadY = h * 0.012;
@@ -299,11 +299,7 @@ function drawCardFlyer(
     const nameW = ctx.measureText(name).width;
     if (nameW > pillMaxW) nameFs = Math.max(w * 0.03, nameFs * (pillMaxW / nameW));
 
-    const hasSpecies = !!petDetails;
-    const speciesFs = hasSpecies ? Math.min(nameFs * 0.55, detailsFontSize) : 0;
-    const nameLineH = nameFs * 1.15;
-    const speciesLineH = hasSpecies ? speciesFs * 1.3 : 0;
-    const pillH = pillPadY + nameLineH + (hasSpecies ? speciesLineH : 0) + pillPadY;
+    const pillH = pillPadY + nameFs * 1.15 + pillPadY;
     const pillW = Math.min(pillMaxW + pillPadX * 2, ctx.measureText(name).width + pillPadX * 2);
     const pillX = photoX + w * 0.025;
     const pillY = photoY + photoH - pillH - h * 0.015;
@@ -315,19 +311,21 @@ function drawCardFlyer(
     ctx.fill();
     ctx.restore();
 
-    let textY = pillY + pillPadY;
     ctx.font = `800 ${nameFs}px system-ui, -apple-system, sans-serif`;
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(name, pillX + pillPadX, textY);
-    textY += nameLineH;
+    ctx.fillText(name, pillX + pillPadX, pillY + pillPadY);
+  }
 
-    if (hasSpecies) {
-      ctx.font = `500 ${speciesFs}px system-ui, -apple-system, sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.fillText(petDetails, pillX + pillPadX, textY);
-    }
+  // Pet details below photo, aligned with name pill
+  const detailsX = hasName ? photoX + w * 0.025 + w * 0.03 : photoX + w * 0.025;
+  if (petDetails) {
+    ctx.font = `500 ${detailsFontSize}px system-ui, -apple-system, sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(petDetails, detailsX, photoY + photoH + h * 0.008);
   }
 
   // Pre-calculate description wrapped lines
