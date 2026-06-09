@@ -22,7 +22,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-import requests
+import httpx
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -102,7 +102,8 @@ def fetch_config(api_base_url, webhook_token):
     url = f"{api_base_url.rstrip('/')}/api/facebook/scraper-config"
     headers = {"Authorization": f"Bearer {webhook_token}", "User-Agent": CHROME_UA}
     logger.info(f"Fetching config from {url}")
-    resp = requests.get(url, headers=headers, timeout=15)
+    with httpx.Client(http2=True) as client:
+        resp = client.get(url, headers=headers, timeout=15)
     resp.raise_for_status()
     return resp.json()
 
@@ -450,7 +451,8 @@ def send_to_webhook(webhook_url, webhook_token, posts):
     payload = {"posts": posts}
     headers = {"Authorization": f"Bearer {webhook_token}", "Content-Type": "application/json", "User-Agent": CHROME_UA}
     try:
-        resp = requests.post(webhook_url, json=payload, headers=headers, timeout=60)
+        with httpx.Client(http2=True) as client:
+            resp = client.post(webhook_url, json=payload, headers=headers, timeout=60)
         logger.info(f"Webhook response: HTTP {resp.status_code} ({len(resp.content)} bytes)")
         if resp.status_code >= 400:
             logger.error(f"Webhook error body: {resp.text[:500]}")
@@ -459,7 +461,7 @@ def send_to_webhook(webhook_url, webhook_token, posts):
                 logger.info(f"Webhook JSON: {resp.json()}")
             except Exception:
                 logger.warning(f"Webhook response is not JSON: {resp.text[:200]}")
-    except requests.exceptions.RequestException as e:
+    except httpx.RequestError as e:
         logger.error(f"Error sending to webhook: {e}")
 
 # ---------------------------------------------------------------------------
