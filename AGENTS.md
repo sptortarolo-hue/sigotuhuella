@@ -172,7 +172,9 @@ className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-96"
 
 ## Scraper Facebook (VPS)
 
-El scraper Python está en `external/scraper/`. Se autoconfigura desde la API — no necesita editar config.json.
+El scraper Python está en `external/scraper/`. Usa Selenium + ChromeDriver (autogestionado por `webdriver-manager`). Se autoconfigura desde la API.
+
+### Instalación inicial
 
 ```bash
 # 1. Copiar la carpeta al VPS
@@ -182,17 +184,40 @@ rsync -avz external/scraper/ user@vps:/opt/sihuella/scraper/
 #    TOKEN = el mismo que está en Admin > Facebook > Configuración > Token del scraper
 cd /opt/sihuella/scraper
 bash setup.sh https://sigotuhuella.online TU_TOKEN
-
-# 3. Ver estado
-systemctl status sihuella-scraper
-journalctl -u sihuella-scraper -f
 ```
 
+### Actualizar después de un pull
+
+Cuando se pusheen cambios al scraper, entrar al VPS y:
+
+```bash
+cd /opt/sihuella/scraper
+git pull
+source venv/bin/activate
+pip install -r requirements.txt  # actualiza dependencias (selenium, etc.)
+systemctl restart sihuella-scraper
+journalctl -u sihuella-scraper -f  # monitorear logs
+```
+
+### Referencia rápida
+
+| Comando | Descripción |
+|---------|-------------|
+| `systemctl status sihuella-scraper` | Estado del servicio |
+| `journalctl -u sihuella-scraper -f` | Logs en vivo |
+| `python scraper.py --api-base-url=URL` | Probar manual (una vez) |
+| `systemctl restart sihuella-scraper` | Reiniciar servicio |
+
+### Detalles técnicos
+
+- **Browser:** Chrome headless vía Selenium + webdriver-manager (no más pyppeteer)
+- **Sesión:** cookies.txt + verificación real navegando a facebook.com
+- **Clasificación:** Gemini 1.5 Flash (gratis, 1.500 req/día) — reemplaza keywords viejos
+- **Matching:** Gemini AI decide matches (FB↔pet, cross-group, detección de reencuentro)
+- **Comentarios:** Se extraen los últimos 20 por post y se clasifican
+- **RAM:** ~300-500MB (Chrome headless)
 - `webhook_token` debe coincidir con el setting `fb_scraper_token` del admin
 - Grupos, URL del webhook, intervalo etc se gestionan **desde el panel admin**
-- Para probar manual: `python scraper.py --api-base-url=https://sigotuhuella.online`
-- Para producción: el servicio systemd corre en modo `--daemon`
-- ~50MB RAM aprox
 
 ## Checklist al agregar una nueva página/componente
 
