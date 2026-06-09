@@ -42,7 +42,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/sihuella/scraper
-ExecStart=/opt/sihuella/scraper/venv/bin/python scraper.py --daemon --api-base-url=${APP_URL}
+ExecStart=/opt/sihuella/scraper/venv/bin/python scraper.py --daemon
 Environment=API_TOKEN=${APP_TOKEN}
 Environment=FB_EMAIL=${FB_EMAIL:-}
 Environment=FB_PASSWORD=${FB_PASSWORD:-}

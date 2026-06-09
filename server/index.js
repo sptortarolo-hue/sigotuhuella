@@ -25,6 +25,7 @@ import contestRoutes from './routes/contests.js';
 import gamificationRoutes from './routes/gamification.js';
 import requestChapitaRoutes from './routes/requestChapita.js';
 import facebookRoutes from './routes/facebook.js';
+import { startSyncTimer } from './services/vpsSyncService.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
 
@@ -166,6 +167,9 @@ app.use('/api/feed', feedRoutes);
 app.use('/api/contests', contestRoutes);
 app.use('/api/gamification', gamificationRoutes);
 app.use('/api/facebook', facebookRoutes);
+
+// Sync with VPS scraper every 5 minutes
+startSyncTimer(5);
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

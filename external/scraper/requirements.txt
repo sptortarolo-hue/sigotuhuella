@@ -1,4 +1,5 @@
-# requests not used — using system curl via subprocess
+google-generativeai>=0.8.0
+flask>=3.0.0
 beautifulsoup4>=4.12.0
 schedule>=1.2.0
 selenium>=4.27.0
