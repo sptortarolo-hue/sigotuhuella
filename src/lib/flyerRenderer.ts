@@ -112,26 +112,39 @@ function drawWrappedText(
 ): number {
   ctx.font = `${fontStyle} ${fontSize}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = color;
-  ctx.textAlign = align || 'center';
   ctx.textBaseline = 'top';
   const words = text.split(' ');
-  let line = '';
-  let lineCount = 0;
-  let curY = y;
+  const lines: string[][] = [[]];
+  let lineW = 0;
   for (const word of words) {
-    if (lineCount >= maxLines) break;
-    const testLine = line + word + ' ';
-    if (ctx.measureText(testLine).width > maxWidth && line) {
-      ctx.fillText(line.trim(), cx, curY);
-      line = word + ' ';
-      curY += fontSize * lineSpacing;
-      lineCount++;
-    } else {
-      line = testLine;
+    const wordW = ctx.measureText(word + ' ').width;
+    if (lineW + wordW > maxWidth && lines[lines.length - 1].length > 0) {
+      if (lines.length >= maxLines) break;
+      lines.push([]);
+      lineW = 0;
     }
+    lines[lines.length - 1].push(word);
+    lineW += wordW;
   }
-  if (line.trim() && lineCount < maxLines) {
-    ctx.fillText(line.trim(), cx, curY);
+  let curY = y;
+  const isLast = (i: number) => i === lines.length - 1 || i >= maxLines - 1;
+  for (let i = 0; i < lines.length && i < maxLines; i++) {
+    const lineWords = lines[i];
+    if (lineWords.length === 0) continue;
+    const lineText = lineWords.join(' ');
+    if (isLast(i) || lineWords.length === 1) {
+      ctx.textAlign = align === 'justify' ? 'left' : (align || 'center');
+      ctx.fillText(lineText, cx, curY);
+    } else {
+      ctx.textAlign = 'left';
+      const totalW = ctx.measureText(lineText).width;
+      const gap = (maxWidth - totalW) / (lineWords.length - 1);
+      let x = cx;
+      for (let j = 0; j < lineWords.length; j++) {
+        ctx.fillText(lineWords[j], x, curY);
+        x += ctx.measureText(lineWords[j] + ' ').width + gap;
+      }
+    }
     curY += fontSize * lineSpacing;
   }
   return curY;
@@ -390,7 +403,7 @@ function drawCardFlyer(
 
     let textY = infoBoxTop + boxPadY + extraBoxPad;
     if (hasDesc) {
-      textY = drawWrappedText(ctx, descText, boxX + boxPadX, textY, boxW - boxPadX * 2, descFontSize, descLineCount, 'italic 500', '#000000', 1.35, 'left');
+      textY = drawWrappedText(ctx, descText, boxX + boxPadX, textY, boxW - boxPadX * 2, descFontSize, descLineCount, 'italic 500', '#000000', 1.35, 'justify');
       textY += extraGap;
     }
     if (infoItems.length > 0) {
