@@ -304,7 +304,7 @@ def check_session(driver):
         driver.get("https://www.facebook.com/")
         WebDriverWait(driver, 10).until(
             EC.presence_of_element_located(
-                (By.CSS_SELECTOR, "div[role='feed'], a[aria-label='Home'], div[data-pagelet*='Feed']")
+                (By.CSS_SELECTOR, "div[role='feed'], a[aria-label='Home'], div[aria-label='Home'], div[data-pagelet*='Feed']")
             )
         )
         logger.info("Session valid — logged in")
@@ -347,18 +347,85 @@ def login_to_facebook(driver, email, password):
     logger.info("Logging in to Facebook")
     try:
         driver.get("https://www.facebook.com/")
+        time.sleep(2)
         try:
-            WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[data-cookiebanner='accept_button']"))).click()
+            WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[data-cookiebanner='accept_button'], button[title='Allow all cookies'], div[aria-label='Accept all']"))).click()
             time.sleep(1)
         except (TimeoutException, NoSuchElementException):
             pass
-        WebDriverWait(driver, 15).until(EC.visibility_of_element_located((By.ID, "email"))).send_keys(email)
-        WebDriverWait(driver, 15).until(EC.visibility_of_element_located((By.ID, "pass"))).send_keys(password)
-        WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.NAME, "login"))).click()
-        WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='feed'], a[aria-label='Home']")))
-        logger.info("Login successful")
-        return True
-    except (TimeoutException, NoSuchElementException, WebDriverException) as e:
+        email_selectors = [
+            (By.ID, "email"),
+            (By.CSS_SELECTOR, "input[autocomplete='username']"),
+            (By.CSS_SELECTOR, "input[name='email']"),
+            (By.XPATH, "//input[@type='text' or @type='email']"),
+        ]
+        pass_selectors = [
+            (By.ID, "pass"),
+            (By.CSS_SELECTOR, "input[autocomplete='current-password']"),
+            (By.CSS_SELECTOR, "input[name='pass']"),
+            (By.XPATH, "//input[@type='password']"),
+        ]
+        login_btn_selectors = [
+            (By.NAME, "login"),
+            (By.CSS_SELECTOR, "button[name='login']"),
+            (By.XPATH, "//button[contains(., 'Log in') or contains(., 'Iniciar sesión')]"),
+            (By.CSS_SELECTOR, "button[type='submit']"),
+        ]
+        email_el = None
+        for by, sel in email_selectors:
+            try:
+                email_el = WebDriverWait(driver, 3).until(EC.visibility_of_element_located((by, sel)))
+                logger.info(f"Email found: {sel}")
+                break
+            except (TimeoutException, NoSuchElementException):
+                continue
+        if not email_el:
+            driver.save_screenshot(str(_DIR / "debug_login.png"))
+            with open(str(_DIR / "debug_login.html"), "w") as f:
+                f.write(driver.page_source[:5000])
+            logger.error("Could not find email input. Saved debug_login.png and debug_login.html")
+            return False
+        email_el.clear()
+        email_el.send_keys(email)
+        pass_el = None
+        for by, sel in pass_selectors:
+            try:
+                pass_el = WebDriverWait(driver, 3).until(EC.visibility_of_element_located((by, sel)))
+                break
+            except (TimeoutException, NoSuchElementException):
+                continue
+        if not pass_el:
+            logger.error("Could not find password input")
+            return False
+        pass_el.clear()
+        pass_el.send_keys(password)
+        btn_el = None
+        for by, sel in login_btn_selectors:
+            try:
+                btn_el = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((by, sel)))
+                break
+            except (TimeoutException, NoSuchElementException):
+                continue
+        if not btn_el:
+            logger.error("Could not find login button")
+            return False
+        btn_el.click()
+        time.sleep(3)
+        try:
+            WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='feed'], a[aria-label='Home'], div[aria-label='Home']")))
+            logger.info("Login successful")
+            return True
+        except (TimeoutException):
+            driver.save_screenshot(str(_DIR / "debug_after_login.png"))
+            with open(str(_DIR / "debug_after_login.html"), "w") as f:
+                f.write(driver.page_source[:5000])
+            logger.warning("Login submitted but feed not found. Checkpoint may be required.")
+            return False
+    except Exception as e:
+        try:
+            driver.save_screenshot(str(_DIR / "debug_login_error.png"))
+        except Exception:
+            pass
         logger.error(f"Login failed: {e}")
         return False
 
