@@ -245,6 +245,7 @@ function drawCardFlyer(
       infoFontSize: number, detailsFontSize: number,
       nameFontSize: number, brandH: number;
   const hasName = name && name !== 'Sin nombre';
+  const descText = description && description.length > 140 ? description.slice(0, 140) + '…' : description;
   if (layoutType === 'story') {
     badgeH = h * 0.17; photoTop = h * 0.22; photoH = h * 0.38;
     photoW = w * 0.84; photoRadius = w * 0.025;
@@ -295,10 +296,10 @@ function drawCardFlyer(
   if (instagram) infoItems.push(instagram);
 
   let descLineCount = 0;
-  if (description) {
+  if (descText) {
     const descInnerW = w * 0.80;
     ctx.font = `italic 500 ${descFontSize}px system-ui, -apple-system, sans-serif`;
-    const words = description.split(' ');
+    const words = descText.split(' ');
     let line = '';
     for (const word of words) {
       if (descLineCount >= maxDescLines) break;
@@ -313,10 +314,11 @@ function drawCardFlyer(
     if (line.trim() && descLineCount < maxDescLines) descLineCount++;
   }
 
-  // White box — description + info items (black text, no stroke)
+  // White box — description + info items (black text)
   const descLineH = descFontSize * 1.35;
   const infoLineH = infoFontSize * 1.35;
   const hasDesc = descLineCount > 0;
+  const gapDescInfo = infoFontSize * 0.25;
   const totalLines = (hasDesc ? descLineCount : 0) + infoItems.length;
 
   let infoBoxTop = brandY;
@@ -328,7 +330,8 @@ function drawCardFlyer(
     const boxX = (w - boxW) / 2;
     const descSectionH = hasDesc ? descLineCount * descLineH : 0;
     const infoSectionH = infoItems.length * infoLineH;
-    const boxH = descSectionH + infoSectionH + boxPadY * 2;
+    const extraGap = hasDesc && infoItems.length > 0 ? gapDescInfo : 0;
+    const boxH = descSectionH + infoSectionH + boxPadY * 2 + extraGap;
     const boxBottom = brandY - h * 0.01;
     infoBoxTop = boxBottom - boxH;
 
@@ -343,7 +346,8 @@ function drawCardFlyer(
 
     let textY = infoBoxTop + boxPadY;
     if (hasDesc) {
-      textY = drawWrappedText(ctx, description, boxX + boxPadX, textY, boxW - boxPadX * 2, descFontSize, descLineCount, 'italic 500', '#000000', 1.35, 'left');
+      textY = drawWrappedText(ctx, descText, boxX + boxPadX, textY, boxW - boxPadX * 2, descFontSize, descLineCount, 'italic 500', '#000000', 1.35, 'left');
+      textY += extraGap;
     }
     if (infoItems.length > 0) {
       ctx.font = `700 ${infoFontSize}px system-ui, -apple-system, sans-serif`;
