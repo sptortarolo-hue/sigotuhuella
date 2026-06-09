@@ -1,4 +1,4 @@
-httpx[http2]>=0.28.0
+# requests not used — using system curl via subprocess
 beautifulsoup4>=4.12.0
 schedule>=1.2.0
 selenium>=4.27.0

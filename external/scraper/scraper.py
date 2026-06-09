@@ -22,7 +22,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-import httpx
+import subprocess
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -100,12 +100,19 @@ def get_fb_password():
 
 def fetch_config(api_base_url, webhook_token):
     url = f"{api_base_url.rstrip('/')}/api/facebook/scraper-config"
-    headers = {"Authorization": f"Bearer {webhook_token}", "User-Agent": CHROME_UA}
+    headers = {"Authorization": f"Bearer {webhook_token}", "User-Agent": CHROME_UA, "Accept": "application/json"}
     logger.info(f"Fetching config from {url}")
-    with httpx.Client(http2=True) as client:
-        resp = client.get(url, headers=headers, timeout=15)
-    resp.raise_for_status()
-    return resp.json()
+    cmd = ["curl", "-s"]
+    for k, v in headers.items():
+        cmd.extend(["-H", f"{k}: {v}"])
+    cmd.append(url)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+    if result.returncode != 0:
+        raise RuntimeError(f"curl failed (exit {result.returncode}): {result.stderr[:200]}")
+    data = json.loads(result.stdout)
+    if "error" in data or "message" in data:
+        raise RuntimeError(f"API error: {data.get('message', data.get('error', str(data)))}")
+    return data
 
 def extract_group_id(url):
     match = re.search(r'/groups/([^/?]+)', url)
@@ -451,17 +458,26 @@ def send_to_webhook(webhook_url, webhook_token, posts):
     payload = {"posts": posts}
     headers = {"Authorization": f"Bearer {webhook_token}", "Content-Type": "application/json", "User-Agent": CHROME_UA}
     try:
-        with httpx.Client(http2=True) as client:
-            resp = client.post(webhook_url, json=payload, headers=headers, timeout=60)
-        logger.info(f"Webhook response: HTTP {resp.status_code} ({len(resp.content)} bytes)")
-        if resp.status_code >= 400:
-            logger.error(f"Webhook error body: {resp.text[:500]}")
+        cmd = ["curl", "-s", "-w", "\n%{http_code}", "-X", "POST"]
+        for k, v in headers.items():
+            cmd.extend(["-H", f"{k}: {v}"])
+        cmd.extend(["-d", json.dumps(payload)])
+        cmd.append(webhook_url)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if result.returncode != 0:
+            raise RuntimeError(f"curl failed (exit {result.returncode})")
+        parts = result.stdout.strip().rsplit("\n", 1)
+        body = parts[0] if len(parts) > 1 else ""
+        status = int(parts[-1]) if len(parts) > 1 else 0
+        logger.info(f"Webhook response: HTTP {status} ({len(body)} bytes)")
+        if status >= 400:
+            logger.error(f"Webhook error body: {body[:500]}")
         else:
             try:
-                logger.info(f"Webhook JSON: {resp.json()}")
+                logger.info(f"Webhook JSON: {json.loads(body)}")
             except Exception:
-                logger.warning(f"Webhook response is not JSON: {resp.text[:200]}")
-    except httpx.RequestError as e:
+                logger.warning(f"Webhook response is not JSON: {body[:200]}")
+    except Exception as e:
         logger.error(f"Error sending to webhook: {e}")
 
 # ---------------------------------------------------------------------------
