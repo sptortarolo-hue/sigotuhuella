@@ -100,7 +100,7 @@ def get_fb_password():
 
 def fetch_config(api_base_url, webhook_token):
     url = f"{api_base_url.rstrip('/')}/api/facebook/scraper-config"
-    headers = {"Authorization": f"Bearer {webhook_token}"}
+    headers = {"Authorization": f"Bearer {webhook_token}", "User-Agent": CHROME_UA}
     logger.info(f"Fetching config from {url}")
     resp = requests.get(url, headers=headers, timeout=15)
     resp.raise_for_status()
@@ -448,7 +448,7 @@ def send_to_webhook(webhook_url, webhook_token, posts):
     if webhook_url.startswith("http://"):
         webhook_url = "https://" + webhook_url[7:]
     payload = {"posts": posts}
-    headers = {"Authorization": f"Bearer {webhook_token}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {webhook_token}", "Content-Type": "application/json", "User-Agent": CHROME_UA}
     try:
         resp = requests.post(webhook_url, json=payload, headers=headers, timeout=60)
         logger.info(f"Webhook response: HTTP {resp.status_code} ({len(resp.content)} bytes)")
