@@ -6,6 +6,7 @@ import { MapPin, X, ChevronDown, ChevronUp, Crosshair } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { NEIGHBORHOODS, Neighborhood } from '@/src/lib/neighborhoods';
 import { buildAddress } from '@/src/lib/grid';
+import { fetchEntreCalles } from '@/src/lib/overpass';
 
 const FEATURED_IDS = ['parque_sicardi', 'villa_garibaldi', 'ignacio_correas'];
 const featuredNeighborhoods = FEATURED_IDS.map(id => NEIGHBORHOODS.find(n => n.id === id)).filter((n): n is Neighborhood => !!n);
@@ -91,7 +92,12 @@ export default function LocationInput({
       const data = await res.json();
       const road = data.address?.road;
       if (road) {
-        onLocationChange(buildAddress(road, latlng.lat, latlng.lng));
+        const ec = await fetchEntreCalles(road, latlng.lat, latlng.lng);
+        if (ec) {
+          onLocationChange(`${road} entre ${ec.from} y ${ec.to}`);
+        } else {
+          onLocationChange(buildAddress(road, latlng.lat, latlng.lng));
+        }
       } else {
         const locality = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality;
         onLocationChange(locality || `${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`);
