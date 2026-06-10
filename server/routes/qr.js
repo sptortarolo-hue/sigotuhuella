@@ -296,7 +296,7 @@ router.post('/public/:shareToken/scan', async (req, res) => {
           html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
             <h2 style="color:#5A5A40;">Escaneo de QR detectado</h2>
             <p style="font-size:16px;">Alguien escaneó el código QR de <strong>${row.pet_name}</strong> y vio su perfil digital.</p>
-            ${latitude && longitude ? `<p><strong>Ubicación aproximada:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</p>` : ''}
+            ${latitude && longitude ? `<p><strong>Ubicación aproximada:</strong><br/><a href="https://www.google.com/maps?q=${latitude},${longitude}" style="color:#5A5A40;font-weight:bold;">📍 Ver en Google Maps</a></p>` : ''}
             <p style="color:#94a3b8;font-size:12px;margin-top:20px;">Sigo Tu Huella — Identificación Digital</p>
           </div>`,
         });
