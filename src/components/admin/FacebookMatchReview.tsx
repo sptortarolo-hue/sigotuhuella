@@ -35,13 +35,20 @@ export default function FacebookMatchReview({ matches, onConfirm, onReject, onRe
   const fetchSideData = useCallback(async (m: MatchItem) => {
     setLoading(true);
     try {
+      const fetchSide = async (type: string, id: string) => {
+        if (type === 'fb_post') {
+          const r = await api.facebook.posts.get(id);
+          console.log('[match-review] fb_post data:', { id, image_urls: r.image_urls, content: r.content?.substring(0,50) });
+          return { id: r.id, type: 'fb_post' as const, label: r.content?.substring(0, 100), content: r.content, images: r.image_urls || [], species: r.species, color: r.color, location: r.location_hint, phone: r.phone, date: r.posted_at };
+        }
+        const r = await api.pets.get(id);
+        console.log('[match-review] pet data:', { id: r.pet?.id, images: r.pet?.images, species: r.pet?.species });
+        const petImages = r.pet.images?.map((i: any) => i.image_data ? `data:${i.mime_type || 'image/jpeg'};base64,${i.image_data}` : null).filter(Boolean) || [];
+        return { id: r.pet.id, type: 'app_pet' as const, label: r.pet.name, content: r.pet.description || '', images: petImages, species: r.pet.species, color: r.pet.color, location: r.pet.location_hint, phone: r.pet.phone, date: r.pet.created_at };
+      };
       const [srcData, tgtData] = await Promise.all([
-        m.source_type === 'fb_post'
-          ? api.facebook.posts.get(m.source_id).then(r => ({ id: r.id, type: 'fb_post', label: r.content?.substring(0, 100), content: r.content, images: r.image_urls || [], species: r.species, color: r.color, location: r.location_hint, phone: r.phone, date: r.posted_at }))
-          : api.pets.get(m.source_id).then(r => ({ id: r.pet.id, type: 'app_pet', label: r.pet.name, content: r.pet.description || '', images: r.pet.images?.map((i: any) => `data:${i.mime_type};base64,${i.image_data}`) || [], species: r.pet.species, color: r.pet.color, location: r.pet.location_hint, phone: r.pet.phone, date: r.pet.created_at })),
-        m.target_type === 'fb_post'
-          ? api.facebook.posts.get(m.target_id).then(r => ({ id: r.id, type: 'fb_post', label: r.content?.substring(0, 100), content: r.content, images: r.image_urls || [], species: r.species, color: r.color, location: r.location_hint, phone: r.phone, date: r.posted_at }))
-          : api.pets.get(m.target_id).then(r => ({ id: r.pet.id, type: 'app_pet', label: r.pet.name, content: r.pet.description || '', images: r.pet.images?.map((i: any) => `data:${i.mime_type};base64,${i.image_data}`) || [], species: r.pet.species, color: r.pet.color, location: r.pet.location_hint, phone: r.pet.phone, date: r.pet.created_at })),
+        fetchSide(m.source_type, m.source_id),
+        fetchSide(m.target_type, m.target_id),
       ]);
       setSource(srcData);
       setTarget(tgtData);
