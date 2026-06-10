@@ -152,13 +152,19 @@ export default function FacebookMatchReview({ matches, onConfirm, onReject, onRe
 function SideCard({ side, label, type, imgIdx, setImgIdx, title }: {
   side: SideItem | null; label: string; type: string; imgIdx: number; setImgIdx: (i: number) => void; title: string;
 }) {
+  const [imgError, setImgError] = React.useState(false);
+  const imgKey = `${imgIdx}-${imgError}`;
+
+  React.useEffect(() => { setImgError(false); }, [imgIdx, side?.images]);
+
   return (
     <div className="bg-white rounded-2xl border border-brand-accent overflow-hidden">
       <div className="px-4 py-2 bg-brand-bg text-[10px] uppercase font-bold text-gray-500 tracking-wider">{title} — {type === 'fb_post' ? 'Post Facebook' : 'Mascota App'}</div>
       <div className="relative bg-gray-50 aspect-square">
-        {side && side.images.length > 0 ? (
+        {side && side.images.length > 0 && !imgError ? (
           <>
-            <img src={side.images[imgIdx]} alt="" className="w-full h-full object-cover" />
+            <img key={imgKey} src={side.images[imgIdx]} alt="" referrerPolicy="no-referrer"
+              className="w-full h-full object-cover" onError={() => setImgError(true)} />
             {side.images.length > 1 && (
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
                 {side.images.map((_, i) => (
