@@ -10,3 +10,9 @@ scratch/
 deploy_key
 deploy_key.pub
 sihuella/
+scripts/*.js
+scripts/*.jpg
+scripts/*.mp4
+scripts/tutorial-audio/
+scripts/tutorial-carrusel/
+scripts/tutorial-slides/
