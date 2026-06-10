@@ -38,7 +38,7 @@ export default function ImageLightbox({ images, currentIndex, onClose, onChange 
         )}
 
         <div className="flex flex-col items-center gap-2">
-          <img src={images[currentIndex]} alt={`Imagen ${currentIndex + 1}`}
+          <img src={images[currentIndex]} alt={`Imagen ${currentIndex + 1}`} referrerPolicy="no-referrer"
             className="max-w-[80vw] max-h-[80vh] object-contain rounded-2xl" />
           {images.length > 1 && (
             <p className="text-white/60 text-xs">{currentIndex + 1} / {images.length}</p>

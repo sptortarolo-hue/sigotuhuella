@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import {
@@ -40,8 +40,10 @@ const clsLabels: Record<string, string> = {
 
 export default function FacebookPostCard({ post, selected, onToggleSelect, onClassify, onDelete, onMatch, onViewDetail, onUpdateClassification, onImageClick }: Props) {
   const [imgIdx, setImgIdx] = useState(0);
+  const [imgFailed, setImgFailed] = useState(false);
   const hasImages = post.image_urls && post.image_urls.length > 0;
-  const imgError = !hasImages;
+  const showImg = hasImages && !imgFailed;
+  useEffect(() => { setImgFailed(false); }, [imgIdx]);
 
   return (
     <motion.div
@@ -54,13 +56,13 @@ export default function FacebookPostCard({ post, selected, onToggleSelect, onCla
       )}
     >
       {/* Image */}
-      <div className={cn("relative bg-gray-50", hasImages ? "aspect-[4/3]" : "aspect-[4/3] flex items-center justify-center")}>
-        {hasImages ? (
+      <div className={cn("relative bg-gray-50", showImg ? "aspect-[4/3]" : "aspect-[4/3] flex items-center justify-center")}>
+        {showImg ? (
           <>
-            <img src={post.image_urls[imgIdx]} alt=""
+            <img src={post.image_urls[imgIdx]} alt="" referrerPolicy="no-referrer"
               className="w-full h-full object-cover cursor-pointer"
               onClick={() => onImageClick?.(post.image_urls, imgIdx)}
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              onError={() => setImgFailed(true)}
             />
             {post.image_urls.length > 1 && (
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">

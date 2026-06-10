@@ -603,8 +603,9 @@ ${post.fb_post_url ? `🔗 Publicación original: ${post.fb_post_url}` : ''}
               <p className="text-xs font-bold text-gray-500 mb-2">Imágenes ({post.image_urls.length})</p>
               <div className="grid grid-cols-3 gap-2">
                 {post.image_urls.map((url, i) => (
-                    <img key={i} src={url} alt={`Imagen ${i + 1}`}
+                    <img key={i} src={url} alt={`Imagen ${i + 1}`} referrerPolicy="no-referrer"
                       className="rounded-xl aspect-square object-cover bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                       onClick={() => setLightbox({ images: post.image_urls, index: i })} />
                 ))}
               </div>
