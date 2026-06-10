@@ -36,6 +36,7 @@ const emptyForm = {
   gender: 'unknown' as string, birth_date: '', chip_id: '', bio: '',
   personality_tags: [] as string[], is_vaccinated: false, is_sterilized: false,
   is_dewormed: false, weight_kg: '',
+  behavior_notes: '', medical_notes: '', emergency_phone: '',
 };
 
 function getAge(birthDate: string) {
@@ -135,6 +136,8 @@ export default function MyPetsPortal() {
       bio: pet.bio || '', personality_tags: pet.personality_tags || [],
       is_vaccinated: pet.is_vaccinated, is_sterilized: pet.is_sterilized,
       is_dewormed: pet.is_dewormed, weight_kg: pet.weight_kg || '',
+      behavior_notes: pet.behavior_notes || '', medical_notes: pet.medical_notes || '',
+      emergency_phone: pet.emergency_phone || '',
     });
     setAvatarPreview(null);
     setAvatarFile(null);
@@ -426,6 +429,27 @@ export default function MyPetsPortal() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Comportamiento</label>
+                  <textarea value={form.behavior_notes || ''} onChange={e => setForm(prev => ({ ...prev, behavior_notes: e.target.value }))}
+                    className="w-full p-3 rounded-xl border border-brand-accent bg-brand-bg outline-none text-sm resize-none" rows={2}
+                    placeholder="¿Cómo es su comportamiento? (miedos, cómo acercarse, etc.)" />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Notas médicas</label>
+                  <textarea value={form.medical_notes || ''} onChange={e => setForm(prev => ({ ...prev, medical_notes: e.target.value }))}
+                    className="w-full p-3 rounded-xl border border-brand-accent bg-brand-bg outline-none text-sm resize-none" rows={2}
+                    placeholder="Alergias, medicación, condiciones (opcional)" />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Teléfono de emergencia</label>
+                  <input type="tel" value={form.emergency_phone || ''} onChange={e => setForm(prev => ({ ...prev, emergency_phone: e.target.value }))}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm"
+                    placeholder="Teléfono alternativo (opcional)" />
                 </div>
               </div>
 

@@ -26,6 +26,7 @@ const emptyPetForm = {
   name: '', species: 'dog' as 'dog' | 'cat' | 'other', breed: '', color: '',
   gender: 'unknown' as string, birth_date: '', bio: '',
   is_vaccinated: false, is_sterilized: false, is_dewormed: false,
+  behavior_notes: '', medical_notes: '', emergency_phone: '',
 };
 
 export default function SolicitarChapita() {
@@ -379,6 +380,38 @@ export default function SolicitarChapita() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Comportamiento</label>
+                <textarea
+                  value={pet.behavior_notes || ''}
+                  onChange={e => setPet(prev => ({ ...prev, behavior_notes: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-brand-accent bg-brand-bg outline-none text-sm resize-none"
+                  rows={2}
+                  placeholder="¿Cómo es su comportamiento? (miedos, cómo acercarse, etc.)"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Notas médicas</label>
+                <textarea
+                  value={pet.medical_notes || ''}
+                  onChange={e => setPet(prev => ({ ...prev, medical_notes: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-brand-accent bg-brand-bg outline-none text-sm resize-none"
+                  rows={2}
+                  placeholder="Alergias, medicación, condiciones (opcional)"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Teléfono de emergencia</label>
+                <input type="tel"
+                  value={pet.emergency_phone || ''}
+                  onChange={e => setPet(prev => ({ ...prev, emergency_phone: e.target.value }))}
+                  className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm"
+                  placeholder="Teléfono alternativo (opcional)"
+                />
               </div>
             </div>
           </div>

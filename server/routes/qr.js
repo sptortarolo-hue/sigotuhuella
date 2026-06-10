@@ -179,9 +179,13 @@ router.get('/public/:shareToken', async (req, res) => {
   try {
     const qrResult = await pool.query(
       `SELECT qi.*, mp.id as pet_id, mp.name, mp.species, mp.breed, mp.color,
-              mp.bio, mp.personality_tags, mp.is_vaccinated, mp.is_sterilized, mp.is_dewormed,
+              mp.gender, mp.chip_id, mp.weight_kg, mp.birth_date,
+              mp.bio, mp.personality_tags,
+              mp.is_vaccinated, mp.is_sterilized, mp.is_dewormed,
+              mp.behavior_notes, mp.medical_notes, mp.emergency_phone,
               mp.avatar_image IS NOT NULL as has_avatar,
-              u.display_name as owner_name
+              u.display_name as owner_name,
+              u.phone as owner_phone
        FROM qr_identifiers qi
        JOIN my_pets mp ON mp.id = qi.my_pet_id
        JOIN users u ON u.id = mp.user_id
@@ -198,6 +202,8 @@ router.get('/public/:shareToken', async (req, res) => {
       [row.pet_id]
     );
 
+    const age = row.birth_date ? calcAge(row.birth_date) : null;
+
     res.json({
       found: true,
       pet: {
@@ -206,13 +212,22 @@ router.get('/public/:shareToken', async (req, res) => {
         species: row.species,
         breed: row.breed,
         color: row.color,
+        gender: row.gender,
+        chip_id: row.chip_id,
+        weight_kg: row.weight_kg,
+        birth_date: row.birth_date,
+        age,
         bio: row.bio,
         personality_tags: row.personality_tags,
         is_vaccinated: row.is_vaccinated,
         is_sterilized: row.is_sterilized,
         is_dewormed: row.is_dewormed,
+        behavior_notes: row.behavior_notes,
+        medical_notes: row.medical_notes,
+        emergency_phone: row.emergency_phone,
         has_avatar: row.has_avatar,
         owner_name: row.owner_name,
+        owner_phone: row.owner_phone,
         photos: photosResult.rows,
         code: row.code,
       },
@@ -220,6 +235,80 @@ router.get('/public/:shareToken', async (req, res) => {
   } catch (err) {
     console.error('qr public error:', err);
     res.status(500).json({ error: 'Error al obtener perfil' });
+  }
+});
+
+function calcAge(birthDate) {
+  const now = new Date();
+  const born = new Date(birthDate);
+  let years = now.getFullYear() - born.getFullYear();
+  const monthDiff = now.getMonth() - born.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < born.getDate())) years--;
+  if (years > 0) return `${years} año${years !== 1 ? 's' : ''}`;
+  const months = (now.getMonth() - born.getMonth() + 12) % 12 || 12;
+  return `${months} mes${months !== 1 ? 'es' : ''}`;
+}
+
+router.post('/public/:shareToken/scan', async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
+
+    const petResult = await pool.query(
+      `SELECT mp.name as pet_name, mp.user_id, u.display_name as owner_name, u.email as owner_email
+       FROM qr_identifiers qi
+       JOIN my_pets mp ON mp.id = qi.my_pet_id
+       JOIN users u ON u.id = mp.user_id
+       WHERE qi.share_token = $1`,
+      [req.params.shareToken]
+    );
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'QR no encontrado' });
+
+    const row = petResult.rows[0];
+
+    await pool.query(
+      `INSERT INTO qr_scans (share_token, latitude, longitude, ip_address, user_agent)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [req.params.shareToken, latitude || null, longitude || null, req.ip, req.headers['user-agent'] || null]
+    );
+
+    sendPushToUser(row.user_id, {
+      title: `📍 Escanearon el QR de ${row.pet_name}`,
+      body: latitude && longitude
+        ? `Alguien vio el perfil de ${row.pet_name} cerca de ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+        : `Alguien vio el perfil digital de ${row.pet_name}`,
+      tag: `qr-scan-${req.params.shareToken}`,
+    }).catch(() => {});
+
+    if (row.owner_email) {
+      try {
+        const { default: nodemailer } = await import('nodemailer');
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || 'l0061596.ferozo.com',
+          port: parseInt(process.env.SMTP_PORT) || 587,
+          secure: false,
+          tls: { rejectUnauthorized: false },
+          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+        });
+        await transporter.sendMail({
+          from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+          to: row.owner_email,
+          subject: `📍 Escanearon el QR de ${row.pet_name}`,
+          html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
+            <h2 style="color:#5A5A40;">Escaneo de QR detectado</h2>
+            <p style="font-size:16px;">Alguien escaneó el código QR de <strong>${row.pet_name}</strong> y vio su perfil digital.</p>
+            ${latitude && longitude ? `<p><strong>Ubicación aproximada:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</p>` : ''}
+            <p style="color:#94a3b8;font-size:12px;margin-top:20px;">Sigo Tu Huella — Identificación Digital</p>
+          </div>`,
+        });
+      } catch (emailErr) {
+        console.error('Scan alert email error:', emailErr);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('qr scan error:', err);
+    res.status(500).json({ error: 'Error al registrar escaneo' });
   }
 });
 

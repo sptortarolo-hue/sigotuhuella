@@ -171,7 +171,8 @@ router.put('/:id', requireAuth, async (req, res) => {
     const {
       name, species, breed, color, gender, birth_date, chip_id,
       bio, personality_tags, is_vaccinated, is_sterilized, is_dewormed,
-      weight_kg, avatar_image, avatar_mime_type, crop_x, crop_y,
+      weight_kg, behavior_notes, medical_notes, emergency_phone,
+      avatar_image, avatar_mime_type, crop_x, crop_y,
     } = req.body;
 
     const sets = [];
@@ -193,6 +194,9 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (is_sterilized !== undefined) addField('is_sterilized', is_sterilized);
     if (is_dewormed !== undefined) addField('is_dewormed', is_dewormed);
     if (weight_kg !== undefined) addField('weight_kg', weight_kg || null);
+    if (behavior_notes !== undefined) addField('behavior_notes', behavior_notes || null);
+    if (medical_notes !== undefined) addField('medical_notes', medical_notes || null);
+    if (emergency_phone !== undefined) addField('emergency_phone', emergency_phone || null);
 
     if (avatar_image !== undefined) {
       const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg');
