@@ -188,24 +188,30 @@ router.get('/posts/:id', requireAdmin, async (req, res) => {
     if (postRes.rows.length === 0) return res.status(404).json({ error: 'Publicación no encontrada' });
     const post = postRes.rows[0];
 
-    const matchesRes = await pool.query(
-      `SELECT fm.*,
-        CASE
-          WHEN fm.target_type = 'app_pet' THEN (SELECT name FROM pets WHERE id = fm.target_id::uuid)
-          WHEN fm.target_type = 'fb_post' THEN (SELECT content FROM facebook_posts WHERE id = fm.target_id::uuid)
-          ELSE NULL
-        END as target_name
-       FROM facebook_matches fm
-       WHERE (fm.source_type = 'fb_post' AND fm.source_id = $1::text)
-          OR (fm.target_type = 'fb_post' AND fm.target_id = $1::text)
-       ORDER BY fm.score DESC`,
-      [req.params.id]
-    );
+    let matchesRes;
+    try {
+      matchesRes = await pool.query(
+        `SELECT fm.*,
+          CASE
+            WHEN fm.target_type = 'app_pet' THEN (SELECT name FROM pets WHERE id = fm.target_id::uuid)
+            WHEN fm.target_type = 'fb_post' THEN (SELECT content FROM facebook_posts WHERE id = fm.target_id::uuid)
+            ELSE NULL
+          END as target_name
+         FROM facebook_matches fm
+         WHERE (fm.source_type = 'fb_post' AND fm.source_id = $1::text)
+            OR (fm.target_type = 'fb_post' AND fm.target_id = $1::text)
+         ORDER BY fm.score DESC`,
+        [req.params.id]
+      );
+    } catch (matchErr) {
+      console.error('Error fetching matches for post:', req.params.id, matchErr.message);
+      matchesRes = { rows: [] };
+    }
 
     res.json({ ...post, matches: matchesRes.rows });
   } catch (err) {
     console.error('Error fetching post detail:', req.params.id, err.message, err.stack);
-    res.status(500).json({ error: 'Error al obtener publicación' });
+    res.status(500).json({ error: 'Error al obtener publicación', detail: err.message });
   }
 });
 
