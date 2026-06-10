@@ -38,10 +38,10 @@ export default function FacebookMatchReview({ matches, onConfirm, onReject, onRe
       const [srcData, tgtData] = await Promise.all([
         m.source_type === 'fb_post'
           ? api.facebook.posts.get(m.source_id).then(r => ({ id: r.id, type: 'fb_post', label: r.content?.substring(0, 100), content: r.content, images: r.image_urls || [], species: r.species, color: r.color, location: r.location_hint, phone: r.phone, date: r.posted_at }))
-          : api.pets.get(m.source_id).then(r => ({ id: r.id, type: 'app_pet', label: r.name, content: r.description || '', images: r.images?.map((i: any) => i.url) || [], species: r.species, color: r.color, location: r.location_hint, phone: r.phone, date: r.created_at })),
+          : api.pets.get(m.source_id).then(r => ({ id: r.pet.id, type: 'app_pet', label: r.pet.name, content: r.pet.description || '', images: r.pet.images?.map((i: any) => `data:${i.mime_type};base64,${i.image_data}`) || [], species: r.pet.species, color: r.pet.color, location: r.pet.location_hint, phone: r.pet.phone, date: r.pet.created_at })),
         m.target_type === 'fb_post'
           ? api.facebook.posts.get(m.target_id).then(r => ({ id: r.id, type: 'fb_post', label: r.content?.substring(0, 100), content: r.content, images: r.image_urls || [], species: r.species, color: r.color, location: r.location_hint, phone: r.phone, date: r.posted_at }))
-          : api.pets.get(m.target_id).then(r => ({ id: r.id, type: 'app_pet', label: r.name, content: r.description || '', images: r.images?.map((i: any) => i.url) || [], species: r.species, color: r.color, location: r.location_hint, phone: r.phone, date: r.created_at })),
+          : api.pets.get(m.target_id).then(r => ({ id: r.pet.id, type: 'app_pet', label: r.pet.name, content: r.pet.description || '', images: r.pet.images?.map((i: any) => `data:${i.mime_type};base64,${i.image_data}`) || [], species: r.pet.species, color: r.pet.color, location: r.pet.location_hint, phone: r.pet.phone, date: r.pet.created_at })),
       ]);
       setSource(srcData);
       setTarget(tgtData);
