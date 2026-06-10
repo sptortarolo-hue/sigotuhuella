@@ -204,7 +204,7 @@ router.get('/posts/:id', requireAdmin, async (req, res) => {
 
     res.json({ ...post, matches: matchesRes.rows });
   } catch (err) {
-    console.error('Error fetching post:', err);
+    console.error('Error fetching post detail:', req.params.id, err.message, err.stack);
     res.status(500).json({ error: 'Error al obtener publicación' });
   }
 });
