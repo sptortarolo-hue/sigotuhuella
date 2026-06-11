@@ -523,13 +523,28 @@ const MARGIN_Y_MM = (PAGE_H_MM - usedH_MM) / 2;
 
 const TAG_SIZE_PX = Math.round(TAG_SIZE_MM * 300 / 25.4); // ~437px
 
-function arcPath(cx, cy, r, startDeg, endDeg) {
+function drawArcTextSvg(text, cx, cy, r, startDeg, endDeg, fontSize, color) {
   const sr = (startDeg * Math.PI) / 180;
   const er = (endDeg * Math.PI) / 180;
-  const x1 = cx + r * Math.cos(sr), y1 = cy + r * Math.sin(sr);
-  const x2 = cx + r * Math.cos(er), y2 = cy + r * Math.sin(er);
-  const large = endDeg - startDeg > 180 ? 1 : 0;
-  return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
+  let span = er - sr;
+  if (span < 0) span += 2 * Math.PI;
+  const arcLen = r * span * 0.85;
+  let fs = fontSize;
+  if (text.length * fs * 0.6 > arcLen) {
+    fs = Math.round(fontSize * arcLen / (text.length * fs * 0.6));
+  }
+  const arcUsed = span * 0.85;
+  const arcStart = sr + (span - arcUsed) / 2;
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const ratio = (i + 0.5) / text.length;
+    const a = arcStart + ratio * arcUsed;
+    const x = cx + r * Math.cos(a);
+    const y = cy + r * Math.sin(a);
+    const rot = Math.atan2(r * Math.cos(a), -r * Math.sin(a)) * 180 / Math.PI;
+    out += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" transform="rotate(${rot.toFixed(1)},${x.toFixed(1)},${y.toFixed(1)})" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="${fs}" font-weight="bold" fill="${color}">${text[i]}</text>\n`;
+  }
+  return out;
 }
 
 let logoSvgCache = null;
@@ -547,13 +562,9 @@ function buildLogoSvg() {
   const logoY = Math.round(cx - logoSize / 2 + TAG_SIZE_PX * 0.03);
   const bottomSize = Math.round(TAG_SIZE_PX * 0.06);
   const bottomY = Math.round(TAG_SIZE_PX * 0.92);
-  const arcD = arcPath(cx, cx, arcR, 200, 340);
 
   logoSvgCache = `<svg width="${TAG_SIZE_PX}" height="${TAG_SIZE_PX}" xmlns="http://www.w3.org/2000/svg">
-<defs><path id="a" d="${arcD}" fill="none"/></defs>
-<text font-family="sans-serif" font-size="${arcSize}" font-weight="bold" fill="#5A5A40">
-  <textPath href="#a" startOffset="50%" text-anchor="middle">SI ME VES PERDIDO</textPath>
-</text>
+${drawArcTextSvg('SI ME VES PERDIDO', cx, cx, arcR, 200, 340, arcSize, '#5A5A40')}
 <image href="data:image/jpeg;base64,${imgB64}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}"/>
 <text x="${cx}" y="${bottomY}" text-anchor="middle" font-family="sans-serif" font-size="${bottomSize}" font-weight="bold" fill="#5A5A40">ESCANEÁ EL QR</text>
 </svg>`;
