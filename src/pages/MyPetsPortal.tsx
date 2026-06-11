@@ -172,25 +172,27 @@ export default function MyPetsPortal() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
       <div className="relative -mx-4 sm:-mx-6 lg:-mx-8 -mt-4 mb-8 bg-gradient-to-r from-brand-primary to-brand-secondary rounded-b-[3rem] px-6 py-10 shadow-xl overflow-hidden">
-        <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-0">
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold text-white flex items-center gap-3">
               <PawPrint className="w-8 h-8" /> Mis Mascotas
             </h1>
             <p className="text-white/80 text-sm mt-1">El portal de tus compañeros</p>
           </div>
-        <button
-          onClick={() => { setEditingId(null); setForm({ ...emptyForm }); setAvatarPreview(null); setAvatarFile(null); setShowForm(true); }}
-          className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-white/30 transition-all flex items-center gap-2 border border-white/20"
-        >
-          <Plus className="w-4 h-4" /> Registrar
-        </button>
-        <button
-          onClick={() => setShowQrClaim(true)}
-          className="px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-white/30 transition-all flex items-center gap-2 border border-white/20"
-        >
-          <QrCode className="w-4 h-4" /> Asociar QR
-        </button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={() => { setEditingId(null); setForm({ ...emptyForm }); setAvatarPreview(null); setAvatarFile(null); setShowForm(true); }}
+              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-white/30 transition-all flex items-center justify-center gap-2 border border-white/20"
+            >
+              <Plus className="w-4 h-4" /> Registrar
+            </button>
+            <button
+              onClick={() => setShowQrClaim(true)}
+              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-white/30 transition-all flex items-center justify-center gap-2 border border-white/20"
+            >
+              <QrCode className="w-4 h-4" /> Asociar QR
+            </button>
+          </div>
         </div>
       </div>
 
