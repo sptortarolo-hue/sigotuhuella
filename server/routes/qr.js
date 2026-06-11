@@ -444,6 +444,63 @@ router.delete('/cleanup', requireAdmin, async (req, res) => {
   }
 });
 
+router.post('/reactivate', requireAdmin, async (req, res) => {
+  try {
+    let { share_token } = req.body;
+    if (!share_token) return res.status(400).json({ error: 'share_token requerido' });
+
+    // Extract UUID from URL if full URL was pasted
+    const urlMatch = share_token.match(/\/mascota\/([a-f0-9-]+)/i);
+    if (urlMatch) share_token = urlMatch[1];
+
+    // Validate UUID format
+    const uuidRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+    if (!uuidRegex.test(share_token)) return res.status(400).json({ error: 'Token no válido' });
+
+    // Check if already exists
+    const existing = await pool.query(
+      'SELECT qi.code, qi.my_pet_id, mp.name as pet_name FROM qr_identifiers qi LEFT JOIN my_pets mp ON mp.id = qi.my_pet_id WHERE qi.share_token = $1',
+      [share_token]
+    );
+    if (existing.rows.length > 0) {
+      const row = existing.rows[0];
+      return res.json({
+        success: true,
+        reactivated: false,
+        already_active: true,
+        code: row.code,
+        share_token,
+        assigned: !!row.my_pet_id,
+        pet_name: row.pet_name || null,
+        url: `/mascota/${share_token}`,
+      });
+    }
+
+    // Generate new code
+    const [code] = await getNextCodes(1);
+    const batchId = `reactivated-${Date.now()}`;
+
+    const insertResult = await pool.query(
+      `INSERT INTO qr_identifiers (code, share_token, batch_id, my_pet_id) VALUES ($1, $2, $3, NULL) RETURNING id, code, share_token`,
+      [code, share_token, batchId]
+    );
+
+    res.json({
+      success: true,
+      reactivated: true,
+      already_active: false,
+      code: insertResult.rows[0].code,
+      share_token: insertResult.rows[0].share_token,
+      assigned: false,
+      pet_name: null,
+      url: `/mascota/${share_token}`,
+    });
+  } catch (err) {
+    console.error('qr reactivate error:', err);
+    res.status(500).json({ error: 'Error al reactivar QR' });
+  }
+});
+
 // Layout constants
 const TAG_SIZE_MM = 37;
 const GAP_MM = 1;

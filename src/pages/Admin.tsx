@@ -146,6 +146,9 @@ export default function Admin() {
   const [qrBatchCount, setQrBatchCount] = useState(12);
   const [qrBatchLoading, setQrBatchLoading] = useState(false);
   const [qrAssignLoading, setQrAssignLoading] = useState<string | null>(null);
+  const [reactivateToken, setReactivateToken] = useState('');
+  const [reactivateLoading, setReactivateLoading] = useState(false);
+  const [reactivateResult, setReactivateResult] = useState<any>(null);
 
   useEffect(() => {
     fetchAll();
@@ -1767,6 +1770,67 @@ export default function Admin() {
         <p className="text-gray-400">No hay QRs generados ni solicitudes pendientes.</p>
       </div>
     )}
+
+    {/* Reactivar QR */}
+    <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 shadow-sm">
+      <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
+        <QrCode className="w-4 h-4" /> Reactivar QR impreso
+      </h3>
+      <p className="text-xs text-gray-500 mb-4">
+        Escaneá el QR impreso con tu celular, copiá el link y pegalo acá para reactivarlo.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+        <input value={reactivateToken} onChange={e => { setReactivateToken(e.target.value); setReactivateResult(null); }}
+          className="flex-1 px-4 py-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+          placeholder="https://sigotuhuella.online/mascota/... o solo el token"
+        />
+        <button onClick={async () => {
+          if (!reactivateToken) return;
+          try {
+            setReactivateLoading(true);
+            setReactivateResult(null);
+            const r = await api.qr.reactivate(reactivateToken);
+            setReactivateResult(r);
+          } catch (e: any) {
+            setReactivateResult({ error: e.message || 'Error al reactivar' });
+          } finally {
+            setReactivateLoading(false);
+          }
+        }}
+          disabled={reactivateLoading || !reactivateToken}
+          className="px-5 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 shrink-0"
+        >
+          {reactivateLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+          Reactivar QR
+        </button>
+      </div>
+      {reactivateResult && (
+        <div className={`p-4 rounded-2xl text-sm ${reactivateResult.error ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+          {reactivateResult.error ? (
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" /> {reactivateResult.error}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 shrink-0" />
+                <span>
+                  {reactivateResult.already_active ? 'Ya estaba activo' : 'Reactivado'} —{' '}
+                  <strong className="font-bold">{reactivateResult.code}</strong>
+                  {reactivateResult.assigned && (
+                    <span className="ml-2 text-xs opacity-75">(asignado a {reactivateResult.pet_name})</span>
+                  )}
+                </span>
+              </div>
+              <a href={reactivateResult.url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 px-3 py-1.5 bg-white/50 rounded-lg text-xs font-bold hover:bg-white/80 transition-colors shrink-0">
+                Abrir <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   </div>
   </>
 )}
