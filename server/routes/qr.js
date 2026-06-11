@@ -609,33 +609,91 @@ function drawArcTextSvg(text, cx, cy, r, startDeg, endDeg, fontSize, color) {
   return out;
 }
 
-let logoSvgCache = null;
 let logoPngPromise = null;
 
-function buildLogoSvg() {
-  if (logoSvgCache) return logoSvgCache;
-  const img = readFileSync(join(__dirname, '..', '..', 'public', 'sigotuhuella.jpg'));
-  const imgB64 = img.toString('base64');
-  const cx = TAG_SIZE_PX / 2;
-  const arcR = Math.round(TAG_SIZE_PX * 0.38);
-  const arcSize = Math.round(TAG_SIZE_PX * 0.065);
+async function processLogoPng() {
+  const imgPath = join(__dirname, '..', '..', 'public', 'sigotuhuella.jpg');
+  const img = readFileSync(imgPath);
   const logoSize = Math.round(TAG_SIZE_PX * 0.55);
-  const logoX = Math.round((TAG_SIZE_PX - logoSize) / 2);
-  const logoY = Math.round(cx - logoSize / 2 + TAG_SIZE_PX * 0.03);
-  const bottomSize = Math.round(TAG_SIZE_PX * 0.06);
-  const bottomY = Math.round(TAG_SIZE_PX * 0.92);
 
-  logoSvgCache = `<svg width="${TAG_SIZE_PX}" height="${TAG_SIZE_PX}" xmlns="http://www.w3.org/2000/svg">
-${drawArcTextSvg('SI ME VES PERDIDO', cx, cx, arcR, 200, 340, arcSize, '#5A5A40')}
-<image href="data:image/jpeg;base64,${imgB64}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}"/>
-<text x="${cx}" y="${bottomY}" text-anchor="middle" font-family="sans-serif" font-size="${bottomSize}" font-weight="bold" fill="#5A5A40">ESCANEÁ EL QR</text>
-</svg>`;
-  return logoSvgCache;
+  const { data, info } = await sharp(img)
+    .resize(logoSize, logoSize)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const { width, height } = info;
+  const total = width * height;
+  const TH = 248;
+
+  // Step 1: alpha mask (non-white = contour, pure white = transparent)
+  const mask = Buffer.alloc(total, 0);
+  for (let i = 0; i < total; i++) {
+    const r = data[i * 3], g = data[i * 3 + 1], b = data[i * 3 + 2];
+    if (r <= TH || g <= TH || b <= TH) mask[i] = 255;
+  }
+
+  // Step 2: 2-pass 8-neighbor dilation to fill gaps inside contour
+  for (let iter = 0; iter < 2; iter++) {
+    const prev = Buffer.from(mask);
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const i = y * width + x;
+        if (prev[i] !== 0) continue;
+        let opaque = false;
+        for (let dy = -1; dy <= 1 && !opaque; dy++)
+          for (let dx = -1; dx <= 1 && !opaque; dx++)
+            if (dy !== 0 || dx !== 0) opaque = prev[(y + dy) * width + (x + dx)] === 255;
+        if (opaque) mask[i] = 255;
+      }
+    }
+  }
+
+  // Step 3: white fill RGBA (white pixels + mask as alpha)
+  const whiteFill = Buffer.alloc(total * 4);
+  for (let i = 0; i < total; i++) {
+    whiteFill[i * 4] = 255;
+    whiteFill[i * 4 + 1] = 255;
+    whiteFill[i * 4 + 2] = 255;
+    whiteFill[i * 4 + 3] = mask[i];
+  }
+
+  // Step 4: original RGBA (original colors + mask as alpha)
+  const origAlpha = Buffer.alloc(total * 4);
+  for (let i = 0; i < total; i++) {
+    origAlpha[i * 4] = data[i * 3];
+    origAlpha[i * 4 + 1] = data[i * 3 + 1];
+    origAlpha[i * 4 + 2] = data[i * 3 + 2];
+    origAlpha[i * 4 + 3] = mask[i];
+  }
+
+  const rawOpts = { raw: { width, height, channels: 4 } };
+  const whitePng = await sharp(whiteFill, rawOpts).png().toBuffer();
+  const origPng = await sharp(origAlpha, rawOpts).png().toBuffer();
+
+  return sharp(whitePng).composite([{ input: origPng, top: 0, left: 0 }]).png().toBuffer();
 }
 
 async function generateLogoPng() {
   if (!logoPngPromise) {
-    logoPngPromise = sharp(Buffer.from(buildLogoSvg())).png().toBuffer();
+    logoPngPromise = (async () => {
+      const processedLogo = await processLogoPng();
+      const logoB64 = processedLogo.toString('base64');
+      const cx = TAG_SIZE_PX / 2;
+      const arcR = Math.round(TAG_SIZE_PX * 0.38);
+      const arcSize = Math.round(TAG_SIZE_PX * 0.065);
+      const logoSize = Math.round(TAG_SIZE_PX * 0.55);
+      const logoX = Math.round((TAG_SIZE_PX - logoSize) / 2);
+      const logoY = Math.round(cx - logoSize / 2 + TAG_SIZE_PX * 0.03);
+      const bottomSize = Math.round(TAG_SIZE_PX * 0.06);
+      const bottomY = Math.round(TAG_SIZE_PX * 0.92);
+
+      const svg = `<svg width="${TAG_SIZE_PX}" height="${TAG_SIZE_PX}" xmlns="http://www.w3.org/2000/svg">
+${drawArcTextSvg('SI ME VES PERDIDO', cx, cx, arcR, 200, 340, arcSize, '#5A5A40')}
+<image href="data:image/png;base64,${logoB64}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}"/>
+<text x="${cx}" y="${bottomY}" text-anchor="middle" font-family="sans-serif" font-size="${bottomSize}" font-weight="bold" fill="#5A5A40">ESCANEÁ EL QR</text>
+</svg>`;
+      return sharp(Buffer.from(svg)).png().toBuffer();
+    })();
   }
   return logoPngPromise;
 }
