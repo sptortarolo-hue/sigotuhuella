@@ -132,11 +132,48 @@ router.post('/', async (req, res) => {
         body: `${userName} solicita QR para ${myPet.name}`,
         tag: `qr-request-${myPet.id}`,
       }).catch(() => {});
+
+      const userEmail = userData?.email;
+
       sendAdminNotificationEmail(
         'Nueva solicitud de chappita identificadora QR',
         `<p><strong>${userName}</strong> solicitó una chappita QR para <strong>${myPet.name}</strong> (${myPet.species}${myPet.breed ? ' · ' + myPet.breed : ''}).</p>
          <p><a href="https://sigotuhuella.online/admin" style="background:#5A5A40;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Ir al panel admin</a></p>`
       ).catch(() => {});
+
+      // Send confirmation email to the requester
+      const userEmailToUse = userEmail || (await pool.query('SELECT email FROM users WHERE id = $1', [userId])).rows[0]?.email;
+      if (userEmailToUse) {
+        try {
+          const { default: nm } = await import('nodemailer');
+          const t = nm.createTransport({
+            host: process.env.SMTP_HOST || 'l0061596.ferozo.com',
+            port: parseInt(process.env.SMTP_PORT) || 587,
+            secure: false,
+            tls: { rejectUnauthorized: false },
+            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+          });
+          await t.sendMail({
+            from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+            to: userEmailToUse,
+            subject: `Recibimos tu solicitud de chapita QR para ${myPet.name}`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
+              <div style="text-align:center;margin-bottom:24px;">
+                <img src="https://sigotuhuella.online/favicon.svg" alt="Sigo Tu Huella" width="64" height="64" style="border-radius:16px;"/>
+              </div>
+              <h2 style="color:#5A5A40;text-align:center;">¡Solicitud recibida! 🐾</h2>
+              <p style="font-size:16px;color:#334155;">Hola <strong>${userName}</strong>,</p>
+              <p style="font-size:16px;color:#334155;">Recibimos tu solicitud de chapita QR para <strong>${myPet.name}</strong> (${myPet.species}${myPet.breed ? ' · ' + myPet.breed : ''}).</p>
+              <p style="font-size:16px;color:#334155;">Te vamos a notificar cuando esté lista para que pases a retirarla.</p>
+              <div style="text-align:center;margin:28px 0;">
+                <a href="https://sigotuhuella.online/mascota/${myPet.id}" style="background:#5A5A40;color:#fff;padding:12px 28px;border-radius:12px;text-decoration:none;font-weight:bold;display:inline-block;">Ver perfil de ${myPet.name}</a>
+              </div>
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"/>
+              <p style="color:#94a3b8;font-size:12px;text-align:center;">Sigo Tu Huella — Identificación Digital para Mascotas</p>
+            </div>`,
+          });
+        } catch (e) { console.error('Request confirmation email error:', e); }
+      }
     }
 
     if (needsVerification) {
