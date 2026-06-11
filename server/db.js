@@ -195,6 +195,9 @@ CREATE TABLE IF NOT EXISTS my_pet_events (
 ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS my_pet_id UUID REFERENCES my_pets(id) ON DELETE SET NULL;
 ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS photo_ids TEXT[] DEFAULT '{}';
 ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS link_url TEXT;
+ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS attachment_data TEXT;
+ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS attachment_type VARCHAR(50);
+ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS attachment_name VARCHAR(255);
 
 CREATE TABLE IF NOT EXISTS qr_identifiers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

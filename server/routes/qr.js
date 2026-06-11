@@ -175,6 +175,41 @@ router.post('/claim', requireAuth, async (req, res) => {
   }
 });
 
+router.post('/assign-by-token', requireAuth, async (req, res) => {
+  try {
+    const { share_token, my_pet_id } = req.body;
+    if (!share_token || !my_pet_id) return res.status(400).json({ error: 'Token y mascota son requeridos' });
+
+    const qrResult = await pool.query(
+      'SELECT * FROM qr_identifiers WHERE share_token = $1',
+      [share_token]
+    );
+    if (qrResult.rows.length === 0) return res.status(404).json({ error: 'QR no encontrado' });
+    if (qrResult.rows[0].my_pet_id) return res.status(400).json({ error: 'Este QR ya está asignado a otra mascota' });
+
+    const petResult = await pool.query(
+      'SELECT * FROM my_pets WHERE id = $1 AND user_id = $2',
+      [my_pet_id, req.user.id]
+    );
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    if (petResult.rows[0].qr_id) return res.status(400).json({ error: 'Esta mascota ya tiene un QR asignado' });
+
+    await pool.query(
+      'UPDATE qr_identifiers SET my_pet_id = $1, assigned_at = NOW() WHERE id = $2',
+      [my_pet_id, qrResult.rows[0].id]
+    );
+    await pool.query(
+      'UPDATE my_pets SET qr_id = $1 WHERE id = $2',
+      [qrResult.rows[0].id, my_pet_id]
+    );
+
+    res.json({ success: true, code: qrResult.rows[0].code, share_token: qrResult.rows[0].share_token });
+  } catch (err) {
+    console.error('qr assign-by-token error:', err);
+    res.status(500).json({ error: 'Error al asociar QR' });
+  }
+});
+
 router.get('/public/:shareToken', async (req, res) => {
   try {
     const qrResult = await pool.query(

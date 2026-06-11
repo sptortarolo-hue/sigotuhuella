@@ -223,6 +223,7 @@ export const api = {
     requests: () => request('/qr/requests'),
     assign: (qrId: string, myPetId: string) => request('/qr/assign', { method: 'POST', body: JSON.stringify({ qr_id: qrId, my_pet_id: myPetId }) }),
     claim: (code: string, myPetId: string) => request('/qr/claim', { method: 'POST', body: JSON.stringify({ code, my_pet_id: myPetId }) }),
+    assignByToken: (shareToken: string, myPetId: string) => request('/qr/assign-by-token', { method: 'POST', body: JSON.stringify({ share_token: shareToken, my_pet_id: myPetId }) }),
     public: (token: string) => request(`/qr/public/${token}`),
     scan: (token: string, coords?: { latitude: number; longitude: number }) =>
       request(`/qr/public/${token}/scan`, { method: 'POST', body: JSON.stringify(coords || {}) }),

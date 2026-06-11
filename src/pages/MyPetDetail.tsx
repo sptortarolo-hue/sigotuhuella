@@ -9,7 +9,7 @@ import {
   PawPrint, ArrowLeft, Loader2, Syringe, Scissors, Bug, Weight,
   Calendar, Plus, X, Save, Camera, Trash2, Sparkles, Heart,
   Dog, Cat, Edit3, Image as ImageIcon, Activity, Clock,
-  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle,
+  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle, Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'qrcode';
@@ -80,6 +80,9 @@ export default function MyPetDetail() {
   const [recordPhotoPreviews, setRecordPhotoPreviews] = useState<string[]>([]);
   const recordPhotoInputRef = useRef<HTMLInputElement>(null);
 
+  const [recordPdf, setRecordPdf] = useState<File | null>(null);
+  const [recordPdfName, setRecordPdfName] = useState<string | null>(null);
+  const recordPdfInputRef = useRef<HTMLInputElement>(null);
   const [recordCropFile, setRecordCropFile] = useState<File | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [videoTitle, setVideoTitle] = useState('');
@@ -306,11 +309,19 @@ export default function MyPetDetail() {
       const payload: any = { ...recordForm };
       if (payload.amount === '') payload.amount = null;
       payload.photo_ids = uploadedIds.length > 0 ? uploadedIds : undefined;
+      if (recordPdf) {
+        const { data, mimeType } = await fileToBase64(recordPdf);
+        payload.attachment_data = data;
+        payload.attachment_type = mimeType;
+        payload.attachment_name = recordPdfName;
+      }
       await api.myPets.records.create(id!, payload);
       setShowRecordForm(false);
       setRecordForm({ record_type: 'vaccine', title: '', description: '', record_date: '', next_date: '', vet_name: '', clinic_name: '', medication_name: '', dosage: '', amount: '', link_url: '' });
       setRecordPhotos([]);
       setRecordPhotoPreviews([]);
+      setRecordPdf(null);
+      setRecordPdfName(null);
       await fetchPet();
     } catch (e) { console.error(e); }
     finally { setRecordLoading(false); }
@@ -406,6 +417,12 @@ export default function MyPetDetail() {
   const startEditBio = () => {
     setBioDraft(pet.bio || '');
     setEditingBio(true);
+  };
+
+  const closeRecordForm = () => {
+    setShowRecordForm(false);
+    setRecordPdf(null);
+    setRecordPdfName(null);
   };
 
   if (loading) {
@@ -841,6 +858,18 @@ export default function MyPetDetail() {
                                 ))}
                               </div>
                             )}
+                            {!isEvent && item.attachment_data && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                <a href={`data:${item.attachment_type || 'application/pdf'};base64,${item.attachment_data}`}
+                                  download={item.attachment_name || 'documento.pdf'}
+                                  className="w-12 h-12 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center hover:bg-red-100 transition-colors group relative"
+                                  title={item.attachment_name || 'Descargar PDF'}
+                                >
+                                  <FileText className="w-5 h-5 text-red-500" />
+                                  <Download className="w-3 h-3 text-red-400 absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </a>
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {isEvent && (
@@ -1019,6 +1048,18 @@ export default function MyPetDetail() {
                           ))}
                         </div>
                       )}
+                      {record.attachment_data && (
+                        <div className="flex flex-wrap gap-1.5 mt-3">
+                          <a href={`data:${record.attachment_type || 'application/pdf'};base64,${record.attachment_data}`}
+                            download={record.attachment_name || 'documento.pdf'}
+                            className="w-12 h-12 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center hover:bg-red-100 transition-colors group relative"
+                            title={record.attachment_name || 'Descargar PDF'}
+                          >
+                            <FileText className="w-5 h-5 text-red-500" />
+                            <Download className="w-3 h-3 text-red-400 absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1030,13 +1071,13 @@ export default function MyPetDetail() {
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                   className="fixed inset-0 z-[60] flex items-center justify-center p-4"
                 >
-                  <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={() => setShowRecordForm(false)} />
+                  <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={closeRecordForm} />
                   <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
                     className="relative w-full max-w-lg bg-white rounded-[2.5rem] max-h-[90vh] flex flex-col shadow-2xl"
                   >
                     <div className="p-6 sm:p-8 border-b border-brand-accent flex items-center justify-between">
                       <h3 className="text-lg font-bold text-brand-primary">Nuevo registro médico</h3>
-                      <button onClick={() => setShowRecordForm(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
+                      <button onClick={closeRecordForm} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
                     </div>
                     <div className="p-6 sm:p-8 overflow-y-auto space-y-4">
                       <div>
@@ -1087,6 +1128,25 @@ export default function MyPetDetail() {
                             <button onClick={() => recordPhotoInputRef.current?.click()}
                               className="w-16 h-16 rounded-xl border-2 border-dashed border-brand-accent flex items-center justify-center text-brand-accent hover:border-brand-primary hover:text-brand-primary transition-colors">
                               <Camera className="w-5 h-5" />
+                            </button>
+                          )}
+                          <input ref={recordPdfInputRef} type="file" accept=".pdf"
+                            className="hidden" onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) { setRecordPdf(file); setRecordPdfName(file.name); }
+                            }} />
+                          {recordPdfName ? (
+                            <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-red-50 border border-red-200 flex items-center justify-center">
+                              <FileText className="w-7 h-7 text-red-500" />
+                              <button onClick={() => { setRecordPdf(null); setRecordPdfName(null); }}
+                                className="absolute top-0.5 right-0.5 p-0.5 bg-red-500/80 text-white rounded-md text-[10px]">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button onClick={() => recordPdfInputRef.current?.click()}
+                              className="w-16 h-16 rounded-xl border-2 border-dashed border-brand-accent flex items-center justify-center text-brand-accent hover:border-red-400 hover:text-red-500 transition-colors">
+                              <FileText className="w-5 h-5" />
                             </button>
                           )}
                         </div>
