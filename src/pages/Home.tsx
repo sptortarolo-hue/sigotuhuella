@@ -153,14 +153,19 @@ export default function Home() {
                 className="w-full sm:w-auto px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">
                 Solicitar
               </button>
-              <button onClick={() => {
-                if (navigator.share) {
-                  navigator.share({
+              <button onClick={async () => {
+                if (!navigator.share) return;
+                try {
+                  const resp = await fetch('/chapita.png');
+                  const blob = await resp.blob();
+                  const file = new File([blob], 'chapita.png', { type: 'image/png' });
+                  await navigator.share({
+                    files: [file],
                     title: `Chappita identificadora${bannerIsFree ? ' gratis' : ''} - Sigo Tu Huella`,
                     text: `Protegé a tu mascota con una chappita QR${bannerIsFree ? ' gratuita' : ''} de Sigo Tu Huella. ${bannerIsFree ? '¡Solicitala ahora!' : `$${bannerPrice} — El dinero recaudado se destina a asistir a las mascotas del barrio. Solicitala ahora!`}`,
                     url: `${window.location.origin}/solicitar-chapita`,
-                  }).catch(() => {});
-                }
+                  });
+                } catch {}
               }}
                 className="w-full sm:w-auto px-6 py-3 bg-white border border-brand-accent text-brand-primary rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center justify-center gap-2">
                 <Share2 className="w-4 h-4" /> Compartir
@@ -321,7 +326,7 @@ export default function Home() {
                 <button
                   onClick={() => {
                     setShowChapitaModal(false);
-                    navigate(user ? '/mis-mascotas' : '/solicitar-chapita');
+                    navigate('/solicitar-chapita');
                   }}
                   className="w-full py-3.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all mt-2"
                 >
