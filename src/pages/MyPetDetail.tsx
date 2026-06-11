@@ -3,7 +3,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { fileToBase64 } from '@/src/lib/storageService';
-import { formatTag } from '@/src/lib/personalityTags';
+import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
 import ImageCropper from '@/src/components/ImageCropper';
 import {
   PawPrint, ArrowLeft, Loader2, Syringe, Scissors, Bug, Weight,
@@ -37,6 +37,32 @@ const RECORD_TYPES = [
 const RECORD_ICONS: Record<string, string> = {
   vaccine: '💉', medication: '💊', appointment: '🩺', surgery: '🏥',
   study: '🔬', expense: '💰', note: '📝', weight: '⚖️',
+};
+
+const SPECIES_OPTIONS = [
+  { value: 'dog', label: 'Perro', icon: '🐶' },
+  { value: 'cat', label: 'Gato', icon: '🐱' },
+  { value: 'other', label: 'Otro', icon: '🐾' },
+];
+
+const GENDER_OPTIONS = [
+  { value: 'male', label: 'Macho' },
+  { value: 'female', label: 'Hembra' },
+  { value: 'unknown', label: 'No sé' },
+];
+
+const PERSONALITY_TAGS = [
+  'juguetón', 'tranquilo', 'cariñoso', 'miedoso', 'explorador',
+  'dormilón', 'guardián', 'sociable', 'independiente', 'travieso',
+  'leal', 'curioso', 'mimoso', 'atlético', 'glotón',
+];
+
+const EMPTY_EDIT_FORM = {
+  name: '', species: 'dog', breed: '', color: '',
+  gender: 'unknown', birth_date: '', chip_id: '', bio: '',
+  personality_tags: [] as string[], is_vaccinated: false, is_sterilized: false,
+  is_dewormed: false, weight_kg: '',
+  behavior_notes: '', medical_notes: '', emergency_phone: '',
 };
 
 function getAge(birthDate: string) {
@@ -117,6 +143,12 @@ export default function MyPetDetail() {
   const [lostPhone, setLostPhone] = useState(user?.phone || '');
   const [lostLoading, setLostLoading] = useState(false);
   const [lostDone, setLostDone] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editForm, setEditForm] = useState<any>({ ...EMPTY_EDIT_FORM });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
+  const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -425,6 +457,57 @@ export default function MyPetDetail() {
     setRecordPdfName(null);
   };
 
+  const openEditForm = () => {
+    setEditForm({
+      name: pet.name, species: pet.species, breed: pet.breed || '', color: pet.color || '',
+      gender: pet.gender || 'unknown', birth_date: pet.birth_date || '', chip_id: pet.chip_id || '',
+      bio: pet.bio || '', personality_tags: pet.personality_tags || [],
+      is_vaccinated: pet.is_vaccinated, is_sterilized: pet.is_sterilized,
+      is_dewormed: pet.is_dewormed, weight_kg: pet.weight_kg || '',
+      behavior_notes: pet.behavior_notes || '', medical_notes: pet.medical_notes || '',
+      emergency_phone: pet.emergency_phone || '',
+    });
+    setEditAvatarPreview(null);
+    setEditAvatarFile(null);
+    setShowEditForm(true);
+  };
+
+  const handleEditSave = async () => {
+    try {
+      setEditLoading(true);
+      let avatarData: string | undefined;
+      let avatarMime: string | undefined;
+      if (editAvatarFile) {
+        const { data, mimeType } = await fileToBase64(editAvatarFile);
+        avatarData = data;
+        avatarMime = mimeType;
+      }
+      const payload: any = { ...editForm };
+      if (avatarData) { payload.avatar_image = avatarData; payload.avatar_mime_type = avatarMime; }
+      if (payload.weight_kg === '') payload.weight_kg = null;
+      await api.myPets.update(id!, payload);
+      setShowEditForm(false);
+      await fetchPet();
+    } catch (e) { console.error(e); }
+    finally { setEditLoading(false); }
+  };
+
+  const toggleEditTag = (tag: string) => {
+    setEditForm((prev: any) => ({
+      ...prev,
+      personality_tags: prev.personality_tags?.includes(tag)
+        ? prev.personality_tags.filter((t: string) => t !== tag)
+        : [...(prev.personality_tags || []), tag],
+    }));
+  };
+
+  const handleEditAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEditAvatarFile(file);
+    setEditAvatarPreview(URL.createObjectURL(file));
+  };
+
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center text-brand-primary">
@@ -543,10 +626,16 @@ export default function MyPetDetail() {
       </div>
 
       <AnimatePresence mode="wait">
-        {activeTab === 'ficha' && (
+          {activeTab === 'ficha' && (
           <motion.div key="ficha" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="bg-white rounded-[2rem] border border-brand-accent p-6 sm:p-8"
           >
+            <div className="flex justify-end mb-4">
+              <button onClick={openEditForm}
+                className="px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-xs hover:shadow-lg transition-all flex items-center gap-2">
+                <Edit3 className="w-3 h-3" /> Editar mascota
+              </button>
+            </div>
             {editingBio ? (
               <div className="mb-6">
                 <textarea value={bioDraft} onChange={e => setBioDraft(e.target.value)}
@@ -1311,6 +1400,175 @@ export default function MyPetDetail() {
                   </div>
                 </div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showEditForm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          >
+            <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={() => setShowEditForm(false)} />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-2xl bg-white rounded-[2.5rem] max-h-[90vh] flex flex-col shadow-2xl"
+            >
+              <div className="p-6 sm:p-8 border-b border-brand-accent flex items-center justify-between">
+                <h2 className="text-xl font-bold text-brand-primary">Editar mascota</h2>
+                <button onClick={() => setShowEditForm(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              <div className="p-6 sm:p-8 overflow-y-auto space-y-5">
+                <div className="flex items-center gap-4">
+                  <button onClick={() => editFileInputRef.current?.click()}
+                    className="w-20 h-20 rounded-2xl border-2 border-dashed border-brand-accent hover:border-brand-primary bg-brand-bg flex items-center justify-center overflow-hidden transition-colors shrink-0"
+                  >
+                    {editAvatarPreview ? (
+                      <img src={editAvatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : pet?.avatar_image ? (
+                      <img src={`/my-pet-avatar/${pet.id}?t=${Date.now()}`} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <PawPrint className="w-8 h-8 text-brand-accent" />
+                    )}
+                  </button>
+                  <input ref={editFileInputRef} type="file" accept="image/*" className="hidden" onChange={handleEditAvatarSelect} />
+                  <div className="flex-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Nombre</label>
+                    <input value={editForm.name} onChange={e => setEditForm((prev: any) => ({ ...prev, name: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none text-sm"
+                      placeholder="Nombre de tu mascota" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Especie</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {SPECIES_OPTIONS.map(opt => (
+                      <button key={opt.value} onClick={() => setEditForm((prev: any) => ({ ...prev, species: opt.value }))}
+                        className={`p-3 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 transition-all ${editForm.species === opt.value ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-brand-accent hover:border-brand-primary/50 text-gray-600'}`}
+                      >
+                        <span className="text-lg">{opt.icon}</span> {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Raza</label>
+                    <input value={editForm.breed} onChange={e => setEditForm((prev: any) => ({ ...prev, breed: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Ej: Labrador" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Color</label>
+                    <input value={editForm.color} onChange={e => setEditForm((prev: any) => ({ ...prev, color: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Ej: Dorado" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Sexo</label>
+                    <div className="grid grid-cols-3 gap-2 mt-1">
+                      {GENDER_OPTIONS.map(opt => (
+                        <button key={opt.value} onClick={() => setEditForm((prev: any) => ({ ...prev, gender: opt.value }))}
+                          className={`p-2 rounded-xl border text-xs font-medium transition-all ${editForm.gender === opt.value ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-brand-accent hover:border-brand-primary/50 text-gray-600'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Fecha de nacimiento</label>
+                    <input type="date" value={editForm.birth_date} onChange={e => setEditForm((prev: any) => ({ ...prev, birth_date: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Chip ID</label>
+                    <input value={editForm.chip_id} onChange={e => setEditForm((prev: any) => ({ ...prev, chip_id: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Nro. de microchip" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Peso (kg)</label>
+                    <input type="number" step="0.1" value={editForm.weight_kg} onChange={e => setEditForm((prev: any) => ({ ...prev, weight_kg: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Ej: 12.5" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Descripción / Señas particulares</label>
+                  <textarea value={editForm.bio} onChange={e => setEditForm((prev: any) => ({ ...prev, bio: e.target.value }))}
+                    className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm resize-none" rows={2}
+                    placeholder="Contanos cómo es tu mascota, sus señas particulares..." />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Personalidad</label>
+                  <div className="flex flex-wrap gap-2">
+                    {PERSONALITY_TAGS.map(tag => (
+                      <button key={tag} onClick={() => toggleEditTag(tag)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${editForm.personality_tags?.includes(tag) ? 'bg-brand-primary text-white' : 'bg-brand-bg text-gray-500 hover:bg-brand-accent'}`}
+                      >
+                        {PERSONALITY_TAG_EMOJIS[tag]} {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Salud</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: 'is_vaccinated', label: 'Vacunado', icon: <Syringe className="w-3 h-3" /> },
+                      { key: 'is_sterilized', label: 'Esterilizado', icon: <Scissors className="w-3 h-3" /> },
+                      { key: 'is_dewormed', label: 'Desparasitado', icon: <Bug className="w-3 h-3" /> },
+                    ].map(item => (
+                      <button key={item.key} onClick={() => setEditForm((prev: any) => ({ ...prev, [item.key]: !prev[item.key] }))}
+                        className={`px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all ${editForm[item.key] ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-brand-bg text-gray-400 border border-brand-accent'}`}
+                      >
+                        {item.icon} {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Comportamiento</label>
+                  <textarea value={editForm.behavior_notes || ''} onChange={e => setEditForm((prev: any) => ({ ...prev, behavior_notes: e.target.value }))}
+                    className="w-full p-3 rounded-xl border border-brand-accent bg-brand-bg outline-none text-sm resize-none" rows={2}
+                    placeholder="¿Cómo es su comportamiento? (miedos, cómo acercarse, etc.)" />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Notas médicas</label>
+                  <textarea value={editForm.medical_notes || ''} onChange={e => setEditForm((prev: any) => ({ ...prev, medical_notes: e.target.value }))}
+                    className="w-full p-3 rounded-xl border border-brand-accent bg-brand-bg outline-none text-sm resize-none" rows={2}
+                    placeholder="Alergias, medicación, condiciones (opcional)" />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Teléfono de emergencia</label>
+                  <input type="tel" value={editForm.emergency_phone || ''} onChange={e => setEditForm((prev: any) => ({ ...prev, emergency_phone: e.target.value }))}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm"
+                    placeholder="Teléfono alternativo (opcional)" />
+                </div>
+              </div>
+
+              <div className="p-6 sm:p-8 border-t border-brand-accent">
+                <button onClick={handleEditSave} disabled={editLoading || !editForm.name}
+                  className="w-full py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {editLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Guardar cambios
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
