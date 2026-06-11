@@ -641,8 +641,8 @@ async function generateLogoPng() {
 }
 
 async function generateQrPng(code, shareToken) {
-  const qrDataUrl = await QRCode.toDataURL(`${FRONTEND_URL}/mascota/${shareToken}`, {
-    width: Math.round(TAG_SIZE_PX * 0.82),
+  const qrSvg = await QRCode.toString(`${FRONTEND_URL}/mascota/${shareToken}`, {
+    type: 'svg',
     margin: 1,
     color: { dark: '#5A5A40', light: '#ffffff' },
   });
@@ -653,8 +653,17 @@ async function generateQrPng(code, shareToken) {
   const fontSize = Math.round(TAG_SIZE_PX * 0.06);
   const textY = Math.round(TAG_SIZE_PX * 0.94);
 
+  const vb = qrSvg.match(/viewBox="([^"]*)"/);
+  const vbStr = (vb && vb[1]) || '0 0 33 33';
+  const parts = vbStr.split(' ').map(Number);
+  const scaleX = qrSize / parts[2];
+  const scaleY = qrSize / parts[3];
+  const inner = qrSvg.replace(/<svg[^>]*>/, '').replace(/<\/svg>/, '');
+
   const svg = `<svg width="${TAG_SIZE_PX}" height="${TAG_SIZE_PX}" xmlns="http://www.w3.org/2000/svg">
-<image href="${qrDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}"/>
+<g transform="translate(${qrX}, ${qrY}) scale(${scaleX}, ${scaleY})">
+${inner}
+</g>
 <text x="${cx}" y="${textY}" text-anchor="middle" font-family="monospace" font-size="${fontSize}" font-weight="bold" fill="#5A5A40">${code}</text>
 </svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
