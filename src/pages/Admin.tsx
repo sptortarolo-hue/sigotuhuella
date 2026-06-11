@@ -206,9 +206,9 @@ export default function Admin() {
     }
   };
 
-  const handleQrPdf = async (batchId: string, mirror?: boolean) => {
+  const handleQrPdf = async (batchId: string) => {
     try {
-      await api.qr.batchPdf(batchId, mirror);
+      await api.qr.batchPdf(batchId);
     } catch (e: any) {
       alert(e.message || 'Error al descargar PDF');
     }
@@ -1694,12 +1694,6 @@ export default function Admin() {
                 className="px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
               >
                 <Download className="w-3 h-3" /> PDF {batchId?.replace('batch-', '').slice(0, 6)}
-              </button>
-              <button
-                onClick={() => handleQrPdf(batchId, true)}
-                className="px-3 py-1.5 bg-brand-secondary/10 text-brand-secondary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-secondary/20 transition-colors"
-              >
-                <Download className="w-3 h-3" /> Sublimar
               </button>
             </div>
           ))}

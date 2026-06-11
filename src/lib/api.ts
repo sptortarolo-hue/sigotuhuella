@@ -230,10 +230,9 @@ export const api = {
     found: (token: string, data: any) => request(`/qr/public/${token}/found`, { method: 'POST', body: JSON.stringify(data) }),
     cleanup: () => request('/qr/cleanup', { method: 'DELETE' }),
     assigned: () => request('/qr/assigned'),
-    batchPdf: (batchId: string, mirror?: boolean) => {
+    batchPdf: (batchId: string) => {
       const token = getToken();
-      const suffix = mirror ? '-sublimar' : '';
-      return fetch(`/api/qr/batch/${batchId}/pdf${mirror ? '?mirror=1' : ''}`, {
+      return fetch(`/api/qr/batch/${batchId}/pdf`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       }).then(async res => {
         if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Error al descargar PDF'); }
@@ -241,7 +240,7 @@ export const api = {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `qr-${batchId}${suffix}.pdf`;
+        a.download = `qr-${batchId}.pdf`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

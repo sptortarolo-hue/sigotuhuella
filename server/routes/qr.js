@@ -416,36 +416,6 @@ router.post('/public/:shareToken/found', async (req, res) => {
   }
 });
 
-function drawArcText(doc, text, cx, cy, radius, startDeg, endDeg, color, reverse) {
-  const startRad = startDeg * Math.PI / 180;
-  const endRad = endDeg * Math.PI / 180;
-  let span = endRad - startRad;
-  if (span < 0) span += 2 * Math.PI;
-  const arcLen = radius * span * 0.85;
-  let fs = 14;
-  doc.fontSize(fs).font('Helvetica-Bold');
-  let tw = doc.widthOfString(text);
-  if (tw > arcLen) { fs *= arcLen / tw; doc.fontSize(fs).font('Helvetica-Bold'); }
-  const charWidths = text.split('').map(c => doc.fontSize(fs).widthOfString(c));
-  const totalWidth = charWidths.reduce((s, w) => s + w, 0);
-  const arcUsed = span * 0.85;
-  const arcStart = startRad + (span - arcUsed) / 2;
-  let cum = 0;
-  for (let i = 0; i < text.length; i++) {
-    const ratio = (cum + charWidths[i] / 2) / totalWidth;
-    const a = arcStart + ratio * arcUsed;
-    cum += charWidths[i];
-    const x = cx + radius * Math.cos(a);
-    const y = cy + radius * Math.sin(a);
-    const rot = (Math.atan2(radius * Math.cos(a), -radius * Math.sin(a)) * 180 / Math.PI) + (reverse ? 180 : 0);
-    doc.save();
-    doc.translate(x, y);
-    doc.rotate(rot);
-    doc.fontSize(fs).fillColor(color).text(text[i], -charWidths[i] / 2, 0);
-    doc.restore();
-  }
-}
-
 router.get('/assigned', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
@@ -474,9 +444,94 @@ router.delete('/cleanup', requireAdmin, async (req, res) => {
   }
 });
 
+// Layout constants
+const TAG_SIZE_MM = 37;
+const GAP_MM = 1;
+const PAGE_W_MM = 570;
+const PAGE_H_MM = 300;
+const MM_TO_PT = 72 / 25.4;
+const PAGE_W_PT = PAGE_W_MM * MM_TO_PT;
+const PAGE_H_PT = PAGE_H_MM * MM_TO_PT;
+const TAG_SIZE_PT = TAG_SIZE_MM * MM_TO_PT;
+const GAP_PT = GAP_MM * MM_TO_PT;
+
+const PAIR_W_MM = TAG_SIZE_MM * 2 + GAP_MM;
+const PAIRS_PER_ROW = Math.floor((PAGE_W_MM + GAP_MM) / (PAIR_W_MM + GAP_MM));
+const ROWS_PER_PAGE = Math.floor((PAGE_H_MM + GAP_MM) / (TAG_SIZE_MM + GAP_MM));
+const COLS = PAIRS_PER_ROW * 2;
+const usedW_MM = COLS * TAG_SIZE_MM + (COLS - 1) * GAP_MM;
+const usedH_MM = ROWS_PER_PAGE * TAG_SIZE_MM + (ROWS_PER_PAGE - 1) * GAP_MM;
+const MARGIN_X_MM = (PAGE_W_MM - usedW_MM) / 2;
+const MARGIN_Y_MM = (PAGE_H_MM - usedH_MM) / 2;
+
+const TAG_SIZE_PX = Math.round(TAG_SIZE_MM * 300 / 25.4); // ~437px
+
+function arcPath(cx, cy, r, startDeg, endDeg) {
+  const sr = (startDeg * Math.PI) / 180;
+  const er = (endDeg * Math.PI) / 180;
+  const x1 = cx + r * Math.cos(sr), y1 = cy + r * Math.sin(sr);
+  const x2 = cx + r * Math.cos(er), y2 = cy + r * Math.sin(er);
+  const large = endDeg - startDeg > 180 ? 1 : 0;
+  return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
+}
+
+let logoSvgCache = null;
+let logoPngPromise = null;
+
+function buildLogoSvg() {
+  if (logoSvgCache) return logoSvgCache;
+  const img = readFileSync(join(__dirname, '..', '..', 'public', 'sigotuhuella.jpg'));
+  const imgB64 = img.toString('base64');
+  const cx = TAG_SIZE_PX / 2;
+  const arcR = Math.round(TAG_SIZE_PX * 0.38);
+  const arcSize = Math.round(TAG_SIZE_PX * 0.065);
+  const logoSize = Math.round(TAG_SIZE_PX * 0.55);
+  const logoX = Math.round((TAG_SIZE_PX - logoSize) / 2);
+  const logoY = Math.round(cx - logoSize / 2 + TAG_SIZE_PX * 0.03);
+  const bottomSize = Math.round(TAG_SIZE_PX * 0.06);
+  const bottomY = Math.round(TAG_SIZE_PX * 0.92);
+  const arcD = arcPath(cx, cx, arcR, 200, 340);
+
+  logoSvgCache = `<svg width="${TAG_SIZE_PX}" height="${TAG_SIZE_PX}" xmlns="http://www.w3.org/2000/svg">
+<defs><path id="a" d="${arcD}" fill="none"/></defs>
+<text font-family="sans-serif" font-size="${arcSize}" font-weight="bold" fill="#5A5A40">
+  <textPath href="#a" startOffset="50%" text-anchor="middle">SI ME VES PERDIDO</textPath>
+</text>
+<image href="data:image/jpeg;base64,${imgB64}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}"/>
+<text x="${cx}" y="${bottomY}" text-anchor="middle" font-family="sans-serif" font-size="${bottomSize}" font-weight="bold" fill="#5A5A40">ESCANEÁ EL QR</text>
+</svg>`;
+  return logoSvgCache;
+}
+
+async function generateLogoPng() {
+  if (!logoPngPromise) {
+    logoPngPromise = sharp(Buffer.from(buildLogoSvg())).png().toBuffer();
+  }
+  return logoPngPromise;
+}
+
+async function generateQrPng(code, shareToken) {
+  const qrDataUrl = await QRCode.toDataURL(`${FRONTEND_URL}/mascota/${shareToken}`, {
+    width: Math.round(TAG_SIZE_PX * 0.82),
+    margin: 1,
+    color: { dark: '#5A5A40', light: '#ffffff' },
+  });
+  const cx = TAG_SIZE_PX / 2;
+  const qrSize = Math.round(TAG_SIZE_PX * 0.82);
+  const qrX = Math.round((TAG_SIZE_PX - qrSize) / 2);
+  const qrY = Math.round(TAG_SIZE_PX * 0.04);
+  const fontSize = Math.round(TAG_SIZE_PX * 0.06);
+  const textY = Math.round(TAG_SIZE_PX * 0.94);
+
+  const svg = `<svg width="${TAG_SIZE_PX}" height="${TAG_SIZE_PX}" xmlns="http://www.w3.org/2000/svg">
+<image href="${qrDataUrl}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}"/>
+<text x="${cx}" y="${textY}" text-anchor="middle" font-family="monospace" font-size="${fontSize}" font-weight="bold" fill="#5A5A40">${code}</text>
+</svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
 router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
   try {
-    const mirror = req.query.mirror === '1';
     const result = await pool.query(
       'SELECT code, share_token FROM qr_identifiers WHERE batch_id = $1 ORDER BY code ASC',
       [req.params.batchId]
@@ -484,73 +539,39 @@ router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Batch no encontrado' });
 
     const identifiers = result.rows;
-    const PER_PAGE = 18;
-    const MARGIN_X = 25;
-    const MARGIN_Y = 36;
-    const PAGE_W = 595.28;
-    const PAGE_H = 841.89;
-    const CIRCLE_R = 55;
-    const CIRCLE_D = CIRCLE_R * 2;
-    const QR_SIZE = Math.round(CIRCLE_D * 0.70);
-    const QR_PX = 400;
-    const QR_Y_OFFSET = 0;
-    const ICON_SIZE_R = 24;
-    const COLORS = { olive: '#5A5A40', terracotta: '#D48C70' };
-    const COLS = 3;
-    const COL_W = (PAGE_W - MARGIN_X * 2) / COLS;
-    const ROW_H = (PAGE_H - MARGIN_Y - 25) / 6;
-    const sigotuhuella = readFileSync(join(__dirname, '..', '..', 'public', 'sigotuhuella.jpg'));
+    const PER_PAGE = PAIRS_PER_ROW * ROWS_PER_PAGE;
 
-    const doc = new PDFDocument({ size: 'A4', margin: 0 });
+    const doc = new PDFDocument({ size: [PAGE_W_PT, PAGE_H_PT], margin: 0 });
     res.set('Content-Type', 'application/pdf');
-    res.set('Content-Disposition', `attachment; filename="qr-${req.params.batchId}${mirror ? '-sublimar' : ''}.pdf"`);
+    res.set('Content-Disposition', `attachment; filename="qr-${req.params.batchId}.pdf"`);
     doc.pipe(res);
 
-    for (let page = 0; page < identifiers.length; page += PER_PAGE) {
-      if (page > 0) doc.addPage();
+    for (let pageStart = 0; pageStart < identifiers.length; pageStart += PER_PAGE) {
+      if (pageStart > 0) doc.addPage();
 
-      if (mirror) { doc.save(); doc.translate(PAGE_W, 0).scale(-1, 1); }
+      const pageIds = identifiers.slice(pageStart, pageStart + PER_PAGE);
 
-      for (let i = 0; i < PER_PAGE && (page + i) < identifiers.length; i++) {
-        const col = i % COLS;
-        const row = Math.floor(i / COLS);
-        const cx = MARGIN_X + col * COL_W + COL_W / 2;
-        const cy = MARGIN_Y + row * ROW_H + ROW_H / 2;
-        const ident = identifiers[page + i];
+      const pngs = await Promise.all(pageIds.flatMap(ident => [
+        generateQrPng(ident.code, ident.share_token),
+        generateLogoPng(),
+      ]));
 
-        if (i % 2 === 0) {
-          const qrDataUrl = await QRCode.toDataURL(`${FRONTEND_URL}/mascota/${ident.share_token}`, {
-            width: QR_PX,
-            margin: 0,
-            color: { dark: '#5A5A40', light: '#ffffff' },
-          });
-          const qrBuffer = Buffer.from(qrDataUrl.split(',')[1], 'base64');
+      for (let i = 0; i < pageIds.length; i++) {
+        const row = Math.floor(i / PAIRS_PER_ROW);
+        const col = i % PAIRS_PER_ROW;
+        const qrCell = col * 2;
+        const xMm = MARGIN_X_MM + qrCell * (TAG_SIZE_MM + GAP_MM);
+        const yMm = MARGIN_Y_MM + row * (TAG_SIZE_MM + GAP_MM);
 
-          doc.circle(cx, cy, CIRCLE_R).fill('#ffffff');
-          doc.image(qrBuffer, cx - QR_SIZE / 2, cy - QR_SIZE / 2, { width: QR_SIZE });
-          doc.circle(cx, cy, CIRCLE_R).lineWidth(1.5).strokeColor('#5A5A40').stroke();
-          doc.fontSize(8).fillColor('#5A5A40')
-            .text(ident.code, cx - CIRCLE_R, cy + CIRCLE_R - 14, { width: CIRCLE_R * 2, align: 'center' });
-        } else {
-          doc.circle(cx, cy, CIRCLE_R).fill('#ffffff');
-          doc.save();
-          doc.circle(cx, cy, ICON_SIZE_R).clip();
-          doc.image(sigotuhuella, cx - ICON_SIZE_R, cy - ICON_SIZE_R, { width: ICON_SIZE_R * 2, height: ICON_SIZE_R * 2 });
-          doc.restore();
-          doc.circle(cx, cy, CIRCLE_R).lineWidth(1.5).strokeColor('#5A5A40').stroke();
-          drawArcText(doc, 'SI ME VES PERDIDO', cx, cy, 41, 190, 350, COLORS.olive, false);
-          doc.fontSize(9).fillColor('#5A5A40')
-            .text('ESCANEÁ EL QR', cx - CIRCLE_R, cy + ICON_SIZE_R + 3, { width: CIRCLE_R * 2, align: 'center' });
-        }
+        doc.image(pngs[i * 2], xMm * MM_TO_PT, yMm * MM_TO_PT, { width: TAG_SIZE_PT });
+        doc.image(pngs[i * 2 + 1], (xMm + (TAG_SIZE_MM + GAP_MM)) * MM_TO_PT, yMm * MM_TO_PT, { width: TAG_SIZE_PT });
       }
-
-      if (mirror) doc.restore();
     }
 
     doc.end();
   } catch (err) {
     console.error('qr pdf error:', err);
-    res.status(500).json({ error: 'Error al generar PDF' });
+    res.status(500).json({ error: `Error al generar PDF: ${err.message}` });
   }
 });
 
