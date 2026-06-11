@@ -193,7 +193,14 @@ router.get('/public/:shareToken', async (req, res) => {
       [req.params.shareToken]
     );
     if (qrResult.rows.length === 0) {
-      return res.json({ found: false });
+      const existsResult = await pool.query(
+        'SELECT id FROM qr_identifiers WHERE share_token = $1',
+        [req.params.shareToken]
+      );
+      if (existsResult.rows.length > 0) {
+        return res.json({ found: false, exists: true, share_token: req.params.shareToken });
+      }
+      return res.json({ found: false, exists: false });
     }
 
     const row = qrResult.rows[0];

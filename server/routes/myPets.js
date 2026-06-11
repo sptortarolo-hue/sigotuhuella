@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from '../services/pushService.js';
+import { matchPostToPet } from '../services/geminiMatching.js';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
@@ -840,6 +841,122 @@ router.post('/:id/generate-video', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('generate video error:', err);
     res.status(500).json({ error: 'Error al generar video' });
+  }
+});
+
+// Report my_pet as lost — creates a pets record with status='lost'
+router.post('/:id/report-lost', requireAuth, async (req, res) => {
+  const { location, phone } = req.body;
+  if (!location) {
+    return res.status(400).json({ error: 'La ubicación es requerida' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const myPetResult = await client.query(
+      'SELECT * FROM my_pets WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (myPetResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Mascota no encontrada' });
+    }
+    const mp = myPetResult.rows[0];
+
+    if (mp.lost_report_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Esta mascota ya tiene un reporte de pérdida activo' });
+    }
+
+    // Build description from bio + behavior_notes
+    const descParts = [];
+    if (mp.bio) descParts.push(mp.bio);
+    if (mp.behavior_notes) descParts.push('🧠 Comportamiento: ' + mp.behavior_notes);
+    const description = descParts.join('\n\n');
+
+    // Calculate age from birth_date
+    let age = null;
+    if (mp.birth_date) {
+      const birth = new Date(mp.birth_date);
+      const now = new Date();
+      let years = now.getFullYear() - birth.getFullYear();
+      let months = now.getMonth() - birth.getMonth();
+      if (months < 0) { years--; months += 12; }
+      if (years === 0) age = `${months} mes${months !== 1 ? 'es' : ''}`;
+      else if (months === 0) age = `${years} año${years !== 1 ? 's' : ''}`;
+      else age = `${years}a ${months}m`;
+    }
+
+    const petResult = await client.query(
+      `INSERT INTO pets (species, name, breed, color, gender, age, description, location, contact_info, status, created_by, is_admin_verified, is_vaccinated, is_sterilized, is_dewormed)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'lost',$10,false,$11,$12,$13)
+       RETURNING *`,
+      [
+        mp.species, mp.name, mp.breed || null, mp.color || null,
+        mp.gender || 'unknown', age, description, location,
+        phone || req.user.phone || '', req.user.id,
+        mp.is_vaccinated || false, mp.is_sterilized || false, mp.is_dewormed || false,
+      ]
+    );
+    const pet = petResult.rows[0];
+
+    // Copy avatar as pet_image if available
+    if (mp.avatar_image && mp.avatar_mime_type) {
+      await client.query(
+        'INSERT INTO pet_images (pet_id, image_data, mime_type, crop_x, crop_y, original_image_data) VALUES ($1, $2, $3, $4, $5, $6)',
+        [pet.id, mp.avatar_image, mp.avatar_mime_type, mp.crop_x ?? 0.5, mp.crop_y ?? 0.5, null]
+      );
+    }
+
+    const imagesResult = await client.query(
+      `SELECT json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type) ORDER BY pi.created_at) as images
+       FROM pet_images pi WHERE pi.pet_id = $1`,
+      [pet.id]
+    );
+    pet.images = imagesResult.rows[0]?.images || [];
+
+    // Save lost_report_id on my_pets
+    await client.query(
+      'UPDATE my_pets SET lost_report_id = $1 WHERE id = $2',
+      [pet.id, mp.id]
+    );
+
+    await client.query('COMMIT');
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    sendAdminNotificationEmail(
+      '😢 Reporte de mascota perdida desde perfil digital',
+      `<p style="font-size:16px;margin-bottom:16px;"><strong>${req.user.display_name || req.user.email}</strong> reportó a <strong>${mp.name}</strong> como perdida desde su perfil digital.</p>
+       <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Especie</td><td style="padding:8px;border:1px solid #e2e8f0;">${mp.species}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Nombre</td><td style="padding:8px;border:1px solid #e2e8f0;">${mp.name}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Descripción</td><td style="padding:8px;border:1px solid #e2e8f0;">${description}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Ubicación</td><td style="padding:8px;border:1px solid #e2e8f0;">${location}</td></tr>
+         <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Contacto</td><td style="padding:8px;border:1px solid #e2e8f0;">${phone || req.user.phone || req.user.email}</td></tr>
+       </table>
+       <p style="text-align:center;margin-top:16px;">
+         <a href="${frontendUrl}/pet/${pet.id}" style="background-color:#3b82f6;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;">Ver publicación</a>
+       </p>`
+    ).catch(err => console.error('send admin email error:', err));
+
+    sendPushToAdmins({
+      title: '😢 Mascota perdida',
+      body: `${mp.name} perdid${mp.species === 'gato' ? 'a' : 'o'} en ${location}`,
+      url: `${frontendUrl}/pet/${pet.id}`,
+    }).catch(err => console.error('push error:', err));
+
+    // Run matching in background
+    matchPostToPet(pet.id).catch(err => console.error('matching error:', err));
+
+    res.status(201).json({ pet });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('report-lost error:', err);
+    res.status(500).json({ error: 'Error al reportar mascota perdida' });
+  } finally {
+    client.release();
   }
 });
 

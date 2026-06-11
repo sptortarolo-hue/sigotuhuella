@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { fileToBase64 } from '@/src/lib/storageService';
 import { formatTag } from '@/src/lib/personalityTags';
@@ -9,7 +9,7 @@ import {
   PawPrint, ArrowLeft, Loader2, Syringe, Scissors, Bug, Weight,
   Calendar, Plus, X, Save, Camera, Trash2, Sparkles, Heart,
   Dog, Cat, Edit3, Image as ImageIcon, Activity, Clock,
-  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play,
+  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'qrcode';
@@ -109,6 +109,11 @@ export default function MyPetDetail() {
   const [pasaporteLoading, setPasaporteLoading] = useState(false);
   const [editingBio, setEditingBio] = useState(false);
   const [bioDraft, setBioDraft] = useState('');
+  const [showLostModal, setShowLostModal] = useState(false);
+  const [lostLocation, setLostLocation] = useState('');
+  const [lostPhone, setLostPhone] = useState(user?.phone || '');
+  const [lostLoading, setLostLoading] = useState(false);
+  const [lostDone, setLostDone] = useState(false);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -679,12 +684,27 @@ export default function MyPetDetail() {
 
             <HealthTips petId={id} />
 
-            <div className="mt-6 pt-4 border-t border-brand-accent flex justify-end">
-              <button onClick={() => navigate('/mi-mascota')}
-                className="px-4 py-2 text-xs text-gray-400 hover:text-brand-primary flex items-center gap-1 transition-colors"
-              >
-                <Edit3 className="w-3 h-3" /> Editar desde el listado
-              </button>
+            <div className="mt-6 pt-4 border-t border-brand-accent space-y-3">
+              {pet.lost_report_id ? (
+                <Link to={`/pet/${pet.lost_report_id}`}
+                  className="block w-full py-3 bg-red-50 text-red-700 rounded-xl text-xs font-bold text-center border border-red-200 hover:bg-red-100 transition-colors"
+                >
+                  ⚠️ Ver reporte de pérdida activo
+                </Link>
+              ) : (
+                <button onClick={() => setShowLostModal(true)}
+                  className="w-full py-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-200 hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle className="w-4 h-4" /> Reportar como perdida
+                </button>
+              )}
+              <div className="flex justify-end">
+                <button onClick={() => navigate('/mi-mascota')}
+                  className="px-4 py-2 text-xs text-gray-400 hover:text-brand-primary flex items-center gap-1 transition-colors"
+                >
+                  <Edit3 className="w-3 h-3" /> Editar desde el listado
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -1143,6 +1163,95 @@ export default function MyPetDetail() {
                 </motion.div>
               )}
             </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showLostModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          >
+            <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={() => setShowLostModal(false)} />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-red-600 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" /> Reportar como perdida
+                </h3>
+                <button onClick={() => setShowLostModal(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
+              </div>
+
+              {lostDone ? (
+                <div className="text-center py-4">
+                  <div className="w-16 h-16 mx-auto bg-green-100 rounded-2xl flex items-center justify-center mb-4">
+                    <Check className="w-8 h-8 text-green-600" />
+                  </div>
+                  <p className="text-sm font-bold text-gray-800 mb-1">Reporte creado</p>
+                  <p className="text-xs text-gray-500 mb-4">
+                    {pet.name} fue reportad{pet.species === 'gato' ? 'a' : 'o'} como perdid{pet.species === 'gato' ? 'a' : 'o'}. Compartí el link para ayudar a encontrarl{pet.species === 'gato' ? 'a' : 'o'}.
+                  </p>
+                  <Link to={`/pet/${lostDone === true ? '' : lostDone}`}
+                    className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all inline-block"
+                  >
+                    Ver publicación
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Ubicación *</label>
+                    <input value={lostLocation}
+                      onChange={e => setLostLocation(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-red-400 outline-none text-sm"
+                      placeholder="Ej: Parque Centenario, CABA"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Teléfono de contacto</label>
+                    <input type="tel" value={lostPhone}
+                      onChange={e => setLostPhone(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-red-400 outline-none text-sm"
+                      placeholder="+54 9 221 123456"
+                    />
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-2xl">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Descripción del reporte</p>
+                    <p className="text-xs text-gray-600 italic">
+                      {[pet.bio, pet.behavior_notes ? '🧠 Comportamiento: ' + pet.behavior_notes : ''].filter(Boolean).join('\n\n') || '(sin descripción)'}
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowLostModal(false)}
+                      className="flex-1 py-3 border border-brand-accent text-gray-500 rounded-xl text-xs font-bold hover:bg-brand-bg transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button onClick={async () => {
+                      if (!lostLocation) return;
+                      try {
+                        setLostLoading(true);
+                        const data = await api.myPets.reportLost(id!, { location: lostLocation, phone: lostPhone || undefined });
+                        setLostDone(data.pet.id);
+                        setPet((prev: any) => ({ ...prev, lost_report_id: data.pet.id }));
+                        fetchPet();
+                      } catch (e: any) {
+                        alert(e.message || 'Error al reportar');
+                      } finally {
+                        setLostLoading(false);
+                      }
+                    }}
+                      disabled={lostLoading || !lostLocation}
+                      className="flex-1 py-3 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {lostLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+                      Reportar pérdida
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

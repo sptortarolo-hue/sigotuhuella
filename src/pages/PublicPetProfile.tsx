@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { formatTag } from '@/src/lib/personalityTags';
 import {
@@ -87,6 +87,9 @@ export default function PublicPetProfile() {
   }
 
   if (!data || !data.found) {
+    if (data?.exists) {
+      return <Navigate to={`/solicitar-chapita?qr=${shareToken}`} replace />;
+    }
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-brand-bg px-4 text-center">
         <div className="w-20 h-20 bg-brand-primary/10 rounded-3xl flex items-center justify-center mb-6">
@@ -94,7 +97,7 @@ export default function PublicPetProfile() {
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary mb-3">Identificación Digital</h1>
         <p className="text-gray-500 mb-8 max-w-md">
-          Este código QR aún no está asociado a ninguna mascota.
+          Este código QR no es válido o no existe.
         </p>
         <Link to="/" className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">
           Ir al inicio

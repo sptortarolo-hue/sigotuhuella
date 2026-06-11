@@ -8,7 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 const router = Router();
 
 router.post('/', async (req, res) => {
-  const { pet, user: userData } = req.body;
+  const { pet, user: userData, share_token } = req.body;
 
   if (!pet || !pet.name || !pet.species) {
     return res.status(400).json({ error: 'Nombre y especie de la mascota son requeridos' });
@@ -17,6 +17,18 @@ router.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // Validate share_token if provided
+    if (share_token) {
+      const qrCheck = await client.query(
+        'SELECT id FROM qr_identifiers WHERE share_token = $1 AND my_pet_id IS NULL',
+        [share_token]
+      );
+      if (qrCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Este código QR ya está asociado a otra mascota o no es válido.' });
+      }
+    }
 
     let userId;
     let needsVerification = false;
@@ -82,35 +94,62 @@ router.post('/', async (req, res) => {
     );
     const myPet = petResult.rows[0];
 
-    await client.query(
-      'UPDATE my_pets SET qr_requested = true WHERE id = $1',
-      [myPet.id]
-    );
+    if (share_token) {
+      // Assign existing QR to this pet
+      await client.query(
+        'UPDATE qr_identifiers SET my_pet_id = $1, assigned_at = NOW() WHERE share_token = $2',
+        [myPet.id, share_token]
+      );
+      await client.query(
+        'UPDATE my_pets SET qr_id = (SELECT id FROM qr_identifiers WHERE share_token = $1) WHERE id = $2',
+        [share_token, myPet.id]
+      );
+    } else {
+      await client.query(
+        'UPDATE my_pets SET qr_requested = true WHERE id = $1',
+        [myPet.id]
+      );
+    }
 
     await client.query('COMMIT');
 
     const userName = userData?.displayName || userData?.email?.split('@')[0] || 'Usuario';
-    sendPushToAdmins({
-      title: 'Solicitud de chappita QR',
-      body: `${userName} solicita QR para ${myPet.name}`,
-      tag: `qr-request-${myPet.id}`,
-    }).catch(() => {});
 
-    sendAdminNotificationEmail(
-      'Nueva solicitud de chappita identificadora QR',
-      `<p><strong>${userName}</strong> solicitó una chappita QR para <strong>${myPet.name}</strong> (${myPet.species}${myPet.breed ? ' · ' + myPet.breed : ''}).</p>
-       <p><a href="https://sigotuhuella.online/admin" style="background:#5A5A40;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Ir al panel admin</a></p>`
-    ).catch(() => {});
+    if (share_token) {
+      sendPushToAdmins({
+        title: 'Nuevo registro via QR',
+        body: `${userName} creó su perfil digital para ${myPet.name} escaneando un QR`,
+        tag: `qr-signup-${myPet.id}`,
+      }).catch(() => {});
+      sendAdminNotificationEmail(
+        'Nuevo perfil digital creado desde QR',
+        `<p><strong>${userName}</strong> registró a <strong>${myPet.name}</strong> (${myPet.species}${myPet.breed ? ' · ' + myPet.breed : ''}) escaneando un código QR.</p>
+         <p><a href="https://sigotuhuella.online/admin" style="background:#5A5A40;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Ir al panel admin</a></p>`
+      ).catch(() => {});
+    } else {
+      sendPushToAdmins({
+        title: 'Solicitud de chappita QR',
+        body: `${userName} solicita QR para ${myPet.name}`,
+        tag: `qr-request-${myPet.id}`,
+      }).catch(() => {});
+      sendAdminNotificationEmail(
+        'Nueva solicitud de chappita identificadora QR',
+        `<p><strong>${userName}</strong> solicitó una chappita QR para <strong>${myPet.name}</strong> (${myPet.species}${myPet.breed ? ' · ' + myPet.breed : ''}).</p>
+         <p><a href="https://sigotuhuella.online/admin" style="background:#5A5A40;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Ir al panel admin</a></p>`
+      ).catch(() => {});
+    }
 
     if (needsVerification) {
       res.status(201).json({
         requiresVerification: true,
         email: userData.email,
         myPet,
+        share_token,
       });
     } else {
       res.status(201).json({
         myPet,
+        share_token,
       });
     }
   } catch (err) {

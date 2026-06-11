@@ -215,6 +215,7 @@ export const api = {
       request(`/my-pets/convert/${petId}`, { method: 'POST', body: extra ? JSON.stringify(extra) : undefined }),
     generateVideo: (petId: string, options?: any) => request(`/my-pets/${petId}/generate-video`, { method: 'POST', body: options ? JSON.stringify(options) : undefined }),
     healthTips: (petId: string) => request(`/my-pets/${petId}/health-tips`),
+    reportLost: (id: string, data: any) => request(`/my-pets/${id}/report-lost`, { method: 'POST', body: JSON.stringify(data) }),
   },
   qr: {
     batch: (count: number) => request('/qr/batch', { method: 'POST', body: JSON.stringify({ count }) }),

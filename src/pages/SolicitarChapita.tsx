@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { fileToBase64 } from '@/src/lib/storageService';
@@ -32,6 +32,8 @@ const emptyPetForm = {
 export default function SolicitarChapita() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const qrToken = searchParams.get('qr');
 
   const [pet, setPet] = useState({ ...emptyPetForm });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -114,6 +116,7 @@ export default function SolicitarChapita() {
           avatar_mime_type: avatarMime,
           personality_tags: [],
         },
+        share_token: qrToken || undefined,
       };
 
       if (!user) {
@@ -129,6 +132,11 @@ export default function SolicitarChapita() {
 
       if (data.requiresVerification) {
         setRequiresVerification(true);
+        return;
+      }
+
+      if (data.share_token) {
+        navigate(`/mascota/${data.share_token}`, { replace: true });
         return;
       }
 
@@ -254,10 +262,12 @@ export default function SolicitarChapita() {
             <QrCode className="w-8 h-8 text-brand-primary" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary">
-            Solicitar chappita identificadora
+            {qrToken ? 'Creá el perfil digital de tu mascota' : 'Solicitar chappita identificadora'}
           </h1>
           <p className="text-gray-500 text-sm mt-2">
-            Protegé a tu mascota con una chappita QR. Completá los datos y te avisamos cuando esté lista.
+            {qrToken
+              ? 'Completá los datos para asociar esta chappita QR a tu mascota.'
+              : 'Protegé a tu mascota con una chappita QR. Completá los datos y te avisamos cuando esté lista.'}
           </p>
         </div>
 
@@ -493,7 +503,7 @@ export default function SolicitarChapita() {
             className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold text-sm hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <QrCode className="w-5 h-5" />}
-            Solicitar chappita QR
+            {qrToken ? 'Crear perfil digital' : 'Solicitar chappita QR'}
           </button>
         </div>
       </motion.div>
