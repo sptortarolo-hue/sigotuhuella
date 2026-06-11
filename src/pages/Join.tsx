@@ -160,16 +160,12 @@ export default function Join() {
               <p className="text-xl text-gray-600 leading-relaxed mb-8">
                 Buscamos personas comprometidas que quieran ayudar en los barrios de Villa Garibaldi, Parque Sicardi e Ignacio Correas.
               </p>
-              <div className="space-y-4">
-                {[
-                  'Ayuda en traslados',
-                  'Hogares de tránsito',
-                  'Difusión en redes',
-                  'Logística y organización'
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 text-brand-dark font-medium">
-                    <div className="w-6 h-6 bg-brand-primary text-white rounded-full flex items-center justify-center text-xs">✓</div>
-                    {item}
+              <div className="space-y-3">
+                {CONTRIBUTION_AREAS.map(area => (
+                  <div key={area.code} className="flex items-center gap-3 text-brand-dark font-medium">
+                    <div className="w-6 h-6 bg-brand-primary text-white rounded-full flex items-center justify-center text-xs shrink-0">✓</div>
+                    <span className="inline-block text-xl shrink-0" style={{ filter: 'sepia(0.4) hue-rotate(-10deg) saturate(0.7) brightness(0.9)' }}>{area.icon}</span>
+                    <span>{area.label}</span>
                   </div>
                 ))}
               </div>
