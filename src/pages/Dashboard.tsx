@@ -135,33 +135,49 @@ export default function Dashboard() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
       {/* Header */}
-      <div className="relative -mx-4 -mt-4 mb-8 bg-gradient-to-r from-brand-primary to-brand-secondary rounded-b-[3rem] px-6 py-10 shadow-xl overflow-hidden">
-        <div className="flex items-center gap-4">
-          {user.avatar_type === 'photo' && user.avatar_data ? (
-            <img
-              src={`data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`}
-              alt="Avatar"
-              className="w-16 h-16 rounded-2xl object-cover border-2 border-white/20"
-            />
-          ) : (
-            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/20">
-              <User className="w-8 h-8 text-white" />
-            </div>
-          )}
-          <div>
-            <h1 className="text-2xl font-semibold text-white">
-              {user.display_name || 'Usuario'}
-            </h1>
-            <p className="text-white/80 text-sm flex items-center gap-1">
-              <Mail className="w-3 h-3" /> {user.email}
-            </p>
-            {user.phone && (
-              <p className="text-white/70 text-xs flex items-center gap-1">
-                <Phone className="w-3 h-3" /> {user.phone}
-              </p>
+          <div className="relative -mx-4 -mt-4 mb-8 bg-gradient-to-r from-brand-primary to-brand-secondary rounded-b-[3rem] px-6 py-10 shadow-xl overflow-hidden">
+        <div className="flex items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            {user.avatar_type === 'photo' && user.avatar_data ? (
+              <img
+                src={`data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`}
+                alt="Avatar"
+                className="w-16 h-16 rounded-2xl object-cover border-2 border-white/20 shrink-0"
+              />
+            ) : (
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/20 shrink-0">
+                <User className="w-8 h-8 text-white" />
+              </div>
             )}
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold text-white truncate">
+                {user.display_name || 'Usuario'}
+              </h1>
+              <p className="text-white/80 text-sm flex items-center gap-1">
+                <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">{user.email}</span>
+              </p>
+              {user.phone && (
+                <p className="text-white/70 text-xs flex items-center gap-1">
+                  <Phone className="w-3 h-3 shrink-0" /> {user.phone}
+                </p>
+              )}
+            </div>
           </div>
+          <button
+            onClick={() => navigate('/mi-mascota')}
+            className="hidden md:flex items-center gap-2 px-4 py-2.5 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-white/30 transition-all shrink-0"
+          >
+            <Heart className="w-4 h-4" /> Mis Mascotas
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
+        <button
+          onClick={() => navigate('/mi-mascota')}
+          className="md:hidden w-full mt-4 flex items-center justify-center gap-2 px-4 py-3 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-white/30 transition-all"
+        >
+          <Heart className="w-4 h-4" /> Mis Mascotas
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Estado de cuenta */}

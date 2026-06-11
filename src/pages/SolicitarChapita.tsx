@@ -65,7 +65,7 @@ export default function SolicitarChapita() {
   useEffect(() => {
     if (user && pets === null) {
       setPetsLoading(true);
-      api.myPets.list().then(r => setPets(r || [])).catch(() => setPets([])).finally(() => setPetsLoading(false));
+      api.myPets.list().then(r => setPets((r as any)?.myPets || [])).catch(() => setPets([])).finally(() => setPetsLoading(false));
     }
   }, [user]);
 
