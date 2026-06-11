@@ -132,7 +132,9 @@ INSERT INTO settings (key, value) VALUES
   ('whatsapp_greeting', '🐾 ¡Gracias por contactar a Sigo Tu Huella! ¿Qué querés reportar?\n1️⃣ Avistaje (viste una mascota)\n2️⃣ Necesita atención (mascota herida/en riesgo)\n3️⃣ Accidentada'),
   ('banner_chapita_visible', 'true'),
   ('banner_chapita_price', '500'),
-  ('banner_chapita_is_free', 'true')
+  ('banner_chapita_is_free', 'true'),
+  ('pdf_page_width', '570'),
+  ('pdf_page_height', '300')
 ON CONFLICT (key) DO NOTHING;
 
 

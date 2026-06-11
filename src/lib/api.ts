@@ -231,9 +231,17 @@ export const api = {
     cleanup: () => request('/qr/cleanup', { method: 'DELETE' }),
     reactivate: (shareToken: string, code?: string) => request('/qr/reactivate', { method: 'POST', body: JSON.stringify({ share_token: shareToken, ...(code ? { code } : {}) }) }),
     assigned: () => request('/qr/assigned'),
-    batchPdf: (batchId: string) => {
+    lastCode: () => request('/qr/last-code'),
+    layout: (page_w: string, page_h: string) => request(`/qr/layout?page_w=${page_w}&page_h=${page_h}`),
+    batchPdf: (batchId: string, opts?: { from?: string; to?: string; page_w?: string; page_h?: string }) => {
       const token = getToken();
-      return fetch(`/api/qr/batch/${batchId}/pdf`, {
+      const params = new URLSearchParams();
+      if (opts?.from) params.set('from', opts.from);
+      if (opts?.to) params.set('to', opts.to);
+      if (opts?.page_w) params.set('page_w', opts.page_w);
+      if (opts?.page_h) params.set('page_h', opts.page_h);
+      const qs = params.toString();
+      return fetch(`/api/qr/batch/${batchId}/pdf${qs ? '?' + qs : ''}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       }).then(async res => {
         if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Error al descargar PDF'); }

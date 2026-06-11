@@ -513,27 +513,77 @@ router.post('/reactivate', requireAdmin, async (req, res) => {
   }
 });
 
-// Layout constants
+// Constants (tag size is always 37mm)
 const TAG_SIZE_MM = 37;
 const GAP_MM = 1;
-const PAGE_W_MM = 570;
-const PAGE_H_MM = 300;
-const MM_TO_PT = 72 / 25.4;
-const PAGE_W_PT = PAGE_W_MM * MM_TO_PT;
-const PAGE_H_PT = PAGE_H_MM * MM_TO_PT;
-const TAG_SIZE_PT = TAG_SIZE_MM * MM_TO_PT;
-const GAP_PT = GAP_MM * MM_TO_PT;
-
-const PAIR_W_MM = TAG_SIZE_MM * 2 + GAP_MM;
-const PAIRS_PER_ROW = Math.floor((PAGE_W_MM + GAP_MM) / (PAIR_W_MM + GAP_MM));
-const ROWS_PER_PAGE = Math.floor((PAGE_H_MM + GAP_MM) / (TAG_SIZE_MM + GAP_MM));
-const COLS = PAIRS_PER_ROW * 2;
-const usedW_MM = COLS * TAG_SIZE_MM + (COLS - 1) * GAP_MM;
-const usedH_MM = ROWS_PER_PAGE * TAG_SIZE_MM + (ROWS_PER_PAGE - 1) * GAP_MM;
-const MARGIN_X_MM = (PAGE_W_MM - usedW_MM) / 2;
-const MARGIN_Y_MM = (PAGE_H_MM - usedH_MM) / 2;
-
 const TAG_SIZE_PX = Math.round(TAG_SIZE_MM * 300 / 25.4); // ~437px
+
+function calculateLayout(pageW_MM, pageH_MM) {
+  const pairW = TAG_SIZE_MM * 2 + GAP_MM;
+  const pairsPerRow = Math.floor((pageW_MM + GAP_MM) / (pairW + GAP_MM));
+  const rowsPerPage = Math.floor((pageH_MM + GAP_MM) / (TAG_SIZE_MM + GAP_MM));
+  if (pairsPerRow < 1 || rowsPerPage < 1) {
+    throw new Error(`Página muy chica: no entra ni un par (${pageW_MM}×${pageH_MM}mm)`);
+  }
+  const cols = pairsPerRow * 2;
+  const usedW = cols * TAG_SIZE_MM + (cols - 1) * GAP_MM;
+  const usedH = rowsPerPage * TAG_SIZE_MM + (rowsPerPage - 1) * GAP_MM;
+  const MM_TO_PT = 72 / 25.4;
+  return {
+    MM_TO_PT,
+    PAGE_W_PT: pageW_MM * MM_TO_PT,
+    PAGE_H_PT: pageH_MM * MM_TO_PT,
+    TAG_SIZE_PT: TAG_SIZE_MM * MM_TO_PT,
+    GAP_PT: GAP_MM * MM_TO_PT,
+    PAIRS_PER_ROW: pairsPerRow,
+    ROWS_PER_PAGE: rowsPerPage,
+    COLS: cols,
+    MARGIN_X_MM: (pageW_MM - usedW) / 2,
+    MARGIN_Y_MM: (pageH_MM - usedH) / 2,
+    PER_PAGE: pairsPerRow * rowsPerPage,
+    pairsPerRow,
+    rowsPerPage,
+    totalPerPage: pairsPerRow * rowsPerPage,
+  };
+}
+
+async function getLayout(pageWq, pageHq) {
+  let pageW = 570, pageH = 300;
+  if (pageWq && pageHq) {
+    pageW = parseFloat(pageWq);
+    pageH = parseFloat(pageHq);
+  } else {
+    try {
+      const res = await pool.query(
+        "SELECT key, value FROM settings WHERE key IN ('pdf_page_width','pdf_page_height')"
+      );
+      res.rows.forEach(r => {
+        if (r.key === 'pdf_page_width') pageW = parseFloat(r.value) || 570;
+        if (r.key === 'pdf_page_height') pageH = parseFloat(r.value) || 300;
+      });
+    } catch {}
+  }
+  return calculateLayout(pageW, pageH);
+}
+
+router.get('/last-code', requireAdmin, async (_req, res) => {
+  try {
+    const result = await pool.query('SELECT code FROM qr_identifiers ORDER BY code DESC LIMIT 1');
+    res.json({ code: result.rows.length > 0 ? result.rows[0].code : null });
+  } catch (err) {
+    console.error('qr last-code error:', err);
+    res.status(500).json({ error: 'Error al obtener último código' });
+  }
+});
+
+router.get('/layout', requireAdmin, async (req, res) => {
+  try {
+    const layout = await getLayout(req.query.page_w, req.query.page_h);
+    res.json(layout);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 function drawArcTextSvg(text, cx, cy, r, startDeg, endDeg, fontSize, color) {
   const sr = (startDeg * Math.PI) / 180;
@@ -612,14 +662,21 @@ async function generateQrPng(code, shareToken) {
 
 router.get('/batch/:batchId/pdf', requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT code, share_token FROM qr_identifiers WHERE batch_id = $1 ORDER BY code ASC',
-      [req.params.batchId]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Batch no encontrado' });
+    const { page_w, page_h, from, to } = req.query;
+    const layout = await getLayout(page_w, page_h);
+
+    let query = 'SELECT code, share_token FROM qr_identifiers WHERE batch_id = $1';
+    const params = [req.params.batchId];
+    let idx = 2;
+    if (from) { query += ` AND code >= $${idx++}`; params.push(from.toUpperCase()); }
+    if (to) { query += ` AND code <= $${idx++}`; params.push(to.toUpperCase()); }
+    query += ' ORDER BY code ASC';
+
+    const result = await pool.query(query, params);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No hay QRs en el rango seleccionado' });
 
     const identifiers = result.rows;
-    const PER_PAGE = PAIRS_PER_ROW * ROWS_PER_PAGE;
+    const { MM_TO_PT, PAGE_W_PT, PAGE_H_PT, TAG_SIZE_PT, PAIRS_PER_ROW, ROWS_PER_PAGE, PER_PAGE, MARGIN_X_MM, MARGIN_Y_MM } = layout;
 
     const doc = new PDFDocument({ size: [PAGE_W_PT, PAGE_H_PT], margin: 0 });
     res.set('Content-Type', 'application/pdf');

@@ -151,13 +151,20 @@ export default function Admin() {
   const [reactivateLoading, setReactivateLoading] = useState(false);
   const [reactivateResult, setReactivateResult] = useState<any>(null);
 
+  // PDF config state
+  const [pdfPageWidth, setPdfPageWidth] = useState('570');
+  const [pdfPageHeight, setPdfPageHeight] = useState('300');
+  const [pdfConfigSaving, setPdfConfigSaving] = useState(false);
+  const [pdfLastCode, setPdfLastCode] = useState<string | null>(null);
+  const [pdfRange, setPdfRange] = useState<Record<string, { from: string; to: string }>>({});
+
   useEffect(() => {
     fetchAll();
   }, []);
 
   const fetchAll = async () => {
     setLoading(true);
-    await Promise.all([fetchPets(), fetchAccounts(), fetchVolunteers(), fetchUsers(), fetchNews(), fetchSettings(), fetchQrData()]);
+    await Promise.all([fetchPets(), fetchAccounts(), fetchVolunteers(), fetchUsers(), fetchNews(), fetchSettings(), fetchQrData(), fetchLastCode()]);
     setLoading(false);
   };
 
@@ -170,6 +177,8 @@ export default function Admin() {
       if (map.banner_chapita_visible !== undefined) setBannerChapitaVisible(map.banner_chapita_visible !== 'false');
       if (map.banner_chapita_price !== undefined) setBannerChapitaPrice(map.banner_chapita_price);
       if (map.banner_chapita_is_free !== undefined) setBannerChapitaIsFree(map.banner_chapita_is_free === 'true');
+      if (map.pdf_page_width !== undefined) setPdfPageWidth(map.pdf_page_width);
+      if (map.pdf_page_height !== undefined) setPdfPageHeight(map.pdf_page_height);
     } catch (e) { console.error(e); }
   };
 
@@ -191,6 +200,7 @@ export default function Admin() {
       setQrBatchLoading(true);
       await api.qr.batch(qrBatchCount);
       await fetchQrData();
+      await fetchLastCode();
     } catch (e: any) {
       alert(e.message || 'Error al generar QRs');
     } finally {
@@ -212,11 +222,45 @@ export default function Admin() {
 
   const handleQrPdf = async (batchId: string) => {
     try {
-      await api.qr.batchPdf(batchId);
+      const range = pdfRange[batchId];
+      await api.qr.batchPdf(batchId, {
+        from: range?.from || undefined,
+        to: range?.to || undefined,
+        page_w: pdfPageWidth,
+        page_h: pdfPageHeight,
+      });
     } catch (e: any) {
       alert(e.message || 'Error al descargar PDF');
     }
   };
+
+  const fetchLastCode = async () => {
+    try {
+      const data: any = await api.qr.lastCode();
+      setPdfLastCode(data.code);
+    } catch (e) { console.error(e); }
+  };
+
+  function nextPrefix(prefix: string): string {
+    const chars = prefix.split('');
+    let i = chars.length - 1;
+    while (i >= 0) {
+      if (chars[i] < 'Z') { chars[i] = String.fromCharCode(chars[i].charCodeAt(0) + 1); return chars.join(''); }
+      chars[i] = 'A';
+      i--;
+    }
+    return chars.join('');
+  }
+
+  function getNextCode(code: string | null, offset: number): string | null {
+    if (!code) return offset === 1 ? 'AAA-0001' : null;
+    const parts = code.split('-');
+    let prefix = parts[0];
+    let num = parseInt(parts[1], 10) + offset;
+    while (num > 9999) { num -= 10000; prefix = nextPrefix(prefix); }
+    while (num < 1) { num += 10000; prefix = nextPrefix(prefix); }
+    return `${prefix}-${String(Math.abs(num)).padStart(4, '0')}`;
+  }
 
   const handleQrCleanup = async () => {
     if (!confirm('¿Eliminar todos los QR sin asignar?')) return;
@@ -1622,11 +1666,83 @@ export default function Admin() {
       </div>
     </div>
 
+    {/* ───── PDF Config ───── */}
+    <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+      <h3 className="text-lg font-bold text-brand-primary mb-4 flex items-center gap-2">
+        <FileText className="w-5 h-5" /> Configuración de Plantilla PDF
+      </h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Ancho (mm)</label>
+          <input type="number" min={50} max={2000} value={pdfPageWidth}
+            onChange={e => setPdfPageWidth(e.target.value)}
+            className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Alto (mm)</label>
+          <input type="number" min={50} max={2000} value={pdfPageHeight}
+            onChange={e => setPdfPageHeight(e.target.value)}
+            className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+          />
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button onClick={() => { setPdfPageWidth('210'); setPdfPageHeight('297'); }}
+          className="px-3 py-1.5 bg-brand-bg text-brand-primary rounded-lg text-xs font-medium hover:bg-brand-accent/30 transition-colors">
+          A4 (210×297mm)
+        </button>
+        <button onClick={() => { setPdfPageWidth('570'); setPdfPageHeight('300'); }}
+          className="px-3 py-1.5 bg-brand-bg text-brand-primary rounded-lg text-xs font-medium hover:bg-brand-accent/30 transition-colors">
+          570×300mm
+        </button>
+        <button onClick={() => { setPdfPageWidth('210'); setPdfPageHeight('297'); }}
+          className="px-3 py-1.5 bg-brand-bg text-brand-primary rounded-lg text-xs font-medium hover:bg-brand-accent/30 transition-colors">
+          Personalizado
+        </button>
+      </div>
+      {(() => {
+        const pw = parseInt(pdfPageWidth) || 0;
+        const ph = parseInt(pdfPageHeight) || 0;
+        const pp = Math.max(0, Math.floor((pw + 1) / 75));
+        const rp = Math.max(0, Math.floor((ph + 1) / 38));
+        const tp = pp * rp;
+        return (
+          <p className="text-sm text-brand-primary font-bold mb-4">
+            {pp > 0 && rp > 0
+              ? `📐 ${pp} pares × ${rp} filas = ${tp} chapitas/hoja`
+              : '⚠️ Dimensiones muy chicas, no entra ninguna chapita'}
+          </p>
+        );
+      })()}
+      <button onClick={async () => {
+        setPdfConfigSaving(true);
+        try {
+          await Promise.all([
+            api.settings.update('pdf_page_width', pdfPageWidth),
+            api.settings.update('pdf_page_height', pdfPageHeight),
+          ]);
+          alert('Configuración de PDF guardada');
+        } catch (e) { alert('Error al guardar'); }
+        setPdfConfigSaving(false);
+      }} disabled={pdfConfigSaving}
+        className="px-6 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2">
+        {pdfConfigSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+        Guardar configuración
+      </button>
+    </div>
+
     <div className="space-y-6">
     <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
       <h3 className="text-lg font-bold text-brand-primary mb-4 flex items-center gap-2">
         <QrCode className="w-5 h-5" /> Generar lote de QRs
       </h3>
+      <div className="text-xs text-gray-400 mb-3">
+        Último código: <span className="font-mono font-bold text-brand-primary">{pdfLastCode || '—'}</span>
+        <button onClick={fetchLastCode} className="ml-2 inline-flex items-center gap-1 text-brand-primary hover:underline">
+          <RefreshCw className="w-3 h-3" /> actualizar
+        </button>
+      </div>
       <div className="flex items-end gap-4">
         <div>
           <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Cantidad</label>
@@ -1653,6 +1769,18 @@ export default function Admin() {
           </button>
         )}
       </div>
+      {pdfLastCode && qrBatchCount > 0 && (() => {
+        const from = getNextCode(pdfLastCode, 1);
+        const to = getNextCode(pdfLastCode, qrBatchCount);
+        return from && to ? (
+          <p className="text-xs text-gray-500 mt-2">
+            Se generarán: <span className="font-mono font-bold text-brand-primary">{from}</span>
+            {' → '}
+            <span className="font-mono font-bold text-brand-primary">{to}</span>
+            {' '}({qrBatchCount} códigos)
+          </p>
+        ) : null;
+      })()}
     </div>
 
     {qrRequests.length > 0 && (
@@ -1690,17 +1818,50 @@ export default function Admin() {
     {qrUnassigned.length > 0 && (
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
         <h3 className="text-lg font-bold text-brand-primary mb-4">QRs sin asignar ({qrUnassigned.length})</h3>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {[...new Set<string>(qrUnassigned.map((q: any) => q.batch_id))].map((batchId: string) => (
-            <div key={batchId} className="flex gap-1">
-              <button
-                onClick={() => handleQrPdf(batchId)}
-                className="px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
-              >
-                <Download className="w-3 h-3" /> PDF {batchId?.replace('batch-', '').slice(0, 6)}
-              </button>
-            </div>
-          ))}
+        <div className="flex flex-col gap-4 mb-4">
+          {[...new Set<string>(qrUnassigned.map((q: any) => q.batch_id))].map((batchId: string) => {
+            const batchCodes = qrUnassigned.filter((q: any) => q.batch_id === batchId).map((q: any) => q.code).sort();
+            const minCode = batchCodes[0] || '';
+            const maxCode = batchCodes[batchCodes.length - 1] || '';
+            const range = pdfRange[batchId] || {};
+            return (
+              <div key={batchId} className="p-4 bg-brand-bg rounded-2xl">
+                <div className="text-xs text-gray-400 mb-2">
+                  Batch <span className="font-mono font-bold text-brand-primary">{batchId?.replace('batch-', '')}</span>
+                  {' — '}{batchCodes.length} QRs
+                  {minCode && maxCode ? (
+                    <span className="font-mono"> ({minCode} → {maxCode})</span>
+                  ) : null}
+                </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Desde</label>
+                    <input type="text" value={range.from ?? minCode}
+                      onChange={e => setPdfRange(prev => ({ ...prev, [batchId]: { ...prev[batchId], from: e.target.value } }))}
+                      className="w-24 px-2 py-1.5 bg-white rounded-lg border border-brand-accent text-xs font-mono font-bold text-brand-primary outline-none"
+                      placeholder={minCode}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Hasta</label>
+                    <input type="text" value={range.to ?? maxCode}
+                      onChange={e => setPdfRange(prev => ({ ...prev, [batchId]: { ...prev[batchId], to: e.target.value } }))}
+                      className="w-24 px-2 py-1.5 bg-white rounded-lg border border-brand-accent text-xs font-mono font-bold text-brand-primary outline-none"
+                      placeholder={maxCode}
+                    />
+                  </div>
+                  <button onClick={() => handleQrPdf(batchId)}
+                    className="px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors">
+                    <Download className="w-3 h-3" /> PDF
+                  </button>
+                  <button onClick={() => setPdfRange(prev => ({ ...prev, [batchId]: { from: minCode, to: maxCode } }))}
+                    className="px-3 py-1.5 bg-gray-100 text-gray-500 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors">
+                    Restablecer rango
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
           {qrUnassigned.slice(0, 48).map((qr: any) => (
