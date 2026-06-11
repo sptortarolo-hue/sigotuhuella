@@ -298,6 +298,9 @@ export default function SolicitarChapita() {
 
   // Logged-in user with pets: show pet selector
   if (user && pets !== null && !showNewPetForm) {
+    const petsWithoutQR = pets.filter((p: any) => !p.qr_id);
+    const allHaveQR = pets.length > 0 && petsWithoutQR.length === 0;
+
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <button onClick={() => navigate('/mi-mascota')}
@@ -317,9 +320,11 @@ export default function SolicitarChapita() {
               {qrToken ? 'Asociar QR a una mascota' : 'Solicitar chappita QR'}
             </h1>
             <p className="text-gray-500 text-sm mt-2">
-              {qrToken
-                ? 'Elegí a qué mascota querés asociar este código QR.'
-                : 'Elegí una mascota para solicitar su chappita o registrá una nueva.'}
+              {allHaveQR
+                ? 'Tus mascotas ya tienen identificación QR.'
+                : qrToken
+                  ? 'Elegí a qué mascota querés asociar este código QR.'
+                  : 'Elegí una mascota para solicitar su chappita o registrá una nueva.'}
             </p>
           </div>
 
@@ -334,9 +339,16 @@ export default function SolicitarChapita() {
             </div>
           )}
 
-          {pets.length > 0 && (
+          {allHaveQR && (
+            <div className="text-center py-8">
+              <PawPrint className="w-12 h-12 text-brand-accent mx-auto mb-3" />
+              <p className="text-gray-500 text-sm mb-4">Todas tus mascotas ya tienen identificación QR.</p>
+            </div>
+          )}
+
+          {petsWithoutQR.length > 0 && (
             <div className="space-y-3 mb-6">
-              {pets.map((p: any) => (
+              {petsWithoutQR.map((p: any) => (
                 <div key={p.id} className="flex items-center gap-4 p-4 bg-brand-bg rounded-2xl border border-brand-accent">
                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-brand-primary/10 shrink-0">
                     {p.has_avatar ? (

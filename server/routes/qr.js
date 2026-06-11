@@ -449,7 +449,7 @@ function drawArcText(doc, text, cx, cy, radius, startDeg, endDeg, color, reverse
 router.get('/assigned', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT qi.code, qi.assigned_at, mp.id as pet_id, mp.name as pet_name, mp.species, mp.breed,
+      `SELECT qi.code, qi.share_token, qi.assigned_at, mp.id as pet_id, mp.name as pet_name, mp.species, mp.breed,
               u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone
        FROM qr_identifiers qi
        JOIN my_pets mp ON mp.id = qi.my_pet_id

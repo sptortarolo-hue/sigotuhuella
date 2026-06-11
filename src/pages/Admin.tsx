@@ -1735,7 +1735,14 @@ export default function Admin() {
             <tbody>
               {qrAssigned.slice(0, 50).map((item: any) => (
                 <tr key={item.code} className="border-b border-brand-accent/50 hover:bg-brand-bg/50 transition-colors">
-                  <td className="py-3 pr-4 font-mono text-brand-primary font-bold text-xs">{item.code}</td>
+                  <td className="py-3 pr-4 font-mono text-brand-primary font-bold text-xs">
+                    <a href={`/mascota/${item.share_token}?silent=1`} target="_blank" rel="noopener noreferrer"
+                      className="hover:text-brand-secondary hover:underline transition-colors"
+                      title="Ver perfil público (sin notificar al dueño)"
+                    >
+                      {item.code}
+                    </a>
+                  </td>
                   <td className="py-3 pr-4">
                     <span className="font-medium text-gray-800">{item.pet_name}</span>
                     <span className="text-gray-400 text-xs ml-1">

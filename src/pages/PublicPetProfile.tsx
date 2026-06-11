@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, Navigate } from 'react-router-dom';
+import { useParams, Link, Navigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { formatTag } from '@/src/lib/personalityTags';
 import {
@@ -24,6 +24,8 @@ const GENDER_LABELS: Record<string, string> = {
 
 export default function PublicPetProfile() {
   const { shareToken } = useParams<{ shareToken: string }>();
+  const [searchParams] = useSearchParams();
+  const silent = searchParams.get('silent') === '1';
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showFoundModal, setShowFoundModal] = useState(false);
@@ -38,7 +40,7 @@ export default function PublicPetProfile() {
   }, [shareToken]);
 
   useEffect(() => {
-    if (data?.found && !scanSent) {
+    if (data?.found && !scanSent && !silent) {
       setScanSent(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -50,7 +52,7 @@ export default function PublicPetProfile() {
         { timeout: 5000 }
       );
     }
-  }, [data, scanSent, shareToken]);
+  }, [data, scanSent, shareToken, silent]);
 
   const fetchProfile = async () => {
     try {
