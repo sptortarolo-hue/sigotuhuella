@@ -446,7 +446,7 @@ router.delete('/cleanup', requireAdmin, async (req, res) => {
 
 router.post('/reactivate', requireAdmin, async (req, res) => {
   try {
-    let { share_token } = req.body;
+    let { share_token, code } = req.body;
     if (!share_token) return res.status(400).json({ error: 'share_token requerido' });
 
     // Extract UUID from URL if full URL was pasted
@@ -476,8 +476,20 @@ router.post('/reactivate', requireAdmin, async (req, res) => {
       });
     }
 
-    // Generate new code
-    const [code] = await getNextCodes(1);
+    // If code provided, validate it's not already taken
+    if (code) {
+      const codeExists = await pool.query(
+        'SELECT id FROM qr_identifiers WHERE code = $1',
+        [code]
+      );
+      if (codeExists.rows.length > 0) {
+        return res.status(400).json({ error: `El código ${code} ya está en uso` });
+      }
+    } else {
+      // Generate new code
+      [code] = await getNextCodes(1);
+    }
+
     const batchId = `reactivated-${Date.now()}`;
 
     const insertResult = await pool.query(

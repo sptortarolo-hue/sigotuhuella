@@ -147,6 +147,7 @@ export default function Admin() {
   const [qrBatchLoading, setQrBatchLoading] = useState(false);
   const [qrAssignLoading, setQrAssignLoading] = useState<string | null>(null);
   const [reactivateToken, setReactivateToken] = useState('');
+  const [reactivateCode, setReactivateCode] = useState('');
   const [reactivateLoading, setReactivateLoading] = useState(false);
   const [reactivateResult, setReactivateResult] = useState<any>(null);
 
@@ -1779,17 +1780,21 @@ export default function Admin() {
       <p className="text-xs text-gray-500 mb-4">
         Escaneá el QR impreso con tu celular, copiá el link y pegalo acá para reactivarlo.
       </p>
-      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+      <div className="flex flex-col sm:flex-row gap-2 mb-2">
         <input value={reactivateToken} onChange={e => { setReactivateToken(e.target.value); setReactivateResult(null); }}
           className="flex-1 px-4 py-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
           placeholder="https://sigotuhuella.online/mascota/... o solo el token"
+        />
+        <input value={reactivateCode} onChange={e => { setReactivateCode(e.target.value.toUpperCase()); setReactivateResult(null); }}
+          className="sm:w-40 px-4 py-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm font-mono"
+          placeholder="AAA-0001 (opcional)"
         />
         <button onClick={async () => {
           if (!reactivateToken) return;
           try {
             setReactivateLoading(true);
             setReactivateResult(null);
-            const r = await api.qr.reactivate(reactivateToken);
+            const r = await api.qr.reactivate(reactivateToken, reactivateCode || undefined);
             setReactivateResult(r);
           } catch (e: any) {
             setReactivateResult({ error: e.message || 'Error al reactivar' });

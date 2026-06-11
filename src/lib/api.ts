@@ -229,7 +229,7 @@ export const api = {
       request(`/qr/public/${token}/scan`, { method: 'POST', body: JSON.stringify(coords || {}) }),
     found: (token: string, data: any) => request(`/qr/public/${token}/found`, { method: 'POST', body: JSON.stringify(data) }),
     cleanup: () => request('/qr/cleanup', { method: 'DELETE' }),
-    reactivate: (shareToken: string) => request('/qr/reactivate', { method: 'POST', body: JSON.stringify({ share_token: shareToken }) }),
+    reactivate: (shareToken: string, code?: string) => request('/qr/reactivate', { method: 'POST', body: JSON.stringify({ share_token: shareToken, ...(code ? { code } : {}) }) }),
     assigned: () => request('/qr/assigned'),
     batchPdf: (batchId: string) => {
       const token = getToken();
