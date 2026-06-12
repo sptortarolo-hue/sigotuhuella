@@ -43,7 +43,8 @@ const FB_SCOPES = [
 export function getAuthUrl() {
   const { appId, redirectUri } = getSettings();
   if (!appId) throw new Error('FACEBOOK_APP_ID no configurada');
-  return `https://www.facebook.com/v22.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(FB_SCOPES)}`;
+  const extras = JSON.stringify({ setup: { channel: 'IG_API_ONBOARDING' } });
+  return `https://www.facebook.com/v22.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&extras=${encodeURIComponent(extras)}&scope=${encodeURIComponent(FB_SCOPES)}`;
 }
 
 export async function exchangeCodeForToken(code) {
@@ -74,6 +75,15 @@ export async function exchangeCodeForToken(code) {
 
   const longToken = await exchangeForLongLivedToken(shortToken);
 
+  try {
+    const permsResp = await axios.get(`${GRAPH_API}/me/permissions`, {
+      params: { access_token: longToken },
+      timeout: 10000,
+    });
+    const perms = (permsResp.data?.data || []).filter(p => p.status === 'granted').map(p => p.permission);
+    console.log('[FB] Granted permissions:', perms);
+  } catch { /* ignore */ }
+
   let pageToken = '';
   let igUserId = '';
   let pageName = '';
@@ -86,7 +96,7 @@ export async function exchangeCodeForToken(code) {
       timeout: 15000,
     });
     const pages = pagesResp.data?.data || [];
-    console.log(`[FB] Pages returned:`, JSON.stringify(pages.map(p => ({ id: p.id, name: p.name, has_ig: !!p.instagram_business_account }))));
+    console.log(`[FB] /me/accounts returned ${pages.length} pages`);
     for (const page of pages) {
       if (page.instagram_business_account) {
         pageToken = page.access_token;
@@ -97,14 +107,10 @@ export async function exchangeCodeForToken(code) {
     }
 
     if (!pageToken || !igUserId) {
-      console.log('[FB] No page with IG found in /me/accounts, trying direct lookups...');
       for (const page of pages) {
         try {
           const pageResp = await axios.get(`${GRAPH_API}/${page.id}`, {
-            params: {
-              fields: 'instagram_business_account',
-              access_token: longToken,
-            },
+            params: { fields: 'instagram_business_account', access_token: longToken },
             timeout: 10000,
           });
           if (pageResp.data?.instagram_business_account?.id) {
@@ -115,10 +121,33 @@ export async function exchangeCodeForToken(code) {
             pageToken = tokenResp.data.access_token || page.access_token;
             igUserId = pageResp.data.instagram_business_account.id;
             pageName = page.name;
-            console.log(`[FB] Found IG via direct page lookup: ${pageName} (${igUserId})`);
             break;
           }
-        } catch { /* page doesn't have IG, skip */ }
+        } catch { /* skip */ }
+      }
+    }
+
+    if (!pageToken || !igUserId) {
+      try {
+        const igResp = await axios.get(`${GRAPH_API}/17841471476212393`, {
+          params: { fields: 'id,username,owner{id,name}', access_token: longToken },
+          timeout: 10000,
+        });
+        if (igResp.data?.id) {
+          igUserId = igResp.data.id;
+          const ownerId = igResp.data.owner?.id;
+          if (ownerId) {
+            const ownerResp = await axios.get(`${GRAPH_API}/${ownerId}`, {
+              params: { fields: 'access_token', access_token: longToken },
+              timeout: 10000,
+            });
+            pageToken = ownerResp.data?.access_token || '';
+            pageName = igResp.data.owner?.name || 'Sigo Tu Huella';
+          }
+        }
+        console.log(`[FB] IG direct lookup: userId=${igUserId}, hasPage=${!!pageToken}`);
+      } catch (err) {
+        console.log('[FB] IG direct lookup failed:', err.message);
       }
     }
 
