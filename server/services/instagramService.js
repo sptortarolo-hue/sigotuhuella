@@ -3,6 +3,8 @@ import pool from '../db.js';
 
 const GRAPH_API = 'https://graph.instagram.com/v22.0';
 
+let lastCreateContainerResponse = null;
+
 function getSettings() {
   return {
     appId: process.env.FACEBOOK_APP_ID || '',
@@ -157,6 +159,7 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
       caption,
       media_type: mediaType,
     }, accessToken);
+    lastCreateContainerResponse = data;
     return data.id;
   }
 
@@ -173,6 +176,7 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
     children: childrenIds.join(','),
     caption,
   }, accessToken);
+  lastCreateContainerResponse = data;
   return data.id;
 }
 
@@ -180,10 +184,15 @@ export async function publishContainer(containerId) {
   const igUserId = await getInstagramUserId();
   if (!igUserId) throw new Error('Instagram not connected');
   const accessToken = await getStoredToken();
-  const data = await igPost(`https://graph.instagram.com/v22.0/${igUserId}/media_publish`, {
-    creation_id: containerId,
-  }, accessToken);
-  return data;
+  try {
+    const data = await igPost(`https://graph.instagram.com/v22.0/${igUserId}/media_publish`, {
+      creation_id: containerId,
+    }, accessToken);
+    return data;
+  } catch (err) {
+    err.message += ` | CreateResponse: ${JSON.stringify(lastCreateContainerResponse)}`;
+    throw err;
+  }
 }
 
 export async function waitForContainer(containerId, mediaType = 'IMAGE') {
