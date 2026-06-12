@@ -4,6 +4,7 @@ import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sen
 import { matchPetToPosts } from '../services/geminiMatching.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
+import { isConnected, replyToComment } from '../services/instagramService.js';
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
@@ -140,6 +141,47 @@ async function autoCreateNews(pet, newsType) {
     }
   } catch (err) {
     console.error('Auto-create news error:', err);
+  }
+}
+
+async function autoInstagramComment(pet, newsType) {
+  try {
+    const connected = await isConnected();
+    if (!connected) return;
+    const igPost = await pool.query(
+      "SELECT ig_media_id, ig_permalink FROM instagram_posts WHERE pet_id = $1 AND status = 'published' ORDER BY published_at DESC LIMIT 1",
+      [pet.id]
+    );
+    if (igPost.rows.length === 0) return;
+    const commentText = generateCelebrationText(pet, newsType);
+    if (!commentText) return;
+    await replyToComment(igPost.rows[0].ig_media_id, commentText);
+    console.log(`[Instagram] Auto-commented on pet ${pet.id}: ${commentText.slice(0, 60)}...`);
+  } catch (err) {
+    console.error('[Instagram] Auto-comment error:', err);
+  }
+}
+
+async function autoQueueCelebrationPost(pet, newsType) {
+  try {
+    const connected = await isConnected();
+    if (!connected) return;
+    const imagesResult = await pool.query(
+      'SELECT COUNT(*) as cnt FROM pet_images WHERE pet_id = $1', [pet.id]
+    );
+    if (parseInt(imagesResult.rows[0].cnt) === 0) return;
+    const hashtags = await pool.query("SELECT value FROM settings WHERE key = 'instagram_default_hashtags'");
+    const htag = hashtags.rows[0]?.value || '#SigoTuHuella';
+    const caption = generateCelebrationText(pet, newsType);
+    if (!caption) return;
+    await pool.query(
+      `INSERT INTO instagram_posts (pet_id, media_type, caption, status, created_at)
+       VALUES ($1, 'IMAGE', $2, 'queued', NOW())`,
+      [pet.id, `${caption}\n\n${htag}`]
+    );
+    console.log(`[Instagram] Queued celebration post for pet ${pet.id}`);
+  } catch (err) {
+    console.error('[Instagram] Auto-queue celebration error:', err);
   }
 }
 
@@ -350,6 +392,8 @@ router.put('/:id', requireAuth, async (req, res) => {
       const updatedPet = await pool.query('SELECT * FROM pets WHERE id = $1', [petId]);
       const newsType = isReunited ? 'reunited' : 'adopted';
       await autoCreateNews(updatedPet.rows[0], newsType);
+      await autoInstagramComment(updatedPet.rows[0], newsType);
+      await autoQueueCelebrationPost(updatedPet.rows[0], newsType);
     }
     // Auto-badge: reunited_hero (first reunion)
     if (isReunited && pet.created_by) {

@@ -1,5 +1,23 @@
 import { Router } from 'express';
 import pool from '../db.js';
+import { renderFlyer } from '../services/flyerRenderer.js';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { loadImage } from 'canvas';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+let _logoImage = null;
+
+async function getLogoImage() {
+  if (_logoImage) return _logoImage;
+  try {
+    const logoPath = join(__dirname, '..', '..', 'public', 'sigotuhuella.jpg');
+    const buf = readFileSync(logoPath);
+    _logoImage = await loadImage(buf);
+  } catch { _logoImage = null; }
+  return _logoImage;
+}
 
 const router = Router();
 
@@ -20,6 +38,47 @@ router.get('/pet/:petId/:index', async (req, res) => {
     res.end(buffer);
   } catch (err) {
     console.error('Image serve error:', err);
+    res.status(500).end();
+  }
+});
+
+router.get('/pet/:petId/flyer4x5', async (req, res) => {
+  try {
+    const petResult = await pool.query(`
+      SELECT p.*,
+        (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
+        (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
+      FROM pets p WHERE p.id = $1
+    `, [req.params.petId]);
+    if (petResult.rows.length === 0) return res.status(404).end();
+    const pet = petResult.rows[0];
+    let petImage = null;
+    if (pet.image_data) {
+      const buf = Buffer.from(pet.image_data, 'base64');
+      petImage = await loadImage(buf);
+    }
+    const logoImage = await getLogoImage();
+    const pngBuffer = await renderFlyer({
+      status: pet.status,
+      name: pet.name,
+      species: pet.species,
+      breed: pet.breed,
+      gender: pet.gender,
+      age: pet.age,
+      location: pet.location,
+      contact_info: pet.contact_info,
+      description: pet.description,
+      case_number: pet.case_number,
+      petImage,
+      logoImage,
+    });
+    res.set('Content-Type', 'image/png');
+    res.set('Content-Length', pngBuffer.length);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.end(pngBuffer);
+  } catch (err) {
+    console.error('Flyer render error:', err);
     res.status(500).end();
   }
 });

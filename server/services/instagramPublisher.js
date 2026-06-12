@@ -48,10 +48,10 @@ export async function publishSinglePost(petId) {
     ``,
     hashtags,
   ].filter(Boolean).join('\n');
-  const imageUrls = pet.images_data.map((data, i) => {
-    const mime = pet.images_mime?.[i] || 'image/jpeg';
-    return `${FRONTEND_URL}/api/images/pet/${pet.id}/${i}`;
-  });
+  const imageUrls = [
+    `${FRONTEND_URL}/api/images/pet/${pet.id}/flyer4x5`,
+    ...pet.images_data.map((_, i) => `${FRONTEND_URL}/api/images/pet/${pet.id}/${i}`),
+  ];
   try {
     const containerId = await createContainer(imageUrls, caption);
     await waitForContainer(containerId);
@@ -98,9 +98,10 @@ export async function processQueue() {
         continue;
       }
       const pet = petResult.rows[0];
-      const imageUrls = (pet.images_data || []).map((_, i) =>
-        `${FRONTEND_URL}/api/images/pet/${post.pet_id}/${i}`
-      );
+      const imageUrls = [
+        `${FRONTEND_URL}/api/images/pet/${post.pet_id}/flyer4x5`,
+        ...(pet.images_data || []).map((_, i) => `${FRONTEND_URL}/api/images/pet/${post.pet_id}/${i}`),
+      ];
       if (imageUrls.length === 0) {
         await pool.query("UPDATE instagram_posts SET status = 'failed', error_message = 'Sin imágenes' WHERE id = $1", [post.id]);
         continue;

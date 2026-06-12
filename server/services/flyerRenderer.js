@@ -1,0 +1,357 @@
+import { createCanvas, loadImage, registerFont } from 'canvas';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FONT = 'sans-serif';
+
+const statusDesigns = {
+  lost: { label: 'SE PERDIÓ', badgeColor: '#EF4444', gradientStart: '#991B1B', gradientEnd: '#EF4444' },
+  retained: { label: 'RETENIDO', badgeColor: '#2563EB', gradientStart: '#1E3A5F', gradientEnd: '#2563EB' },
+  sighted: { label: 'AVISTADO', badgeColor: '#2563EB', gradientStart: '#1E3A5F', gradientEnd: '#2563EB' },
+  accidented: { label: 'ACCIDENTADO', badgeColor: '#EA580C', gradientStart: '#7C2D12', gradientEnd: '#EA580C' },
+  needs_attention: { label: 'NECESITA ATENCIÓN', badgeColor: '#D97706', gradientStart: '#78350F', gradientEnd: '#D97706' },
+  for_adoption: { label: 'EN ADOPCIÓN', badgeColor: '#8B5CF6', gradientStart: '#3B0764', gradientEnd: '#8B5CF6' },
+  adopted: { label: '¡ADOPTADO!', badgeColor: '#10B981', gradientStart: '#064E3B', gradientEnd: '#10B981' },
+  reunited: { label: '¡REENCUENTRO!', badgeColor: '#10B981', gradientStart: '#064E3B', gradientEnd: '#10B981' },
+};
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawRectPhoto(ctx, x, y, w, h, img, radius) {
+  ctx.save();
+  roundRect(ctx, x, y, w, h, radius);
+  ctx.clip();
+  if (img) {
+    const imgAspect = img.naturalWidth / img.naturalHeight;
+    const areaAspect = w / h;
+    let drawW, drawH, drawX, drawY;
+    if (imgAspect > areaAspect) {
+      drawH = h; drawW = h * imgAspect;
+      drawX = x - (drawW - w) / 2; drawY = y;
+    } else {
+      drawW = w; drawH = w / imgAspect;
+      drawX = x; drawY = y - (drawH - h) / 2;
+    }
+    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    const grad = ctx.createLinearGradient(0, y + h * 0.65, 0, y + h);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y + h * 0.65, w, h * 0.35);
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `${h * 0.25}px ${FONT}`;
+    ctx.fillText('🐾', x + w / 2, y + h / 2);
+  }
+  ctx.restore();
+}
+
+function drawWrappedText(ctx, text, cx, y, maxWidth, fontSize, maxLines, fontStyle, color, lineSpacing, align) {
+  ctx.font = `${fontStyle} ${fontSize}px ${FONT}`;
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'top';
+  const words = text.split(' ');
+  const lines = [[]];
+  let lineW = 0;
+  for (const word of words) {
+    const wordW = ctx.measureText(word + ' ').width;
+    if (lineW + wordW > maxWidth && lines[lines.length - 1].length > 0) {
+      if (lines.length >= maxLines) break;
+      lines.push([]);
+      lineW = 0;
+    }
+    lines[lines.length - 1].push(word);
+    lineW += wordW;
+  }
+  let curY = y;
+  for (let i = 0; i < lines.length && i < maxLines; i++) {
+    const lineWords = lines[i];
+    if (lineWords.length === 0) continue;
+    const lineText = lineWords.join(' ');
+    if (i === lines.length - 1 || i >= maxLines - 1 || lineWords.length === 1) {
+      ctx.textAlign = align === 'justify' ? 'left' : (align || 'center');
+      ctx.fillText(lineText, cx, curY);
+    } else {
+      ctx.textAlign = 'left';
+      const totalW = ctx.measureText(lineText).width;
+      const gap = (maxWidth - totalW) / (lineWords.length - 1);
+      let x = cx;
+      for (let j = 0; j < lineWords.length; j++) {
+        ctx.fillText(lineWords[j], x, curY);
+        x += ctx.measureText(lineWords[j] + ' ').width + gap;
+      }
+    }
+    curY += fontSize * lineSpacing;
+  }
+  return curY;
+}
+
+function drawBrandBar(ctx, w, h, logoImg, caseNumber) {
+  const brandY = h - h * 0.06;
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(w * 0.15, brandY);
+  ctx.lineTo(w * 0.85, brandY);
+  ctx.stroke();
+  const logoR = w * 0.028;
+  const logoY = brandY + logoR;
+  if (logoImg) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(w * 0.32, logoY, logoR, 0, Math.PI * 2);
+    ctx.clip();
+    const la = logoImg.naturalWidth / logoImg.naturalHeight;
+    let lw, lh;
+    if (la > 1) { lh = logoR * 2.2; lw = lh * la; }
+    else { lw = logoR * 2.2; lh = lw / la; }
+    ctx.drawImage(logoImg, w * 0.32 - lw / 2, logoY - lh / 2, lw, lh);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(w * 0.32, logoY, logoR, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = `${logoR * 1.5}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🐾', w * 0.32, logoY);
+  }
+  const brandFontSize = w * 0.035;
+  ctx.font = `800 ${brandFontSize}px ${FONT}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SIGO TU HUELLA', w * 0.32 + logoR + w * 0.025, logoY);
+  if (caseNumber) {
+    ctx.font = `600 ${w * 0.028}px ${FONT}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(caseNumber, w * 0.88, logoY);
+  }
+}
+
+function drawBgDecorations(ctx, w, h, colorStart, colorEnd) {
+  ctx.clearRect(0, 0, w, h);
+  const bgGrad = ctx.createLinearGradient(0, 0, w * 0.3, h);
+  bgGrad.addColorStop(0, colorStart);
+  bgGrad.addColorStop(1, colorEnd);
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalAlpha = 0.06;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(w * 0.85, h * 0.12, w * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(w * 0.1, h * 0.88, w * 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(w * 0.75, h * 0.75, w * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(w * 0.2, h * 0.15, w * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 0.04;
+  for (let x = w * 0.45; x < w * 0.95; x += 30) {
+    for (let y = h * 0.45; y < h * 0.85; y += 30) {
+      ctx.beginPath();
+      ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawCardFlyer(ctx, w, h, design, name, petDetails, location, contactInfo, description, img) {
+  const hasName = name && name !== 'Sin nombre';
+  const descText = description && description.length > 150 ? description.slice(0, 150) + '…' : description;
+
+  const badgeH = h * 0.16;
+  const photoTop = h * 0.19;
+  const photoH = h * 0.38;
+  const photoW = w * 0.84;
+  const photoRadius = w * 0.025;
+  const maxDescLines = 99;
+  const descFontSize = hasName ? w * 0.038 : w * 0.048;
+  const infoFontSize = w * 0.044;
+  const detailsFontSize = hasName ? w * 0.026 : w * 0.032;
+  const nameFontSize = w * 0.06;
+  const brandH = h * 0.055;
+
+  const photoX = (w - photoW) / 2;
+  const photoY = photoTop;
+  const brandY = h - brandH - h * 0.01;
+  const badgePad = h * 0.015;
+  const maxBadgeTextW = w * 0.78;
+  ctx.font = `800 ${badgeH * 0.55}px ${FONT}`;
+  let badgeFs = badgeH * 0.55;
+  const textW = ctx.measureText(design.label).width;
+  if (textW > maxBadgeTextW) badgeFs = badgeFs * (maxBadgeTextW / textW);
+  badgeFs = Math.max(badgeH * 0.25, Math.min(badgeFs, badgeH * 0.6));
+  ctx.save();
+  ctx.fillStyle = design.badgeColor;
+  roundRect(ctx, w * 0.04, badgePad, w * 0.92, badgeH - badgePad, w * 0.025);
+  ctx.fill();
+  ctx.restore();
+  ctx.font = `800 ${badgeFs}px ${FONT}`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(design.label, w / 2, badgePad + (badgeH - badgePad) / 2);
+  drawRectPhoto(ctx, photoX, photoY, photoW, photoH, img, photoRadius);
+
+  if (hasName) {
+    const pillPadX = w * 0.03;
+    const pillPadY = h * 0.012;
+    const pillRadius = w * 0.02;
+    const pillMaxW = photoW - w * 0.05;
+    let nameFs = nameFontSize;
+    ctx.font = `800 ${nameFs}px ${FONT}`;
+    const nameW = ctx.measureText(name).width;
+    if (nameW > pillMaxW) nameFs = Math.max(w * 0.03, nameFs * (pillMaxW / nameW));
+    const pillH = pillPadY + nameFs * 1.15 + pillPadY;
+    const pillW = Math.min(pillMaxW + pillPadX * 2, ctx.measureText(name).width + pillPadX * 2);
+    const pillX = photoX + w * 0.025;
+    const pillY = photoY + photoH - pillH - h * 0.015;
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = design.badgeColor;
+    roundRect(ctx, pillX, pillY, pillW, pillH, pillRadius);
+    ctx.fill();
+    ctx.restore();
+    ctx.font = `800 ${nameFs}px ${FONT}`;
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(name, pillX + pillPadX, pillY + pillPadY);
+  }
+
+  const detailsX = hasName ? photoX + w * 0.025 + w * 0.03 : photoX + w * 0.025;
+  if (petDetails) {
+    ctx.font = `500 ${detailsFontSize}px ${FONT}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(petDetails, detailsX, photoY + photoH + h * 0.008);
+  }
+
+  const infoItems = [];
+  if (location) infoItems.push(`📍 ${location}`);
+  if (contactInfo) infoItems.push(`📞 ${contactInfo}`);
+
+  let descLineCount = 0;
+  if (descText) {
+    const descInnerW = w * 0.80;
+    ctx.font = `italic 500 ${descFontSize}px ${FONT}`;
+    const words = descText.split(' ');
+    let line = '';
+    for (const word of words) {
+      if (descLineCount >= maxDescLines) break;
+      const testLine = line + word + ' ';
+      if (ctx.measureText(testLine).width > descInnerW && line) {
+        descLineCount++;
+        line = word + ' ';
+      } else {
+        line = testLine;
+      }
+    }
+    if (line.trim() && descLineCount < maxDescLines) descLineCount++;
+  }
+
+  const descLineH = descFontSize * 1.35;
+  const infoLineH = infoFontSize * 1.35;
+  const hasDesc = descLineCount > 0;
+  const gapDescInfo = infoFontSize * 0.25;
+  const totalLines = (hasDesc ? descLineCount : 0) + infoItems.length;
+
+  let infoBoxTop = brandY;
+  if (totalLines > 0) {
+    const boxPadX = w * 0.04;
+    const boxPadY = infoFontSize * 0.3;
+    const boxRadius = w * 0.015;
+    const boxW = w * 0.88;
+    const boxX = (w - boxW) / 2;
+    const descSectionH = hasDesc ? descLineCount * descLineH : 0;
+    const infoSectionH = infoItems.length * infoLineH;
+    const extraGap = hasDesc && infoItems.length > 0 ? gapDescInfo : 0;
+    const computedBoxH = descSectionH + infoSectionH + boxPadY * 2 + extraGap;
+    const boxBottom = brandY - h * 0.01;
+    const computedInfoBoxTop = boxBottom - computedBoxH;
+    const gapBadgePhoto = photoTop - badgeH;
+    const desiredBoxTop = photoY + photoH + gapBadgePhoto;
+    infoBoxTop = Math.min(computedInfoBoxTop, desiredBoxTop);
+    const boxH = boxBottom - infoBoxTop;
+    const extraBoxPad = Math.max(0, (boxH - computedBoxH) / 2);
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.12)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    roundRect(ctx, boxX, infoBoxTop, boxW, boxH, boxRadius);
+    ctx.fill();
+    ctx.restore();
+
+    let textY = infoBoxTop + boxPadY + extraBoxPad;
+    if (hasDesc) {
+      textY = drawWrappedText(ctx, descText, boxX + boxPadX, textY, boxW - boxPadX * 2, descFontSize, descLineCount, 'italic 500', '#000000', 1.35, 'justify');
+      textY += extraGap;
+    }
+    if (infoItems.length > 0) {
+      ctx.font = `700 ${infoFontSize}px ${FONT}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = '#000000';
+      for (const item of infoItems) {
+        ctx.fillText(item, boxX + boxPadX, textY);
+        textY += infoLineH;
+      }
+    }
+  }
+}
+
+export async function renderFlyer({
+  status, name = '', species, breed, gender = '', age = '',
+  location = '', contact_info = '', description = '', case_number = '',
+  petImage, logoImage,
+}) {
+  const W = 1080;
+  const H = 1350;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+
+  const design = statusDesigns[status] || statusDesigns.lost;
+
+  const speciesLabel = species === 'dog' ? 'Perro' : species === 'cat' ? 'Gato' : species || '';
+  const genderLabel = gender === 'male' ? 'Macho' : gender === 'female' ? 'Hembra' : '';
+  const parts = [speciesLabel, breed, genderLabel, age].filter(Boolean);
+  const petDetails = parts.join(' · ');
+
+  drawBgDecorations(ctx, W, H, design.gradientStart, design.gradientEnd);
+  drawCardFlyer(ctx, W, H, design, name || '', petDetails, location, contact_info, description, petImage || null);
+  drawBrandBar(ctx, W, H, logoImage || null, case_number);
+
+  return canvas.toBuffer('image/png');
+}
