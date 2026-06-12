@@ -4,7 +4,19 @@ import { renderFlyer } from '../services/flyerRenderer.js';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { loadImage } from 'canvas';
+
+let _canvasLoadImage = null;
+async function getLoadImage() {
+  if (!_canvasLoadImage) {
+    try {
+      const mod = await import('canvas');
+      _canvasLoadImage = mod.loadImage;
+    } catch {
+      _canvasLoadImage = async () => { throw new Error('canvas no disponible'); };
+    }
+  }
+  return _canvasLoadImage;
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 let _logoImage = null;
@@ -14,6 +26,7 @@ async function getLogoImage() {
   try {
     const logoPath = join(__dirname, '..', '..', 'public', 'sigotuhuella.jpg');
     const buf = readFileSync(logoPath);
+    const loadImage = await getLoadImage();
     _logoImage = await loadImage(buf);
   } catch { _logoImage = null; }
   return _logoImage;
@@ -55,6 +68,7 @@ router.get('/pet/:petId/flyer4x5', async (req, res) => {
     let petImage = null;
     if (pet.image_data) {
       const buf = Buffer.from(pet.image_data, 'base64');
+      const loadImage = await getLoadImage();
       petImage = await loadImage(buf);
     }
     const logoImage = await getLogoImage();
@@ -78,8 +92,8 @@ router.get('/pet/:petId/flyer4x5', async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.end(pngBuffer);
   } catch (err) {
-    console.error('Flyer render error:', err);
-    res.status(500).end();
+    console.error('Flyer render error, falling back to first image:', err.message);
+    res.redirect(302, `/api/images/pet/${req.params.petId}/0`);
   }
 });
 

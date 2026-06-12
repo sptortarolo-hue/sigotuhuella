@@ -4,6 +4,22 @@ import pool from '../db.js';
 const GRAPH_API = 'https://graph.facebook.com/v22.0';
 const INSTAGRAM_API = 'https://graph.instagram.com/v22.0';
 
+const igApi = axios.create({ baseURL: GRAPH_API });
+igApi.interceptors.response.use(
+  r => r,
+  err => {
+    if (err.response?.data?.error) {
+      const ig = err.response.data.error;
+      const msg = ig.error_user_msg || ig.message || err.message;
+      const enhanced = new Error(`Instagram API ${err.response.status}: ${msg}`);
+      enhanced.raw = err;
+      enhanced.igError = ig;
+      return Promise.reject(enhanced);
+    }
+    return Promise.reject(err);
+  }
+);
+
 function getSettings() {
   return {
     appId: process.env.INSTAGRAM_APP_ID || '',
@@ -42,7 +58,7 @@ export function getAuthUrl() {
 
 export async function exchangeCodeForToken(code) {
   const { appId, appSecret, redirectUri } = getSettings();
-  const { data } = await axios.post('https://api.instagram.com/oauth/access_token',
+  const { data } = await igApi.post('https://api.instagram.com/oauth/access_token',
     new URLSearchParams({
       client_id: appId,
       client_secret: appSecret,
@@ -61,7 +77,7 @@ export async function exchangeCodeForToken(code) {
 
 export async function exchangeForLongLivedToken(shortToken) {
   const { appSecret } = getSettings();
-  const { data } = await axios.get(`${INSTAGRAM_API}/access_token`, {
+  const { data } = await igApi.get(`${INSTAGRAM_API}/access_token`, {
     params: {
       grant_type: 'ig_exchange_token',
       client_secret: appSecret,
@@ -80,7 +96,7 @@ export async function refreshToken() {
   const currentToken = await getStoredToken();
   if (!currentToken) return null;
   try {
-    const { data } = await axios.get(`${INSTAGRAM_API}/refresh_access_token`, {
+    const { data } = await igApi.get(`${INSTAGRAM_API}/refresh_access_token`, {
       params: {
         grant_type: 'ig_refresh_token',
         access_token: currentToken,
@@ -105,7 +121,7 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
   if (petImages.length === 0) throw new Error('No images to publish');
 
   if (petImages.length === 1) {
-    const { data } = await axios.post(`${GRAPH_API}/${igUserId}/media`, null, {
+    const { data } = await igApi.post(`${GRAPH_API}/${igUserId}/media`, null, {
       params: {
         image_url: petImages[0],
         caption,
@@ -118,7 +134,7 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
 
   const childrenIds = [];
   for (const url of petImages.slice(0, 10)) {
-    const { data } = await axios.post(`${GRAPH_API}/${igUserId}/media`, null, {
+    const { data } = await igApi.post(`${GRAPH_API}/${igUserId}/media`, null, {
       params: {
         image_url: url,
         is_carousel_item: true,
@@ -127,7 +143,7 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
     });
     childrenIds.push(data.id);
   }
-  const { data } = await axios.post(`${GRAPH_API}/${igUserId}/media`, null, {
+  const { data } = await igApi.post(`${GRAPH_API}/${igUserId}/media`, null, {
     params: {
       media_type: 'CAROUSEL',
       children: childrenIds.join(','),
@@ -142,7 +158,7 @@ export async function publishContainer(containerId) {
   const token = await getStoredToken();
   const igUserId = await getInstagramUserId();
   if (!token || !igUserId) throw new Error('Instagram not connected');
-  const { data } = await axios.post(`${GRAPH_API}/${igUserId}/media_publish`, null, {
+  const { data } = await igApi.post(`${GRAPH_API}/${igUserId}/media_publish`, null, {
     params: {
       creation_id: containerId,
       access_token: token,
@@ -154,7 +170,7 @@ export async function publishContainer(containerId) {
 export async function waitForContainer(containerId, maxRetries = 30) {
   const token = await getStoredToken();
   for (let i = 0; i < maxRetries; i++) {
-    const { data } = await axios.get(`${GRAPH_API}/${containerId}`, {
+    const { data } = await igApi.get(`${GRAPH_API}/${containerId}`, {
       params: {
         fields: 'status_code',
         access_token: token,
@@ -162,7 +178,7 @@ export async function waitForContainer(containerId, maxRetries = 30) {
     });
     if (data.status_code === 'FINISHED') return true;
     if (data.status_code === 'ERROR') {
-      const errData = await axios.get(`${GRAPH_API}/${containerId}`, {
+      const errData = await igApi.get(`${GRAPH_API}/${containerId}`, {
         params: {
           fields: 'error_message',
           access_token: token,
@@ -178,7 +194,7 @@ export async function waitForContainer(containerId, maxRetries = 30) {
 export async function getComments(mediaId) {
   const token = await getStoredToken();
   if (!token) throw new Error('Instagram not connected');
-  const { data } = await axios.get(`${GRAPH_API}/${mediaId}/comments`, {
+  const { data } = await igApi.get(`${GRAPH_API}/${mediaId}/comments`, {
     params: {
       fields: 'id,text,timestamp,username,like_count',
       access_token: token,
@@ -190,7 +206,7 @@ export async function getComments(mediaId) {
 export async function replyToComment(commentId, message) {
   const token = await getStoredToken();
   if (!token) throw new Error('Instagram not connected');
-  const { data } = await axios.post(`${GRAPH_API}/${commentId}/replies`, null, {
+  const { data } = await igApi.post(`${GRAPH_API}/${commentId}/replies`, null, {
     params: {
       message,
       access_token: token,
@@ -203,7 +219,7 @@ export async function sendPrivateReply(commentId, message) {
   const token = await getStoredToken();
   const igUserId = await getInstagramUserId();
   if (!token || !igUserId) throw new Error('Instagram not connected');
-  const { data } = await axios.post(`${GRAPH_API}/${igUserId}/messages`, {
+  const { data } = await igApi.post(`${GRAPH_API}/${igUserId}/messages`, {
     recipient: { comment_id: commentId },
     message: { text: message },
   }, {
@@ -215,7 +231,7 @@ export async function sendPrivateReply(commentId, message) {
 export async function getMedia(mediaId) {
   const token = await getStoredToken();
   if (!token) throw new Error('Instagram not connected');
-  const { data } = await axios.get(`${GRAPH_API}/${mediaId}`, {
+  const { data } = await igApi.get(`${GRAPH_API}/${mediaId}`, {
     params: {
       fields: 'id,media_type,media_url,permalink,caption,timestamp,like_count,comments_count',
       access_token: token,
@@ -228,7 +244,7 @@ export async function getUserMedia(userId = null) {
   const token = await getStoredToken();
   const igUserId = userId || await getInstagramUserId();
   if (!token || !igUserId) throw new Error('Instagram not connected');
-  const { data } = await axios.get(`${GRAPH_API}/${igUserId}/media`, {
+  const { data } = await igApi.get(`${GRAPH_API}/${igUserId}/media`, {
     params: {
       fields: 'id,media_type,media_url,permalink,caption,timestamp,like_count,comments_count',
       access_token: token,
@@ -242,7 +258,7 @@ export async function getMediaInsights(mediaId) {
   const token = await getStoredToken();
   if (!token) throw new Error('Instagram not connected');
   try {
-    const { data } = await axios.get(`${GRAPH_API}/${mediaId}/insights`, {
+    const { data } = await igApi.get(`${GRAPH_API}/${mediaId}/insights`, {
       params: {
         metric: 'engagement,impressions,reach,saved',
         access_token: token,

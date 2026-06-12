@@ -1,10 +1,19 @@
-import { createCanvas, loadImage, registerFont } from 'canvas';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FONT = 'sans-serif';
+let _canvasModule = null;
+
+async function getCanvas() {
+  if (!_canvasModule) {
+    _canvasModule = await import('canvas').catch(() => {
+      throw new Error('canvas (node-canvas) no disponible en este servidor');
+    });
+  }
+  return _canvasModule;
+}
 
 const statusDesigns = {
   lost: { label: 'SE PERDIÓ', badgeColor: '#EF4444', gradientStart: '#991B1B', gradientEnd: '#EF4444' },
@@ -337,6 +346,8 @@ export async function renderFlyer({
   location = '', contact_info = '', description = '', case_number = '',
   petImage, logoImage,
 }) {
+  const canvasModule = await getCanvas();
+  const { createCanvas } = canvasModule;
   const W = 1080;
   const H = 1350;
   const canvas = createCanvas(W, H);
