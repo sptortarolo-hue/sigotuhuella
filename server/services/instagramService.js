@@ -2,7 +2,7 @@ import axios from 'axios';
 import pool from '../db.js';
 
 const GRAPH_API = 'https://graph.instagram.com';
-const PUBLISH_API = 'https://graph.instagram.com/v22.0';
+const PUBLISH_API = 'https://graph.facebook.com/v22.0';
 
 let lastCreateContainerResponse = null;
 
@@ -133,11 +133,9 @@ async function igPost(url, params, accessToken) {
   try {
     const { access_token, ...body } = params;
     const token = access_token || accessToken || '';
-    const { data } = await axios.post(url, body, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
+    const formBody = new URLSearchParams({ ...body, access_token: token });
+    const { data } = await axios.post(url, formBody.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
     console.log(`[Instagram] POST ${url} success:`, JSON.stringify(data).slice(0, 200));
     return data;
