@@ -78,6 +78,11 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
   const [retrying, setRetrying] = useState(false);
   const [processing, setProcessing] = useState(false);
 
+  const [showManual, setShowManual] = useState(false);
+  const [manualToken, setManualToken] = useState('');
+  const [manualIgId, setManualIgId] = useState('17841471476212393');
+  const [manualLoading, setManualLoading] = useState(false);
+
   const [statusFilter, setStatusFilter] = useState('');
 
   const fetchStatus = useCallback(async () => {
@@ -148,6 +153,22 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
     setConnected(false);
     setExpiresAt('');
     setUsername('');
+  };
+
+  const handleManualConnect = async () => {
+    if (!manualToken.trim()) { setError('Ingresá el token'); return; }
+    if (!manualIgId.trim()) { setError('Ingresá el ID de Instagram Business'); return; }
+    setManualLoading(true);
+    setError('');
+    try {
+      const res = await api.post('/instagram/manual-connect', { accessToken: manualToken.trim(), igUserId: manualIgId.trim() });
+      setConnected(true);
+      setUsername(res.username || 'sigotuhuella.sicardi');
+      setExpiresAt('');
+      setShowManual(false);
+      setManualToken('');
+    } catch (e: any) { setError(e.message || 'Error al conectar manualmente'); }
+    finally { setManualLoading(false); }
   };
 
   const handleReply = async (commentId: string) => {
@@ -306,6 +327,29 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
             )}
           </div>
         </div>
+        {!connected && (
+          <div className="mt-3">
+            <button onClick={() => setShowManual(!showManual)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-all">
+              <span className={`transition-transform ${showManual ? 'rotate-90' : ''}`}>▶</span> Conexión manual (alternativa)
+            </button>
+            {showManual && (
+              <div className="mt-2 p-4 bg-gray-50 rounded-2xl border border-brand-accent space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">Page Access Token</label>
+                  <input type="password" value={manualToken} onChange={e => setManualToken(e.target.value)} placeholder="EAAT..." className="w-full text-sm bg-white border border-brand-accent rounded-xl px-3 py-2 outline-none focus:border-brand-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">Instagram Business Account ID</label>
+                  <input type="text" value={manualIgId} onChange={e => setManualIgId(e.target.value)} className="w-full text-sm bg-white border border-brand-accent rounded-xl px-3 py-2 outline-none focus:border-brand-primary" />
+                </div>
+                <button onClick={handleManualConnect} disabled={manualLoading} className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50">
+                  {manualLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Conectar manualmente
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2 border-b border-brand-accent pb-px">

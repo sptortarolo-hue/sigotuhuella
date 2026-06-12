@@ -396,9 +396,31 @@ export function verifyWebhook(mode, token, challenge) {
   return mode === 'subscribe' && token === expectedToken ? challenge : null;
 }
 
+export async function manualConnect(accessToken, igUserId) {
+  try {
+    const { data } = await axios.get(`${GRAPH_API}/${igUserId}`, {
+      params: { fields: 'id,username', access_token: accessToken },
+      timeout: 10000,
+    });
+    if (!data?.id) throw new Error('No se pudo verificar el token');
+    const username = data.username || 'sigotuhuella.sicardi';
+    await saveSetting('instagram_access_token', accessToken);
+    await saveSetting('instagram_user_id', igUserId);
+    await saveSetting('instagram_page_name', username);
+    await saveSetting('instagram_token_source', 'manual');
+    await pool.query("DELETE FROM settings WHERE key = 'instagram_token_expires_at'");
+    return { igUserId, username };
+  } catch (err) {
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    throw new Error(`Token inválido: ${detail}`);
+  }
+}
+
 export async function isConnected() {
   const token = await getStoredToken();
   if (!token) return false;
+  const source = await pool.query("SELECT value FROM settings WHERE key = 'instagram_token_source'");
+  if (source.rows[0]?.value === 'manual') return true;
   const expiresAt = await pool.query("SELECT value FROM settings WHERE key = 'instagram_token_expires_at'");
   if (!expiresAt.rows[0]?.value) return false;
   const expires = new Date(expiresAt.rows[0].value);

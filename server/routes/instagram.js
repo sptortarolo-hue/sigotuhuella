@@ -6,7 +6,7 @@ import {
   createContainer, publishContainer, waitForContainer,
   getComments, replyToComment, sendPrivateReply,
   getUserMedia, getMedia, getMediaInsights,
-  verifyWebhook, getInstagramUserId,
+  verifyWebhook, getInstagramUserId, manualConnect,
 } from '../services/instagramService.js';
 import { processQueue } from '../services/instagramPublisher.js';
 
@@ -36,6 +36,19 @@ router.get('/debug-env', requireAdmin, async (_req, res) => {
     FACEBOOK_APP_ID: fbId ? fbId.slice(0, 6) + '...' + fbId.slice(-4) : 'MISSING',
     INSTAGRAM_REDIRECT_URI: redirect,
   });
+});
+
+router.post('/manual-connect', requireAdmin, async (req, res) => {
+  try {
+    const { accessToken, igUserId } = req.body;
+    if (!accessToken) return res.status(400).json({ error: 'Token requerido' });
+    if (!igUserId) return res.status(400).json({ error: 'IG User ID requerido' });
+    const result = await manualConnect(accessToken, igUserId);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Error manual connect:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/callback', async (req, res) => {
