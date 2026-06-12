@@ -84,6 +84,17 @@ router.post('/retry-failed', requireAdmin, async (_req, res) => {
   }
 });
 
+router.post('/process-queue', requireAdmin, async (_req, res) => {
+  try {
+    const { processQueue } = await import('../services/instagramPublisher.js');
+    const results = await processQueue();
+    res.json({ success: true, results });
+  } catch (err) {
+    console.error('Error processing queue:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/publish', requireAdmin, async (req, res) => {
   try {
     const { petId, imageUrls, caption, mediaType } = req.body;
