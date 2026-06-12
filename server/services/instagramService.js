@@ -128,7 +128,11 @@ export async function refreshToken() {
 
 async function igPost(url, params) {
   try {
-    const { data } = await axios.post(url, null, { params });
+    const formBody = new URLSearchParams(params).toString();
+    const { data } = await axios.post(url, formBody, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    console.log(`[Instagram] POST ${url} success:`, JSON.stringify(data).slice(0, 200));
     return data;
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
