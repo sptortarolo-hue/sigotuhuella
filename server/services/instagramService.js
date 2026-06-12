@@ -1,7 +1,7 @@
 import axios from 'axios';
 import pool from '../db.js';
 
-const GRAPH_API = 'https://graph.facebook.com/v22.0';
+const GRAPH_API = 'https://graph.instagram.com/v22.0';
 
 const igApi = axios.create({ baseURL: GRAPH_API });
 igApi.interceptors.response.use(
@@ -52,91 +52,64 @@ function saveSetting(key, value) {
 export function getAuthUrl() {
   const { appId, redirectUri } = getSettings();
   const scope = [
-    'instagram_basic',
-    'instagram_content_publish',
-    'instagram_manage_comments',
-    'pages_show_list',
+    'instagram_business_basic',
+    'instagram_business_manage_messages',
+    'instagram_business_manage_comments',
+    'instagram_business_content_publish',
+    'instagram_business_manage_insights',
   ].join(',');
-  return `https://www.facebook.com/${process.env.FACEBOOK_API_VERSION || 'v22.0'}/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
+  return `https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
 }
 
 export async function exchangeCodeForToken(code) {
   const { appId, appSecret, redirectUri } = getSettings();
 
-  const { data } = await igApi.get('/oauth/access_token', {
-    params: {
-      client_id: appId,
-      client_secret: appSecret,
-      redirect_uri: redirectUri,
-      code,
+  const params = new URLSearchParams();
+  params.append('client_id', appId);
+  params.append('client_secret', appSecret);
+  params.append('grant_type', 'authorization_code');
+  params.append('redirect_uri', redirectUri);
+  params.append('code', code);
+
+  const { data } = await axios.post('https://api.instagram.com/oauth/access_token', params, {
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
   });
 
   const shortToken = data.access_token;
+  const igUserId = data.user_id;
   const longToken = await exchangeForLongLivedToken(shortToken);
 
-  const pageInfo = await discoverInstagramAccount(longToken);
+  let username = '';
+  try {
+    const meRes = await axios.get(`${GRAPH_API}/me`, {
+      params: {
+        fields: 'username',
+        access_token: longToken,
+      },
+    });
+    username = meRes.data.username;
+    await saveSetting('instagram_username', username);
+  } catch (meErr) {
+    console.error('[Instagram] Failed to fetch username:', meErr.message);
+  }
+
+  await saveSetting('instagram_user_id', String(igUserId));
 
   return {
     accessToken: longToken,
-    igUserId: pageInfo.igUserId,
-    pageId: pageInfo.pageId,
+    igUserId,
   };
 }
 
-async function discoverInstagramAccount(userToken) {
-  const { data: accountsData } = await igApi.get('/me/accounts', {
-    params: {
-      fields: 'id,name,access_token,instagram_business_account',
-      access_token: userToken,
-    },
-  });
-
-  const pages = accountsData.data || [];
-  for (const page of pages) {
-    if (page.instagram_business_account) {
-      const igUserId = page.instagram_business_account.id;
-      const pageId = page.id;
-      const pageToken = page.access_token;
-
-      await saveSetting('instagram_user_id', String(igUserId));
-      await saveSetting('instagram_page_id', String(pageId));
-      await saveSetting('instagram_page_token', pageToken);
-
-      console.log(`[Instagram] Found IG Business Account: ${igUserId}, Page: ${pageId}`);
-      return { igUserId, pageId, pageToken };
-    }
-  }
-
-  const fallback = pages[0];
-  if (fallback) {
-    const { data: igData } = await igApi.get(`/${fallback.id}`, {
-      params: {
-        fields: 'instagram_business_account',
-        access_token: fallback.access_token,
-      },
-    });
-    if (igData.instagram_business_account) {
-      const igUserId = igData.instagram_business_account.id;
-      await saveSetting('instagram_user_id', String(igUserId));
-      await saveSetting('instagram_page_id', String(fallback.id));
-      await saveSetting('instagram_page_token', fallback.access_token);
-      console.log(`[Instagram] Found IG Business Account (fallback): ${igUserId}, Page: ${fallback.id}`);
-      return { igUserId, pageId: fallback.id, pageToken: fallback.access_token };
-    }
-  }
-
-  throw new Error('No se encontró cuenta de Instagram Business vinculada a una Página de Facebook. Asegurate de que la cuenta @sigotuhuella.sicardi esté vinculada a la página "Sigo Tu Huella".');
-}
-
 export async function exchangeForLongLivedToken(shortToken) {
-  const { appId, appSecret } = getSettings();
-  const { data } = await igApi.get('/oauth/access_token', {
+  const { appSecret } = getSettings();
+  const { data } = await axios.get('https://graph.instagram.com/access_token', {
     params: {
-      grant_type: 'fb_exchange_token',
-      client_id: appId,
+      grant_type: 'ig_exchange_token',
       client_secret: appSecret,
-      fb_exchange_token: shortToken,
+      access_token: shortToken,
     },
   });
   const longToken = data.access_token;
@@ -151,13 +124,10 @@ export async function refreshToken() {
   const currentToken = await getStoredToken();
   if (!currentToken) return null;
   try {
-    const { appId, appSecret } = getSettings();
-    const { data } = await igApi.get('/oauth/access_token', {
+    const { data } = await axios.get('https://graph.instagram.com/refresh_access_token', {
       params: {
-        grant_type: 'fb_exchange_token',
-        client_id: appId,
-        client_secret: appSecret,
-        fb_exchange_token: currentToken,
+        grant_type: 'ig_refresh_token',
+        access_token: currentToken,
       },
     });
     const newToken = data.access_token;
@@ -165,12 +135,6 @@ export async function refreshToken() {
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
     await saveSetting('instagram_access_token', newToken);
     await saveSetting('instagram_token_expires_at', expiresAt);
-
-    try {
-      await discoverInstagramAccount(newToken);
-    } catch (e) {
-      console.error('[Instagram] Page re-discovery failed during refresh:', e.message);
-    }
 
     return newToken;
   } catch (err) {
@@ -180,8 +144,7 @@ export async function refreshToken() {
 }
 
 async function getPageToken() {
-  const result = await pool.query("SELECT value FROM settings WHERE key = 'instagram_page_token'");
-  return result.rows[0]?.value || '';
+  return getStoredToken();
 }
 
 export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
@@ -295,12 +258,9 @@ export async function replyToComment(commentId, message) {
 }
 
 export async function sendPrivateReply(commentId, message) {
-  const token = await getPageToken();
-  const fallback = await getStoredToken();
-  const accessToken = token || fallback;
-  const pageId = await getPageId();
-  const endpoint = pageId || await getInstagramUserId();
-  const { data } = await igApi.post(`${GRAPH_API}/${endpoint}/messages`, {
+  const accessToken = await getStoredToken();
+  const igUserId = await getInstagramUserId();
+  const { data } = await igApi.post(`${GRAPH_API}/${igUserId}/messages`, {
     recipient: { comment_id: commentId },
     message: { text: message },
   }, {
