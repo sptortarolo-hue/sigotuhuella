@@ -2,6 +2,7 @@ import axios from 'axios';
 import pool from '../db.js';
 
 const GRAPH_API = 'https://graph.instagram.com';
+const FB_GRAPH_API = 'https://graph.facebook.com/v22.0';
 
 let lastCreateContainerResponse = null;
 
@@ -157,20 +158,20 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
   if (petImages.length === 1) {
     const params = { image_url: petImages[0], caption };
     if (mediaType !== 'IMAGE') params.media_type = mediaType;
-    const data = await igPost(`${GRAPH_API}/${igUserId}/media`, params, accessToken);
+    const data = await igPost(`${FB_GRAPH_API}/${igUserId}/media`, params, accessToken);
     lastCreateContainerResponse = data;
     return data.id;
   }
 
   const childrenIds = [];
   for (const url of petImages.slice(0, 10)) {
-    const data = await igPost(`${GRAPH_API}/${igUserId}/media`, {
+    const data = await igPost(`${FB_GRAPH_API}/${igUserId}/media`, {
       image_url: url,
       is_carousel_item: true,
     }, accessToken);
     childrenIds.push(data.id);
   }
-  const data = await igPost(`${GRAPH_API}/${igUserId}/media`, {
+  const data = await igPost(`${FB_GRAPH_API}/${igUserId}/media`, {
     media_type: 'CAROUSEL',
     children: childrenIds.join(','),
     caption,
@@ -184,7 +185,7 @@ export async function publishContainer(containerId) {
   if (!igUserId) throw new Error('Instagram not connected');
   const accessToken = await getStoredToken();
   try {
-    const data = await igPost(`${GRAPH_API}/${igUserId}/media_publish`, {
+    const data = await igPost(`${FB_GRAPH_API}/${igUserId}/media_publish`, {
       creation_id: containerId,
     }, accessToken);
     return data;
@@ -194,9 +195,36 @@ export async function publishContainer(containerId) {
   }
 }
 
+async function getContainerStatus(containerId) {
+  const accessToken = await getStoredToken();
+  const { data } = await axios.get(`${GRAPH_API}/${containerId}`, {
+    params: { fields: 'status_code', access_token: accessToken },
+    timeout: 10000,
+  });
+  return data.status_code;
+}
+
 export async function waitForContainer(containerId, mediaType = 'IMAGE') {
-  const delay = mediaType === 'VIDEO' ? 15000 : mediaType === 'CAROUSEL' ? 8000 : 5000;
-  await new Promise(r => setTimeout(r, delay));
+  const maxAttempts = mediaType === 'VIDEO' ? 12 : 6;
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const status = await getContainerStatus(containerId);
+      console.log(`[Instagram] Container ${containerId} status: ${status}`);
+      if (status === 'FINISHED') return true;
+      if (status === 'ERROR') throw new Error(`Container processing failed (ERROR)`);
+      if (status === 'EXPIRED') throw new Error(`Container expired`);
+    } catch (err) {
+      if (err.response?.data?.error?.error_subcode === 33 || err.message?.includes('error_subcode')) {
+        console.log(`[Instagram] Container ${containerId} status check subcode 33 (known Meta bug), retrying...`);
+      } else if (err.message?.startsWith('Container')) {
+        throw err;
+      } else {
+        console.error(`[Instagram] Container ${containerId} status check error:`, err.message);
+      }
+    }
+    await new Promise(r => setTimeout(r, 5000));
+  }
+  console.warn(`[Instagram] Container ${containerId} status polling timed out after ${maxAttempts * 5}s, attempting publish anyway`);
   return true;
 }
 
