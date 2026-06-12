@@ -18,16 +18,6 @@ export async function getStoredToken() {
   return result.rows[0]?.value || '';
 }
 
-async function getStoredRefreshToken() {
-  const result = await pool.query("SELECT value FROM settings WHERE key = 'instagram_refresh_token'");
-  return result.rows[0]?.value || '';
-}
-
-async function getBusinessAccountId() {
-  const result = await pool.query("SELECT value FROM settings WHERE key = 'instagram_business_id'");
-  return result.rows[0]?.value || '';
-}
-
 export async function getInstagramUserId() {
   const result = await pool.query("SELECT value FROM settings WHERE key = 'instagram_user_id'");
   return result.rows[0]?.value || '';
@@ -43,10 +33,10 @@ function saveSetting(key, value) {
 export function getAuthUrl() {
   const { appId, redirectUri } = getSettings();
   const scope = [
-    'instagram_basic',
-    'instagram_content_publish',
-    'instagram_manage_comments',
-    'instagram_manage_messages',
+    'instagram_business_basic',
+    'instagram_business_manage_comments',
+    'instagram_business_manage_messages',
+    'instagram_business_content_publish',
   ].join(',');
   return `https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
 }
@@ -83,15 +73,6 @@ export async function exchangeForLongLivedToken(shortToken) {
   const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
   await saveSetting('instagram_access_token', longToken);
   await saveSetting('instagram_token_expires_at', expiresAt);
-  try {
-    const pageToken = await getPageAccessToken(longToken);
-    if (pageToken) {
-      await saveSetting('instagram_page_access_token', pageToken);
-    }
-    await resolveBusinessAccountId();
-  } catch (e) {
-    console.error('Could not resolve business account:', e.message);
-  }
   return longToken;
 }
 
@@ -113,45 +94,6 @@ export async function refreshToken() {
     return newToken;
   } catch (err) {
     console.error('Token refresh failed:', err.message);
-    return null;
-  }
-}
-
-async function getPageAccessToken(userToken) {
-  const { pageId } = getSettings();
-  if (!pageId) return null;
-  try {
-    const { data } = await axios.get(`${GRAPH_API}/me/accounts`, {
-      params: {
-        access_token: userToken,
-        fields: 'id,name,access_token',
-      },
-    });
-    const page = data.data?.find(p => p.id === pageId);
-    return page?.access_token || null;
-  } catch {
-    return null;
-  }
-}
-
-export async function resolveBusinessAccountId() {
-  const { pageId } = getSettings();
-  const token = await getPageAccessToken(await getStoredToken());
-  if (!pageId || !token) return null;
-  try {
-    const { data } = await axios.get(`${GRAPH_API}/${pageId}`, {
-      params: {
-        fields: 'instagram_business_account',
-        access_token: token,
-      },
-    });
-    const businessId = data.instagram_business_account?.id;
-    if (businessId) {
-      await saveSetting('instagram_business_id', businessId);
-    }
-    return businessId || null;
-  } catch (err) {
-    console.error('Error resolving business account:', err.message);
     return null;
   }
 }
@@ -258,10 +200,10 @@ export async function replyToComment(commentId, message) {
 }
 
 export async function sendPrivateReply(commentId, message) {
-  const token = await getPageAccessToken(await getStoredToken());
-  if (!token) throw new Error('Instagram not connected');
-  const { pageId } = getSettings();
-  const { data } = await axios.post(`${GRAPH_API}/me/messages`, {
+  const token = await getStoredToken();
+  const igUserId = await getInstagramUserId();
+  if (!token || !igUserId) throw new Error('Instagram not connected');
+  const { data } = await axios.post(`${GRAPH_API}/${igUserId}/messages`, {
     recipient: { comment_id: commentId },
     message: { text: message },
   }, {
