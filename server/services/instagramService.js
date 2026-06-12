@@ -2,7 +2,6 @@ import axios from 'axios';
 import pool from '../db.js';
 
 const GRAPH_API = 'https://graph.instagram.com';
-const PUBLISH_API = 'https://graph.facebook.com/v22.0';
 
 let lastCreateContainerResponse = null;
 
@@ -134,14 +133,16 @@ async function igPost(url, params, accessToken) {
     const { access_token, ...body } = params;
     const token = access_token || accessToken || '';
     const formBody = new URLSearchParams({ ...body, access_token: token });
+    console.log(`[Instagram] POST ${url} body:`, formBody.toString().slice(0, 300));
     const { data } = await axios.post(url, formBody.toString(), {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 30000,
     });
-    console.log(`[Instagram] POST ${url} success:`, JSON.stringify(data).slice(0, 200));
+    console.log(`[Instagram] POST ${url} response:`, JSON.stringify(data).slice(0, 300));
     return data;
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-    console.error(`[Instagram] POST ${url} failed:`, err.response?.status, detail);
+    console.error(`[Instagram] POST ${url} failed:`, err.response?.status, detail.slice(0, 500));
     throw new Error(`Instagram API ${err.response?.status || 400}: ${detail}`);
   }
 }
@@ -156,20 +157,20 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
   if (petImages.length === 1) {
     const params = { image_url: petImages[0], caption };
     if (mediaType !== 'IMAGE') params.media_type = mediaType;
-    const data = await igPost(`${PUBLISH_API}/${igUserId}/media`, params, accessToken);
+    const data = await igPost(`${GRAPH_API}/${igUserId}/media`, params, accessToken);
     lastCreateContainerResponse = data;
     return data.id;
   }
 
   const childrenIds = [];
   for (const url of petImages.slice(0, 10)) {
-    const data = await igPost(`${PUBLISH_API}/${igUserId}/media`, {
+    const data = await igPost(`${GRAPH_API}/${igUserId}/media`, {
       image_url: url,
       is_carousel_item: true,
     }, accessToken);
     childrenIds.push(data.id);
   }
-  const data = await igPost(`${PUBLISH_API}/${igUserId}/media`, {
+  const data = await igPost(`${GRAPH_API}/${igUserId}/media`, {
     media_type: 'CAROUSEL',
     children: childrenIds.join(','),
     caption,
@@ -183,7 +184,7 @@ export async function publishContainer(containerId) {
   if (!igUserId) throw new Error('Instagram not connected');
   const accessToken = await getStoredToken();
   try {
-    const data = await igPost(`${PUBLISH_API}/${igUserId}/media_publish`, {
+    const data = await igPost(`${GRAPH_API}/${igUserId}/media_publish`, {
       creation_id: containerId,
     }, accessToken);
     return data;
