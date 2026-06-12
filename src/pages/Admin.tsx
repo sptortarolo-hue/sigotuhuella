@@ -22,6 +22,7 @@ import SocialShareModal from '@/src/components/SocialShareModal';
 import { BADGE_CONFIG } from '@/src/components/MemberCard';
 import VideoGeneratorTab from '@/src/pages/admin/VideoGeneratorTab';
 import FacebookTab from '@/src/components/admin/FacebookTab';
+import InstagramTab from '@/src/components/admin/InstagramTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
@@ -32,7 +33,7 @@ import { cn } from '@/src/lib/utils';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'public' | 'videos' | 'qr' | 'facebook'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -160,6 +161,15 @@ export default function Admin() {
 
   useEffect(() => {
     fetchAll();
+    const params = new URLSearchParams(window.location.search);
+    const igStatus = params.get('instagram');
+    if (igStatus === 'connected') {
+      setActiveTab('instagram');
+      window.history.replaceState({}, '', '/admin');
+    } else if (igStatus === 'error') {
+      setActiveTab('instagram');
+      window.history.replaceState({}, '', '/admin');
+    }
   }, []);
 
   const fetchAll = async () => {
@@ -708,6 +718,7 @@ export default function Admin() {
           { id: 'news', label: 'Novedades', icon: Sparkles },
           { id: 'public', label: 'Reportes Públicos', icon: FileText },
           { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
+          { id: 'instagram', label: 'Instagram', icon: Camera },
           { id: 'facebook', label: 'Facebook', icon: Globe },
           { id: 'videos', label: 'Videos', icon: Film },
   { id: 'qr', label: 'QR', icon: QrCode },
@@ -1590,6 +1601,11 @@ export default function Admin() {
                 </div>
                </div>
              </div>
+            )}
+
+            {/* ====== INSTAGRAM ====== */}
+            {activeTab === 'instagram' && (
+              <InstagramTab />
             )}
 
             {/* ====== FACEBOOK ====== */}

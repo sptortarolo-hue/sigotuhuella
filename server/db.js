@@ -382,8 +382,56 @@ INSERT INTO settings (key, value) VALUES
   ('fb_image_matching_weight', '20'),
   ('fb_scraper_interval_hours', '6'),
   ('fb_scraper_max_posts', '50'),
-  ('fb_neighborhoods', '[]')
+  ('fb_neighborhoods', '[]'),
+  ('instagram_access_token', ''),
+  ('instagram_refresh_token', ''),
+  ('instagram_token_expires_at', ''),
+  ('instagram_user_id', ''),
+  ('instagram_business_id', ''),
+  ('instagram_username', ''),
+  ('instagram_publisher_enabled', 'false'),
+  ('instagram_publisher_interval', '30'),
+  ('instagram_default_hashtags', '#AdoptaNoCompres #SigoTuHuella #MascotasPerdidas'),
+  ('instagram_auto_reply_enabled', 'false')
 ON CONFLICT (key) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS instagram_posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,
+  media_type VARCHAR(20) NOT NULL DEFAULT 'IMAGE',
+  caption TEXT,
+  image_urls TEXT[] DEFAULT '{}',
+  status VARCHAR(30) NOT NULL DEFAULT 'pending',
+  ig_media_id VARCHAR(255),
+  ig_permalink TEXT,
+  error_message TEXT,
+  scheduled_publish_time TIMESTAMP,
+  published_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS instagram_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ig_comment_id VARCHAR(255) UNIQUE NOT NULL,
+  ig_media_id VARCHAR(255),
+  ig_post_id UUID REFERENCES instagram_posts(id) ON DELETE SET NULL,
+  username VARCHAR(255),
+  text TEXT,
+  replied BOOLEAN DEFAULT FALSE,
+  dm_sent BOOLEAN DEFAULT FALSE,
+  classification VARCHAR(50),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS instagram_auto_reply_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  keywords TEXT[] NOT NULL,
+  reply_type VARCHAR(20) NOT NULL DEFAULT 'public_reply',
+  reply_template TEXT NOT NULL,
+  dm_template TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
 `;
 
 export async function initDb() {

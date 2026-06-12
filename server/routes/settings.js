@@ -30,6 +30,34 @@ router.get('/public', async (_req, res) => {
   }
 });
 
+// POST /api/settings — batch fetch or single update
+router.post('/', requireAdmin, async (req, res) => {
+  try {
+    const { keys, key, value } = req.body;
+    if (keys && Array.isArray(keys)) {
+      const placeholders = keys.map((_, i) => '$' + (i + 1)).join(',');
+      const result = await pool.query(
+        `SELECT key, value FROM settings WHERE key IN (${placeholders})`,
+        keys
+      );
+      const data = {};
+      result.rows.forEach(r => { data[r.key] = r.value; });
+      return res.json(data);
+    }
+    if (key && value !== undefined) {
+      await pool.query(
+        'INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()',
+        [key, String(value)]
+      );
+      return res.json({ key, value });
+    }
+    res.status(400).json({ error: 'Provide keys[] for batch fetch or {key, value} for update' });
+  } catch (err) {
+    console.error('Error processing settings:', err);
+    res.status(500).json({ error: 'Error al procesar configuración' });
+  }
+});
+
 // PUT /api/settings/:key — update setting (admin only)
 router.put('/:key', requireAdmin, async (req, res) => {
   try {
