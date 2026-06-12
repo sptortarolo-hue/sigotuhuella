@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { renderFlyer } from '../services/flyerRenderer.js';
+import { overlayStatus } from '../services/imageOverlay.js';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -93,6 +94,29 @@ router.get('/pet/:petId/flyer4x5', async (req, res) => {
     res.end(pngBuffer);
   } catch (err) {
     console.error('Flyer render error, falling back to first image:', err.message);
+    res.redirect(302, `/api/images/pet/${req.params.petId}/0`);
+  }
+});
+
+router.get('/pet/:petId/cover', async (req, res) => {
+  try {
+    const petResult = await pool.query(`
+      SELECT p.status,
+        (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
+        (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
+      FROM pets p WHERE p.id = $1
+    `, [req.params.petId]);
+    if (petResult.rows.length === 0) return res.status(404).end();
+    const pet = petResult.rows[0];
+    if (!pet.image_data) return res.status(404).end();
+    const jpgBuffer = await overlayStatus(pet.image_data, pet.mime_type || 'image/jpeg', pet.status);
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Content-Length', jpgBuffer.length);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.end(jpgBuffer);
+  } catch (err) {
+    console.error('Cover render error:', err.message);
     res.redirect(302, `/api/images/pet/${req.params.petId}/0`);
   }
 });

@@ -10,6 +10,41 @@ async function getSetting(key) {
   return result.rows[0]?.value || '';
 }
 
+const statusLabels = {
+  lost: '🐾 PERDIDO', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
+  for_adoption: '❤️ EN ADOPCIÓN', adopted: '✅ ADOPTADO',
+  reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
+  needs_attention: '⚠️ NECESITA ATENCIÓN',
+};
+
+const speciesLabel = { dog: 'Perro', cat: 'Gato', other: 'Otra mascota' };
+const genderLabel = { male: 'Macho', female: 'Hembra', unknown: '' };
+
+function buildPetCaption(pet, hashtags) {
+  const statusTag = statusLabels[pet.status] || '🐾 MASCOTA';
+  return [
+    `${statusTag}`,
+    `${pet.name ? 'Nombre: ' + pet.name : ''}`,
+    `${speciesLabel[pet.species] || 'Mascota'}${pet.breed ? ' - ' + pet.breed : ''}`,
+    `${genderLabel[pet.gender] ? genderLabel[pet.gender] + (pet.age ? ' · ' + pet.age : '') : (pet.age || '')}`,
+    `${pet.color ? '🎨 ' + pet.color : ''}`,
+    `📍 ${pet.location || ''}${pet.contact_info ? ' · ' + pet.contact_info : ''}`,
+    ``,
+    `${pet.description ? pet.description.substring(0, 400) : ''}`,
+    ``,
+    `🔗 ${FRONTEND_URL}/pet/${pet.id}`,
+    ``,
+    hashtags,
+  ].filter(Boolean).join('\n');
+}
+
+function buildImageUrls(petId, imagesData) {
+  return [
+    `${FRONTEND_URL}/api/images/pet/${petId}/cover`,
+    ...(imagesData || []).slice(0, 9).map((_, i) => `${FRONTEND_URL}/api/images/pet/${petId}/${i}`),
+  ];
+}
+
 export async function publishSinglePost(petId) {
   const connected = await isConnected();
   if (!connected) return { error: 'Instagram desconectado' };
@@ -24,34 +59,9 @@ export async function publishSinglePost(petId) {
   if (petResult.rows.length === 0) return { error: 'Mascota no encontrada' };
   const pet = petResult.rows[0];
   if (!pet.images_data || pet.images_data.length === 0) return { error: 'Mascota sin imágenes' };
-  const statusLabels = {
-    lost: '🐾 PERDIDO', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
-    for_adoption: '❤️ EN ADOPCIÓN', adopted: '✅ ADOPTADO',
-    reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
-    needs_attention: '⚠️ NECESITA ATENCIÓN',
-  };
-  const statusTag = statusLabels[pet.status] || '🐾 MASCOTA';
-  const hashtags = await getSetting('instagram_default_hashtags') || '#SigoTuHuella #MascotasPerdidas';
-  const speciesLabel = { dog: 'Perro', cat: 'Gato', other: 'Otra mascota' };
-  const genderLabel = { male: 'Macho', female: 'Hembra', unknown: '' };
-  const caption = [
-    `${statusTag}`,
-    `${pet.name ? 'Nombre: ' + pet.name : ''}`,
-    `${speciesLabel[pet.species] || 'Mascota'}${pet.breed ? ' - ' + pet.breed : ''}`,
-    `${genderLabel[pet.gender] ? genderLabel[pet.gender] + (pet.age ? ' · ' + pet.age : '') : (pet.age || '')}`,
-    `${pet.color ? '🎨 ' + pet.color : ''}`,
-    `📍 ${pet.location || ''}`,
-    ``,
-    `${pet.description ? pet.description.substring(0, 400) : ''}`,
-    ``,
-    `🔗 Más información: ${FRONTEND_URL}/pet/${pet.id}`,
-    ``,
-    hashtags,
-  ].filter(Boolean).join('\n');
-  const imageUrls = [
-    `${FRONTEND_URL}/api/images/pet/${pet.id}/flyer4x5`,
-    ...pet.images_data.slice(0, 9).map((_, i) => `${FRONTEND_URL}/api/images/pet/${pet.id}/${i}`),
-  ];
+  const hashtags = await getSetting('instagram_default_hashtags') || '#SigoTuHuella';
+  const caption = buildPetCaption(pet, hashtags);
+  const imageUrls = buildImageUrls(pet.id, pet.images_data);
   try {
     const containerId = await createContainer(imageUrls, caption);
     await waitForContainer(containerId, 'IMAGE');
@@ -98,16 +108,13 @@ export async function processQueue() {
         continue;
       }
       const pet = petResult.rows[0];
-      const imageUrls = [
-        `${FRONTEND_URL}/api/images/pet/${post.pet_id}/flyer4x5`,
-        ...(pet.images_data || []).map((_, i) => `${FRONTEND_URL}/api/images/pet/${post.pet_id}/${i}`),
-      ];
+      const imageUrls = buildImageUrls(post.pet_id, pet.images_data);
       if (imageUrls.length === 0) {
         await pool.query("UPDATE instagram_posts SET status = 'failed', error_message = 'Sin imágenes' WHERE id = $1", [post.id]);
         continue;
       }
       const hashtags = await getSetting('instagram_default_hashtags') || '#SigoTuHuella';
-      const caption = post.caption || `${hashtags}\n\n🔗 ${FRONTEND_URL}/pet/${post.pet_id}`;
+      const caption = post.caption || buildPetCaption(pet, hashtags);
       const mt = post.media_type || 'IMAGE';
       const containerId = await createContainer(imageUrls, caption, mt);
       await waitForContainer(containerId, mt);
