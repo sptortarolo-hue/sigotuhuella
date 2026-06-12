@@ -63,10 +63,24 @@ router.get('/status', requireAdmin, async (_req, res) => {
 router.post('/disconnect', requireAdmin, async (_req, res) => {
   try {
     await pool.query("DELETE FROM settings WHERE key LIKE 'instagram_%'");
+    // Reset failed posts so they can be retried after reconnection
+    await pool.query("UPDATE instagram_posts SET status = 'queued', error_message = NULL WHERE status = 'failed'");
     res.json({ success: true });
   } catch (err) {
     console.error('Error disconnecting:', err);
     res.status(500).json({ error: 'Error al desconectar' });
+  }
+});
+
+router.post('/retry-failed', requireAdmin, async (_req, res) => {
+  try {
+    const result = await pool.query(
+      "UPDATE instagram_posts SET status = 'queued', error_message = NULL WHERE status = 'failed' RETURNING id"
+    );
+    res.json({ success: true, retried: result.rows.length });
+  } catch (err) {
+    console.error('Error retrying failed posts:', err);
+    res.status(500).json({ error: 'Error al reintentar posts fallidos' });
   }
 });
 

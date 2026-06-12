@@ -75,6 +75,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
   const [defaultHashtags, setDefaultHashtags] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -208,6 +209,16 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
       is_active: rule.is_active,
     });
     setEditingRule(rule);
+  };
+
+  const retryFailed = async () => {
+    setRetrying(true);
+    try {
+      const res = await api.post('/instagram/retry-failed');
+      await fetchPosts();
+      if (res.retried > 0) setError('');
+    } catch (e) { setError('Error al reintentar'); }
+    finally { setRetrying(false); }
   };
 
   const saveConfig = async () => {
@@ -363,6 +374,14 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
               </select>
               <button onClick={fetchPosts} className="p-2 bg-brand-accent rounded-xl hover:bg-brand-accent/70 transition-all">
                 <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={retryFailed}
+                disabled={retrying}
+                className="flex items-center gap-1 px-3 py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-xl hover:bg-amber-100 transition-all disabled:opacity-50"
+              >
+                {retrying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                Reintentar fallidas
               </button>
             </div>
           </div>
