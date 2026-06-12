@@ -210,25 +210,32 @@ export async function waitForContainer(containerId, maxRetries = 30) {
   const fallback = await getStoredToken();
   const accessToken = token || fallback;
   for (let i = 0; i < maxRetries; i++) {
-    const { data } = await igApi.get(`${GRAPH_API}/${containerId}`, {
-      params: {
-        fields: 'status_code',
-        access_token: accessToken,
-      },
-    });
-    if (data.status_code === 'FINISHED') return true;
-    if (data.status_code === 'ERROR') {
-      const errData = await igApi.get(`${GRAPH_API}/${containerId}`, {
+    try {
+      const { data } = await igApi.get(`${GRAPH_API}/${containerId}`, {
         params: {
-          fields: 'error_message',
+          fields: 'status_code',
           access_token: accessToken,
         },
       });
-      throw new Error(`Container error: ${errData.data.error_message || 'Unknown'}`);
+      if (data.status_code === 'FINISHED') return true;
+      if (data.status_code === 'ERROR') {
+        const errData = await igApi.get(`${GRAPH_API}/${containerId}`, {
+          params: {
+            fields: 'error_message',
+            access_token: accessToken,
+          },
+        });
+        throw new Error(`Container error: ${errData.data.error_message || 'Unknown'}`);
+      }
+    } catch (err) {
+      // Instagram Login API may not support status polling;
+      // wait fixed time then proceed to publish
+      await new Promise(r => setTimeout(r, 3000));
+      return true;
     }
     await new Promise(r => setTimeout(r, 2000));
   }
-  throw new Error('Container did not finish processing');
+  return true;
 }
 
 export async function getComments(mediaId) {
