@@ -50,7 +50,7 @@ export async function publishSinglePost(petId) {
   ].filter(Boolean).join('\n');
   const imageUrls = [
     `${FRONTEND_URL}/api/images/pet/${pet.id}/flyer4x5`,
-    ...pet.images_data.map((_, i) => `${FRONTEND_URL}/api/images/pet/${pet.id}/${i}`),
+    ...pet.images_data.slice(0, 9).map((_, i) => `${FRONTEND_URL}/api/images/pet/${pet.id}/${i}`),
   ];
   try {
     const containerId = await createContainer(imageUrls, caption);

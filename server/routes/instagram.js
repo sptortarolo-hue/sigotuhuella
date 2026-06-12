@@ -77,6 +77,7 @@ router.post('/publish', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Faltan datos: petId e imageUrls son requeridos' });
     }
     const containerId = await createContainer(imageUrls, caption || '', mediaType || 'IMAGE');
+    await waitForContainer(containerId);
     const result = await publishContainer(containerId);
     await pool.query(
       `INSERT INTO instagram_posts (pet_id, media_type, caption, status, ig_media_id, ig_permalink, published_at, created_at)
