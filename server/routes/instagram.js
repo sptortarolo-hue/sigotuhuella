@@ -8,14 +8,15 @@ import {
   getUserMedia, getMedia, getMediaInsights,
   verifyWebhook, getInstagramUserId,
 } from '../services/instagramService.js';
+import { processQueue } from '../services/instagramPublisher.js';
 
 const router = Router();
 
 router.get('/auth-url', requireAdmin, async (_req, res) => {
   try {
-    const appId = process.env.INSTAGRAM_APP_ID;
+    const appId = process.env.FACEBOOK_APP_ID;
     if (!appId) {
-      return res.status(500).json({ error: 'Falta INSTAGRAM_APP_ID en variables de entorno' });
+      return res.status(500).json({ error: 'Falta FACEBOOK_APP_ID en variables de entorno' });
     }
     const url = getAuthUrl();
     res.json({ url });
@@ -86,7 +87,6 @@ router.post('/retry-failed', requireAdmin, async (_req, res) => {
 
 router.post('/process-queue', requireAdmin, async (_req, res) => {
   try {
-    const { processQueue } = await import('../services/instagramPublisher.js');
     const results = await processQueue();
     res.json({ success: true, results });
   } catch (err) {
