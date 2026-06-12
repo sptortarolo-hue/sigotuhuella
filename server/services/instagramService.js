@@ -55,6 +55,7 @@ export function getAuthUrl() {
     'instagram_basic',
     'instagram_content_publish',
     'instagram_manage_comments',
+    'pages_read_engagement',
     'pages_show_list',
   ].join(',');
   return `https://www.facebook.com/v22.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
