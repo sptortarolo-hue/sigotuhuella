@@ -80,7 +80,7 @@ export default function InstagramTab() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await api.get('/api/instagram/status');
+      const res = await api.get('/instagram/status');
       setConnected(res.connected);
       setExpiresAt(res.expiresAt || '');
       setUsername(res.username || '');
@@ -97,21 +97,21 @@ export default function InstagramTab() {
 
   const fetchComments = useCallback(async () => {
     try {
-      const res = await api.get('/api/instagram/comments');
+      const res = await api.get('/instagram/comments');
       setComments(res);
     } catch (e) { console.error(e); }
   }, []);
 
   const fetchRules = useCallback(async () => {
     try {
-      const res = await api.get('/api/instagram/auto-reply-rules');
+      const res = await api.get('/instagram/auto-reply-rules');
       setRules(res);
     } catch (e) { console.error(e); }
   }, []);
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await api.get('/api/instagram/stats');
+      const res = await api.get('/instagram/stats');
       setStats(res);
     } catch (e) { console.error(e); }
   }, []);
@@ -119,7 +119,7 @@ export default function InstagramTab() {
   const fetchConfig = useCallback(async () => {
     try {
       const keys = ['instagram_publisher_enabled', 'instagram_auto_reply_enabled', 'instagram_default_hashtags'];
-      const res = await api.post('/api/settings/batch', { keys });
+      const res = await api.post('/settings/batch', { keys });
       setPublisherEnabled(res.instagram_publisher_enabled === 'true');
       setAutoReplyEnabled(res.instagram_auto_reply_enabled === 'true');
       setDefaultHashtags(res.instagram_default_hashtags || '');
@@ -135,14 +135,14 @@ export default function InstagramTab() {
 
   const handleConnect = async () => {
     try {
-      const res = await api.get('/api/instagram/auth-url');
+      const res = await api.get('/instagram/auth-url');
       window.location.href = res.url;
     } catch (e) { setError('Error al generar URL de autenticación'); }
   };
 
   const handleDisconnect = async () => {
     if (!confirm('¿Desconectar Instagram? Se perderán los tokens.')) return;
-    await api.post('/api/instagram/disconnect');
+    await api.post('/instagram/disconnect');
     setConnected(false);
     setExpiresAt('');
     setUsername('');
@@ -184,7 +184,7 @@ export default function InstagramTab() {
       if (editingRule) {
         await api.put(`/api/instagram/auto-reply-rules/${editingRule.id}`, body);
       } else {
-        await api.post('/api/instagram/auto-reply-rules', body);
+        await api.post('/instagram/auto-reply-rules', body);
       }
       setRuleForm({ keywords: '', reply_type: 'public_reply', reply_template: '', dm_template: '', is_active: true });
       setEditingRule(null);
@@ -213,9 +213,9 @@ export default function InstagramTab() {
   const saveConfig = async () => {
     setSavingConfig(true);
     try {
-      await api.post('/api/settings', { key: 'instagram_publisher_enabled', value: String(publisherEnabled) });
-      await api.post('/api/settings', { key: 'instagram_auto_reply_enabled', value: String(autoReplyEnabled) });
-      await api.post('/api/settings', { key: 'instagram_default_hashtags', value: defaultHashtags });
+      await api.post('/settings', { key: 'instagram_publisher_enabled', value: String(publisherEnabled) });
+      await api.post('/settings', { key: 'instagram_auto_reply_enabled', value: String(autoReplyEnabled) });
+      await api.post('/settings', { key: 'instagram_default_hashtags', value: defaultHashtags });
     } catch (e) { setError('Error al guardar configuración'); }
     finally { setSavingConfig(false); }
   };
