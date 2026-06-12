@@ -85,6 +85,7 @@ export async function exchangeCodeForToken(code) {
       timeout: 15000,
     });
     const pages = pagesResp.data?.data || [];
+    console.log(`[FB] Pages returned: ${pages.length}`, JSON.stringify(pages.map(p => ({ id: p.id, name: p.name, has_ig: !!p.instagram_business_account }))));
     for (const page of pages) {
       if (page.instagram_business_account) {
         pageToken = page.access_token;
@@ -94,7 +95,8 @@ export async function exchangeCodeForToken(code) {
       }
     }
     if (!pageToken || !igUserId) {
-      throw new Error('No se encontró una Page de Facebook vinculada a Instagram Business. Asegurate que la cuenta IG esté vinculada a una Page.');
+      const pageIds = pages.map(p => `"${p.name}" (${p.id})`).join(', ');
+      throw new Error(`No se encontró una Page de Facebook vinculada a Instagram Business. Pages disponibles: ${pageIds || '(ninguna)'}. Asegurate que la cuenta IG esté vinculada a una Page en Meta Business Suite.`);
     }
   } catch (err) {
     if (err.message?.startsWith('No se encontró')) throw err;
