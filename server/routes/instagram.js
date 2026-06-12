@@ -13,11 +13,15 @@ const router = Router();
 
 router.get('/auth-url', requireAdmin, async (_req, res) => {
   try {
+    const appId = process.env.INSTAGRAM_APP_ID;
+    if (!appId) {
+      return res.status(500).json({ error: 'Falta INSTAGRAM_APP_ID en variables de entorno' });
+    }
     const url = getAuthUrl();
     res.json({ url });
   } catch (err) {
     console.error('Error getting auth URL:', err);
-    res.status(500).json({ error: 'Error al generar URL de autenticación' });
+    res.status(500).json({ error: err.message || 'Error al generar URL de autenticación' });
   }
 });
 
