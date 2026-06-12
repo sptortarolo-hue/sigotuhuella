@@ -35,24 +35,28 @@ async function getLogoImage() {
 
 const router = Router();
 
-router.get('/pet/:petId/:index', async (req, res) => {
+router.get('/pet/:petId/cover', async (req, res) => {
   try {
-    const full = req.query.full === '1';
-    const sql = full
-      ? 'SELECT COALESCE(original_image_data, image_data) AS image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2'
-      : 'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2';
-    const result = await pool.query(sql, [req.params.petId, parseInt(req.params.index) || 0]);
-    if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).end();
-    const img = result.rows[0];
-    const buffer = Buffer.from(img.image_data, 'base64');
-    res.set('Content-Type', img.mime_type || 'image/jpeg');
-    res.set('Content-Length', buffer.length);
-    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    const petResult = await pool.query(`
+      SELECT p.status,
+        (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
+        (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
+      FROM pets p WHERE p.id = $1
+    `, [req.params.petId]);
+    if (petResult.rows.length === 0) { console.log('[Cover] pet not found'); return res.status(404).end(); }
+    const pet = petResult.rows[0];
+    if (!pet.image_data) { console.log('[Cover] no image data'); return res.status(404).end(); }
+    console.log(`[Cover] rendering for pet ${req.params.petId}, status=${pet.status}, image_data.length=${pet.image_data.length}`);
+    const jpgBuffer = await overlayStatus(pet.image_data, pet.mime_type || 'image/jpeg', pet.status);
+    console.log(`[Cover] success, size=${jpgBuffer.length}`);
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Content-Length', jpgBuffer.length);
+    res.set('Cache-Control', 'public, max-age=3600');
     res.set('Access-Control-Allow-Origin', '*');
-    res.end(buffer);
+    res.end(jpgBuffer);
   } catch (err) {
-    console.error('Image serve error:', err);
-    res.status(500).end();
+    console.error('[Cover] RENDER ERROR:', err.message, err.stack?.split('\n')[1] || '');
+    res.redirect(302, `/api/images/pet/${req.params.petId}/0`);
   }
 });
 
@@ -98,7 +102,26 @@ router.get('/pet/:petId/flyer4x5', async (req, res) => {
   }
 });
 
-router.get('/pet/:petId/cover', async (req, res) => {
+router.get('/pet/:petId/:index', async (req, res) => {
+  try {
+    const full = req.query.full === '1';
+    const sql = full
+      ? 'SELECT COALESCE(original_image_data, image_data) AS image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2'
+      : 'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2';
+    const result = await pool.query(sql, [req.params.petId, parseInt(req.params.index) || 0]);
+    if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).end();
+    const img = result.rows[0];
+    const buffer = Buffer.from(img.image_data, 'base64');
+    res.set('Content-Type', img.mime_type || 'image/jpeg');
+    res.set('Content-Length', buffer.length);
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.end(buffer);
+  } catch (err) {
+    console.error('Image serve error:', err);
+    res.status(500).end();
+  }
+});
   try {
     const petResult = await pool.query(`
       SELECT p.status,
