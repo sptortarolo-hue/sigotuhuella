@@ -77,6 +77,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
   const [savingConfig, setSavingConfig] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [republishing, setRepublishing] = useState<Record<string, boolean>>({});
 
   const [showManual, setShowManual] = useState(false);
   const [manualToken, setManualToken] = useState('');
@@ -153,6 +154,15 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
     setConnected(false);
     setExpiresAt('');
     setUsername('');
+  };
+
+  const handleRepublish = async (postId: string) => {
+    setRepublishing(prev => ({ ...prev, [postId]: true }));
+    try {
+      await api.post(`/instagram/posts/${postId}/republish`);
+      await fetchPosts();
+    } catch (e) { setError('Error al republicar'); }
+    finally { setRepublishing(prev => ({ ...prev, [postId]: false })); }
   };
 
   const handleManualConnect = async () => {
@@ -456,11 +466,12 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
                   <th className="p-4">Estado</th>
                   <th className="p-4">Enlace</th>
                   <th className="p-4">Fecha</th>
+                  <th className="p-4">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {posts.length === 0 && (
-                  <tr><td colSpan={5} className="p-8 text-center text-gray-400">Sin publicaciones aún</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-gray-400">Sin publicaciones aún</td></tr>
                 )}
                 {posts.map(post => (
                   <tr key={post.id} className="border-t border-brand-accent text-sm">
@@ -496,6 +507,18 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
                       ) : '—'}
                     </td>
                     <td className="p-4 text-gray-500">{timeAgo(post.published_at || post.created_at)}</td>
+                    <td className="p-4">
+                      {post.status !== 'queued' && (
+                        <button
+                          onClick={() => handleRepublish(post.id)}
+                          disabled={republishing[post.id]}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-gray-100 text-gray-600 rounded-xl hover:bg-blue-100 hover:text-blue-700 transition-all disabled:opacity-50"
+                        >
+                          {republishing[post.id] ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                          Republicar
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

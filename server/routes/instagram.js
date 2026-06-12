@@ -110,6 +110,22 @@ router.post('/retry-failed', requireAdmin, async (_req, res) => {
   }
 });
 
+router.post('/posts/:id/republish', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE instagram_posts SET status = 'queued', error_message = NULL, ig_media_id = NULL, ig_permalink = NULL, published_at = NULL
+       WHERE id = $1 AND status IN ('failed', 'published')
+       RETURNING id, pet_id`,
+      [req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Post no encontrado o no republicable' });
+    res.json({ success: true, postId: result.rows[0].id, petId: result.rows[0].pet_id });
+  } catch (err) {
+    console.error('Error republishing:', err);
+    res.status(500).json({ error: 'Error al republicar' });
+  }
+});
+
 router.post('/process-queue', requireAdmin, async (_req, res) => {
   try {
     const results = await processQueue();
