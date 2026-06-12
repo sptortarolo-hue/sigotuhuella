@@ -36,15 +36,13 @@ const FB_SCOPES = [
   'instagram_manage_comments',
   'pages_show_list',
   'pages_read_engagement',
-  'pages_manage_metadata',
   'pages_manage_posts',
 ].join(',');
 
 export function getAuthUrl() {
   const { appId, redirectUri } = getSettings();
   if (!appId) throw new Error('FACEBOOK_APP_ID no configurada');
-  const extras = JSON.stringify({ setup: { channel: 'IG_API_ONBOARDING' } });
-  return `https://www.facebook.com/v22.0/dialog/oauth?client_id=${appId}&display=page&extras=${encodeURIComponent(extras)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(FB_SCOPES)}`;
+  return `https://www.facebook.com/v22.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(FB_SCOPES)}`;
 }
 
 export async function exchangeCodeForToken(code) {
