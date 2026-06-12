@@ -106,17 +106,19 @@ router.get('/pet/:petId/cover', async (req, res) => {
         (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
       FROM pets p WHERE p.id = $1
     `, [req.params.petId]);
-    if (petResult.rows.length === 0) return res.status(404).end();
+    if (petResult.rows.length === 0) { console.log('[Cover] pet not found'); return res.status(404).end(); }
     const pet = petResult.rows[0];
-    if (!pet.image_data) return res.status(404).end();
+    if (!pet.image_data) { console.log('[Cover] no image data'); return res.status(404).end(); }
+    console.log(`[Cover] rendering for pet ${req.params.petId}, status=${pet.status}, image_data.length=${pet.image_data.length}`);
     const jpgBuffer = await overlayStatus(pet.image_data, pet.mime_type || 'image/jpeg', pet.status);
+    console.log(`[Cover] success, size=${jpgBuffer.length}`);
     res.set('Content-Type', 'image/jpeg');
     res.set('Content-Length', jpgBuffer.length);
     res.set('Cache-Control', 'public, max-age=3600');
     res.set('Access-Control-Allow-Origin', '*');
     res.end(jpgBuffer);
   } catch (err) {
-    console.error('Cover render error:', err.message);
+    console.error('[Cover] render error:', err.message, err.stack?.split('\n')[1]);
     res.redirect(302, `/api/images/pet/${req.params.petId}/0`);
   }
 });
