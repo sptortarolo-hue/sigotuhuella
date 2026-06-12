@@ -108,7 +108,9 @@ async function discoverInstagramAccount(userToken) {
   });
 
   const pages = accountsData.data || [];
+  console.log(`[Instagram] /me/accounts returned ${pages.length} pages`);
   for (const page of pages) {
+    console.log(`[Instagram] Page: ${page.name} (${page.id}) has IG: ${!!page.instagram_business_account}`);
     if (page.instagram_business_account) {
       const igUserId = page.instagram_business_account.id;
       const pageId = page.id;
@@ -125,6 +127,7 @@ async function discoverInstagramAccount(userToken) {
 
   const fallback = pages[0];
   if (fallback) {
+    console.log(`[Instagram] Trying fallback for page: ${fallback.name} (${fallback.id})`);
     const { data: igData } = await igApi.get(`/${fallback.id}`, {
       params: {
         fields: 'instagram_business_account',
@@ -139,6 +142,7 @@ async function discoverInstagramAccount(userToken) {
       console.log(`[Instagram] Found IG Business Account (fallback): ${igUserId}, Page: ${fallback.id}`);
       return { igUserId, pageId: fallback.id, pageToken: fallback.access_token };
     }
+    console.log(`[Instagram] Fallback also has no instagram_business_account`);
   }
 
   throw new Error('No se encontró cuenta de Instagram Business vinculada a una Página de Facebook. Asegúrate de que la cuenta @sigotuhuella.sicardi esté vinculada a la página "Sigo Tu Huella".');
