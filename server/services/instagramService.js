@@ -8,7 +8,6 @@ function getSettings() {
   return {
     appId: process.env.INSTAGRAM_APP_ID || '',
     appSecret: process.env.INSTAGRAM_APP_SECRET || '',
-    pageId: process.env.INSTAGRAM_PAGE_ID || '',
     redirectUri: process.env.INSTAGRAM_REDIRECT_URI || 'https://sigotuhuella.online/api/instagram/callback',
   };
 }
