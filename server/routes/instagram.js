@@ -14,9 +14,13 @@ const router = Router();
 
 router.get('/auth-url', requireAdmin, async (_req, res) => {
   try {
-    const appId = process.env.FACEBOOK_APP_ID;
-    if (!appId) {
-      return res.status(500).json({ error: 'Falta FACEBOOK_APP_ID en variables de entorno' });
+    const igId = process.env.INSTAGRAM_APP_ID;
+    const igSecret = process.env.INSTAGRAM_APP_SECRET;
+    if (!igId) {
+      return res.status(500).json({ error: 'Falta INSTAGRAM_APP_ID en variables de entorno' });
+    }
+    if (!igSecret) {
+      return res.status(500).json({ error: 'Falta INSTAGRAM_APP_SECRET en variables de entorno' });
     }
     const url = getAuthUrl();
     res.json({ url });
@@ -24,6 +28,19 @@ router.get('/auth-url', requireAdmin, async (_req, res) => {
     console.error('Error getting auth URL:', err);
     res.status(500).json({ error: err.message || 'Error al generar URL de autenticación' });
   }
+});
+
+router.get('/debug-env', requireAdmin, async (_req, res) => {
+  const igId = process.env.INSTAGRAM_APP_ID || '';
+  const igSecret = process.env.INSTAGRAM_APP_SECRET || '';
+  const fbId = process.env.FACEBOOK_APP_ID || '';
+  const redirect = process.env.INSTAGRAM_REDIRECT_URI || '(not set)';
+  res.json({
+    INSTAGRAM_APP_ID: igId ? igId.slice(0, 6) + '...' + igId.slice(-4) : 'MISSING',
+    INSTAGRAM_APP_SECRET: igSecret ? igSecret.slice(0, 4) + '...' + igSecret.slice(-4) : 'MISSING',
+    FACEBOOK_APP_ID: fbId ? fbId.slice(0, 6) + '...' + fbId.slice(-4) : 'MISSING',
+    INSTAGRAM_REDIRECT_URI: redirect,
+  });
 });
 
 router.get('/callback', async (req, res) => {

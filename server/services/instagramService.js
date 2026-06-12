@@ -33,7 +33,9 @@ function saveSetting(key, value) {
 }
 
 export function getAuthUrl() {
-  const { instagramAppId, redirectUri } = getSettings();
+  const { instagramAppId, instagramAppSecret, redirectUri } = getSettings();
+  if (!instagramAppId) throw new Error('INSTAGRAM_APP_ID no configurada');
+  if (!instagramAppSecret) throw new Error('INSTAGRAM_APP_SECRET no configurada');
   const scope = [
     'instagram_business_basic',
     'instagram_business_content_publish',
@@ -46,6 +48,17 @@ export function getAuthUrl() {
 export async function exchangeCodeForToken(code) {
   const { instagramAppId, instagramAppSecret, redirectUri } = getSettings();
 
+  if (!instagramAppSecret) {
+    console.error('[Instagram] INSTAGRAM_APP_SECRET is empty! Check env vars');
+    throw new Error('Error al conectar Instagram: INSTAGRAM_APP_SECRET no está configurada en el servidor');
+  }
+  if (!instagramAppId) {
+    console.error('[Instagram] INSTAGRAM_APP_ID is empty! Check env vars');
+    throw new Error('Error al conectar Instagram: INSTAGRAM_APP_ID no está configurada en el servidor');
+  }
+
+  console.log(`[Instagram] Token exchange: appId=${instagramAppId.substr(0,6)}..., secret=${instagramAppSecret.substr(0,4)}..., redirect=${redirectUri}`);
+
   const params = new URLSearchParams();
   params.append('client_id', instagramAppId);
   params.append('client_secret', instagramAppSecret);
@@ -57,6 +70,7 @@ export async function exchangeCodeForToken(code) {
   try {
     const resp = await axios.post('https://api.instagram.com/oauth/access_token', params, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 15000,
     });
     data = resp.data;
   } catch (err) {
