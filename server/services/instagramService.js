@@ -36,6 +36,7 @@ const FB_SCOPES = [
   'instagram_manage_comments',
   'pages_show_list',
   'pages_read_engagement',
+  'pages_manage_metadata',
   'pages_manage_posts',
 ].join(',');
 
@@ -85,7 +86,7 @@ export async function exchangeCodeForToken(code) {
       timeout: 15000,
     });
     const pages = pagesResp.data?.data || [];
-    console.log(`[FB] Pages returned: ${pages.length}`, JSON.stringify(pages.map(p => ({ id: p.id, name: p.name, has_ig: !!p.instagram_business_account }))));
+    console.log(`[FB] Pages returned:`, JSON.stringify(pages.map(p => ({ id: p.id, name: p.name, has_ig: !!p.instagram_business_account }))));
     for (const page of pages) {
       if (page.instagram_business_account) {
         pageToken = page.access_token;
@@ -94,6 +95,33 @@ export async function exchangeCodeForToken(code) {
         break;
       }
     }
+
+    if (!pageToken || !igUserId) {
+      console.log('[FB] No page with IG found in /me/accounts, trying direct lookups...');
+      for (const page of pages) {
+        try {
+          const pageResp = await axios.get(`${GRAPH_API}/${page.id}`, {
+            params: {
+              fields: 'instagram_business_account',
+              access_token: longToken,
+            },
+            timeout: 10000,
+          });
+          if (pageResp.data?.instagram_business_account?.id) {
+            const tokenResp = await axios.get(`${GRAPH_API}/${page.id}`, {
+              params: { fields: 'access_token', access_token: longToken },
+              timeout: 10000,
+            });
+            pageToken = tokenResp.data.access_token || page.access_token;
+            igUserId = pageResp.data.instagram_business_account.id;
+            pageName = page.name;
+            console.log(`[FB] Found IG via direct page lookup: ${pageName} (${igUserId})`);
+            break;
+          }
+        } catch { /* page doesn't have IG, skip */ }
+      }
+    }
+
     if (!pageToken || !igUserId) {
       const pageIds = pages.map(p => `"${p.name}" (${p.id})`).join(', ');
       throw new Error(`No se encontró una Page de Facebook vinculada a Instagram Business. Pages disponibles: ${pageIds || '(ninguna)'}. Asegurate que la cuenta IG esté vinculada a una Page en Meta Business Suite.`);
