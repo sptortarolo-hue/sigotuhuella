@@ -76,6 +76,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
   const [defaultHashtags, setDefaultHashtags] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -219,6 +220,15 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
       if (res.retried > 0) setError('');
     } catch (e) { setError('Error al reintentar'); }
     finally { setRetrying(false); }
+  };
+
+  const processQueue = async () => {
+    setProcessing(true);
+    try {
+      await api.post('/instagram/process-queue');
+      await fetchPosts();
+    } catch (e) { setError('Error al procesar cola'); }
+    finally { setProcessing(false); }
   };
 
   const saveConfig = async () => {
@@ -382,6 +392,14 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
               >
                 {retrying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                 Reintentar fallidas
+              </button>
+              <button
+                onClick={processQueue}
+                disabled={processing}
+                className="flex items-center gap-1 px-3 py-2 bg-blue-50 text-blue-700 text-xs font-bold rounded-xl hover:bg-blue-100 transition-all disabled:opacity-50"
+              >
+                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                Procesar cola
               </button>
             </div>
           </div>
