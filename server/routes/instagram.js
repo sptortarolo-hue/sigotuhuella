@@ -14,13 +14,8 @@ const router = Router();
 
 router.get('/auth-url', requireAdmin, async (_req, res) => {
   try {
-    const igId = process.env.INSTAGRAM_APP_ID;
-    const igSecret = process.env.INSTAGRAM_APP_SECRET;
-    if (!igId) {
-      return res.status(500).json({ error: 'Falta INSTAGRAM_APP_ID en variables de entorno' });
-    }
-    if (!igSecret) {
-      return res.status(500).json({ error: 'Falta INSTAGRAM_APP_SECRET en variables de entorno' });
+    if (!process.env.FACEBOOK_APP_ID) {
+      return res.status(500).json({ error: 'Falta FACEBOOK_APP_ID en variables de entorno' });
     }
     const url = getAuthUrl();
     res.json({ url });
@@ -65,7 +60,7 @@ router.get('/status', requireAdmin, async (_req, res) => {
     const connected = await isConnected();
     const tokenResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_token_expires_at'");
     const userResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_user_id'");
-    const usernameResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_username'");
+    const usernameResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_page_name'");
     res.json({
       connected,
       expiresAt: tokenResult.rows[0]?.value || null,

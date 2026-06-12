@@ -388,7 +388,7 @@ INSERT INTO settings (key, value) VALUES
   ('instagram_token_expires_at', ''),
   ('instagram_user_id', ''),
   ('instagram_business_id', ''),
-  ('instagram_username', ''),
+  ('instagram_page_name', ''),
   ('instagram_publisher_enabled', 'false'),
   ('instagram_publisher_interval', '30'),
   ('instagram_default_hashtags', '#AdoptaNoCompres #SigoTuHuella #MascotasPerdidas'),
