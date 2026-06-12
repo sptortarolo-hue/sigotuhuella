@@ -142,7 +142,7 @@ export async function autoQueueForAdoption() {
     WHERE p.status IN ('for_adoption', 'lost', 'sighted')
     AND p.instagram IS NULL
     AND EXISTS (SELECT 1 FROM pet_images pi WHERE pi.pet_id = p.id)
-    AND NOT EXISTS (SELECT 1 FROM instagram_posts ip WHERE ip.pet_id = p.id AND ip.status != 'failed')
+    AND NOT EXISTS (SELECT 1 FROM instagram_posts ip WHERE ip.pet_id = p.id)
     ORDER BY p.created_at DESC
     LIMIT 10
   `);
