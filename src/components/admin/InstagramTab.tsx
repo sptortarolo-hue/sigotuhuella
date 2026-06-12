@@ -50,10 +50,10 @@ interface AutoReplyRule {
   is_active: boolean;
 }
 
-export default function InstagramTab() {
+export default function InstagramTab({ initialError = '' }: { initialError?: string }) {
   const [subTab, setSubTab] = useState<SubTab>('dashboard');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(initialError);
 
   const [connected, setConnected] = useState(false);
   const [expiresAt, setExpiresAt] = useState('');

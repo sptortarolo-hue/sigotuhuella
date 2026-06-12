@@ -159,6 +159,8 @@ export default function Admin() {
   const [pdfLastCode, setPdfLastCode] = useState<string | null>(null);
   const [pdfRange, setPdfRange] = useState<Record<string, { from: string; to: string }>>({});
 
+  const [igConnectError, setIgConnectError] = useState('');
+
   useEffect(() => {
     fetchAll();
     const params = new URLSearchParams(window.location.search);
@@ -167,6 +169,8 @@ export default function Admin() {
       setActiveTab('instagram');
       window.history.replaceState({}, '', '/admin');
     } else if (igStatus === 'error') {
+      const reason = params.get('reason') || 'Error desconocido';
+      setIgConnectError(reason);
       setActiveTab('instagram');
       window.history.replaceState({}, '', '/admin');
     }
@@ -1605,7 +1609,7 @@ export default function Admin() {
 
             {/* ====== INSTAGRAM ====== */}
             {activeTab === 'instagram' && (
-              <InstagramTab />
+              <InstagramTab initialError={igConnectError} />
             )}
 
             {/* ====== FACEBOOK ====== */}
