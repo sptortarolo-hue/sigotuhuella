@@ -42,15 +42,16 @@ export function getAuthUrl() {
 
 export async function exchangeCodeForToken(code) {
   const { appId, appSecret, redirectUri } = getSettings();
-  const { data } = await axios.post('https://api.instagram.com/oauth/access_token', null, {
-    params: {
+  const { data } = await axios.post('https://api.instagram.com/oauth/access_token',
+    new URLSearchParams({
       client_id: appId,
       client_secret: appSecret,
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
       code,
-    },
-  });
+    }).toString(),
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+  );
   const shortToken = data.access_token;
   const igUserId = data.user_id;
   await saveSetting('instagram_user_id', String(igUserId));
