@@ -54,7 +54,7 @@ export async function publishSinglePost(petId) {
   ];
   try {
     const containerId = await createContainer(imageUrls, caption);
-    await waitForContainer(containerId);
+    await waitForContainer(containerId, 'IMAGE');
     const result = await publishContainer(containerId);
     const permalink = result.permalink || `https://www.instagram.com/p/${result.id}/`;
     await pool.query(
@@ -108,8 +108,9 @@ export async function processQueue() {
       }
       const hashtags = await getSetting('instagram_default_hashtags') || '#SigoTuHuella';
       const caption = post.caption || `${hashtags}\n\n🔗 ${FRONTEND_URL}/pet/${post.pet_id}`;
-      const containerId = await createContainer(imageUrls, caption, post.media_type || 'IMAGE');
-      await waitForContainer(containerId);
+      const mt = post.media_type || 'IMAGE';
+      const containerId = await createContainer(imageUrls, caption, mt);
+      await waitForContainer(containerId, mt);
       const result = await publishContainer(containerId);
       const permalink = result.permalink || `https://www.instagram.com/p/${result.id}/`;
       await pool.query(

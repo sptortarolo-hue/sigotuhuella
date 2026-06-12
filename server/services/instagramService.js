@@ -32,11 +32,12 @@ function saveSetting(key, value) {
 export function getAuthUrl() {
   const { instagramAppId, redirectUri } = getSettings();
   const scope = [
-    'instagram_basic',
-    'instagram_content_publish',
-    'instagram_manage_comments',
+    'instagram_business_basic',
+    'instagram_business_content_publish',
+    'instagram_business_manage_comments',
+    'instagram_business_manage_messages',
   ].join(',');
-  return `https://www.facebook.com/v22.0/dialog/oauth?client_id=${instagramAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
+  return `https://api.instagram.com/oauth/authorize?client_id=${instagramAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
 }
 
 export async function exchangeCodeForToken(code) {
@@ -49,7 +50,7 @@ export async function exchangeCodeForToken(code) {
   params.append('redirect_uri', redirectUri);
   params.append('code', code);
 
-  const { data } = await axios.post('https://graph.instagram.com/oauth/access_token', params, {
+  const { data } = await axios.post('https://api.instagram.com/oauth/access_token', params, {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   });
 
@@ -169,35 +170,9 @@ export async function publishContainer(containerId) {
   return data;
 }
 
-export async function waitForContainer(containerId, maxRetries = 30) {
-  const accessToken = await getStoredToken();
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const { data } = await axios.get(`https://graph.instagram.com/v22.0/${containerId}`, {
-        params: {
-          fields: 'status_code',
-          access_token: accessToken,
-        },
-      });
-      if (data.status_code === 'FINISHED') return true;
-      if (data.status_code === 'ERROR') {
-        const errData = await axios.get(`https://graph.instagram.com/v22.0/${containerId}`, {
-          params: {
-            fields: 'error_message',
-            access_token: accessToken,
-          },
-        });
-        throw new Error(`Container error: ${errData.data.error_message || 'Unknown'}`);
-      }
-    } catch (err) {
-      if (err.message && (err.message.includes('status_code') || err.message.includes('not supported') || err.message.includes('100'))) {
-        await new Promise(r => setTimeout(r, 3000));
-        return true;
-      }
-      throw err;
-    }
-    await new Promise(r => setTimeout(r, 2000));
-  }
+export async function waitForContainer(containerId, mediaType = 'IMAGE') {
+  const delay = mediaType === 'VIDEO' ? 15000 : mediaType === 'CAROUSEL' ? 8000 : 5000;
+  await new Promise(r => setTimeout(r, delay));
   return true;
 }
 
