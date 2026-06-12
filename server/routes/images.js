@@ -118,7 +118,7 @@ router.get('/pet/:petId/cover', async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.end(jpgBuffer);
   } catch (err) {
-    console.error('[Cover] render error:', err.message, err.stack?.split('\n')[1]);
+    console.error('[Cover] RENDER ERROR:', err.message, err.stack?.split('\n')[1] || '');
     res.redirect(302, `/api/images/pet/${req.params.petId}/0`);
   }
 });
