@@ -28,6 +28,10 @@ jobs:
         echo "AZURE_TTS_KEY2=${{ secrets.AZURE_TTS_KEY2 }}" >> server/.env
         echo "AZURE_TTS_REGION=${{ secrets.AZURE_TTS_REGION }}" >> server/.env
         echo "GOOGLE_CLIENT_ID=${{ secrets.VITE_GOOGLE_CLIENT_ID }}" >> server/.env
+        echo "INSTAGRAM_APP_ID=${{ secrets.INSTAGRAM_APP_ID }}" >> server/.env
+        echo "INSTAGRAM_APP_SECRET=${{ secrets.INSTAGRAM_APP_SECRET }}" >> server/.env
+        echo "INSTAGRAM_REDIRECT_URI=${{ secrets.INSTAGRAM_REDIRECT_URI }}" >> server/.env
+        echo "INSTAGRAM_VERIFY_TOKEN=${{ secrets.INSTAGRAM_VERIFY_TOKEN }}" >> server/.env
 
     - name: Copy dist to VPS
       uses: appleboy/scp-action@v0.1.7
