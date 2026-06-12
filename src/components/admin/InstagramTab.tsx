@@ -90,7 +90,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
   const fetchPosts = useCallback(async () => {
     try {
       const params = statusFilter ? `?status=${statusFilter}` : '';
-      const res = await api.get(`/api/instagram/posts${params}`);
+      const res = await api.get(`/instagram/posts${params}`);
       setPosts(res);
     } catch (e) { console.error(e); }
   }, [statusFilter]);
@@ -153,7 +153,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
     if (!message) return;
     setSendingReply(prev => ({ ...prev, [commentId]: true }));
     try {
-      await api.post(`/api/instagram/comments/${commentId}/reply`, { message });
+      await api.post(`/instagram/comments/${commentId}/reply`, { message });
       setReplyText(prev => ({ ...prev, [commentId]: '' }));
       fetchComments();
     } catch (e) { setError('Error al responder'); }
@@ -165,7 +165,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
     if (!message) return;
     setSendingReply(prev => ({ ...prev, [commentId]: true }));
     try {
-      await api.post(`/api/instagram/comments/${commentId}/dm`, { message });
+      await api.post(`/instagram/comments/${commentId}/dm`, { message });
       setReplyText(prev => ({ ...prev, [commentId]: '' }));
       fetchComments();
     } catch (e) { setError('Error al enviar DM'); }
@@ -182,7 +182,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
       const keywords = ruleForm.keywords.split(',').map(k => k.trim()).filter(Boolean);
       const body = { ...ruleForm, keywords, is_active: ruleForm.is_active };
       if (editingRule) {
-        await api.put(`/api/instagram/auto-reply-rules/${editingRule.id}`, body);
+        await api.put(`/instagram/auto-reply-rules/${editingRule.id}`, body);
       } else {
         await api.post('/instagram/auto-reply-rules', body);
       }
@@ -195,7 +195,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
 
   const deleteRule = async (id: string) => {
     if (!confirm('¿Eliminar regla?')) return;
-    await api.delete(`/api/instagram/auto-reply-rules/${id}`);
+    await api.delete(`/instagram/auto-reply-rules/${id}`);
     fetchRules();
   };
 
