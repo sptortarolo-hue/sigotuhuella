@@ -1,7 +1,7 @@
 import axios from 'axios';
 import pool from '../db.js';
 
-const GRAPH_API = 'https://graph.instagram.com/v22.0';
+const GRAPH_API = 'https://graph.instagram.com';
 
 let lastCreateContainerResponse = null;
 
@@ -154,7 +154,7 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
   const accessToken = await getStoredToken();
 
   if (petImages.length === 1) {
-    const data = await igPost(`https://graph.instagram.com/v22.0/${igUserId}/media`, {
+    const data = await igPost(`${GRAPH_API}/${igUserId}/media`, {
       image_url: petImages[0],
       caption,
       media_type: mediaType,
@@ -165,13 +165,13 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
 
   const childrenIds = [];
   for (const url of petImages.slice(0, 10)) {
-    const data = await igPost(`https://graph.instagram.com/v22.0/${igUserId}/media`, {
+    const data = await igPost(`${GRAPH_API}/${igUserId}/media`, {
       image_url: url,
       is_carousel_item: true,
     }, accessToken);
     childrenIds.push(data.id);
   }
-  const data = await igPost(`https://graph.instagram.com/v22.0/${igUserId}/media`, {
+  const data = await igPost(`${GRAPH_API}/${igUserId}/media`, {
     media_type: 'CAROUSEL',
     children: childrenIds.join(','),
     caption,
@@ -185,7 +185,7 @@ export async function publishContainer(containerId) {
   if (!igUserId) throw new Error('Instagram not connected');
   const accessToken = await getStoredToken();
   try {
-    const data = await igPost(`https://graph.instagram.com/v22.0/${igUserId}/media_publish`, {
+    const data = await igPost(`${GRAPH_API}/${igUserId}/media_publish`, {
       creation_id: containerId,
     }, accessToken);
     return data;
@@ -203,7 +203,7 @@ export async function waitForContainer(containerId, mediaType = 'IMAGE') {
 
 export async function getComments(mediaId) {
   const accessToken = await getStoredToken();
-  const { data } = await axios.get(`https://graph.instagram.com/v22.0/${mediaId}/comments`, {
+  const { data } = await axios.get(`${GRAPH_API}/${mediaId}/comments`, {
     params: {
       fields: 'id,text,timestamp,username,like_count',
       access_token: accessToken,
@@ -214,7 +214,7 @@ export async function getComments(mediaId) {
 
 export async function replyToComment(commentId, message) {
   const accessToken = await getStoredToken();
-  const { data } = await axios.post(`https://graph.instagram.com/v22.0/${commentId}/replies`, null, {
+  const { data } = await axios.post(`${GRAPH_API}/${commentId}/replies`, null, {
     params: {
       message,
       access_token: accessToken,
@@ -226,7 +226,7 @@ export async function replyToComment(commentId, message) {
 export async function sendPrivateReply(commentId, message) {
   const accessToken = await getStoredToken();
   const igUserId = await getInstagramUserId();
-  const { data } = await axios.post(`https://graph.instagram.com/v22.0/${igUserId}/messages`, {
+  const { data } = await axios.post(`${GRAPH_API}/${igUserId}/messages`, {
     recipient: { comment_id: commentId },
     message: { text: message },
   }, {
@@ -237,7 +237,7 @@ export async function sendPrivateReply(commentId, message) {
 
 export async function getMedia(mediaId) {
   const accessToken = await getStoredToken();
-  const { data } = await axios.get(`https://graph.instagram.com/v22.0/${mediaId}`, {
+  const { data } = await axios.get(`${GRAPH_API}/${mediaId}`, {
     params: {
       fields: 'id,media_type,media_url,permalink,caption,timestamp,like_count,comments_count',
       access_token: accessToken,
@@ -249,7 +249,7 @@ export async function getMedia(mediaId) {
 export async function getUserMedia(userId = null) {
   const accessToken = await getStoredToken();
   const igUserId = userId || await getInstagramUserId();
-  const { data } = await axios.get(`https://graph.instagram.com/v22.0/${igUserId}/media`, {
+  const { data } = await axios.get(`${GRAPH_API}/${igUserId}/media`, {
     params: {
       fields: 'id,media_type,media_url,permalink,caption,timestamp,like_count,comments_count',
       access_token: accessToken,
@@ -262,7 +262,7 @@ export async function getUserMedia(userId = null) {
 export async function getMediaInsights(mediaId) {
   const accessToken = await getStoredToken();
   try {
-    const { data } = await axios.get(`https://graph.instagram.com/v22.0/${mediaId}/insights`, {
+    const { data } = await axios.get(`${GRAPH_API}/${mediaId}/insights`, {
       params: {
         metric: 'engagement,impressions,reach,saved',
         access_token: accessToken,
