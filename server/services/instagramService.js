@@ -1,28 +1,13 @@
 import axios from 'axios';
 import pool from '../db.js';
 
-const GRAPH_API = 'https://graph.facebook.com/v22.0';
-
-const igApi = axios.create({ baseURL: GRAPH_API });
-igApi.interceptors.response.use(
-  r => r,
-  err => {
-    if (err.response?.data?.error) {
-      const ig = err.response.data.error;
-      const msg = ig.error_user_msg || ig.message || err.message;
-      const enhanced = new Error(`Instagram API ${err.response.status}: ${msg}`);
-      enhanced.raw = err;
-      enhanced.igError = ig;
-      return Promise.reject(enhanced);
-    }
-    return Promise.reject(err);
-  }
-);
+const GRAPH_API = 'https://graph.instagram.com/v22.0';
 
 function getSettings() {
   return {
     appId: process.env.FACEBOOK_APP_ID || '',
-    appSecret: process.env.FACEBOOK_APP_SECRET || '',
+    instagramAppId: process.env.INSTAGRAM_APP_ID || '',
+    instagramAppSecret: process.env.INSTAGRAM_APP_SECRET || '',
     redirectUri: process.env.INSTAGRAM_REDIRECT_URI || 'https://sigotuhuella.online/api/instagram/callback',
   };
 }
@@ -37,11 +22,6 @@ export async function getInstagramUserId() {
   return result.rows[0]?.value || '';
 }
 
-async function getPageId() {
-  const result = await pool.query("SELECT value FROM settings WHERE key = 'instagram_page_id'");
-  return result.rows[0]?.value || '';
-}
-
 function saveSetting(key, value) {
   return pool.query(
     `INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
@@ -50,40 +30,41 @@ function saveSetting(key, value) {
 }
 
 export function getAuthUrl() {
-  const { appId, redirectUri } = getSettings();
+  const { instagramAppId, redirectUri } = getSettings();
   const scope = [
     'instagram_basic',
     'instagram_content_publish',
     'instagram_manage_comments',
-    'pages_read_engagement',
-    'pages_show_list',
   ].join(',');
-  return `https://www.facebook.com/v22.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
+  return `https://www.facebook.com/v22.0/dialog/oauth?client_id=${instagramAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
 }
 
 export async function exchangeCodeForToken(code) {
-  const { appId, appSecret, redirectUri } = getSettings();
+  const { instagramAppId, instagramAppSecret, redirectUri } = getSettings();
 
-  const { data } = await igApi.get('/oauth/access_token', {
-    params: {
-      client_id: appId,
-      redirect_uri: redirectUri,
-      client_secret: appSecret,
-      code,
-    },
+  const params = new URLSearchParams();
+  params.append('client_id', instagramAppId);
+  params.append('client_secret', instagramAppSecret);
+  params.append('grant_type', 'authorization_code');
+  params.append('redirect_uri', redirectUri);
+  params.append('code', code);
+
+  const { data } = await axios.post('https://graph.instagram.com/oauth/access_token', params, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   });
 
   const shortToken = data.access_token;
+  const igUserId = data.user_id;
   const longToken = await exchangeForLongLivedToken(shortToken);
 
-  const pageInfo = await discoverInstagramAccount(longToken);
+  await saveSetting('instagram_user_id', String(igUserId));
 
   let username = '';
   try {
-    const meRes = await igApi.get(`/${pageInfo.igUserId}`, {
+    const meRes = await axios.get(`${GRAPH_API}/me`, {
       params: {
         fields: 'username',
-        access_token: pageInfo.pageToken,
+        access_token: longToken,
       },
     });
     username = meRes.data.username;
@@ -92,70 +73,16 @@ export async function exchangeCodeForToken(code) {
     console.error('[Instagram] Failed to fetch username:', meErr.message);
   }
 
-  return {
-    accessToken: longToken,
-    igUserId: pageInfo.igUserId,
-    pageId: pageInfo.pageId,
-  };
-}
-
-async function discoverInstagramAccount(userToken) {
-  const { data: accountsData } = await igApi.get('/me/accounts', {
-    params: {
-      fields: 'id,name,access_token,instagram_business_account',
-      access_token: userToken,
-    },
-  });
-
-  const pages = accountsData.data || [];
-  console.log(`[Instagram] /me/accounts returned ${pages.length} pages`);
-  for (const page of pages) {
-    console.log(`[Instagram] Page: ${page.name} (${page.id}) has IG: ${!!page.instagram_business_account}`);
-    if (page.instagram_business_account) {
-      const igUserId = page.instagram_business_account.id;
-      const pageId = page.id;
-      const pageToken = page.access_token;
-
-      await saveSetting('instagram_user_id', String(igUserId));
-      await saveSetting('instagram_page_id', String(pageId));
-      await saveSetting('instagram_page_token', pageToken);
-
-      console.log(`[Instagram] Found IG Business Account: ${igUserId}, Page: ${pageId}`);
-      return { igUserId, pageId, pageToken };
-    }
-  }
-
-  const fallback = pages[0];
-  if (fallback) {
-    console.log(`[Instagram] Trying fallback for page: ${fallback.name} (${fallback.id})`);
-    const { data: igData } = await igApi.get(`/${fallback.id}`, {
-      params: {
-        fields: 'instagram_business_account',
-        access_token: fallback.access_token,
-      },
-    });
-    if (igData.instagram_business_account) {
-      const igUserId = igData.instagram_business_account.id;
-      await saveSetting('instagram_user_id', String(igUserId));
-      await saveSetting('instagram_page_id', String(fallback.id));
-      await saveSetting('instagram_page_token', fallback.access_token);
-      console.log(`[Instagram] Found IG Business Account (fallback): ${igUserId}, Page: ${fallback.id}`);
-      return { igUserId, pageId: fallback.id, pageToken: fallback.access_token };
-    }
-    console.log(`[Instagram] Fallback also has no instagram_business_account`);
-  }
-
-  throw new Error('No se encontró cuenta de Instagram Business vinculada a una Página de Facebook. Asegúrate de que la cuenta @sigotuhuella.sicardi esté vinculada a la página "Sigo Tu Huella".');
+  return { accessToken: longToken, igUserId, username };
 }
 
 export async function exchangeForLongLivedToken(shortToken) {
-  const { appId, appSecret } = getSettings();
-  const { data } = await igApi.get('/oauth/access_token', {
+  const { instagramAppSecret } = getSettings();
+  const { data } = await axios.get('https://graph.instagram.com/access_token', {
     params: {
-      grant_type: 'fb_exchange_token',
-      client_id: appId,
-      client_secret: appSecret,
-      fb_exchange_token: shortToken,
+      grant_type: 'ig_exchange_token',
+      client_secret: instagramAppSecret,
+      access_token: shortToken,
     },
   });
   const longToken = data.access_token;
@@ -170,13 +97,10 @@ export async function refreshToken() {
   const currentToken = await getStoredToken();
   if (!currentToken) return null;
   try {
-    const { appId, appSecret } = getSettings();
-    const { data } = await igApi.get('/oauth/access_token', {
+    const { data } = await axios.get('https://graph.instagram.com/refresh_access_token', {
       params: {
-        grant_type: 'fb_exchange_token',
-        client_id: appId,
-        client_secret: appSecret,
-        fb_exchange_token: currentToken,
+        grant_type: 'ig_refresh_token',
+        access_token: currentToken,
       },
     });
     const newToken = data.access_token;
@@ -184,13 +108,6 @@ export async function refreshToken() {
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
     await saveSetting('instagram_access_token', newToken);
     await saveSetting('instagram_token_expires_at', expiresAt);
-
-    try {
-      await discoverInstagramAccount(newToken);
-    } catch (e) {
-      console.error('[Instagram] Page re-discovery failed during refresh:', e.message);
-    }
-
     return newToken;
   } catch (err) {
     console.error('Token refresh failed:', err.message);
@@ -198,22 +115,15 @@ export async function refreshToken() {
   }
 }
 
-async function getPageToken() {
-  const result = await pool.query("SELECT value FROM settings WHERE key = 'instagram_page_token'");
-  return result.rows[0]?.value || '';
-}
-
 export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
   const igUserId = await getInstagramUserId();
   if (!igUserId) throw new Error('Instagram not connected');
   if (petImages.length === 0) throw new Error('No images to publish');
 
-  const token = await getPageToken();
-  const fallback = await getStoredToken();
-  const accessToken = token || fallback;
+  const accessToken = await getStoredToken();
 
   if (petImages.length === 1) {
-    const { data } = await igApi.post(`/${igUserId}/media`, null, {
+    const { data } = await axios.post(`https://graph.instagram.com/v22.0/${igUserId}/media`, null, {
       params: {
         image_url: petImages[0],
         caption,
@@ -226,7 +136,7 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
 
   const childrenIds = [];
   for (const url of petImages.slice(0, 10)) {
-    const { data } = await igApi.post(`/${igUserId}/media`, null, {
+    const { data } = await axios.post(`https://graph.instagram.com/v22.0/${igUserId}/media`, null, {
       params: {
         image_url: url,
         is_carousel_item: true,
@@ -235,7 +145,7 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
     });
     childrenIds.push(data.id);
   }
-  const { data } = await igApi.post(`/${igUserId}/media`, null, {
+  const { data } = await axios.post(`https://graph.instagram.com/v22.0/${igUserId}/media`, null, {
     params: {
       media_type: 'CAROUSEL',
       children: childrenIds.join(','),
@@ -249,10 +159,8 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
 export async function publishContainer(containerId) {
   const igUserId = await getInstagramUserId();
   if (!igUserId) throw new Error('Instagram not connected');
-  const token = await getPageToken();
-  const fallback = await getStoredToken();
-  const accessToken = token || fallback;
-  const { data } = await igApi.post(`/${igUserId}/media_publish`, null, {
+  const accessToken = await getStoredToken();
+  const { data } = await axios.post(`https://graph.instagram.com/v22.0/${igUserId}/media_publish`, null, {
     params: {
       creation_id: containerId,
       access_token: accessToken,
@@ -262,36 +170,40 @@ export async function publishContainer(containerId) {
 }
 
 export async function waitForContainer(containerId, maxRetries = 30) {
-  const token = await getPageToken();
-  const fallback = await getStoredToken();
-  const accessToken = token || fallback;
+  const accessToken = await getStoredToken();
   for (let i = 0; i < maxRetries; i++) {
-    const { data } = await igApi.get(`/${containerId}`, {
-      params: {
-        fields: 'status_code',
-        access_token: accessToken,
-      },
-    });
-    if (data.status_code === 'FINISHED') return true;
-    if (data.status_code === 'ERROR') {
-      const errData = await igApi.get(`/${containerId}`, {
+    try {
+      const { data } = await axios.get(`https://graph.instagram.com/v22.0/${containerId}`, {
         params: {
-          fields: 'error_message',
+          fields: 'status_code',
           access_token: accessToken,
         },
       });
-      throw new Error(`Container error: ${errData.data.error_message || 'Unknown'}`);
+      if (data.status_code === 'FINISHED') return true;
+      if (data.status_code === 'ERROR') {
+        const errData = await axios.get(`https://graph.instagram.com/v22.0/${containerId}`, {
+          params: {
+            fields: 'error_message',
+            access_token: accessToken,
+          },
+        });
+        throw new Error(`Container error: ${errData.data.error_message || 'Unknown'}`);
+      }
+    } catch (err) {
+      if (err.message && (err.message.includes('status_code') || err.message.includes('not supported') || err.message.includes('100'))) {
+        await new Promise(r => setTimeout(r, 3000));
+        return true;
+      }
+      throw err;
     }
     await new Promise(r => setTimeout(r, 2000));
   }
-  throw new Error('Container did not finish processing');
+  return true;
 }
 
 export async function getComments(mediaId) {
-  const token = await getPageToken();
-  const fallback = await getStoredToken();
-  const accessToken = token || fallback;
-  const { data } = await igApi.get(`/${mediaId}/comments`, {
+  const accessToken = await getStoredToken();
+  const { data } = await axios.get(`https://graph.instagram.com/v22.0/${mediaId}/comments`, {
     params: {
       fields: 'id,text,timestamp,username,like_count',
       access_token: accessToken,
@@ -301,10 +213,8 @@ export async function getComments(mediaId) {
 }
 
 export async function replyToComment(commentId, message) {
-  const token = await getPageToken();
-  const fallback = await getStoredToken();
-  const accessToken = token || fallback;
-  const { data } = await igApi.post(`/${commentId}/replies`, null, {
+  const accessToken = await getStoredToken();
+  const { data } = await axios.post(`https://graph.instagram.com/v22.0/${commentId}/replies`, null, {
     params: {
       message,
       access_token: accessToken,
@@ -316,9 +226,7 @@ export async function replyToComment(commentId, message) {
 export async function sendPrivateReply(commentId, message) {
   const accessToken = await getStoredToken();
   const igUserId = await getInstagramUserId();
-  const pageId = await getPageId();
-  const endpoint = pageId || igUserId;
-  const { data } = await igApi.post(`/${endpoint}/messages`, {
+  const { data } = await axios.post(`https://graph.instagram.com/v22.0/${igUserId}/messages`, {
     recipient: { comment_id: commentId },
     message: { text: message },
   }, {
@@ -328,10 +236,8 @@ export async function sendPrivateReply(commentId, message) {
 }
 
 export async function getMedia(mediaId) {
-  const token = await getPageToken();
-  const fallback = await getStoredToken();
-  const accessToken = token || fallback;
-  const { data } = await igApi.get(`/${mediaId}`, {
+  const accessToken = await getStoredToken();
+  const { data } = await axios.get(`https://graph.instagram.com/v22.0/${mediaId}`, {
     params: {
       fields: 'id,media_type,media_url,permalink,caption,timestamp,like_count,comments_count',
       access_token: accessToken,
@@ -341,11 +247,9 @@ export async function getMedia(mediaId) {
 }
 
 export async function getUserMedia(userId = null) {
-  const token = await getPageToken();
-  const fallback = await getStoredToken();
-  const accessToken = token || fallback;
+  const accessToken = await getStoredToken();
   const igUserId = userId || await getInstagramUserId();
-  const { data } = await igApi.get(`/${igUserId}/media`, {
+  const { data } = await axios.get(`https://graph.instagram.com/v22.0/${igUserId}/media`, {
     params: {
       fields: 'id,media_type,media_url,permalink,caption,timestamp,like_count,comments_count',
       access_token: accessToken,
@@ -356,11 +260,9 @@ export async function getUserMedia(userId = null) {
 }
 
 export async function getMediaInsights(mediaId) {
-  const token = await getPageToken();
-  const fallback = await getStoredToken();
-  const accessToken = token || fallback;
+  const accessToken = await getStoredToken();
   try {
-    const { data } = await igApi.get(`/${mediaId}/insights`, {
+    const { data } = await axios.get(`https://graph.instagram.com/v22.0/${mediaId}/insights`, {
       params: {
         metric: 'engagement,impressions,reach,saved',
         access_token: accessToken,
