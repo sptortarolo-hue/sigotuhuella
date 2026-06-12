@@ -22,8 +22,8 @@ igApi.interceptors.response.use(
 
 function getSettings() {
   return {
-    appId: process.env.INSTAGRAM_APP_ID || '',
-    appSecret: process.env.INSTAGRAM_APP_SECRET || '',
+    appId: process.env.FACEBOOK_APP_ID || process.env.INSTAGRAM_APP_ID || '',
+    appSecret: process.env.FACEBOOK_APP_SECRET || process.env.INSTAGRAM_APP_SECRET || '',
     redirectUri: process.env.INSTAGRAM_REDIRECT_URI || 'https://sigotuhuella.online/api/instagram/callback',
   };
 }
@@ -76,12 +76,13 @@ export async function exchangeCodeForToken(code) {
 }
 
 export async function exchangeForLongLivedToken(shortToken) {
-  const { appSecret } = getSettings();
-  const { data } = await igApi.get(`${INSTAGRAM_API}/access_token`, {
+  const { appId, appSecret } = getSettings();
+  const { data } = await igApi.get('/oauth/access_token', {
     params: {
-      grant_type: 'ig_exchange_token',
+      grant_type: 'fb_exchange_token',
+      client_id: appId,
       client_secret: appSecret,
-      access_token: shortToken,
+      fb_exchange_token: shortToken,
     },
   });
   const longToken = data.access_token;
@@ -96,10 +97,13 @@ export async function refreshToken() {
   const currentToken = await getStoredToken();
   if (!currentToken) return null;
   try {
-    const { data } = await igApi.get(`${INSTAGRAM_API}/refresh_access_token`, {
+    const { appId, appSecret } = getSettings();
+    const { data } = await igApi.get('/oauth/access_token', {
       params: {
-        grant_type: 'ig_refresh_token',
-        access_token: currentToken,
+        grant_type: 'fb_exchange_token',
+        client_id: appId,
+        client_secret: appSecret,
+        fb_exchange_token: currentToken,
       },
     });
     const newToken = data.access_token;

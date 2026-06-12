@@ -32,6 +32,8 @@ jobs:
         echo "INSTAGRAM_APP_SECRET=${{ secrets.INSTAGRAM_APP_SECRET }}" >> server/.env
         echo "INSTAGRAM_REDIRECT_URI=${{ secrets.INSTAGRAM_REDIRECT_URI }}" >> server/.env
         echo "INSTAGRAM_VERIFY_TOKEN=${{ secrets.INSTAGRAM_VERIFY_TOKEN }}" >> server/.env
+        echo "FACEBOOK_APP_ID=${{ secrets.FACEBOOK_APP_ID }}" >> server/.env
+        echo "FACEBOOK_APP_SECRET=${{ secrets.FACEBOOK_APP_SECRET }}" >> server/.env
 
     - name: Copy dist to VPS
       uses: appleboy/scp-action@v0.1.7
