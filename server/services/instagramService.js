@@ -2,7 +2,7 @@ import axios from 'axios';
 import pool from '../db.js';
 
 const GRAPH_API = 'https://graph.instagram.com';
-const FB_GRAPH_API = 'https://graph.facebook.com/v22.0';
+const PUBLISH_API = 'https://graph.instagram.com/v22.0';
 
 let lastCreateContainerResponse = null;
 
@@ -134,7 +134,6 @@ async function igPost(url, params, accessToken) {
     const { access_token, ...body } = params;
     const token = access_token || accessToken || '';
     const { data } = await axios.post(url, body, {
-      params: { access_token: token },
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
@@ -159,20 +158,20 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
   if (petImages.length === 1) {
     const params = { image_url: petImages[0], caption };
     if (mediaType !== 'IMAGE') params.media_type = mediaType;
-    const data = await igPost(`${FB_GRAPH_API}/${igUserId}/media`, params, accessToken);
+    const data = await igPost(`${PUBLISH_API}/${igUserId}/media`, params, accessToken);
     lastCreateContainerResponse = data;
     return data.id;
   }
 
   const childrenIds = [];
   for (const url of petImages.slice(0, 10)) {
-    const data = await igPost(`${FB_GRAPH_API}/${igUserId}/media`, {
+    const data = await igPost(`${PUBLISH_API}/${igUserId}/media`, {
       image_url: url,
       is_carousel_item: true,
     }, accessToken);
     childrenIds.push(data.id);
   }
-  const data = await igPost(`${FB_GRAPH_API}/${igUserId}/media`, {
+  const data = await igPost(`${PUBLISH_API}/${igUserId}/media`, {
     media_type: 'CAROUSEL',
     children: childrenIds.join(','),
     caption,
@@ -186,7 +185,7 @@ export async function publishContainer(containerId) {
   if (!igUserId) throw new Error('Instagram not connected');
   const accessToken = await getStoredToken();
   try {
-    const data = await igPost(`${FB_GRAPH_API}/${igUserId}/media_publish`, {
+    const data = await igPost(`${PUBLISH_API}/${igUserId}/media_publish`, {
       creation_id: containerId,
     }, accessToken);
     return data;
