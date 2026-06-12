@@ -126,11 +126,14 @@ export async function refreshToken() {
   }
 }
 
-async function igPost(url, params) {
+async function igPost(url, params, accessToken) {
   try {
-    const formBody = new URLSearchParams(params).toString();
-    const { data } = await axios.post(url, formBody, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    const { access_token, ...body } = params;
+    const { data } = await axios.post(url, body, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${access_token || accessToken || ''}`,
+      },
     });
     console.log(`[Instagram] POST ${url} success:`, JSON.stringify(data).slice(0, 200));
     return data;
@@ -152,9 +155,8 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
     const data = await igPost(`https://graph.instagram.com/v22.0/${igUserId}/media`, {
       image_url: petImages[0],
       caption,
-      access_token: accessToken,
       media_type: mediaType,
-    });
+    }, accessToken);
     return data.id;
   }
 
@@ -163,16 +165,14 @@ export async function createContainer(petImages, caption, mediaType = 'IMAGE') {
     const data = await igPost(`https://graph.instagram.com/v22.0/${igUserId}/media`, {
       image_url: url,
       is_carousel_item: true,
-      access_token: accessToken,
-    });
+    }, accessToken);
     childrenIds.push(data.id);
   }
   const data = await igPost(`https://graph.instagram.com/v22.0/${igUserId}/media`, {
     media_type: 'CAROUSEL',
     children: childrenIds.join(','),
     caption,
-    access_token: accessToken,
-  });
+  }, accessToken);
   return data.id;
 }
 
@@ -182,8 +182,7 @@ export async function publishContainer(containerId) {
   const accessToken = await getStoredToken();
   const data = await igPost(`https://graph.instagram.com/v22.0/${igUserId}/media_publish`, {
     creation_id: containerId,
-    access_token: accessToken,
-  });
+  }, accessToken);
   return data;
 }
 
