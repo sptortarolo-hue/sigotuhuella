@@ -2,7 +2,6 @@ import axios from 'axios';
 import pool from '../db.js';
 
 const GRAPH_API = 'https://graph.facebook.com/v22.0';
-const INSTAGRAM_API = 'https://graph.instagram.com/v22.0';
 
 const igApi = axios.create({ baseURL: GRAPH_API });
 igApi.interceptors.response.use(
@@ -22,8 +21,10 @@ igApi.interceptors.response.use(
 
 function getSettings() {
   return {
-    appId: process.env.FACEBOOK_APP_ID || process.env.INSTAGRAM_APP_ID || '',
-    appSecret: process.env.FACEBOOK_APP_SECRET || process.env.INSTAGRAM_APP_SECRET || '',
+    appId: process.env.INSTAGRAM_APP_ID || '',
+    appSecret: process.env.INSTAGRAM_APP_SECRET || '',
+    fbAppId: process.env.FACEBOOK_APP_ID || '',
+    fbAppSecret: process.env.FACEBOOK_APP_SECRET || '',
     redirectUri: process.env.INSTAGRAM_REDIRECT_URI || 'https://sigotuhuella.online/api/instagram/callback',
   };
 }
@@ -76,12 +77,12 @@ export async function exchangeCodeForToken(code) {
 }
 
 export async function exchangeForLongLivedToken(shortToken) {
-  const { appId, appSecret } = getSettings();
+  const { fbAppId, fbAppSecret } = getSettings();
   const { data } = await igApi.get('/oauth/access_token', {
     params: {
       grant_type: 'fb_exchange_token',
-      client_id: appId,
-      client_secret: appSecret,
+      client_id: fbAppId,
+      client_secret: fbAppSecret,
       fb_exchange_token: shortToken,
     },
   });
@@ -97,12 +98,12 @@ export async function refreshToken() {
   const currentToken = await getStoredToken();
   if (!currentToken) return null;
   try {
-    const { appId, appSecret } = getSettings();
+    const { fbAppId, fbAppSecret } = getSettings();
     const { data } = await igApi.get('/oauth/access_token', {
       params: {
         grant_type: 'fb_exchange_token',
-        client_id: appId,
-        client_secret: appSecret,
+        client_id: fbAppId,
+        client_secret: fbAppSecret,
         fb_exchange_token: currentToken,
       },
     });
