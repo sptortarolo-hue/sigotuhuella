@@ -494,6 +494,17 @@ async function start() {
       console.error('[Instagram Publisher] Error:', err.message);
     }
   }, 5 * 60 * 1000);
+
+  // Run Instagram publisher once immediately on startup (with a small 5s delay to let server start up fully)
+  setTimeout(async () => {
+    try {
+      console.log('[Instagram Publisher] Running initial queue check...');
+      await autoQueueForAdoption();
+      await processQueue();
+    } catch (err) {
+      console.error('[Instagram Publisher Startup] Error:', err.message);
+    }
+  }, 5000);
 }
 
 start().catch(err => {
