@@ -474,11 +474,15 @@ CREATE TABLE IF NOT EXISTS whatsapp_conversations (
   status VARCHAR(30) DEFAULT 'active',
   created_at TIMESTAMP DEFAULT NOW()
 );
-
-CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_wa_from ON whatsapp_messages(wa_from);
-CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_conversation_id ON whatsapp_messages(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_whatsapp_conversations_wa_from ON whatsapp_conversations(wa_from);
 `;
+
+async function migrate(client, sql, label) {
+  try {
+    await client.query(sql);
+  } catch (err) {
+    console.warn(`[MIGRATION] ${label} skipped: ${err.message}`);
+  }
+}
 
 export async function initDb() {
   const client = await pool.connect();
@@ -486,42 +490,55 @@ export async function initDb() {
     await client.query(schema);
     console.log('Database schema initialized');
 
-    // Migrations: add missing columns to existing whatsapp tables
-    await client.query(`
+    await migrate(client, `
       ALTER TABLE whatsapp_messages
         ADD COLUMN IF NOT EXISTS conversation_id UUID,
         ADD COLUMN IF NOT EXISTS direction VARCHAR(20) DEFAULT 'inbound'
-    `);
-    await client.query(`
+    `, 'whatsapp_messages columns');
+
+    await migrate(client, `
       ALTER TABLE whatsapp_conversations
         ADD COLUMN IF NOT EXISTS flow_state JSONB DEFAULT '{}'::jsonb,
         ADD COLUMN IF NOT EXISTS context JSONB DEFAULT '{}'::jsonb,
         ADD COLUMN IF NOT EXISTS flow VARCHAR(50),
         ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'active',
         ADD COLUMN IF NOT EXISTS bot_name VARCHAR(20) DEFAULT 'Tute'
-    `);
+    `, 'whatsapp_conversations columns');
 
-    // Migrations: add crop support columns for image upload
-    await client.query(`
+    await migrate(client, `
       ALTER TABLE pet_images
         ADD COLUMN IF NOT EXISTS crop_x REAL DEFAULT 0.5,
         ADD COLUMN IF NOT EXISTS crop_y REAL DEFAULT 0.5,
         ADD COLUMN IF NOT EXISTS original_image_data TEXT
-    `);
-    await client.query(`
+    `, 'pet_images crop columns');
+
+    await migrate(client, `
       ALTER TABLE my_pet_photos
         ADD COLUMN IF NOT EXISTS crop_x REAL DEFAULT 0.5,
         ADD COLUMN IF NOT EXISTS crop_y REAL DEFAULT 0.5,
         ADD COLUMN IF NOT EXISTS original_image_data TEXT
-    `);
-    await client.query(`
+    `, 'my_pet_photos crop columns');
+
+    await migrate(client, `
       ALTER TABLE my_pets
         ADD COLUMN IF NOT EXISTS crop_x REAL DEFAULT 0.5,
         ADD COLUMN IF NOT EXISTS crop_y REAL DEFAULT 0.5,
         ADD COLUMN IF NOT EXISTS original_avatar_data TEXT
-    `);
-    // Cleanup duplicate queued instagram posts
-    await client.query(`
+    `, 'my_pets crop columns');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_wa_from ON whatsapp_messages(wa_from)
+    `, 'wa_from index');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_conversation_id ON whatsapp_messages(conversation_id)
+    `, 'conversation_id index');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_whatsapp_conversations_wa_from ON whatsapp_conversations(wa_from)
+    `, 'conversations wa_from index');
+
+    await migrate(client, `
       DELETE FROM instagram_posts ip
       USING (
         SELECT pet_id, MAX(created_at) as max_created
@@ -533,9 +550,9 @@ export async function initDb() {
       WHERE ip.pet_id = dup.pet_id
         AND ip.status = 'queued'
         AND ip.created_at < dup.max_created
-    `);
-    // Unique index: only one non-failed post per pet
-    await client.query(`
+    `, 'cleanup duplicate instagram posts');
+
+    await migrate(client, `
       DELETE FROM instagram_posts p1
       USING instagram_posts p2
       WHERE p1.pet_id = p2.pet_id
@@ -543,7 +560,8 @@ export async function initDb() {
         AND p1.status NOT IN ('failed')
         AND p2.status NOT IN ('failed')
         AND p1.created_at < p2.created_at
-    `);
+    `, 'deduplicate instagram posts');
+
     console.log('Database migrations complete');
   } finally {
     client.release();
