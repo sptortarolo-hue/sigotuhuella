@@ -62,7 +62,7 @@ async function callGemini(prompt, systemPrompt, imageUrls = []) {
 
   const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.0-flash',
     contents: parts[0].text,
     config: { responseMimeType: 'application/json' },
   });
