@@ -594,6 +594,23 @@ export async function initDb() {
       ALTER TABLE promotional_videos ADD COLUMN IF NOT EXISTS last_story_posted_at TIMESTAMP
     `, 'add last_story_posted_at to promotional_videos');
 
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS source_type VARCHAR(50) DEFAULT 'manual'
+    `, 'pets source_type');
+
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS source_url TEXT
+    `, 'pets source_url');
+
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS source_facebook_post_id UUID REFERENCES facebook_posts(id)
+    `, 'pets source_facebook_post_id');
+
+    await migrate(client, `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_fb_comments_post_comment
+      ON facebook_comments(post_id, fb_comment_id) WHERE fb_comment_id IS NOT NULL
+    `, 'unique fb comment index');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

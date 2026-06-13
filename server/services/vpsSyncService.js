@@ -115,16 +115,19 @@ export async function syncFromVps() {
             const cmtClass = classification.comments?.find(c => c.text === cmt.text)?.classification || 'info';
             await pool.query(
               `INSERT INTO facebook_comments (post_id, fb_comment_id, author_name, text, posted_at, classification)
-               VALUES ($1, $2, $3, $4, $5, $6)`,
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (post_id, fb_comment_id) DO NOTHING`,
               [postId, cmt.id || null, cmt.author_name || cmt.author || null, cmt.text || '',
                cmt.posted_at || cmt.timestamp ? new Date(cmt.posted_at || cmt.timestamp) : null, cmtClass]
             );
           }
         }
 
-        if (postId && classification.classification === 'lost' && isGeminiAvailable()) {
-          detectReunion(postId).catch(err => { if (!handleGeminiError(err)) console.error('Reunion detection error:', err); });
+        // Keyword-based resolution detection (no Gemini cost)
+        if (postId && (classification.classification === 'lost' || classification.classification === 'found' || classification.classification === 'sighted')) {
+          detectReunion(postId).catch(err => console.error('Resolution check error:', err));
         }
+
         if (postId && (classification.classification === 'found' || classification.classification === 'lost') && isGeminiAvailable()) {
           matchPostToPet(postId).catch(err => { if (!handleGeminiError(err)) console.error('Auto-matching error:', err); });
         }

@@ -167,6 +167,11 @@ async function routeFlow(conv, parsed) {
     case 'human.motive': return hMotive(conv, parsed);
     case 'adopt.species': return adoptSpecies(conv, parsed);
     case 'info_qr': return showInfoQr(conv);
+    case 'report_from_fb.lookup': return fbLookup(conv, parsed);
+    case 'report_from_fb.ask_status': return fbAskStatus(conv, parsed);
+    case 'report_from_fb.ask_species': return fbAskSpecies(conv, parsed);
+    case 'report_from_fb.ask_location': return fbAskLocation(conv, parsed);
+    case 'report_from_fb.confirm': return fbConfirm(conv, parsed, intent);
     case 'pending_human': return handlePendingHuman(conv);
     case 'end_flow': return handleEndFlow(conv, parsed, intent);
     default: return showMenu(conv);
@@ -216,6 +221,15 @@ export async function showMenu(conv) {
 }
 
 async function handleMenu(conv, parsed, intent) {
+  // Facebook URL detection at menu level
+  if (!intent && parsed.messageType === 'text') {
+    const fbUrlMatch = (parsed.textBody || '').match(/https?:\/\/(www\.)?(facebook\.com|fb\.com)\/[^\s]+/i);
+    if (fbUrlMatch) {
+      await setFlow(conv, 'report_from_fb.lookup', { fbUrl: fbUrlMatch[0] });
+      return fbLookup(conv, parsed);
+    }
+  }
+
   switch (intent) {
     case 'report_lost': return startReportLost(conv);
     case 'report_sighted': return startReportSighted(conv);
@@ -671,6 +685,219 @@ async function startDonateFlow(conv) {
     `💳 *Mercado Pago*\n` +
     `https://sigotuhuella.online/donar\n\n` +
     `Tu ayuda nos permite seguir rescatando y cuidando animales. 🐾`);
+  return endFlow(conv);
+}
+
+// ─── Facebook URL Report ───
+
+async function downloadImage(url) {
+  try {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+    });
+    if (!resp.ok) return null;
+    const buf = Buffer.from(await resp.arrayBuffer());
+    return { data: buf.toString('base64'), mimeType: resp.headers.get('content-type') || 'image/jpeg' };
+  } catch {
+    return null;
+  }
+}
+
+async function fbContinue(conv) {
+  const ctx = conv.context;
+  const post = ctx.fbPost;
+  if (!post) return showMenu(conv);
+
+  const statusKnown = post.classification && post.classification !== 'unclassified';
+  const speciesKnown = post.species;
+  const locationKnown = post.location_hint;
+
+  if (!statusKnown) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Qué tipo de reporte querés crear?`);
+    await sendInteractiveButtons(conv.wa_from, 'Tipo:', [
+      { id: 'fb_status_lost', title: '🐕 Perdida' },
+      { id: 'fb_status_sighted', title: '👀 Avistada' },
+      { id: 'fb_status_found', title: '✅ Encontrada' },
+      { id: 'fb_status_adopt', title: '🏠 Adopción' },
+    ]);
+    await setFlow(conv, 'report_from_fb.ask_status');
+    return;
+  }
+
+  if (!speciesKnown) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: ¿De qué especie es?`);
+    await sendInteractiveButtons(conv.wa_from, 'Especie:', [
+      { id: 'species_dog', title: '🐕 Perro' },
+      { id: 'species_cat', title: '🐈 Gato' },
+      { id: 'species_other', title: '🐾 Otro' },
+    ]);
+    await setFlow(conv, 'report_from_fb.ask_species');
+    return;
+  }
+
+  if (!locationKnown) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde fue? Podés escribir la dirección o compartir tu ubicación 📍`);
+    await setFlow(conv, 'report_from_fb.ask_location');
+    return;
+  }
+
+  return fbShowConfirm(conv);
+}
+
+async function fbLookup(conv, parsed) {
+  const fbUrl = conv.context.fbUrl || '';
+  const segments = fbUrl.replace(/\/+$/, '').split('/');
+  const urlId = segments[segments.length - 1];
+
+  const result = await pool.query(
+    `SELECT * FROM facebook_posts
+     WHERE fb_post_url ILIKE $1 OR fb_post_id ILIKE $1
+     LIMIT 1`,
+    [`%${urlId}%`]
+  );
+
+  if (result.rows.length === 0) {
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: No encontramos esta publicación en nuestro sistema todavía. ` +
+      `Podés reportarla manualmente desde el menú eligiendo la opción correspondiente. 🐾`);
+    return showMenu(conv);
+  }
+
+  await setFlow(conv, 'report_from_fb.lookup', { ...conv.context, fbPost: result.rows[0] });
+  return fbContinue(conv);
+}
+
+async function fbAskStatus(conv, parsed) {
+  const statusMap = {
+    fb_status_lost: 'lost',
+    fb_status_sighted: 'sighted',
+    fb_status_found: 'retained',
+    fb_status_adopt: 'for_adoption',
+  };
+  let classification;
+  if (parsed.buttonId) {
+    classification = statusMap[parsed.buttonId] || 'lost';
+  } else {
+    const text = (parsed.textBody || '').toLowerCase();
+    classification = text.includes('avist') ? 'sighted'
+      : text.includes('encontr') ? 'retained'
+      : text.includes('adopt') ? 'for_adoption'
+      : 'lost';
+  }
+  await setFlow(conv, 'report_from_fb.lookup', {
+    ...conv.context,
+    fbPost: { ...conv.context.fbPost, classification },
+  });
+  return fbContinue(conv);
+}
+
+async function fbAskSpecies(conv, parsed) {
+  let species;
+  if (parsed.buttonId) {
+    species = parsed.buttonId === 'species_cat' ? 'cat'
+      : parsed.buttonId === 'species_other' ? 'other' : 'dog';
+  } else {
+    const text = (parsed.textBody || '').toLowerCase();
+    species = text.includes('gato') ? 'cat'
+      : text.includes('otro') ? 'other' : 'dog';
+  }
+  await setFlow(conv, 'report_from_fb.lookup', {
+    ...conv.context,
+    fbPost: { ...conv.context.fbPost, species },
+  });
+  return fbContinue(conv);
+}
+
+async function fbAskLocation(conv, parsed) {
+  const location = parsed.textBody || '';
+  const lat = parsed.locationLat || null;
+  const lng = parsed.locationLng || null;
+  if (!location && !lat) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Decime la dirección o compartí tu ubicación 📍`);
+    return;
+  }
+  await setFlow(conv, 'report_from_fb.lookup', {
+    ...conv.context,
+    fbPost: { ...conv.context.fbPost, location_hint: location },
+    fbLatitude: lat,
+    fbLongitude: lng,
+  });
+  return fbContinue(conv);
+}
+
+async function fbShowConfirm(conv) {
+  const ctx = conv.context;
+  const post = ctx.fbPost;
+  const statusLabels = { lost: 'Perdida 🐕', sighted: 'Avistada 👀', retained: 'Encontrada ✅', for_adoption: 'Adopción 🏠' };
+  const speciesLabels = { dog: 'Perro 🐕', cat: 'Gato 🐈', other: 'Otro 🐾' };
+
+  const msg =
+    `${conv.bot_name}: Confirmá los datos:\n\n` +
+    `📋 *Especie:* ${speciesLabels[post.species] || post.species || 'unknown'}\n` +
+    `📍 *Ubicación:* ${post.location_hint || ctx.fbLatitude ? 'Compartida' : '(sin ubicación)'}\n` +
+    `📌 *Tipo:* ${statusLabels[post.classification] || post.classification}\n` +
+    `👤 *Contacto:* ${post.author_name || 'Anónimo'} vía Facebook\n\n` +
+    `¿Está todo correcto?`;
+
+  await sendMessage(conv.wa_from, msg);
+  await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
+    { id: 'confirm_yes', title: '✅ Sí, reportar' },
+    { id: 'confirm_no', title: '❌ Cancelar' },
+  ]);
+  await setFlow(conv, 'report_from_fb.confirm');
+}
+
+async function fbConfirm(conv, parsed, intent) {
+  if (intent !== 'confirm') {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
+    return endFlow(conv);
+  }
+
+  const ctx = conv.context;
+  const post = ctx.fbPost;
+
+  const status = post.classification === 'found' ? 'retained' : post.classification || 'lost';
+  const species = post.species || 'unknown';
+  const location = post.location_hint || 'Sin ubicación';
+  const description = post.content ? post.content.substring(0, 500) : 'Reportado desde Facebook vía WhatsApp';
+  const contactInfo = post.author_name
+    ? `Contactar vía Facebook: ${post.author_name}`
+    : 'Contactar vía Facebook';
+
+  const petResult = await pool.query(
+    `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description, source_type, source_url, source_facebook_post_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'facebook', $8, $9)
+     RETURNING id`,
+    [species, status, location, ctx.fbLatitude || null, ctx.fbLongitude || null,
+     contactInfo, description, post.fb_post_url || '', post.id]
+  );
+
+  const petId = petResult.rows[0].id;
+
+  // Download and save image from Facebook post
+  if (post.image_urls && post.image_urls.length > 0) {
+    const img = await downloadImage(post.image_urls[0]);
+    if (img) {
+      await pool.query(
+        `INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`,
+        [petId, img.data, img.mimeType]
+      );
+    }
+  }
+
+  await pool.query(
+    `UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`,
+    [petId, conv.id]
+  );
+
+  matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
+
+  await sendMessage(conv.wa_from,
+    `✅ *${conv.bot_name}:* ¡Reporte creado con éxito desde Facebook!\n` +
+    (post.author_name ? `👤 Contacto: ${post.author_name} vía Facebook` : '') +
+    (post.fb_post_url ? `\n🔗 Publicación original: ${post.fb_post_url}` : '')
+  );
+
   return endFlow(conv);
 }
 

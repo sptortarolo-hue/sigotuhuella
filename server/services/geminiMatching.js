@@ -38,18 +38,7 @@ Considerá: mismo texto, misma foto, mismas descripciones del animal.
 Si el texto es idéntico o muy similar -> likely same.
 Si describen el mismo animal (especie+color+ubicacion) -> possible same.`;
 
-const REUNION_PROMPT = `Analizá los comentarios de esta publicación de Facebook sobre una mascota perdida.
-Determiná si la mascota ya fue encontrada o sigue perdida según la información en los comentarios.
 
-Devuelve SOLO un JSON:
-{
-  "reunited": true|false,
-  "confidence": 0-100,
-  "evidence": "texto del comentario clave que indica reunion",
-  "summary": "explicación en español"
-}
-
-Busca comentarios como: "ya apareció", "lo encontré", "gracias a todos ya está en casa", "se resolvió", etc.`;
 
 let _callGemini = null;
 
@@ -193,6 +182,18 @@ export async function matchCrossGroup(post1Id, post2Id) {
   }
 }
 
+const RESOLUTION_KEYWORDS = [
+  'ya apareció', 'ya lo encontré', 'ya lo encontramos', 'apareció',
+  'gracias a todos', 'resuelto', 'ya está en casa', 'encontrado',
+  'ya volvió', 'se resolvió', 'muchas gracias',
+  'ya aparecio', 'ya lo encontre', 'aparecio',
+];
+
+function checkTextForResolution(text) {
+  const lower = (text || '').toLowerCase();
+  return RESOLUTION_KEYWORDS.find(kw => lower.includes(kw));
+}
+
 export async function detectReunion(postId) {
   try {
     const postRes = await pool.query(
@@ -206,40 +207,44 @@ export async function detectReunion(postId) {
     if (postRes.rows.length === 0) return null;
 
     const post = postRes.rows[0];
-    if (!post.comments || post.comments.length === 0) return null;
+    const allText = [post.content || '', ...(post.comments || []).map(c => c.text || '')].join(' ');
+    const matched = checkTextForResolution(allText);
+    if (!matched) return null;
 
-    const commentsText = post.comments
-      .filter(c => c.text)
-      .map(c => `- ${c.author}: "${c.text}"`)
-      .join('\n');
-
-    const result = await callGemini(
-      `Contenido del post:\n${post.content || '(sin texto)'}\n\nComentarios:\n${commentsText || '(sin comentarios)'}`,
-      REUNION_PROMPT
+    await pool.query(
+      `UPDATE facebook_posts SET classification = 'reunion', notes = $1 WHERE id = $2`,
+      [`Detectado por keyword: "${matched}"`, postId]
     );
 
-    if (result.reunited && result.confidence >= 70) {
-      await pool.query(
-        `UPDATE facebook_posts SET classification = 'reunion', notes = $1 WHERE id = $2`,
-        [result.summary || result.evidence, postId]
-      );
-
-      sendAdminNotificationEmail(
-        '🔄 Posible reencuentro detectado',
-        `<p>Se detectó un posible reencuentro en los comentarios de una publicación de Facebook.</p>
-         <p><strong>Evidencia:</strong> ${result.evidence || ''}</p>
-         <p><strong>Resumen:</strong> ${result.summary || ''}</p>
-         <p>Confianza: ${result.confidence}%</p>`
-      );
-
-      sendPushToAdmins({
-        title: '🔄 Posible reencuentro',
-        body: result.summary ? result.summary.substring(0, 100) : 'Revisar comentarios de post de Facebook',
-        url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/admin/facebook/posts`,
-      }).catch(err => console.error('Push error:', err));
+    // Update linked pet if exists
+    const petRes = await pool.query(
+      `SELECT id, status FROM pets WHERE source_facebook_post_id = $1 AND status IN ('lost', 'sighted', 'retained')`,
+      [postId]
+    );
+    if (petRes.rows.length > 0) {
+      for (const pet of petRes.rows) {
+        await pool.query(
+          `UPDATE pets SET status = 'reunited', updated_at = NOW() WHERE id = $1`,
+          [pet.id]
+        );
+        console.log(`Pet ${pet.id} → reunited via FB post ${postId} (keyword: "${matched}")`);
+      }
     }
 
-    return result;
+    sendAdminNotificationEmail(
+      '🔄 Posible reencuentro detectado',
+      `<p>Se detectó un posible reencuentro en una publicación de Facebook (detección por keywords).</p>
+       <p><strong>Keyword:</strong> ${matched}</p>
+       <p><strong>Post:</strong> ${post.fb_post_url || postId}</p>`
+    );
+
+    sendPushToAdmins({
+      title: '🔄 Posible reencuentro',
+      body: matched ? `Reencuentro: "${matched}"` : 'Revisar publicación',
+      url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/admin/facebook/posts`,
+    }).catch(err => console.error('Push error:', err));
+
+    return { reunited: true, keyword: matched };
   } catch (err) {
     console.error('detectReunion error:', err);
     return null;
