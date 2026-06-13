@@ -190,19 +190,28 @@ async function showWelcome(conv) {
 // ─── Menu ───
 
 export async function showMenu(conv) {
-  await sendInteractiveButtons(conv.wa_from, '📌 ¿En qué puedo ayudarte?', [
-    { id: 'report_lost', title: '📷 Mascota perdida' },
-    { id: 'report_sighted', title: '👀 Mascota avistada' },
-    { id: 'report_found', title: '✅ Mascota encontrada' },
-  ]);
-  await sendInteractiveButtons(conv.wa_from, '📌 También puedo ayudarte con...', [
-    { id: 'adopt', title: '🙋 Adoptar mascota' },
-    { id: 'info_qr', title: 'ℹ️ Chapita QR' },
-    { id: 'donate', title: '💰 Donar' },
-  ]);
-  await sendInteractiveButtons(conv.wa_from, '📌 O necesitás...', [
-    { id: 'human', title: '🗣 Contactar al equipo' },
-  ]);
+  const menus = [
+    ['📌 ¿En qué puedo ayudarte?', [
+      { id: 'report_lost', title: '📷 Mascota perdida' },
+      { id: 'report_sighted', title: '👀 Mascota avistada' },
+      { id: 'report_found', title: '✅ Mascota encontrada' },
+    ]],
+    ['📌 También puedo ayudarte con...', [
+      { id: 'adopt', title: '🙋 Adoptar mascota' },
+      { id: 'info_qr', title: 'ℹ️ Chapita QR' },
+      { id: 'donate', title: '💰 Donar' },
+    ]],
+    ['📌 O necesitás...', [
+      { id: 'human', title: '🗣 Contactar equipo' },
+    ]],
+  ];
+  for (const [body, btns] of menus) {
+    try {
+      await sendInteractiveButtons(conv.wa_from, body, btns);
+    } catch (err) {
+      console.error(`Menu button send error (${body}):`, err.message);
+    }
+  }
   await setFlow(conv, 'menu');
 }
 
