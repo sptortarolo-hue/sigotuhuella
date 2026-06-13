@@ -538,6 +538,20 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_whatsapp_conversations_wa_from ON whatsapp_conversations(wa_from)
     `, 'conversations wa_from index');
 
+    // Remove duplicate wa_message_id before creating unique index
+    await migrate(client, `
+      DELETE FROM whatsapp_messages wm1
+      USING whatsapp_messages wm2
+      WHERE wm1.wa_message_id = wm2.wa_message_id
+        AND wm1.id <> wm2.id
+        AND wm1.created_at < wm2.created_at
+    `, 'deduplicate whatsapp messages');
+
+    // Unique index for ON CONFLICT (wa_message_id) in the bot
+    await migrate(client, `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_messages_wa_message_id ON whatsapp_messages(wa_message_id)
+    `, 'unique wa_message_id index');
+
     await migrate(client, `
       DELETE FROM instagram_posts ip
       USING (
