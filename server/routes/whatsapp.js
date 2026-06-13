@@ -11,8 +11,8 @@ import { processMessage, showMenu } from '../services/whatsappBot.js';
 
 const router = Router();
 
-// GET /api/whatsapp/diagnostic — check WhatsApp config
-router.get('/diagnostic', requireAdmin, async (req, res) => {
+// GET /api/whatsapp/diagnostic — check WhatsApp config (public)
+router.get('/diagnostic', async (req, res) => {
   try {
     const keys = ['whatsapp_enabled', 'whatsapp_phone_number_id', 'whatsapp_access_token', 'whatsapp_verify_token', 'whatsapp_business_phone'];
     const rows = (await pool.query('SELECT key, value FROM settings WHERE key = ANY($1)', [keys])).rows;
