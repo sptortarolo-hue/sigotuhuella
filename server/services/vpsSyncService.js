@@ -149,12 +149,35 @@ export async function syncFromVps() {
 
 export async function fetchFbPost(url) {
   try {
-    const resp = await fetch(`${VPS_HOST}/fetch-post?url=${encodeURIComponent(url)}`);
+    const resp = await fetch(
+      `https://api.apify.com/v2/acts/scrapyspider~facebook-post-scraper/run-sync-get-dataset-items?token=${process.env.APIFY_TOKEN}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          urls: [url],
+          proxy: { useApifyProxy: true },
+        }),
+        signal: AbortSignal.timeout(30000),
+      }
+    );
     if (!resp.ok) {
       const err = await resp.text();
-      throw new Error(`fetch-post failed (${resp.status}): ${err}`);
+      throw new Error(`Apify error (${resp.status}): ${err}`);
     }
-    return await resp.json();
+    const items = await resp.json();
+    const item = items?.[0];
+    if (!item) throw new Error('Apify returned empty dataset');
+
+    return {
+      fb_post_id: item.postId || item.url?.match(/\/(\d+)/)?.[1] || '',
+      fb_post_url: item.permalink || item.url || url,
+      author_name: item.pageName || '',
+      content: item.text || '',
+      image_urls: [item.image].filter(Boolean),
+      posted_at: item.date || '',
+      comments: item.commentsText || [],
+    };
   } catch (err) {
     console.error('fetchFbPost error:', err.message);
     throw err;
