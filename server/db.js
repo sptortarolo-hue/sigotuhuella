@@ -432,6 +432,52 @@ CREATE TABLE IF NOT EXISTS instagram_auto_reply_rules (
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS pet_images (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
+  image_data TEXT NOT NULL,
+  mime_type VARCHAR(50) NOT NULL DEFAULT 'image/jpeg',
+  crop_x REAL DEFAULT 0.5,
+  crop_y REAL DEFAULT 0.5,
+  original_image_data TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  wa_message_id VARCHAR(255) UNIQUE,
+  conversation_id UUID,
+  wa_from VARCHAR(50) NOT NULL,
+  sender_name VARCHAR(255),
+  message_type VARCHAR(30) DEFAULT 'text',
+  text_body TEXT,
+  image_data TEXT,
+  image_mime VARCHAR(50),
+  location_lat DOUBLE PRECISION,
+  location_lng DOUBLE PRECISION,
+  status VARCHAR(30) DEFAULT 'pending',
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,
+  direction VARCHAR(20) DEFAULT 'inbound',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_conversations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  wa_from VARCHAR(50) NOT NULL,
+  bot_name VARCHAR(20) DEFAULT 'Tute',
+  flow VARCHAR(50),
+  flow_state JSONB DEFAULT '{}'::jsonb,
+  context JSONB DEFAULT '{}'::jsonb,
+  last_message_at TIMESTAMP DEFAULT NOW(),
+  status VARCHAR(30) DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_wa_from ON whatsapp_messages(wa_from);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_conversation_id ON whatsapp_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_conversations_wa_from ON whatsapp_conversations(wa_from);
 `;
 
 export async function initDb() {

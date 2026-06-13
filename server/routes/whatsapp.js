@@ -2,13 +2,12 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
 import {
-  verifyWebhook,
   processIncomingMessage,
   sendMessage,
   sendInteractiveButtons,
-  downloadMedia,
   isWhatsAppEnabled,
 } from '../services/whatsappService.js';
+import { processMessage, showMenu } from '../services/whatsappBot.js';
 
 const router = Router();
 
@@ -18,7 +17,6 @@ router.get('/webhook', async (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  // Check verify token from settings
   try {
     const result = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_verify_token'");
     const expectedToken = result.rows[0]?.value || '';
@@ -33,7 +31,6 @@ router.get('/webhook', async (req, res) => {
 
 // POST /api/whatsapp/webhook — Receive incoming messages
 router.post('/webhook', async (req, res) => {
-  // Always respond 200 quickly to prevent Meta from retrying
   res.status(200).send('OK');
 
   try {
@@ -43,70 +40,111 @@ router.post('/webhook', async (req, res) => {
     const parsed = processIncomingMessage(req.body);
     if (!parsed) return;
 
-    // Save message to DB
-    const msgResult = await pool.query(
-      `INSERT INTO whatsapp_messages (wa_message_id, wa_from, sender_name, message_type, text_body, status)
-       VALUES ($1, $2, $3, $4, $5, 'pending')
-       ON CONFLICT (wa_message_id) DO NOTHING
-       RETURNING id`,
-      [parsed.waMessageId, parsed.from, parsed.profileName, parsed.messageType, parsed.textBody]
-    );
-
-    if (msgResult.rows.length === 0) return; // duplicate message
-
-    const savedId = msgResult.rows[0].id;
-
-    // Download image if present
-    let imageData = null;
-    let imageMime = null;
-    if (parsed.mediaId) {
-      try {
-        const media = await downloadMedia(parsed.mediaId);
-        imageData = media.buffer.toString('base64');
-        imageMime = media.mimeType;
-      } catch (e) {
-        console.error('Media download error:', e);
-      }
-    }
-
-    // Update message with image and location data
-    await pool.query(
-      `UPDATE whatsapp_messages SET image_data = $1, image_mime = $2, location_lat = $3, location_lng = $4 WHERE id = $5`,
-      [imageData, imageMime, parsed.locationLat, parsed.locationLng, savedId]
-    );
-
-    // Check if sender has a user account
-    const userResult = await pool.query(
-      "SELECT id, display_name, email FROM users WHERE phone LIKE $1 OR phone LIKE $2 LIMIT 1",
-      [`%${parsed.from.slice(-8)}`, `%${parsed.from.slice(-10)}`]
-    );
-    const user = userResult.rows[0] || null;
-
-    if (user) {
-      await pool.query('UPDATE whatsapp_messages SET user_id = $1 WHERE id = $2', [user.id, savedId]);
-    }
-
-    // Determine the report type from the message
-    const text = (parsed.textBody || '').toLowerCase();
-    let reportType = 'sighted';
-    if (text.includes('atención') || text.includes('herid')) reportType = 'needs_attention';
-    else if (text.includes('accident') || text.includes('atropell')) reportType = 'accidented';
-
-    // Send greeting
-    const greetingResult = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_greeting'");
-    const greeting = greetingResult.rows[0]?.value || '';
-
-    const replyText = user
-      ? `🐾 ¡Gracias ${user.display_name || 'por tu reporte'}! Estamos procesando tu información.\n\nTu reporte fue vinculado a tu perfil. Te notificaremos si hay novedades.`
-      : `${greeting}\n\n📝 ¿Ya tenés cuenta en Sigo Tu Huella? Registrate gratis para vincular tus reportes: https://sigotuhuella.online/registro`;
-
-    try {
-      await sendMessage(parsed.from, replyText);
-    } catch (e) {
-      console.error('Error sending WhatsApp reply:', e);
-    }
+    await processMessage(parsed);
   } catch (err) {
     console.error('Webhook processing error:', err);
+  }
+});
+
+// GET /api/whatsapp/conversations — admin list
+router.get('/conversations', requireAdmin, async (req, res) => {
+  try {
+    const { status } = req.query;
+    let sql = `SELECT c.*,
+       (SELECT COUNT(*) FROM whatsapp_messages m WHERE m.conversation_id = c.id) as message_count,
+       (SELECT text_body FROM whatsapp_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message,
+       (SELECT message_type FROM whatsapp_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message_type,
+       (SELECT created_at FROM whatsapp_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message_at
+     FROM whatsapp_conversations c`;
+    const params = [];
+    if (status) {
+      sql += ' WHERE c.status = $1';
+      params.push(status);
+    }
+    sql += ' ORDER BY c.last_message_at DESC';
+    const result = await pool.query(sql, params);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error listing conversations:', err);
+    res.status(500).json({ error: 'Error al listar conversaciones' });
+  }
+});
+
+// GET /api/whatsapp/conversations/:id — messages in conversation
+router.get('/conversations/:id', requireAdmin, async (req, res) => {
+  try {
+    const conv = await pool.query('SELECT * FROM whatsapp_conversations WHERE id = $1', [req.params.id]);
+    if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversación no encontrada' });
+
+    const messages = await pool.query(
+      `SELECT wm.*, u.display_name as user_name
+       FROM whatsapp_messages wm
+       LEFT JOIN users u ON wm.user_id = u.id
+       WHERE wm.conversation_id = $1
+       ORDER BY wm.created_at ASC`,
+      [req.params.id]
+    );
+    res.json({ conversation: conv.rows[0], messages: messages.rows });
+  } catch (err) {
+    console.error('Error fetching conversation:', err);
+    res.status(500).json({ error: 'Error al obtener conversación' });
+  }
+});
+
+// POST /api/whatsapp/conversations/:id/reply — admin sends message
+router.post('/conversations/:id/reply', requireAdmin, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'El mensaje no puede estar vacío' });
+
+    const conv = (await pool.query('SELECT * FROM whatsapp_conversations WHERE id = $1', [req.params.id])).rows[0];
+    if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
+
+    await sendMessage(conv.wa_from, `✏️ *${req.user?.display_name || 'Admin'} (Sigo Tu Huella):*\n\n${text.trim()}`);
+
+    await pool.query(
+      `INSERT INTO whatsapp_messages (wa_from, conversation_id, message_type, text_body, status, direction)
+       VALUES ($1, $2, 'text', $3, 'processed', 'outbound')`,
+      [conv.wa_from, conv.id, text.trim()]
+    );
+
+    if (conv.flow === 'pending_human') {
+      await pool.query(
+        `UPDATE whatsapp_conversations SET flow = 'menu', last_message_at = NOW() WHERE id = $1`,
+        [conv.id]
+      );
+    } else {
+      await pool.query(`UPDATE whatsapp_conversations SET last_message_at = NOW() WHERE id = $1`, [conv.id]);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error sending reply:', err);
+    res.status(500).json({ error: 'Error al enviar mensaje' });
+  }
+});
+
+// POST /api/whatsapp/conversations/:id/assign-bot — reassign bot name
+router.post('/conversations/:id/assign-bot', requireAdmin, async (req, res) => {
+  try {
+    const { bot_name } = req.body;
+    if (!['Tute', 'Lilo', 'Toto'].includes(bot_name)) return res.status(400).json({ error: 'Nombre inválido. Usá Tute, Lilo o Toto' });
+    await pool.query(`UPDATE whatsapp_conversations SET bot_name = $1 WHERE id = $2`, [bot_name, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error assigning bot:', err);
+    res.status(500).json({ error: 'Error al asignar bot' });
+  }
+});
+
+// POST /api/whatsapp/conversations/:id/close — close conversation
+router.post('/conversations/:id/close', requireAdmin, async (req, res) => {
+  try {
+    await pool.query(`UPDATE whatsapp_conversations SET status = 'closed' WHERE id = $1`, [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error closing conversation:', err);
+    res.status(500).json({ error: 'Error al cerrar conversación' });
   }
 });
 
@@ -150,6 +188,28 @@ router.get('/messages/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error fetching message:', err);
     res.status(500).json({ error: 'Error al obtener mensaje' });
+  }
+});
+
+// GET /api/whatsapp/stats — admin stats
+router.get('/stats', requireAdmin, async (req, res) => {
+  try {
+    const total = await pool.query("SELECT COUNT(*) FROM whatsapp_messages");
+    const today = await pool.query("SELECT COUNT(*) FROM whatsapp_messages WHERE created_at::date = CURRENT_DATE");
+    const byType = await pool.query("SELECT message_type, COUNT(*) as count FROM whatsapp_messages GROUP BY message_type");
+    const activeConvs = await pool.query("SELECT COUNT(*) FROM whatsapp_conversations WHERE status = 'active'");
+    const byFlow = await pool.query("SELECT COALESCE(flow, 'menu') as flow, COUNT(*) as count FROM whatsapp_conversations GROUP BY flow ORDER BY count DESC");
+
+    res.json({
+      total: parseInt(total.rows[0].count),
+      today: parseInt(today.rows[0].count),
+      byType: byType.rows,
+      activeConversations: parseInt(activeConvs.rows[0].count),
+      byFlow: byFlow.rows,
+    });
+  } catch (err) {
+    console.error('Error fetching WhatsApp stats:', err);
+    res.status(500).json({ error: 'Error al obtener estadísticas' });
   }
 });
 

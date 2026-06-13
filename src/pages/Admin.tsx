@@ -23,6 +23,7 @@ import { BADGE_CONFIG } from '@/src/components/MemberCard';
 import VideoGeneratorTab from '@/src/pages/admin/VideoGeneratorTab';
 import FacebookTab from '@/src/components/admin/FacebookTab';
 import InstagramTab from '@/src/components/admin/InstagramTab';
+import WhatsAppTab from '@/src/components/admin/WhatsAppTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
@@ -127,13 +128,6 @@ export default function Admin() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiType, setAiType] = useState('consejo_cuidado');
   const [aiTopic, setAiTopic] = useState('');
-
-  // WhatsApp Settings state
-  const [whatsappSettings, setWhatsappSettings] = useState<Record<string, string>>({});
-  const [settingsLoading, setSettingsLoading] = useState(false);
-  const [settingsSaved, setSettingsSaved] = useState(false);
-  const [waMessages, setWaMessages] = useState<any[]>([]);
-  const [waMessagesLoading, setWaMessagesLoading] = useState(false);
 
   // Banner state
   const [bannerChapitaVisible, setBannerChapitaVisible] = useState(true);
@@ -286,17 +280,7 @@ export default function Admin() {
     }
   };
 
-  const fetchWaMessages = async () => {
-    setWaMessagesLoading(true);
-    try {
-      const data = await api.whatsapp.messages();
-      setWaMessages(data);
-    } catch (e) { console.error(e); }
-    setWaMessagesLoading(false);
-  };
-
   useEffect(() => {
-    if (activeTab === 'whatsapp') fetchWaMessages();
     if (activeTab === 'volunteers') fetchVolunteers();
   }, [activeTab]);
 
@@ -1389,223 +1373,7 @@ export default function Admin() {
           )}
 
           {/* ====== WHATSAPP ====== */}
-          {activeTab === 'whatsapp' && (
-            <div className="space-y-8">
-              {/* Connection Settings */}
-              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-                <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
-                  <MessageSquare className="w-6 h-6" /> Configuración WhatsApp Business
-                </h2>
-                <div className="space-y-5">
-                  <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl">
-                    <input
-                      type="checkbox"
-                      id="whatsapp_enabled"
-                      checked={whatsappSettings.whatsapp_enabled === 'true'}
-                      onChange={(e) => setWhatsappSettings(p => ({ ...p, whatsapp_enabled: e.target.checked ? 'true' : 'false' }))}
-                      className="w-5 h-5 rounded accent-brand-primary"
-                    />
-                    <label htmlFor="whatsapp_enabled" className="font-bold text-brand-primary">Activar WhatsApp Business</label>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[
-                      { key: 'whatsapp_phone_number_id', label: 'Phone Number ID', type: 'text' },
-                      { key: 'whatsapp_access_token', label: 'Access Token', type: 'password' },
-                      { key: 'whatsapp_verify_token', label: 'Verify Token', type: 'password' },
-                      { key: 'whatsapp_business_phone', label: 'Número WhatsApp (cód. país + nro)', type: 'text' },
-                    ].map(field => (
-                      <div key={field.key}>
-                        <label className="block text-sm font-bold text-gray-600 mb-1">{field.label}</label>
-                        <input
-                          type={field.type}
-                          value={whatsappSettings[field.key] || ''}
-                          onChange={(e) => setWhatsappSettings(p => ({ ...p, [field.key]: e.target.value }))}
-                          className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="p-5 bg-blue-50 rounded-2xl border border-blue-200">
-                    <h3 className="text-sm font-bold text-blue-800 mb-4 flex items-center gap-2">📘 Guía: Conectar WhatsApp Business con Meta</h3>
-                    <div className="space-y-3 text-sm text-blue-700">
-                      {[
-                        { n: 1, title: 'Ir al Meta Developer Portal',
-                          desc: 'Andá a developers.facebook.com, creá o seleccioná una app y agregale el producto WhatsApp Cloud API.' },
-                        { n: 2, title: 'Obtener credenciales',
-                          desc: 'En la sección WhatsApp → Configuración, copiá Phone Number ID y generá un Access Token permanente. Inventá un Verify Token (ej: "sihuella2024") y guardalo.' },
-                        { n: 3, title: 'Configurar Webhook en Meta',
-                          desc: 'URL: https://sigotuhuella.online/api/whatsapp/webhook — Verify Token: el que inventaste — Click en "Verify and Save".' },
-                        { n: 4, title: 'Suscribir a eventos',
-                          desc: 'En la sección Webhooks, marcá el evento "messages" y guardá.' },
-                        { n: 5, title: 'Completar campos y activar',
-                          desc: 'Llená los campos de arriba con Phone Number ID, Access Token, Verify Token. Tildá "Activar WhatsApp Business" y guardá.' },
-                      ].map(s => (
-                        <div key={s.n} className="flex gap-3">
-                          <span className="shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">{s.n}</span>
-                          <div>
-                            <p className="font-bold text-blue-800">{s.title}</p>
-                            <p className="text-blue-600">{s.desc}</p>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="mt-4 pt-4 border-t border-blue-200">
-                        <p className="font-bold text-blue-800 mb-2">✅ Checklist final</p>
-                        <ul className="space-y-1 text-blue-600">
-                          <li>☐ Phone Number ID completo</li>
-                          <li>☐ Access Token generado</li>
-                          <li>☐ Verify Token coincide con el de Meta</li>
-                          <li>☐ Webhook muestra "Active" en Meta</li>
-                          <li>☐ WhatsApp activado en Admin</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Matching Settings */}
-              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-                <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
-                  <FlaskConical className="w-6 h-6" /> Configuración de Matching
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-600 mb-1">
-                      <Map className="w-4 h-4 inline mr-1" /> Radio de búsqueda (km)
-                    </label>
-                    <input
-                      type="number"
-                      value={whatsappSettings.matching_radius_km || '20'}
-                      onChange={(e) => setWhatsappSettings(p => ({ ...p, matching_radius_km: e.target.value }))}
-                      className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
-                      min="1" max="500"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">Distancia máxima para considerar un match geográfico.</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-600 mb-1">Score mínimo (%)</label>
-                    <input
-                      type="number"
-                      value={whatsappSettings.matching_min_score || '70'}
-                      onChange={(e) => setWhatsappSettings(p => ({ ...p, matching_min_score: e.target.value }))}
-                      className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
-                      min="0" max="100"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">Puntaje mínimo para enviar notificación de match.</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Greeting message */}
-              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-                <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
-                  <MessageSquare className="w-6 h-6" /> Mensaje de Bienvenida
-                </h2>
-                <textarea
-                  value={whatsappSettings.whatsapp_greeting || ''}
-                  onChange={(e) => setWhatsappSettings(p => ({ ...p, whatsapp_greeting: e.target.value }))}
-                  className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm h-28 resize-none"
-                  placeholder="Mensaje que se envía automáticamente cuando alguien escribe al WhatsApp..."
-                />
-                <p className="text-xs text-gray-400 mt-1">Las líneas con 1️⃣ 2️⃣ 3️⃣ generarán botones interactivos.</p>
-              </div>
-
-              {/* Save button */}
-              <button
-                onClick={async () => {
-                  setSettingsLoading(true);
-                  setSettingsSaved(false);
-                  try {
-                    await Promise.all(Object.entries(whatsappSettings).map(([key, value]) =>
-                      api.settings.update(key, value)
-                    ));
-                    setSettingsSaved(true);
-                    setTimeout(() => setSettingsSaved(false), 3000);
-                  } catch (e) {
-                    console.error(e);
-                    alert('Error al guardar configuración');
-                  }
-                  setSettingsLoading(false);
-                }}
-                disabled={settingsLoading}
-                className="px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
-              >
-                {settingsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                {settingsLoading ? 'Guardando...' : settingsSaved ? '✅ Guardado' : 'Guardar Configuración'}
-              </button>
-
-              {/* Messages Log */}
-              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-                <h2 className="text-xl font-serif font-bold text-brand-primary mb-4 flex items-center gap-3">
-                  <MessageSquare className="w-6 h-6" /> Reportes Recibidos
-                </h2>
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="text-sm text-gray-500">Últimos mensajes recibidos</p>
-                    <button onClick={fetchWaMessages} className="flex items-center gap-2 text-sm font-bold text-brand-primary hover:underline">
-                      <RefreshCw className={`w-4 h-4 ${waMessagesLoading ? 'animate-spin' : ''}`} /> Actualizar
-                    </button>
-                  </div>
-                  {waMessagesLoading ? (
-                    <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>
-                  ) : waMessages.length === 0 ? (
-                    <div className="text-center py-10 bg-brand-bg rounded-2xl border border-dashed border-brand-accent">
-                      <MessageSquare className="w-10 h-10 mx-auto text-gray-300 mb-2" />
-                      <p className="text-gray-400 font-medium">Aún no se recibieron mensajes</p>
-                      <p className="text-xs text-gray-300 mt-1">Los mensajes aparecerán aquí cuando alguien escriba al WhatsApp.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-brand-accent">
-                      <table className="w-full text-left text-sm min-w-max">
-                        <thead>
-                          <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
-                            <th className="px-4 py-3">Número</th>
-                            <th className="px-4 py-3">Nombre</th>
-                            <th className="px-4 py-3">Tipo</th>
-                            <th className="px-4 py-3">Mensaje</th>
-                            <th className="px-4 py-3">Usuario</th>
-                            <th className="px-4 py-3">Estado</th>
-                            <th className="px-4 py-3">Fecha</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-brand-accent">
-                          {waMessages.map((msg: any) => (
-                            <tr key={msg.id} className="hover:bg-brand-bg/50 transition-colors">
-                              <td className="px-4 py-3 font-mono text-xs">{msg.wa_from}</td>
-                              <td className="px-4 py-3 font-medium text-brand-primary">{msg.sender_name || '—'}</td>
-                              <td className="px-4 py-3">
-                                <span className={cn(
-                                  "text-[10px] px-2 py-1 rounded-full font-bold uppercase",
-                                  msg.message_type === 'image' ? "bg-purple-100 text-purple-700" :
-                                  msg.message_type === 'location' ? "bg-blue-100 text-blue-700" :
-                                  msg.message_type === 'interactive' ? "bg-green-100 text-green-700" :
-                                  "bg-gray-100 text-gray-600"
-                                )}>{msg.message_type}</span>
-                              </td>
-                              <td className="px-4 py-3 max-w-[200px] truncate text-gray-500">{msg.text_body || '—'}</td>
-                              <td className="px-4 py-3">{msg.user_name ? <span className="font-bold text-brand-primary">{msg.user_name}</span> : <span className="text-gray-400 text-xs">Anónimo</span>}</td>
-                              <td className="px-4 py-3">
-                                <span className={cn(
-                                  "text-[10px] px-2 py-1 rounded-full font-bold uppercase",
-                                  msg.status === 'pending' ? "bg-yellow-100 text-yellow-700" :
-                                  msg.status === 'processed' ? "bg-blue-100 text-blue-700" :
-                                  msg.status === 'matched' ? "bg-green-100 text-green-700" :
-                                  "bg-gray-100 text-gray-600"
-                                )}>{msg.status}</span>
-                              </td>
-                              <td className="px-4 py-3 text-xs text-gray-400">{new Date(msg.created_at).toLocaleString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-               </div>
-             </div>
-            )}
+          {activeTab === 'whatsapp' && <WhatsAppTab />}
 
             {/* ====== INSTAGRAM ====== */}
             {activeTab === 'instagram' && (

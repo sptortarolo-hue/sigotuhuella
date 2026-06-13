@@ -130,6 +130,12 @@ export const api = {
   whatsapp: {
     messages: (status?: string) => request(`/whatsapp/messages${status ? `?status=${status}` : ''}`),
     getMessage: (id: string) => request(`/whatsapp/messages/${id}`),
+    conversations: (status?: string) => request(`/whatsapp/conversations${status ? `?status=${status}` : ''}`),
+    getConversation: (id: string) => request(`/whatsapp/conversations/${id}`),
+    reply: (convId: string, text: string) => request(`/whatsapp/conversations/${convId}/reply`, { method: 'POST', body: JSON.stringify({ text }) }),
+    assignBot: (convId: string, botName: string) => request(`/whatsapp/conversations/${convId}/assign-bot`, { method: 'POST', body: JSON.stringify({ bot_name: botName }) }),
+    closeConversation: (convId: string) => request(`/whatsapp/conversations/${convId}/close`, { method: 'POST' }),
+    stats: () => request('/whatsapp/stats'),
   },
   lostReport: (data: any) => request('/pets/lost-report', { method: 'POST', body: JSON.stringify(data) }),
   requestChapita: (data: any) => request('/request-chapita', { method: 'POST', body: JSON.stringify(data) }),
