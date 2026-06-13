@@ -800,8 +800,8 @@ async function fbLookup(conv, parsed) {
     // Insert fetched post into facebook_posts
     const insertResult = await pool.query(
       `INSERT INTO facebook_posts
-         (fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, classification, group_name)
-       VALUES ($1, $2, $3, $4, $5, $6, 'unclassified', 'url_fetch')
+         (fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, classification)
+       VALUES ($1, $2, $3, $4, $5, $6, 'unclassified')
        ON CONFLICT (fb_post_id) DO UPDATE SET
          content = EXCLUDED.content,
          image_urls = EXCLUDED.image_urls,
@@ -809,7 +809,7 @@ async function fbLookup(conv, parsed) {
          scraped_at = NOW()
        RETURNING id`,
       [fbPostData.fb_post_id, fbPostData.fb_post_url || fbUrl, fbPostData.author_name || '',
-       fbPostData.content || '', JSON.stringify(fbPostData.image_urls || []),
+       fbPostData.content || '', fbPostData.image_urls || [],
        fbPostData.posted_at ? new Date(fbPostData.posted_at) : null]
     );
 
