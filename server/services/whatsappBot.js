@@ -1,5 +1,5 @@
 import pool from '../db.js';
-import { sendMessage, sendInteractiveButtons, downloadMedia } from './whatsappService.js';
+import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia } from './whatsappService.js';
 import { matchWhatsAppToPets } from './geminiMatching.js';
 
 const BOT_NAMES = ['Tute', 'Lilo', 'Toto'];
@@ -31,6 +31,8 @@ function detectIntent(parsed) {
     if (/encontrada/i.test(text)) return 'report_found';
     if (/info|qr/i.test(text)) return 'info_qr';
     if (/voluntario/i.test(text)) return 'volunteer';
+    if (/adoptar|adopt/i.test(text)) return 'adopt';
+    if (/donar|donación|don/i.test(text)) return 'donate';
     if (/humano/i.test(text)) return 'human';
     if (/s[ií]|confirmar|dale/i.test(text)) return 'confirm';
     if (/no |cancelar/i.test(text)) return 'cancel';
@@ -41,6 +43,8 @@ function detectIntent(parsed) {
   if (/encontr[eé]|encontrada/.test(text)) return 'report_found';
   if (/info|información|chapita|qr/.test(text)) return 'info_qr';
   if (/voluntario|ayudar|colaborar/.test(text)) return 'volunteer';
+  if (/adoptar|adopt/.test(text)) return 'adopt';
+  if (/donar|donación|don/.test(text)) return 'donate';
   if (/humano|persona|hablar/.test(text)) return 'human';
   if (/s[ií]|confirmar|dale/.test(text)) return 'confirm';
   if (/no |cancelar/.test(text)) return 'cancel';
@@ -142,6 +146,7 @@ async function routeFlow(conv, parsed) {
     case 'volunteer.phone': return vPhone(conv, parsed);
     case 'volunteer.confirm': return vConfirm(conv, parsed, intent);
     case 'human.motive': return hMotive(conv, parsed);
+    case 'adopt.species': return adoptSpecies(conv, parsed);
     case 'info_qr': return showInfoQr(conv);
     case 'pending_human': return handlePendingHuman(conv);
     default: return showMenu(conv);
@@ -166,14 +171,17 @@ async function showWelcome(conv) {
 
 export async function showMenu(conv) {
   await sendInteractiveButtons(conv.wa_from, '📌 ¿Qué querés hacer?', [
-    { id: 'report_lost', title: '📷 Perdida' },
-    { id: 'report_sighted', title: '👀 Avistaje' },
-    { id: 'report_found', title: '✅ Encontrada' },
+    { id: 'report_lost', title: '📷 Mascota perdida' },
+    { id: 'report_sighted', title: '👀 Mascota avistada' },
+    { id: 'report_found', title: '✅ Mascota encontrada' },
   ]);
   await sendInteractiveButtons(conv.wa_from, '📌 Más opciones', [
-    { id: 'info_qr', title: 'ℹ️ Info QR' },
-    { id: 'volunteer', title: '🙋 Voluntario' },
-    { id: 'human', title: '🗣 Representante' },
+    { id: 'adopt', title: '🙋 Adoptar mascota' },
+    { id: 'info_qr', title: 'ℹ️ Chapita QR' },
+    { id: 'donate', title: '💰 Donar' },
+  ]);
+  await sendInteractiveButtons(conv.wa_from, '📌', [
+    { id: 'human', title: '🗣 Contactar al equipo' },
   ]);
   await setFlow(conv, 'menu');
 }
@@ -185,6 +193,8 @@ async function handleMenu(conv, parsed, intent) {
     case 'report_found': return startReportFound(conv);
     case 'info_qr': return showInfoQr(conv);
     case 'volunteer': return startVolunteer(conv);
+    case 'adopt': return startAdoptFlow(conv);
+    case 'donate': return startDonateFlow(conv);
     case 'human': return startHumanRequest(conv);
     default:
       await sendMessage(conv.wa_from, `${conv.bot_name}: No entendí tu mensaje. Usá los botones de abajo 👇`);
@@ -551,6 +561,88 @@ async function vConfirm(conv, parsed, intent) {
     await setFlow(conv, 'menu');
     await showMenu(conv);
   }
+}
+
+// ─── Adopt ───
+
+async function startAdoptFlow(conv) {
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¡Qué lindo que quieras adoptar! 🐾`);
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Qué especie estás buscando?`);
+  await sendInteractiveButtons(conv.wa_from, 'Especie:', [
+    { id: 'species_dog', title: '🐕 Perro' },
+    { id: 'species_cat', title: '🐈 Gato' },
+    { id: 'species_other', title: '🐾 Otros' },
+  ]);
+  await setFlow(conv, 'adopt.species');
+}
+
+async function adoptSpecies(conv, parsed) {
+  const text = (parsed.textBody || '').toLowerCase();
+  const species = text.includes('gato') || text.includes('🐈') ? 'cat'
+    : text.includes('otro') || text.includes('🐾') ? 'other' : 'dog';
+
+  const pets = (await pool.query(
+    `SELECT p.id, p.name, p.description, p.species, pi.image_data, pi.mime_type
+     FROM pets p
+     LEFT JOIN LATERAL (SELECT image_data, mime_type FROM pet_images WHERE pet_id = p.id LIMIT 1) pi ON true
+     WHERE p.status = 'for_adoption' AND p.species = $1
+     ORDER BY p.created_at DESC
+     LIMIT 3`,
+    [species]
+  )).rows;
+
+  if (pets.length === 0) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: No tenemos mascotas en adopción de esa especie en este momento.`);
+    await setFlow(conv, 'menu');
+    return showMenu(conv);
+  }
+
+  await sendMessage(conv.wa_from, `${conv.bot_name}: Estas son las mascotas disponibles:`);
+
+  for (const pet of pets) {
+    let info = `🐾 *${pet.name || 'Sin nombre'}*`;
+    if (pet.description) info += `\n📝 ${pet.description}`;
+    info += `\n🔗 Ver más: https://sigotuhuella.online/pet/${pet.id}`;
+
+    if (pet.image_data) {
+      try {
+        const mediaId = await uploadMedia(pet.image_data, pet.mime_type || 'image/jpeg');
+        await sendImage(conv.wa_from, mediaId, pet.name || 'Mascota en adopción');
+      } catch (e) {
+        console.error('Upload media error:', e);
+      }
+    }
+    await sendMessage(conv.wa_from, info);
+  }
+
+  const more = (await pool.query(
+    `SELECT COUNT(*) FROM pets WHERE status = 'for_adoption' AND species = $1`,
+    [species]
+  )).rows[0].count;
+
+  if (Number(more) > 3) {
+    await sendMessage(conv.wa_from, `Hay más mascotas disponibles. Visitá nuestra web para verlas todas: https://sigotuhuella.online`);
+  }
+
+  await sendMessage(conv.wa_from, `${conv.bot_name}: Si te interesa alguna, pedila desde la web o hablá con nuestro equipo. 🐾`);
+  await setFlow(conv, 'menu');
+  return showMenu(conv);
+}
+
+// ─── Donate ───
+
+async function startDonateFlow(conv) {
+  await sendMessage(conv.wa_from,
+    `${conv.bot_name}: ¡Gracias por querer ayudar! 🙌\n\n` +
+    `Podés hacer tu donación a través de los siguientes medios:\n\n` +
+    `🏦 *Transferencia bancaria*\n` +
+    `Alias: sigotuhuella.mp\n` +
+    `CBU: 0000003100065412345678\n\n` +
+    `💳 *Mercado Pago*\n` +
+    `https://sigotuhuella.online/donar\n\n` +
+    `Tu ayuda nos permite seguir rescatando y cuidando animales. 🐾`);
+  await setFlow(conv, 'menu');
+  return showMenu(conv);
 }
 
 // ─── Pending Human ───

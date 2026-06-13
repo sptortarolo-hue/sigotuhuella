@@ -58,10 +58,15 @@ export async function sendInteractiveButtons(to, bodyText, buttons) {
   return data;
 }
 
-export async function sendImage(to, imageUrl, caption) {
+export async function sendImage(to, imageIdOrUrl, caption) {
   const phoneNumberId = await getPhoneNumberId();
   const token = await getAccessToken();
   if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const isUrl = typeof imageIdOrUrl === 'string' && (imageIdOrUrl.startsWith('http') || imageIdOrUrl.startsWith('data:'));
+  const imageField = isUrl
+    ? { link: imageIdOrUrl, caption: caption || '' }
+    : { id: imageIdOrUrl, caption: caption || '' };
 
   const { data } = await axios.post(`${GRAPH_API}/${phoneNumberId}/messages`,
     {
@@ -69,11 +74,31 @@ export async function sendImage(to, imageUrl, caption) {
       recipient_type: 'individual',
       to,
       type: 'image',
-      image: { link: imageUrl, caption: caption || '' },
+      image: imageField,
     },
     { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
   );
   return data;
+}
+
+export async function uploadMedia(base64Data, mimeType) {
+  const phoneNumberId = await getPhoneNumberId();
+  const token = await getAccessToken();
+  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const { default: FormData } = await import('form-data');
+  const buffer = Buffer.from(base64Data, 'base64');
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('file', buffer, { filename: 'pet.jpg', contentType: mimeType || 'image/jpeg' });
+  form.append('type', mimeType || 'image/jpeg');
+
+  const { data } = await axios.post(`${GRAPH_API}/${phoneNumberId}/media`, form, {
+    headers: { Authorization: `Bearer ${token}`, ...form.getHeaders() },
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+  });
+  return data.id;
 }
 
 export async function downloadMedia(mediaId) {
