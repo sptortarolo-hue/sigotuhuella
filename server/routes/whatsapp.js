@@ -18,6 +18,34 @@ router.get('/diagnostic', async (req, res) => {
     const rows = (await pool.query('SELECT key, value FROM settings WHERE key = ANY($1)', [keys])).rows;
     const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
 
+    // If a test message was requested, process it
+    if (req.query.test === '1') {
+      const testPhone = req.query.phone || '5491111111111';
+      const testText = req.query.text || 'Hola';
+      const fakePayload = {
+        entry: [{
+          changes: [{
+            value: {
+              messaging_product: 'whatsapp',
+              metadata: { display_phone_number: '5492212025190', phone_number_id: settings.whatsapp_phone_number_id },
+              contacts: [{ profile: { name: 'Test User' }, wa_id: testPhone }],
+              messages: [{
+                id: `test_${Date.now()}`,
+                from: testPhone,
+                type: 'text',
+                text: { body: testText },
+                timestamp: Math.floor(Date.now() / 1000),
+              }],
+            },
+          }],
+        }],
+      };
+      const parsed = processIncomingMessage(fakePayload);
+      if (parsed) {
+        processMessage(parsed).catch(e => console.error('Test message error:', e));
+      }
+    }
+
     const lastWebhook = (await pool.query(
       "SELECT created_at FROM whatsapp_messages ORDER BY created_at DESC LIMIT 1"
     )).rows[0];
@@ -37,6 +65,7 @@ router.get('/diagnostic', async (req, res) => {
       access_token_preview: settings.whatsapp_access_token ? settings.whatsapp_access_token.substring(0, 10) + '...' : null,
       last_webhook_at: lastWebhook?.created_at || null,
       active_conversations: parseInt(activeConvs),
+      test_sent: req.query.test === '1',
     });
   } catch (err) {
     console.error('Diagnostic error:', err);
