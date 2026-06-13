@@ -146,8 +146,9 @@ router.put('/profile', requireAdmin, async (req, res) => {
     const result = await updateBusinessProfile(fields);
     res.json({ success: true, result });
   } catch (err) {
-    console.error('Error updating WhatsApp profile:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Error updating WhatsApp profile:', err?.response?.data || err.message);
+    const metaError = err?.response?.data?.error?.message || err?.response?.data?.error || err.message;
+    res.status(500).json({ error: metaError });
   }
 });
 

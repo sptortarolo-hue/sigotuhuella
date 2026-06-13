@@ -98,9 +98,10 @@ export default function WhatsAppTab() {
       await fetchProfile();
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 3000);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('Error al guardar perfil');
+      const msg = e?.message || e?.error || 'Error desconocido';
+      alert('Error al guardar perfil: ' + msg);
     }
     setProfileSaving(false);
   };
