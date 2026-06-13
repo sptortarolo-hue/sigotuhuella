@@ -133,6 +133,7 @@ export default function Admin() {
   const [bannerChapitaVisible, setBannerChapitaVisible] = useState(true);
   const [bannerChapitaPrice, setBannerChapitaPrice] = useState('500');
   const [bannerChapitaIsFree, setBannerChapitaIsFree] = useState(true);
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   // QR State
   const [qrUnassigned, setQrUnassigned] = useState<any[]>([]);
