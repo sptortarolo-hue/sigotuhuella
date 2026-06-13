@@ -147,6 +147,20 @@ export async function syncFromVps() {
   }
 }
 
+export async function fetchFbPost(url) {
+  try {
+    const resp = await fetch(`${VPS_HOST}/fetch-post?url=${encodeURIComponent(url)}`);
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`fetch-post failed (${resp.status}): ${err}`);
+    }
+    return await resp.json();
+  } catch (err) {
+    console.error('fetchFbPost error:', err.message);
+    throw err;
+  }
+}
+
 export function startSyncTimer(minutes = 5) {
   console.log(`Starting VPS sync every ${minutes} minutes`);
   pushConfig().catch(() => {});

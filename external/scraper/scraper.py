@@ -604,6 +604,66 @@ sync_app = Flask(__name__)
 def health():
     return jsonify({"ok": True})
 
+@sync_app.route("/fetch-post")
+def fetch_post():
+    url = request.args.get("url")
+    if not url:
+        return jsonify({"error": "url parameter required"}), 400
+    conn = init_db()
+    driver = init_driver(headless=True)
+    try:
+        driver.get("https://www.facebook.com/")
+        if COOKIES_PATH.exists():
+            load_cookies(driver, COOKIES_PATH)
+        driver.get(url)
+        time.sleep(4)
+        for btn in driver.find_elements(By.XPATH, ".//div[@role='button'][contains(.,'See more') or contains(.,'Ver más')]"):
+            try:
+                if btn.is_displayed():
+                    driver.execute_script("arguments[0].click();", btn)
+                    time.sleep(0.3)
+            except Exception:
+                pass
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        article = soup.select_one(POST_CONTAINER_BS)
+        if article:
+            parsed = parse_post(article, "url_fetch")
+            if parsed:
+                cls = classify_post(parsed.get("content", ""), parsed.get("image_urls", []))
+                pid = save_post(conn, parsed, cls)
+                if pid:
+                    save_comments(conn, pid, parsed.get("comments", []), [])
+                    conn.commit()
+                return jsonify(parsed)
+        fb_id, fb_post_url = None, driver.current_url
+        for pat in [r'/posts/(\d+)', r'story_fbid=(\d+)', r'fbid=(\d+)', r'share/p/(\w+)']:
+            m = re.search(pat, fb_post_url)
+            if m:
+                fb_id = m.group(1)
+                break
+        if not fb_id:
+            m = re.search(r'"post_id":\s*"(\d+)"', str(soup))
+            if m:
+                fb_id = m.group(1)
+        if not fb_id:
+            return jsonify({"error": "Could not find post ID"}), 400
+        author = next((soup.select_one(s).get_text(strip=True) for s in ['h2 strong', 'h3 strong', 'a[aria-label][role="link"] strong', 'strong[dir="auto"]'] if soup.select_one(s)), "")
+        content = next((soup.select_one(s).get_text("\n", strip=True)[:2000] for s in ['div[data-ad-rendering-role="story_message"]', 'div[data-ad-preview="message"]'] if soup.select_one(s)), "")
+        images = list(dict.fromkeys(img.get("src") or "" for img in soup.select('img[src*="scontent"], img[src*="fbcdn"]') if (img.get("src") or "")))[:5]
+        result = {"fb_post_id": fb_id, "fb_post_url": fb_post_url, "author_name": author, "content": content, "image_urls": images, "posted_at": "", "comments": [], "group_id": None, "group_name": "url_fetch"}
+        pid = save_post(conn, result, classify_post(content, images))
+        conn.commit()
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"fetch-post error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try:
+            driver.quit()
+        except Exception:
+            pass
+        conn.close()
+
 @sync_app.route("/sync")
 def sync_get():
     since = request.args.get("since")

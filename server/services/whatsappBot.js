@@ -1,6 +1,7 @@
 import pool from '../db.js';
 import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia } from './whatsappService.js';
 import { matchWhatsAppToPets } from './geminiMatching.js';
+import { fetchFbPost } from './vpsSyncService.js';
 
 const BOT_NAMES = ['Tute', 'Lilo', 'Toto'];
 
@@ -777,10 +778,48 @@ async function fbLookup(conv, parsed) {
   );
 
   if (result.rows.length === 0) {
-    await sendMessage(conv.wa_from,
-      `${conv.bot_name}: No encontramos esta publicación en nuestro sistema todavía. ` +
-      `Podés reportarla manualmente desde el menú eligiendo la opción correspondiente. 🐾`);
-    return showMenu(conv);
+    await sendMessage(conv.wa_from, `${conv.bot_name}: No encontré la publicación en nuestro sistema. Voy a buscarla directamente a Facebook... 🔍`);
+
+    let fbPostData;
+    try {
+      fbPostData = await fetchFbPost(fbUrl);
+    } catch (err) {
+      await sendMessage(conv.wa_from,
+        `${conv.bot_name}: No pude acceder a la publicación. ` +
+        `Podés reportarla manualmente desde el menú. 🐾`);
+      return showMenu(conv);
+    }
+
+    if (!fbPostData || !fbPostData.fb_post_id) {
+      await sendMessage(conv.wa_from,
+        `${conv.bot_name}: No pude obtener los datos de la publicación. ` +
+        `Podés reportarla manualmente desde el menú. 🐾`);
+      return showMenu(conv);
+    }
+
+    // Insert fetched post into facebook_posts
+    const insertResult = await pool.query(
+      `INSERT INTO facebook_posts
+         (fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, classification, group_name)
+       VALUES ($1, $2, $3, $4, $5, $6, 'unclassified', 'url_fetch')
+       ON CONFLICT (fb_post_id) DO UPDATE SET
+         content = EXCLUDED.content,
+         image_urls = EXCLUDED.image_urls,
+         author_name = EXCLUDED.author_name,
+         scraped_at = NOW()
+       RETURNING id`,
+      [fbPostData.fb_post_id, fbPostData.fb_post_url || fbUrl, fbPostData.author_name || '',
+       fbPostData.content || '', JSON.stringify(fbPostData.image_urls || []),
+       fbPostData.posted_at ? new Date(fbPostData.posted_at) : null]
+    );
+
+    const newPost = {
+      ...fbPostData,
+      id: insertResult.rows[0].id,
+    };
+
+    await setFlow(conv, 'report_from_fb.lookup', { ...conv.context, fbPost: newPost });
+    return fbContinue(conv);
   }
 
   await setFlow(conv, 'report_from_fb.lookup', { ...conv.context, fbPost: result.rows[0] });
