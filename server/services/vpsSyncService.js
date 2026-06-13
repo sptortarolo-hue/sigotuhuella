@@ -3,8 +3,8 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 import pool from '../db.js';
-import { classifyPost } from './geminiClassifier.js';
-import { matchPostToPet, detectReunion } from './geminiMatching.js';
+import { classifyPost } from './cloudflareClassifier.js';
+import { matchPostToPet, detectReunion } from './cloudflareMatching.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VPS_HOST = process.env.VPS_HOST || 'http://138.36.236.69:3001';
