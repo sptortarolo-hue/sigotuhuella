@@ -19,6 +19,7 @@ router.get('/diagnostic', async (req, res) => {
     const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
 
     // If a test message was requested, process it
+    let testResult = null;
     if (req.query.test === '1') {
       const testPhone = req.query.phone || '5491111111111';
       const testText = req.query.text || 'Hola';
@@ -40,9 +41,17 @@ router.get('/diagnostic', async (req, res) => {
           }],
         }],
       };
-      const parsed = processIncomingMessage(fakePayload);
-      if (parsed) {
-        processMessage(parsed).catch(e => console.error('Test message error:', e));
+      try {
+        const parsed = processIncomingMessage(fakePayload);
+        if (parsed) {
+          await processMessage(parsed);
+          testResult = 'ok';
+        } else {
+          testResult = 'parse_failed: payload format not recognized';
+        }
+      } catch (e) {
+        testResult = `error: ${e.message}`;
+        console.error('Test message error:', e);
       }
     }
 
@@ -66,6 +75,7 @@ router.get('/diagnostic', async (req, res) => {
       last_webhook_at: lastWebhook?.created_at || null,
       active_conversations: parseInt(activeConvs),
       test_sent: req.query.test === '1',
+      test_result: testResult,
     });
   } catch (err) {
     console.error('Diagnostic error:', err);
