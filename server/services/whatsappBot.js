@@ -25,6 +25,26 @@ async function setFlow(conv, flow, contextUpdates = {}) {
 
 function detectIntent(parsed) {
   const text = (parsed.textBody || '').toLowerCase().trim();
+
+  if (parsed.buttonId) {
+    switch (parsed.buttonId) {
+      case 'report_lost': return 'report_lost';
+      case 'report_sighted': return 'report_sighted';
+      case 'report_found': return 'report_found';
+      case 'info_qr': return 'info_qr';
+      case 'volunteer': return 'volunteer';
+      case 'adopt': return 'adopt';
+      case 'donate': return 'donate';
+      case 'human': return 'human';
+      case 'end_yes': return 'confirm';
+      case 'end_no': return 'cancel';
+      case 'confirm_yes': return 'confirm';
+      case 'confirm_no': return 'cancel';
+      case 'motive_report': case 'motive_technical': case 'motive_collab': case 'motive_other': return 'motive';
+      case 'species_dog': case 'species_cat': case 'species_other': return 'species';
+    }
+  }
+
   if (parsed.messageType === 'interactive') {
     if (/perdida/i.test(text)) return 'report_lost';
     if (/avistaje/i.test(text)) return 'report_sighted';
@@ -216,13 +236,13 @@ async function startHumanRequest(conv) {
 }
 
 async function hMotive(conv, parsed) {
-  const text = (parsed.textBody || '').toLowerCase();
   const motives = {
     motive_report: 'Consulta sobre un reporte',
     motive_technical: 'Problema técnico',
     motive_collab: 'Quiero colaborar',
+    motive_other: 'Otro',
   };
-  const motive = motives[parsed.textBody] || (text || 'Otro');
+  const motive = motives[parsed.buttonId] || (parsed.textBody || 'Otro');
   await setFlow(conv, 'pending_human', { motive });
   await sendMessage(conv.wa_from,
     `🗣 *${conv.bot_name}:* Gracias. Tu consulta fue derivada a nuestro equipo. Te van a responder a la brevedad.`);
@@ -242,9 +262,15 @@ async function startReportLost(conv) {
 }
 
 async function rlSpecies(conv, parsed) {
-  const text = (parsed.textBody || '').toLowerCase();
-  const species = text.includes('gato') || text.includes('🐈') ? 'cat'
-    : text.includes('otro') || text.includes('🐾') ? 'other' : 'dog';
+  let species;
+  if (parsed.buttonId) {
+    species = parsed.buttonId === 'species_cat' ? 'cat'
+      : parsed.buttonId === 'species_other' ? 'other' : 'dog';
+  } else {
+    const text = (parsed.textBody || '').toLowerCase();
+    species = text.includes('gato') || text.includes('🐈') ? 'cat'
+      : text.includes('otro') || text.includes('🐾') ? 'other' : 'dog';
+  }
   await sendMessage(conv.wa_from, `✅ Anotado.`);
   await sendMessage(conv.wa_from, `${conv.bot_name}: Ahora enviá una *foto* de la mascota 📸`);
   await setFlow(conv, 'report_lost.photo', { species });
@@ -568,9 +594,15 @@ async function startAdoptFlow(conv) {
 }
 
 async function adoptSpecies(conv, parsed) {
-  const text = (parsed.textBody || '').toLowerCase();
-  const species = text.includes('gato') || text.includes('🐈') ? 'cat'
-    : text.includes('otro') || text.includes('🐾') ? 'other' : 'dog';
+  let species;
+  if (parsed.buttonId) {
+    species = parsed.buttonId === 'species_cat' ? 'cat'
+      : parsed.buttonId === 'species_other' ? 'other' : 'dog';
+  } else {
+    const text = (parsed.textBody || '').toLowerCase();
+    species = text.includes('gato') || text.includes('🐈') ? 'cat'
+      : text.includes('otro') || text.includes('🐾') ? 'other' : 'dog';
+  }
 
   const pets = (await pool.query(
     `SELECT p.id, p.name, p.description, p.species, pi.image_data, pi.mime_type

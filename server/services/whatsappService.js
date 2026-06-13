@@ -181,12 +181,14 @@ export function processIncomingMessage(payload) {
   }
 
   const profileName = value.contacts?.[0]?.profile?.name || '';
+  const buttonId = msg.interactive?.button_reply?.id || null;
 
   return {
     waMessageId,
     from,
     messageType,
     textBody,
+    buttonId,
     mediaId,
     locationLat,
     locationLng,
