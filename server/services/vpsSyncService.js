@@ -10,6 +10,22 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const VPS_HOST = process.env.VPS_HOST || 'http://138.36.236.69:3001';
 const COOKIES_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'cookies.txt');
 let lastSync = null;
+let geminiCooldownUntil = 0;
+
+function isGeminiAvailable() {
+  if (Date.now() < geminiCooldownUntil) return false;
+  return true;
+}
+
+function handleGeminiError(err) {
+  if (err?.status === 429 || err?.error?.code === 429) {
+    const cooldownMs = 5 * 60 * 1000;
+    geminiCooldownUntil = Date.now() + cooldownMs;
+    console.log(`Gemini quota exhausted — entering cooldown for ${cooldownMs / 1000}s`);
+    return true;
+  }
+  return false;
+}
 
 export async function pushConfig() {
   try {
@@ -61,7 +77,15 @@ export async function syncFromVps() {
       try {
         if (!post.fb_post_id) continue;
 
-        const classification = await classifyPost(post.content || '', post.image_urls || [], post.comments || []);
+        let classification = { classification: 'unknown', species: null, color: null, location_hint: null, phone: null, location_lat: null, location_lng: null, comments: [] };
+        if (isGeminiAvailable()) {
+          try {
+            classification = await classifyPost(post.content || '', post.image_urls || [], post.comments || []);
+          } catch (err) {
+            if (handleGeminiError(err)) classification = { ...classification };
+            else throw err;
+          }
+        }
 
         const postResult = await pool.query(
           `INSERT INTO facebook_posts
@@ -98,11 +122,11 @@ export async function syncFromVps() {
           }
         }
 
-        if (postId && classification.classification === 'lost') {
-          detectReunion(postId).catch(err => console.error('Reunion detection error:', err));
+        if (postId && classification.classification === 'lost' && isGeminiAvailable()) {
+          detectReunion(postId).catch(err => { if (!handleGeminiError(err)) console.error('Reunion detection error:', err); });
         }
-        if (postId && (classification.classification === 'found' || classification.classification === 'lost')) {
-          matchPostToPet(postId).catch(err => console.error('Auto-matching error:', err));
+        if (postId && (classification.classification === 'found' || classification.classification === 'lost') && isGeminiAvailable()) {
+          matchPostToPet(postId).catch(err => { if (!handleGeminiError(err)) console.error('Auto-matching error:', err); });
         }
 
         inserted++;
