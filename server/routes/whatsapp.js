@@ -161,6 +161,7 @@ router.get('/conversations', requireAdmin, async (req, res) => {
   try {
     const { status } = req.query;
     let sql = `SELECT c.*,
+       c.context->>'motive' as motive,
        (SELECT COUNT(*) FROM whatsapp_messages m WHERE m.conversation_id = c.id) as message_count,
        (SELECT text_body FROM whatsapp_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message,
        (SELECT message_type FROM whatsapp_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message_type,
@@ -183,7 +184,7 @@ router.get('/conversations', requireAdmin, async (req, res) => {
 // GET /api/whatsapp/conversations/:id — messages in conversation
 router.get('/conversations/:id', requireAdmin, async (req, res) => {
   try {
-    const conv = await pool.query('SELECT * FROM whatsapp_conversations WHERE id = $1', [req.params.id]);
+    const conv = await pool.query(`SELECT *, context->>'motive' as motive FROM whatsapp_conversations WHERE id = $1`, [req.params.id]);
     if (conv.rows.length === 0) return res.status(404).json({ error: 'Conversación no encontrada' });
 
     const messages = await pool.query(

@@ -94,8 +94,8 @@ export async function processMessage(parsed) {
 
   if (!conv) {
     conv = (await pool.query(
-      `INSERT INTO whatsapp_conversations (wa_from, bot_name, flow) VALUES ($1, $2, 'menu') RETURNING *`,
-      [parsed.from, pickBotName()]
+      `INSERT INTO whatsapp_conversations (wa_from, bot_name, flow, context) VALUES ($1, $2, 'welcome', $3) RETURNING *`,
+      [parsed.from, pickBotName(), JSON.stringify({ is_new: true })]
     )).rows[0];
   }
 
@@ -121,6 +121,7 @@ async function routeFlow(conv, parsed) {
   }
 
   switch (flow) {
+    case 'welcome': return showWelcome(conv);
     case 'menu': return handleMenu(conv, parsed, intent);
     case 'report_lost.species': return rlSpecies(conv, parsed);
     case 'report_lost.photo': return rlPhoto(conv, parsed);
@@ -140,19 +141,31 @@ async function routeFlow(conv, parsed) {
     case 'volunteer.zone': return vZone(conv, parsed);
     case 'volunteer.phone': return vPhone(conv, parsed);
     case 'volunteer.confirm': return vConfirm(conv, parsed, intent);
+    case 'human.motive': return hMotive(conv, parsed);
     case 'info_qr': return showInfoQr(conv);
     case 'pending_human': return handlePendingHuman(conv);
     default: return showMenu(conv);
   }
 }
 
+// ─── Welcome (solo primera vez) ───
+
+async function showWelcome(conv) {
+  await sendMessage(conv.wa_from,
+    `🐾 ¡Hola! Soy *${conv.bot_name}*, el asistente virtual de *Sigo Tu Huella* 🐾\n\n` +
+    `Estoy acá para ayudarte a reportar mascotas perdidas, avistajes y conectar con nuestra red de ayuda.`);
+  const greeting = await getSetting('whatsapp_greeting');
+  if (greeting) {
+    await sendMessage(conv.wa_from, greeting);
+  }
+  await setFlow(conv, 'menu', { is_new: false });
+  return showMenu(conv);
+}
+
 // ─── Menu ───
 
 export async function showMenu(conv) {
-  const greeting = await getSetting('whatsapp_greeting');
-  const msg = greeting || `🐾 ¡Hola! Soy *${conv.bot_name}*, el asistente de *Sigo Tu Huella* 🐾\n\n¿En qué puedo ayudarte? Elegí una opción:`;
-  await sendMessage(conv.wa_from, msg);
-  await sendInteractiveButtons(conv.wa_from, '📌 Reportar', [
+  await sendInteractiveButtons(conv.wa_from, '📌 ¿Qué querés hacer?', [
     { id: 'report_lost', title: '📷 Perdida' },
     { id: 'report_sighted', title: '👀 Avistaje' },
     { id: 'report_found', title: '✅ Encontrada' },
@@ -160,7 +173,7 @@ export async function showMenu(conv) {
   await sendInteractiveButtons(conv.wa_from, '📌 Más opciones', [
     { id: 'info_qr', title: 'ℹ️ Info QR' },
     { id: 'volunteer', title: '🙋 Voluntario' },
-    { id: 'human', title: '🗣 Humano' },
+    { id: 'human', title: '🗣 Representante' },
   ]);
   await setFlow(conv, 'menu');
 }
@@ -172,15 +185,38 @@ async function handleMenu(conv, parsed, intent) {
     case 'report_found': return startReportFound(conv);
     case 'info_qr': return showInfoQr(conv);
     case 'volunteer': return startVolunteer(conv);
-    case 'human': {
-      await setFlow(conv, 'pending_human');
-      await sendMessage(conv.wa_from, `🗣 ${conv.bot_name}: Enseguida te conectamos con una persona. Alguien del equipo te va a responder a la brevedad. Gracias por tu paciencia.`);
-      return;
-    }
+    case 'human': return startHumanRequest(conv);
     default:
       await sendMessage(conv.wa_from, `${conv.bot_name}: No entendí tu mensaje. Usá los botones de abajo 👇`);
       return showMenu(conv);
   }
+}
+
+// ─── Human / Representante ───
+
+async function startHumanRequest(conv) {
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Sobre qué necesitás hablar con un representante?`);
+  await sendInteractiveButtons(conv.wa_from, 'Motivo:', [
+    { id: 'motive_report', title: '📋 Consulta reporte' },
+    { id: 'motive_technical', title: '⚙️ Problema técnico' },
+    { id: 'motive_collab', title: '🙌 Quiero colaborar' },
+    { id: 'motive_other', title: 'Otro' },
+  ]);
+  await setFlow(conv, 'human.motive');
+}
+
+async function hMotive(conv, parsed) {
+  const text = (parsed.textBody || '').toLowerCase();
+  const motives = {
+    motive_report: 'Consulta sobre un reporte',
+    motive_technical: 'Problema técnico',
+    motive_collab: 'Quiero colaborar',
+  };
+  const motive = motives[parsed.textBody] || (text || 'Otro');
+  await setFlow(conv, 'pending_human', { motive });
+  await sendMessage(conv.wa_from,
+    `🗣 *${conv.bot_name}:* Gracias. Tu consulta fue derivada a nuestro equipo. Te van a responder a la brevedad. Mientras tanto podés seguir usando el menú si necesitás hacer otra cosa.`);
+  return showMenu(conv);
 }
 
 // ─── Report Lost ───
@@ -520,5 +556,12 @@ async function vConfirm(conv, parsed, intent) {
 // ─── Pending Human ───
 
 async function handlePendingHuman(conv) {
-  await sendMessage(conv.wa_from, `🗣 ${conv.bot_name}: Tu consulta ya fue derivada a nuestro equipo. Alguien te va a responder pronto.`);
+  const ctx = conv.context || {};
+  if (ctx.motive) {
+    await sendMessage(conv.wa_from,
+      `🗣 ${conv.bot_name}: Tu consulta sobre "${ctx.motive}" ya fue derivada a nuestro equipo. Te van a responder a la brevedad.`);
+  } else {
+    await sendMessage(conv.wa_from,
+      `🗣 ${conv.bot_name}: Tu consulta ya fue derivada a nuestro equipo. Te van a responder a la brevedad.`);
+  }
 }
