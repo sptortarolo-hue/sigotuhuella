@@ -1,5 +1,6 @@
 import pool from '../db.js';
 import { sendMessage, sendInteractiveButtons, downloadMedia } from './whatsappService.js';
+import { matchWhatsAppToPets } from './geminiMatching.js';
 
 const BOT_NAMES = ['Tute', 'Lilo', 'Toto'];
 
@@ -274,6 +275,7 @@ async function rlConfirm(conv, parsed, intent) {
       await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`, [petId, ctx.photo_data, ctx.photo_mime || 'image/jpeg']);
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
+    matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte creado con éxito! Ya lo publicamos en nuestra red.`);
     await sendMessage(conv.wa_from, `📌 Recordá que también podés pedir una *chapita QR* para tu mascota en:\nhttps://sigotuhuella.online/solicitar-chapita`);
     await setFlow(conv, 'menu');
@@ -343,6 +345,7 @@ async function rsConfirm(conv, parsed, intent) {
       await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`, [petId, ctx.photo_data, ctx.photo_mime || 'image/jpeg']);
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
+    matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de avistaje registrado! Gracias por ayudar.`);
     await setFlow(conv, 'menu');
     await showMenu(conv);
@@ -414,6 +417,7 @@ async function rfConfirm(conv, parsed, intent) {
       await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`, [petId, ctx.photo_data, ctx.photo_mime || 'image/jpeg']);
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
+    matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de mascota encontrada registrado! Ya visibilizamos la info para encontrar a su dueño.`);
     await sendMessage(conv.wa_from, `🙏 ¡Gracias por tu ayuda!`);
     await setFlow(conv, 'menu');

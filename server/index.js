@@ -29,6 +29,7 @@ import instagramRoutes from './routes/instagram.js';
 import imageRoutes from './routes/images.js';
 import { startSyncTimer } from './services/vpsSyncService.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
+import { checkWhatsAppTimeouts } from './services/whatsappScheduler.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
 
@@ -505,6 +506,17 @@ async function start() {
       console.error('[Instagram Publisher Startup] Error:', err.message);
     }
   }, 5000);
+
+  // WhatsApp timeout/reminder check every 10 minutes
+  setInterval(async () => {
+    try {
+      await checkWhatsAppTimeouts();
+    } catch (err) {
+      console.error('[WhatsApp Scheduler] Error:', err.message);
+    }
+  }, 10 * 60 * 1000);
+
+  checkWhatsAppTimeouts();
 }
 
 start().catch(err => {

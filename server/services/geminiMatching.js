@@ -263,6 +263,58 @@ export async function runFullMatching() {
   }
 }
 
+export async function matchWhatsAppToPets(newPetId) {
+  try {
+    const newPet = (await pool.query('SELECT * FROM pets WHERE id = $1', [newPetId])).rows[0];
+    if (!newPet) return [];
+
+    const oppositeStatuses = newPet.status === 'lost' ? ['sighted', 'retained'] : ['lost'];
+    const minScore = parseInt((await pool.query("SELECT value FROM settings WHERE key = 'matching_min_score'")).rows[0]?.value || '50');
+
+    const candidates = await pool.query(
+      `SELECT * FROM pets WHERE status = ANY($1) AND id != $2
+       ORDER BY created_at DESC LIMIT 20`,
+      [oppositeStatuses, newPetId]
+    );
+
+    const matches = [];
+    for (const candidate of candidates.rows) {
+      const text = `Nuevo reporte (${newPet.status}):
+Especie: ${newPet.species}
+Color: ${newPet.color || 'no especificado'}
+Ubicación: ${newPet.location || 'no especificada'}
+Descripción: ${newPet.description || ''}
+
+Candidato (${candidate.status}):
+Especie: ${candidate.species}
+Color: ${candidate.color || 'no especificado'}
+Ubicación: ${candidate.location || 'no especificada'}
+Descripción: ${candidate.description || ''}`;
+
+      const result = await callGemini(text, MATCH_PROMPT);
+      if (result.match && result.score >= minScore) {
+        matches.push({ pet: candidate, score: result.score, reasons: result.reasons || [] });
+
+        await pool.query(
+          `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
+           VALUES ('wa_report', $1, 'app_pet', $2, $3, $4, 'ai')
+           ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING`,
+          [newPetId, candidate.id, result.score, result.reasons || []]
+        );
+      }
+    }
+
+    if (matches.length > 0) {
+      notifyAdminMatch('wa_report', newPet, matches);
+    }
+
+    return matches;
+  } catch (err) {
+    console.error('matchWhatsAppToPets error:', err);
+    return [];
+  }
+}
+
 async function notifyAdminMatch(type, source, matches) {
   const top = matches.slice(0, 3);
   const url = type === 'post'
