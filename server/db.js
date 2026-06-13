@@ -486,6 +486,21 @@ export async function initDb() {
     await client.query(schema);
     console.log('Database schema initialized');
 
+    // Migrations: add missing columns to existing whatsapp tables
+    await client.query(`
+      ALTER TABLE whatsapp_messages
+        ADD COLUMN IF NOT EXISTS conversation_id UUID,
+        ADD COLUMN IF NOT EXISTS direction VARCHAR(20) DEFAULT 'inbound'
+    `);
+    await client.query(`
+      ALTER TABLE whatsapp_conversations
+        ADD COLUMN IF NOT EXISTS flow_state JSONB DEFAULT '{}'::jsonb,
+        ADD COLUMN IF NOT EXISTS context JSONB DEFAULT '{}'::jsonb,
+        ADD COLUMN IF NOT EXISTS flow VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'active',
+        ADD COLUMN IF NOT EXISTS bot_name VARCHAR(20) DEFAULT 'Tute'
+    `);
+
     // Migrations: add crop support columns for image upload
     await client.query(`
       ALTER TABLE pet_images
