@@ -52,6 +52,17 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(255)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires TIMESTAMP;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);
 
+CREATE TABLE IF NOT EXISTS volunteer_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  full_name VARCHAR(255) NOT NULL,
+  residence_zone VARCHAR(255) NOT NULL,
+  whatsapp VARCHAR(100),
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  contribution_areas JSONB DEFAULT '[]'::jsonb,
+  status VARCHAR(30) DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS pets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255),
