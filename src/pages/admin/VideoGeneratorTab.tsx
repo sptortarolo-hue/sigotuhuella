@@ -17,6 +17,8 @@ interface Video {
   status: string;
   error_msg: string | null;
   created_by_name: string | null;
+  story_interval_minutes: number | null;
+  last_story_posted_at: string | null;
 }
 
 interface AvailablePet {
@@ -25,6 +27,7 @@ interface AvailablePet {
   species: string;
   status: string;
   breed: string | null;
+  description: string | null;
   cover_image: string | null;
 }
 
@@ -139,6 +142,8 @@ export default function VideoGeneratorTab() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
+  const [storyPublishingId, setStoryPublishingId] = useState<string | null>(null);
+  const [storySuccessId, setStorySuccessId] = useState<string | null>(null);
 
   const musicOptions = [
     { value: 'emotional', label: 'Emocional Piano' },
@@ -223,6 +228,9 @@ export default function VideoGeneratorTab() {
     setSelectedScenes(prev => {
       const exists = prev.find(s => s.source === 'pet' && s.petId === pet.id);
       if (exists) return prev.filter(s => s !== exists);
+      if (pet.description) {
+        setVoiceScript(v => v || pet.description || '');
+      }
       return [...prev, {
         source: 'pet' as const,
         petId: pet.id,
@@ -372,6 +380,41 @@ export default function VideoGeneratorTab() {
     } catch (e: any) {
       setGenerateError(e.message || 'Error generando video');
       setGenerating(false);
+    }
+  }
+
+  async function publishStory(video: Video) {
+    setStoryPublishingId(video.id);
+    setStorySuccessId(null);
+    try {
+      const res = await authFetch('/api/instagram/publish-story', {
+        method: 'POST',
+        body: JSON.stringify({ videoId: video.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al publicar story');
+      }
+      setStorySuccessId(video.id);
+      setTimeout(() => setStorySuccessId(null), 3000);
+    } catch (e: any) {
+      alert(e.message || 'Error al publicar story');
+    } finally {
+      setStoryPublishingId(null);
+    }
+  }
+
+  async function updateStoryInterval(videoId: string, intervalMinutes: number | null) {
+    try {
+      await authFetch(`/api/instagram/videos/${videoId}/story-config`, {
+        method: 'PUT',
+        body: JSON.stringify({ intervalMinutes }),
+      });
+      setVideos(prev => prev.map(v =>
+        v.id === videoId ? { ...v, story_interval_minutes: intervalMinutes } : v
+      ));
+    } catch {
+      alert('Error al actualizar configuración de story');
     }
   }
 
@@ -1015,6 +1058,50 @@ export default function VideoGeneratorTab() {
                       {new Date(video.created_at).toLocaleDateString('es-AR')} &middot; {video.duration}s
                       {video.created_by_name && <> &middot; {video.created_by_name}</>}
                     </p>
+                    {isReady && video.video_data && (
+                      <div className="flex items-center gap-2 mb-3">
+                        <button
+                          onClick={() => publishStory(video)}
+                          disabled={storyPublishingId === video.id}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-colors",
+                            storySuccessId === video.id
+                              ? "bg-green-100 text-green-700 border border-green-300"
+                              : "bg-brand-secondary/10 text-brand-secondary border border-brand-secondary/30 hover:bg-brand-secondary/20"
+                          )}
+                        >
+                          {storyPublishingId === video.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : storySuccessId === video.id ? (
+                            <CheckCircle className="w-3.5 h-3.5" />
+                          ) : (
+                            <Film className="w-3.5 h-3.5" />
+                          )}
+                          {storySuccessId === video.id ? 'Publicado!' : 'Subir a Stories'}
+                        </button>
+                        <select
+                          value={video.story_interval_minutes ?? ''}
+                          onChange={e => {
+                            const val = e.target.value;
+                            updateStoryInterval(video.id, val ? parseInt(val) : null);
+                          }}
+                          className="text-[10px] border border-brand-accent rounded-lg px-2 py-1 bg-white text-gray-600"
+                        >
+                          <option value="">No auto</option>
+                          <option value="30">30 min</option>
+                          <option value="60">1 hora</option>
+                          <option value="180">3 horas</option>
+                          <option value="360">6 horas</option>
+                          <option value="720">12 horas</option>
+                          <option value="1440">24 horas</option>
+                        </select>
+                        {video.last_story_posted_at && (
+                          <span className="text-[10px] text-gray-400 ml-auto">
+                            Última story: {new Date(video.last_story_posted_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       {isReady && video.video_data && (
                         <>

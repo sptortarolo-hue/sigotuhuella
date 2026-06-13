@@ -587,6 +587,13 @@ export async function initDb() {
         AND p1.created_at < p2.created_at
     `, 'deduplicate instagram posts');
 
+    await migrate(client, `
+      ALTER TABLE promotional_videos ADD COLUMN IF NOT EXISTS story_interval_minutes INTEGER
+    `, 'add story_interval_minutes to promotional_videos');
+    await migrate(client, `
+      ALTER TABLE promotional_videos ADD COLUMN IF NOT EXISTS last_story_posted_at TIMESTAMP
+    `, 'add last_story_posted_at to promotional_videos');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

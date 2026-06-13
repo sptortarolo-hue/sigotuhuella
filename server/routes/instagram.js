@@ -6,9 +6,18 @@ import {
   createContainer, publishContainer, waitForContainer,
   getComments, replyToComment, sendPrivateReply,
   getUserMedia, getMedia, getMediaInsights,
-  verifyWebhook, getInstagramUserId, manualConnect,
+  verifyWebhook, getInstagramUserId, manualConnect, publishStory,
 } from '../services/instagramService.js';
 import { processQueue } from '../services/instagramPublisher.js';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const execFileAsync = promisify(execFile);
 
 const router = Router();
 
@@ -176,6 +185,90 @@ router.post('/publish-async', requireAdmin, async (req, res) => {
     res.json({ success: true, queuedId: queueResult.rows[0].id, message: 'Publicación encolada' });
   } catch (err) {
     console.error('Error queueing publish:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/publish-story', requireAdmin, async (req, res) => {
+  try {
+    const { videoId, videoUrl } = req.body;
+    if (!videoId && !videoUrl) {
+      return res.status(400).json({ error: 'videoId o videoUrl requerido' });
+    }
+    const connected = await isConnected();
+    if (!connected) return res.status(400).json({ error: 'Instagram no conectado' });
+
+    let publicUrl = videoUrl;
+    if (videoId) {
+      const vid = await pool.query('SELECT video_data FROM promotional_videos WHERE id = $1', [videoId]);
+      if (vid.rows.length === 0) return res.status(404).json({ error: 'Video no encontrado' });
+      const filename = vid.rows[0].video_data;
+      const FRONTEND = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+      publicUrl = `${FRONTEND}/generated/videos/${filename}`;
+
+      // Trim to max 15s via ffmpeg and serve from a temp URL
+      const videoPath = join(__dirname, '..', '..', 'public', 'generated', 'videos', filename);
+      if (fs.existsSync(videoPath)) {
+        const { stdout } = await execFileAsync('ffprobe', [
+          '-v', 'error', '-show_entries', 'format=duration',
+          '-of', 'default=noprint_wrappers=1:nokey=1', videoPath
+        ]);
+        const duration = parseFloat(stdout.trim());
+        if (duration > 15.1) {
+          const trimmedName = filename.replace('.mp4', '-story.mp4');
+          const trimmedPath = join(__dirname, '..', '..', 'public', 'generated', 'videos', trimmedName);
+          await execFileAsync('ffmpeg', [
+            '-i', videoPath, '-t', '15',
+            '-c', 'copy', '-y', trimmedPath
+          ]);
+          publicUrl = `${FRONTEND}/generated/videos/${trimmedName}`;
+        }
+      }
+    }
+
+    const result = await publishStory(publicUrl);
+    console.log(`[Instagram] Story published: ${result.id}`);
+
+    if (videoId) {
+      await pool.query(
+        'UPDATE promotional_videos SET last_story_posted_at = NOW() WHERE id = $1',
+        [videoId]
+      );
+    }
+
+    res.json({ success: true, storyId: result.id });
+  } catch (err) {
+    console.error('Error publishing story:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/videos/:id/story-config', requireAdmin, async (req, res) => {
+  try {
+    const { intervalMinutes } = req.body;
+    await pool.query(
+      'UPDATE promotional_videos SET story_interval_minutes = $1 WHERE id = $2',
+      [intervalMinutes || null, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating story config:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/storyable-videos', requireAdmin, async (_req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, title, video_data, duration, style, format,
+             story_interval_minutes, last_story_posted_at, created_at
+      FROM promotional_videos
+      WHERE status = 'ready' AND video_data != ''
+      ORDER BY created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching storyable videos:', err);
     res.status(500).json({ error: err.message });
   }
 });

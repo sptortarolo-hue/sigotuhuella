@@ -29,7 +29,7 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
 router.get('/available-pets', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { status, limit = 100 } = req.query;
-    let query = `SELECT p.id, p.name, p.species, p.status, p.breed,
+    let query = `SELECT p.id, p.name, p.species, p.status, p.breed, p.description,
       (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as cover_image
       FROM pets p`;
     const params = [];
@@ -170,7 +170,7 @@ if (mode === 'ai') {
           const images = await getPetImages(scene.petId);
           const petInfo = await getPetInfo(scene.petId);
           if (petInfo) {
-            const parts = [petInfo.name, petInfo.species, petInfo.breed, petInfo.status].filter(Boolean);
+            const parts = [petInfo.name, petInfo.species, petInfo.breed, petInfo.status, petInfo.description].filter(Boolean);
             sceneDescriptions.push(parts.join(' - '));
           }
           for (const img of images.slice(0, 5)) {

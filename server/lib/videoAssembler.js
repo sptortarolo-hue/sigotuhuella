@@ -1226,7 +1226,7 @@ async function getNewsData(newsId) {
 }
 
 async function getPetInfo(petId) {
-  const result = await pool.query('SELECT name, species, breed, status FROM pets WHERE id = $1', [petId]);
+  const result = await pool.query('SELECT name, species, breed, status, description FROM pets WHERE id = $1', [petId]);
   if (result.rows.length > 0) return result.rows[0];
   return null;
 }
