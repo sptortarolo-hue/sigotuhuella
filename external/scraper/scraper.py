@@ -598,6 +598,46 @@ def run():
 # Flask sync routes
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Fetch driver (lazy, with idle timeout)
+# ---------------------------------------------------------------------------
+
+_fetch_driver = None
+_fetch_driver_lock = threading.Lock()
+_fetch_driver_last_used = 0
+
+def get_fetch_driver():
+    global _fetch_driver
+    if _fetch_driver is None:
+        _fetch_driver = init_driver(headless=True)
+        _fetch_driver.get("https://www.facebook.com/")
+        if COOKIES_PATH.exists():
+            load_cookies(_fetch_driver, COOKIES_PATH)
+        logger.info("Fetch driver created")
+    return _fetch_driver
+
+def close_fetch_driver():
+    global _fetch_driver
+    if _fetch_driver:
+        try:
+            _fetch_driver.quit()
+        except Exception:
+            pass
+        _fetch_driver = None
+        logger.info("Fetch driver closed")
+
+def start_fetch_cleanup():
+    def _cleanup():
+        global _fetch_driver_last_used
+        while True:
+            time.sleep(60)
+            if _fetch_driver and time.time() - _fetch_driver_last_used > 300:
+                with _fetch_driver_lock:
+                    if _fetch_driver and time.time() - _fetch_driver_last_used > 300:
+                        close_fetch_driver()
+    t = threading.Thread(target=_cleanup, daemon=True)
+    t.start()
+
 sync_app = Flask(__name__)
 
 @sync_app.route("/health")
@@ -610,20 +650,27 @@ def fetch_post():
     if not url:
         return jsonify({"error": "url parameter required"}), 400
     conn = init_db()
-    driver = init_driver(headless=True)
+    with _fetch_driver_lock:
+        try:
+            driver = get_fetch_driver()
+            driver.get(url)
+            time.sleep(4)
+            for btn in driver.find_elements(By.XPATH, ".//div[@role='button'][contains(.,'See more') or contains(.,'Ver más')]"):
+                try:
+                    if btn.is_displayed():
+                        driver.execute_script("arguments[0].click();", btn)
+                        time.sleep(0.3)
+                except Exception:
+                    pass
+            global _fetch_driver_last_used
+            _fetch_driver_last_used = time.time()
+        except WebDriverException:
+            logger.warning("Fetch driver crashed, recreating...")
+            close_fetch_driver()
+            driver = get_fetch_driver()
+            driver.get(url)
+            time.sleep(4)
     try:
-        driver.get("https://www.facebook.com/")
-        if COOKIES_PATH.exists():
-            load_cookies(driver, COOKIES_PATH)
-        driver.get(url)
-        time.sleep(4)
-        for btn in driver.find_elements(By.XPATH, ".//div[@role='button'][contains(.,'See more') or contains(.,'Ver más')]"):
-            try:
-                if btn.is_displayed():
-                    driver.execute_script("arguments[0].click();", btn)
-                    time.sleep(0.3)
-            except Exception:
-                pass
         soup = BeautifulSoup(driver.page_source, "html.parser")
         article = soup.select_one(POST_CONTAINER_BS)
         if article:
@@ -658,10 +705,6 @@ def fetch_post():
         logger.error(f"fetch-post error: {e}")
         return jsonify({"error": str(e)}), 500
     finally:
-        try:
-            driver.quit()
-        except Exception:
-            pass
         conn.close()
 
 @sync_app.route("/sync")
@@ -698,6 +741,7 @@ def run_daemon():
         logger.error("schedule library required")
         sys.exit(1)
     import random
+    start_fetch_cleanup()
     threading.Thread(target=lambda: sync_app.run(host="0.0.0.0", port=SYNC_PORT, debug=False, use_reloader=False), daemon=True).start()
     logger.info(f"Sync server on port {SYNC_PORT}")
     def job():
@@ -731,6 +775,7 @@ if __name__ == "__main__":
     if "--daemon" in sys.argv:
         run_daemon()
     elif "--sync-server" in sys.argv:
+        start_fetch_cleanup()
         sync_app.run(host="0.0.0.0", port=SYNC_PORT, debug=False)
     else:
         run()
