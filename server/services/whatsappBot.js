@@ -42,6 +42,7 @@ function detectIntent(parsed) {
       case 'confirm_no': return 'cancel';
       case 'motive_report': case 'motive_technical': case 'motive_collab': case 'motive_other': return 'motive';
       case 'species_dog': case 'species_cat': case 'species_other': return 'species';
+      case 'report_from_fb': return 'report_from_fb';
     }
   }
 
@@ -167,6 +168,7 @@ async function routeFlow(conv, parsed) {
     case 'human.motive': return hMotive(conv, parsed);
     case 'adopt.species': return adoptSpecies(conv, parsed);
     case 'info_qr': return showInfoQr(conv);
+    case 'report_from_fb.ask_url': return fbAskUrl(conv, parsed);
     case 'report_from_fb.lookup': return fbLookup(conv, parsed);
     case 'report_from_fb.ask_status': return fbAskStatus(conv, parsed);
     case 'report_from_fb.ask_species': return fbAskSpecies(conv, parsed);
@@ -207,6 +209,7 @@ export async function showMenu(conv) {
       { id: 'donate', title: '💰 Donar' },
     ]],
     ['📌 O necesitás...', [
+      { id: 'report_from_fb', title: '📱 Link Facebook' },
       { id: 'human', title: '🗣 Contactar equipo' },
     ]],
   ];
@@ -238,6 +241,7 @@ async function handleMenu(conv, parsed, intent) {
     case 'volunteer': return startVolunteer(conv);
     case 'adopt': return startAdoptFlow(conv);
     case 'donate': return startDonateFlow(conv);
+    case 'report_from_fb': return startReportFromFb(conv);
     case 'human': return startHumanRequest(conv);
     default:
       await sendMessage(conv.wa_from, `${conv.bot_name}: No entendí tu mensaje. Usá los botones de abajo 👇`);
@@ -742,6 +746,22 @@ async function fbContinue(conv) {
   }
 
   return fbShowConfirm(conv);
+}
+
+async function startReportFromFb(conv) {
+  await sendMessage(conv.wa_from, `${conv.bot_name}: Enviamé el link de la publicación de Facebook 📱`);
+  await setFlow(conv, 'report_from_fb.ask_url');
+}
+
+async function fbAskUrl(conv, parsed) {
+  const text = (parsed.textBody || '').trim();
+  const match = text.match(/https?:\/\/(www\.)?(facebook\.com|fb\.com)\/[^\s]+/i);
+  if (!match) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Eso no parece un link de Facebook. Pegá el link completo 📱`);
+    return;
+  }
+  await setFlow(conv, 'report_from_fb.lookup', { ...conv.context, fbUrl: match[0] });
+  return fbLookup(conv, parsed);
 }
 
 async function fbLookup(conv, parsed) {
