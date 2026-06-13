@@ -174,3 +174,28 @@ export async function isWhatsAppEnabled() {
   const result = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_enabled'");
   return result.rows[0]?.value === 'true';
 }
+
+export async function getBusinessProfile() {
+  const phoneNumberId = await getPhoneNumberId();
+  const token = await getAccessToken();
+  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const { data } = await axios.get(
+    `${GRAPH_API}/${phoneNumberId}/whatsapp_business_profile?fields=about,address,description,email,profile_picture_url,websites,vertical`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return data?.data?.[0] || null;
+}
+
+export async function updateBusinessProfile(fields) {
+  const phoneNumberId = await getPhoneNumberId();
+  const token = await getAccessToken();
+  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const { data } = await axios.post(
+    `${GRAPH_API}/${phoneNumberId}/whatsapp_business_profile`,
+    { messaging_product: 'whatsapp', ...fields },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  return data;
+}

@@ -136,6 +136,8 @@ export const api = {
     assignBot: (convId: string, botName: string) => request(`/whatsapp/conversations/${convId}/assign-bot`, { method: 'POST', body: JSON.stringify({ bot_name: botName }) }),
     closeConversation: (convId: string) => request(`/whatsapp/conversations/${convId}/close`, { method: 'POST' }),
     stats: () => request('/whatsapp/stats'),
+    profile: () => request('/whatsapp/profile'),
+    updateProfile: (fields: any) => request('/whatsapp/profile', { method: 'PUT', body: JSON.stringify(fields) }),
   },
   lostReport: (data: any) => request('/pets/lost-report', { method: 'POST', body: JSON.stringify(data) }),
   requestChapita: (data: any) => request('/request-chapita', { method: 'POST', body: JSON.stringify(data) }),

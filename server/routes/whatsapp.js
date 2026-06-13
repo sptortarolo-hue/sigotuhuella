@@ -6,6 +6,8 @@ import {
   sendMessage,
   sendInteractiveButtons,
   isWhatsAppEnabled,
+  getBusinessProfile,
+  updateBusinessProfile,
 } from '../services/whatsappService.js';
 import { processMessage, showMenu } from '../services/whatsappBot.js';
 
@@ -115,6 +117,37 @@ router.post('/webhook', async (req, res) => {
     await processMessage(parsed);
   } catch (err) {
     console.error('Webhook processing error:', err);
+  }
+});
+
+// GET /api/whatsapp/profile — obtener perfil de WhatsApp Business
+router.get('/profile', requireAdmin, async (req, res) => {
+  try {
+    const profile = await getBusinessProfile();
+    res.json(profile || {});
+  } catch (err) {
+    console.error('Error fetching WhatsApp profile:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/whatsapp/profile — actualizar perfil de WhatsApp Business
+router.put('/profile', requireAdmin, async (req, res) => {
+  try {
+    const { about, description, email, websites } = req.body;
+    const fields = {};
+    if (about !== undefined) fields.about = about;
+    if (description !== undefined) fields.description = description;
+    if (email !== undefined) fields.email = email;
+    if (websites !== undefined) fields.websites = websites;
+    if (Object.keys(fields).length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+    const result = await updateBusinessProfile(fields);
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error('Error updating WhatsApp profile:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

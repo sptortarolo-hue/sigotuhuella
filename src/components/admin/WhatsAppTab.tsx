@@ -4,7 +4,7 @@ import { cn } from '@/src/lib/utils';
 import {
   Save, Loader2, MessageSquare, RefreshCw, Send,
   Phone, User, X, CheckCircle, XCircle,
-  Bot, Settings, BarChart3, Map, FlaskConical,
+  Bot, Settings, BarChart3, Map, FlaskConical, Building2,
 } from 'lucide-react';
 
 interface Conversation {
@@ -60,6 +60,50 @@ export default function WhatsAppTab() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileForm, setProfileForm] = useState({ about: '', description: '', email: '', websites: [''] });
+
+  const fetchProfile = async () => {
+    setProfileLoading(true);
+    try {
+      const data = await api.whatsapp.profile();
+      setProfile(data);
+      setProfileForm({
+        about: data?.about || '',
+        description: data?.description || '',
+        email: data?.email || '',
+        websites: data?.websites?.length ? data.websites : [''],
+      });
+    } catch (e) { console.error(e); }
+    setProfileLoading(false);
+  };
+
+  const saveProfile = async () => {
+    setProfileSaving(true);
+    setProfileSaved(false);
+    try {
+      const fields: any = {};
+      if (profileForm.about !== profile?.about) fields.about = profileForm.about;
+      if (profileForm.description !== profile?.description) fields.description = profileForm.description;
+      if (profileForm.email !== profile?.email) fields.email = profileForm.email;
+      const websites = profileForm.websites.filter(Boolean);
+      if (JSON.stringify(websites) !== JSON.stringify(profile?.websites || [])) fields.websites = websites;
+      if (Object.keys(fields).length > 0) {
+        await api.whatsapp.updateProfile(fields);
+      }
+      await fetchProfile();
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 3000);
+    } catch (e) {
+      console.error(e);
+      alert('Error al guardar perfil');
+    }
+    setProfileSaving(false);
+  };
 
   const fetchSettings = async () => {
     try {
@@ -228,7 +272,119 @@ export default function WhatsAppTab() {
         )}>
           <Settings className="w-4 h-4" /> Configuración
         </button>
+        <button onClick={() => { setShowProfile(!showProfile); if (!showProfile) fetchProfile(); }} className={cn(
+          "flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-bold transition-all",
+          showProfile ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-brand-primary border-brand-accent hover:shadow-md"
+        )}>
+          <Building2 className="w-4 h-4" /> Perfil WhatsApp
+        </button>
       </div>
+
+      {/* Profile panel */}
+      {showProfile && (
+        <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
+          <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+            <Building2 className="w-6 h-6" /> Perfil de WhatsApp Business
+          </h2>
+
+          {profileLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>
+          ) : (
+            <>
+              {profile?.profile_picture_url && (
+                <div className="flex justify-center">
+                  <img src={profile.profile_picture_url} alt="Profile" className="w-24 h-24 rounded-full object-cover border-2 border-brand-accent" />
+                </div>
+              )}
+              {!profile?.profile_picture_url && (
+                <div className="flex justify-center">
+                  <div className="w-24 h-24 rounded-full bg-brand-bg flex items-center justify-center border-2 border-brand-accent">
+                    <Building2 className="w-10 h-10 text-gray-300" />
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-center text-gray-400">La foto de perfil se cambia desde el Business Manager de Meta</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-600 mb-1">About / Estado</label>
+                  <input
+                    type="text"
+                    value={profileForm.about}
+                    onChange={(e) => setProfileForm(p => ({ ...p, about: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+                    maxLength={139}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-600 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={profileForm.email}
+                    onChange={(e) => setProfileForm(p => ({ ...p, email: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-600 mb-1">Descripción</label>
+                <textarea
+                  value={profileForm.description}
+                  onChange={(e) => setProfileForm(p => ({ ...p, description: e.target.value }))}
+                  className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm h-24 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-600 mb-1">Sitios web</label>
+                {profileForm.websites.map((w: string, i: number) => (
+                  <div key={i} className="flex gap-2 mb-2">
+                    <input
+                      type="url"
+                      value={w}
+                      onChange={(e) => {
+                        const next = [...profileForm.websites];
+                        next[i] = e.target.value;
+                        setProfileForm(p => ({ ...p, websites: next }));
+                      }}
+                      className="flex-1 px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+                      placeholder="https://..."
+                    />
+                    {profileForm.websites.length > 1 && (
+                      <button
+                        onClick={() => setProfileForm(p => ({ ...p, websites: p.websites.filter((_, j) => j !== i) }))}
+                        className="px-3 py-2 text-red-400 hover:text-red-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={() => setProfileForm(p => ({ ...p, websites: [...p.websites, ''] }))}
+                  className="text-sm text-brand-primary font-bold hover:underline"
+                >+ Agregar sitio web</button>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={saveProfile}
+                  disabled={profileSaving}
+                  className="px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {profileSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                  {profileSaving ? 'Guardando...' : profileSaved ? '✅ Guardado' : 'Guardar Perfil'}
+                </button>
+                <button
+                  onClick={() => { setShowProfile(false); }}
+                  className="px-6 py-3.5 bg-white text-gray-500 text-base font-bold rounded-2xl border border-brand-accent hover:shadow-md transition-all"
+                >Cerrar</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Settings panel */}
       {showSettings && (
