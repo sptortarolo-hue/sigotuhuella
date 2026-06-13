@@ -34,8 +34,8 @@ function detectIntent(parsed) {
     if (/adoptar|adopt/i.test(text)) return 'adopt';
     if (/donar|donación|don/i.test(text)) return 'donate';
     if (/humano/i.test(text)) return 'human';
-    if (/s[ií]|confirmar|dale/i.test(text)) return 'confirm';
-    if (/no |cancelar/i.test(text)) return 'cancel';
+    if (/s[ií]|confirmar|dale|end_yes/i.test(text)) return 'confirm';
+    if (/^no$|no |cancelar|end_no/i.test(text)) return 'cancel';
     if (/saltar|skip|omitir/i.test(text)) return 'skip';
   }
   if (/perdi|perdido|perd[ií]/.test(text)) return 'report_lost';
@@ -46,8 +46,8 @@ function detectIntent(parsed) {
   if (/adoptar|adopt/.test(text)) return 'adopt';
   if (/donar|donación|don/.test(text)) return 'donate';
   if (/humano|persona|hablar/.test(text)) return 'human';
-  if (/s[ií]|confirmar|dale/.test(text)) return 'confirm';
-  if (/no |cancelar/.test(text)) return 'cancel';
+  if (/s[ií]|confirmar|dale|end_yes/.test(text)) return 'confirm';
+  if (/^no$|no |cancelar|end_no/.test(text)) return 'cancel';
   if (/saltar|omitir/.test(text)) return 'skip';
   return null;
 }
@@ -119,9 +119,8 @@ async function routeFlow(conv, parsed) {
   }
 
   if (flow !== 'menu' && intent === 'cancel') {
-    await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado. Volvé al menú principal cuando quieras.`);
-    await setFlow(conv, 'menu');
-    return showMenu(conv);
+    await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
+    return endFlow(conv);
   }
 
   switch (flow) {
@@ -149,6 +148,7 @@ async function routeFlow(conv, parsed) {
     case 'adopt.species': return adoptSpecies(conv, parsed);
     case 'info_qr': return showInfoQr(conv);
     case 'pending_human': return handlePendingHuman(conv);
+    case 'end_flow': return handleEndFlow(conv, parsed, intent);
     default: return showMenu(conv);
   }
 }
@@ -225,8 +225,8 @@ async function hMotive(conv, parsed) {
   const motive = motives[parsed.textBody] || (text || 'Otro');
   await setFlow(conv, 'pending_human', { motive });
   await sendMessage(conv.wa_from,
-    `🗣 *${conv.bot_name}:* Gracias. Tu consulta fue derivada a nuestro equipo. Te van a responder a la brevedad. Mientras tanto podés seguir usando el menú si necesitás hacer otra cosa.`);
-  return showMenu(conv);
+    `🗣 *${conv.bot_name}:* Gracias. Tu consulta fue derivada a nuestro equipo. Te van a responder a la brevedad.`);
+  return endFlow(conv);
 }
 
 // ─── Report Lost ───
@@ -324,12 +324,10 @@ async function rlConfirm(conv, parsed, intent) {
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte creado con éxito! Ya lo publicamos en nuestra red.`);
     await sendMessage(conv.wa_from, `📌 Recordá que también podés pedir una *chapita QR* para tu mascota en:\nhttps://sigotuhuella.online/solicitar-chapita`);
-    await setFlow(conv, 'menu');
-    await showMenu(conv);
+    await endFlow(conv);
   } else {
     await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
-    await setFlow(conv, 'menu');
-    await showMenu(conv);
+    await endFlow(conv);
   }
 }
 
@@ -393,12 +391,10 @@ async function rsConfirm(conv, parsed, intent) {
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de avistaje registrado! Gracias por ayudar.`);
-    await setFlow(conv, 'menu');
-    await showMenu(conv);
+    await endFlow(conv);
   } else {
     await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
-    await setFlow(conv, 'menu');
-    await showMenu(conv);
+    await endFlow(conv);
   }
 }
 
@@ -466,12 +462,10 @@ async function rfConfirm(conv, parsed, intent) {
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de mascota encontrada registrado! Ya visibilizamos la info para encontrar a su dueño.`);
     await sendMessage(conv.wa_from, `🙏 ¡Gracias por tu ayuda!`);
-    await setFlow(conv, 'menu');
-    await showMenu(conv);
+    await endFlow(conv);
   } else {
     await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
-    await setFlow(conv, 'menu');
-    await showMenu(conv);
+    await endFlow(conv);
   }
 }
 
@@ -493,8 +487,7 @@ async function showInfoQr(conv) {
 📲 Pedila acá: https://sigotuhuella.online/solicitar-chapita
 
 ¿Querés hacer otra cosa?`);
-  await setFlow(conv, 'menu');
-  await showMenu(conv);
+  return endFlow(conv);
 }
 
 // ─── Volunteer ───
@@ -554,12 +547,10 @@ async function vConfirm(conv, parsed, intent) {
       [ctx.phone, ctx.full_name, ctx.zone]
     );
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Gracias por sumarte! Ya recibimos tu solicitud. El equipo de Sigo Tu Huella se va a comunicar con vos. 🐾`);
-    await setFlow(conv, 'menu');
-    await showMenu(conv);
+    await endFlow(conv);
   } else {
     await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
-    await setFlow(conv, 'menu');
-    await showMenu(conv);
+    await endFlow(conv);
   }
 }
 
@@ -593,8 +584,7 @@ async function adoptSpecies(conv, parsed) {
 
   if (pets.length === 0) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: No tenemos mascotas en adopción de esa especie en este momento.`);
-    await setFlow(conv, 'menu');
-    return showMenu(conv);
+    return endFlow(conv);
   }
 
   await sendMessage(conv.wa_from, `${conv.bot_name}: Estas son las mascotas disponibles:`);
@@ -625,8 +615,7 @@ async function adoptSpecies(conv, parsed) {
   }
 
   await sendMessage(conv.wa_from, `${conv.bot_name}: Si te interesa alguna, pedila desde la web o hablá con nuestro equipo. 🐾`);
-  await setFlow(conv, 'menu');
-  return showMenu(conv);
+  return endFlow(conv);
 }
 
 // ─── Donate ───
@@ -641,8 +630,27 @@ async function startDonateFlow(conv) {
     `💳 *Mercado Pago*\n` +
     `https://sigotuhuella.online/donar\n\n` +
     `Tu ayuda nos permite seguir rescatando y cuidando animales. 🐾`);
-  await setFlow(conv, 'menu');
-  return showMenu(conv);
+  return endFlow(conv);
+}
+
+// ─── End Flow ───
+
+async function endFlow(conv) {
+  await sendInteractiveButtons(conv.wa_from,
+    `${conv.bot_name}: ¿Te puedo ayudar en algo más?`, [
+    { id: 'end_yes', title: '✅ Sí' },
+    { id: 'end_no', title: '❌ No' },
+  ]);
+  await setFlow(conv, 'end_flow');
+}
+
+async function handleEndFlow(conv, parsed, intent) {
+  if (intent === 'confirm') {
+    await setFlow(conv, 'menu');
+    return showMenu(conv);
+  }
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¡Gracias por comunicarte! Estaremos atentos para cuando necesites algo. 🐾`);
+  await setFlow(conv, 'closed');
 }
 
 // ─── Pending Human ───
