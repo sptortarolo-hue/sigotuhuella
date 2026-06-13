@@ -18,7 +18,9 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Request failed');
+    const err: any = new Error(data.error || 'Request failed');
+    err.fbtrace_id = data.fbtrace_id;
+    throw err;
   }
   return data;
 }

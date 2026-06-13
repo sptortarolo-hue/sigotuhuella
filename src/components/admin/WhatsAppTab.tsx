@@ -101,7 +101,7 @@ export default function WhatsAppTab() {
     } catch (e: any) {
       console.error(e);
       const msg = e?.message || e?.error || 'Error desconocido';
-      alert('Error al guardar perfil: ' + msg);
+      alert('Error al guardar perfil: ' + msg + (e?.fbtrace_id ? ' (Trace: ' + e.fbtrace_id + ')' : ''));
     }
     setProfileSaving(false);
   };

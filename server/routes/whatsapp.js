@@ -136,19 +136,23 @@ router.put('/profile', requireAdmin, async (req, res) => {
   try {
     const { about, description, email, websites } = req.body;
     const fields = {};
-    if (about !== undefined) fields.about = about;
+    if (about !== undefined && about) fields.about = about;
     if (description !== undefined) fields.description = description;
-    if (email !== undefined) fields.email = email;
-    if (websites !== undefined) fields.websites = websites;
+    if (email !== undefined && email) fields.email = email;
+    if (websites !== undefined) {
+      const valid = websites.filter(w => w && w.startsWith('http'));
+      if (valid.length > 0) fields.websites = valid;
+    }
     if (Object.keys(fields).length === 0) {
-      return res.status(400).json({ error: 'No hay campos para actualizar' });
+      return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
     }
     const result = await updateBusinessProfile(fields);
     res.json({ success: true, result });
   } catch (err) {
-    console.error('Error updating WhatsApp profile:', err?.response?.data || err.message);
-    const metaError = err?.response?.data?.error?.message || err?.response?.data?.error || err.message;
-    res.status(500).json({ error: metaError });
+    const full = err?.response?.data;
+    console.error('Error updating WhatsApp profile:', JSON.stringify(full, null, 2));
+    const msg = full?.error?.message || full?.error || err.message;
+    res.status(500).json({ error: msg, fbtrace_id: full?.error?.fbtrace_id });
   }
 });
 
