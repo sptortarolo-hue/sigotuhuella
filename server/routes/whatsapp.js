@@ -11,6 +11,39 @@ import { processMessage, showMenu } from '../services/whatsappBot.js';
 
 const router = Router();
 
+// GET /api/whatsapp/diagnostic — check WhatsApp config
+router.get('/diagnostic', requireAdmin, async (req, res) => {
+  try {
+    const keys = ['whatsapp_enabled', 'whatsapp_phone_number_id', 'whatsapp_access_token', 'whatsapp_verify_token', 'whatsapp_business_phone'];
+    const rows = (await pool.query('SELECT key, value FROM settings WHERE key = ANY($1)', [keys])).rows;
+    const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
+
+    const lastWebhook = (await pool.query(
+      "SELECT created_at FROM whatsapp_messages ORDER BY created_at DESC LIMIT 1"
+    )).rows[0];
+
+    const activeConvs = (await pool.query(
+      "SELECT COUNT(*) FROM whatsapp_conversations WHERE status = 'active'"
+    )).rows[0].count;
+
+    res.json({
+      enabled: settings.whatsapp_enabled === 'true',
+      has_phone_number_id: !!settings.whatsapp_phone_number_id,
+      has_access_token: !!settings.whatsapp_access_token,
+      has_verify_token: !!settings.whatsapp_verify_token,
+      has_business_phone: !!settings.whatsapp_business_phone,
+      phone_number_id: settings.whatsapp_phone_number_id || null,
+      business_phone: settings.whatsapp_business_phone || null,
+      access_token_preview: settings.whatsapp_access_token ? settings.whatsapp_access_token.substring(0, 10) + '...' : null,
+      last_webhook_at: lastWebhook?.created_at || null,
+      active_conversations: parseInt(activeConvs),
+    });
+  } catch (err) {
+    console.error('Diagnostic error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/whatsapp/webhook — Meta webhook verification
 router.get('/webhook', async (req, res) => {
   const mode = req.query['hub.mode'];
