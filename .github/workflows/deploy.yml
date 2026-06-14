@@ -41,7 +41,15 @@ jobs:
         echo "FACEBOOK_APP_SECRET=${{ secrets.FACEBOOK_APP_SECRET }}" >> server/.env
         echo "APIFY_TOKEN=${{ secrets.APIFY_TOKEN }}" >> server/.env
 
-    - name: Copy dist to VPS
+    - name: List dist contents
+      run: |
+        echo "=== dist/assets ==="
+        ls -la dist/assets/
+        echo "=== dist/index.html ==="
+        head -c 200 dist/index.html
+      shell: bash
+
+    - name: Transfer dist to VPS
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.SSH_HOST }}
@@ -60,18 +68,18 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
         script: |
+          set -x
           cd /var/www/sigotuhuella
+          echo "=== dist/index.html ==="
+          ls -la dist/index.html 2>&1
+          head -c 300 dist/index.html 2>&1
+          echo "=== Current assets ==="
+          ls -la dist/assets/ 2>&1
+          chmod -R g-w dist/ 2>/dev/null || true
           kill -9 $(lsof -t -i:3000) 2>/dev/null || true
-          if [ ! -f /swapfile ]; then
-            sudo fallocate -l 1G /swapfile
-            sudo chmod 600 /swapfile
-            sudo mkswap /swapfile
-            sudo swapon /swapfile
-          fi
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ffmpeg build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
+          sudo apt-get update -qq >/dev/null 2>&1
+          sudo apt-get install -y --no-install-recommends ffmpeg build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev >/dev/null 2>&1
           npm install --production
-          # Restore DATABASE_URL from persistent storage (never overwritten by deploy)
           if [ -f /root/.sihuella-db.env ]; then
             cat /root/.sihuella-db.env >> server/.env
           fi
