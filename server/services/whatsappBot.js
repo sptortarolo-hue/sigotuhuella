@@ -141,7 +141,8 @@ async function routeFlow(conv, parsed) {
     return;
   }
 
-  if (flow !== 'menu' && intent === 'cancel') {
+  // Don't intercept cancel when already in end_flow — handleEndFlow handles the "No" button
+  if (flow !== 'menu' && flow !== 'end_flow' && intent === 'cancel') {
     await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
     return endFlow(conv);
   }
