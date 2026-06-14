@@ -64,6 +64,7 @@ export async function matchPostToPet(postId) {
     const postRes = await pool.query('SELECT * FROM facebook_posts WHERE id = $1', [postId]);
     if (postRes.rows.length === 0) return [];
     const post = postRes.rows[0];
+    if (post.is_matched) return [];
 
     const candidates = await pool.query(
       `SELECT id, name, species, color, description, location, latitude, longitude, status
@@ -89,14 +90,16 @@ Descripción: ${pet.description || ''}`;
       );
 
       if (result.match && result.score >= 50) {
-        matches.push({ pet, score: result.score, reasons: result.reasons || [] });
-
-        await pool.query(
+        const insertRes = await pool.query(
           `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
            VALUES ('fb_post', $1, 'app_pet', $2, $3, $4, 'ai')
-           ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING`,
+           ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING
+           RETURNING id`,
           [postId, pet.id, result.score, result.reasons || []]
         );
+        if (insertRes.rows.length > 0) {
+          matches.push({ pet, score: result.score, reasons: result.reasons || [] });
+        }
       }
     }
 
@@ -149,6 +152,11 @@ Descripción: ${pet.description || ''}`;
     }
 
     if (matches.length > 0) {
+      const matchedIds = matches.map(m => m.post.id);
+      await pool.query(
+        `UPDATE facebook_posts SET is_matched = true WHERE id = ANY($1::uuid[])`,
+        [matchedIds]
+      );
       notifyAdminMatch('pet', pet, matches);
     }
 

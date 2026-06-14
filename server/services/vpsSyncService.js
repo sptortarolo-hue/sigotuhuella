@@ -129,7 +129,11 @@ export async function syncFromVps() {
         }
 
         if (postId && (classification.classification === 'found' || classification.classification === 'lost') && isGeminiAvailable()) {
-          matchPostToPet(postId).catch(err => { if (!handleGeminiError(err)) console.error('Auto-matching error:', err); });
+          // Check if post already matched to avoid re-triggering notifications
+          const matchedCheck = await pool.query('SELECT is_matched FROM facebook_posts WHERE id = $1', [postId]);
+          if (matchedCheck.rows.length > 0 && !matchedCheck.rows[0].is_matched) {
+            matchPostToPet(postId).catch(err => { if (!handleGeminiError(err)) console.error('Auto-matching error:', err); });
+          }
         }
 
         inserted++;

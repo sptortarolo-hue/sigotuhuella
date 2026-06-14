@@ -2,7 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from '../services/pushService.js';
-import { matchPostToPet } from '../services/geminiMatching.js';
+import { matchPetToPosts } from '../services/geminiMatching.js';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
@@ -987,7 +987,7 @@ router.post('/:id/report-lost', requireAuth, async (req, res) => {
     }).catch(err => console.error('push error:', err));
 
     // Run matching in background
-    matchPostToPet(pet.id).catch(err => console.error('matching error:', err));
+    matchPetToPosts(pet).catch(err => console.error('matching error:', err));
 
     res.status(201).json({ pet });
   } catch (err) {

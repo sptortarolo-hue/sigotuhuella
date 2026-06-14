@@ -341,7 +341,10 @@ router.post('/webhook', async (req, res) => {
         }
 
         if (postId && (classification.classification === 'found' || classification.classification === 'lost')) {
-          matchPostToPet(postId).catch(err => console.error('Auto-matching error:', err));
+          const matchedCheck = await pool.query('SELECT is_matched FROM facebook_posts WHERE id = $1', [postId]);
+          if (matchedCheck.rows.length > 0 && !matchedCheck.rows[0].is_matched) {
+            matchPostToPet(postId).catch(err => console.error('Auto-matching error:', err));
+          }
         }
 
         results.inserted++;
