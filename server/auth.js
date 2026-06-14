@@ -4,11 +4,12 @@ import nodemailer from 'nodemailer';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import pool from './db.js';
+import { notifyUser } from './services/notificationService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'l0061596.ferozo.com',
+  host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT) || 587,
   secure: false,
   tls: {

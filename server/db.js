@@ -51,6 +51,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires TIMESTAMP;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_preference VARCHAR(20) DEFAULT 'email';
 
 CREATE TABLE IF NOT EXISTS volunteer_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -296,7 +296,7 @@ router.post('/public/:shareToken/scan', async (req, res) => {
     const { latitude, longitude } = req.body;
 
     const petResult = await pool.query(
-      `SELECT mp.name as pet_name, mp.user_id, u.display_name as owner_name, u.email as owner_email
+      `SELECT mp.name as pet_name, mp.user_id, u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone, u.notification_preference as owner_notification_preference
        FROM qr_identifiers qi
        JOIN my_pets mp ON mp.id = qi.my_pet_id
        JOIN users u ON u.id = mp.user_id
@@ -345,6 +345,13 @@ router.post('/public/:shareToken/scan', async (req, res) => {
       } catch (emailErr) {
         console.error('Scan alert email error:', emailErr);
       }
+      const { notifyUser } = await import('../services/notificationService.js');
+      const ownerUser = { email: row.owner_email, phone: row.owner_phone, notification_preference: row.owner_notification_preference, display_name: row.owner_name };
+      notifyUser(ownerUser, {
+        subject: `📍 Escanearon el QR de ${row.pet_name}`,
+        textMessage: `📍 Escanearon el QR de ${row.pet_name}${latitude && longitude ? ` cerca de https://www.google.com/maps?q=${latitude},${longitude}` : ''}. Alguien vio su perfil digital.`,
+        sendEmailFn: null,
+      }).catch(err => console.error('WhatsApp scan alert error:', err));
     }
 
     res.json({ success: true });
@@ -360,7 +367,7 @@ router.post('/public/:shareToken/found', async (req, res) => {
     if (!finder_phone) return res.status(400).json({ error: 'Teléfono de contacto es requerido' });
 
     const qrResult = await pool.query(
-      `SELECT qi.code, mp.name as pet_name, mp.user_id, u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone
+      `SELECT qi.code, mp.name as pet_name, mp.user_id, u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone, u.notification_preference as owner_notification_preference
        FROM qr_identifiers qi
        JOIN my_pets mp ON mp.id = qi.my_pet_id
        JOIN users u ON u.id = mp.user_id
@@ -407,6 +414,15 @@ router.post('/public/:shareToken/found', async (req, res) => {
       });
     } catch (emailErr) {
       console.error('Found pet email error:', emailErr);
+    }
+    if (row.owner_email) {
+      const { notifyUser } = await import('../services/notificationService.js');
+      const ownerUser = { email: row.owner_email, phone: row.owner_phone, notification_preference: row.owner_notification_preference, display_name: row.owner_name };
+      notifyUser(ownerUser, {
+        subject: `✅ ¡Encontraron a ${row.pet_name}!`,
+        textMessage: `✅ ¡Encontraron a ${row.pet_name}! Alguien reportó haberla encontrado.\nContacto: ${finder_name || 'No especificado'}\nTel: ${finder_phone}${finder_location ? `\nUbicación: ${finder_location}` : ''}${finder_notes ? `\nNotas: ${finder_notes}` : ''}`,
+        sendEmailFn: null,
+      }).catch(err => console.error('WhatsApp found pet error:', err));
     }
 
     res.json({ success: true, message: 'Se notificó al dueño exitosamente' });

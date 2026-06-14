@@ -20,6 +20,7 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
+  const [notifyWhatsApp, setNotifyWhatsApp] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [resending, setResending] = useState(false);
   const [resentMessage, setResentMessage] = useState('');
@@ -63,7 +64,7 @@ export default function Login() {
           setAuthLoading(false);
           return;
         }
-        await api.auth.register(email, password, displayName, phone);
+        await api.auth.register(email, password, displayName, phone, notifyWhatsApp ? 'whatsapp' : 'email');
         setMode('verify-email');
         setRegistrationSuccess(false);
         setAuthLoading(false);
@@ -441,6 +442,17 @@ export default function Login() {
                     onChange={e => setPhone(e.target.value)}
                   />
                 </div>
+                {phone && (
+                  <label className="flex items-center gap-2 p-3 bg-brand-bg rounded-xl cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notifyWhatsApp}
+                      onChange={e => setNotifyWhatsApp(e.target.checked)}
+                      className="w-4 h-4 accent-brand-primary"
+                    />
+                    <span className="text-xs text-gray-600 font-medium">Recibir notificaciones por WhatsApp</span>
+                  </label>
+                )}
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
                     <Lock className="w-3 h-3" /> Contraseña

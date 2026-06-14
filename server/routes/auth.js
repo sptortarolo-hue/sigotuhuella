@@ -3,6 +3,7 @@ import pool from '../db.js';
 import { generateToken, hashPassword, comparePassword, requireAuth, sendPasswordResetEmail, generateResetToken, sendVerificationEmail, generateVerificationToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
 import crypto from 'crypto';
 import { sendPushToAdmins } from '../services/pushService.js';
+import { notifyUser } from '../services/notificationService.js';
 import { OAuth2Client } from 'google-auth-library';
 
 const router = Router();
@@ -17,20 +18,26 @@ router.post('/register', async (req, res) => {
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Este email ya está registrado. Iniciá sesión o usá otro email.' });
     }
+    const notificationPreference = (req.body.notification_preference === 'whatsapp') ? 'whatsapp' : 'email';
     const passwordHash = await hashPassword(password);
     const verificationToken = generateVerificationToken();
     const verificationExpires = new Date(Date.now() + 48 * 60 * 60 * 1000);
     const result = await pool.query(
-      `INSERT INTO users (email, password_hash, display_name, phone, role, email_verified, email_verification_token, email_verification_expires)
-       VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7)
+      `INSERT INTO users (email, password_hash, display_name, phone, role, email_verified, email_verification_token, email_verification_expires, notification_preference)
+       VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8)
        RETURNING id, email, display_name, phone, role, created_at,
                  avatar_data, avatar_mime_type, avatar_type,
-                 member_number, volunteer_status, badges`,
-      [email, passwordHash, displayName || email.split('@')[0], phone || null, 'user', verificationToken, verificationExpires]
+                 member_number, volunteer_status, badges, notification_preference`,
+      [email, passwordHash, displayName || email.split('@')[0], phone || null, 'user', verificationToken, verificationExpires, notificationPreference]
     );
     const user = result.rows[0];
 
     sendVerificationEmail(user.email, user.display_name, verificationToken).catch(err => console.error('Failed to send verification email:', err));
+    notifyUser(user, {
+      subject: 'Confirmá tu email — Sigo Tu Huella',
+      textMessage: `🐾 ¡Gracias por registrarte en Sigo Tu Huella, ${user.display_name}! Por favor verificá tu email para activar tu cuenta. Si no recibiste el email, revisá tu bandeja de spam.`,
+      sendEmailFn: null,
+    }).catch(err => console.error('WhatsApp verification notify error:', err));
 
     const adminSubject = `🔔 Nuevo Usuario Registrado: ${user.display_name}`;
     const adminHtml = `
@@ -99,7 +106,8 @@ router.post('/login', async (req, res) => {
         phone: user.phone, role: user.role,
         avatar_data: user.avatar_data, avatar_mime_type: user.avatar_mime_type,
         avatar_type: user.avatar_type, member_number: user.member_number,
-        volunteer_status: user.volunteer_status, badges: user.badges || []
+        volunteer_status: user.volunteer_status, badges: user.badges || [],
+        notification_preference: user.notification_preference || 'email'
       }
     });
   } catch (err) {
@@ -254,7 +262,7 @@ router.post('/complete-registration', async (req, res) => {
 
     if (token) {
       const result = await pool.query(
-        'SELECT id, email, display_name FROM users WHERE registration_token = $1 AND registration_pending = TRUE',
+        'SELECT id, email, display_name, phone, notification_preference FROM users WHERE registration_token = $1 AND registration_pending = TRUE',
         [token]
       );
       if (result.rows.length === 0) {
@@ -263,7 +271,7 @@ router.post('/complete-registration', async (req, res) => {
       user = result.rows[0];
     } else {
       const result = await pool.query(
-        'SELECT id, email, display_name FROM users WHERE email = $1 AND registration_pending = TRUE',
+        'SELECT id, email, display_name, phone, notification_preference FROM users WHERE email = $1 AND registration_pending = TRUE',
         [email]
       );
       if (result.rows.length === 0) {
@@ -280,6 +288,11 @@ router.post('/complete-registration', async (req, res) => {
 
     // Send welcome email
     sendWelcomeEmail(user.email, user.display_name).catch(err => console.error('Welcome email error:', err));
+    notifyUser(user, {
+      subject: '¡Te damos la bienvenida! 🐾',
+      textMessage: `🐾 ¡Bienvenido a Sigo Tu Huella, ${user.display_name}! Ya podés reportar mascotas perdidas, avistajes y colaborar con la red de vecinos. Ingresá en sigotuhuella.online para empezar.`,
+      sendEmailFn: null,
+    }).catch(err => console.error('WhatsApp welcome notify error:', err));
 
     res.json({ message: 'Registration completed successfully', email: user.email });
   } catch (err) {
@@ -293,7 +306,7 @@ router.get('/verify-email/:token', async (req, res) => {
   const { token } = req.params;
   try {
     const result = await pool.query(
-      'SELECT id, email, display_name, phone, role, email_verification_expires FROM users WHERE email_verification_token = $1 AND email_verified = FALSE',
+      'SELECT id, email, display_name, phone, role, notification_preference, email_verification_expires FROM users WHERE email_verification_token = $1 AND email_verified = FALSE',
       [token]
     );
     if (result.rows.length === 0) {
@@ -309,7 +322,12 @@ router.get('/verify-email/:token', async (req, res) => {
     );
     const jwtToken = generateToken(user);
     sendWelcomeEmail(user.email, user.display_name).catch(err => console.error('Welcome email error:', err));
-    res.json({ valid: true, token: jwtToken, user: { id: user.id, email: user.email, display_name: user.display_name, phone: user.phone, role: user.role } });
+    notifyUser(user, {
+      subject: '¡Email verificado! 🐾',
+      textMessage: `✅ ¡Email verificado! Bienvenido a Sigo Tu Huella, ${user.display_name}. Ya podés acceder a tu cuenta y reportar mascotas.`,
+      sendEmailFn: null,
+    }).catch(err => console.error('WhatsApp welcome notify error:', err));
+    res.json({ valid: true, token: jwtToken, user: { id: user.id, email: user.email, display_name: user.display_name, phone: user.phone, role: user.role, notification_preference: user.notification_preference } });
   } catch (err) {
     console.error('Verify email error:', err);
     res.status(500).json({ error: 'Error al verificar email' });
