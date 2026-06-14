@@ -14,6 +14,11 @@ jobs:
         node-version: 22
         cache: 'npm'
     - run: npm ci
+    - name: Verify Google Client ID
+      run: |
+        ID="${{ secrets.VITE_GOOGLE_CLIENT_ID }}"
+        echo "GOOGLE_CLIENT_ID length: ${#ID}"
+        echo "GOOGLE_CLIENT_ID starts with: ${ID:0:20}..."
     - run: npm run build
       env:
         VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
