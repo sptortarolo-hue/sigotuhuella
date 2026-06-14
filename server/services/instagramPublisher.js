@@ -72,7 +72,6 @@ export async function publishSinglePost(petId) {
        WHERE pet_id = $4 AND status = 'queued'`,
       [result.id, permalink, imageUrls, petId]
     );
-    await pool.query("UPDATE pets SET instagram = $1 WHERE id = $2", [permalink, petId]);
     return { success: true, permalink, mediaId: result.id };
   } catch (err) {
     await pool.query(
@@ -126,7 +125,7 @@ export async function processQueue() {
         [result.id, permalink, imageUrls, post.id]
       );
       if (post.pet_id) {
-        await pool.query("UPDATE pets SET instagram = $1 WHERE id = $2", [permalink, post.pet_id]);
+        // instagram field is kept for user-entered handles only
       }
       results.push({ postId: post.id, success: true, permalink });
     } catch (err) {

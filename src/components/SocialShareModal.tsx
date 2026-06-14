@@ -116,10 +116,10 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
       location: pet.location,
       contact_info: pet.contact_info,
       description: pet.description,
-      instagram: (pet as any).instagram || undefined,
+      instagram: undefined,
       case_number: (pet as any).case_number || undefined,
     }, img, logoImg);
-  }, [targetWidth, targetHeight, design, flyerName, pet.status, pet.species, pet.breed, pet.gender, pet.age, pet.location, pet.contact_info, pet.description, (pet as any).instagram, (pet as any).case_number, logoImg]);
+  }, [targetWidth, targetHeight, design, flyerName, pet.status, pet.species, pet.breed, pet.gender, pet.age, pet.location, pet.contact_info, pet.description, (pet as any).case_number, logoImg]);
 
   useEffect(() => {
     if (!mainImage || !platform || !useType) return;

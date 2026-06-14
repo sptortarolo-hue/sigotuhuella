@@ -161,7 +161,7 @@ router.post('/publish', requireAdmin, async (req, res) => {
       [petId, mediaType || 'IMAGE', caption || '', result.id || containerId, result.permalink || '']
     );
     if (petId) {
-      await pool.query("UPDATE pets SET instagram = $1 WHERE id = $2", [result.permalink || '', petId]);
+      // instagram field kept for user-entered handles only
     }
     res.json({ success: true, mediaId: result.id, permalink: result.permalink });
   } catch (err) {
