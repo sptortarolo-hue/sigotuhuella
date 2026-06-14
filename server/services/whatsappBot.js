@@ -2,6 +2,7 @@ import pool from '../db.js';
 import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia } from './whatsappService.js';
 import { matchWhatsAppToPets } from './geminiMatching.js';
 import { fetchFbPost } from './vpsSyncService.js';
+import { geocodeAddress } from './geocoding.js';
 
 const BOT_NAMES = ['Tute', 'Lilo', 'Toto'];
 
@@ -320,11 +321,15 @@ async function rlPhoto(conv, parsed) {
 
 async function rlLocation(conv, parsed) {
   const location = parsed.textBody || '';
-  const lat = parsed.locationLat || null;
-  const lng = parsed.locationLng || null;
+  let lat = parsed.locationLat || null;
+  let lng = parsed.locationLng || null;
   if (!location && !lat) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Decime dónde se perdió o compartí tu ubicación 📍`);
     return;
+  }
+  if (!lat && location) {
+    const coords = await geocodeAddress(location);
+    if (coords) { lat = coords.lat; lng = coords.lng; }
   }
   await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* para que los dueños puedan comunicarse? 📞`);
   await setFlow(conv, 'report_lost.contact', { ...conv.context, location, latitude: lat, longitude: lng });
@@ -407,11 +412,15 @@ async function rsPhoto(conv, parsed) {
 
 async function rsLocation(conv, parsed) {
   const location = parsed.textBody || '';
-  const lat = parsed.locationLat || null;
-  const lng = parsed.locationLng || null;
+  let lat = parsed.locationLat || null;
+  let lng = parsed.locationLng || null;
   if (!location && !lat) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Decime dónde la viste o compartí tu ubicación 📍`);
     return;
+  }
+  if (!lat && location) {
+    const coords = await geocodeAddress(location);
+    if (coords) { lat = coords.lat; lng = coords.lng; }
   }
   await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Algún detalle adicional? (color, tamaño, estado físico — opcional, escribí "saltar" para omitir)`);
   await setFlow(conv, 'report_sighted.details', { ...conv.context, location, latitude: lat, longitude: lng });
@@ -474,11 +483,15 @@ async function rfPhoto(conv, parsed) {
 
 async function rfLocation(conv, parsed) {
   const location = parsed.textBody || '';
-  const lat = parsed.locationLat || null;
-  const lng = parsed.locationLng || null;
+  let lat = parsed.locationLat || null;
+  let lng = parsed.locationLng || null;
   if (!location && !lat) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Decime dónde está la mascota o compartí tu ubicación 📍`);
     return;
+  }
+  if (!lat && location) {
+    const coords = await geocodeAddress(location);
+    if (coords) { lat = coords.lat; lng = coords.lng; }
   }
   await sendMessage(conv.wa_from, `${conv.bot_name}: Dejame un *teléfono de contacto* para que el dueño pueda comunicarse 📞`);
   await setFlow(conv, 'report_found.contact', { ...conv.context, location, latitude: lat, longitude: lng });
@@ -869,11 +882,15 @@ async function fbAskSpecies(conv, parsed) {
 
 async function fbAskLocation(conv, parsed) {
   const location = parsed.textBody || '';
-  const lat = parsed.locationLat || null;
-  const lng = parsed.locationLng || null;
+  let lat = parsed.locationLat || null;
+  let lng = parsed.locationLng || null;
   if (!location && !lat) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Decime la dirección o compartí tu ubicación 📍`);
     return;
+  }
+  if (!lat && location) {
+    const coords = await geocodeAddress(location);
+    if (coords) { lat = coords.lat; lng = coords.lng; }
   }
   await setFlow(conv, 'report_from_fb.lookup', {
     ...conv.context,
