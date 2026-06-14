@@ -26,6 +26,26 @@ export async function checkWhatsAppTimeouts() {
       }
     }
 
+    // Close end_flow conversations inactive for 5+ minutes (no response to "¿Te puedo ayudar?")
+    const endFlowStale = await pool.query(
+      `SELECT * FROM whatsapp_conversations
+       WHERE status = 'active'
+         AND flow = 'end_flow'
+         AND last_message_at < NOW() - INTERVAL '5 minutes'`
+    );
+
+    for (const conv of endFlowStale.rows) {
+      try {
+        await sendMessage(conv.wa_from, `${conv.bot_name}: ¡Gracias por comunicarte! Estaremos atentos para cuando necesites algo. 🐾`);
+        await pool.query(
+          `UPDATE whatsapp_conversations SET flow = 'closed', status = 'closed' WHERE id = $1`,
+          [conv.id]
+        );
+      } catch (e) {
+        console.error(`Auto-close error for ${conv.wa_from}:`, e.message);
+      }
+    }
+
     // Close conversations inactive for 48+ hours (no message sent — free)
     const expired = await pool.query(
       `UPDATE whatsapp_conversations

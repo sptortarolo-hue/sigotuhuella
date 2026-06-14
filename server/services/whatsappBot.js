@@ -178,6 +178,7 @@ async function routeFlow(conv, parsed) {
     case 'report_from_fb.confirm': return fbConfirm(conv, parsed, intent);
     case 'pending_human': return handlePendingHuman(conv);
     case 'end_flow': return handleEndFlow(conv, parsed, intent);
+    case 'closed': return showWelcome(conv);
     default: return showMenu(conv);
   }
 }
@@ -999,6 +1000,10 @@ async function handleEndFlow(conv, parsed, intent) {
   }
   await sendMessage(conv.wa_from, `${conv.bot_name}: ¡Gracias por comunicarte! Estaremos atentos para cuando necesites algo. 🐾`);
   await setFlow(conv, 'closed');
+  await pool.query(
+    `UPDATE whatsapp_conversations SET status = 'closed' WHERE id = $1`,
+    [conv.id]
+  );
 }
 
 // ─── Pending Human ───
