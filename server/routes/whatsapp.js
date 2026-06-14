@@ -8,6 +8,9 @@ import {
   isWhatsAppEnabled,
   getBusinessProfile,
   updateBusinessProfile,
+  sendGroupMessage,
+  sendGroupImage,
+  broadcastPetToGroups,
 } from '../services/whatsappService.js';
 import { processMessage, showMenu } from '../services/whatsappBot.js';
 
@@ -321,6 +324,94 @@ router.get('/stats', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error fetching WhatsApp stats:', err);
     res.status(500).json({ error: 'Error al obtener estadísticas' });
+  }
+});
+
+// ─── WhatsApp Groups ───
+
+router.get('/groups', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM whatsapp_groups ORDER BY name ASC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error listing groups:', err);
+    res.status(500).json({ error: 'Error al listar grupos' });
+  }
+});
+
+router.post('/groups', requireAdmin, async (req, res) => {
+  try {
+    const { name, group_id } = req.body;
+    if (!name || !group_id) return res.status(400).json({ error: 'Nombre y Group ID son requeridos' });
+    const result = await pool.query(
+      'INSERT INTO whatsapp_groups (name, group_id) VALUES ($1, $2) RETURNING *',
+      [name.trim(), group_id.trim()]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'El Group ID ya existe' });
+    console.error('Error adding group:', err);
+    res.status(500).json({ error: 'Error al agregar grupo' });
+  }
+});
+
+router.put('/groups/:id', requireAdmin, async (req, res) => {
+  try {
+    const { name, group_id, is_active } = req.body;
+    const result = await pool.query(
+      'UPDATE whatsapp_groups SET name = COALESCE($1, name), group_id = COALESCE($2, group_id), is_active = COALESCE($3, is_active) WHERE id = $4 RETURNING *',
+      [name || null, group_id || null, is_active !== undefined ? is_active : null, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Grupo no encontrado' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating group:', err);
+    res.status(500).json({ error: 'Error al actualizar grupo' });
+  }
+});
+
+router.delete('/groups/:id', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM whatsapp_groups WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Grupo no encontrado' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting group:', err);
+    res.status(500).json({ error: 'Error al eliminar grupo' });
+  }
+});
+
+router.post('/groups/broadcast', requireAdmin, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'El mensaje no puede estar vacío' });
+
+    const groups = (await pool.query("SELECT * FROM whatsapp_groups WHERE is_active = TRUE")).rows;
+    if (groups.length === 0) return res.status(404).json({ error: 'No hay grupos activos' });
+
+    const results = [];
+    for (const group of groups) {
+      try {
+        await sendGroupMessage(group.group_id, text.trim());
+        results.push({ group: group.name, status: 'ok' });
+      } catch (err) {
+        results.push({ group: group.name, status: 'error', error: err.message });
+      }
+    }
+    res.json({ results });
+  } catch (err) {
+    console.error('Error broadcasting:', err);
+    res.status(500).json({ error: 'Error al enviar broadcast' });
+  }
+});
+
+router.post('/groups/broadcast-pet/:petId', requireAdmin, async (req, res) => {
+  try {
+    await broadcastPetToGroups(req.params.petId);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error broadcasting pet:', err);
+    res.status(500).json({ error: 'Error al publicar mascota en grupos' });
   }
 });
 

@@ -214,6 +214,104 @@ export async function getBusinessProfile() {
   return data?.data?.[0] || null;
 }
 
+// ─── Group messaging ───
+
+export async function sendGroupMessage(groupId, text) {
+  const phoneNumberId = await getPhoneNumberId();
+  const token = await getAccessToken();
+  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const { data } = await axios.post(`${GRAPH_API}/${phoneNumberId}/messages`,
+    {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: groupId,
+      type: 'text',
+      text: { preview_url: true, body: text },
+    },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  return data;
+}
+
+export async function sendGroupImage(groupId, imageUrl, caption) {
+  const phoneNumberId = await getPhoneNumberId();
+  const token = await getAccessToken();
+  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const { data } = await axios.post(`${GRAPH_API}/${phoneNumberId}/messages`,
+    {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: groupId,
+      type: 'image',
+      image: { link: imageUrl, caption: caption || '' },
+    },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  return data;
+}
+
+export async function broadcastPetToGroups(petId) {
+  try {
+    const enabled = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_broadcast_enabled'");
+    if (enabled.rows[0]?.value !== 'true') return;
+
+    const groups = await pool.query("SELECT * FROM whatsapp_groups WHERE is_active = TRUE");
+    if (groups.rows.length === 0) return;
+
+    const pet = (await pool.query(`
+      SELECT p.*,
+        (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
+        (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
+      FROM pets p WHERE p.id = $1
+    `, [petId])).rows[0];
+    if (!pet) return;
+
+    const statusLabels = {
+      lost: '🐾 SE PERDIÓ', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
+      for_adoption: '❤️ EN ADOPCIÓN', adopted: '✅ ADOPTADO',
+      reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
+      needs_attention: '⚠️ NECESITA ATENCIÓN',
+    };
+    const label = statusLabels[pet.status] || '🐾 MASCOTA';
+    const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species || 'Mascota';
+    const genderLabel = pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : '';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+
+    const caption = [
+      `${label}`,
+      pet.name ? `Nombre: ${pet.name}` : '',
+      `${speciesLabel}${pet.breed ? ' · ' + pet.breed : ''}`,
+      genderLabel && pet.age ? `${genderLabel} · ${pet.age}` : genderLabel || pet.age || '',
+      `📍 ${pet.location || 'Sin ubicación'}`,
+      pet.contact_info ? `📞 ${pet.contact_info}` : '',
+      '',
+      pet.description ? pet.description.substring(0, 300) : '',
+      '',
+      `🔗 ${frontendUrl}/pet/${pet.id}`,
+    ].filter(Boolean).join('\n');
+
+    const coverUrl = pet.image_data
+      ? `${frontendUrl}/api/images/pet/${petId}/cover`
+      : null;
+
+    for (const group of groups.rows) {
+      try {
+        if (coverUrl) {
+          await sendGroupImage(group.group_id, coverUrl, caption);
+        } else {
+          await sendGroupMessage(group.group_id, caption);
+        }
+      } catch (err) {
+        console.error(`[Broadcast] Error sending to group ${group.name} (${group.group_id}):`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[Broadcast] Error:', err.message);
+  }
+}
+
 export async function updateBusinessProfile(fields) {
   const phoneNumberId = await getPhoneNumberId();
   const token = await getAccessToken();

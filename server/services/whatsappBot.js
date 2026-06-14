@@ -1,5 +1,5 @@
 import pool from '../db.js';
-import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia } from './whatsappService.js';
+import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups } from './whatsappService.js';
 import { matchWhatsAppToPets } from './geminiMatching.js';
 import { fetchFbPost } from './vpsSyncService.js';
 import { geocodeAddress } from './geocoding.js';
@@ -381,6 +381,7 @@ async function rlConfirm(conv, parsed, intent) {
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
+    broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte creado con éxito! Ya lo publicamos en nuestra red.`);
     await sendMessage(conv.wa_from, `📌 Recordá que también podés pedir una *chapita QR* para tu mascota en:\nhttps://sigotuhuella.online/solicitar-chapita`);
     await endFlow(conv);
@@ -453,6 +454,7 @@ async function rsConfirm(conv, parsed, intent) {
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
+    broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de avistaje registrado! Gracias por ayudar.`);
     await endFlow(conv);
   } else {
@@ -527,6 +529,7 @@ async function rfConfirm(conv, parsed, intent) {
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
+    broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de mascota encontrada registrado! Ya visibilizamos la info para encontrar a su dueño.`);
     await sendMessage(conv.wa_from, `🙏 ¡Gracias por tu ayuda!`);
     await endFlow(conv);
@@ -967,6 +970,7 @@ async function fbConfirm(conv, parsed, intent) {
   );
 
   matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
+  broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
 
   await sendMessage(conv.wa_from,
     `✅ *${conv.bot_name}:* ¡Reporte creado con éxito desde Facebook!\n` +

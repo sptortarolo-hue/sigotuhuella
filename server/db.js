@@ -138,6 +138,7 @@ INSERT INTO settings (key, value) VALUES
   ('whatsapp_access_token', ''),
   ('whatsapp_verify_token', ''),
   ('whatsapp_business_phone', ''),
+  ('whatsapp_broadcast_enabled', 'false'),
   ('matching_radius_km', '20'),
   ('matching_min_score', '70'),
   ('whatsapp_greeting', '🐾 ¡Gracias por contactar a Sigo Tu Huella! ¿Qué querés reportar?\n1️⃣ Avistaje (viste una mascota)\n2️⃣ Necesita atención (mascota herida/en riesgo)\n3️⃣ Accidentada'),
@@ -483,6 +484,14 @@ CREATE TABLE IF NOT EXISTS whatsapp_conversations (
   context JSONB DEFAULT '{}'::jsonb,
   last_message_at TIMESTAMP DEFAULT NOW(),
   status VARCHAR(30) DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS whatsapp_groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  group_id VARCHAR(255) NOT NULL UNIQUE,
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW()
 );
 `;
