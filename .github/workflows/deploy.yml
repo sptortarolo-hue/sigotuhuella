@@ -14,11 +14,6 @@ jobs:
         node-version: 22
         cache: 'npm'
     - run: npm ci
-    - name: Verify Google Client ID
-      run: |
-        ID="${{ secrets.VITE_GOOGLE_CLIENT_ID }}"
-        echo "GOOGLE_CLIENT_ID length: ${#ID}"
-        echo "GOOGLE_CLIENT_ID starts with: ${ID:0:20}..."
     - run: npm run build
       env:
         VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
@@ -41,29 +36,12 @@ jobs:
         echo "FACEBOOK_APP_SECRET=${{ secrets.FACEBOOK_APP_SECRET }}" >> server/.env
         echo "APIFY_TOKEN=${{ secrets.APIFY_TOKEN }}" >> server/.env
 
-    - name: List dist contents
-      run: |
-        echo "=== dist/assets ==="
-        ls -la dist/assets/
-        echo "=== dist/index.html ==="
-        head -c 200 dist/index.html
-      shell: bash
-
-    - name: Write SSH key and deploy
+    - name: Transfer files to VPS
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        echo "=== OLD files on VPS ==="
-        ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "head -c 300 /var/www/sigotuhuella/dist/index.html 2>&1 || echo 'NO dist/index.html'"
-        echo "=== Transferring files ==="
-        tar czf - dist/ server/ package.json | ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf - && echo '=== NEW files deployed ===' && head -c 300 dist/index.html"
-    - name: Write SSH key and deploy
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key
-        chmod 600 ~/.ssh/deploy_key
-        tar czf - dist/ server/ package.json | ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf - && echo '=== DEPLOYED FILES ===' && head -c 300 dist/index.html"
+        tar czf - dist/ server/ package.json | ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf -"
       shell: bash
 
     - name: Restart server
@@ -75,16 +53,20 @@ jobs:
         key: ${{ secrets.SSH_KEY }}
         script: |
           set -x
-          cd /var/www/sigotuhuella
+          # Kill anything on port 3000 (scraper or old sigotuhuella)
           kill -9 $(lsof -t -i:3000) 2>/dev/null || true
+          # Remove old scraper from PM2 so it doesn't auto-restart
+          pm2 delete sihuella 2>/dev/null || true
+          # Install system deps
           sudo apt-get update -qq >/dev/null 2>&1
           sudo apt-get install -y --no-install-recommends ffmpeg build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev >/dev/null 2>&1
+          cd /var/www/sigotuhuella
           npm install --production
+          # Restore DATABASE_URL (never overwritten by deploy)
           if [ -f /root/.sihuella-db.env ]; then
             cat /root/.sihuella-db.env >> server/.env
           fi
-          if pm2 list | grep -q sigotuhuella; then
-            pm2 delete sigotuhuella
-          fi
-          pm2 start npm --name sigotuhuella -- start --update-env
+          # Start our app with PM2
+          pm2 delete sigotuhuella 2>/dev/null || true
+          pm2 start npm --name sigotuhuella --update-env -- start
           pm2 save

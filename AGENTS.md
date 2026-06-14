@@ -219,6 +219,24 @@ journalctl -u sihuella-scraper -f  # monitorear logs
 - `webhook_token` debe coincidir con el setting `fb_scraper_token` del admin
 - Grupos, URL del webhook, intervalo etc se gestionan **desde el panel admin**
 
+## PostgreSQL (VPS)
+
+- **Host:** localhost:5432
+- **DB:** sigotuhuella
+- **User:** sigotuhuella
+- **Password:** javier040484
+- **Persistent file:** `/root/.sihuella-db.env` (nunca se sobrescribe en deploy)
+- La `DATABASE_URL` se restaura desde ese archivo al final del deploy
+
+## Port 3000 conflict
+
+El VPS tiene un server viejo en `/opt/sihuella/server/index.js` (scraper) que ocupaba el puerto 3000. El deploy ahora lo mata y lo elimina de PM2. Si el scraper vuelve a aparecer:
+
+```bash
+pm2 delete sihuella
+kill -9 $(lsof -ti :3000)
+```
+
 ## Checklist al agregar una nueva página/componente
 
 - [ ] Mobile first: ¿se ve bien en 375px de ancho?
