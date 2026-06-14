@@ -49,18 +49,24 @@ jobs:
         head -c 200 dist/index.html
       shell: bash
 
-    - name: Transfer dist to VPS
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        port: ${{ secrets.SSH_PORT }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_KEY }}
-        source: "dist/,server/,package.json"
-        target: /var/www/sigotuhuella
-        strip_components: 0
+    - name: Write SSH key and deploy
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        echo "=== OLD files on VPS ==="
+        ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "head -c 300 /var/www/sigotuhuella/dist/index.html 2>&1 || echo 'NO dist/index.html'"
+        echo "=== Transferring files ==="
+        tar czf - dist/ server/ package.json | ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf - && echo '=== NEW files deployed ===' && head -c 300 dist/index.html"
+    - name: Write SSH key and deploy
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        tar czf - dist/ server/ package.json | ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf - && echo '=== DEPLOYED FILES ===' && head -c 300 dist/index.html"
+      shell: bash
 
-    - name: Remote deploy
+    - name: Restart server
       uses: appleboy/ssh-action@v1.2.5
       with:
         host: ${{ secrets.SSH_HOST }}
@@ -70,12 +76,6 @@ jobs:
         script: |
           set -x
           cd /var/www/sigotuhuella
-          echo "=== dist/index.html ==="
-          ls -la dist/index.html 2>&1
-          head -c 300 dist/index.html 2>&1
-          echo "=== Current assets ==="
-          ls -la dist/assets/ 2>&1
-          chmod -R g-w dist/ 2>/dev/null || true
           kill -9 $(lsof -t -i:3000) 2>/dev/null || true
           sudo apt-get update -qq >/dev/null 2>&1
           sudo apt-get install -y --no-install-recommends ffmpeg build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev >/dev/null 2>&1
