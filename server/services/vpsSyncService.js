@@ -312,7 +312,7 @@ async function fetchFbPostApify(url) {
 
   console.log(`fetchFbPostApify: scraping ${url.slice(0, 100)}`);
   const resp = await fetch(
-    `https://api.apify.com/v2/acts/apify~facebook-posts-scraper/runs?token=${token}&waitForFinish=60`,
+    `https://api.apify.com/v2/acts/apify~facebook-posts-scraper/run-sync-get-dataset-items?token=${token}&waitForFinish=60`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -326,20 +326,7 @@ async function fetchFbPostApify(url) {
     throw new Error(`Apify HTTP ${resp.status}: ${err.slice(0, 200)}`);
   }
 
-  const run = await resp.json();
-
-  if (run.status !== 'SUCCEEDED') {
-    throw new Error(`Apify run ${run.status}: ${run.statusMessage || ''}`);
-  }
-
-  const datasetResp = await fetch(
-    `https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?token=${token}`,
-    { signal: AbortSignal.timeout(15000) }
-  );
-
-  if (!datasetResp.ok) throw new Error(`Apify dataset HTTP ${datasetResp.status}`);
-
-  const items = await datasetResp.json();
+  const items = await resp.json();
   if (!items || items.length === 0) throw new Error('Apify returned empty dataset');
 
   const item = items[0];
