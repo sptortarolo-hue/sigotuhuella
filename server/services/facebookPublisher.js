@@ -148,10 +148,12 @@ export async function checkPageMembershipInGroup(groupFbId) {
   const token = await getPageToken();
   if (!token) return { isMember: false, error: 'Facebook Page no conectada' };
 
-  try {
-    const pageId = await getPageId();
-    if (!pageId) return { isMember: false, error: 'Page ID no disponible' };
+  const pageId = await getPageId();
+  if (!pageId) return { isMember: false, error: 'Page ID no disponible' };
 
+  console.log(`[FB Publisher] Checking membership. Page ID: ${pageId}, Group ID: ${groupFbId}`);
+
+  try {
     const { data } = await axios.get(
       `${GRAPH_API}/${groupFbId}/members`,
       {
@@ -165,14 +167,23 @@ export async function checkPageMembershipInGroup(groupFbId) {
     );
 
     const members = data?.data || [];
+    console.log(`[FB Publisher] Fetched ${members.length} members from group ${groupFbId}`);
+
+    if (members.length > 0) {
+      console.log(`[FB Publisher] First 3 members:`, JSON.stringify(members.slice(0, 3)));
+    }
+
     const isMember = members.some(m => m.id === pageId || m.name === pageId);
+    console.log(`[FB Publisher] Page ${pageId} is member: ${isMember}`);
+
     return { isMember, members: members.length };
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    console.error(`[FB Publisher] Error checking membership:`, detail);
     if (err.response?.data?.error?.code === 200 || err.response?.data?.error?.type === 'OAuthException') {
-      return { isMember: false, error: 'Token inválido o sin permisos para verificar membresía' };
+      return { isMember: false, error: 'Token inválido o sin permisos para verificar membresía', pageId };
     }
-    return { isMember: false, error: detail };
+    return { isMember: false, error: detail, pageId };
   }
 }
 

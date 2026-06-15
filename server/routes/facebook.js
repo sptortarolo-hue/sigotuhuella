@@ -786,6 +786,8 @@ router.post('/groups/:id/verify-membership', requireAdmin, async (req, res) => {
       fbGroupId: group.fb_group_id,
       isMember: result.isMember || false,
       membersCount: result.members,
+      pageIdUsed: result.pageId || null,
+      error: result.error || null,
       changed: false,
     });
   } catch (err) {
