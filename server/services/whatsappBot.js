@@ -973,31 +973,36 @@ async function fbContinue(conv) {
   const speciesKnown = post.species;
   const locationKnown = post.location_hint;
 
-  if (!statusKnown) {
-    if (post.content) {
-      try {
-        const classification = await classifyPost(post.content, post.image_urls || [], []);
-        if (classification && classification.classification !== 'other' && classification.classification !== 'unclassified' && classification.classification !== 'unknown') {
-          const petStatus = classification.classification === 'found' ? 'retained'
-            : classification.classification === 'sighting' ? 'sighted'
-            : classification.classification === 'reunion' ? 'retained'
-            : classification.classification;
-          post.classification = petStatus;
-          if (classification.species && !post.species) post.species = classification.species;
-          if (classification.location_hint && !post.location_hint) post.location_hint = classification.location_hint;
-          if (post.id) {
-            await pool.query(
-              `UPDATE facebook_posts SET classification = $1, species = COALESCE(NULLIF(species, ''), $2), location_hint = COALESCE(NULLIF(location_hint, ''), $3) WHERE id = $4`,
-              [petStatus, classification.species || '', classification.location_hint || '', post.id]
-            ).catch(() => {});
-          }
-          ctx.fbPost = post;
-          return fbContinue(conv);
+  console.log('fbContinue state:', JSON.stringify({ statusKnown, speciesKnown, locationKnown, classification: post.classification, species: post.species, id: post.id }));
+
+  // Try Gemini auto-classification if status is unknown and we have content
+  if (!statusKnown && post.content) {
+    try {
+      const gemini = await classifyPost(post.content, post.image_urls || [], []);
+      if (gemini && gemini.classification !== 'other' && gemini.classification !== 'unclassified' && gemini.classification !== 'unknown') {
+        const petStatus = gemini.classification === 'found' ? 'retained'
+          : gemini.classification === 'sighting' ? 'sighted'
+          : gemini.classification === 'reunion' ? 'retained'
+          : gemini.classification;
+        console.log('fbContinue: Gemini classified as', petStatus);
+        post.classification = petStatus;
+        if (gemini.species && !post.species) post.species = gemini.species;
+        if (gemini.location_hint && !post.location_hint) post.location_hint = gemini.location_hint;
+        if (post.id) {
+          await pool.query(
+            `UPDATE facebook_posts SET classification = $1, species = COALESCE(NULLIF(species, ''), $2), location_hint = COALESCE(NULLIF(location_hint, ''), $3) WHERE id = $4`,
+            [petStatus, gemini.species || '', gemini.location_hint || '', post.id]
+          ).catch(e => console.error('fbContinue: DB update error:', e.message));
         }
-      } catch (err) {
-        console.error('fbContinue: Gemini auto-classification error:', err.message);
+        return fbContinue(conv);
       }
+      console.log('fbContinue: Gemini returned', gemini?.classification, '- asking user');
+    } catch (err) {
+      console.error('fbContinue: Gemini error:', err.message);
     }
+  }
+
+  if (!statusKnown) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Qué tipo de reporte querés crear?`);
     await sendInteractiveButtons(conv.wa_from, 'Tipo:', [
       { id: 'fb_status_lost', title: '🐕 Perdida' },
@@ -1123,9 +1128,12 @@ async function fbAskStatus(conv, parsed) {
       : text.includes('adopt') ? 'for_adoption'
       : 'lost';
   }
+  console.log('fbAskStatus: buttonId=%s text=%s -> classification=%s', parsed.buttonId, parsed.textBody, classification);
+  const newPost = { ...conv.context.fbPost, classification };
+  console.log('fbAskStatus: fbPost after update:', JSON.stringify(newPost));
   await setFlow(conv, 'report_from_fb.lookup', {
     ...conv.context,
-    fbPost: { ...conv.context.fbPost, classification },
+    fbPost: newPost,
   });
   return fbContinue(conv);
 }
