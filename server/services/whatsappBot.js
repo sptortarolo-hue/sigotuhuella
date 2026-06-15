@@ -1242,7 +1242,7 @@ async function fbLookup(conv, parsed) {
   const existingPost = result.rows[0];
 
   // Always try to refresh data from FB (OG scraper + fallbacks)
-  if (!existingPost.embed_html || !existingPost.content || !existingPost.image_urls?.length) {
+  if (!existingPost.embed_html || !existingPost.content) {
     try {
       const fbPostData = await fetchFbPost(fbUrl);
       const hasNewData = fbPostData.embed_html || fbPostData.content || fbPostData.image_urls?.length;
