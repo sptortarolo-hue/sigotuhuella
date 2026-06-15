@@ -132,32 +132,6 @@ export async function syncFromVps() {
 }
 
 export async function fetchFbPost(url) {
-  // Try scraper's fetch-post endpoint first (Selenium + cookies on VPS)
-  try {
-    const scrapeResp = await fetch(
-      `${VPS_HOST}/fetch-post?url=${encodeURIComponent(url)}`,
-      { signal: AbortSignal.timeout(90000) }
-    );
-    if (scrapeResp.ok) {
-      const data = await scrapeResp.json();
-      if (data.fb_post_id) {
-        return {
-          fb_post_id: data.fb_post_id,
-          fb_post_url: data.fb_post_url || url,
-          author_name: data.author_name || '',
-          content: data.content || '',
-          image_urls: data.image_urls || [],
-          posted_at: data.posted_at || '',
-          comments: data.comments || [],
-        };
-      }
-    }
-    console.error('Scraper fetch-post returned no data, falling back to Apify');
-  } catch (err) {
-    console.error('Scraper fetch-post error, falling back to Apify:', err.message);
-  }
-
-  // Fallback: Apify
   try {
     const resp = await fetch(
       `https://api.apify.com/v2/acts/scrapyspider~facebook-post-scraper/run-sync-get-dataset-items?token=${process.env.APIFY_TOKEN}`,
