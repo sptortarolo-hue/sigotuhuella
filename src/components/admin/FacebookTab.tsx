@@ -1197,6 +1197,7 @@ function PublisherSection() {
   const [showStatus, setShowStatus] = useState(false);
   const [groupSaving, setGroupSaving] = useState<Record<string, boolean>>({});
   const [retrying, setRetrying] = useState(false);
+  const [publishingPet, setPublishingPet] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -1276,6 +1277,23 @@ function PublisherSection() {
       await fetchData();
     } catch (e: any) { alert('Error: ' + e.message); }
     setRetrying(false);
+  };
+
+  const handlePublishToGroups = async (petId: string) => {
+    setPublishingPet(petId);
+    try {
+      const resp = await fetch(`/api/facebook/publish-pet-to-groups/${petId}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      });
+      const data = await resp.json();
+      if (!resp.ok) { alert(data.error || 'Error'); return; }
+      const groupOk = data.groups?.filter((g: any) => g.success).length || 0;
+      const groupTotal = data.groups?.length || 0;
+      alert(`✅ Publicado en Page${groupTotal > 0 ? ` + ${groupOk}/${groupTotal} grupo(s)` : ''}`);
+      await fetchData();
+    } catch (e: any) { alert('Error: ' + e.message); }
+    setPublishingPet(null);
   };
 
   const handleStatus = async () => {
@@ -1404,6 +1422,7 @@ function PublisherSection() {
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3">Error / ID</th>
                 <th className="px-4 py-3">Publicado</th>
+                <th className="px-4 py-3">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-accent">
@@ -1427,10 +1446,19 @@ function PublisherSection() {
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                     {p.published_at ? new Date(p.published_at).toLocaleString('es-AR') : '—'}
                   </td>
+                  <td className="px-4 py-3">
+                    <button onClick={() => handlePublishToGroups(p.pet_id)} disabled={publishingPet === p.pet_id || !p.pet_id}
+                      className="px-3 py-1.5 bg-brand-primary text-white text-[10px] font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-40 flex items-center gap-1">
+                      {publishingPet === p.pet_id
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <Upload className="w-3 h-3" />}
+                      Publicar a grupos
+                    </button>
+                  </td>
                 </tr>
               ))}
               {pagePosts.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-400">Aún no hay publicaciones.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">Aún no hay publicaciones.</td></tr>
               )}
             </tbody>
           </table>

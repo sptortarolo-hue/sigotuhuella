@@ -8,7 +8,7 @@ import { requireAdmin } from '../auth.js';
 import { classifyPost } from '../services/geminiClassifier.js';
 import { matchPostToPet, matchPetToPosts, runFullMatching, detectReunion } from '../services/geminiMatching.js';
 import { pushConfig } from '../services/vpsSyncService.js';
-import { publishToPage, replicateInstagramToFacebook, replicateLatestInstagramPosts, retryFailedFacebookPosts } from '../services/facebookPublisher.js';
+import { publishToPage, replicateInstagramToFacebook, replicateLatestInstagramPosts, retryFailedFacebookPosts, publishPetToGroups } from '../services/facebookPublisher.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const COOKIES_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'cookies.txt');
@@ -662,6 +662,17 @@ router.post('/retry-failed', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error retrying failed posts:', err);
     res.status(500).json({ error: 'Error al reintentar posts fallidos' });
+  }
+});
+
+router.post('/publish-pet-to-groups/:petId', requireAdmin, async (req, res) => {
+  try {
+    const result = await publishPetToGroups(req.params.petId);
+    if (result.error) return res.status(404).json(result);
+    res.json(result);
+  } catch (err) {
+    console.error('Error publishing pet to groups:', err);
+    res.status(500).json({ error: 'Error al publicar mascota a grupos' });
   }
 });
 

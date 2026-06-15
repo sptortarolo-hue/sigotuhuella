@@ -311,3 +311,57 @@ export async function retryFailedFacebookPosts(limit = 10) {
   }
   return results;
 }
+
+export async function publishPetToGroups(petId) {
+  const petResult = await pool.query(
+    `SELECT p.*,
+       (SELECT array_agg(pi.image_data ORDER BY pi.created_at) FROM pet_images pi WHERE pi.pet_id = p.id) as images_data
+     FROM pets p WHERE p.id = $1`,
+    [petId]
+  );
+
+  if (petResult.rows.length === 0) return { error: 'Mascota no encontrada' };
+  const pet = petResult.rows[0];
+
+  const hashtags = await getSetting('instagram_default_hashtags') || '#SigoTuHuella';
+  const message = buildPetMessage(pet, hashtags);
+
+  const results = { page: null, groups: [], petId };
+
+  const pageResult = await publishToPage(petId);
+  results.page = pageResult;
+
+  const groupsResult = await pool.query(
+    `SELECT id, name, fb_group_id FROM facebook_groups
+     WHERE is_active = true AND publish_on_create = true AND page_is_member = true
+       AND fb_group_id IS NOT NULL AND fb_group_id != ''
+     ORDER BY name`
+  );
+
+  for (const group of groupsResult.rows) {
+    const link = `${FRONTEND_URL}/pet/${petId}`;
+    const groupResult = await publishToGroup(group.fb_group_id, message, link);
+    results.groups.push({
+      groupId: group.id,
+      name: group.name,
+      success: groupResult.success,
+      error: groupResult.error,
+      groupPostId: groupResult.groupPostId,
+    });
+  }
+
+  const groupPostIds = results.groups
+    .filter(g => g.success && g.groupPostId)
+    .map(g => g.groupPostId);
+
+  const status = pageResult.success ? 'published' : pageResult.error ? 'failed' : 'published';
+  const errorMsg = pageResult.error || results.groups.find(g => g.error)?.error || null;
+
+  await pool.query(
+    `INSERT INTO facebook_page_posts (pet_id, page_post_id, group_post_ids, message, status, error_message, published_at)
+     VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+    [petId, pageResult.pagePostId || null, groupPostIds, message, status, errorMsg]
+  );
+
+  return results;
+}

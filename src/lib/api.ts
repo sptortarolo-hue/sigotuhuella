@@ -209,6 +209,7 @@ export const api = {
     updateGroupMember: (id: string, data: { fb_group_id?: string; page_is_member?: boolean; publish_on_create?: boolean }) =>
       request(`/facebook/groups/${id}/page-member`, { method: 'PUT', body: JSON.stringify(data) }),
     publishStatus: () => request('/facebook/publish-status'),
+    publishPetToGroups: (petId: string) => request(`/facebook/publish-pet-to-groups/${petId}`, { method: 'POST' }),
   },
 
   myPets: {
