@@ -1065,29 +1065,13 @@ async function fbContinue(conv) {
   console.log('fbContinue state:', JSON.stringify({ statusKnown, speciesKnown, locationKnown, classification: post.classification, species: post.species, id: post.id }));
 
   // Try Gemini whenever any field is missing
-  // Try to download images for Gemini analysis when content is empty
   if (!statusKnown || !speciesKnown || !locationKnown) {
     const hasTriedGemini = post._geminiTried;
     if (!hasTriedGemini) {
       post._geminiTried = true;
 
-      let geminiImageBuffers = [];
-      if (post.image_urls && post.image_urls.length > 0) {
-        for (const imgUrl of post.image_urls.slice(0, 3)) {
-          try {
-            const downloaded = await tryDownload(imgUrl);
-            if (downloaded) {
-              geminiImageBuffers.push(downloaded);
-              console.log(`fbContinue: downloaded image for Gemini analysis from ${imgUrl.slice(0, 60)}`);
-            }
-          } catch (e) {
-            console.log(`fbContinue: couldn't download image for Gemini: ${e.message}`);
-          }
-        }
-      }
-
       try {
-        const gemini = await classifyPost(post.content, post.image_urls || [], [], geminiImageBuffers);
+        const gemini = await classifyPost(post.content, [], [], []);
         console.log('fbContinue: Gemini returned', JSON.stringify({ classification: gemini?.classification, species: gemini?.species, location: gemini?.location_hint, confidence: gemini?.confidence }));
         if (gemini && gemini.confidence >= 50 && gemini.classification !== 'other' && gemini.classification !== 'unclassified' && gemini.classification !== 'unknown') {
           const petStatus = gemini.classification === 'found' ? 'retained'
