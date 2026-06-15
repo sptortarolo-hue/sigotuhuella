@@ -1228,19 +1228,24 @@ async function fbLookup(conv, parsed) {
 
   const existingPost = result.rows[0];
 
-  // If embed_html is missing, try to fetch it from oEmbed
-  if (!existingPost.embed_html) {
+  // Always try to refresh data from FB (OG scraper + fallbacks)
+  if (!existingPost.embed_html || !existingPost.content || !existingPost.image_urls?.length) {
     try {
       const fbPostData = await fetchFbPost(fbUrl);
-      if (fbPostData.embed_html) {
-        existingPost.embed_html = fbPostData.embed_html;
+      const hasNewData = fbPostData.embed_html || fbPostData.content || fbPostData.image_urls?.length;
+      if (hasNewData) {
+        if (fbPostData.content) existingPost.content = fbPostData.content;
+        if (fbPostData.image_urls?.length) existingPost.image_urls = fbPostData.image_urls;
+        if (fbPostData.embed_html) existingPost.embed_html = fbPostData.embed_html;
+        if (fbPostData.author_name) existingPost.author_name = fbPostData.author_name;
         await pool.query(
-          `UPDATE facebook_posts SET embed_html = $1 WHERE id = $2`,
-          [fbPostData.embed_html, existingPost.id]
-        ).catch(e => console.error('fbLookup: failed to save embed_html:', e.message));
+          `UPDATE facebook_posts SET content = $1, image_urls = $2, author_name = $3, embed_html = $4 WHERE id = $5`,
+          [existingPost.content, existingPost.image_urls, existingPost.author_name, existingPost.embed_html, existingPost.id]
+        ).catch(e => console.error('fbLookup: failed to save refreshed data:', e.message));
+        console.log(`fbLookup: post ${existingPost.id} refreshed - content_length=${existingPost.content?.length}, images=${existingPost.image_urls?.length}, embed=${!!existingPost.embed_html}`);
       }
     } catch (err) {
-      console.error('fbLookup: failed to fetch embed_html for existing post:', err.message);
+      console.error('fbLookup: failed to refresh post:', err.message);
     }
   }
 

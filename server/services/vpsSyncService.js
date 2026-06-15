@@ -212,6 +212,7 @@ function generateEmbedHtml(url) {
 }
 
 async function fetchFbPostOG(url) {
+  console.log(`fetchFbPostOG: fetching ${url.slice(0, 100)}`);
   const resp = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -219,15 +220,19 @@ async function fetchFbPostOG(url) {
       'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8',
     },
     signal: AbortSignal.timeout(15000),
+    redirect: 'follow',
   });
+  console.log(`fetchFbPostOG: HTTP ${resp.status}, final URL: ${resp.url.slice(0, 100)}`);
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const html = await resp.text();
+  console.log(`fetchFbPostOG: HTML length=${html.length}`);
   const ogDescription = html.match(/<meta\s+property="og:description"\s+content="([^"]+)"/i)?.[1]
     || html.match(/<meta\s+content="([^"]+)"\s+property="og:description"/i)?.[1] || '';
   const ogImage = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i)?.[1]
     || html.match(/<meta\s+content="([^"]+)"\s+property="og:image"/i)?.[1] || '';
   const ogTitle = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i)?.[1]
     || html.match(/<meta\s+content="([^"]+)"\s+property="og:title"/i)?.[1] || '';
+  console.log(`fetchFbPostOG: ogDescription=${ogDescription.slice(0, 120)}, ogImage=${!!ogImage}, ogTitle=${ogTitle.slice(0, 80)}`);
   return { content: ogDescription || ogTitle, image_url: ogImage };
 }
 
