@@ -364,14 +364,13 @@ export async function fetchFbPost(url) {
   let image_urls = [];
   let author_name = '';
 
-  console.log(`fetchFbPost: intentando fuentes → BrightData(${!!brightKey}) Apify(${!!process.env.APIFY_TOKEN}) OG Oembed GraphAPI`);
-
   try {
     // 1. Bright Data (cuenta activa, tier free)
     const brightKeyRes = await pool.query(
       "SELECT value FROM settings WHERE key = 'brightdata_api_key'"
     );
     const brightKey = brightKeyRes.rows[0]?.value || process.env.BRIGHTDATA_API_KEY;
+    console.log(`fetchFbPost: intentando fuentes → BrightData(${!!brightKey}) Apify(${!!process.env.APIFY_TOKEN}) OG Oembed GraphAPI`);
     if (brightKey) {
       try {
         const bd = await fetchFbPostBrightData(url, brightKey);
