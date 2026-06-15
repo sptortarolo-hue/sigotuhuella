@@ -150,11 +150,17 @@ export async function publishToGroup(groupFbId, message, link, imageUrl) {
 
   if (imageUrl) {
     try {
-      const { data } = await axios.post(`${GRAPH_API}/${groupFbId}/photos`, null, {
+      const { data: photoData } = await axios.post(`${GRAPH_API}/${groupFbId}/photos`, null, {
         params: { url: imageUrl, message, access_token: token },
         timeout: 30000,
       });
-      return { success: true, groupPostId: data.id, type: 'photo' };
+      if (link) {
+        await axios.post(`${GRAPH_API}/${photoData.id}/comments`, null, {
+          params: { message: `🔗 Más información: ${link}`, access_token: token },
+          timeout: 15000,
+        }).catch(() => {});
+      }
+      return { success: true, groupPostId: photoData.id, type: 'photo' };
     } catch {
       // fallback a feed si no puede postear foto (ej. page no es miembro)
     }
