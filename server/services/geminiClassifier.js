@@ -1,6 +1,10 @@
 import { GoogleGenAI } from '@google/genai';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+let geminiCooldownUntil = 0;
+
+function isGeminiAvailable() { return Date.now() > geminiCooldownUntil; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 const CLASSIFICATION_PROMPT = `Eres un clasificador de publicaciones de Facebook sobre mascotas perdidas y encontradas para la app "Sigo Tu Huella".
 Analizá el post, las imágenes y los comentarios asociados. Devolvé SOLO un JSON válido sin markdown:
@@ -39,63 +43,74 @@ Reglas:
 - No incluyas la URL del post ni metadatos de Facebook en el summary`;
 
 export async function classifyPost(text, imageUrls, comments = [], imageBuffers = []) {
-  if (!GEMINI_API_KEY) {
+  if (!GEMINI_API_KEY) return fallbackClassification(text);
+  if (!isGeminiAvailable()) {
+    console.log(`classifyPost: en cooldown hasta ${new Date(geminiCooldownUntil).toISOString()}`);
     return fallbackClassification(text);
   }
 
   const commentsText = comments.map(c => `- ${c.author}: "${c.text}"`).join('\n');
   const promptText = `${CLASSIFICATION_PROMPT}\n\nPost:\n${text || '(sin texto)'}\n\nComentarios:\n${commentsText || '(sin comentarios)'}`;
 
-  try {
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+      const parts = [{ text: promptText }];
 
-    const parts = [{ text: promptText }];
+      if (imageBuffers && imageBuffers.length > 0) {
+        for (const buf of imageBuffers.slice(0, 3)) {
+          parts.push({ inlineData: { data: buf.data, mimeType: buf.mimeType || 'image/jpeg' } });
+        }
+      } else if (imageUrls && imageUrls.length > 0) {
+        for (const url of imageUrls.filter(u => u && u.startsWith('http')).slice(0, 3)) {
+          parts.push({ fileData: { fileUri: url, mimeType: 'image/jpeg' } });
+        }
+      }
 
-    if (imageBuffers && imageBuffers.length > 0) {
-      for (const buf of imageBuffers.slice(0, 3)) {
-        parts.push({
-          inlineData: { data: buf.data, mimeType: buf.mimeType || 'image/jpeg' },
-        });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash-lite',
+        contents: [{ role: 'user', parts }],
+        config: { responseMimeType: 'application/json' },
+      });
+
+      const result = JSON.parse(response.text);
+      return {
+        classification: ['lost', 'found', 'sighting', 'reunion', 'other'].includes(result.classification) ? result.classification : 'other',
+        species: ['dog', 'cat', 'other', null].includes(result.species) ? result.species : null,
+        species_other: result.species_other || null,
+        name: result.name || null,
+        breed: result.breed || null,
+        gender: ['male', 'female', null].includes(result.gender) ? result.gender : null,
+        color: Array.isArray(result.colors) ? result.colors.join(', ') : null,
+        colors: Array.isArray(result.colors) ? result.colors : [],
+        location_hint: result.location || null,
+        phone: result.phone || null,
+        confidence: Math.min(100, Math.max(0, result.confidence || 0)),
+        location_lat: null,
+        location_lng: null,
+        comments: Array.isArray(result.comments) ? result.comments.map(c => ({
+          text: c.text || '',
+          classification: ['sighting', 'reunion', 'info', 'irrelevant'].includes(c.classification) ? c.classification : 'info',
+        })) : [],
+      };
+    } catch (err) {
+      const msg = (err.message || '').toLowerCase();
+      if (msg.includes('429') || msg.includes('quota') || msg.includes('exhausted') || msg.includes('rate')) {
+        if (msg.includes('quota') || msg.includes('exhausted')) {
+          geminiCooldownUntil = Date.now() + 60 * 60 * 1000;
+          console.log(`classifyPost: cuota agotada, cooldown 60min hasta ${new Date(geminiCooldownUntil).toISOString()}`);
+        } else {
+          const delay = Math.pow(2, attempt) * 1000;
+          console.log(`classifyPost: 429 (intento ${attempt}/3), esperando ${delay}ms`);
+          await sleep(delay);
+          continue;
+        }
       }
-    } else if (imageUrls && imageUrls.length > 0) {
-      const validUrls = imageUrls.filter(u => u && u.startsWith('http'));
-      for (const url of validUrls.slice(0, 3)) {
-        parts.push({
-          fileData: { fileUri: url, mimeType: 'image/jpeg' },
-        });
-      }
+      console.error('Gemini classification error:', err.message);
+      return fallbackClassification(text);
     }
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-lite',
-      contents: [{ role: 'user', parts }],
-      config: { responseMimeType: 'application/json' },
-    });
-
-    const result = JSON.parse(response.text);
-    return {
-      classification: ['lost', 'found', 'sighting', 'reunion', 'other'].includes(result.classification) ? result.classification : 'other',
-      species: ['dog', 'cat', 'other', null].includes(result.species) ? result.species : null,
-      species_other: result.species_other || null,
-      name: result.name || null,
-      breed: result.breed || null,
-      gender: ['male', 'female', null].includes(result.gender) ? result.gender : null,
-      color: Array.isArray(result.colors) ? result.colors.join(', ') : null,
-      colors: Array.isArray(result.colors) ? result.colors : [],
-      location_hint: result.location || null,
-      phone: result.phone || null,
-      confidence: Math.min(100, Math.max(0, result.confidence || 0)),
-      location_lat: null,
-      location_lng: null,
-      comments: Array.isArray(result.comments) ? result.comments.map(c => ({
-        text: c.text || '',
-        classification: ['sighting', 'reunion', 'info', 'irrelevant'].includes(c.classification) ? c.classification : 'info',
-      })) : [],
-    };
-  } catch (err) {
-    console.error('Gemini classification error:', err.message);
-    return fallbackClassification(text);
   }
+  return fallbackClassification(text);
 }
 
 function fallbackClassification(text) {

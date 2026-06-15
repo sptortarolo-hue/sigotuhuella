@@ -349,6 +349,8 @@ export async function fetchFbPost(url) {
   let image_urls = [];
   let author_name = '';
 
+  console.log(`fetchFbPost: intentando fuentes → Apify(${!!process.env.APIFY_TOKEN}) OG BrightData Oembed GraphAPI`);
+
   try {
     // 1. Apify (token ya en .env, más confiable)
     const apifyToken = process.env.APIFY_TOKEN;

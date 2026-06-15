@@ -648,6 +648,11 @@ export async function initDb() {
     `, 'unique fb comment index');
 
     await migrate(client, `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_fb_posts_fb_post_id
+      ON facebook_posts(fb_post_id) WHERE fb_post_id IS NOT NULL
+    `, 'unique fb_post_id index');
+
+    await migrate(client, `
       ALTER TABLE facebook_groups ADD COLUMN IF NOT EXISTS fb_group_id VARCHAR(255)
     `, 'facebook_groups fb_group_id');
     await migrate(client, `
