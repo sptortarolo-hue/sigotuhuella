@@ -664,6 +664,10 @@ export async function initDb() {
       ALTER TABLE pets ADD COLUMN IF NOT EXISTS facebook_embed_html TEXT
     `, 'pets facebook_embed_html');
 
+    await migrate(client, `
+      ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS embed_html TEXT
+    `, 'facebook_posts embed_html');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

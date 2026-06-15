@@ -1190,17 +1190,19 @@ async function fbLookup(conv, parsed) {
     // Insert fetched post into facebook_posts
     const insertResult = await pool.query(
       `INSERT INTO facebook_posts
-         (fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, classification)
-       VALUES ($1, $2, $3, $4, $5, $6, 'unclassified')
+         (fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, classification, embed_html)
+       VALUES ($1, $2, $3, $4, $5, $6, 'unclassified', $7)
        ON CONFLICT (fb_post_id) DO UPDATE SET
          content = EXCLUDED.content,
          image_urls = EXCLUDED.image_urls,
          author_name = EXCLUDED.author_name,
+         embed_html = COALESCE(facebook_posts.embed_html, EXCLUDED.embed_html),
          scraped_at = NOW()
        RETURNING id`,
       [fbPostData.fb_post_id, fbPostData.fb_post_url || fbUrl, fbPostData.author_name || '',
        fbPostData.content || '', fbPostData.image_urls || [],
-       fbPostData.posted_at ? new Date(fbPostData.posted_at) : null]
+       fbPostData.posted_at ? new Date(fbPostData.posted_at) : null,
+       fbPostData.embed_html || null]
     );
 
     const newPost = {
@@ -1212,7 +1214,25 @@ async function fbLookup(conv, parsed) {
     return fbContinue(conv);
   }
 
-  await setFlow(conv, 'report_from_fb.lookup', { ...conv.context, fbPost: result.rows[0] });
+  const existingPost = result.rows[0];
+
+  // If embed_html is missing, try to fetch it from oEmbed
+  if (!existingPost.embed_html) {
+    try {
+      const fbPostData = await fetchFbPost(fbUrl);
+      if (fbPostData.embed_html) {
+        existingPost.embed_html = fbPostData.embed_html;
+        await pool.query(
+          `UPDATE facebook_posts SET embed_html = $1 WHERE id = $2`,
+          [fbPostData.embed_html, existingPost.id]
+        ).catch(e => console.error('fbLookup: failed to save embed_html:', e.message));
+      }
+    } catch (err) {
+      console.error('fbLookup: failed to fetch embed_html for existing post:', err.message);
+    }
+  }
+
+  await setFlow(conv, 'report_from_fb.lookup', { ...conv.context, fbPost: existingPost });
   return fbContinue(conv);
 }
 
