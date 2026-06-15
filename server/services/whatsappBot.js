@@ -278,22 +278,25 @@ async function handleMenu(conv, parsed, intent) {
 async function handleImageFromMenu(conv, parsed) {
   const caption = parsed.textBody || '';
   if (caption) {
-    const { classifyImageIntent } = await import('./geminiMatching.js');
-    const intent = await classifyImageIntent(caption);
-    if (intent === 'found' || intent === 'lost' || intent === 'sighted') {
+    const { processImageCaption } = await import('./geminiMatching.js');
+    const result = await processImageCaption(caption);
+    if (result.intent === 'found' || result.intent === 'lost' || result.intent === 'sighted') {
       const labels = { found: 'encontraste', lost: 'se te perdió', sighted: 'viste' };
-      await setFlow(conv, `image_confirm_${intent}`, {
+      await setFlow(conv, `image_confirm_${result.intent}`, {
         photo_data: parsed.imageData,
         photo_mime: parsed.imageMime,
         caption,
+        _intent: result.intent,
+        _extracted: { location: result.location, phone: result.phone, description: result.description },
       });
-      await sendMessage(conv.wa_from, `${conv.bot_name}: Según tu mensaje, ¿*${labels[intent]}* esta mascota?`);
+      await sendMessage(conv.wa_from, `${conv.bot_name}: Según tu mensaje, ¿*${labels[result.intent]}* esta mascota?`);
       await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
         { id: 'confirm_yes', title: '✅ Sí' },
         { id: 'confirm_no', title: '❌ No' },
       ]);
       return;
     }
+    await sendMessage(conv.wa_from, `${conv.bot_name}: No pude procesar automáticamente tu mensaje.`);
   }
   return showImageTypeChoice(conv, parsed);
 }
@@ -578,20 +581,47 @@ async function rfPhoto(conv, parsed) {
     return;
   }
 
+  // Use cached extracted data from handleImageFromMenu (UNA sola llamada Gemini)
+  const extracted = conv.context?._extracted;
+  if (extracted) {
+    const ctx = { photo_data: photoData, photo_mime: photoMime || 'image/jpeg' };
+    if (extracted.location) {
+      ctx.location = extracted.location;
+      const coords = await geocodeAddress(extracted.location).catch(() => null);
+      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+    }
+    if (extracted.phone) ctx.contact = extracted.phone;
+    if (extracted.description) ctx.description = extracted.description;
+
+    if (ctx.location && ctx.contact) {
+      await setFlow(conv, 'report_found.confirm', ctx);
+      return rfShowConfirm(conv);
+    }
+    await setFlow(conv, 'report_found.location', ctx);
+    if (!ctx.location) {
+      await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde está ahora la mascota? 📍`);
+    } else {
+      await sendMessage(conv.wa_from, `✅ Encontré la ubicación: ${ctx.location}.\n${conv.bot_name}: Dejame un *teléfono de contacto* 📞`);
+      await setFlow(conv, 'report_found.contact', ctx);
+    }
+    return;
+  }
+
+  // No cached data: try Gemini if there's a caption (e.g., user chose "found" from buttons with caption)
   const caption = parsed.textBody || conv.context?.caption || '';
   if (caption) {
     await sendMessage(conv.wa_from, `📸 Foto recibida. Estoy leyendo la descripción... 🔍`);
     try {
-      const { extractFoundPetData } = await import('./geminiMatching.js');
-      const extracted = await extractFoundPetData(caption);
+      const { processImageCaption } = await import('./geminiMatching.js');
+      const result = await processImageCaption(caption);
       const ctx = { photo_data: photoData, photo_mime: photoMime || 'image/jpeg' };
-      if (extracted.location) {
-        ctx.location = extracted.location;
-        const coords = await geocodeAddress(extracted.location).catch(() => null);
+      if (result.location) {
+        ctx.location = result.location;
+        const coords = await geocodeAddress(result.location).catch(() => null);
         if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
       }
-      if (extracted.phone) ctx.contact = extracted.phone;
-      if (extracted.description) ctx.description = extracted.description;
+      if (result.phone) ctx.contact = result.phone;
+      if (result.description) ctx.description = result.description;
 
       if (ctx.location && ctx.contact) {
         await setFlow(conv, 'report_found.confirm', ctx);

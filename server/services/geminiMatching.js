@@ -336,48 +336,39 @@ Descripción: ${candidate.description || ''}`;
   }
 }
 
-const CLASSIFY_IMAGE_PROMPT = `Analizá el siguiente mensaje de WhatsApp sobre una mascota y determiná si la persona:
-- "found": encontró una mascota
-- "lost": perdió una mascota
-- "sighted": vio/avió una mascota
-- "unclear": no se puede determinar
+const PROCESS_IMAGE_CAPTION_PROMPT = `Analizá el siguiente mensaje de WhatsApp sobre una mascota y determiná:
 
-Respondé SOLO un JSON: {"intent": "found" | "lost" | "sighted" | "unclear"}`;
+1. INTENCIÓN: si la persona:
+   - "found": encontró una mascota
+   - "lost": perdió una mascota
+   - "sighted": vio/avió una mascota
+   - "unclear": no se puede determinar
 
-const EXTRACT_FOUND_PROMPT = `El siguiente mensaje es sobre una mascota ENCONTRADA.
-Extraé:
-- ubicación (barrio, ciudad, dirección, punto de referencia)
-- teléfono de contacto
-- descripción adicional (color, tamaño, estado físico, etc.)
+2. Si la intención es "found", extraé:
+   - ubicación (barrio, ciudad, dirección, punto de referencia)
+   - teléfono de contacto
+   - descripción adicional (color, tamaño, estado físico, etc.)
 
 Respondé SOLO un JSON:
 {
+  "intent": "found" | "lost" | "sighted" | "unclear",
   "location": "descripción textual de la ubicación" o null,
   "phone": "solo números, sin + ni guiones, ej: 2215551234" o null,
   "description": "notas adicionales sobre la mascota o la situación" o null
 }`;
 
-export async function classifyImageIntent(caption) {
+export async function processImageCaption(caption) {
   try {
-    const result = await callGemini(caption, CLASSIFY_IMAGE_PROMPT);
-    return result.intent || 'unclear';
-  } catch (err) {
-    console.error('classifyImageIntent error:', err);
-    return 'unclear';
-  }
-}
-
-export async function extractFoundPetData(caption) {
-  try {
-    const result = await callGemini(caption, EXTRACT_FOUND_PROMPT);
+    const result = await callGemini(caption, PROCESS_IMAGE_CAPTION_PROMPT);
     return {
+      intent: result.intent || 'unclear',
       location: result.location || null,
       phone: result.phone || null,
       description: result.description || null,
     };
   } catch (err) {
-    console.error('extractFoundPetData error:', err);
-    return { location: null, phone: null, description: null };
+    console.error('processImageCaption error:', err);
+    return { intent: 'unclear', location: null, phone: null, description: null };
   }
 }
 
