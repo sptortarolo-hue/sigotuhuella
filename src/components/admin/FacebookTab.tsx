@@ -1420,7 +1420,7 @@ function PublisherSection() {
                   </td>
                   <td className="px-4 py-3 text-xs max-w-[200px] truncate" title={p.error_message || p.page_post_id || ''}>
                     {p.error_message
-                      ? <span className="text-red-500">{p.error_message.substring(0, 60)}</span>
+                      ? <span className="text-red-500">{p.error_message.substring(0, 120)}</span>
                       : <span className="text-gray-500 font-mono">{p.page_post_id || '—'}</span>
                     }
                   </td>
