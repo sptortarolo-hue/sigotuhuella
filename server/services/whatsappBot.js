@@ -153,6 +153,11 @@ async function routeFlow(conv, parsed) {
     return endFlow(conv);
   }
 
+  // Intercept images at welcome/menu level (user sends photo as first message)
+  if (intent === 'image_received' && (flow === 'welcome' || flow === 'menu')) {
+    return handleImageFromMenu(conv, parsed);
+  }
+
   switch (flow) {
     case 'welcome': return showWelcome(conv);
     case 'menu': return handleMenu(conv, parsed, intent);
