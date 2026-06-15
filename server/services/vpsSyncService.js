@@ -184,23 +184,24 @@ async function fetchGraphApiData(postId, groupId, token, url) {
   throw new Error(`Graph API error: ${lastErr}`);
 }
 
-async function fetchOembedData(url) {
+async function getAppToken() {
+  const id = process.env.FACEBOOK_APP_ID;
+  const secret = process.env.FACEBOOK_APP_SECRET;
+  if (!id || !secret) return null;
+  return `${id}|${secret}`;
+}
+
+async function fetchOembedViaGraph(url, token) {
+  const GRAPH_API = 'https://graph.facebook.com/v22.0';
   const resp = await fetch(
-    `https://www.facebook.com/plugins/post/oembed.json/?url=${encodeURIComponent(url)}`,
+    `${GRAPH_API}/oembed_post?url=${encodeURIComponent(url)}&access_token=${token}&fields=author_name,title,thumbnail_url`,
     { signal: AbortSignal.timeout(10000) }
   );
-  if (!resp.ok) throw new Error(`oEmbed error (${resp.status})`);
-  const data = await resp.json();
-  const pId = extractIdsFromUrl(url)?.postId || '';
-  return {
-    fb_post_id: pId,
-    fb_post_url: url,
-    author_name: data.author_name || '',
-    content: data.title || '',
-    image_urls: data.thumbnail_url ? [data.thumbnail_url] : [],
-    posted_at: '',
-    comments: [],
-  };
+  if (!resp.ok) {
+    const err = await resp.json();
+    throw new Error(`oEmbed error: ${err.error?.message || JSON.stringify(err)}`);
+  }
+  return await resp.json();
 }
 
 export async function fetchFbPost(url) {
@@ -208,20 +209,62 @@ export async function fetchFbPost(url) {
     const ids = extractIdsFromUrl(url);
     if (!ids) throw new Error('No se pudo extraer el ID de la publicación');
 
+    // 1. Try Graph API post lookup with Page Token (full data)
     const tokenRes = await pool.query(
       "SELECT value FROM settings WHERE key = 'instagram_access_token'"
     );
-    const token = tokenRes.rows[0]?.value;
+    const pageToken = tokenRes.rows[0]?.value;
 
-    if (token) {
+    if (pageToken) {
       try {
-        return await fetchGraphApiData(ids.postId, ids.groupId, token, url);
+        return await fetchGraphApiData(ids.postId, ids.groupId, pageToken, url);
       } catch (err) {
-        console.warn('fetchFbPost: Graph API falló, probando oEmbed:', err.message);
+        console.warn('fetchFbPost: Graph API post falló:', err.message);
       }
     }
 
-    return await fetchOembedData(url);
+    // 2. Try oEmbed via Graph API (Page Token first, then App Token)
+    let oembedToken = pageToken;
+    if (!oembedToken) oembedToken = await getAppToken();
+
+    if (oembedToken) {
+      try {
+        const data = await fetchOembedViaGraph(url, oembedToken);
+        const pId = ids.postId || '';
+        return {
+          fb_post_id: pId,
+          fb_post_url: url,
+          author_name: data.author_name || '',
+          content: data.title || '',
+          image_urls: data.thumbnail_url ? [data.thumbnail_url] : [],
+          posted_at: '',
+          comments: [],
+        };
+      } catch (err) {
+        console.warn('fetchFbPost: oEmbed falló:', err.message);
+        if (!pageToken) throw err;
+      }
+    }
+
+    // 3. Retry oEmbed with App Token if Page Token was used in step 2
+    if (pageToken) {
+      const appToken = await getAppToken();
+      if (appToken) {
+        const data = await fetchOembedViaGraph(url, appToken);
+        const pId = ids.postId || '';
+        return {
+          fb_post_id: pId,
+          fb_post_url: url,
+          author_name: data.author_name || '',
+          content: data.title || '',
+          image_urls: data.thumbnail_url ? [data.thumbnail_url] : [],
+          posted_at: '',
+          comments: [],
+        };
+      }
+    }
+
+    throw new Error('No se pudo acceder a la publicación');
   } catch (err) {
     console.error('fetchFbPost error:', err.message);
     throw err;
