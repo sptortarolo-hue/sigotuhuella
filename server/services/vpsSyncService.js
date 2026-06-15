@@ -250,8 +250,8 @@ async function fetchOembedViaGraph(url, token) {
 }
 
 async function fetchFbPostBrightData(url, apiKey) {
-  const resp = await fetch(
-    'https://api.brightdata.com/datasets/v3/scrape?dataset_id=gd_lyclm1571iy3mv57zw&format=json&include_errors=true',
+  const triggerResp = await fetch(
+    'https://api.brightdata.com/datasets/v3/scrape?dataset_id=gd_lyclm1571iy3mv57zw&include_errors=true',
     {
       method: 'POST',
       headers: {
@@ -259,51 +259,66 @@ async function fetchFbPostBrightData(url, apiKey) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ input: [{ url }] }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(120000),
     }
   );
-  if (resp.status === 202) {
-    const body = await resp.text();
-    console.error(`fetchFbPostBrightData: Got 202 (timeout), body: ${body.slice(0, 500)}`);
-    throw new Error(`Bright Data: synchronous scrape timed out (202)`);
+
+  if (!triggerResp.ok) {
+    const errText = await triggerResp.text();
+    throw new Error(`Bright Data trigger error (${triggerResp.status}): ${errText.slice(0, 300)}`);
   }
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`Bright Data API error (${resp.status}): ${errText}`);
+
+  const triggerData = await triggerResp.json();
+  const snapshotId = triggerData.snapshot_id || triggerData.run_id;
+  if (!snapshotId) {
+    throw new Error(`Bright Data: no snapshot_id in response: ${JSON.stringify(triggerData).slice(0, 200)}`);
   }
-  const data = await resp.json();
-  console.log(`fetchFbPostBrightData: response type=${typeof data}, isArray=${Array.isArray(data)}, length=${Array.isArray(data) ? data.length : 'N/A'}`);
-  if (Array.isArray(data) && data.length > 0) {
-    const record = data[0];
-    if (record._error || record.error) {
-      console.error(`fetchFbPostBrightData: error record:`, JSON.stringify(record).slice(0, 500));
-      throw new Error(`Bright Data: ${record.error || record._error || 'unknown error'}`);
+
+  console.log(`fetchFbPostBrightData: triggered, snapshot_id=${snapshotId}`);
+
+  // Poll until ready (max 2 min)
+  for (let i = 0; i < 12; i++) {
+    await new Promise(r => setTimeout(r, 10000));
+    const progressResp = await fetch(
+      `https://api.brightdata.com/datasets/v3/progress/${snapshotId}`,
+      { headers: { 'Authorization': `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15000) }
+    );
+    if (!progressResp.ok) continue;
+    const status = (await progressResp.text()).trim().toLowerCase();
+    if (status === 'ready') {
+      const dataResp = await fetch(
+        `https://api.brightdata.com/datasets/v3/snapshot/${snapshotId}?format=json`,
+        { headers: { 'Authorization': `Bearer ${apiKey}` }, signal: AbortSignal.timeout(30000) }
+      );
+      if (!dataResp.ok) throw new Error(`Bright Data download error (${dataResp.status})`);
+      const data = await dataResp.json();
+      if (!Array.isArray(data) || data.length === 0) throw new Error('Bright Data: empty dataset');
+      const record = data[0];
+      if (record._error || record.error) {
+        throw new Error(`Bright Data: ${record.error || record._error}`);
+      }
+      const content = record.content || record.text || record.message || record.body || '';
+      const image_urls = (record.attachments || [])
+        .filter(a => { const t = (a.type || '').toLowerCase(); return t === 'photo' || t === 'image' || !!a.attachment_url; })
+        .map(a => a.attachment_url || a.url || '')
+        .filter(Boolean);
+      console.log(`fetchFbPostBrightData: SUCCESS content_length=${content.length}, image_urls=${image_urls.length}`);
+      if (content) console.log(`fetchFbPostBrightData: preview=${content.slice(0, 120)}`);
+      return {
+        fb_post_id: record.post_id || record.url || url,
+        fb_post_url: record.url || url,
+        author_name: record.user_username_raw || record.user_url || '',
+        content,
+        image_urls,
+        embed_html: '',
+        posted_at: record.date_posted || '',
+        comments: [],
+      };
     }
-    const content = record.content || record.text || record.message || record.body || '';
-    const image_urls = (record.attachments || [])
-      .filter(a => {
-        const t = (a.type || '').toLowerCase();
-        return t === 'photo' || t === 'image' || !!a.attachment_url;
-      })
-      .map(a => a.attachment_url || a.url || '')
-      .filter(Boolean);
-    console.log(`fetchFbPostBrightData: SUCCESS content_length=${content.length}, image_urls=${image_urls.length}`);
-    if (content.length > 0) {
-      console.log(`fetchFbPostBrightData: content_preview=${content.slice(0, 120)}`);
-    }
-    return {
-      fb_post_id: record.post_id || record.url || url,
-      fb_post_url: record.url || url,
-      author_name: record.user_username_raw || record.user_url || '',
-      content,
-      image_urls,
-      embed_html: '',
-      posted_at: record.date_posted || '',
-      comments: [],
-    };
+    if (status === 'failed') throw new Error('Bright Data: snapshot failed');
+    console.log(`fetchFbPostBrightData: polling... status=${status}`);
   }
-  console.error(`fetchFbPostBrightData: unexpected response:`, JSON.stringify(data).slice(0, 500));
-  throw new Error('Bright Data: unexpected response format');
+  throw new Error('Bright Data: snapshot not ready after 2 min');
 }
 
 async function fetchFbPostApify(url) {
@@ -349,39 +364,14 @@ export async function fetchFbPost(url) {
   let image_urls = [];
   let author_name = '';
 
-  console.log(`fetchFbPost: intentando fuentes → Apify(${!!process.env.APIFY_TOKEN}) OG BrightData Oembed GraphAPI`);
+  console.log(`fetchFbPost: intentando fuentes → BrightData(${!!brightKey}) Apify(${!!process.env.APIFY_TOKEN}) OG Oembed GraphAPI`);
 
   try {
-    // 1. Apify (token ya en .env, más confiable)
-    const apifyToken = process.env.APIFY_TOKEN;
-    if (apifyToken) {
-      try {
-        const apify = await fetchFbPostApify(url);
-        if (apify.content) content = apify.content;
-        if (apify.image_urls?.length) image_urls = apify.image_urls;
-        if (apify.author_name) author_name = apify.author_name;
-      } catch (err) {
-        console.error('fetchFbPost: Apify falló:', err.message);
-      }
-    }
-
-    // 2. OG scraper (fallback si Apify no dio contenido)
-    if (!content) {
-      try {
-        const og = await fetchFbPostOG(url);
-        if (og.content) content = og.content;
-        if (og.image_url && !image_urls.length) image_urls = [og.image_url];
-        console.log(`fetchFbPost: OG success, content_length=${content.length}, image=${!!og.image_url}`);
-      } catch (err) {
-        console.error('fetchFbPost: OG falló:', err.message);
-      }
-    }
-
-    // 3. Bright Data (enriquecer)
+    // 1. Bright Data (cuenta activa, tier free)
     const brightKeyRes = await pool.query(
       "SELECT value FROM settings WHERE key = 'brightdata_api_key'"
     );
-    const brightKey = brightKeyRes.rows[0]?.value;
+    const brightKey = brightKeyRes.rows[0]?.value || process.env.BRIGHTDATA_API_KEY;
     if (brightKey) {
       try {
         const bd = await fetchFbPostBrightData(url, brightKey);
@@ -394,7 +384,34 @@ export async function fetchFbPost(url) {
       }
     }
 
-    // 3. oEmbed (author_name + thumbnail fallback)
+    // 2. Apify (fallback si Bright Data no dio contenido)
+    if (!content) {
+      const apifyToken = process.env.APIFY_TOKEN;
+      if (apifyToken) {
+        try {
+          const apify = await fetchFbPostApify(url);
+          if (apify.content) content = apify.content;
+          if (apify.image_urls?.length) image_urls = apify.image_urls;
+          if (apify.author_name) author_name = apify.author_name;
+        } catch (err) {
+          console.error('fetchFbPost: Apify falló:', err.message);
+        }
+      }
+    }
+
+    // 3. OG scraper (fallback si no hay contenido)
+    if (!content) {
+      try {
+        const og = await fetchFbPostOG(url);
+        if (og.content) content = og.content;
+        if (og.image_url && !image_urls.length) image_urls = [og.image_url];
+        console.log(`fetchFbPost: OG success, content_length=${content.length}, image=${!!og.image_url}`);
+      } catch (err) {
+        console.error('fetchFbPost: OG falló:', err.message);
+      }
+    }
+
+    // 4. oEmbed (author_name + thumbnail fallback)
     const tokenRes = await pool.query(
       "SELECT value FROM settings WHERE key = 'instagram_access_token'"
     );
@@ -411,7 +428,7 @@ export async function fetchFbPost(url) {
       }
     }
 
-    // 4. Graph API (legacy)
+    // 5. Graph API (legacy)
     if (!content && !image_urls.length && pageToken && ids) {
       try {
         const ga = await fetchGraphApiData(ids.postId, ids.groupId, pageToken, url);
