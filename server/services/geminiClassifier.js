@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 const CLASSIFICATION_PROMPT = `Eres un clasificador de publicaciones de Facebook sobre mascotas perdidas y encontradas para la app "Sigo Tu Huella".
-Analizá el post y los comentarios asociados. Devolvé SOLO un JSON válido sin markdown:
+Analizá el post, las imágenes y los comentarios asociados. Devolvé SOLO un JSON válido sin markdown:
 
 {
   "classification": "lost" | "found" | "sighting" | "reunion" | "other",
@@ -31,35 +31,44 @@ Reglas:
 - sighting = alguien vio la mascota (tipicamente en comentarios)
 - reunion = la mascota ya aparecio / fue encontrada
 - other = no es sobre mascota perdida/encontrada
-- species: si no se puede determinar, null
+- species: determinar por las imágenes si es posible (perro, gato, otro), si no se puede determinar, null
 - name: extraer el nombre de la mascota si aparece en el texto
 - breed: extraer la raza si se menciona (ej. "labrador", "criollo", "pastor aleman")
 - gender: male si menciona "macho" o "varon", female si menciona "hembra" o "perra" o "gata"
 - confidence: 0-100 que tan seguro estás
 - No incluyas la URL del post ni metadatos de Facebook en el summary`;
 
-export async function classifyPost(text, imageUrls, comments = []) {
+export async function classifyPost(text, imageUrls, comments = [], imageBuffers = []) {
   if (!GEMINI_API_KEY) {
     return fallbackClassification(text);
   }
 
   const commentsText = comments.map(c => `- ${c.author}: "${c.text}"`).join('\n');
-
-  let imagePart = '';
-  if (imageUrls && imageUrls.length > 0) {
-    const validUrls = imageUrls.filter(u => u && u.startsWith('http'));
-    if (validUrls.length > 0) {
-      imagePart = `\n\nImagenes del post:\n${validUrls.slice(0, 3).map(u => `[Imagen: ${u}]`).join('\n')}`;
-    }
-  }
-
-  const prompt = `${CLASSIFICATION_PROMPT}\n\nPost:\n${text || '(sin texto)'}${imagePart}\n\nComentarios:\n${commentsText || '(sin comentarios)'}`;
+  const promptText = `${CLASSIFICATION_PROMPT}\n\nPost:\n${text || '(sin texto)'}\n\nComentarios:\n${commentsText || '(sin comentarios)'}`;
 
   try {
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+
+    const parts = [{ text: promptText }];
+
+    if (imageBuffers && imageBuffers.length > 0) {
+      for (const buf of imageBuffers.slice(0, 3)) {
+        parts.push({
+          inlineData: { data: buf.data, mimeType: buf.mimeType || 'image/jpeg' },
+        });
+      }
+    } else if (imageUrls && imageUrls.length > 0) {
+      const validUrls = imageUrls.filter(u => u && u.startsWith('http'));
+      for (const url of validUrls.slice(0, 3)) {
+        parts.push({
+          fileData: { fileUri: url, mimeType: 'image/jpeg' },
+        });
+      }
+    }
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
-      contents: prompt,
+      contents: [{ role: 'user', parts }],
       config: { responseMimeType: 'application/json' },
     });
 

@@ -982,7 +982,7 @@ async function downloadImage(url, fbPostId) {
   if (url) {
     console.log(`downloadImage: trying URL ${url.slice(0, 80)}`);
     const result = await tryDownload(url);
-    if (result) return result;
+    if (result) return { ...result, externalUrl: null };
   }
 
   if (fbPostId) {
@@ -999,7 +999,7 @@ async function downloadImage(url, fbPostId) {
         if (postResp.data?.full_picture) {
           console.log(`downloadImage: Graph API full_picture ${postResp.data.full_picture.slice(0, 80)}`);
           const result = await tryDownload(postResp.data.full_picture);
-          if (result) return result;
+          if (result) return { ...result, externalUrl: null };
         }
       } catch (e) {
         console.log('downloadImage: Graph API full_picture error:', e.message);
@@ -1021,7 +1021,7 @@ async function downloadImage(url, fbPostId) {
           const sources = photoResp.data.images.map(i => i.source).filter(Boolean);
           for (const src of sources) {
             const result = await tryDownload(src);
-            if (result) return result;
+            if (result) return { ...result, externalUrl: null };
           }
         }
       }
@@ -1030,7 +1030,12 @@ async function downloadImage(url, fbPostId) {
     }
   }
 
-  console.log(`downloadImage: ALL FAILED`);
+  if (url) {
+    console.log(`downloadImage: all download attempts failed, storing external URL`);
+    return { data: null, mimeType: null, externalUrl: url };
+  }
+
+  console.log(`downloadImage: ALL FAILED (no URL to fallback to)`);
   return null;
 }
 
@@ -1045,13 +1050,30 @@ async function fbContinue(conv) {
 
   console.log('fbContinue state:', JSON.stringify({ statusKnown, speciesKnown, locationKnown, classification: post.classification, species: post.species, id: post.id }));
 
-  // Try Gemini whenever any field is missing and we have content or images
-  if ((!statusKnown || !speciesKnown || !locationKnown) && (post.content || (post.image_urls && post.image_urls.length > 0))) {
+  // Try Gemini whenever any field is missing
+  // Try to download images for Gemini analysis when content is empty
+  if (!statusKnown || !speciesKnown || !locationKnown) {
     const hasTriedGemini = post._geminiTried;
     if (!hasTriedGemini) {
       post._geminiTried = true;
+
+      let geminiImageBuffers = [];
+      if (post.image_urls && post.image_urls.length > 0) {
+        for (const imgUrl of post.image_urls.slice(0, 3)) {
+          try {
+            const downloaded = await tryDownload(imgUrl);
+            if (downloaded) {
+              geminiImageBuffers.push(downloaded);
+              console.log(`fbContinue: downloaded image for Gemini analysis from ${imgUrl.slice(0, 60)}`);
+            }
+          } catch (e) {
+            console.log(`fbContinue: couldn't download image for Gemini: ${e.message}`);
+          }
+        }
+      }
+
       try {
-        const gemini = await classifyPost(post.content, post.image_urls || [], []);
+        const gemini = await classifyPost(post.content, post.image_urls || [], [], geminiImageBuffers);
         console.log('fbContinue: Gemini returned', JSON.stringify({ classification: gemini?.classification, species: gemini?.species, location: gemini?.location_hint, confidence: gemini?.confidence }));
         if (gemini && gemini.classification !== 'other' && gemini.classification !== 'unclassified' && gemini.classification !== 'unknown') {
           const petStatus = gemini.classification === 'found' ? 'retained'
@@ -1314,11 +1336,17 @@ async function fbConfirm(conv, parsed, intent) {
   if (post.image_urls && post.image_urls.length > 0) {
     console.log(`fbConfirm: downloading image from ${post.image_urls[0]?.slice(0, 80)}`);
     const img = await downloadImage(post.image_urls[0], post.fb_post_id);
-    if (img) {
+    if (img && img.data) {
       console.log(`fbConfirm: image saved, mime=${img.mimeType}, size=${img.data.length}`);
       await pool.query(
         `INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`,
         [petId, img.data, img.mimeType]
+      );
+    } else if (img && img.externalUrl) {
+      console.log(`fbConfirm: storing external URL as fallback`);
+      await pool.query(
+        `INSERT INTO pet_images (pet_id, external_url) VALUES ($1, $2)`,
+        [petId, img.externalUrl]
       );
     } else {
       console.log(`fbConfirm: image download returned null`);

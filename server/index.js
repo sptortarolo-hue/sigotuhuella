@@ -58,19 +58,25 @@ app.get('/og-image/:petId/:index', async (req, res) => {
   try {
     const full = req.query.full === '1';
     const sql = full
-      ? 'SELECT COALESCE(original_image_data, image_data) AS image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2'
-      : 'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2';
+      ? 'SELECT COALESCE(original_image_data, image_data) AS image_data, mime_type, external_url FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2'
+      : 'SELECT image_data, mime_type, external_url FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2';
     const result = await pool.query(sql,
       [req.params.petId, parseInt(req.params.index) || 0]
     );
-    if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).end();
+    if (result.rows.length === 0) return res.status(404).end();
     const img = result.rows[0];
-    const buffer = Buffer.from(img.image_data, 'base64');
-    res.set('Content-Type', img.mime_type);
-    res.set('Content-Length', buffer.length);
-    res.set('Cache-Control', 'public, max-age=31536000, immutable');
-    res.set('Access-Control-Allow-Origin', '*');
-    res.end(buffer);
+    if (img.image_data) {
+      const buffer = Buffer.from(img.image_data, 'base64');
+      res.set('Content-Type', img.mime_type);
+      res.set('Content-Length', buffer.length);
+      res.set('Cache-Control', 'public, max-age=31536000, immutable');
+      res.set('Access-Control-Allow-Origin', '*');
+      res.end(buffer);
+    } else if (img.external_url) {
+      res.redirect(302, img.external_url);
+    } else {
+      res.status(404).end();
+    }
   } catch (err) {
     console.error('OG image error:', err);
     res.status(500).end();

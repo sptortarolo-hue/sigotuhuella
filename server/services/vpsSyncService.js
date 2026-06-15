@@ -200,7 +200,7 @@ async function getAppToken() {
 async function fetchOembedViaGraph(url, token) {
   const GRAPH_API = 'https://graph.facebook.com/v22.0';
   const resp = await fetch(
-    `${GRAPH_API}/oembed_post?url=${encodeURIComponent(url)}&access_token=${token}&fields=author_name,title,thumbnail_url`,
+    `${GRAPH_API}/oembed_post?url=${encodeURIComponent(url)}&access_token=${token}&fields=author_name,title,description,thumbnail_url`,
     { signal: AbortSignal.timeout(10000) }
   );
   if (!resp.ok) {
@@ -212,7 +212,7 @@ async function fetchOembedViaGraph(url, token) {
 
 async function fetchFbPostBrightData(url, apiKey) {
   const resp = await fetch(
-    'https://api.brightdata.com/datasets/v3/scrape?dataset_id=gd_lyclm1571iy3mv57zw&include_errors=true',
+    'https://api.brightdata.com/datasets/v3/scrape?dataset_id=gd_lyclm1571iy3mv57zw&format=json&include_errors=true',
     {
       method: 'POST',
       headers: {
@@ -220,28 +220,50 @@ async function fetchFbPostBrightData(url, apiKey) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ input: [{ url }] }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(60000),
     }
   );
+  if (resp.status === 202) {
+    const body = await resp.text();
+    console.error(`fetchFbPostBrightData: Got 202 (timeout), body: ${body.slice(0, 500)}`);
+    throw new Error(`Bright Data: synchronous scrape timed out (202)`);
+  }
   if (!resp.ok) {
     const errText = await resp.text();
     throw new Error(`Bright Data API error (${resp.status}): ${errText}`);
   }
   const data = await resp.json();
-  const record = Array.isArray(data) ? data[0] : null;
-  if (!record) throw new Error('Bright Data: no data returned');
-  return {
-    fb_post_id: record.post_id || record.url || url,
-    fb_post_url: record.url || url,
-    author_name: record.user_username_raw || record.user_url || '',
-    content: record.content || '',
-    image_urls: (record.attachments || [])
-      .filter(a => a.type === 'photo' || a.attachment_url)
-      .map(a => a.attachment_url || a.url)
-      .filter(Boolean),
-    posted_at: record.date_posted || '',
-    comments: [],
-  };
+  console.log(`fetchFbPostBrightData: response type=${typeof data}, isArray=${Array.isArray(data)}, length=${Array.isArray(data) ? data.length : 'N/A'}`);
+  if (Array.isArray(data) && data.length > 0) {
+    const record = data[0];
+    if (record._error || record.error) {
+      console.error(`fetchFbPostBrightData: error record:`, JSON.stringify(record).slice(0, 500));
+      throw new Error(`Bright Data: ${record.error || record._error || 'unknown error'}`);
+    }
+    const content = record.content || record.text || record.message || record.body || '';
+    const image_urls = (record.attachments || [])
+      .filter(a => {
+        const t = (a.type || '').toLowerCase();
+        return t === 'photo' || t === 'image' || !!a.attachment_url;
+      })
+      .map(a => a.attachment_url || a.url || '')
+      .filter(Boolean);
+    console.log(`fetchFbPostBrightData: SUCCESS content_length=${content.length}, image_urls=${image_urls.length}`);
+    if (content.length > 0) {
+      console.log(`fetchFbPostBrightData: content_preview=${content.slice(0, 120)}`);
+    }
+    return {
+      fb_post_id: record.post_id || record.url || url,
+      fb_post_url: record.url || url,
+      author_name: record.user_username_raw || record.user_url || '',
+      content,
+      image_urls,
+      posted_at: record.date_posted || '',
+      comments: [],
+    };
+  }
+  console.error(`fetchFbPostBrightData: unexpected response:`, JSON.stringify(data).slice(0, 500));
+  throw new Error('Bright Data: unexpected response format');
 }
 
 export async function fetchFbPost(url) {
@@ -270,7 +292,7 @@ export async function fetchFbPost(url) {
           fb_post_id: ids?.postId || fallbackId,
           fb_post_url: url,
           author_name: data.author_name || '',
-          content: data.title || '',
+          content: data.description || data.title || '',
           image_urls: data.thumbnail_url ? [data.thumbnail_url] : [],
           posted_at: '',
           comments: [],

@@ -468,8 +468,9 @@ CREATE TABLE IF NOT EXISTS instagram_auto_reply_rules (
 CREATE TABLE IF NOT EXISTS pet_images (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
-  image_data TEXT NOT NULL,
-  mime_type VARCHAR(50) NOT NULL DEFAULT 'image/jpeg',
+  image_data TEXT,
+  mime_type VARCHAR(50) DEFAULT 'image/jpeg',
+  external_url TEXT,
   crop_x REAL DEFAULT 0.5,
   crop_y REAL DEFAULT 0.5,
   original_image_data TEXT,
@@ -549,8 +550,14 @@ export async function initDb() {
       ALTER TABLE pet_images
         ADD COLUMN IF NOT EXISTS crop_x REAL DEFAULT 0.5,
         ADD COLUMN IF NOT EXISTS crop_y REAL DEFAULT 0.5,
-        ADD COLUMN IF NOT EXISTS original_image_data TEXT
+        ADD COLUMN IF NOT EXISTS original_image_data TEXT,
+        ADD COLUMN IF NOT EXISTS external_url TEXT
     `, 'pet_images crop columns');
+
+    await migrate(client, `
+      ALTER TABLE pet_images ALTER COLUMN image_data DROP NOT NULL,
+                          ALTER COLUMN mime_type DROP NOT NULL
+    `, 'pet_images nullable');
 
     await migrate(client, `
       ALTER TABLE my_pet_photos
