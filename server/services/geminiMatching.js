@@ -5,14 +5,42 @@ import { sendPushToAdmins } from './pushService.js';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-const MATCH_PROMPT = `Sos un sistema de matching para mascotas perdidas de la app "Sigo Tu Huella".
-Compará la siguiente publicación de Facebook con una mascota reportada en la app.
+// Shared rate limiter for all Gemini calls
+let geminiCooldownUntil = 0;
+const COOLDOWN_429 = 5 * 60 * 1000;
+const COOLDOWN_QUOTA = 60 * 60 * 1000;
+
+function isGeminiAvailable() {
+  return Date.now() > geminiCooldownUntil;
+}
+
+function handleGeminiError(error) {
+  const msg = (error?.message || '').toLowerCase();
+  if (msg.includes('429') || msg.includes('rate') || msg.includes('too many')) {
+    geminiCooldownUntil = Date.now() + COOLDOWN_429;
+    console.log(`[gemini] 429 rate limited, cooling down 5 min until ${new Date(geminiCooldownUntil).toISOString()}`);
+  } else if (msg.includes('403') || msg.includes('quota') || msg.includes('exhausted')) {
+    geminiCooldownUntil = Date.now() + COOLDOWN_QUOTA;
+    console.log(`[gemini] Quota exhausted, cooling down 60 min until ${new Date(geminiCooldownUntil).toISOString()}`);
+  }
+}
+
+// ─── Batch matching prompt (1 call instead of 20) ───
+
+const BATCH_MATCH_PROMPT = `Sos un sistema de matching para mascotas perdidas de la app "Sigo Tu Huella".
+Te voy a dar 1 nuevo reporte y una lista de CANDIDATOS numerados.
+Determiná cuáles de los candidatos podrían ser el MISMO animal.
 
 Devuelve SOLO un JSON:
 {
-  "match": true|false,
-  "score": 0-100,
-  "reasons": ["razón clara 1", "razón clara 2"]
+  "matches": [
+    {
+      "candidate_index": 0-19,
+      "match": true|false,
+      "score": 0-100,
+      "reasons": ["razón clara 1", "razón clara 2"]
+    }
+  ]
 }
 
 Reglas:
@@ -22,37 +50,23 @@ Reglas:
 - Considerá: especie, color, ubicacion, tamaño, descripcion fisica
 - La ubicacion aproximada suma si es cercana
 - Si la especie no coincide, score debe ser < 20
-- Si un post dice "encontrado" y el otro "perdido" y coinciden especie+color+ubicacion -> high score`;
-
-const CROSS_GROUP_PROMPT = `Sos un sistema de detección de posts duplicados en grupos de Facebook.
-Compará estas dos publicaciones y decicí si son el MISMO animal/publicación compartido en grupos diferentes.
-
-Devuelve SOLO un JSON:
-{
-  "same": true|false,
-  "score": 0-100,
-  "reasons": ["razón 1", "razón 2"]
-}
-
-Considerá: mismo texto, misma foto, mismas descripciones del animal.
-Si el texto es idéntico o muy similar -> likely same.
-Si describen el mismo animal (especie+color+ubicacion) -> possible same.`;
-
-
+- Si un reporte dice "encontrado" y el otro "perdido" y coinciden especie+color+ubicacion -> high score
+- Incluí SOLO los que tengan match true con score >= 50
+- Si ningún candidato coincide, devolvé matches: []`;
 
 let _callGemini = null;
 
-async function callGemini(prompt, systemPrompt, imageUrls = []) {
+async function callGemini(prompt, systemPrompt) {
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY no configurada');
-
-  const parts = imageUrls.length > 0
-    ? [{ text: systemPrompt + '\n\n' + prompt }]
-    : [{ text: systemPrompt + '\n\n' + prompt }];
+  if (!isGeminiAvailable()) {
+    const retryAt = new Date(geminiCooldownUntil).toISOString();
+    throw new Error(`Gemini en cooldown hasta ${retryAt}`);
+  }
 
   const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-2.0-flash',
-    contents: parts[0].text,
+    contents: systemPrompt + '\n\n' + prompt,
     config: { responseMimeType: 'application/json' },
   });
 
@@ -75,30 +89,33 @@ export async function matchPostToPet(postId) {
        ORDER BY created_at DESC LIMIT 20`,
       [post.species]
     );
+    if (candidates.rows.length === 0) return [];
+
+    const sourceText = `Publicación de Facebook:\n${post.content || '(sin texto)'}`;
+    const candidatesText = candidates.rows.map((c, i) =>
+      `[${i}] ${c.name ? 'Nombre: ' + c.name + ', ' : ''}Especie: ${c.species}, Color: ${c.color || 'no especificado'}, Ubicación: ${c.location || 'no especificada'}, Estado: ${c.status}, Descripción: ${c.description || 'N/A'}`
+    ).join('\n');
+
+    const result = await callGemini(
+      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`,
+      BATCH_MATCH_PROMPT
+    );
 
     const matches = [];
-    for (const pet of candidates.rows) {
-      const text = `${pet.name ? 'Nombre: ' + pet.name : ''}
-Especie: ${pet.species}
-Color: ${pet.color || 'no especificado'}
-Ubicación: ${pet.location || 'no especificada'}
-Descripción: ${pet.description || ''}`;
-
-      const result = await callGemini(
-        `Publicación de Facebook:\n${post.content || '(sin texto)'}\n\nMascota reportada:\n${text}`,
-        MATCH_PROMPT
-      );
-
-      if (result.match && result.score >= 50) {
-        const insertRes = await pool.query(
-          `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
-           VALUES ('fb_post', $1, 'app_pet', $2, $3, $4, 'ai')
-           ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING
-           RETURNING id`,
-          [postId, pet.id, result.score, result.reasons || []]
-        );
-        if (insertRes.rows.length > 0) {
-          matches.push({ pet, score: result.score, reasons: result.reasons || [] });
+    if (result.matches) {
+      for (const m of result.matches) {
+        if (m.match && m.score >= 50 && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
+          const pet = candidates.rows[m.candidate_index];
+          const insertRes = await pool.query(
+            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
+             VALUES ('fb_post', $1, 'app_pet', $2, $3, $4, 'ai')
+             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING
+             RETURNING id`,
+            [postId, pet.id, m.score, m.reasons || []]
+          );
+          if (insertRes.rows.length > 0) {
+            matches.push({ pet, score: m.score, reasons: m.reasons || [] });
+          }
         }
       }
     }
@@ -125,29 +142,32 @@ export async function matchPetToPosts(pet) {
        ORDER BY scraped_at DESC LIMIT 20`,
       [pet.species]
     );
+    if (fbPosts.rows.length === 0) return [];
+
+    const sourceText = `${pet.name ? 'Nombre: ' + pet.name + '\n' : ''}Especie: ${pet.species}\nColor: ${pet.color || 'no especificado'}\nUbicación: ${pet.location || 'no especificada'}\nDescripción: ${pet.description || 'N/A'}`;
+    const candidatesText = fbPosts.rows.map((p, i) =>
+      `[${i}] Publicación FB: ${p.content ? p.content.substring(0, 200) : '(sin texto)'}`
+    ).join('\n');
+
+    const result = await callGemini(
+      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`,
+      BATCH_MATCH_PROMPT
+    );
 
     const matches = [];
-    for (const post of fbPosts.rows) {
-      const text = `${pet.name ? 'Nombre: ' + pet.name : ''}
-Especie: ${pet.species}
-Color: ${pet.color || 'no especificado'}
-Ubicación: ${pet.location || 'no especificada'}
-Descripción: ${pet.description || ''}`;
+    if (result.matches) {
+      for (const m of result.matches) {
+        if (m.match && m.score >= 50 && m.candidate_index >= 0 && m.candidate_index < fbPosts.rows.length) {
+          const post = fbPosts.rows[m.candidate_index];
+          matches.push({ post, score: m.score, reasons: m.reasons || [] });
 
-      const result = await callGemini(
-        `Publicación de Facebook:\n${post.content || '(sin texto)'}\n\nMascota reportada:\n${text}`,
-        MATCH_PROMPT
-      );
-
-      if (result.match && result.score >= 50) {
-        matches.push({ post, score: result.score, reasons: result.reasons || [] });
-
-        await pool.query(
-          `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
-           VALUES ('app_pet', $1, 'fb_post', $2, $3, $4, 'ai')
-           ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING`,
-          [pet.id, post.id, result.score, result.reasons || []]
-        );
+          await pool.query(
+            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
+             VALUES ('app_pet', $1, 'fb_post', $2, $3, $4, 'ai')
+             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING`,
+            [pet.id, post.id, m.score, m.reasons || []]
+          );
+        }
       }
     }
 
@@ -164,29 +184,6 @@ Descripción: ${pet.description || ''}`;
   } catch (err) {
     console.error('matchPetToPosts error:', err);
     return [];
-  }
-}
-
-export async function matchCrossGroup(post1Id, post2Id) {
-  try {
-    const [p1, p2] = await Promise.all([
-      pool.query('SELECT * FROM facebook_posts WHERE id = $1', [post1Id]),
-      pool.query('SELECT * FROM facebook_posts WHERE id = $1', [post2Id]),
-    ]);
-    if (p1.rows.length === 0 || p2.rows.length === 0) return null;
-
-    const post1 = p1.rows[0];
-    const post2 = p2.rows[0];
-
-    const result = await callGemini(
-      `Post 1 (${post1.group_name || 'grupo A'}):\n${post1.content || '(sin texto)'}\n\nPost 2 (${post2.group_name || 'grupo B'}):\n${post2.content || '(sin texto)'}`,
-      CROSS_GROUP_PROMPT
-    );
-
-    return result;
-  } catch (err) {
-    console.error('matchCrossGroup error:', err);
-    return null;
   }
 }
 
@@ -297,31 +294,32 @@ export async function matchWhatsAppToPets(newPetId) {
        ORDER BY created_at DESC LIMIT 20`,
       [oppositeStatuses, newPetId]
     );
+    if (candidates.rows.length === 0) return [];
+
+    const sourceText = `Nuevo reporte (${newPet.status}):\nEspecie: ${newPet.species}\nColor: ${newPet.color || 'no especificado'}\nUbicación: ${newPet.location || 'no especificada'}\nDescripción: ${newPet.description || 'N/A'}`;
+    const candidatesText = candidates.rows.map((c, i) =>
+      `[${i}] ${c.status === 'lost' ? 'Perdido' : c.status === 'retained' ? 'Encontrado' : 'Avistaje'}: Especie: ${c.species}, Color: ${c.color || 'no especificado'}, Ubicación: ${c.location || 'no especificada'}, Descripción: ${c.description || 'N/A'}`
+    ).join('\n');
+
+    const result = await callGemini(
+      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`,
+      BATCH_MATCH_PROMPT
+    );
 
     const matches = [];
-    for (const candidate of candidates.rows) {
-      const text = `Nuevo reporte (${newPet.status}):
-Especie: ${newPet.species}
-Color: ${newPet.color || 'no especificado'}
-Ubicación: ${newPet.location || 'no especificada'}
-Descripción: ${newPet.description || ''}
+    if (result.matches) {
+      for (const m of result.matches) {
+        if (m.match && m.score >= minScore && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
+          const candidate = candidates.rows[m.candidate_index];
+          matches.push({ pet: candidate, score: m.score, reasons: m.reasons || [] });
 
-Candidato (${candidate.status}):
-Especie: ${candidate.species}
-Color: ${candidate.color || 'no especificado'}
-Ubicación: ${candidate.location || 'no especificada'}
-Descripción: ${candidate.description || ''}`;
-
-      const result = await callGemini(text, MATCH_PROMPT);
-      if (result.match && result.score >= minScore) {
-        matches.push({ pet: candidate, score: result.score, reasons: result.reasons || [] });
-
-        await pool.query(
-          `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
-           VALUES ('wa_report', $1, 'app_pet', $2, $3, $4, 'ai')
-           ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING`,
-          [newPetId, candidate.id, result.score, result.reasons || []]
-        );
+          await pool.query(
+            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
+             VALUES ('wa_report', $1, 'app_pet', $2, $3, $4, 'ai')
+             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING`,
+            [newPetId, candidate.id, m.score, m.reasons || []]
+          );
+        }
       }
     }
 
