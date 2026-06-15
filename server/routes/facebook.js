@@ -742,6 +742,58 @@ router.put('/groups/:id/page-member', requireAdmin, async (req, res) => {
   }
 });
 
+router.post('/groups/verify-memberships', requireAdmin, async (_req, res) => {
+  try {
+    const { verifyAllGroupMemberships } = await import('../services/facebookPublisher.js');
+    const result = await verifyAllGroupMemberships();
+    res.json(result);
+  } catch (err) {
+    console.error('Error verifying group memberships:', err);
+    res.status(500).json({ error: 'Error al verificar membresías de grupos' });
+  }
+});
+
+router.post('/groups/:id/verify-membership', requireAdmin, async (req, res) => {
+  try {
+    const groupResult = await pool.query(
+      'SELECT id, name, fb_group_id FROM facebook_groups WHERE id = $1',
+      [req.params.id]
+    );
+    if (groupResult.rows.length === 0) return res.status(404).json({ error: 'Grupo no encontrado' });
+    const group = groupResult.rows[0];
+
+    if (!group.fb_group_id) {
+      return res.json({ groupId: group.id, name: group.name, isMember: false, error: 'Grupo sin fb_group_id configurado' });
+    }
+
+    const { checkPageMembershipInGroup } = await import('../services/facebookPublisher.js');
+    const result = await checkPageMembershipInGroup(group.fb_group_id);
+
+    if (result.error && result.error.includes('Token')) {
+      return res.status(401).json({ error: result.error });
+    }
+
+    if (result.isMember !== undefined) {
+      await pool.query(
+        'UPDATE facebook_groups SET page_is_member = $1, updated_at = NOW() WHERE id = $2',
+        [result.isMember, group.id]
+      );
+    }
+
+    res.json({
+      groupId: group.id,
+      name: group.name,
+      fbGroupId: group.fb_group_id,
+      isMember: result.isMember || false,
+      membersCount: result.members,
+      changed: false,
+    });
+  } catch (err) {
+    console.error('Error verifying group membership:', err);
+    res.status(500).json({ error: 'Error al verificar membresía del grupo' });
+  }
+});
+
 router.get('/publish-status', requireAdmin, async (_req, res) => {
   try {
     const enabled = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_publisher_enabled'");

@@ -208,6 +208,8 @@ export const api = {
     pagePosts: (limit = 50, offset = 0) => request(`/facebook/page-posts?limit=${limit}&offset=${offset}`),
     updateGroupMember: (id: string, data: { fb_group_id?: string; page_is_member?: boolean; publish_on_create?: boolean }) =>
       request(`/facebook/groups/${id}/page-member`, { method: 'PUT', body: JSON.stringify(data) }),
+    verifyAllMemberships: () => request('/facebook/groups/verify-memberships', { method: 'POST' }),
+    verifyGroupMembership: (id: string) => request(`/facebook/groups/${id}/verify-membership`, { method: 'POST' }),
     publishStatus: () => request('/facebook/publish-status'),
     publishPetToGroups: (petId: string) => request(`/facebook/publish-pet-to-groups/${petId}`, { method: 'POST' }),
     extractGroupIds: () => request('/facebook/extract-group-ids', { method: 'POST' }),

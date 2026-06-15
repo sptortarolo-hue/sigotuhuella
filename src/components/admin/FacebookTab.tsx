@@ -1250,6 +1250,38 @@ function PublisherSection() {
     setGroupSaving(p => ({ ...p, [id]: false }));
   };
 
+  const handleGroupVerify = async (id: string) => {
+    setGroupSaving(p => ({ ...p, [id]: true }));
+    try {
+      const resp = await fetch(`/api/facebook/groups/${id}/verify-membership`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      });
+      const data = await resp.json();
+      if (!resp.ok) { alert(data.error || 'Error al verificar'); return; }
+      const status = data.isMember ? '✅ La Page ES miembro del grupo' : '❌ La Page NO es miembro del grupo';
+      alert(`${status}\n\nGrupo: ${data.name}\nFB Group ID: ${data.fbGroupId}`);
+      await fetchData();
+    } catch (e) { console.error(e); }
+    setGroupSaving(p => ({ ...p, [id]: false }));
+  };
+
+  const handleVerifyAllGroups = async () => {
+    if (!confirm('¿Verificar membresía de TODOS los grupos ahora?')) return;
+    setGroupSaving(p => ({ ...p, ['_all']: true }));
+    try {
+      const resp = await fetch('/api/facebook/groups/verify-memberships', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      });
+      const data = await resp.json();
+      if (!resp.ok) { alert(data.error || 'Error'); return; }
+      alert(`Verificación completada.\n${data.updated} grupo(s) actualizado(s).`);
+      await fetchData();
+    } catch (e) { console.error(e); }
+    setGroupSaving(p => ({ ...p, ['_all']: false }));
+  };
+
   const handleReplicate = async () => {
     setReplicating(true);
     try {
@@ -1399,6 +1431,11 @@ function PublisherSection() {
           Configurá el ID numérico de cada grupo de Facebook y si la Page es miembro.
           La Page debe ser miembro del grupo para publicar automáticamente.
         </p>
+        <button onClick={handleVerifyAllGroups} disabled={groupSaving['_all']}
+          className="mb-4 px-4 py-2 bg-green-600 text-white text-xs font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2">
+          {groupSaving['_all'] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          Verificar membresía de todos los grupos
+        </button>
 
         <div className="overflow-x-auto rounded-2xl border border-brand-accent">
           <table className="w-full text-left text-sm min-w-max">
@@ -1415,6 +1452,7 @@ function PublisherSection() {
               {groups.filter((g: any) => g.is_active).map((g: any) => (
                 <GroupConfigRow key={g.id} group={g}
                   onSave={handleGroupSave}
+                  onVerify={handleGroupVerify}
                   saving={groupSaving[g.id] || false} />
               ))}
               {groups.filter((g: any) => g.is_active).length === 0 && (
@@ -1533,7 +1571,7 @@ function PublisherSection() {
   );
 }
 
-function GroupConfigRow({ group, onSave, saving }: { group: any; onSave: (id: string, data: any) => Promise<void>; saving: boolean }) {
+function GroupConfigRow({ group, onSave, onVerify, saving }: { group: any; onSave: (id: string, data: any) => Promise<void>; onVerify: (id: string) => Promise<void>; saving: boolean }) {
   const [fbGroupId, setFbGroupId] = useState(group.fb_group_id || '');
   const [pageIsMember, setPageIsMember] = useState(group.page_is_member || false);
   const [publishOnCreate, setPublishOnCreate] = useState(group.publish_on_create || false);
@@ -1564,11 +1602,18 @@ function GroupConfigRow({ group, onSave, saving }: { group: any; onSave: (id: st
           className="w-5 h-5 rounded accent-brand-primary" />
       </td>
       <td className="px-4 py-3">
-        <button onClick={handleSave} disabled={saving}
-          className="px-3 py-1.5 bg-brand-primary text-white text-[10px] font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-1">
-          {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-          Guardar
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => onVerify(group.id)} disabled={saving}
+            className="px-3 py-1.5 bg-green-600 text-white text-[10px] font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-1">
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+            Verificar
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="px-3 py-1.5 bg-brand-primary text-white text-[10px] font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-1">
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+            Guardar
+          </button>
+        </div>
       </td>
     </tr>
   );

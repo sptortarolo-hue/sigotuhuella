@@ -144,6 +144,99 @@ export async function publishToPage(petId) {
   }
 }
 
+export async function checkPageMembershipInGroup(groupFbId) {
+  const token = await getPageToken();
+  if (!token) return { isMember: false, error: 'Facebook Page no conectada' };
+
+  try {
+    const pageId = await getPageId();
+    if (!pageId) return { isMember: false, error: 'Page ID no disponible' };
+
+    const { data } = await axios.get(
+      `${GRAPH_API}/${groupFbId}/members`,
+      {
+        params: {
+          access_token: token,
+          fields: 'id,name',
+          limit: 1000,
+        },
+        timeout: 15000,
+      }
+    );
+
+    const members = data?.data || [];
+    const isMember = members.some(m => m.id === pageId || m.name === pageId);
+    return { isMember, members: members.length };
+  } catch (err) {
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    if (err.response?.data?.error?.code === 200 || err.response?.data?.error?.type === 'OAuthException') {
+      return { isMember: false, error: 'Token inválido o sin permisos para verificar membresía' };
+    }
+    return { isMember: false, error: detail };
+  }
+}
+
+export async function verifyAllGroupMemberships() {
+  const token = await getPageToken();
+  if (!token) return { error: 'Facebook Page no conectada', updated: 0, results: [] };
+
+  const pageId = await getPageId();
+  if (!pageId) return { error: 'Page ID no disponible', updated: 0, results: [] };
+
+  const groupsResult = await pool.query(
+    "SELECT id, name, fb_group_id FROM facebook_groups WHERE is_active = true AND fb_group_id IS NOT NULL AND fb_group_id != ''"
+  );
+
+  const results = [];
+  let updated = 0;
+
+  for (const group of groupsResult.rows) {
+    try {
+      const { data } = await axios.get(
+        `${GRAPH_API}/${group.fb_group_id}/members`,
+        {
+          params: {
+            access_token: token,
+            fields: 'id',
+            limit: 1000,
+          },
+          timeout: 15000,
+        }
+      );
+
+      const members = data?.data || [];
+      const isMember = members.some(m => m.id === pageId);
+
+      if (isMember !== group.page_is_member) {
+        await pool.query(
+          'UPDATE facebook_groups SET page_is_member = $1, updated_at = NOW() WHERE id = $2',
+          [isMember, group.id]
+        );
+        updated++;
+      }
+
+      results.push({
+        groupId: group.id,
+        name: group.name,
+        fbGroupId: group.fb_group_id,
+        isMember,
+        changed: isMember !== group.page_is_member,
+      });
+    } catch (err) {
+      const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      results.push({
+        groupId: group.id,
+        name: group.name,
+        fbGroupId: group.fb_group_id,
+        isMember: false,
+        error: detail,
+      });
+    }
+  }
+
+  return { updated, results };
+}
+
 export async function publishToGroup(groupFbId, message, link, imageUrl) {
   const token = await getPageToken();
   if (!token) return { error: 'Facebook Page no conectada' };
@@ -162,7 +255,6 @@ export async function publishToGroup(groupFbId, message, link, imageUrl) {
       }
       return { success: true, groupPostId: photoData.id, type: 'photo' };
     } catch {
-      // fallback a feed si no puede postear foto (ej. page no es miembro)
     }
   }
 
@@ -180,6 +272,30 @@ export async function publishToGroup(groupFbId, message, link, imageUrl) {
     return { success: true, groupPostId: data.id, type: 'feed' };
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+
+    const errorData = err.response?.data?.error || {};
+    const errorCode = errorData.code;
+    const errorMessage = errorData.message || '';
+
+    if (
+      errorCode === 200 ||
+      errorCode === 10 ||
+      errorMessage.includes('not a member') ||
+      errorMessage.includes('not authorized') ||
+      errorMessage.includes('Unsupported post request')
+    ) {
+      const groupResult = await pool.query(
+        'SELECT id, page_is_member FROM facebook_groups WHERE fb_group_id = $1',
+        [groupFbId]
+      );
+      if (groupResult.rows.length > 0 && groupResult.rows[0].page_is_member) {
+        await pool.query(
+          'UPDATE facebook_groups SET page_is_member = false, updated_at = NOW() WHERE id = $1',
+          [groupResult.rows[0].id]
+        );
+      }
+    }
+
     return { error: `Error al publicar en grupo: ${detail}` };
   }
 }
