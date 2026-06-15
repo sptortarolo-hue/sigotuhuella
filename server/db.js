@@ -410,7 +410,8 @@ INSERT INTO settings (key, value) VALUES
   ('instagram_auto_reply_enabled', 'false'),
   ('facebook_page_id', ''),
   ('facebook_page_publisher_enabled', 'false'),
-  ('facebook_publisher_interval', '30')
+  ('facebook_publisher_interval', '30'),
+  ('brightdata_api_key', '')
 ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS facebook_page_posts (

@@ -210,6 +210,40 @@ async function fetchOembedViaGraph(url, token) {
   return await resp.json();
 }
 
+async function fetchFbPostBrightData(url, apiKey) {
+  const resp = await fetch(
+    'https://api.brightdata.com/datasets/v3/scrape?dataset_id=gd_lyclm1571iy3mv57zw&include_errors=true',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ input: [{ url }] }),
+      signal: AbortSignal.timeout(30000),
+    }
+  );
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Bright Data API error (${resp.status}): ${errText}`);
+  }
+  const data = await resp.json();
+  const record = Array.isArray(data) ? data[0] : null;
+  if (!record) throw new Error('Bright Data: no data returned');
+  return {
+    fb_post_id: record.post_id || record.url || url,
+    fb_post_url: record.url || url,
+    author_name: record.user_username_raw || record.user_url || '',
+    content: record.content || '',
+    image_urls: (record.attachments || [])
+      .filter(a => a.type === 'photo' || a.attachment_url)
+      .map(a => a.attachment_url || a.url)
+      .filter(Boolean),
+    posted_at: record.date_posted || '',
+    comments: [],
+  };
+}
+
 export async function fetchFbPost(url) {
   const ids = extractIdsFromUrl(url);
   const fallbackId = ids?.postId || Buffer.from(url).toString('base64').slice(0, 30);
@@ -243,6 +277,19 @@ export async function fetchFbPost(url) {
         };
       } catch (err) {
         console.error('fetchFbPost: oEmbed falló con token:', err.message);
+      }
+    }
+
+    // 5. THIRD ATTEMPT: Bright Data Scraper API
+    const brightKeyRes = await pool.query(
+      "SELECT value FROM settings WHERE key = 'brightdata_api_key'"
+    );
+    const brightKey = brightKeyRes.rows[0]?.value;
+    if (brightKey) {
+      try {
+        return await fetchFbPostBrightData(url, brightKey);
+      } catch (err) {
+        console.error('fetchFbPost: Bright Data falló:', err.message);
       }
     }
   } catch (err) {

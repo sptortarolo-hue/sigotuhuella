@@ -1228,7 +1228,7 @@ function PublisherSection() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const keys = ['facebook_page_id', 'facebook_page_publisher_enabled', 'facebook_publisher_interval'];
+      const keys = ['facebook_page_id', 'facebook_page_publisher_enabled', 'facebook_publisher_interval', 'brightdata_api_key'];
       await Promise.all(keys.map(key => api.settings.update(key, settings[key] || '')));
     } catch (e) { console.error(e); }
     setSaving(false);
@@ -1353,6 +1353,17 @@ function PublisherSection() {
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
               min="5" max="1440" />
             <p className="text-xs text-gray-400 mt-1">Cada cuántos minutos revisa si hay posts nuevos de Instagram para replicar.</p>
+          </div>
+
+          <div className="col-span-full">
+            <label className="block text-sm font-bold text-gray-600 mb-1">Bright Data API Key</label>
+            <input type="text" value={settings.brightdata_api_key || ''}
+              onChange={e => setSettings(p => ({ ...p, brightdata_api_key: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm font-mono"
+              placeholder="ej: abc123-...-xyz" />
+            <p className="text-xs text-gray-400 mt-1">
+              API Key de Bright Data para leer posts de Facebook (WhatsApp bot). Free tier: 5K records/mes sin tarjeta.
+            </p>
           </div>
         </div>
 
