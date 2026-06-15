@@ -204,6 +204,14 @@ function checkTextForResolution(text) {
 
 export async function detectReunion(postId) {
   try {
+    // GUARD: skip if already classified as reunion or already matched
+    const existing = await pool.query(
+      'SELECT classification, is_matched FROM facebook_posts WHERE id = $1',
+      [postId]
+    );
+    if (existing.rows.length === 0) return null;
+    if (existing.rows[0].classification === 'reunion' || existing.rows[0].is_matched) return null;
+
     const postRes = await pool.query(
       `SELECT fp.*, json_agg(json_build_object('text', fc.text, 'author', fc.author_name)) as comments
        FROM facebook_posts fp
@@ -220,7 +228,7 @@ export async function detectReunion(postId) {
     if (!matched) return null;
 
     await pool.query(
-      `UPDATE facebook_posts SET classification = 'reunion', notes = $1 WHERE id = $2`,
+      `UPDATE facebook_posts SET classification = 'reunion', is_matched = true, notes = $1 WHERE id = $2`,
       [`Detectado por keyword: "${matched}"`, postId]
     );
 
