@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import axios from 'axios';
 import multer from 'multer';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
@@ -815,14 +814,14 @@ router.get('/publish-status', requireAdmin, async (_req, res) => {
     `);
 
     let tokenHasPages = false;
-    let actualPages: any[] = [];
+    let actualPages = [];
     if (tokenSetting.rows[0]?.value) {
       try {
-        const pagesRes = await axios.get('https://graph.facebook.com/v22.0/me/accounts', {
-          params: { access_token: tokenSetting.rows[0].value, fields: 'id,name' },
-          timeout: 10000,
-        });
-        actualPages = pagesRes.data?.data || [];
+        const pagesRes = await fetch(
+          `https://graph.facebook.com/v22.0/me/accounts?access_token=${encodeURIComponent(tokenSetting.rows[0].value)}&fields=id,name`
+        );
+        const pagesData = await pagesRes.json();
+        actualPages = pagesData?.data || [];
         tokenHasPages = actualPages.length > 0;
       } catch { }
     }
