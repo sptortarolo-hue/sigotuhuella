@@ -38,6 +38,7 @@ const FB_SCOPES = [
   'pages_read_engagement',
   'pages_manage_metadata',
   'pages_manage_posts',
+  'groups_access_member',
 ].join(',');
 
 export function getAuthUrl() {
