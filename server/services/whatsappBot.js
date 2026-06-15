@@ -197,6 +197,7 @@ async function routeFlow(conv, parsed) {
     case 'report_from_fb.ask_status': return fbAskStatus(conv, parsed);
     case 'report_from_fb.ask_species': return fbAskSpecies(conv, parsed);
     case 'report_from_fb.ask_location': return fbAskLocation(conv, parsed);
+    case 'report_from_fb.ask_all': return fbAskAll(conv, parsed);
     case 'report_from_fb.confirm': return fbConfirm(conv, parsed, intent);
     case 'pending_human': return handlePendingHuman(conv);
     case 'end_flow': return handleEndFlow(conv, parsed, intent);
@@ -1111,6 +1112,17 @@ async function fbContinue(conv) {
   if (nowKnown.status && nowKnown.species && nowKnown.location) {
     return fbShowConfirm(conv);
   }
+
+  // If ALL 3 are unknown, ask all at once
+  if (!nowKnown.status && !nowKnown.species && !nowKnown.location) {
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: No pude analizar la publicación automáticamente. ` +
+      `Decime todo junto: ¿es perro/gato/otro? ¿perdido/encontrado/avistado? ¿dónde?\n\n` +
+      `Ej: "gato perdido en Parque Chacabuco"`);
+    await setFlow(conv, 'report_from_fb.ask_all');
+    return;
+  }
+
   if (!nowKnown.status) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Qué tipo de reporte querés crear?`);
     await sendInteractiveButtons(conv.wa_from, 'Tipo:', [
@@ -1298,6 +1310,37 @@ async function fbAskLocation(conv, parsed) {
     fbLatitude: lat,
     fbLongitude: lng,
   });
+  return fbContinue(conv);
+}
+
+async function fbAskAll(conv, parsed) {
+  const text = (parsed.textBody || '').toLowerCase();
+
+  // Extract species
+  let species;
+  if (/perr|can|cachorr/.test(text)) species = 'dog';
+  else if (/gat|felino|mich/.test(text)) species = 'cat';
+  else species = 'other';
+
+  // Extract classification
+  let classification;
+  if (/perdi|escap|busco|desapareci/.test(text)) classification = 'lost';
+  else if (/encontr|apareci|rescata|recog|hall/.test(text)) classification = 'retained';
+  else if (/avist/.test(text)) classification = 'sighted';
+  else if (/adopt/.test(text)) classification = 'for_adoption';
+
+  // Extract location - after "en", "cerca de", "por", "zona"
+  let location = null;
+  const locMatch = text.match(/(?:en|cerca de|por|zona)\s+(.+)/i);
+  if (locMatch) location = locMatch[1].trim();
+
+  const ctx = conv.context;
+  ctx.fbPost = { ...ctx.fbPost };
+  if (classification) ctx.fbPost.classification = classification;
+  ctx.fbPost.species = species;
+  if (location) ctx.fbPost.location_hint = location;
+
+  await setFlow(conv, 'report_from_fb.lookup', ctx);
   return fbContinue(conv);
 }
 

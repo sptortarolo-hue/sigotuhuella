@@ -10,6 +10,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const VPS_HOST = process.env.VPS_HOST || 'http://138.36.236.69:3001';
 const COOKIES_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'cookies.txt');
 let lastSync = null;
+let geminiTodayCount = 0;
+let geminiTodayDate = new Date().toDateString();
 
 export async function pushConfig() {
   try {
@@ -62,10 +64,17 @@ export async function syncFromVps() {
         if (!post.fb_post_id) continue;
 
         let classification = { classification: 'unknown', species: null, color: null, location_hint: null, phone: null, location_lat: null, location_lng: null, comments: [] };
-        try {
-          classification = await classifyPost(post.content || '', post.image_urls || [], post.comments || []);
-        } catch (err) {
-          console.error('Classification error:', err.message);
+        const today = new Date().toDateString();
+        if (today !== geminiTodayDate) { geminiTodayDate = today; geminiTodayCount = 0; }
+        if (geminiTodayCount < 1000) {
+          geminiTodayCount++;
+          try {
+            classification = await classifyPost(post.content || '', post.image_urls || [], post.comments || []);
+          } catch (err) {
+            console.error('Classification error:', err.message);
+          }
+        } else {
+          console.log(`syncFromVps: skipping Gemini (${geminiTodayCount}/1000 daily limit)`);
         }
 
         const postResult = await pool.query(
@@ -272,24 +281,32 @@ export async function fetchFbPost(url) {
   const fallbackId = ids?.postId || Buffer.from(url).toString('base64').slice(0, 30);
 
   try {
+    // 1. FIRST: Bright Data (real content + image_urls)
+    const brightKeyRes = await pool.query(
+      "SELECT value FROM settings WHERE key = 'brightdata_api_key'"
+    );
+    const brightKey = brightKeyRes.rows[0]?.value;
+    let brightResult = null;
+    if (brightKey) {
+      try {
+        brightResult = await fetchFbPostBrightData(url, brightKey);
+        console.log(`fetchFbPost: Bright Data success, content_length=${brightResult.content?.length}, images=${brightResult.image_urls?.length}`);
+      } catch (err) {
+        console.error('fetchFbPost: Bright Data falló:', err.message);
+      }
+    }
+
+    // 2. SECOND: oEmbed (for embed_html + thumbnail as fallback)
     const tokenRes = await pool.query(
       "SELECT value FROM settings WHERE key = 'instagram_access_token'"
     );
     const pageToken = tokenRes.rows[0]?.value;
 
-    if (pageToken && ids) {
-      try {
-        return await fetchGraphApiData(ids.postId, ids.groupId, pageToken, url);
-      } catch (err) {
-        console.error('fetchFbPost: Graph API post falló:', err.message);
-      }
-    }
-
-    // Try oEmbed with Page Token, then App Token
+    let oembedResult = null;
     for (const t of [pageToken, await getAppToken()].filter(Boolean)) {
       try {
         const data = await fetchOembedViaGraph(url, t);
-        return {
+        oembedResult = {
           fb_post_id: ids?.postId || fallbackId,
           fb_post_url: url,
           author_name: data.author_name || '',
@@ -299,21 +316,29 @@ export async function fetchFbPost(url) {
           posted_at: '',
           comments: [],
         };
+        break;
       } catch (err) {
         console.error('fetchFbPost: oEmbed falló con token:', err.message);
       }
     }
 
-    // 5. THIRD ATTEMPT: Bright Data Scraper API
-    const brightKeyRes = await pool.query(
-      "SELECT value FROM settings WHERE key = 'brightdata_api_key'"
-    );
-    const brightKey = brightKeyRes.rows[0]?.value;
-    if (brightKey) {
+    // 3. MERGE: Bright Data content + oEmbed embed_html
+    if (brightResult) {
+      brightResult.embed_html = oembedResult?.embed_html || brightResult.embed_html || '';
+      brightResult.author_name = brightResult.author_name || oembedResult?.author_name || '';
+      return brightResult;
+    }
+
+    if (oembedResult) {
+      return oembedResult;
+    }
+
+    // 4. LAST: Graph API page token (legacy)
+    if (pageToken && ids) {
       try {
-        return await fetchFbPostBrightData(url, brightKey);
+        return await fetchGraphApiData(ids.postId, ids.groupId, pageToken, url);
       } catch (err) {
-        console.error('fetchFbPost: Bright Data falló:', err.message);
+        console.error('fetchFbPost: Graph API post falló:', err.message);
       }
     }
   } catch (err) {
