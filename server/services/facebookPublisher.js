@@ -146,20 +146,14 @@ export async function publishToPage(petId) {
 
 export async function checkPageMembershipInGroup(groupFbId) {
   const token = await getPageToken();
-  if (!token) return { isMember: false, error: 'Facebook Page no conectada' };
+  if (!token) return { isMember: null, error: 'Facebook Page no conectada' };
 
   const pageId = await getPageId();
-  if (!pageId) return { isMember: false, error: 'Page ID no disponible' };
+  if (!pageId) return { isMember: null, error: 'Page ID no disponible' };
 
   console.log(`[FB Publisher] Checking membership. Page ID: ${pageId}, Group ID: ${groupFbId}`);
 
   try {
-    const meRes = await axios.get(`${GRAPH_API}/me`, {
-      params: { fields: 'id,name,accounts', access_token: token },
-      timeout: 15000,
-    });
-    console.log(`[FB Publisher] /me response:`, JSON.stringify(meRes.data).slice(0, 500));
-
     const { data } = await axios.get(
       `${GRAPH_API}/${groupFbId}/members`,
       {
@@ -182,14 +176,19 @@ export async function checkPageMembershipInGroup(groupFbId) {
     const isMember = members.some(m => m.id === pageId || m.name === pageId);
     console.log(`[FB Publisher] Page ${pageId} is member: ${isMember}`);
 
-    return { isMember, members: members.length };
+    return { isMember, members: members.length, pageId };
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    const errData = err.response?.data?.error || {};
+    const errorCode = errData.code;
+
     console.error(`[FB Publisher] Error checking membership:`, detail);
-    if (err.response?.data?.error?.code === 200 || err.response?.data?.error?.type === 'OAuthException') {
-      return { isMember: false, error: 'Token inválido o sin permisos para verificar membresía', pageId };
+
+    if (err.response?.status === 403 || errorCode === 200 || errorCode === 10 || errData.type === 'OAuthException') {
+      return { isMember: null, error: 'Token sin permisos para leer miembros del grupo. Verificá manualmente.', pageId, permissionError: true };
     }
-    return { isMember: false, error: detail, pageId };
+
+    return { isMember: null, error: detail, pageId };
   }
 }
 
@@ -237,16 +236,21 @@ export async function verifyAllGroupMemberships() {
         name: group.name,
         fbGroupId: group.fb_group_id,
         isMember,
+        membersCount: members.length,
         changed: isMember !== group.page_is_member,
       });
     } catch (err) {
+      const errData = err.response?.data?.error || {};
+      const errorCode = errData.code;
+      const isPermissionError = err.response?.status === 403 || errorCode === 200 || errorCode === 10 || errData.type === 'OAuthException';
       const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
       results.push({
         groupId: group.id,
         name: group.name,
         fbGroupId: group.fb_group_id,
-        isMember: false,
-        error: detail,
+        isMember: null,
+        error: isPermissionError ? 'Sin permisos para verificar' : detail,
+        permissionError: isPermissionError,
       });
     }
   }

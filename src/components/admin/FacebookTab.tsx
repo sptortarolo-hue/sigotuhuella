@@ -1258,9 +1258,25 @@ function PublisherSection() {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
       const data = await resp.json();
-      if (!resp.ok) { alert(data.error || 'Error al verificar'); return; }
-      const status = data.isMember ? '✅ La Page ES miembro del grupo' : '❌ La Page NO es miembro del grupo';
-      alert(`${status}\n\nGrupo: ${data.name}\nFB Group ID: ${data.fbGroupId}`);
+      if (!resp.ok) {
+        if (resp.status === 403) {
+          alert(`⚠️ No se pudo verificar automáticamente.\n\n${data.error}\n\nPor favor verificá manualmente si la Page es miembro del grupo y marcá el checkbox manualmente.`);
+        } else {
+          alert(data.error || 'Error al verificar');
+        }
+        return;
+      }
+      if (data.verified === false) {
+        if (data.isMember === null) {
+          alert(`ℹ️ No se pudo determinar la membresía automáticamente.\n\nEl token no tiene permisos para leer los miembros del grupo.\n\nPor favor verificá manualmente y marcá el checkbox "Page miembro" si corresponde.\n\nGrupo: ${data.name}\nFB Group ID: ${data.fbGroupId}`);
+        } else {
+          const status = data.isMember ? '✅ La Page ES miembro del grupo' : '❌ La Page NO es miembro del grupo';
+          alert(`${status}\n\nGrupo: ${data.name}\nFB Group ID: ${data.fbGroupId}`);
+        }
+      } else {
+        const status = data.isMember ? '✅ La Page ES miembro del grupo' : '❌ La Page NO es miembro del grupo';
+        alert(`${status}\n\nGrupo: ${data.name}\nFB Group ID: ${data.fbGroupId}`);
+      }
       await fetchData();
     } catch (e) { console.error(e); }
     setGroupSaving(p => ({ ...p, [id]: false }));

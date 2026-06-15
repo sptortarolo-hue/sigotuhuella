@@ -769,11 +769,15 @@ router.post('/groups/:id/verify-membership', requireAdmin, async (req, res) => {
     const { checkPageMembershipInGroup } = await import('../services/facebookPublisher.js');
     const result = await checkPageMembershipInGroup(group.fb_group_id);
 
-    if (result.error && result.error.includes('Token')) {
-      return res.status(401).json({ error: result.error });
+    if (result.permissionError) {
+      return res.status(403).json({ 
+        error: result.error,
+        isMember: null,
+        pageIdUsed: result.pageId,
+      });
     }
 
-    if (result.isMember !== undefined) {
+    if (result.isMember !== null) {
       await pool.query(
         'UPDATE facebook_groups SET page_is_member = $1, updated_at = NOW() WHERE id = $2',
         [result.isMember, group.id]
@@ -784,11 +788,11 @@ router.post('/groups/:id/verify-membership', requireAdmin, async (req, res) => {
       groupId: group.id,
       name: group.name,
       fbGroupId: group.fb_group_id,
-      isMember: result.isMember || false,
+      isMember: result.isMember,
       membersCount: result.members,
-      pageIdUsed: result.pageId || null,
+      pageIdUsed: result.pageId,
       error: result.error || null,
-      changed: false,
+      verified: result.isMember !== null,
     });
   } catch (err) {
     console.error('Error verifying group membership:', err);
