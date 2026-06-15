@@ -131,36 +131,65 @@ export async function syncFromVps() {
   }
 }
 
+function extractPostIdFromUrl(url) {
+  url = url.replace(/\/+$/, '');
+  let m = url.match(/\/posts\/(\d+)/);
+  if (m) return m[1];
+  m = url.match(/\/videos\/(\d+)/);
+  if (m) return m[1];
+  m = url.match(/story_fbid=(\d+)/);
+  if (m) return m[1];
+  m = url.match(/fbid=(\d+)/);
+  if (m) return m[1];
+  m = url.match(/fbclid=(\d+)/);
+  if (m) return m[1];
+  const segments = url.split('/');
+  const last = segments[segments.length - 1];
+  if (/^\d+$/.test(last)) return last;
+  m = url.match(/[?&](?:v|id)=(\d+)/);
+  if (m) return m[1];
+  return null;
+}
+
 export async function fetchFbPost(url) {
   try {
-    const resp = await fetch(
-      `https://api.apify.com/v2/acts/scrapyspider~facebook-post-scraper/run-sync-get-dataset-items?token=${process.env.APIFY_TOKEN}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          urls: [url],
-          proxy: { useApifyProxy: true },
-        }),
-        signal: AbortSignal.timeout(30000),
-      }
+    const tokenRes = await pool.query(
+      "SELECT value FROM settings WHERE key = 'instagram_access_token'"
     );
+    const token = tokenRes.rows[0]?.value;
+    if (!token) throw new Error('No hay token de Facebook configurado');
+
+    const postId = extractPostIdFromUrl(url);
+    if (!postId) throw new Error('No se pudo extraer el ID de la publicación');
+
+    const GRAPH_API = 'https://graph.facebook.com/v22.0';
+    const fields = 'message,full_picture,permalink_url,created_time,from{id,name},comments.limit(20){message,from{name},created_time}';
+
+    const resp = await fetch(
+      `${GRAPH_API}/${postId}?fields=${encodeURIComponent(fields)}&access_token=${token}`,
+      { signal: AbortSignal.timeout(15000) }
+    );
+
     if (!resp.ok) {
-      const err = await resp.text();
-      throw new Error(`Apify error (${resp.status}): ${err}`);
+      const err = await resp.json();
+      throw new Error(`Graph API error (${resp.status}): ${err.error?.message || JSON.stringify(err)}`);
     }
-    const items = await resp.json();
-    const item = items?.[0];
-    if (!item) throw new Error('Apify returned empty dataset');
+
+    const data = await resp.json();
 
     return {
-      fb_post_id: item.postId || item.url?.match(/\/(\d+)/)?.[1] || '',
-      fb_post_url: item.permalink || item.url || url,
-      author_name: item.pageName || '',
-      content: item.text || '',
-      image_urls: [item.image].filter(Boolean),
-      posted_at: item.date || '',
-      comments: item.commentsText || [],
+      fb_post_id: data.id || postId,
+      fb_post_url: data.permalink_url || url,
+      author_name: data.from?.name || '',
+      content: data.message || '',
+      image_urls: data.full_picture ? [data.full_picture] : [],
+      posted_at: data.created_time || '',
+      comments: (data.comments?.data || []).map(c => ({
+        id: c.id,
+        author_name: c.from?.name || '',
+        text: c.message || '',
+        posted_at: c.created_time || '',
+      })),
     };
   } catch (err) {
     console.error('fetchFbPost error:', err.message);
