@@ -4,6 +4,7 @@ import { matchWhatsAppToPets } from './geminiMatching.js';
 import { classifyPost } from './geminiClassifier.js';
 import { fetchFbPost } from './vpsSyncService.js';
 import { geocodeAddress } from './geocoding.js';
+import axios from 'axios';
 
 const BOT_NAMES = ['Tute', 'Lilo', 'Toto'];
 
@@ -951,85 +952,76 @@ async function startDonateFlow(conv) {
 
 // ─── Facebook URL Report ───
 
+async function tryDownload(url) {
+  try {
+    const { data, headers } = await axios.get(url, {
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://www.facebook.com/',
+        'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      timeout: 15000,
+      maxRedirects: 5,
+    });
+    const ct = headers['content-type'] || '';
+    if (ct.startsWith('image/')) {
+      const buf = Buffer.from(data);
+      return { data: buf.toString('base64'), mimeType: ct };
+    }
+    console.log(`downloadImage: non-image (${ct}) for ${url.slice(0, 80)}`);
+    return null;
+  } catch (e) {
+    console.log(`downloadImage: axios error ${e.message} for ${url.slice(0, 80)}`);
+    return null;
+  }
+}
+
 async function downloadImage(url, fbPostId) {
-  // 1. Try direct download
   if (url) {
-    try {
-      const resp = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Referer': 'https://www.facebook.com/'
-        }
-      });
-      if (resp.ok) {
-        const ct = resp.headers.get('content-type') || '';
-        if (ct.startsWith('image/')) {
-          const buf = Buffer.from(await resp.arrayBuffer());
-          return { data: buf.toString('base64'), mimeType: ct };
-        }
-        console.log(`downloadImage: not image (${ct}) for ${url.slice(0, 80)}`);
-      } else {
-        console.log(`downloadImage: HTTP ${resp.status} for ${url.slice(0, 80)}`);
-      }
-    } catch (e) {
-      console.log(`downloadImage: fetch error ${e.message} for ${url.slice(0, 80)}`);
-    }
+    console.log(`downloadImage: trying URL ${url.slice(0, 80)}`);
+    const result = await tryDownload(url);
+    if (result) return result;
   }
 
-  // 2. Try Graph API /picture endpoint
   if (fbPostId) {
-    try {
-      const appId = process.env.FACEBOOK_APP_ID;
-      const appSecret = process.env.FACEBOOK_APP_SECRET;
-      if (appId && appSecret) {
-        const appToken = `${appId}|${appSecret}`;
-        const picResp = await fetch(
-          `https://graph.facebook.com/v22.0/${fbPostId}/picture?type=large&access_token=${appToken}`,
-          { redirect: 'manual' }
+    console.log(`downloadImage: trying Graph API for post ${fbPostId}`);
+    const appId = process.env.FACEBOOK_APP_ID;
+    const appSecret = process.env.FACEBOOK_APP_SECRET;
+    if (appId && appSecret) {
+      const appToken = `${appId}|${appSecret}`;
+      try {
+        const postResp = await axios.get(
+          `https://graph.facebook.com/v22.0/${fbPostId}?fields=full_picture&access_token=${appToken}`,
+          { timeout: 10000 }
         );
-        if (picResp.status >= 300 && picResp.status < 400) {
-          const location = picResp.headers.get('location');
-          if (location) {
-            const imgResp = await fetch(location, {
-              headers: { 'Referer': 'https://www.facebook.com/' }
-            });
-            if (imgResp.ok) {
-              const ct = imgResp.headers.get('content-type') || 'image/jpeg';
-              const buf = Buffer.from(await imgResp.arrayBuffer());
-              return { data: buf.toString('base64'), mimeType: ct };
-            }
-          }
+        if (postResp.data?.full_picture) {
+          console.log(`downloadImage: Graph API full_picture ${postResp.data.full_picture.slice(0, 80)}`);
+          const result = await tryDownload(postResp.data.full_picture);
+          if (result) return result;
         }
+      } catch (e) {
+        console.log('downloadImage: Graph API full_picture error:', e.message);
       }
-    } catch (e) {
-      console.log('downloadImage: Graph API picture error:', e.message);
     }
   }
 
-  // 3. If URL is a Facebook photo page, extract photo ID and use Graph API
   if (url && url.includes('facebook.com/photo')) {
+    console.log(`downloadImage: extracting photo ID from URL`);
     try {
       const photoId = new URL(url).searchParams.get('fbid');
-      if (photoId) {
-        const appId = process.env.FACEBOOK_APP_ID;
-        const appSecret = process.env.FACEBOOK_APP_SECRET;
-        if (appId && appSecret) {
-          const appToken = `${appId}|${appSecret}`;
-          const photoResp = await fetch(
-            `https://graph.facebook.com/v22.0/${photoId}?fields=images&access_token=${appToken}`
-          );
-          if (photoResp.ok) {
-            const photoData = await photoResp.json();
-            if (photoData?.images?.[0]?.source) {
-              const imgResp = await fetch(photoData.images[0].source, {
-                headers: { 'Referer': 'https://www.facebook.com/' }
-              });
-              if (imgResp.ok) {
-                const buf = Buffer.from(await imgResp.arrayBuffer());
-                const ct = imgResp.headers.get('content-type') || 'image/jpeg';
-                return { data: buf.toString('base64'), mimeType: ct };
-              }
-            }
+      if (photoId && process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
+        const appToken = `${process.env.FACEBOOK_APP_ID}|${process.env.FACEBOOK_APP_SECRET}`;
+        const photoResp = await axios.get(
+          `https://graph.facebook.com/v22.0/${photoId}?fields=images&access_token=${appToken}`,
+          { timeout: 10000 }
+        );
+        if (photoResp.data?.images) {
+          const sources = photoResp.data.images.map(i => i.source).filter(Boolean);
+          for (const src of sources) {
+            const result = await tryDownload(src);
+            if (result) return result;
           }
         }
       }
@@ -1038,6 +1030,7 @@ async function downloadImage(url, fbPostId) {
     }
   }
 
+  console.log(`downloadImage: ALL FAILED`);
   return null;
 }
 
@@ -1319,13 +1312,19 @@ async function fbConfirm(conv, parsed, intent) {
 
   // Download and save image from Facebook post
   if (post.image_urls && post.image_urls.length > 0) {
+    console.log(`fbConfirm: downloading image from ${post.image_urls[0]?.slice(0, 80)}`);
     const img = await downloadImage(post.image_urls[0], post.fb_post_id);
     if (img) {
+      console.log(`fbConfirm: image saved, mime=${img.mimeType}, size=${img.data.length}`);
       await pool.query(
         `INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`,
         [petId, img.data, img.mimeType]
       );
+    } else {
+      console.log(`fbConfirm: image download returned null`);
     }
+  } else {
+    console.log(`fbConfirm: no image_urls available`);
   }
 
   await pool.query(
