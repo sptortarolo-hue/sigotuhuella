@@ -131,66 +131,97 @@ export async function syncFromVps() {
   }
 }
 
-function extractPostIdFromUrl(url) {
+function extractIdsFromUrl(url) {
   url = url.replace(/\/+$/, '');
-  let m = url.match(/\/posts\/(\d+)/);
-  if (m) return m[1];
+  let m = url.match(/\/groups\/(\d+)\/posts\/(\d+)/);
+  if (m) return { postId: m[2], groupId: m[1] };
+  m = url.match(/\/posts\/(\d+)/);
+  if (m) return { postId: m[1] };
   m = url.match(/\/videos\/(\d+)/);
-  if (m) return m[1];
-  m = url.match(/story_fbid=(\d+)/);
-  if (m) return m[1];
+  if (m) return { postId: m[1] };
+  m = url.match(/story_fbid=(\d+).*?id=(\d+)/);
+  if (m) return { postId: m[1], groupId: m[2] };
   m = url.match(/fbid=(\d+)/);
-  if (m) return m[1];
-  m = url.match(/fbclid=(\d+)/);
-  if (m) return m[1];
+  if (m) return { postId: m[1] };
   const segments = url.split('/');
   const last = segments[segments.length - 1];
-  if (/^\d+$/.test(last)) return last;
-  m = url.match(/[?&](?:v|id)=(\d+)/);
-  if (m) return m[1];
+  if (/^\d+$/.test(last)) return { postId: last };
   return null;
+}
+
+async function fetchGraphApiData(postId, groupId, token, url) {
+  const GRAPH_API = 'https://graph.facebook.com/v22.0';
+  const fields = 'message,full_picture,permalink_url,created_time,from{id,name},comments.limit(20){message,from{name},created_time}';
+
+  const variants = groupId ? [`${groupId}_${postId}`, postId] : [postId];
+  let lastErr = null;
+
+  for (const id of variants) {
+    const resp = await fetch(
+      `${GRAPH_API}/${id}?fields=${encodeURIComponent(fields)}&access_token=${token}`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    if (resp.ok) {
+      const data = await resp.json();
+      return {
+        fb_post_id: data.id || postId,
+        fb_post_url: data.permalink_url || url,
+        author_name: data.from?.name || '',
+        content: data.message || '',
+        image_urls: data.full_picture ? [data.full_picture] : [],
+        posted_at: data.created_time || '',
+        comments: (data.comments?.data || []).map(c => ({
+          id: c.id,
+          author_name: c.from?.name || '',
+          text: c.message || '',
+          posted_at: c.created_time || '',
+        })),
+      };
+    }
+    const err = await resp.json();
+    lastErr = err.error?.message || JSON.stringify(err);
+  }
+  throw new Error(`Graph API error: ${lastErr}`);
+}
+
+async function fetchOembedData(url) {
+  const resp = await fetch(
+    `https://www.facebook.com/plugins/post/oembed.json/?url=${encodeURIComponent(url)}`,
+    { signal: AbortSignal.timeout(10000) }
+  );
+  if (!resp.ok) throw new Error(`oEmbed error (${resp.status})`);
+  const data = await resp.json();
+  const pId = extractIdsFromUrl(url)?.postId || '';
+  return {
+    fb_post_id: pId,
+    fb_post_url: url,
+    author_name: data.author_name || '',
+    content: data.title || '',
+    image_urls: data.thumbnail_url ? [data.thumbnail_url] : [],
+    posted_at: '',
+    comments: [],
+  };
 }
 
 export async function fetchFbPost(url) {
   try {
+    const ids = extractIdsFromUrl(url);
+    if (!ids) throw new Error('No se pudo extraer el ID de la publicación');
+
     const tokenRes = await pool.query(
       "SELECT value FROM settings WHERE key = 'instagram_access_token'"
     );
     const token = tokenRes.rows[0]?.value;
-    if (!token) throw new Error('No hay token de Facebook configurado');
 
-    const postId = extractPostIdFromUrl(url);
-    if (!postId) throw new Error('No se pudo extraer el ID de la publicación');
-
-    const GRAPH_API = 'https://graph.facebook.com/v22.0';
-    const fields = 'message,full_picture,permalink_url,created_time,from{id,name},comments.limit(20){message,from{name},created_time}';
-
-    const resp = await fetch(
-      `${GRAPH_API}/${postId}?fields=${encodeURIComponent(fields)}&access_token=${token}`,
-      { signal: AbortSignal.timeout(15000) }
-    );
-
-    if (!resp.ok) {
-      const err = await resp.json();
-      throw new Error(`Graph API error (${resp.status}): ${err.error?.message || JSON.stringify(err)}`);
+    if (token) {
+      try {
+        return await fetchGraphApiData(ids.postId, ids.groupId, token, url);
+      } catch (err) {
+        console.warn('fetchFbPost: Graph API falló, probando oEmbed:', err.message);
+      }
     }
 
-    const data = await resp.json();
-
-    return {
-      fb_post_id: data.id || postId,
-      fb_post_url: data.permalink_url || url,
-      author_name: data.from?.name || '',
-      content: data.message || '',
-      image_urls: data.full_picture ? [data.full_picture] : [],
-      posted_at: data.created_time || '',
-      comments: (data.comments?.data || []).map(c => ({
-        id: c.id,
-        author_name: c.from?.name || '',
-        text: c.message || '',
-        posted_at: c.created_time || '',
-      })),
-    };
+    return await fetchOembedData(url);
   } catch (err) {
     console.error('fetchFbPost error:', err.message);
     throw err;
