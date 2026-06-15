@@ -275,17 +275,14 @@ async function fetchFbPostBrightData(url, apiKey) {
   const content = record.content || record.text || record.message || record.body || '';
   if (record.attachments && record.attachments.length > 0) {
     console.log(`fetchFbPostBrightData: first attachment keys=${Object.keys(record.attachments[0]).join(',')}`);
-    for (const a of record.attachments.slice(0, 2)) {
-      console.log(`fetchFbPostBrightData: attachment sample: type=${a.type}, url=${(a.url || '').slice(0, 60)}, attachment_url=${(a.attachment_url || '').slice(0, 60)}, thumbnail_url=${(a.thumbnail_url || '').slice(0, 80)}`);
-    }
   }
   const image_urls = (record.attachments || [])
     .flatMap(a => {
       const urls = [];
+      if (a.thumbnail_url) urls.push(a.thumbnail_url);
       if (a.attachment_url) urls.push(a.attachment_url);
       if (a.url && a.url !== a.attachment_url) urls.push(a.url);
       if (a.src) urls.push(a.src);
-      if (a.thumbnail_url) urls.push(a.thumbnail_url);
       if (a.image_url) urls.push(a.image_url);
       if (a.photo_image) urls.push(a.photo_image);
       return urls;
