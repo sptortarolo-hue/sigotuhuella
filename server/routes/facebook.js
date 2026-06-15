@@ -668,11 +668,36 @@ router.post('/retry-failed', requireAdmin, async (req, res) => {
 router.post('/publish-pet-to-groups/:petId', requireAdmin, async (req, res) => {
   try {
     const result = await publishPetToGroups(req.params.petId);
+    if (result.alreadyPublished) return res.status(409).json(result);
     if (result.error) return res.status(404).json(result);
     res.json(result);
   } catch (err) {
     console.error('Error publishing pet to groups:', err);
     res.status(500).json({ error: 'Error al publicar mascota a grupos' });
+  }
+});
+
+router.post('/extract-group-ids', requireAdmin, async (req, res) => {
+  try {
+    const groups = await pool.query(
+      `SELECT id, url FROM facebook_groups
+       WHERE url IS NOT NULL AND (fb_group_id IS NULL OR fb_group_id = '')`
+    );
+    let updated = 0;
+    for (const g of groups.rows) {
+      const match = g.url.match(/facebook\.com\/groups\/(\d+)/);
+      if (match) {
+        await pool.query(
+          'UPDATE facebook_groups SET fb_group_id = $1, updated_at = NOW() WHERE id = $2',
+          [match[1], g.id]
+        );
+        updated++;
+      }
+    }
+    res.json({ updated });
+  } catch (err) {
+    console.error('Error extracting group IDs:', err);
+    res.status(500).json({ error: 'Error al extraer IDs de grupos' });
   }
 });
 

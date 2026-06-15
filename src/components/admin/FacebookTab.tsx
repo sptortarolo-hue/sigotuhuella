@@ -1201,6 +1201,9 @@ function PublisherSection() {
 
   const fetchData = useCallback(async () => {
     try {
+      // Auto-extraer fb_group_id de URLs
+      await api.facebook.extractGroupIds();
+
       const [settingsData, groupsData] = await Promise.all([
         api.settings.list(),
         api.facebook.groups.list(),
@@ -1287,7 +1290,10 @@ function PublisherSection() {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       });
       const data = await resp.json();
-      if (!resp.ok) { alert(data.error || 'Error'); return; }
+      if (!resp.ok) {
+        if (resp.status === 409 && data.alreadyPublished) { alert('Esta mascota ya fue publicada anteriormente'); return; }
+        alert(data.error || 'Error'); return;
+      }
       const groupOk = data.groups?.filter((g: any) => g.success).length || 0;
       const groupTotal = data.groups?.length || 0;
       alert(`✅ Publicado en Page${groupTotal > 0 ? ` + ${groupOk}/${groupTotal} grupo(s)` : ''}`);
@@ -1447,12 +1453,12 @@ function PublisherSection() {
                     {p.published_at ? new Date(p.published_at).toLocaleString('es-AR') : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => handlePublishToGroups(p.pet_id)} disabled={publishingPet === p.pet_id || !p.pet_id}
+                    <button onClick={() => handlePublishToGroups(p.pet_id)} disabled={publishingPet === p.pet_id || !p.pet_id || p.status === 'published'}
                       className="px-3 py-1.5 bg-brand-primary text-white text-[10px] font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-40 flex items-center gap-1">
                       {publishingPet === p.pet_id
                         ? <Loader2 className="w-3 h-3 animate-spin" />
-                        : <Upload className="w-3 h-3" />}
-                      Publicar a grupos
+                        : p.status === 'published' ? <Check className="w-3 h-3" /> : <Upload className="w-3 h-3" />}
+                      {publishingPet === p.pet_id ? 'Publicando...' : p.status === 'published' ? 'Ya publicado' : 'Publicar a grupos'}
                     </button>
                   </td>
                 </tr>

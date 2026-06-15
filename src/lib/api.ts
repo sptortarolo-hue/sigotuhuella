@@ -210,6 +210,7 @@ export const api = {
       request(`/facebook/groups/${id}/page-member`, { method: 'PUT', body: JSON.stringify(data) }),
     publishStatus: () => request('/facebook/publish-status'),
     publishPetToGroups: (petId: string) => request(`/facebook/publish-pet-to-groups/${petId}`, { method: 'POST' }),
+    extractGroupIds: () => request('/facebook/extract-group-ids', { method: 'POST' }),
   },
 
   myPets: {

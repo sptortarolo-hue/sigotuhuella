@@ -313,6 +313,12 @@ export async function retryFailedFacebookPosts(limit = 10) {
 }
 
 export async function publishPetToGroups(petId) {
+  const dupCheck = await pool.query(
+    'SELECT 1 FROM facebook_page_posts WHERE pet_id = $1 AND status = $2',
+    [petId, 'published']
+  );
+  if (dupCheck.rows.length > 0) return { alreadyPublished: true, petId };
+
   const petResult = await pool.query(
     `SELECT p.*,
        (SELECT array_agg(pi.image_data ORDER BY pi.created_at) FROM pet_images pi WHERE pi.pet_id = p.id) as images_data
