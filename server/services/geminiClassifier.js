@@ -115,13 +115,16 @@ export async function classifyPost(text, imageUrls, comments = [], imageBuffers 
 
 function fallbackClassification(text) {
   const lower = (text || '').toLowerCase();
-  const lostWords = ['perd', 'perdi', 'escap', 'busco', 'busca', 'desapareci'];
-  const foundWords = ['encontr', 'apareci', 'rescata', 'recog', 'hall'];
-  const reunionWords = ['apareci', 'encontr', 'volvi', 'regres', 'ya esta', 'gracias a todos'];
-  const sightingWords = ['vi', 'visto', 'vi a', 'lo vi', 'la vi', 'avistar'];
+  const negationLost = /(?:no\s+aparec|no\s+apareci|no\s+encontr|no\s+vuelve|no\s+regres|no\s+aparecio)/;
+  const lostWords = ['perd', 'perdi', 'escap', 'busco', 'busca', 'desapareci', 'no aparece', 'se nos fue', 'fug', 'extravi'];
+  const foundWords = ['encontr', 'rescata', 'recog', 'hall', 'lo encontre', 'la encontre'];
+  const reunionWords = ['ya aparecio', 'ya esta en casa', 'volvi', 'regres', 'gracias a todos', 'ya lo encontr', 'ya la encontr'];
+  const sightingWords = ['vi ', 'visto', 'vi a', 'lo vi', 'la vi', 'avistar', 'lo vi en', 'la vi en'];
 
   let classification = 'other';
-  if (reunionWords.some(w => lower.includes(w)) && foundWords.some(w => lower.includes(w))) {
+  if (negationLost.test(lower)) {
+    classification = 'lost';
+  } else if (reunionWords.some(w => lower.includes(w))) {
     classification = 'reunion';
   } else if (lostWords.some(w => lower.includes(w))) {
     classification = 'lost';

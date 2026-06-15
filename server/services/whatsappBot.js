@@ -1076,7 +1076,7 @@ async function fbContinue(conv) {
       try {
         const gemini = await classifyPost(post.content, post.image_urls || [], [], geminiImageBuffers);
         console.log('fbContinue: Gemini returned', JSON.stringify({ classification: gemini?.classification, species: gemini?.species, location: gemini?.location_hint, confidence: gemini?.confidence }));
-        if (gemini && gemini.classification !== 'other' && gemini.classification !== 'unclassified' && gemini.classification !== 'unknown') {
+        if (gemini && gemini.confidence >= 50 && gemini.classification !== 'other' && gemini.classification !== 'unclassified' && gemini.classification !== 'unknown') {
           const petStatus = gemini.classification === 'found' ? 'retained'
             : gemini.classification === 'sighting' ? 'sighted'
             : gemini.classification === 'reunion' ? 'retained'
@@ -1329,7 +1329,7 @@ async function fbAskAll(conv, parsed) {
 
   // Extract classification
   let classification;
-  if (/perdi|escap|busco|desapareci/.test(text)) classification = 'lost';
+  if (/perdi|escap|busco|desapareci|no aparece|se nos fue|fug|extravi/.test(text)) classification = 'lost';
   else if (/encontr|apareci|rescata|recog|hall/.test(text)) classification = 'retained';
   else if (/avist/.test(text)) classification = 'sighted';
   else if (/adopt/.test(text)) classification = 'for_adoption';
