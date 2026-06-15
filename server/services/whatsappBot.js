@@ -986,6 +986,19 @@ async function downloadImage(url, fbPostId) {
     if (result) return { ...result, externalUrl: null };
   }
 
+  if (url && url.includes('facebook.com/photo')) {
+    try {
+      const photoId = new URL(url).searchParams.get('fbid');
+      if (photoId) {
+        console.log(`downloadImage: trying public CDN for photo ${photoId}`);
+        const cdnResult = await tryDownload(`https://graph.facebook.com/${photoId}/picture?type=normal`);
+        if (cdnResult) return { ...cdnResult, externalUrl: null };
+      }
+    } catch (e) {
+      console.log(`downloadImage: public CDN error: ${e.message}`);
+    }
+  }
+
   if (fbPostId) {
     console.log(`downloadImage: trying Graph API for post ${fbPostId}`);
     const appId = process.env.FACEBOOK_APP_ID;
@@ -1116,9 +1129,9 @@ async function fbContinue(conv) {
   // If ALL 3 are unknown, ask all at once
   if (!nowKnown.status && !nowKnown.species && !nowKnown.location) {
     await sendMessage(conv.wa_from,
-      `${conv.bot_name}: No pude analizar la publicación automáticamente. ` +
-      `Decime todo junto: ¿es perro/gato/otro? ¿perdido/encontrado/avistado? ¿dónde?\n\n` +
-      `Ej: "gato perdido en Parque Chacabuco"`);
+      `${conv.bot_name}: No pude clasificar la publicación automáticamente. ` +
+      `Decime: ¿qué especie es? ¿está perdida, avistada o encontrada? ¿ubicación?\n\n` +
+      `Ej: "perro perdido en Plaza Libertad 13 y 670"`);
     await setFlow(conv, 'report_from_fb.ask_all');
     return;
   }
@@ -1403,23 +1416,29 @@ async function fbConfirm(conv, parsed, intent) {
 
   // Download and save image from Facebook post
   if (post.image_urls && post.image_urls.length > 0) {
-    console.log(`fbConfirm: downloading image from ${post.image_urls[0]?.slice(0, 80)}`);
-    const img = await downloadImage(post.image_urls[0], post.fb_post_id);
-    if (img && img.data) {
-      console.log(`fbConfirm: image saved, mime=${img.mimeType}, size=${img.data.length}`);
-      await pool.query(
-        `INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`,
-        [petId, img.data, img.mimeType]
-      );
-    } else if (img && img.externalUrl) {
-      console.log(`fbConfirm: storing external URL as fallback`);
-      await pool.query(
-        `INSERT INTO pet_images (pet_id, external_url) VALUES ($1, $2)`,
-        [petId, img.externalUrl]
-      );
-    } else {
-      console.log(`fbConfirm: image download returned null`);
+    let imgSaved = false;
+    for (const imgUrl of post.image_urls) {
+      console.log(`fbConfirm: downloading image from ${imgUrl?.slice(0, 80)}`);
+      const img = await downloadImage(imgUrl, post.fb_post_id);
+      if (img && img.data) {
+        console.log(`fbConfirm: image saved, mime=${img.mimeType}, size=${img.data.length}`);
+        await pool.query(
+          `INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`,
+          [petId, img.data, img.mimeType]
+        );
+        imgSaved = true;
+        break;
+      } else if (img && img.externalUrl) {
+        console.log(`fbConfirm: storing external URL as fallback`);
+        await pool.query(
+          `INSERT INTO pet_images (pet_id, external_url) VALUES ($1, $2)`,
+          [petId, img.externalUrl]
+        );
+        imgSaved = true;
+        break;
+      }
     }
+    if (!imgSaved) console.log(`fbConfirm: all image downloads failed for ${post.image_urls.length} URLs`);
   } else {
     console.log(`fbConfirm: no image_urls available`);
   }

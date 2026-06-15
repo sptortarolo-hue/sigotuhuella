@@ -273,10 +273,22 @@ async function fetchFbPostBrightData(url, apiKey) {
     throw new Error(`Bright Data: ${record.error || record._error}`);
   }
   const content = record.content || record.text || record.message || record.body || '';
+  if (record.attachments && record.attachments.length > 0) {
+    console.log(`fetchFbPostBrightData: first attachment keys=${Object.keys(record.attachments[0]).join(',')}`);
+  }
   const image_urls = (record.attachments || [])
-    .filter(a => { const t = (a.type || '').toLowerCase(); return t === 'photo' || t === 'image' || !!a.attachment_url; })
-    .map(a => a.attachment_url || a.url || '')
-    .filter(Boolean);
+    .flatMap(a => {
+      const urls = [];
+      if (a.attachment_url) urls.push(a.attachment_url);
+      if (a.url && a.url !== a.attachment_url) urls.push(a.url);
+      if (a.src) urls.push(a.src);
+      if (a.thumbnail_url) urls.push(a.thumbnail_url);
+      if (a.image_url) urls.push(a.image_url);
+      if (a.photo_image) urls.push(a.photo_image);
+      return urls;
+    })
+    .filter(Boolean)
+    .filter(u => u.startsWith('http'));
   console.log(`fetchFbPostBrightData: SUCCESS content_length=${content.length}, image_urls=${image_urls.length}`);
   if (content) console.log(`fetchFbPostBrightData: preview=${content.slice(0, 120)}`);
   return {
