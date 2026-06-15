@@ -951,20 +951,94 @@ async function startDonateFlow(conv) {
 
 // ─── Facebook URL Report ───
 
-async function downloadImage(url) {
-  try {
-    const resp = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://www.facebook.com/'
+async function downloadImage(url, fbPostId) {
+  // 1. Try direct download
+  if (url) {
+    try {
+      const resp = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://www.facebook.com/'
+        }
+      });
+      if (resp.ok) {
+        const ct = resp.headers.get('content-type') || '';
+        if (ct.startsWith('image/')) {
+          const buf = Buffer.from(await resp.arrayBuffer());
+          return { data: buf.toString('base64'), mimeType: ct };
+        }
+        console.log(`downloadImage: not image (${ct}) for ${url.slice(0, 80)}`);
+      } else {
+        console.log(`downloadImage: HTTP ${resp.status} for ${url.slice(0, 80)}`);
       }
-    });
-    if (!resp.ok) return null;
-    const buf = Buffer.from(await resp.arrayBuffer());
-    return { data: buf.toString('base64'), mimeType: resp.headers.get('content-type') || 'image/jpeg' };
-  } catch {
-    return null;
+    } catch (e) {
+      console.log(`downloadImage: fetch error ${e.message} for ${url.slice(0, 80)}`);
+    }
   }
+
+  // 2. Try Graph API /picture endpoint
+  if (fbPostId) {
+    try {
+      const appId = process.env.FACEBOOK_APP_ID;
+      const appSecret = process.env.FACEBOOK_APP_SECRET;
+      if (appId && appSecret) {
+        const appToken = `${appId}|${appSecret}`;
+        const picResp = await fetch(
+          `https://graph.facebook.com/v22.0/${fbPostId}/picture?type=large&access_token=${appToken}`,
+          { redirect: 'manual' }
+        );
+        if (picResp.status >= 300 && picResp.status < 400) {
+          const location = picResp.headers.get('location');
+          if (location) {
+            const imgResp = await fetch(location, {
+              headers: { 'Referer': 'https://www.facebook.com/' }
+            });
+            if (imgResp.ok) {
+              const ct = imgResp.headers.get('content-type') || 'image/jpeg';
+              const buf = Buffer.from(await imgResp.arrayBuffer());
+              return { data: buf.toString('base64'), mimeType: ct };
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log('downloadImage: Graph API picture error:', e.message);
+    }
+  }
+
+  // 3. If URL is a Facebook photo page, extract photo ID and use Graph API
+  if (url && url.includes('facebook.com/photo')) {
+    try {
+      const photoId = new URL(url).searchParams.get('fbid');
+      if (photoId) {
+        const appId = process.env.FACEBOOK_APP_ID;
+        const appSecret = process.env.FACEBOOK_APP_SECRET;
+        if (appId && appSecret) {
+          const appToken = `${appId}|${appSecret}`;
+          const photoResp = await fetch(
+            `https://graph.facebook.com/v22.0/${photoId}?fields=images&access_token=${appToken}`
+          );
+          if (photoResp.ok) {
+            const photoData = await photoResp.json();
+            if (photoData?.images?.[0]?.source) {
+              const imgResp = await fetch(photoData.images[0].source, {
+                headers: { 'Referer': 'https://www.facebook.com/' }
+              });
+              if (imgResp.ok) {
+                const buf = Buffer.from(await imgResp.arrayBuffer());
+                const ct = imgResp.headers.get('content-type') || 'image/jpeg';
+                return { data: buf.toString('base64'), mimeType: ct };
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log('downloadImage: photo page error:', e.message);
+    }
+  }
+
+  return null;
 }
 
 async function fbContinue(conv) {
@@ -991,11 +1065,20 @@ async function fbContinue(conv) {
         post.classification = petStatus;
         if (gemini.species && !post.species) post.species = gemini.species;
         if (gemini.location_hint && !post.location_hint) post.location_hint = gemini.location_hint;
+        if (gemini.name && !post.name) post.name = gemini.name;
+        if (gemini.breed && !post.breed) post.breed = gemini.breed;
+        if (gemini.gender && !post.gender) post.gender = gemini.gender;
+        if (gemini.color && !post.color) post.color = gemini.color;
+        if (gemini.phone && !post.phone) post.phone = gemini.phone;
         if (post.id) {
           await pool.query(
-            `UPDATE facebook_posts SET classification = $1, species = COALESCE(NULLIF(species, ''), $2), location_hint = COALESCE(NULLIF(location_hint, ''), $3) WHERE id = $4`,
-            [petStatus, gemini.species || '', gemini.location_hint || '', post.id]
+            `UPDATE facebook_posts SET classification = $1, species = COALESCE(NULLIF(species, ''), $2), location_hint = COALESCE(NULLIF(location_hint, ''), $3), color = COALESCE(NULLIF(color, ''), $4), phone = COALESCE(NULLIF(phone, ''), $5) WHERE id = $6`,
+            [petStatus, gemini.species || '', gemini.location_hint || '', gemini.color || '', gemini.phone || '', post.id]
           ).catch(e => console.error('fbContinue: DB update error:', e.message));
+        }
+        // If confidence > 70, skip to confirm directly
+        if (gemini.confidence >= 70) {
+          return fbShowConfirm(conv);
         }
         return fbContinue(conv);
       }
@@ -1219,18 +1302,19 @@ async function fbConfirm(conv, parsed, intent) {
     : 'Contactar vía Facebook';
 
   const petResult = await pool.query(
-    `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description, source_type, source_url, source_facebook_post_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'facebook', $8, $9)
+    `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description, source_type, source_url, source_facebook_post_id, name, color, gender, breed)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'facebook', $8, $9, $10, $11, $12, $13)
      RETURNING id`,
     [species, status, location, ctx.fbLatitude || null, ctx.fbLongitude || null,
-     contactInfo, description, post.fb_post_url || '', post.id]
+     contactInfo, description, post.fb_post_url || '', post.id,
+     post.name || null, post.color || null, post.gender || null, post.breed || null]
   );
 
   const petId = petResult.rows[0].id;
 
   // Download and save image from Facebook post
   if (post.image_urls && post.image_urls.length > 0) {
-    const img = await downloadImage(post.image_urls[0]);
+    const img = await downloadImage(post.image_urls[0], post.fb_post_id);
     if (img) {
       await pool.query(
         `INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`,

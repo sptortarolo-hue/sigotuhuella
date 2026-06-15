@@ -8,6 +8,7 @@ import { cn } from '@/src/lib/utils';
 import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
 import { shareOnFacebook } from '@/src/lib/facebookShare';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
+import { LinkifiedText } from '@/src/lib/linkify';
 
 function parseNeighborhoods(n: any): string[] {
   if (Array.isArray(n)) return n;
@@ -228,7 +229,7 @@ Me gustaría obtener más información.`;
               <Info className="w-4 h-4" /> Descripción
             </h3>
             <p className={cn("leading-relaxed whitespace-pre-wrap", pet.name ? "text-gray-600 text-base" : "text-gray-700 text-lg")}>
-              {pet.description || 'No se proporcionó una descripción detallada.'}
+              {pet.description ? <LinkifiedText text={pet.description} /> : 'No se proporcionó una descripción detallada.'}
             </p>
           </div>
 

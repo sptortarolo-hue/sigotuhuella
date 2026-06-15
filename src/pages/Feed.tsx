@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import { PawPrint, Loader2, Heart, MessageCircle, Trash2, Sparkles, Send } from 'lucide-react';
+import { LinkifiedText } from '@/src/lib/linkify';
 
 export default function Feed() {
   const { user } = useAuth();
@@ -136,7 +137,7 @@ export default function Feed() {
 
                 <h3 className="text-base font-bold text-gray-800 mb-1 line-clamp-2">{post.title}</h3>
                 {post.description && (
-                  <p className="text-sm text-gray-600 mb-3 break-words">{post.description}</p>
+                  <p className="text-sm text-gray-600 mb-3 break-words"><LinkifiedText text={post.description} /></p>
                 )}
 
                 {post.photo_ids?.length > 0 && (

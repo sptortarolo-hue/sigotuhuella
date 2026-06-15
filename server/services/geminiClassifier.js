@@ -9,6 +9,9 @@ Analizá el post y los comentarios asociados. Devolvé SOLO un JSON válido sin 
   "classification": "lost" | "found" | "sighting" | "reunion" | "other",
   "species": "dog" | "cat" | "other" | null,
   "species_other": "string | null",
+  "name": "string | null (nombre de la mascota si se menciona)",
+  "breed": "string | null (raza si se menciona)",
+  "gender": "male" | "female" | null,
   "colors": ["string"],
   "location": "string | null",
   "phone": "string | null",
@@ -29,6 +32,9 @@ Reglas:
 - reunion = la mascota ya aparecio / fue encontrada
 - other = no es sobre mascota perdida/encontrada
 - species: si no se puede determinar, null
+- name: extraer el nombre de la mascota si aparece en el texto
+- breed: extraer la raza si se menciona (ej. "labrador", "criollo", "pastor aleman")
+- gender: male si menciona "macho" o "varon", female si menciona "hembra" o "perra" o "gata"
 - confidence: 0-100 que tan seguro estás
 - No incluyas la URL del post ni metadatos de Facebook en el summary`;
 
@@ -62,6 +68,9 @@ export async function classifyPost(text, imageUrls, comments = []) {
       classification: ['lost', 'found', 'sighting', 'reunion', 'other'].includes(result.classification) ? result.classification : 'other',
       species: ['dog', 'cat', 'other', null].includes(result.species) ? result.species : null,
       species_other: result.species_other || null,
+      name: result.name || null,
+      breed: result.breed || null,
+      gender: ['male', 'female', null].includes(result.gender) ? result.gender : null,
       color: Array.isArray(result.colors) ? result.colors.join(', ') : null,
       colors: Array.isArray(result.colors) ? result.colors : [],
       location_hint: result.location || null,

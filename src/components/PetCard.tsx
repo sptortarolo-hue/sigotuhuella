@@ -8,6 +8,7 @@ import { cn } from '@/src/lib/utils';
 import SocialShareModal from '@/src/components/SocialShareModal';
 import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
 import { shareOnFacebook } from '@/src/lib/facebookShare';
+import { LinkifiedText } from '@/src/lib/linkify';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import { AnimatePresence } from 'motion/react';
 
@@ -177,7 +178,7 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             "text-gray-600 leading-relaxed",
             pet.name ? "text-base line-clamp-4 mb-6" : "text-lg line-clamp-6 mb-4"
           )}>
-            {pet.description}
+            <LinkifiedText text={pet.description} />
           </p>
         )}
 

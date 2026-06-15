@@ -6,6 +6,7 @@ import { Pet, getPetImageUrl, getPetCoordinates } from '@/src/lib/petService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import { MapPin } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { LinkifiedText } from '@/src/lib/linkify';
 
 interface PetMapProps {
   pets: Pet[];
@@ -106,7 +107,7 @@ export default function PetMap({ pets, center }: PetMapProps) {
                     />
                     <h4 className="font-bold text-brand-primary text-sm m-0">{pet.name || 'Mascota'}</h4>
                     <p className="text-[10px] text-gray-500 uppercase font-bold mb-1 mt-0">{statusLabel(pet.status)}</p>
-                    <p className="text-[10px] text-gray-600 mb-3 line-clamp-2">{pet.description}</p>
+                    <p className="text-[10px] text-gray-600 mb-3 line-clamp-2">{pet.description ? <LinkifiedText text={pet.description} /> : ''}</p>
                     {pet.contact_info && (
                       <div className="flex gap-2">
                         <a href={`tel:${pet.contact_info}`} className="flex-1 bg-brand-primary text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline">Llamar</a>
@@ -155,7 +156,7 @@ export default function PetMap({ pets, center }: PetMapProps) {
                     <p className="text-[10px] text-gray-500 uppercase font-bold mb-1 mt-0">{statusLabel(pet.status)}</p>
                     <p className="text-[10px] text-amber-600 font-bold mb-1">📍 Ubicación aproximada</p>
                     <p className="text-[10px] text-gray-500 mb-1">Zona: {approx.label}</p>
-                    <p className="text-[10px] text-gray-600 mb-3 line-clamp-2">{pet.description}</p>
+                    <p className="text-[10px] text-gray-600 mb-3 line-clamp-2">{pet.description ? <LinkifiedText text={pet.description} /> : ''}</p>
                     {pet.contact_info && (
                       <div className="flex gap-2">
                         <a href={`tel:${pet.contact_info}`} className="flex-1 bg-brand-primary text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline">Llamar</a>
