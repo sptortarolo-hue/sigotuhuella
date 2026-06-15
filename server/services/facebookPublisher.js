@@ -53,7 +53,7 @@ async function getPageId() {
   return null;
 }
 
-function buildPetMessage(pet, hashtags) {
+function buildPetMessage(pet, hashtags, originalUrl, authorName) {
   const statusTag = statusLabels[pet.status] || '🐾 MASCOTA';
   const species = speciesLabel[pet.species] || 'Mascota';
   const gender = genderLabel[pet.gender] || '';
@@ -67,6 +67,8 @@ function buildPetMessage(pet, hashtags) {
     `${pet.color ? '🎨 ' + pet.color : ''}`,
     `📍 ${pet.location || ''}`,
     pet.contact_info ? `📞 ${pet.contact_info}` : '',
+    originalUrl ? `🔗 Publicación original: ${originalUrl}` : '',
+    authorName ? `👤 Publicado por: ${authorName}` : '',
     '',
     pet.description ? pet.description.substring(0, 500) : '',
     '',
@@ -142,9 +144,21 @@ export async function publishToPage(petId) {
   }
 }
 
-export async function publishToGroup(groupFbId, message, link) {
+export async function publishToGroup(groupFbId, message, link, imageUrl) {
   const token = await getPageToken();
   if (!token) return { error: 'Facebook Page no conectada' };
+
+  if (imageUrl) {
+    try {
+      const { data } = await axios.post(`${GRAPH_API}/${groupFbId}/photos`, null, {
+        params: { url: imageUrl, message, access_token: token },
+        timeout: 30000,
+      });
+      return { success: true, groupPostId: data.id, type: 'photo' };
+    } catch {
+      // fallback a feed si no puede postear foto (ej. page no es miembro)
+    }
+  }
 
   try {
     const params = {
@@ -157,7 +171,7 @@ export async function publishToGroup(groupFbId, message, link) {
       params,
       timeout: 30000,
     });
-    return { success: true, groupPostId: data.id };
+    return { success: true, groupPostId: data.id, type: 'feed' };
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
     return { error: `Error al publicar en grupo: ${detail}` };
@@ -168,7 +182,8 @@ export async function replicateInstagramToFacebook(instagramPostId) {
   const postResult = await pool.query(
     `SELECT ip.*, p.name as pet_name, p.species, p.status, p.location,
             p.contact_info, p.description, p.color, p.gender, p.age, p.breed,
-            p.neighborhoods, p.id as pet_id
+            p.neighborhoods, p.id as pet_id,
+            (SELECT array_agg(pi.image_data ORDER BY pi.created_at) FROM pet_images pi WHERE pi.pet_id = p.id) as images_data
      FROM instagram_posts ip
      LEFT JOIN pets p ON p.id = ip.pet_id
      WHERE ip.id = $1`,
@@ -180,8 +195,9 @@ export async function replicateInstagramToFacebook(instagramPostId) {
   if (!post.pet_id) return { error: 'El post no tiene mascota asociada' };
 
   const hashtags = await getSetting('instagram_default_hashtags') || '#SigoTuHuella';
-  const message = buildPetMessage(post, hashtags);
+  const message = buildPetMessage(post, hashtags, post.ig_permalink);
   const link = `${FRONTEND_URL}/pet/${post.pet_id}`;
+  const imageUrls = buildImageUrls(post.pet_id, post.images_data);
 
   const results = { page: null, groups: [], pagePostId: null };
 
@@ -191,7 +207,7 @@ export async function replicateInstagramToFacebook(instagramPostId) {
   results.pagePostId = pagePostId;
 
   const groupsResult = await pool.query(
-    `SELECT id, name, fb_group_id FROM facebook_groups
+    `SELECT id, name, fb_group_id, page_is_member FROM facebook_groups
      WHERE is_active = true AND fb_group_id IS NOT NULL AND fb_group_id != ''
      ORDER BY name`
   );
@@ -223,7 +239,8 @@ export async function replicateInstagramToFacebook(instagramPostId) {
       continue;
     }
 
-    const groupResult = await publishToGroup(group.fb_group_id, message, link);
+    const groupImageUrl = group.page_is_member && imageUrls.length > 0 ? imageUrls[0] : null;
+    const groupResult = await publishToGroup(group.fb_group_id, message, link, groupImageUrl);
     results.groups.push({
       groupId: group.id,
       name: group.name,
@@ -331,6 +348,7 @@ export async function publishPetToGroups(petId) {
 
   const hashtags = await getSetting('instagram_default_hashtags') || '#SigoTuHuella';
   const message = buildPetMessage(pet, hashtags);
+  const imageUrls = buildImageUrls(pet.id, pet.images_data);
 
   const results = { page: null, groups: [], petId };
 
@@ -346,7 +364,8 @@ export async function publishPetToGroups(petId) {
 
   for (const group of groupsResult.rows) {
     const link = `${FRONTEND_URL}/pet/${petId}`;
-    const groupResult = await publishToGroup(group.fb_group_id, message, link);
+    const groupImageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
+    const groupResult = await publishToGroup(group.fb_group_id, message, link, groupImageUrl);
     results.groups.push({
       groupId: group.id,
       name: group.name,

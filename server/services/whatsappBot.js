@@ -954,7 +954,10 @@ async function startDonateFlow(conv) {
 async function downloadImage(url) {
   try {
     const resp = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://www.facebook.com/'
+      }
     });
     if (!resp.ok) return null;
     const buf = Buffer.from(await resp.arrayBuffer());
@@ -1209,7 +1212,8 @@ async function fbConfirm(conv, parsed, intent) {
   const status = post.classification === 'found' ? 'retained' : post.classification || 'lost';
   const species = post.species || 'unknown';
   const location = post.location_hint || 'Sin ubicación';
-  const description = post.content ? post.content.substring(0, 500) : 'Reportado desde Facebook vía WhatsApp';
+  const description = (post.content ? post.content.substring(0, 500) : 'Reportado desde Facebook')
+    + (post.fb_post_url ? `\n\n🔗 Publicación original: ${post.fb_post_url}` : '');
   const contactInfo = post.author_name
     ? `Contactar vía Facebook: ${post.author_name}`
     : 'Contactar vía Facebook';
