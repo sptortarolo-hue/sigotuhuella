@@ -154,6 +154,8 @@ Hola ${userName}, la chapita QR de *${petName}* ya fue asignada.
    Revisa días y horarios de atención:
    https://maps.app.goo.gl/fAdBkJwTiqy3Ncos9
 
+🔧 Estamos probando distintos materiales, diseños y costos para mejorar las chapitas. ¡Tu opinión cuenta! Si tenés alguna sugerencia, escribila respondiendo a este mensaje o a info@sigotuhuella.online
+
 Ver perfil de ${petName}:
 ${petProfileUrl}
 
@@ -190,6 +192,10 @@ Sigo Tu Huella 🐾`;
               <p style="margin:8px 0 0;font-size:16px;color:#334155;">Forrajería Lina</p>
               <p style="margin:4px 0 12px;font-size:14px;color:#64748b;">Días y horarios de atención de la tienda</p>
               <a href="https://maps.app.goo.gl/fAdBkJwTiqy3Ncos9" style="display:inline-block;background:#5A5A40;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:bold;">Ver ubicación en Google Maps</a>
+            </div>
+            <div style="background:#f0fdf4;border-radius:12px;padding:20px;margin:24px 0;">
+              <p style="margin:0;font-size:16px;color:#334155;">🔧 <strong>Estamos mejorando las chapitas</strong></p>
+              <p style="margin:8px 0 0;font-size:15px;color:#334155;">Estamos probando distintos materiales, diseños y costos. ¡Tu opinión es valiosa! Si tenés alguna sugerencia, respondé este email o escribinos a <a href="mailto:info@sigotuhuella.online" style="color:#5A5A40;">info@sigotuhuella.online</a></p>
             </div>
             <div style="text-align:center;margin:28px 0;">
               <a href="${petProfileUrl}" style="background:#5A5A40;color:#fff;padding:12px 28px;border-radius:12px;text-decoration:none;font-weight:bold;display:inline-block;">Ver perfil de ${petName}</a>
