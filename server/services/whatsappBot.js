@@ -1093,6 +1093,10 @@ async function fbContinue(conv) {
             ).catch(e => console.error('fbContinue: DB update error:', e.message));
           }
         }
+        // Si no se detectó especie pero hay fotos, marcar como no especificado
+        if (!post.species && post.image_urls && post.image_urls.length > 0) {
+          post.species = 'unknown';
+        }
       } catch (err) {
         console.error('fbContinue: Gemini error:', err.message);
       }
