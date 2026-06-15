@@ -1008,7 +1008,6 @@ async function fbContinue(conv) {
       { id: 'fb_status_lost', title: '🐕 Perdida' },
       { id: 'fb_status_sighted', title: '👀 Avistada' },
       { id: 'fb_status_found', title: '✅ Encontrada' },
-      { id: 'fb_status_adopt', title: '🏠 Adopción' },
     ]);
     await setFlow(conv, 'report_from_fb.ask_status');
     return;
