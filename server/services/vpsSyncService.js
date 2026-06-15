@@ -143,9 +143,15 @@ function extractIdsFromUrl(url) {
   if (m) return { postId: m[1], groupId: m[2] };
   m = url.match(/fbid=(\d+)/);
   if (m) return { postId: m[1] };
+  m = url.match(/\/share\/p\/([^/?]+)/);
+  if (m) return { postId: m[1] };
+  m = url.match(/\/share\/r\/([^/?]+)/);
+  if (m) return { postId: m[1] };
+  m = url.match(/\/share\/v\/([^/?]+)/);
+  if (m) return { postId: m[1] };
   const segments = url.split('/');
   const last = segments[segments.length - 1];
-  if (/^\d+$/.test(last)) return { postId: last };
+  if (/^[\w-]+$/.test(last) && last.length > 5) return { postId: last };
   return null;
 }
 
@@ -205,34 +211,29 @@ async function fetchOembedViaGraph(url, token) {
 }
 
 export async function fetchFbPost(url) {
-  try {
-    const ids = extractIdsFromUrl(url);
-    if (!ids) throw new Error('No se pudo extraer el ID de la publicación');
+  const ids = extractIdsFromUrl(url);
+  const fallbackId = ids?.postId || Buffer.from(url).toString('base64').slice(0, 30);
 
-    // 1. Try Graph API post lookup with Page Token (full data)
+  try {
     const tokenRes = await pool.query(
       "SELECT value FROM settings WHERE key = 'instagram_access_token'"
     );
     const pageToken = tokenRes.rows[0]?.value;
 
-    if (pageToken) {
+    if (pageToken && ids) {
       try {
         return await fetchGraphApiData(ids.postId, ids.groupId, pageToken, url);
       } catch (err) {
-        console.warn('fetchFbPost: Graph API post falló:', err.message);
+        console.error('fetchFbPost: Graph API post falló:', err.message);
       }
     }
 
-    // 2. Try oEmbed via Graph API (Page Token first, then App Token)
-    let oembedToken = pageToken;
-    if (!oembedToken) oembedToken = await getAppToken();
-
-    if (oembedToken) {
+    // Try oEmbed with Page Token, then App Token
+    for (const t of [pageToken, await getAppToken()].filter(Boolean)) {
       try {
-        const data = await fetchOembedViaGraph(url, oembedToken);
-        const pId = ids.postId || '';
+        const data = await fetchOembedViaGraph(url, t);
         return {
-          fb_post_id: pId,
+          fb_post_id: ids?.postId || fallbackId,
           fb_post_url: url,
           author_name: data.author_name || '',
           content: data.title || '',
@@ -241,34 +242,22 @@ export async function fetchFbPost(url) {
           comments: [],
         };
       } catch (err) {
-        console.warn('fetchFbPost: oEmbed falló:', err.message);
-        if (!pageToken) throw err;
+        console.error('fetchFbPost: oEmbed falló con token:', err.message);
       }
     }
-
-    // 3. Retry oEmbed with App Token if Page Token was used in step 2
-    if (pageToken) {
-      const appToken = await getAppToken();
-      if (appToken) {
-        const data = await fetchOembedViaGraph(url, appToken);
-        const pId = ids.postId || '';
-        return {
-          fb_post_id: pId,
-          fb_post_url: url,
-          author_name: data.author_name || '',
-          content: data.title || '',
-          image_urls: data.thumbnail_url ? [data.thumbnail_url] : [],
-          posted_at: '',
-          comments: [],
-        };
-      }
-    }
-
-    throw new Error('No se pudo acceder a la publicación');
   } catch (err) {
     console.error('fetchFbPost error:', err.message);
-    throw err;
   }
+
+  return {
+    fb_post_id: fallbackId,
+    fb_post_url: url,
+    author_name: '',
+    content: '',
+    image_urls: [],
+    posted_at: '',
+    comments: [],
+  };
 }
 
 export function startSyncTimer(minutes = 5) {
