@@ -306,6 +306,53 @@ async function fetchFbPostBrightData(url, apiKey) {
   throw new Error('Bright Data: unexpected response format');
 }
 
+async function fetchFbPostApify(url) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) throw new Error('APIFY_TOKEN not configured');
+
+  console.log(`fetchFbPostApify: scraping ${url.slice(0, 100)}`);
+  const resp = await fetch(
+    `https://api.apify.com/v2/acts/apify~facebook-posts-scraper/runs?token=${token}&waitForFinish=60`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startUrls: [{ url }] }),
+      signal: AbortSignal.timeout(70000),
+    }
+  );
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`Apify HTTP ${resp.status}: ${err.slice(0, 200)}`);
+  }
+
+  const run = await resp.json();
+
+  if (run.status !== 'SUCCEEDED') {
+    throw new Error(`Apify run ${run.status}: ${run.statusMessage || ''}`);
+  }
+
+  const datasetResp = await fetch(
+    `https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?token=${token}`,
+    { signal: AbortSignal.timeout(15000) }
+  );
+
+  if (!datasetResp.ok) throw new Error(`Apify dataset HTTP ${datasetResp.status}`);
+
+  const items = await datasetResp.json();
+  if (!items || items.length === 0) throw new Error('Apify returned empty dataset');
+
+  const item = items[0];
+  const text = item.text || item.caption || item.description || '';
+  const images = (item.images || []).filter(Boolean).map(i => typeof i === 'string' ? i : i.url || '');
+  const author = item.authorName || item.username || item.pageName || '';
+
+  console.log(`fetchFbPostApify: success, content_length=${text.length}, images=${images.length}`);
+  if (text) console.log(`fetchFbPostApify: preview=${text.slice(0, 120)}`);
+
+  return { content: text, image_urls: images, author_name: author };
+}
+
 export async function fetchFbPost(url) {
   const ids = extractIdsFromUrl(url);
   const fallbackId = ids?.postId || Buffer.from(url).toString('base64').slice(0, 30);
@@ -316,17 +363,32 @@ export async function fetchFbPost(url) {
   let author_name = '';
 
   try {
-    // 1. OG scraper (siempre funciona, sin API key)
-    try {
-      const og = await fetchFbPostOG(url);
-      content = og.content || '';
-      if (og.image_url) image_urls = [og.image_url];
-      console.log(`fetchFbPost: OG success, content_length=${content.length}, image=${!!og.image_url}`);
-    } catch (err) {
-      console.error('fetchFbPost: OG falló:', err.message);
+    // 1. Apify (token ya en .env, más confiable)
+    const apifyToken = process.env.APIFY_TOKEN;
+    if (apifyToken) {
+      try {
+        const apify = await fetchFbPostApify(url);
+        if (apify.content) content = apify.content;
+        if (apify.image_urls?.length) image_urls = apify.image_urls;
+        if (apify.author_name) author_name = apify.author_name;
+      } catch (err) {
+        console.error('fetchFbPost: Apify falló:', err.message);
+      }
     }
 
-    // 2. Bright Data (enriquecer)
+    // 2. OG scraper (fallback si Apify no dio contenido)
+    if (!content) {
+      try {
+        const og = await fetchFbPostOG(url);
+        if (og.content) content = og.content;
+        if (og.image_url && !image_urls.length) image_urls = [og.image_url];
+        console.log(`fetchFbPost: OG success, content_length=${content.length}, image=${!!og.image_url}`);
+      } catch (err) {
+        console.error('fetchFbPost: OG falló:', err.message);
+      }
+    }
+
+    // 3. Bright Data (enriquecer)
     const brightKeyRes = await pool.query(
       "SELECT value FROM settings WHERE key = 'brightdata_api_key'"
     );
