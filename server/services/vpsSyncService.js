@@ -250,8 +250,8 @@ async function fetchOembedViaGraph(url, token) {
 }
 
 async function fetchFbPostBrightData(url, apiKey) {
-  const triggerResp = await fetch(
-    'https://api.brightdata.com/datasets/v3/scrape?dataset_id=gd_lyclm1571iy3mv57zw&include_errors=true',
+  const resp = await fetch(
+    'https://api.brightdata.com/datasets/v3/scrape?dataset_id=gd_lyclm1571iy3mv57zw&format=json&include_errors=true',
     {
       method: 'POST',
       headers: {
@@ -262,63 +262,33 @@ async function fetchFbPostBrightData(url, apiKey) {
       signal: AbortSignal.timeout(120000),
     }
   );
-
-  if (!triggerResp.ok) {
-    const errText = await triggerResp.text();
-    throw new Error(`Bright Data trigger error (${triggerResp.status}): ${errText.slice(0, 300)}`);
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Bright Data error (${resp.status}): ${errText.slice(0, 300)}`);
   }
-
-  const triggerData = await triggerResp.json();
-  const snapshotId = triggerData.snapshot_id || triggerData.run_id;
-  if (!snapshotId) {
-    throw new Error(`Bright Data: no snapshot_id in response: ${JSON.stringify(triggerData).slice(0, 200)}`);
+  const data = await resp.json();
+  if (!Array.isArray(data) || data.length === 0) throw new Error('Bright Data: empty response');
+  const record = data[0];
+  if (record._error || record.error) {
+    throw new Error(`Bright Data: ${record.error || record._error}`);
   }
-
-  console.log(`fetchFbPostBrightData: triggered, snapshot_id=${snapshotId}`);
-
-  // Poll until ready (max 2 min)
-  for (let i = 0; i < 12; i++) {
-    await new Promise(r => setTimeout(r, 10000));
-    const progressResp = await fetch(
-      `https://api.brightdata.com/datasets/v3/progress/${snapshotId}`,
-      { headers: { 'Authorization': `Bearer ${apiKey}` }, signal: AbortSignal.timeout(15000) }
-    );
-    if (!progressResp.ok) continue;
-    const status = (await progressResp.text()).trim().toLowerCase();
-    if (status === 'ready') {
-      const dataResp = await fetch(
-        `https://api.brightdata.com/datasets/v3/snapshot/${snapshotId}?format=json`,
-        { headers: { 'Authorization': `Bearer ${apiKey}` }, signal: AbortSignal.timeout(30000) }
-      );
-      if (!dataResp.ok) throw new Error(`Bright Data download error (${dataResp.status})`);
-      const data = await dataResp.json();
-      if (!Array.isArray(data) || data.length === 0) throw new Error('Bright Data: empty dataset');
-      const record = data[0];
-      if (record._error || record.error) {
-        throw new Error(`Bright Data: ${record.error || record._error}`);
-      }
-      const content = record.content || record.text || record.message || record.body || '';
-      const image_urls = (record.attachments || [])
-        .filter(a => { const t = (a.type || '').toLowerCase(); return t === 'photo' || t === 'image' || !!a.attachment_url; })
-        .map(a => a.attachment_url || a.url || '')
-        .filter(Boolean);
-      console.log(`fetchFbPostBrightData: SUCCESS content_length=${content.length}, image_urls=${image_urls.length}`);
-      if (content) console.log(`fetchFbPostBrightData: preview=${content.slice(0, 120)}`);
-      return {
-        fb_post_id: record.post_id || record.url || url,
-        fb_post_url: record.url || url,
-        author_name: record.user_username_raw || record.user_url || '',
-        content,
-        image_urls,
-        embed_html: '',
-        posted_at: record.date_posted || '',
-        comments: [],
-      };
-    }
-    if (status === 'failed') throw new Error('Bright Data: snapshot failed');
-    console.log(`fetchFbPostBrightData: polling... status=${status}`);
-  }
-  throw new Error('Bright Data: snapshot not ready after 2 min');
+  const content = record.content || record.text || record.message || record.body || '';
+  const image_urls = (record.attachments || [])
+    .filter(a => { const t = (a.type || '').toLowerCase(); return t === 'photo' || t === 'image' || !!a.attachment_url; })
+    .map(a => a.attachment_url || a.url || '')
+    .filter(Boolean);
+  console.log(`fetchFbPostBrightData: SUCCESS content_length=${content.length}, image_urls=${image_urls.length}`);
+  if (content) console.log(`fetchFbPostBrightData: preview=${content.slice(0, 120)}`);
+  return {
+    fb_post_id: record.post_id || record.url || url,
+    fb_post_url: record.url || url,
+    author_name: record.user_username_raw || record.user_url || '',
+    content,
+    image_urls,
+    embed_html: '',
+    posted_at: record.date_posted || '',
+    comments: [],
+  };
 }
 
 async function fetchFbPostApify(url) {
