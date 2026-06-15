@@ -1322,12 +1322,13 @@ async function fbConfirm(conv, parsed, intent) {
     : 'Contactar vía Facebook';
 
   const petResult = await pool.query(
-    `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description, source_type, source_url, source_facebook_post_id, name, color, gender, breed)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'facebook', $8, $9, $10, $11, $12, $13)
+    `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description, source_type, source_url, source_facebook_post_id, name, color, gender, breed, facebook_embed_html)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'facebook', $8, $9, $10, $11, $12, $13, $14)
      RETURNING id`,
     [species, status, location, ctx.fbLatitude || null, ctx.fbLongitude || null,
      contactInfo, description, post.fb_post_url || '', post.id,
-     post.name || null, post.color || null, post.gender || null, post.breed || null]
+     post.name || null, post.color || null, post.gender || null, post.breed || null,
+     post.embed_html || null]
   );
 
   const petId = petResult.rows[0].id;

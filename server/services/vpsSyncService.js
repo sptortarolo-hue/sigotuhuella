@@ -200,7 +200,7 @@ async function getAppToken() {
 async function fetchOembedViaGraph(url, token) {
   const GRAPH_API = 'https://graph.facebook.com/v22.0';
   const resp = await fetch(
-    `${GRAPH_API}/oembed_post?url=${encodeURIComponent(url)}&access_token=${token}&fields=author_name,title,description,thumbnail_url`,
+    `${GRAPH_API}/oembed_post?url=${encodeURIComponent(url)}&access_token=${token}&fields=author_name,title,description,thumbnail_url,html`,
     { signal: AbortSignal.timeout(10000) }
   );
   if (!resp.ok) {
@@ -258,6 +258,7 @@ async function fetchFbPostBrightData(url, apiKey) {
       author_name: record.user_username_raw || record.user_url || '',
       content,
       image_urls,
+      embed_html: '',
       posted_at: record.date_posted || '',
       comments: [],
     };
@@ -294,6 +295,7 @@ export async function fetchFbPost(url) {
           author_name: data.author_name || '',
           content: data.description || data.title || '',
           image_urls: data.thumbnail_url ? [data.thumbnail_url] : [],
+          embed_html: data.html || '',
           posted_at: '',
           comments: [],
         };
@@ -324,6 +326,7 @@ export async function fetchFbPost(url) {
     author_name: '',
     content: '',
     image_urls: [],
+    embed_html: '',
     posted_at: '',
     comments: [],
   };

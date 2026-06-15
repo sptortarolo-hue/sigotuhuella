@@ -488,6 +488,7 @@ async function checkReminders() {
 async function start() {
   await initDb();
   await seedAdmin();
+  console.log(`GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? '✓ configurada' : '✗ NO configurada (fallback a keywords)'}`);
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });

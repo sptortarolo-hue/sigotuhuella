@@ -38,6 +38,7 @@ export interface Pet {
   contact_info: string | null;
   neighborhoods: string[];
   images: PetImage[];
+  facebook_embed_html?: string;
   created_by: string;
   is_admin_verified: boolean;
   created_at: string;

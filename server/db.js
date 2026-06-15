@@ -660,6 +660,10 @@ export async function initDb() {
       ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS fb_replicated BOOLEAN DEFAULT FALSE
     `, 'instagram_posts fb_replicated');
 
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS facebook_embed_html TEXT
+    `, 'pets facebook_embed_html');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

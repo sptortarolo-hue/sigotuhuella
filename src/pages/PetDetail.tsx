@@ -129,6 +129,11 @@ Me gustaría obtener más información.`;
                   </div>
                 )}
               </>
+            ) : pet.facebook_embed_html ? (
+              <div className="w-full aspect-square bg-brand-bg flex items-center justify-center overflow-hidden">
+                <div className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-none"
+                  dangerouslySetInnerHTML={{ __html: pet.facebook_embed_html }} />
+              </div>
             ) : (
               <div className="w-full aspect-square bg-brand-bg flex items-center justify-center">
                 <img src="/sigotuhuella.jpg" alt="" className="w-2/3 h-2/3 object-contain opacity-15" />
