@@ -206,6 +206,31 @@ async function getAppToken() {
   return `${id}|${secret}`;
 }
 
+function generateEmbedHtml(url) {
+  const encoded = encodeURIComponent(url);
+  return `<iframe src="https://www.facebook.com/plugins/post.php?href=${encoded}&show_text=true&width=500&height=458" width="500" height="458" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowfullscreen="true" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"></iframe>`;
+}
+
+async function fetchFbPostOG(url) {
+  const resp = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8',
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const html = await resp.text();
+  const ogDescription = html.match(/<meta\s+property="og:description"\s+content="([^"]+)"/i)?.[1]
+    || html.match(/<meta\s+content="([^"]+)"\s+property="og:description"/i)?.[1] || '';
+  const ogImage = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i)?.[1]
+    || html.match(/<meta\s+content="([^"]+)"\s+property="og:image"/i)?.[1] || '';
+  const ogTitle = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i)?.[1]
+    || html.match(/<meta\s+content="([^"]+)"\s+property="og:title"/i)?.[1] || '';
+  return { content: ogDescription || ogTitle, image_url: ogImage };
+}
+
 async function fetchOembedViaGraph(url, token) {
   const GRAPH_API = 'https://graph.facebook.com/v22.0';
   const resp = await fetch(
@@ -279,66 +304,65 @@ async function fetchFbPostBrightData(url, apiKey) {
 export async function fetchFbPost(url) {
   const ids = extractIdsFromUrl(url);
   const fallbackId = ids?.postId || Buffer.from(url).toString('base64').slice(0, 30);
+  const embed_html = generateEmbedHtml(url);
+
+  let content = '';
+  let image_urls = [];
+  let author_name = '';
 
   try {
-    // 1. FIRST: Bright Data (real content + image_urls)
+    // 1. OG scraper (siempre funciona, sin API key)
+    try {
+      const og = await fetchFbPostOG(url);
+      content = og.content || '';
+      if (og.image_url) image_urls = [og.image_url];
+      console.log(`fetchFbPost: OG success, content_length=${content.length}, image=${!!og.image_url}`);
+    } catch (err) {
+      console.error('fetchFbPost: OG falló:', err.message);
+    }
+
+    // 2. Bright Data (enriquecer)
     const brightKeyRes = await pool.query(
       "SELECT value FROM settings WHERE key = 'brightdata_api_key'"
     );
     const brightKey = brightKeyRes.rows[0]?.value;
-    let brightResult = null;
     if (brightKey) {
       try {
-        brightResult = await fetchFbPostBrightData(url, brightKey);
-        console.log(`fetchFbPost: Bright Data success, content_length=${brightResult.content?.length}, images=${brightResult.image_urls?.length}`);
+        const bd = await fetchFbPostBrightData(url, brightKey);
+        if (bd.content) content = bd.content;
+        if (bd.image_urls?.length) image_urls = bd.image_urls;
+        if (bd.author_name) author_name = bd.author_name;
+        console.log(`fetchFbPost: Bright Data enriched, content_length=${bd.content?.length}, images=${bd.image_urls?.length}`);
       } catch (err) {
         console.error('fetchFbPost: Bright Data falló:', err.message);
       }
     }
 
-    // 2. SECOND: oEmbed (for embed_html + thumbnail as fallback)
+    // 3. oEmbed (author_name + thumbnail fallback)
     const tokenRes = await pool.query(
       "SELECT value FROM settings WHERE key = 'instagram_access_token'"
     );
     const pageToken = tokenRes.rows[0]?.value;
-
-    let oembedResult = null;
     for (const t of [pageToken, await getAppToken()].filter(Boolean)) {
       try {
         const data = await fetchOembedViaGraph(url, t);
-        oembedResult = {
-          fb_post_id: ids?.postId || fallbackId,
-          fb_post_url: url,
-          author_name: data.author_name || '',
-          content: data.description || data.title || '',
-          image_urls: data.thumbnail_url ? [data.thumbnail_url] : [],
-          embed_html: data.html || '',
-          posted_at: '',
-          comments: [],
-        };
+        if (data.author_name) author_name = data.author_name;
+        if (!content && (data.description || data.title)) content = data.description || data.title;
+        if (!image_urls.length && data.thumbnail_url) image_urls = [data.thumbnail_url];
         break;
       } catch (err) {
-        console.error('fetchFbPost: oEmbed falló con token:', err.message);
+        console.error('fetchFbPost: oEmbed falló:', err.message);
       }
     }
 
-    // 3. MERGE: Bright Data content + oEmbed embed_html
-    if (brightResult) {
-      brightResult.embed_html = oembedResult?.embed_html || brightResult.embed_html || '';
-      brightResult.author_name = brightResult.author_name || oembedResult?.author_name || '';
-      return brightResult;
-    }
-
-    if (oembedResult) {
-      return oembedResult;
-    }
-
-    // 4. LAST: Graph API page token (legacy)
-    if (pageToken && ids) {
+    // 4. Graph API (legacy)
+    if (!content && !image_urls.length && pageToken && ids) {
       try {
-        return await fetchGraphApiData(ids.postId, ids.groupId, pageToken, url);
+        const ga = await fetchGraphApiData(ids.postId, ids.groupId, pageToken, url);
+        if (ga.content) content = ga.content;
+        if (ga.image_urls?.length) image_urls = ga.image_urls;
       } catch (err) {
-        console.error('fetchFbPost: Graph API post falló:', err.message);
+        console.error('fetchFbPost: Graph API falló:', err.message);
       }
     }
   } catch (err) {
@@ -348,10 +372,10 @@ export async function fetchFbPost(url) {
   return {
     fb_post_id: fallbackId,
     fb_post_url: url,
-    author_name: '',
-    content: '',
-    image_urls: [],
-    embed_html: '',
+    author_name,
+    content,
+    image_urls,
+    embed_html,
     posted_at: '',
     comments: [],
   };
