@@ -33,18 +33,24 @@ async function getPageId() {
   if (pageId) return pageId;
   const token = await getPageToken();
   if (!token) return null;
-  const { data } = await axios.get(`${GRAPH_API}/me/accounts`, {
-    params: { fields: 'id,name', access_token: token },
-    timeout: 10000,
-  });
-  const pages = data?.data || [];
-  if (pages.length === 0) return null;
-  pageId = pages[0].id;
-  await pool.query(
-    `INSERT INTO settings (key, value) VALUES ('facebook_page_id', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
-    [pageId]
-  );
-  return pageId;
+  try {
+    const { data } = await axios.get(`${GRAPH_API}/me`, {
+      params: { fields: 'id,name', access_token: token },
+      timeout: 10000,
+    });
+    if (data?.id) {
+      pageId = data.id;
+      await pool.query(
+        `INSERT INTO settings (key, value) VALUES ('facebook_page_id', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [pageId]
+      );
+      console.log(`[FB Publisher] Auto-detected Page ID: ${pageId} (${data.name || ''})`);
+      return pageId;
+    }
+  } catch (err) {
+    console.error('[FB Publisher] Error detecting Page ID:', err.response?.data || err.message);
+  }
+  return null;
 }
 
 function buildPetMessage(pet, hashtags) {

@@ -101,6 +101,7 @@ export async function exchangeCodeForToken(code) {
         pageToken = page.access_token;
         igUserId = page.instagram_business_account.id;
         pageName = page.name;
+        await saveSetting('facebook_page_id', page.id);
         break;
       }
     }
@@ -120,6 +121,7 @@ export async function exchangeCodeForToken(code) {
             pageToken = tokenResp.data.access_token || page.access_token;
             igUserId = pageResp.data.instagram_business_account.id;
             pageName = page.name;
+            await saveSetting('facebook_page_id', page.id);
             break;
           }
         } catch { /* skip */ }
@@ -142,6 +144,7 @@ export async function exchangeCodeForToken(code) {
             });
             pageToken = ownerResp.data?.access_token || '';
             pageName = igResp.data.owner?.name || 'Sigo Tu Huella';
+            await saveSetting('facebook_page_id', ownerId);
           }
         }
         console.log(`[FB] IG direct lookup: userId=${igUserId}, hasPage=${!!pageToken}`);

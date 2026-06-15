@@ -1380,7 +1380,7 @@ function PublisherSection() {
               <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
                 <th className="px-4 py-3">Mascota</th>
                 <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3">Page Post ID</th>
+                <th className="px-4 py-3">Error / ID</th>
                 <th className="px-4 py-3">Publicado</th>
               </tr>
             </thead>
@@ -1396,8 +1396,13 @@ function PublisherSection() {
                       "bg-yellow-100 text-yellow-700"
                     )}>{p.status}</span>
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-500 font-mono">{p.page_post_id || '—'}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">
+                  <td className="px-4 py-3 text-xs max-w-[200px] truncate" title={p.error_message || p.page_post_id || ''}>
+                    {p.error_message
+                      ? <span className="text-red-500">{p.error_message.substring(0, 60)}</span>
+                      : <span className="text-gray-500 font-mono">{p.page_post_id || '—'}</span>
+                    }
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                     {p.published_at ? new Date(p.published_at).toLocaleString('es-AR') : '—'}
                   </td>
                 </tr>
