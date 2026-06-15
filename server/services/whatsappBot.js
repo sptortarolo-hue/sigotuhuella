@@ -26,6 +26,9 @@ async function setFlow(conv, flow, contextUpdates = {}) {
 }
 
 function detectIntent(parsed) {
+  // Images must be checked before keyword matching — captions could trigger keywords
+  if (parsed.messageType === 'image') return 'image_received';
+
   const text = (parsed.textBody || '').toLowerCase().trim();
 
   if (parsed.buttonId) {
@@ -42,6 +45,9 @@ function detectIntent(parsed) {
       case 'end_no': return 'cancel';
       case 'confirm_yes': return 'confirm';
       case 'confirm_no': return 'cancel';
+      case 'confirm_edit': return 'edit';
+      case 'edit_location': case 'edit_contact': case 'edit_description': return 'edit_field';
+      case 'menu_back': return 'menu_back';
       case 'motive_report': case 'motive_technical': case 'motive_collab': case 'motive_other': return 'motive';
       case 'species_dog': case 'species_cat': case 'species_other': return 'species';
       case 'report_from_fb': return 'report_from_fb';
@@ -141,8 +147,8 @@ async function routeFlow(conv, parsed) {
     return;
   }
 
-  // Don't intercept cancel when already in end_flow — handleEndFlow handles the "No" button
-  if (flow !== 'menu' && flow !== 'end_flow' && intent === 'cancel') {
+  // Don't intercept cancel when already in end_flow or image_confirm — those flows handle it
+  if (flow !== 'menu' && flow !== 'end_flow' && !flow.startsWith('image_confirm_') && intent === 'cancel') {
     await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
     return endFlow(conv);
   }
@@ -164,6 +170,14 @@ async function routeFlow(conv, parsed) {
     case 'report_found.location': return rfLocation(conv, parsed);
     case 'report_found.contact': return rfContact(conv, parsed);
     case 'report_found.confirm': return rfConfirm(conv, parsed, intent);
+    case 'report_found.edit': return rfEdit(conv, parsed);
+    case 'report_found.edit_location': return rfEditLocation(conv, parsed);
+    case 'report_found.edit_contact': return rfEditContact(conv, parsed);
+    case 'report_found.edit_description': return rfEditDescription(conv, parsed);
+    case 'image_choice': return handleImageChoice(conv, parsed, intent);
+    case 'image_confirm_found': return handleImageConfirm(conv, parsed, intent);
+    case 'image_confirm_lost': return handleImageConfirm(conv, parsed, intent);
+    case 'image_confirm_sighted': return handleImageConfirm(conv, parsed, intent);
     case 'volunteer.name': return vName(conv, parsed);
     case 'volunteer.zone': return vZone(conv, parsed);
     case 'volunteer.phone': return vPhone(conv, parsed);
@@ -247,10 +261,69 @@ async function handleMenu(conv, parsed, intent) {
     case 'donate': return startDonateFlow(conv);
     case 'report_from_fb': return startReportFromFb(conv);
     case 'human': return startHumanRequest(conv);
+    case 'image_received': return handleImageFromMenu(conv, parsed);
     default:
       await sendMessage(conv.wa_from, `${conv.bot_name}: No entendí tu mensaje. Usá los botones de abajo 👇`);
       return showMenu(conv);
   }
+}
+
+// ─── Image from Menu ───
+
+async function handleImageFromMenu(conv, parsed) {
+  const caption = parsed.textBody || '';
+  if (caption) {
+    const { classifyImageIntent } = await import('./geminiMatching.js');
+    const intent = await classifyImageIntent(caption);
+    if (intent === 'found' || intent === 'lost' || intent === 'sighted') {
+      const labels = { found: 'encontraste', lost: 'se te perdió', sighted: 'viste' };
+      await setFlow(conv, `image_confirm_${intent}`, {
+        photo_data: parsed.imageData,
+        photo_mime: parsed.imageMime,
+        caption,
+      });
+      await sendMessage(conv.wa_from, `${conv.bot_name}: Según tu mensaje, ¿*${labels[intent]}* esta mascota?`);
+      await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
+        { id: 'confirm_yes', title: '✅ Sí' },
+        { id: 'confirm_no', title: '❌ No' },
+      ]);
+      return;
+    }
+  }
+  return showImageTypeChoice(conv, parsed);
+}
+
+async function showImageTypeChoice(conv, parsed) {
+  await setFlow(conv, 'image_choice', {
+    photo_data: parsed.imageData,
+    photo_mime: parsed.imageMime,
+    caption: parsed.textBody || '',
+  });
+  await sendMessage(conv.wa_from, `${conv.bot_name}: Recibí tu foto 📸 ¿Qué querés reportar?`);
+  await sendInteractiveButtons(conv.wa_from, 'Tipo:', [
+    { id: 'report_found', title: '🐾 La encontré' },
+    { id: 'report_lost', title: '🐾 Se perdió' },
+    { id: 'report_sighted', title: '👀 La vi' },
+    { id: 'menu_back', title: '🔙 Menú' },
+  ]);
+}
+
+async function handleImageChoice(conv, parsed, intent) {
+  if (intent === 'report_found') return startReportFound(conv);
+  if (intent === 'report_lost') return startReportLost(conv);
+  if (intent === 'report_sighted') return startReportSighted(conv);
+  return showMenu(conv);
+}
+
+async function handleImageConfirm(conv, parsed, intent) {
+  const type = conv.flow.replace('image_confirm_', '');
+  if (intent === 'confirm') {
+    const startFn = type === 'found' ? startReportFound
+      : type === 'lost' ? startReportLost
+      : startReportSighted;
+    return startFn(conv);
+  }
+  return showImageTypeChoice(conv, parsed);
 }
 
 // ─── Human / Representante ───
@@ -308,7 +381,9 @@ async function rlSpecies(conv, parsed) {
 }
 
 async function rlPhoto(conv, parsed) {
-  if (parsed.messageType !== 'image' || !parsed.imageData) {
+  const photoData = parsed.imageData || conv.context?.photo_data;
+  const photoMime = parsed.imageMime || conv.context?.photo_mime;
+  if (!photoData) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor enviá una *foto* de la mascota 📸`);
     return;
   }
@@ -316,8 +391,8 @@ async function rlPhoto(conv, parsed) {
   await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde se perdió? Podés escribir la dirección o compartir tu *ubicación* 📍`);
   await setFlow(conv, 'report_lost.location', {
     ...conv.context,
-    photo_data: parsed.imageData,
-    photo_mime: parsed.imageMime,
+    photo_data: photoData,
+    photo_mime: photoMime || 'image/jpeg',
   });
 }
 
@@ -396,20 +471,30 @@ async function rlConfirm(conv, parsed, intent) {
 // ─── Report Sighted ───
 
 async function startReportSighted(conv) {
+  if (conv.context?.photo_data) {
+    return rsPhoto(conv, {
+      messageType: 'image',
+      imageData: conv.context.photo_data,
+      imageMime: conv.context.photo_mime,
+      textBody: conv.context.caption || '',
+    });
+  }
   await sendMessage(conv.wa_from, `${conv.bot_name}: Enviá una *foto* de la mascota que viste 📸`);
   await setFlow(conv, 'report_sighted.photo');
 }
 
 async function rsPhoto(conv, parsed) {
-  if (parsed.messageType !== 'image' || !parsed.imageData) {
+  const photoData = parsed.imageData || conv.context?.photo_data;
+  const photoMime = parsed.imageMime || conv.context?.photo_mime;
+  if (!photoData) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor enviá una *foto* de la mascota 📸`);
     return;
   }
   await sendMessage(conv.wa_from, `✅ Foto recibida.`);
   await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde la viste? Podés escribir la dirección o compartir tu *ubicación* 📍`);
   await setFlow(conv, 'report_sighted.location', {
-    photo_data: parsed.imageData,
-    photo_mime: parsed.imageMime,
+    photo_data: photoData,
+    photo_mime: photoMime || 'image/jpeg',
   });
 }
 
@@ -468,20 +553,69 @@ async function rsConfirm(conv, parsed, intent) {
 // ─── Report Found ───
 
 async function startReportFound(conv) {
+  if (conv.context?.photo_data) {
+    return rfPhoto(conv, {
+      messageType: 'image',
+      imageData: conv.context.photo_data,
+      imageMime: conv.context.photo_mime,
+      textBody: conv.context.caption || '',
+    });
+  }
   await sendMessage(conv.wa_from, `${conv.bot_name}: Enviá una *foto* de la mascota que encontraste 📸`);
   await setFlow(conv, 'report_found.photo');
 }
 
 async function rfPhoto(conv, parsed) {
-  if (parsed.messageType !== 'image' || !parsed.imageData) {
+  const photoData = parsed.imageData || conv.context?.photo_data;
+  const photoMime = parsed.imageMime || conv.context?.photo_mime;
+  if (!photoData) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor enviá una *foto* de la mascota 📸`);
     return;
   }
+
+  const caption = parsed.textBody || conv.context?.caption || '';
+  if (caption) {
+    await sendMessage(conv.wa_from, `📸 Foto recibida. Estoy leyendo la descripción... 🔍`);
+    try {
+      const { extractFoundPetData } = await import('./geminiMatching.js');
+      const extracted = await extractFoundPetData(caption);
+      const ctx = { photo_data: photoData, photo_mime: photoMime || 'image/jpeg' };
+      if (extracted.location) {
+        ctx.location = extracted.location;
+        const coords = await geocodeAddress(extracted.location).catch(() => null);
+        if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+      }
+      if (extracted.phone) ctx.contact = extracted.phone;
+      if (extracted.description) ctx.description = extracted.description;
+
+      if (ctx.location && ctx.contact) {
+        await setFlow(conv, 'report_found.confirm', ctx);
+        return rfShowConfirm(conv);
+      }
+      if (!ctx.location && !ctx.contact) {
+        await setFlow(conv, 'report_found.location', ctx);
+        await sendMessage(conv.wa_from, `${conv.bot_name}: No encontré ni ubicación ni teléfono en tu mensaje. Vamos paso a paso:`);
+        await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde está ahora la mascota? 📍`);
+      } else if (!ctx.contact) {
+        await setFlow(conv, 'report_found.contact', ctx);
+        await sendMessage(conv.wa_from, `✅ Encontré la ubicación: ${ctx.location}.`);
+        await sendMessage(conv.wa_from, `${conv.bot_name}: Dejame un *teléfono de contacto* 📞`);
+      } else {
+        await setFlow(conv, 'report_found.location', ctx);
+        await sendMessage(conv.wa_from, `✅ Encontré el teléfono: ${ctx.contact}.`);
+        await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde está ahora la mascota? 📍`);
+      }
+      return;
+    } catch (err) {
+      console.error('Extraction error:', err);
+    }
+  }
+
   await sendMessage(conv.wa_from, `✅ Foto recibida.`);
   await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde está ahora la mascota? 📍`);
   await setFlow(conv, 'report_found.location', {
-    photo_data: parsed.imageData,
-    photo_mime: parsed.imageMime,
+    photo_data: photoData,
+    photo_mime: photoMime || 'image/jpeg',
   });
 }
 
@@ -508,11 +642,17 @@ async function rfContact(conv, parsed) {
     return;
   }
   await setFlow(conv, 'report_found.confirm', { ...conv.context, contact: phone });
+  return rfShowConfirm(conv);
+}
+
+async function rfShowConfirm(conv) {
+  const ctx = conv.context;
   await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás que encontraste esta mascota?
-📍 *Ubicación:* ${conv.context.location || 'Compartida'}
-📞 *Contacto:* ${phone}`);
+📍 *Ubicación:* ${ctx.location || 'Compartida'}
+📞 *Contacto:* ${ctx.contact || 'No especificado'}${ctx.description ? `\n📝 *Notas:* ${ctx.description}` : ''}`);
   await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
-    { id: 'confirm_yes', title: '✅ Sí, reportar' },
+    { id: 'confirm_yes', title: '✅ Sí, publicar' },
+    { id: 'confirm_edit', title: '✏️ Corregir' },
     { id: 'confirm_no', title: '❌ Cancelar' },
   ]);
 }
@@ -520,10 +660,11 @@ async function rfContact(conv, parsed) {
 async function rfConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
+    const description = ctx.description || 'Reportado por WhatsApp como encontrada';
     const petResult = await pool.query(
       `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description)
        VALUES ($1, 'retained', $2, $3, $4, $5, $6) RETURNING id`,
-      ['unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', 'Reportado por WhatsApp como encontrada']
+      ['unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', description]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -535,10 +676,71 @@ async function rfConfirm(conv, parsed, intent) {
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de mascota encontrada registrado! Ya visibilizamos la info para encontrar a su dueño.`);
     await sendMessage(conv.wa_from, `🙏 ¡Gracias por tu ayuda!`);
     await endFlow(conv);
+  } else if (intent === 'edit') {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Qué querés corregir?`);
+    await sendInteractiveButtons(conv.wa_from, 'Corregir:', [
+      { id: 'edit_location', title: '📍 Ubicación' },
+      { id: 'edit_contact', title: '📞 Contacto' },
+      { id: 'edit_description', title: '📝 Notas' },
+    ]);
+    await setFlow(conv, 'report_found.edit');
   } else {
     await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
     await endFlow(conv);
   }
+}
+
+async function rfEdit(conv, parsed) {
+  if (parsed.buttonId === 'edit_location') {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Decime la *ubicación* correcta 📍`);
+    await setFlow(conv, 'report_found.edit_location');
+  } else if (parsed.buttonId === 'edit_contact') {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Decime el *teléfono* correcto 📞`);
+    await setFlow(conv, 'report_found.edit_contact');
+  } else if (parsed.buttonId === 'edit_description') {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Decime las *notas* adicionales 📝`);
+    await setFlow(conv, 'report_found.edit_description');
+  } else {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Elegí una opción de los botones 👇`);
+    await setFlow(conv, 'report_found.edit');
+    await sendInteractiveButtons(conv.wa_from, 'Corregir:', [
+      { id: 'edit_location', title: '📍 Ubicación' },
+      { id: 'edit_contact', title: '📞 Contacto' },
+      { id: 'edit_description', title: '📝 Notas' },
+    ]);
+  }
+}
+
+async function rfEditLocation(conv, parsed) {
+  const location = parsed.textBody || '';
+  if (!location) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí la ubicación 📍`);
+    return;
+  }
+  const coords = await geocodeAddress(location).catch(() => null);
+  await setFlow(conv, 'report_found.confirm', {
+    ...conv.context,
+    location,
+    latitude: coords?.lat || null,
+    longitude: coords?.lng || null,
+  });
+  return rfShowConfirm(conv);
+}
+
+async function rfEditContact(conv, parsed) {
+  const phone = parsed.textBody || '';
+  if (!phone || phone.length < 5) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí un número de teléfono válido 📞`);
+    return;
+  }
+  await setFlow(conv, 'report_found.confirm', { ...conv.context, contact: phone });
+  return rfShowConfirm(conv);
+}
+
+async function rfEditDescription(conv, parsed) {
+  const desc = parsed.textBody || '';
+  await setFlow(conv, 'report_found.confirm', { ...conv.context, description: desc });
+  return rfShowConfirm(conv);
 }
 
 // ─── Info QR ───
