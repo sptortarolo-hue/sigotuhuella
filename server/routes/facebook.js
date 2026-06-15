@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import axios from 'axios';
 import multer from 'multer';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
@@ -799,7 +800,8 @@ router.post('/groups/:id/verify-membership', requireAdmin, async (req, res) => {
 router.get('/publish-status', requireAdmin, async (_req, res) => {
   try {
     const enabled = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_publisher_enabled'");
-    const pageId = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_id'");
+    const pageIdSetting = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_id'");
+    const tokenSetting = await pool.query("SELECT value FROM settings WHERE key = 'instagram_access_token'");
     const groupsRes = await pool.query(
       "SELECT id, name, fb_group_id, page_is_member FROM facebook_groups WHERE is_active = true ORDER BY name"
     );
@@ -812,9 +814,24 @@ router.get('/publish-status', requireAdmin, async (_req, res) => {
       FROM facebook_page_posts
     `);
 
+    let tokenHasPages = false;
+    let actualPages: any[] = [];
+    if (tokenSetting.rows[0]?.value) {
+      try {
+        const pagesRes = await axios.get('https://graph.facebook.com/v22.0/me/accounts', {
+          params: { access_token: tokenSetting.rows[0].value, fields: 'id,name' },
+          timeout: 10000,
+        });
+        actualPages = pagesRes.data?.data || [];
+        tokenHasPages = actualPages.length > 0;
+      } catch { }
+    }
+
     res.json({
       enabled: enabled.rows[0]?.value === 'true',
-      pageId: pageId.rows[0]?.value || '',
+      storedPageId: pageIdSetting.rows[0]?.value || '',
+      tokenHasPages,
+      actualPages,
       groups: groupsRes.rows,
       stats: stats.rows[0],
     });

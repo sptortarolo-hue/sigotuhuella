@@ -154,6 +154,12 @@ export async function checkPageMembershipInGroup(groupFbId) {
   console.log(`[FB Publisher] Checking membership. Page ID: ${pageId}, Group ID: ${groupFbId}`);
 
   try {
+    const meRes = await axios.get(`${GRAPH_API}/me`, {
+      params: { fields: 'id,name,accounts', access_token: token },
+      timeout: 15000,
+    });
+    console.log(`[FB Publisher] /me response:`, JSON.stringify(meRes.data).slice(0, 500));
+
     const { data } = await axios.get(
       `${GRAPH_API}/${groupFbId}/members`,
       {
