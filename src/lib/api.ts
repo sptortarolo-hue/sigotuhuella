@@ -201,6 +201,13 @@ export const api = {
       return request(`/facebook/search?${q.toString()}`);
     },
     stats: () => request('/facebook/stats'),
+    publish: (petId: string) => request('/facebook/publish', { method: 'POST', body: JSON.stringify({ petId }) }),
+    publishInstagram: (id: string) => request(`/facebook/publish-instagram/${id}`, { method: 'POST' }),
+    replicateLatest: (limit = 5) => request(`/facebook/replicate-latest?limit=${limit}`, { method: 'POST' }),
+    pagePosts: (limit = 50, offset = 0) => request(`/facebook/page-posts?limit=${limit}&offset=${offset}`),
+    updateGroupMember: (id: string, data: { fb_group_id?: string; page_is_member?: boolean; publish_on_create?: boolean }) =>
+      request(`/facebook/groups/${id}/page-member`, { method: 'PUT', body: JSON.stringify(data) }),
+    publishStatus: () => request('/facebook/publish-status'),
   },
 
   myPets: {

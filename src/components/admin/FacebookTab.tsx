@@ -13,7 +13,7 @@ import {
   LayoutGrid, List, ImageIcon,
 } from 'lucide-react';
 
-type SubTab = 'groups' | 'posts' | 'matches' | 'config';
+type SubTab = 'groups' | 'posts' | 'matches' | 'scrape-match' | 'publisher';
 
 interface FacebookGroup {
   id: string;
@@ -77,7 +77,8 @@ export default function FacebookTab() {
     { id: 'groups', label: 'Grupos', icon: Globe },
     { id: 'posts', label: 'Publicaciones', icon: MessageSquare },
     { id: 'matches', label: 'Matches', icon: FlaskConical },
-    { id: 'config', label: 'Configuración', icon: Sliders },
+    { id: 'scrape-match', label: 'Scrape & Match', icon: Search },
+    { id: 'publisher', label: 'Publicar en FB', icon: Upload },
   ];
 
   return (
@@ -104,7 +105,8 @@ export default function FacebookTab() {
       {activeSubTab === 'groups' && <GroupsSection />}
       {activeSubTab === 'posts' && <PostsSection />}
       {activeSubTab === 'matches' && <MatchesSection />}
-      {activeSubTab === 'config' && <ConfigSection />}
+      {activeSubTab === 'scrape-match' && <ScrapeMatchSection />}
+      {activeSubTab === 'publisher' && <PublisherSection />}
     </div>
   );
 }
@@ -814,7 +816,7 @@ ${m.reasons?.length ? `📋 Razones: ${m.reasons.join(', ')}` : ''}
   );
 }
 
-function ConfigSection() {
+function ScrapeMatchSection() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1181,5 +1183,321 @@ function ConfigSection() {
         {saving ? 'Guardando...' : saved ? '✅ Guardado' : 'Guardar Configuración'}
       </button>
     </div>
+  );
+}
+
+function PublisherSection() {
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [groups, setGroups] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [replicating, setReplicating] = useState(false);
+  const [pagePosts, setPagePosts] = useState<any[]>([]);
+  const [publishStatus, setPublishStatus] = useState<any>(null);
+  const [showStatus, setShowStatus] = useState(false);
+  const [groupSaving, setGroupSaving] = useState<Record<string, boolean>>({});
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [settingsData, groupsData] = await Promise.all([
+        api.settings.list(),
+        api.facebook.groups.list(),
+      ]);
+      const map: Record<string, string> = {};
+      settingsData.forEach((s: any) => { map[s.key] = s.value; });
+      setSettings(map);
+      setGroups(groupsData);
+      const postsResp = await fetch('/api/facebook/page-posts?limit=10', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (postsResp.ok) {
+        const postsData = await postsResp.json();
+        setPagePosts(postsData.posts || []);
+      }
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const keys = ['facebook_page_id', 'facebook_page_publisher_enabled', 'facebook_publisher_interval'];
+      await Promise.all(keys.map(key => api.settings.update(key, settings[key] || '')));
+    } catch (e) { console.error(e); }
+    setSaving(false);
+  };
+
+  const handleGroupSave = async (id: string, data: any) => {
+    setGroupSaving(p => ({ ...p, [id]: true }));
+    try {
+      const resp = await fetch(`/api/facebook/groups/${id}/page-member`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify(data),
+      });
+      if (!resp.ok) { const err = await resp.json(); alert(err.error || 'Error'); }
+    } catch (e) { console.error(e); }
+    setGroupSaving(p => ({ ...p, [id]: false }));
+  };
+
+  const handleReplicate = async () => {
+    setReplicating(true);
+    try {
+      const resp = await fetch('/api/facebook/replicate-latest?limit=5', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      });
+      const data = await resp.json();
+      const total = data.results?.length || 0;
+      const ok = data.results?.filter((r: any) => r.result?.page?.success).length || 0;
+      alert(`✅ Replicación completada: ${ok}/${total} post(s) publicados`);
+      await fetchData();
+    } catch (e: any) { alert('Error: ' + e.message); }
+    setReplicating(false);
+  };
+
+  const handleStatus = async () => {
+    try {
+      const resp = await fetch('/api/facebook/publish-status', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (resp.ok) {
+        setPublishStatus(await resp.json());
+        setShowStatus(true);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
+
+  return (
+    <div className="space-y-8">
+      {/* Configuracion del Publisher */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
+          <Upload className="w-6 h-6" /> Configuración del Publisher
+        </h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Replicá automáticamente las publicaciones de Instagram a tu Page de Facebook y a los grupos donde la Page sea miembro.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="col-span-full">
+            <label className="block text-sm font-bold text-gray-600 mb-1">ID de la Page de Facebook</label>
+            <input type="text" value={settings.facebook_page_id || ''}
+              onChange={e => setSettings(p => ({ ...p, facebook_page_id: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm font-mono"
+              placeholder="ej: 123456789012345" />
+            <p className="text-xs text-gray-400 mt-1">El ID numérico de la Page de Facebook vinculada a Instagram.</p>
+          </div>
+
+          <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
+            <input type="checkbox" id="fb_page_publisher_enabled"
+              checked={settings.facebook_page_publisher_enabled === 'true'}
+              onChange={e => setSettings(p => ({ ...p, facebook_page_publisher_enabled: e.target.checked ? 'true' : 'false' }))}
+              className="w-5 h-5 rounded accent-brand-primary" />
+            <label htmlFor="fb_page_publisher_enabled" className="font-bold text-brand-primary">
+              Activar replicación automática Instagram → Facebook
+            </label>
+          </div>
+
+          <div className="col-span-full sm:col-span-1">
+            <label className="block text-sm font-bold text-gray-600 mb-1">Intervalo (minutos)</label>
+            <input type="number" value={settings.facebook_publisher_interval || '30'}
+              onChange={e => setSettings(p => ({ ...p, facebook_publisher_interval: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
+              min="5" max="1440" />
+            <p className="text-xs text-gray-400 mt-1">Cada cuántos minutos revisa si hay posts nuevos de Instagram para replicar.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 mt-6">
+          <button onClick={handleSave} disabled={saving}
+            className="px-6 py-3 bg-brand-primary text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2">
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+          <button onClick={handleReplicate} disabled={replicating}
+            className="px-6 py-3 bg-blue-600 text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2">
+            {replicating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+            {replicating ? 'Replicando...' : 'Replicar ahora'}
+          </button>
+          <button onClick={handleStatus}
+            className="px-6 py-3 bg-gray-100 text-gray-700 text-sm font-bold rounded-xl hover:bg-gray-200 transition-all flex items-center gap-2">
+            <Sliders className="w-5 h-5" /> Estado del Publisher
+          </button>
+        </div>
+      </div>
+
+      {/* Configuracion por grupo */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
+          <Users className="w-6 h-6" /> Grupos destino
+        </h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Configurá el ID numérico de cada grupo de Facebook y si la Page es miembro.
+          La Page debe ser miembro del grupo para publicar automáticamente.
+        </p>
+
+        <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+          <table className="w-full text-left text-sm min-w-max">
+            <thead>
+              <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                <th className="px-4 py-3">Grupo</th>
+                <th className="px-4 py-3">FB Group ID</th>
+                <th className="px-4 py-3 text-center">Page miembro</th>
+                <th className="px-4 py-3 text-center">Publicar</th>
+                <th className="px-4 py-3">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-accent">
+              {groups.filter((g: any) => g.is_active).map((g: any) => (
+                <GroupConfigRow key={g.id} group={g}
+                  onSave={handleGroupSave}
+                  saving={groupSaving[g.id] || false} />
+              ))}
+              {groups.filter((g: any) => g.is_active).length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">No hay grupos activos.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Log de publicaciones */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
+          <LayoutGrid className="w-6 h-6" /> Últimas publicaciones
+        </h2>
+
+        <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+          <table className="w-full text-left text-sm min-w-max">
+            <thead>
+              <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                <th className="px-4 py-3">Mascota</th>
+                <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">Page Post ID</th>
+                <th className="px-4 py-3">Publicado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-accent">
+              {pagePosts.map((p: any) => (
+                <tr key={p.id} className="hover:bg-brand-bg/50 transition-colors">
+                  <td className="px-4 py-3 font-medium">{p.pet_name || '—'}</td>
+                  <td className="px-4 py-3">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-[10px] font-bold",
+                      p.status === 'published' ? "bg-green-100 text-green-700" :
+                      p.status === 'failed' ? "bg-red-100 text-red-600" :
+                      "bg-yellow-100 text-yellow-700"
+                    )}>{p.status}</span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500 font-mono">{p.page_post_id || '—'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">
+                    {p.published_at ? new Date(p.published_at).toLocaleString('es-AR') : '—'}
+                  </td>
+                </tr>
+              ))}
+              {pagePosts.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-400">Aún no hay publicaciones.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Status modal */}
+      {showStatus && publishStatus && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={() => setShowStatus(false)} />
+          <div className="relative w-full max-w-lg bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-2xl">
+            <button onClick={() => setShowStatus(false)} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-xl font-serif font-bold text-brand-primary mb-6">Estado del Publisher</h3>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl">
+                <div className={`w-3 h-3 rounded-full ${publishStatus.enabled ? 'bg-green-500' : 'bg-red-400'}`} />
+                <span className="font-bold">{publishStatus.enabled ? 'Activado' : 'Desactivado'}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 bg-brand-bg rounded-2xl text-center">
+                  <div className="text-2xl font-bold text-brand-primary">{publishStatus.stats?.published || 0}</div>
+                  <div className="text-xs text-gray-500">Publicados</div>
+                </div>
+                <div className="p-4 bg-brand-bg rounded-2xl text-center">
+                  <div className="text-2xl font-bold text-red-500">{publishStatus.stats?.failed || 0}</div>
+                  <div className="text-xs text-gray-500">Fallidos</div>
+                </div>
+              </div>
+              {publishStatus.pageId && (
+                <div className="text-sm">
+                  <span className="text-gray-500">Page ID:</span>{' '}
+                  <span className="font-mono font-bold">{publishStatus.pageId}</span>
+                </div>
+              )}
+              <div>
+                <p className="text-sm font-bold text-gray-600 mb-2">Grupos configurados:</p>
+                {publishStatus.groups?.map((g: any) => (
+                  <div key={g.id} className="flex items-center gap-2 text-sm py-1">
+                    <div className={`w-2 h-2 rounded-full ${g.page_is_member ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <span className={g.fb_group_id ? 'text-brand-primary' : 'text-gray-400'}>
+                      {g.name}
+                    </span>
+                    {g.fb_group_id && <span className="text-xs text-gray-400 font-mono">({g.fb_group_id})</span>}
+                    {!g.page_is_member && <span className="text-[10px] text-red-400">no es miembro</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GroupConfigRow({ group, onSave, saving }: { group: any; onSave: (id: string, data: any) => Promise<void>; saving: boolean }) {
+  const [fbGroupId, setFbGroupId] = useState(group.fb_group_id || '');
+  const [pageIsMember, setPageIsMember] = useState(group.page_is_member || false);
+  const [publishOnCreate, setPublishOnCreate] = useState(group.publish_on_create || false);
+
+  const handleSave = () => onSave(group.id, {
+    fb_group_id: fbGroupId || null,
+    page_is_member: pageIsMember,
+    publish_on_create: publishOnCreate,
+  });
+
+  return (
+    <tr className="hover:bg-brand-bg/50 transition-colors">
+      <td className="px-4 py-3 font-bold text-brand-primary">{group.name}</td>
+      <td className="px-4 py-3">
+        <input type="text" value={fbGroupId}
+          onChange={e => setFbGroupId(e.target.value)}
+          className="w-32 px-2 py-1.5 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-xs font-mono"
+          placeholder="ID numérico" />
+      </td>
+      <td className="px-4 py-3 text-center">
+        <input type="checkbox" checked={pageIsMember}
+          onChange={e => setPageIsMember(e.target.checked)}
+          className="w-5 h-5 rounded accent-brand-primary" />
+      </td>
+      <td className="px-4 py-3 text-center">
+        <input type="checkbox" checked={publishOnCreate}
+          onChange={e => setPublishOnCreate(e.target.checked)}
+          className="w-5 h-5 rounded accent-brand-primary" />
+      </td>
+      <td className="px-4 py-3">
+        <button onClick={handleSave} disabled={saving}
+          className="px-3 py-1.5 bg-brand-primary text-white text-[10px] font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-1">
+          {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+          Guardar
+        </button>
+      </td>
+    </tr>
   );
 }
