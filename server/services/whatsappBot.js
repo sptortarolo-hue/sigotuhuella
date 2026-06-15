@@ -1124,7 +1124,7 @@ async function fbAskStatus(conv, parsed) {
     const text = (parsed.textBody || '').toLowerCase();
     classification = text.includes('avist') ? 'sighted'
       : text.includes('encontr') ? 'retained'
-      : text.includes('adopt') ? 'for_adoption'
+      : (text.includes('adopt') || text.includes('adopc')) ? 'for_adoption'
       : 'lost';
   }
   console.log('fbAskStatus: buttonId=%s text=%s -> classification=%s', parsed.buttonId, parsed.textBody, classification);
