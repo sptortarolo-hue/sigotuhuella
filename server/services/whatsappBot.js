@@ -1404,8 +1404,11 @@ async function fbConfirm(conv, parsed, intent) {
 
   // Download and save image from Facebook post
   if (post.image_urls && post.image_urls.length > 0) {
+    const cdnUrls = post.image_urls.filter(u => u.includes('scontent'));
+    const photoUrls = post.image_urls.filter(u => u.includes('facebook.com/photo'));
+    const orderedUrls = [...cdnUrls, ...photoUrls];
     let imgSaved = false;
-    for (const imgUrl of post.image_urls) {
+    for (const imgUrl of orderedUrls) {
       console.log(`fbConfirm: downloading image from ${imgUrl?.slice(0, 80)}`);
       const img = await downloadImage(imgUrl, post.fb_post_id);
       if (img && img.data) {
