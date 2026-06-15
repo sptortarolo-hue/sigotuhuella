@@ -280,15 +280,13 @@ async function fetchFbPostBrightData(url, apiKey) {
     .flatMap(a => {
       const urls = [];
       if (a.thumbnail_url) urls.push(a.thumbnail_url);
-      if (a.attachment_url) urls.push(a.attachment_url);
-      if (a.url && a.url !== a.attachment_url) urls.push(a.url);
-      if (a.src) urls.push(a.src);
       if (a.image_url) urls.push(a.image_url);
+      if (a.src) urls.push(a.src);
       if (a.photo_image) urls.push(a.photo_image);
       return urls;
     })
     .filter(Boolean)
-    .filter(u => u.startsWith('http'));
+    .filter(u => u.startsWith('http') && u.includes('scontent'));
   console.log(`fetchFbPostBrightData: SUCCESS content_length=${content.length}, image_urls=${image_urls.length}`);
   if (content) console.log(`fetchFbPostBrightData: preview=${content.slice(0, 120)}`);
   return {
