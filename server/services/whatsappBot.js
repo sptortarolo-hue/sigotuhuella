@@ -1,6 +1,7 @@
 import pool from '../db.js';
 import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups } from './whatsappService.js';
 import { matchWhatsAppToPets } from './geminiMatching.js';
+import { classifyPost } from './geminiClassifier.js';
 import { fetchFbPost } from './vpsSyncService.js';
 import { geocodeAddress } from './geocoding.js';
 
@@ -973,6 +974,30 @@ async function fbContinue(conv) {
   const locationKnown = post.location_hint;
 
   if (!statusKnown) {
+    if (post.content) {
+      try {
+        const classification = await classifyPost(post.content, post.image_urls || [], []);
+        if (classification && classification.classification !== 'other' && classification.classification !== 'unclassified' && classification.classification !== 'unknown') {
+          const petStatus = classification.classification === 'found' ? 'retained'
+            : classification.classification === 'sighting' ? 'sighted'
+            : classification.classification === 'reunion' ? 'retained'
+            : classification.classification;
+          post.classification = petStatus;
+          if (classification.species && !post.species) post.species = classification.species;
+          if (classification.location_hint && !post.location_hint) post.location_hint = classification.location_hint;
+          if (post.id) {
+            await pool.query(
+              `UPDATE facebook_posts SET classification = $1, species = COALESCE(NULLIF(species, ''), $2), location_hint = COALESCE(NULLIF(location_hint, ''), $3) WHERE id = $4`,
+              [petStatus, classification.species || '', classification.location_hint || '', post.id]
+            ).catch(() => {});
+          }
+          ctx.fbPost = post;
+          return fbContinue(conv);
+        }
+      } catch (err) {
+        console.error('fbContinue: Gemini auto-classification error:', err.message);
+      }
+    }
     await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Qué tipo de reporte querés crear?`);
     await sendInteractiveButtons(conv.wa_from, 'Tipo:', [
       { id: 'fb_status_lost', title: '🐕 Perdida' },
