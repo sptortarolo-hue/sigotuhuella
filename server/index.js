@@ -29,7 +29,7 @@ import instagramRoutes from './routes/instagram.js';
 import imageRoutes from './routes/images.js';
 import { startSyncTimer } from './services/vpsSyncService.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
-import { replicateLatestInstagramPosts } from './services/facebookPublisher.js';
+import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
 import { publishStory, isConnected } from './services/instagramService.js';
 import { checkWhatsAppTimeouts } from './services/whatsappScheduler.js';
 import { verifyToken } from './auth.js';
@@ -514,9 +514,11 @@ async function start() {
     try {
       const enabled = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_publisher_enabled'");
       if (enabled.rows[0]?.value !== 'true') return;
-      const results = await replicateLatestInstagramPosts(5);
-      const ok = results.filter(r => r.result.page?.success).length;
+      const results = await replicateLatestInstagramPosts(3);
+      const ok = results.filter(r => r.result?.page?.success).length;
       if (results.length > 0) console.log(`[Facebook Publisher] Replicated ${ok}/${results.length} posts`);
+      const retried = await retryFailedFacebookPosts(5);
+      if (retried.length > 0) console.log(`[Facebook Publisher] Retried ${retried.length} failed posts`);
     } catch (err) {
       console.error('[Facebook Publisher] Error:', err.message);
     }
@@ -527,7 +529,8 @@ async function start() {
       const enabled = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_publisher_enabled'");
       if (enabled.rows[0]?.value === 'true') {
         console.log('[Facebook Publisher] Running initial replication...');
-        await replicateLatestInstagramPosts(5);
+        await replicateLatestInstagramPosts(3);
+        await retryFailedFacebookPosts(5);
       }
     } catch (err) {
       console.error('[Facebook Publisher Startup] Error:', err.message);

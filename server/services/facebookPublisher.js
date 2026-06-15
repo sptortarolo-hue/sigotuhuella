@@ -246,28 +246,68 @@ export async function replicateInstagramToFacebook(instagramPostId) {
     [instagramPostId, post.pet_id, pagePostId, groupPostIds, message, status, errorMsg]
   );
 
-  await pool.query(
-    `UPDATE instagram_posts SET fb_replicated = true WHERE id = $1`,
-    [instagramPostId]
-  );
+  if (status === 'published') {
+    await pool.query(`UPDATE instagram_posts SET fb_replicated = true WHERE id = $1`, [instagramPostId]);
+  }
 
   return results;
 }
 
 export async function replicateLatestInstagramPosts(limit = 5) {
   const posts = await pool.query(
-    `SELECT id FROM instagram_posts
-     WHERE status = 'published'
-       AND id NOT IN (SELECT instagram_post_id FROM facebook_page_posts WHERE instagram_post_id IS NOT NULL)
-     ORDER BY published_at DESC NULLS LAST
+    `SELECT ip.id FROM instagram_posts ip
+     WHERE ip.status = 'published'
+       AND NOT EXISTS (
+         SELECT 1 FROM facebook_page_posts fpp
+         WHERE fpp.instagram_post_id = ip.id AND fpp.status = 'published'
+       )
+     ORDER BY ip.published_at DESC NULLS LAST
      LIMIT $1`,
     [limit]
   );
 
   const results = [];
   for (const post of posts.rows) {
-    const result = await replicateInstagramToFacebook(post.id);
-    results.push({ instagramPostId: post.id, result });
+    try {
+      const result = await replicateInstagramToFacebook(post.id);
+      results.push({ instagramPostId: post.id, result });
+    } catch (err) {
+      const errMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      console.error(`[FB Publisher] Error replicating post ${post.id}:`, errMsg);
+      results.push({ instagramPostId: post.id, result: { error: errMsg } });
+      try {
+        await pool.query(
+          `INSERT INTO facebook_page_posts (instagram_post_id, status, error_message)
+           VALUES ($1, 'failed', $2)`,
+          [post.id, errMsg]
+        );
+      } catch { }
+    }
+  }
+  return results;
+}
+
+export async function retryFailedFacebookPosts(limit = 10) {
+  const posts = await pool.query(
+    `SELECT fpp.id, fpp.instagram_post_id
+     FROM facebook_page_posts fpp
+     WHERE fpp.status = 'failed'
+       AND fpp.instagram_post_id IS NOT NULL
+     ORDER BY fpp.created_at DESC
+     LIMIT $1`,
+    [limit]
+  );
+
+  const results = [];
+  for (const row of posts.rows) {
+    try {
+      const result = await replicateInstagramToFacebook(row.instagram_post_id);
+      results.push({ postId: row.instagram_post_id, result });
+    } catch (err) {
+      const errMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      console.error(`[FB Publisher] Error retrying post ${row.instagram_post_id}:`, errMsg);
+      results.push({ postId: row.instagram_post_id, result: { error: errMsg } });
+    }
   }
   return results;
 }

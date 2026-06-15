@@ -1196,6 +1196,7 @@ function PublisherSection() {
   const [publishStatus, setPublishStatus] = useState<any>(null);
   const [showStatus, setShowStatus] = useState(false);
   const [groupSaving, setGroupSaving] = useState<Record<string, boolean>>({});
+  const [retrying, setRetrying] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -1259,6 +1260,22 @@ function PublisherSection() {
       await fetchData();
     } catch (e: any) { alert('Error: ' + e.message); }
     setReplicating(false);
+  };
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      const resp = await fetch('/api/facebook/retry-failed?limit=10', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      });
+      const data = await resp.json();
+      const total = data.results?.length || 0;
+      const ok = data.results?.filter((r: any) => r.result?.page?.success).length || 0;
+      alert(`✅ Reintento completado: ${ok}/${total} post(s) publicados`);
+      await fetchData();
+    } catch (e: any) { alert('Error: ' + e.message); }
+    setRetrying(false);
   };
 
   const handleStatus = async () => {
@@ -1325,6 +1342,11 @@ function PublisherSection() {
             className="px-6 py-3 bg-blue-600 text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2">
             {replicating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
             {replicating ? 'Replicando...' : 'Replicar ahora'}
+          </button>
+          <button onClick={handleRetry} disabled={retrying}
+            className="px-6 py-3 bg-orange-500 text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2">
+            {retrying ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+            {retrying ? 'Reintentando...' : 'Reintentar fallidos'}
           </button>
           <button onClick={handleStatus}
             className="px-6 py-3 bg-gray-100 text-gray-700 text-sm font-bold rounded-xl hover:bg-gray-200 transition-all flex items-center gap-2">

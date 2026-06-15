@@ -204,6 +204,7 @@ export const api = {
     publish: (petId: string) => request('/facebook/publish', { method: 'POST', body: JSON.stringify({ petId }) }),
     publishInstagram: (id: string) => request(`/facebook/publish-instagram/${id}`, { method: 'POST' }),
     replicateLatest: (limit = 5) => request(`/facebook/replicate-latest?limit=${limit}`, { method: 'POST' }),
+    retryFailed: (limit = 10) => request(`/facebook/retry-failed?limit=${limit}`, { method: 'POST' }),
     pagePosts: (limit = 50, offset = 0) => request(`/facebook/page-posts?limit=${limit}&offset=${offset}`),
     updateGroupMember: (id: string, data: { fb_group_id?: string; page_is_member?: boolean; publish_on_create?: boolean }) =>
       request(`/facebook/groups/${id}/page-member`, { method: 'PUT', body: JSON.stringify(data) }),
