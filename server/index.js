@@ -29,6 +29,7 @@ import instagramRoutes from './routes/instagram.js';
 import imageRoutes from './routes/images.js';
 import { startSyncTimer } from './services/vpsSyncService.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
+import { replicateLatestInstagramPosts } from './services/facebookPublisher.js';
 import { publishStory, isConnected } from './services/instagramService.js';
 import { checkWhatsAppTimeouts } from './services/whatsappScheduler.js';
 import { verifyToken } from './auth.js';
@@ -507,6 +508,31 @@ async function start() {
       console.error('[Instagram Publisher Startup] Error:', err.message);
     }
   }, 5000);
+
+  // Facebook publisher: replicate new Instagram posts to Page + Groups every 10 minutes
+  setInterval(async () => {
+    try {
+      const enabled = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_publisher_enabled'");
+      if (enabled.rows[0]?.value !== 'true') return;
+      const results = await replicateLatestInstagramPosts(5);
+      const ok = results.filter(r => r.result.page?.success).length;
+      if (results.length > 0) console.log(`[Facebook Publisher] Replicated ${ok}/${results.length} posts`);
+    } catch (err) {
+      console.error('[Facebook Publisher] Error:', err.message);
+    }
+  }, 10 * 60 * 1000);
+
+  setTimeout(async () => {
+    try {
+      const enabled = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_publisher_enabled'");
+      if (enabled.rows[0]?.value === 'true') {
+        console.log('[Facebook Publisher] Running initial replication...');
+        await replicateLatestInstagramPosts(5);
+      }
+    } catch (err) {
+      console.error('[Facebook Publisher Startup] Error:', err.message);
+    }
+  }, 15000);
 
   // Auto-story: rotate through videos with configured intervals
   async function publishNextStory() {

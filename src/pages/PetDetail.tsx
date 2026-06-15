@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
 import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
+import { shareOnFacebook } from '@/src/lib/facebookShare';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 
 function parseNeighborhoods(n: any): string[] {
@@ -256,6 +257,13 @@ Me gustaría obtener más información.`;
             >
               <Share2 className="w-6 h-6" />
               Difundir en WhatsApp
+            </button>
+            <button
+              onClick={() => shareOnFacebook(pet)}
+              className="w-full py-5 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl bg-blue-600 text-white hover:shadow-lg hover:bg-blue-700"
+            >
+              <Share2 className="w-6 h-6" />
+              Compartir en Facebook
             </button>
           </div>
         </div>

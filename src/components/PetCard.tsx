@@ -7,6 +7,7 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
 import SocialShareModal from '@/src/components/SocialShareModal';
 import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
+import { shareOnFacebook } from '@/src/lib/facebookShare';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import { AnimatePresence } from 'motion/react';
 
@@ -193,7 +194,14 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             className="flex-1 min-w-[130px] px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-600 hover:shadow-lg transition-all"
           >
             <Share2 className="w-4 h-4" />
-            Difundir por WhatsApp
+            WhatsApp
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); shareOnFacebook(pet); }}
+            className="flex-1 min-w-[130px] px-4 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-blue-700 hover:shadow-lg transition-all"
+          >
+            <Share2 className="w-4 h-4" />
+            Facebook
           </button>
           {showAdminActions && (
             <>

@@ -328,6 +328,8 @@ CREATE TABLE IF NOT EXISTS facebook_groups (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   url TEXT UNIQUE NOT NULL,
+  fb_group_id VARCHAR(255),
+  page_is_member BOOLEAN DEFAULT FALSE,
   is_active BOOLEAN DEFAULT TRUE,
   last_scraped_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
@@ -405,8 +407,24 @@ INSERT INTO settings (key, value) VALUES
   ('instagram_publisher_enabled', 'false'),
   ('instagram_publisher_interval', '30'),
   ('instagram_default_hashtags', '#AdoptaNoCompres #SigoTuHuella #MascotasPerdidas'),
-  ('instagram_auto_reply_enabled', 'false')
+  ('instagram_auto_reply_enabled', 'false'),
+  ('facebook_page_id', ''),
+  ('facebook_page_publisher_enabled', 'false'),
+  ('facebook_publisher_interval', '30')
 ON CONFLICT (key) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS facebook_page_posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  instagram_post_id UUID REFERENCES instagram_posts(id) ON DELETE SET NULL,
+  pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,
+  page_post_id VARCHAR(255),
+  group_post_ids TEXT[] DEFAULT '{}',
+  message TEXT,
+  status VARCHAR(30) NOT NULL DEFAULT 'pending',
+  error_message TEXT,
+  published_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
 
 CREATE TABLE IF NOT EXISTS instagram_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -620,6 +638,19 @@ export async function initDb() {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_fb_comments_post_comment
       ON facebook_comments(post_id, fb_comment_id) WHERE fb_comment_id IS NOT NULL
     `, 'unique fb comment index');
+
+    await migrate(client, `
+      ALTER TABLE facebook_groups ADD COLUMN IF NOT EXISTS fb_group_id VARCHAR(255)
+    `, 'facebook_groups fb_group_id');
+    await migrate(client, `
+      ALTER TABLE facebook_groups ADD COLUMN IF NOT EXISTS page_is_member BOOLEAN DEFAULT FALSE
+    `, 'facebook_groups page_is_member');
+    await migrate(client, `
+      ALTER TABLE facebook_groups ADD COLUMN IF NOT EXISTS publish_on_create BOOLEAN DEFAULT FALSE
+    `, 'facebook_groups publish_on_create');
+    await migrate(client, `
+      ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS fb_replicated BOOLEAN DEFAULT FALSE
+    `, 'instagram_posts fb_replicated');
 
     console.log('Database migrations complete');
   } finally {

@@ -8,6 +8,7 @@ import { requireAdmin } from '../auth.js';
 import { classifyPost } from '../services/geminiClassifier.js';
 import { matchPostToPet, matchPetToPosts, runFullMatching, detectReunion } from '../services/geminiMatching.js';
 import { pushConfig } from '../services/vpsSyncService.js';
+import { publishToPage, replicateInstagramToFacebook, replicateLatestInstagramPosts } from '../services/facebookPublisher.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const COOKIES_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'cookies.txt');
@@ -606,6 +607,119 @@ router.get('/stats', requireAdmin, async (_req, res) => {
   } catch (err) {
     console.error('Error fetching stats:', err);
     res.status(500).json({ error: 'Error al obtener estadísticas' });
+  }
+});
+
+// ==================== PUBLISHER (Instagram → Facebook Page + Groups) ====================
+
+router.post('/publish', requireAdmin, async (req, res) => {
+  try {
+    const { petId } = req.body;
+    if (!petId) return res.status(400).json({ error: 'petId requerido' });
+    const result = await publishToPage(petId);
+    if (result.success) {
+      await pool.query(
+        `INSERT INTO facebook_page_posts (pet_id, page_post_id, message, status, published_at)
+         VALUES ($1, $2, $3, 'published', NOW())`,
+        [petId, result.pagePostId, result.message || '']
+      );
+    }
+    if (result.error) return res.status(500).json(result);
+    res.json(result);
+  } catch (err) {
+    console.error('Error publishing to Facebook Page:', err);
+    res.status(500).json({ error: 'Error al publicar en Facebook' });
+  }
+});
+
+router.post('/publish-instagram/:id', requireAdmin, async (req, res) => {
+  try {
+    const result = await replicateInstagramToFacebook(req.params.id);
+    if (result.error) return res.status(500).json(result);
+    res.json(result);
+  } catch (err) {
+    console.error('Error replicating Instagram post:', err);
+    res.status(500).json({ error: 'Error al replicar post de Instagram' });
+  }
+});
+
+router.post('/replicate-latest', requireAdmin, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 5;
+    const results = await replicateLatestInstagramPosts(limit);
+    res.json({ results });
+  } catch (err) {
+    console.error('Error replicating latest posts:', err);
+    res.status(500).json({ error: 'Error al replicar posts recientes' });
+  }
+});
+
+router.get('/page-posts', requireAdmin, async (req, res) => {
+  try {
+    const { limit = 50, offset = 0 } = req.query;
+    const result = await pool.query(
+      `SELECT fpp.*, ip.ig_permalink, ip.status as ig_status,
+              p.name as pet_name, p.status as pet_status, p.species
+       FROM facebook_page_posts fpp
+       LEFT JOIN instagram_posts ip ON ip.id = fpp.instagram_post_id
+       LEFT JOIN pets p ON p.id = fpp.pet_id
+       ORDER BY fpp.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [parseInt(limit, 10), parseInt(offset, 10)]
+    );
+    const countRes = await pool.query('SELECT COUNT(*) as total FROM facebook_page_posts');
+    res.json({ posts: result.rows, total: parseInt(countRes.rows[0].total, 10) });
+  } catch (err) {
+    console.error('Error fetching page posts:', err);
+    res.status(500).json({ error: 'Error al obtener publicaciones de Page' });
+  }
+});
+
+router.put('/groups/:id/page-member', requireAdmin, async (req, res) => {
+  try {
+    const { page_is_member, fb_group_id, publish_on_create } = req.body;
+    const result = await pool.query(
+      `UPDATE facebook_groups SET
+        page_is_member = COALESCE($1, page_is_member),
+        fb_group_id = COALESCE($2, fb_group_id),
+        publish_on_create = COALESCE($3, publish_on_create),
+        updated_at = NOW()
+       WHERE id = $4 RETURNING *`,
+      [page_is_member, fb_group_id, publish_on_create, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Grupo no encontrado' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating group page membership:', err);
+    res.status(500).json({ error: 'Error al actualizar membresía del grupo' });
+  }
+});
+
+router.get('/publish-status', requireAdmin, async (_req, res) => {
+  try {
+    const enabled = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_publisher_enabled'");
+    const pageId = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_id'");
+    const groupsRes = await pool.query(
+      "SELECT id, name, fb_group_id, page_is_member FROM facebook_groups WHERE is_active = true ORDER BY name"
+    );
+    const stats = await pool.query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'published') as published,
+        COUNT(*) FILTER (WHERE status = 'failed') as failed,
+        COUNT(*) FILTER (WHERE status = 'pending') as pending
+      FROM facebook_page_posts
+    `);
+
+    res.json({
+      enabled: enabled.rows[0]?.value === 'true',
+      pageId: pageId.rows[0]?.value || '',
+      groups: groupsRes.rows,
+      stats: stats.rows[0],
+    });
+  } catch (err) {
+    console.error('Error fetching publish status:', err);
+    res.status(500).json({ error: 'Error al obtener estado del publisher' });
   }
 });
 
