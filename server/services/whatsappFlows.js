@@ -435,6 +435,17 @@ export async function handleFlowComplete(payload) {
       break;
     }
 
+    case 'FACEBOOK_LINK': {
+      await sendMessage(waFrom,
+        `*${conv.bot_name}:* Podés vincular tu Facebook desde nuestra web:\n\n` +
+        `1. Ingresá a https://sigotuhuella.online\n` +
+        `2. Iniciá sesión con tu cuenta\n` +
+        `3. Andá a tu perfil > Vincular Facebook\n\n` +
+        `¿Necesitás algo más? Elegí una opción del menú:`
+      );
+      break;
+    }
+
     case 'DONATE_SHOW': {
       await sendMessage(waFrom,
         `🙌 *${conv.bot_name}:* ¡Gracias por tu generosidad!\n\n` +
