@@ -602,20 +602,25 @@ async function rlContact(conv, parsed) {
     return;
   }
   await sendMessage(conv.wa_from, `✅ Teléfono registrado.`);
-  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Cómo se llama la mascota? (opcional — escribí el nombre o "saltar")`);
+  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Cómo se llama la mascota? (opcional)`, [
+    { id: 'skip', title: '⏭ Saltar' },
+  ]);
   await setFlow(conv, 'report_lost.name', { ...conv.context, contact: phone });
 }
 
 async function rlName(conv, parsed) {
   const text = (parsed.textBody || '').toLowerCase().trim();
-  const name = (text === 'saltar' || text === 'no' || text === 'skip') ? '' : parsed.textBody || '';
-  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Alguna descripción adicional? (color, tamaño, Collares, señas — opcional, escribí "saltar" para omitir)`);
+  const name = (parsed.buttonId === 'skip' || text === 'saltar' || text === 'no' || text === 'skip') ? '' : parsed.textBody || '';
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Alguna descripción adicional? (color, tamaño, collares, señas — opcional)`);
+  await sendInteractiveButtons(conv.wa_from, 'Descripción:', [
+    { id: 'skip', title: '⏭ Saltar' },
+  ]);
   await setFlow(conv, 'report_lost.description', { ...conv.context, pet_name: name });
 }
 
 async function rlDescription(conv, parsed) {
   const text = (parsed.textBody || '').toLowerCase().trim();
-  const description = (text === 'saltar' || text === 'no' || text === 'skip') ? '' : parsed.textBody || '';
+  const description = (parsed.buttonId === 'skip' || text === 'saltar' || text === 'no' || text === 'skip') ? '' : parsed.textBody || '';
   await setFlow(conv, 'report_lost.confirm', { ...conv.context, description });
   const ctx = conv.context;
   const speciesLabels = { dog: 'Perro 🐕', cat: 'Gato 🐈', other: 'Otro 🐾' };
@@ -723,7 +728,9 @@ async function rsSpecies(conv, parsed) {
       ]);
       return;
     }
-    await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* por si alguien quiere aportar información? (opcional — escribí el número o "saltar")`);
+    await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* por si alguien quiere aportar información? (opcional)`, [
+      { id: 'skip', title: '⏭ Saltar' },
+    ]);
     await setFlow(conv, 'report_sighted.contact', ctx);
     return;
   }
@@ -743,20 +750,24 @@ async function rsLocation(conv, parsed) {
     const coords = await geocodeAddress(location);
     if (coords) { lat = coords.lat; lng = coords.lng; }
   }
-  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Algún detalle adicional? (color, tamaño, estado físico — opcional, escribí "saltar" para omitir)`);
+  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Algún detalle adicional? (color, tamaño, estado físico — opcional)`, [
+    { id: 'skip', title: '⏭ Saltar' },
+  ]);
   await setFlow(conv, 'report_sighted.details', { ...conv.context, location, latitude: lat, longitude: lng });
 }
 
 async function rsDetails(conv, parsed) {
   const text = (parsed.textBody || '').toLowerCase().trim();
-  const details = (text === 'saltar' || text === 'no' || text === 'skip') ? '' : parsed.textBody || '';
-  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* por si alguien quiere aportar información? (opcional — escribí el número o "saltar")`);
+  const details = (parsed.buttonId === 'skip' || text === 'saltar' || text === 'no' || text === 'skip') ? '' : parsed.textBody || '';
+  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* por si alguien quiere aportar información? (opcional)`, [
+    { id: 'skip', title: '⏭ Saltar' },
+  ]);
   await setFlow(conv, 'report_sighted.contact', { ...conv.context, details });
 }
 
 async function rsContact(conv, parsed) {
   const phone = (parsed.textBody || '').toLowerCase().trim();
-  const contact = (phone === 'saltar' || phone === 'no' || phone === 'skip') ? '' : parsed.textBody || '';
+  const contact = (parsed.buttonId === 'skip' || phone === 'saltar' || phone === 'no' || phone === 'skip') ? '' : parsed.textBody || '';
   await setFlow(conv, 'report_sighted.confirm', { ...conv.context, contact });
   const speciesLabel = { dog: '🐕 Perro', cat: '🐈 Gato', other: '🐾 Otro', unknown: '?' }[conv.context.species || 'unknown'];
   await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás el reporte de avistaje?
