@@ -1446,7 +1446,8 @@ async function fbConfirm(conv, parsed, intent) {
   if (post.image_urls && post.image_urls.length > 0) {
     const cdnUrls = post.image_urls.filter(u => u.includes('scontent'));
     const photoUrls = post.image_urls.filter(u => u.includes('facebook.com/photo'));
-    const orderedUrls = [...cdnUrls, ...photoUrls];
+    const otherUrls = post.image_urls.filter(u => !u.includes('scontent') && !u.includes('facebook.com/photo'));
+    const orderedUrls = [...cdnUrls, ...photoUrls, ...otherUrls];
     console.log(`fbConfirm: image URLs - cdn=${cdnUrls.length}, photo=${photoUrls.length}, first=${orderedUrls[0]?.slice(0, 80)}`);
     let imgSaved = false;
     for (const imgUrl of orderedUrls) {

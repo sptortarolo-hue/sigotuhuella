@@ -378,12 +378,12 @@ export async function fetchFbPost(url) {
       }
     }
 
-    // 3. OG scraper (fallback si no hay contenido)
-    if (!content) {
+    // 3. OG scraper (siempre intenta si faltan imágenes)
+    if (!image_urls.length) {
       try {
         const og = await fetchFbPostOG(url);
-        if (og.content) content = og.content;
-        if (og.image_url && !image_urls.length) image_urls = [og.image_url];
+        if (!content && og.content) content = og.content;
+        if (og.image_url) image_urls = [og.image_url];
         console.log(`fetchFbPost: OG success, content_length=${content.length}, image=${!!og.image_url}`);
       } catch (err) {
         console.error('fetchFbPost: OG falló:', err.message);
@@ -407,8 +407,8 @@ export async function fetchFbPost(url) {
       }
     }
 
-    // 5. Graph API (legacy)
-    if (!content && !image_urls.length && pageToken && ids) {
+    // 5. Graph API (legacy) — intenta si aún faltan imágenes
+    if (!image_urls.length && pageToken && ids) {
       try {
         const ga = await fetchGraphApiData(ids.postId, ids.groupId, pageToken, url);
         if (ga.content) content = ga.content;
