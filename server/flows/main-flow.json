@@ -9,8 +9,17 @@
       "FACEBOOK_LINK", "CONTACT_FORM"
     ],
     "CHAPITA_INFO": ["CHAPITA_FORM"],
+    "CHAPITA_FORM": [],
     "DONATE_INFO": ["DONATE_SHOW"],
-    "VOLUNTEER_ONBOARDING": ["VOLUNTEER_FORM"]
+    "DONATE_SHOW": [],
+    "VOLUNTEER_ONBOARDING": ["VOLUNTEER_FORM"],
+    "VOLUNTEER_FORM": [],
+    "REPORT_LOST": [],
+    "REPORT_SIGHTED": [],
+    "REPORT_FOUND": [],
+    "ADOPT_FILTER": [],
+    "FACEBOOK_LINK": [],
+    "CONTACT_FORM": []
   },
   "screens": [
     {
