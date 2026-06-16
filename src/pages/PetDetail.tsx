@@ -69,8 +69,10 @@ export default function PetDetail() {
 
   const images = pet.images?.map((img: any, idx: number) => {
     if (img.has_original) return `/og-image/${pet.id}/${idx}?full=1`;
-    return `data:${img.mime_type};base64,${img.image_data}`;
-  }) || [];
+    if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
+    if (img.external_url) return img.external_url;
+    return '';
+  }).filter(Boolean) || [];
 
   const isOriginal = pet.images?.some((img: any) => img.has_original);
 

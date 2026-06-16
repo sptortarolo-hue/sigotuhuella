@@ -160,8 +160,8 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
 
         // Redraw hidden canvas with real case_number
         const petImages = data.pet.images || [];
-        const imgSrc = petImages.length > 0 && petImages[0].image_data
-          ? `data:${petImages[0].mime_type || 'image/jpeg'};base64,${petImages[0].image_data}`
+        const imgSrc = petImages.length > 0 && (petImages[0].image_data || petImages[0].external_url)
+          ? (petImages[0].image_data ? `data:${petImages[0].mime_type || 'image/jpeg'};base64,${petImages[0].image_data}` : petImages[0].external_url)
           : photoUrl;
 
         const dims = FORMAT_DIMS[format];

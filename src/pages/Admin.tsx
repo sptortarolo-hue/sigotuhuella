@@ -612,7 +612,7 @@ export default function Admin() {
     });
     setSelectedFiles([]);
     setImagesToKeep(pet.images?.map(img => img.id) || []);
-    setPreviews(pet.images?.map(img => `data:${img.mime_type};base64,${img.image_data}`) || []);
+    setPreviews(pet.images?.map(img => img.image_data ? `data:${img.mime_type};base64,${img.image_data}` : img.external_url || '') || []);
     setShowForm(true);
   };
 

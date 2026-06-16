@@ -44,7 +44,7 @@ export default function FacebookMatchReview({ matches, onConfirm, onReject, onRe
           }
           const r = await api.pets.get(id);
           console.log('[match-review] pet:', { id: r.pet?.id, images: r.pet?.images?.length ?? 0, ok: true });
-          const petImages = r.pet.images?.map((i: any) => i.image_data ? `data:${i.mime_type || 'image/jpeg'};base64,${i.image_data}` : null).filter(Boolean) || [];
+          const petImages = r.pet.images?.map((i: any) => i.image_data ? `data:${i.mime_type || 'image/jpeg'};base64,${i.image_data}` : i.external_url || null).filter(Boolean) || [];
           return { id: r.pet.id, type: 'app_pet', label: r.pet.name, content: r.pet.description || '', images: petImages, species: r.pet.species, color: r.pet.color, location: r.pet.location_hint, phone: r.pet.phone, date: r.pet.created_at };
         } catch (e) {
           console.error(`[match-review] fetch failed for ${type} ${id}:`, e);
