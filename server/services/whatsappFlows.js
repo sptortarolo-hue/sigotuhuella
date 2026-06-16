@@ -75,6 +75,7 @@ export async function registerFlow() {
     const { default: FormData } = await import('form-data');
     const assetForm = new FormData();
     assetForm.append('name', 'Sigo Tu Huella - Menu Principal');
+    assetForm.append('asset_type', 'FLOW_JSON');
     assetForm.append('messaging_product', 'whatsapp');
     assetForm.append('file', Buffer.from(JSON.stringify(flowJson)), {
       filename: 'flow.json',
