@@ -246,13 +246,20 @@ export async function showMenu(conv) {
   try {
     const flowId = await getFlowId();
     if (flowId) {
-      const flowToken = `menu_${conv.id}_${Date.now()}`;
-      await sendFlowMessage(conv.wa_from, flowId,
-        '¿En qué podemos ayudarte? Abrí el menú interactivo:',
-        flowToken,
-        'MAIN_MENU'
-      );
-    } else {
+      try {
+        const flowToken = `menu_${conv.id}_${Date.now()}`;
+        await sendFlowMessage(conv.wa_from, flowId,
+          '¿En qué podemos ayudarte? Abrí el menú interactivo:',
+          flowToken,
+          'MAIN_MENU'
+        );
+        await setFlow(conv, 'menu');
+        return;
+      } catch (err) {
+        console.error('Flow send failed, falling back to buttons:', err.message);
+      }
+    }
+    {
       // Fallback: interactive buttons si no hay Flow registrado
       const menus = [
         ['📌 ¿En qué puedo ayudarte?', [
