@@ -41,24 +41,24 @@
           },
           {
             "type": "RadioButtonsGroup",
+            "name": "selected_option",
             "label": "Elegí una opción:",
-            "data_ref": "selected_option",
-            "properties": [
-              { "value": "lost", "display_text": "📷 Perdí mi mascota" },
-              { "value": "sighted", "display_text": "👀 Vi una mascota (avistaje)" },
-              { "value": "found", "display_text": "✅ Encontré una mascota" },
-              { "value": "adopt", "display_text": "🙋 Quiero adoptar" },
-              { "value": "chapita", "display_text": "ℹ️ Chapita QR" },
-              { "value": "donate", "display_text": "💰 Donar" },
-              { "value": "volunteer", "display_text": "🙌 Ser voluntario" },
-              { "value": "facebook", "display_text": "📱 Link de Facebook" },
-              { "value": "contact", "display_text": "🗣 Contactar equipo" }
+            "data-source": [
+              { "id": "lost", "title": "📷 Perdí mi mascota" },
+              { "id": "sighted", "title": "👀 Vi una mascota (avistaje)" },
+              { "id": "found", "title": "✅ Encontré una mascota" },
+              { "id": "adopt", "title": "🙋 Quiero adoptar" },
+              { "id": "chapita", "title": "ℹ️ Chapita QR" },
+              { "id": "donate", "title": "💰 Donar" },
+              { "id": "volunteer", "title": "🙌 Ser voluntario" },
+              { "id": "facebook", "title": "📱 Link de Facebook" },
+              { "id": "contact", "title": "🗣 Contactar equipo" }
             ]
           },
           {
             "type": "Footer",
             "label": "Continuar",
-            "onClickAction": {
+            "on-click-action": {
               "name": "data_exchange",
               "payload": {}
             }
@@ -84,36 +84,33 @@
           },
           {
             "type": "TextInput",
-            "label": "Nombre de tu mascota (si sabés)",
-            "data_ref": "pet_name",
-            "placeholder": "Ej: Luna"
+            "name": "pet_name",
+            "label": "Nombre de tu mascota (si sabés)"
           },
           {
             "type": "RadioButtonsGroup",
+            "name": "species",
             "label": "Especie",
-            "data_ref": "species",
-            "properties": [
-              { "value": "dog", "display_text": "🐕 Perro" },
-              { "value": "cat", "display_text": "🐱 Gato" },
-              { "value": "other", "display_text": "🐾 Otro" }
+            "data-source": [
+              { "id": "dog", "title": "🐕 Perro" },
+              { "id": "cat", "title": "🐱 Gato" },
+              { "id": "other", "title": "🐾 Otro" }
             ]
           },
           {
             "type": "TextInput",
-            "label": "¿Dónde se perdió?",
-            "data_ref": "location",
-            "placeholder": "Ej: Calle 7 y 48, Sicardi"
+            "name": "location",
+            "label": "¿Dónde se perdió?"
           },
           {
             "type": "TextArea",
-            "label": "Descripción (señas particulares, color, etc.)",
-            "data_ref": "description",
-            "placeholder": "Ej: Color marrón, tamaño mediano, collar rojo"
+            "name": "description",
+            "label": "Descripción (señas particulares, color, etc.)"
           },
           {
             "type": "Footer",
             "label": "Enviar reporte",
-            "onClickAction": {
+            "on-click-action": {
               "name": "complete",
               "payload": {}
             }
@@ -142,30 +139,28 @@
           },
           {
             "type": "RadioButtonsGroup",
+            "name": "species",
             "label": "Especie",
-            "data_ref": "species",
-            "properties": [
-              { "value": "dog", "display_text": "🐕 Perro" },
-              { "value": "cat", "display_text": "🐱 Gato" },
-              { "value": "other", "display_text": "🐾 Otro" }
+            "data-source": [
+              { "id": "dog", "title": "🐕 Perro" },
+              { "id": "cat", "title": "🐱 Gato" },
+              { "id": "other", "title": "🐾 Otro" }
             ]
           },
           {
             "type": "TextInput",
-            "label": "¿Dónde la viste?",
-            "data_ref": "location",
-            "placeholder": "Ej: Calle 7 y 48"
+            "name": "location",
+            "label": "¿Dónde la viste?"
           },
           {
             "type": "TextArea",
-            "label": "Descripción (color, tamaño, señas particulares)",
-            "data_ref": "description",
-            "placeholder": "Ej: Color marrón, tamaño mediano, sin collar"
+            "name": "description",
+            "label": "Descripción (color, tamaño, señas particulares)"
           },
           {
             "type": "Footer",
             "label": "Enviar avistaje",
-            "onClickAction": {
+            "on-click-action": {
               "name": "complete",
               "payload": {}
             }
@@ -194,30 +189,28 @@
           },
           {
             "type": "RadioButtonsGroup",
+            "name": "species",
             "label": "Especie",
-            "data_ref": "species",
-            "properties": [
-              { "value": "dog", "display_text": "🐕 Perro" },
-              { "value": "cat", "display_text": "🐱 Gato" },
-              { "value": "other", "display_text": "🐾 Otro" }
+            "data-source": [
+              { "id": "dog", "title": "🐕 Perro" },
+              { "id": "cat", "title": "🐱 Gato" },
+              { "id": "other", "title": "🐾 Otro" }
             ]
           },
           {
             "type": "TextInput",
-            "label": "¿Dónde la encontraste?",
-            "data_ref": "location",
-            "placeholder": "Ej: Calle 7 y 48"
+            "name": "location",
+            "label": "¿Dónde la encontraste?"
           },
           {
             "type": "TextArea",
-            "label": "Descripción (color, tamaño, señas particulares)",
-            "data_ref": "description",
-            "placeholder": "Ej: Color marrón, tamaño mediano, collar azul"
+            "name": "description",
+            "label": "Descripción (color, tamaño, señas particulares)"
           },
           {
             "type": "Footer",
             "label": "Enviar",
-            "onClickAction": {
+            "on-click-action": {
               "name": "complete",
               "payload": {}
             }
@@ -244,18 +237,18 @@
           },
           {
             "type": "RadioButtonsGroup",
+            "name": "species_preference",
             "label": "Especie",
-            "data_ref": "species_preference",
-            "properties": [
-              { "value": "dog", "display_text": "🐕 Perro" },
-              { "value": "cat", "display_text": "🐱 Gato" },
-              { "value": "any", "display_text": "🐾 Cualquiera" }
+            "data-source": [
+              { "id": "dog", "title": "🐕 Perro" },
+              { "id": "cat", "title": "🐱 Gato" },
+              { "id": "any", "title": "🐾 Cualquiera" }
             ]
           },
           {
             "type": "Footer",
             "label": "Quiero adoptar",
-            "onClickAction": {
+            "on-click-action": {
               "name": "complete",
               "payload": {}
             }
@@ -281,7 +274,7 @@
           {
             "type": "Footer",
             "label": "Solicitar chapita",
-            "onClickAction": {
+            "on-click-action": {
               "name": "navigate",
               "payload": {},
               "next_screen_id": "CHAPITA_FORM"
@@ -307,30 +300,28 @@
           },
           {
             "type": "TextInput",
-            "label": "Nombre de tu mascota",
-            "data_ref": "pet_name",
-            "placeholder": "Ej: Luna"
+            "name": "pet_name",
+            "label": "Nombre de tu mascota"
           },
           {
             "type": "RadioButtonsGroup",
+            "name": "species",
             "label": "Especie",
-            "data_ref": "species",
-            "properties": [
-              { "value": "dog", "display_text": "🐕 Perro" },
-              { "value": "cat", "display_text": "🐱 Gato" },
-              { "value": "other", "display_text": "🐾 Otro" }
+            "data-source": [
+              { "id": "dog", "title": "🐕 Perro" },
+              { "id": "cat", "title": "🐱 Gato" },
+              { "id": "other", "title": "🐾 Otro" }
             ]
           },
           {
             "type": "TextInput",
-            "label": "Tu nombre",
-            "data_ref": "requester_name",
-            "placeholder": "Ej: Juan"
+            "name": "requester_name",
+            "label": "Tu nombre"
           },
           {
             "type": "Footer",
             "label": "Enviar solicitud",
-            "onClickAction": {
+            "on-click-action": {
               "name": "complete",
               "payload": {}
             }
@@ -357,18 +348,18 @@
           },
           {
             "type": "RadioButtonsGroup",
+            "name": "donation_method",
             "label": "Método de donación",
-            "data_ref": "donation_method",
-            "properties": [
-              { "value": "transfer", "display_text": "🏦 Transferencia bancaria" },
-              { "value": "mercadopago", "display_text": "💳 Mercado Pago" },
-              { "value": "share", "display_text": "📲 Compartir para difundir" }
+            "data-source": [
+              { "id": "transfer", "title": "🏦 Transferencia bancaria" },
+              { "id": "mercadopago", "title": "💳 Mercado Pago" },
+              { "id": "share", "title": "📲 Compartir para difundir" }
             ]
           },
           {
             "type": "Footer",
             "label": "Continuar",
-            "onClickAction": {
+            "on-click-action": {
               "name": "data_exchange",
               "payload": {}
             }
@@ -397,7 +388,7 @@
           {
             "type": "Footer",
             "label": "Ya doné",
-            "onClickAction": {
+            "on-click-action": {
               "name": "complete",
               "payload": {}
             }
@@ -426,40 +417,40 @@
           },
           {
             "type": "RadioButtonsGroup",
+            "name": "zone",
             "label": "¿Vivís en la zona?",
-            "data_ref": "zone",
-            "properties": [
-              { "value": "sicardi", "display_text": "Sicardi" },
-              { "value": "garibaldi", "display_text": "Garibaldi" },
-              { "value": "correas", "display_text": "Correas" },
-              { "value": "near", "display_text": "Zonas cercanas" },
-              { "value": "other", "display_text": "Otra" }
+            "data-source": [
+              { "id": "sicardi", "title": "Sicardi" },
+              { "id": "garibaldi", "title": "Garibaldi" },
+              { "id": "correas", "title": "Correas" },
+              { "id": "near", "title": "Zonas cercanas" },
+              { "id": "other", "title": "Otra" }
             ]
           },
           {
             "type": "RadioButtonsGroup",
+            "name": "has_pets",
             "label": "¿Tenés mascotas?",
-            "data_ref": "has_pets",
-            "properties": [
-              { "value": "dog", "display_text": "🐕 Perro/s" },
-              { "value": "cat", "display_text": "🐱 Gato/s" },
-              { "value": "both", "display_text": "🐾 Perro y gato" },
-              { "value": "none", "display_text": "No tengo" }
+            "data-source": [
+              { "id": "dog", "title": "🐕 Perro/s" },
+              { "id": "cat", "title": "🐱 Gato/s" },
+              { "id": "both", "title": "🐾 Perro y gato" },
+              { "id": "none", "title": "No tengo" }
             ]
           },
           {
             "type": "RadioButtonsGroup",
+            "name": "alerts_optin",
             "label": "¿Querés recibir alertas de mascotas perdidas en tu zona?",
-            "data_ref": "alerts_optin",
-            "properties": [
-              { "value": "yes", "display_text": "✅ Sí" },
-              { "value": "no", "display_text": "❌ No" }
+            "data-source": [
+              { "id": "yes", "title": "✅ Sí" },
+              { "id": "no", "title": "❌ No" }
             ]
           },
           {
             "type": "Footer",
             "label": "Continuar",
-            "onClickAction": {
+            "on-click-action": {
               "name": "navigate",
               "payload": {},
               "next_screen_id": "VOLUNTEER_FORM"
@@ -484,20 +475,18 @@
           },
           {
             "type": "TextInput",
-            "label": "Tu nombre completo",
-            "data_ref": "name",
-            "placeholder": "Ej: Juan Pérez"
+            "name": "name",
+            "label": "Tu nombre completo"
           },
           {
             "type": "TextInput",
-            "label": "Tu teléfono (sin 0 ni 15)",
-            "data_ref": "phone",
-            "placeholder": "Ej: 2215551234"
+            "name": "phone",
+            "label": "Tu teléfono (sin 0 ni 15)"
           },
           {
             "type": "Footer",
             "label": "Enviar y sumarme",
-            "onClickAction": {
+            "on-click-action": {
               "name": "complete",
               "payload": {}
             }
@@ -518,12 +507,12 @@
           },
           {
             "type": "TextBody",
-            "text": "¿Querés vincular tu cuenta de Facebook con Sigo Tu Huella?\n\nEsto nos permite buscar mascotas perdidas en los grupos de la zona y avisarte si encontramos a la tuya.\n\nPara vincular, inicíá sesión en nuestra web y andá a tu perfil > Facebook."
+            "text": "¿Querés vincular tu cuenta de Facebook con Sigo Tu Huella?\n\nEsto nos permite buscar mascotas perdidas en los grupos de la zona y avisarte si encontramos a la tuya.\n\nPara vincular, iniciá sesión en nuestra web andá a tu perfil > Facebook."
           },
           {
             "type": "Footer",
             "label": "Volver al menú",
-            "onClickAction": {
+            "on-click-action": {
               "name": "navigate",
               "payload": {},
               "next_screen_id": "MAIN_MENU"
@@ -549,31 +538,29 @@
           },
           {
             "type": "TextInput",
-            "label": "Tu nombre",
-            "data_ref": "name",
-            "placeholder": "Ej: Juan"
+            "name": "name",
+            "label": "Tu nombre"
           },
           {
             "type": "Dropdown",
+            "name": "motive",
             "label": "Motivo",
-            "data_ref": "motive",
-            "properties": [
-              { "value": "question", "display_text": "Consulta general" },
-              { "value": "suggestion", "display_text": "Sugerencia" },
-              { "value": "problem", "display_text": "Problema con la app" },
-              { "value": "other", "display_text": "Otro" }
+            "data-source": [
+              { "id": "question", "title": "Consulta general" },
+              { "id": "suggestion", "title": "Sugerencia" },
+              { "id": "problem", "title": "Problema con la app" },
+              { "id": "other", "title": "Otro" }
             ]
           },
           {
             "type": "TextArea",
-            "label": "Tu mensaje",
-            "data_ref": "message",
-            "placeholder": "Escribí tu mensaje acá..."
+            "name": "message",
+            "label": "Tu mensaje"
           },
           {
             "type": "Footer",
             "label": "Enviar mensaje",
-            "onClickAction": {
+            "on-click-action": {
               "name": "complete",
               "payload": {}
             }
