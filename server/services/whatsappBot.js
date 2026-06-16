@@ -168,10 +168,13 @@ async function routeFlow(conv, parsed) {
     case 'report_lost.location': return rlLocation(conv, parsed);
     case 'report_lost.contact': return rlContact(conv, parsed);
     case 'report_lost.name': return rlName(conv, parsed);
+    case 'report_lost.description': return rlDescription(conv, parsed);
     case 'report_lost.confirm': return rlConfirm(conv, parsed, intent);
     case 'report_sighted.photo': return rsPhoto(conv, parsed);
+    case 'report_sighted.species': return rsSpecies(conv, parsed);
     case 'report_sighted.location': return rsLocation(conv, parsed);
     case 'report_sighted.details': return rsDetails(conv, parsed);
+    case 'report_sighted.contact': return rsContact(conv, parsed);
     case 'report_sighted.confirm': return rsConfirm(conv, parsed, intent);
     case 'report_found.photo': return rfPhoto(conv, parsed);
     case 'report_found.location': return rfLocation(conv, parsed);
@@ -437,7 +440,14 @@ async function rlContact(conv, parsed) {
 async function rlName(conv, parsed) {
   const text = (parsed.textBody || '').toLowerCase().trim();
   const name = (text === 'saltar' || text === 'no' || text === 'skip') ? '' : parsed.textBody || '';
-  await setFlow(conv, 'report_lost.confirm', { ...conv.context, pet_name: name });
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Alguna descripción adicional? (color, tamaño, Collares, señas — opcional, escribí "saltar" para omitir)`);
+  await setFlow(conv, 'report_lost.description', { ...conv.context, pet_name: name });
+}
+
+async function rlDescription(conv, parsed) {
+  const text = (parsed.textBody || '').toLowerCase().trim();
+  const description = (text === 'saltar' || text === 'no' || text === 'skip') ? '' : parsed.textBody || '';
+  await setFlow(conv, 'report_lost.confirm', { ...conv.context, description });
   const ctx = conv.context;
   const speciesLabels = { dog: 'Perro 🐕', cat: 'Gato 🐈', other: 'Otro 🐾' };
   await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos:
@@ -446,6 +456,7 @@ async function rlName(conv, parsed) {
 📍 *Ubicación:* ${ctx.location || 'Compartida'}
 📞 *Contacto:* ${ctx.contact}
 ${ctx.pet_name ? `🏷️ *Nombre:* ${ctx.pet_name}` : ''}
+${description ? `📝 *Descripción:* ${description}` : ''}
 
 ¿Está todo correcto?`);
   await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
@@ -461,7 +472,7 @@ async function rlConfirm(conv, parsed, intent) {
       `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, description)
        VALUES ($1, $2, 'lost', $3, $4, $5, $6, $7)
        RETURNING id`,
-      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', `Reportado por WhatsApp como perdida`]
+      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.description || 'Reportado por WhatsApp como perdida']
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -502,11 +513,31 @@ async function rsPhoto(conv, parsed) {
     return;
   }
   await sendMessage(conv.wa_from, `✅ Foto recibida.`);
-  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde la viste? Podés escribir la dirección o compartir tu *ubicación* 📍`);
-  await setFlow(conv, 'report_sighted.location', {
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿De qué especie es?`);
+  await sendInteractiveButtons(conv.wa_from, 'Especie:', [
+    { id: 'rs_species_dog', title: '🐕 Perro' },
+    { id: 'rs_species_cat', title: '🐈 Gato' },
+    { id: 'rs_species_other', title: '🐾 Otro' },
+  ]);
+  await setFlow(conv, 'report_sighted.species', {
     photo_data: photoData,
     photo_mime: photoMime || 'image/jpeg',
   });
+}
+
+async function rsSpecies(conv, parsed) {
+  let species;
+  if (parsed.buttonId) {
+    species = parsed.buttonId === 'rs_species_cat' ? 'cat'
+      : parsed.buttonId === 'rs_species_other' ? 'other' : 'dog';
+  } else {
+    const text = (parsed.textBody || '').toLowerCase();
+    species = text.includes('gato') ? 'cat'
+      : text.includes('otro') ? 'other' : 'dog';
+  }
+  await sendMessage(conv.wa_from, `✅ Anotado.`);
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde la viste? Podés escribir la dirección o compartir tu *ubicación* 📍`);
+  await setFlow(conv, 'report_sighted.location', { ...conv.context, species });
 }
 
 async function rsLocation(conv, parsed) {
@@ -528,10 +559,20 @@ async function rsLocation(conv, parsed) {
 async function rsDetails(conv, parsed) {
   const text = (parsed.textBody || '').toLowerCase().trim();
   const details = (text === 'saltar' || text === 'no' || text === 'skip') ? '' : parsed.textBody || '';
-  await setFlow(conv, 'report_sighted.confirm', { ...conv.context, details });
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* por si alguien quiere aportar información? (opcional — escribí el número o "saltar")`);
+  await setFlow(conv, 'report_sighted.contact', { ...conv.context, details });
+}
+
+async function rsContact(conv, parsed) {
+  const phone = (parsed.textBody || '').toLowerCase().trim();
+  const contact = (phone === 'saltar' || phone === 'no' || phone === 'skip') ? '' : parsed.textBody || '';
+  await setFlow(conv, 'report_sighted.confirm', { ...conv.context, contact });
+  const speciesLabel = { dog: '🐕 Perro', cat: '🐈 Gato', other: '🐾 Otro', unknown: '?' }[conv.context.species || 'unknown'];
   await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás el reporte de avistaje?
-📍 *Ubicación:* ${conv.context.location || 'Compartida'}
-${details ? `📝 *Detalles:* ${details}` : ''}`);
+  🐾 *Especie:* ${speciesLabel}
+  📍 *Ubicación:* ${conv.context.location || 'Compartida'}
+  ${conv.context.details ? `📝 *Detalles:* ${conv.context.details}` : ''}
+  ${contact ? `📞 *Contacto:* ${contact}` : ''}`);
   await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
     { id: 'confirm_yes', title: '✅ Sí, reportar' },
     { id: 'confirm_no', title: '❌ Cancelar' },
@@ -542,9 +583,9 @@ async function rsConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
     const petResult = await pool.query(
-      `INSERT INTO pets (species, status, location, latitude, longitude, description)
-       VALUES ($1, 'sighted', $2, $3, $4, $5) RETURNING id`,
-      ['unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje']
+      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description)
+       VALUES ($1, 'sighted', $2, $3, $4, $5, $6) RETURNING id`,
+      [ctx.species || 'unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje']
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -1259,7 +1300,6 @@ async function fbAskStatus(conv, parsed) {
     fb_status_lost: 'lost',
     fb_status_sighted: 'sighted',
     fb_status_found: 'retained',
-    fb_status_adopt: 'for_adoption',
   };
   let classification;
   if (parsed.buttonId) {
@@ -1381,7 +1421,7 @@ async function fbConfirm(conv, parsed, intent) {
   const ctx = conv.context;
   const post = ctx.fbPost;
 
-  const status = post.classification === 'found' ? 'retained' : post.classification || 'lost';
+  const status = post.classification || 'lost';
   const species = post.species || 'unknown';
   const location = post.location_hint || 'Sin ubicación';
   const description = (post.content ? post.content.substring(0, 500) : 'Reportado desde Facebook')
