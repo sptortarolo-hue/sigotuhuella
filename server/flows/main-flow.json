@@ -517,11 +517,8 @@
             "type": "Footer",
             "label": "Volver al menú",
             "on-click-action": {
-              "name": "navigate",
-              "next": {
-                "type": "screen",
-                "name": "MAIN_MENU"
-              }
+              "name": "complete",
+              "payload": {}
             }
           }
         ]
