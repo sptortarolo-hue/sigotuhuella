@@ -276,8 +276,10 @@
             "label": "Solicitar chapita",
             "on-click-action": {
               "name": "navigate",
-              "payload": {},
-              "next": { "screen_id": "CHAPITA_FORM" }
+              "next": {
+                "type": "screen",
+                "name": "CHAPITA_FORM"
+              }
             }
           }
         ]
@@ -452,8 +454,10 @@
             "label": "Continuar",
             "on-click-action": {
               "name": "navigate",
-              "payload": {},
-              "next": { "screen_id": "VOLUNTEER_FORM" }
+              "next": {
+                "type": "screen",
+                "name": "VOLUNTEER_FORM"
+              }
             }
           }
         ]
@@ -514,8 +518,10 @@
             "label": "Volver al menú",
             "on-click-action": {
               "name": "navigate",
-              "payload": {},
-              "next": { "screen_id": "MAIN_MENU" }
+              "next": {
+                "type": "screen",
+                "name": "MAIN_MENU"
+              }
             }
           }
         ]
