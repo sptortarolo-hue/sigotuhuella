@@ -5,6 +5,11 @@ import { classifyPost } from './geminiClassifier.js';
 import { fetchFbPost } from './vpsSyncService.js';
 import { geocodeAddress } from './geocoding.js';
 import axios from 'axios';
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const BOT_NAMES = ['Tute', 'Lilo', 'Toto'];
 
@@ -215,6 +220,20 @@ async function showWelcome(conv) {
   await sendMessage(conv.wa_from,
     `🐾 ¡Hola! Soy *${conv.bot_name}*, el asistente virtual de *Sigo Tu Huella* 🐾\n\n` +
     `Estoy acá para ayudarte a reportar mascotas perdidas, avistajes y conectar con nuestra red de ayuda.`);
+
+  // Send bot avatar image
+  try {
+    const avatarPath = join(__dirname, '..', '..', 'public', 'bots', `${conv.bot_name.toLowerCase()}.jpg`);
+    if (existsSync(avatarPath)) {
+      const buffer = readFileSync(avatarPath);
+      const base64 = buffer.toString('base64');
+      const mediaId = await uploadMedia(base64, 'image/jpeg');
+      await sendImage(conv.wa_from, mediaId, conv.bot_name);
+    }
+  } catch (e) {
+    console.log(`showWelcome: avatar send error: ${e.message}`);
+  }
+
   const greeting = await getSetting('whatsapp_greeting');
   if (greeting) {
     await sendMessage(conv.wa_from, greeting);
