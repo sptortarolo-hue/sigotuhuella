@@ -3,16 +3,27 @@
   "data_api_version": "3.0",
   "routing_model": {
     "MAIN_MENU": [
-      "REPORT_LOST", "REPORT_SIGHTED", "REPORT_FOUND",
-      "ADOPT_FILTER", "CHAPITA_INFO",
-      "DONATE_INFO", "VOLUNTEER_ONBOARDING",
-      "FACEBOOK_LINK", "CONTACT_FORM"
+      "REPORT_LOST",
+      "REPORT_SIGHTED",
+      "REPORT_FOUND",
+      "ADOPT_FILTER",
+      "CHAPITA_INFO",
+      "DONATE_INFO",
+      "VOLUNTEER_ONBOARDING",
+      "FACEBOOK_LINK",
+      "CONTACT_FORM"
     ],
-    "CHAPITA_INFO": ["CHAPITA_FORM"],
+    "CHAPITA_INFO": [
+      "CHAPITA_FORM"
+    ],
     "CHAPITA_FORM": [],
-    "DONATE_INFO": ["DONATE_SHOW"],
+    "DONATE_INFO": [
+      "DONATE_SHOW"
+    ],
     "DONATE_SHOW": [],
-    "VOLUNTEER_ONBOARDING": ["VOLUNTEER_FORM"],
+    "VOLUNTEER_ONBOARDING": [
+      "VOLUNTEER_FORM"
+    ],
     "VOLUNTEER_FORM": [],
     "REPORT_LOST": [],
     "REPORT_SIGHTED": [],
@@ -26,7 +37,10 @@
       "id": "MAIN_MENU",
       "title": "Sigo Tu Huella",
       "data": {
-        "selected_option": { "type": "string", "__example__": "lost" }
+        "selected_option": {
+          "type": "string",
+          "__example__": "lost"
+        }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -44,15 +58,42 @@
             "name": "selected_option",
             "label": "Elegí una opción:",
             "data-source": [
-              { "id": "lost", "title": "📷 Perdí mi mascota" },
-              { "id": "sighted", "title": "👀 Vi una mascota (avistaje)" },
-              { "id": "found", "title": "✅ Encontré una mascota" },
-              { "id": "adopt", "title": "🙋 Quiero adoptar" },
-              { "id": "chapita", "title": "ℹ️ Chapita QR" },
-              { "id": "donate", "title": "💰 Donar" },
-              { "id": "volunteer", "title": "🙌 Ser voluntario" },
-              { "id": "facebook", "title": "📱 Link de Facebook" },
-              { "id": "contact", "title": "🗣 Contactar equipo" }
+              {
+                "id": "lost",
+                "title": "📷 Perdí mi mascota"
+              },
+              {
+                "id": "sighted",
+                "title": "👀 Vi una mascota (avistaje)"
+              },
+              {
+                "id": "found",
+                "title": "✅ Encontré una mascota"
+              },
+              {
+                "id": "adopt",
+                "title": "🙋 Quiero adoptar"
+              },
+              {
+                "id": "chapita",
+                "title": "ℹ️ Chapita QR"
+              },
+              {
+                "id": "donate",
+                "title": "💰 Donar"
+              },
+              {
+                "id": "volunteer",
+                "title": "🙌 Ser voluntario"
+              },
+              {
+                "id": "facebook",
+                "title": "📱 Link de Facebook"
+              },
+              {
+                "id": "contact",
+                "title": "🗣 Contactar equipo"
+              }
             ]
           },
           {
@@ -70,10 +111,22 @@
       "id": "REPORT_LOST",
       "title": "Perdí mi mascota",
       "data": {
-        "pet_name": { "type": "string", "__example__": "Luna" },
-        "species": { "type": "string", "__example__": "dog" },
-        "location": { "type": "string", "__example__": "Sicardi, cerca de la plaza" },
-        "description": { "type": "string", "__example__": "Color marrón, collar rojo" }
+        "pet_name": {
+          "type": "string",
+          "__example__": "Luna"
+        },
+        "species": {
+          "type": "string",
+          "__example__": "dog"
+        },
+        "location": {
+          "type": "string",
+          "__example__": "Sicardi, cerca de la plaza"
+        },
+        "description": {
+          "type": "string",
+          "__example__": "Color marrón, collar rojo"
+        }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -92,9 +145,18 @@
             "name": "species",
             "label": "Especie",
             "data-source": [
-              { "id": "dog", "title": "🐕 Perro" },
-              { "id": "cat", "title": "🐱 Gato" },
-              { "id": "other", "title": "🐾 Otro" }
+              {
+                "id": "dog",
+                "title": "🐕 Perro"
+              },
+              {
+                "id": "cat",
+                "title": "🐱 Gato"
+              },
+              {
+                "id": "other",
+                "title": "🐾 Otro"
+              }
             ]
           },
           {
@@ -116,15 +178,25 @@
             }
           }
         ]
-      }
+      },
+      "terminal": true
     },
     {
       "id": "REPORT_SIGHTED",
       "title": "Vi una mascota",
       "data": {
-        "species": { "type": "string", "__example__": "dog" },
-        "location": { "type": "string", "__example__": "Sicardi" },
-        "description": { "type": "string", "__example__": "Vagaba por la calle 7" }
+        "species": {
+          "type": "string",
+          "__example__": "dog"
+        },
+        "location": {
+          "type": "string",
+          "__example__": "Sicardi"
+        },
+        "description": {
+          "type": "string",
+          "__example__": "Vagaba por la calle 7"
+        }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -142,9 +214,18 @@
             "name": "species",
             "label": "Especie",
             "data-source": [
-              { "id": "dog", "title": "🐕 Perro" },
-              { "id": "cat", "title": "🐱 Gato" },
-              { "id": "other", "title": "🐾 Otro" }
+              {
+                "id": "dog",
+                "title": "🐕 Perro"
+              },
+              {
+                "id": "cat",
+                "title": "🐱 Gato"
+              },
+              {
+                "id": "other",
+                "title": "🐾 Otro"
+              }
             ]
           },
           {
@@ -166,15 +247,25 @@
             }
           }
         ]
-      }
+      },
+      "terminal": true
     },
     {
       "id": "REPORT_FOUND",
       "title": "Encontré una mascota",
       "data": {
-        "species": { "type": "string", "__example__": "dog" },
-        "location": { "type": "string", "__example__": "Sicardi" },
-        "description": { "type": "string", "__example__": "Color marrón, collar azul" }
+        "species": {
+          "type": "string",
+          "__example__": "dog"
+        },
+        "location": {
+          "type": "string",
+          "__example__": "Sicardi"
+        },
+        "description": {
+          "type": "string",
+          "__example__": "Color marrón, collar azul"
+        }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -192,9 +283,18 @@
             "name": "species",
             "label": "Especie",
             "data-source": [
-              { "id": "dog", "title": "🐕 Perro" },
-              { "id": "cat", "title": "🐱 Gato" },
-              { "id": "other", "title": "🐾 Otro" }
+              {
+                "id": "dog",
+                "title": "🐕 Perro"
+              },
+              {
+                "id": "cat",
+                "title": "🐱 Gato"
+              },
+              {
+                "id": "other",
+                "title": "🐾 Otro"
+              }
             ]
           },
           {
@@ -216,13 +316,17 @@
             }
           }
         ]
-      }
+      },
+      "terminal": true
     },
     {
       "id": "ADOPT_FILTER",
       "title": "Quiero adoptar",
       "data": {
-        "species_preference": { "type": "string", "__example__": "dog" }
+        "species_preference": {
+          "type": "string",
+          "__example__": "dog"
+        }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -240,9 +344,18 @@
             "name": "species_preference",
             "label": "Especie",
             "data-source": [
-              { "id": "dog", "title": "🐕 Perro" },
-              { "id": "cat", "title": "🐱 Gato" },
-              { "id": "any", "title": "🐾 Cualquiera" }
+              {
+                "id": "dog",
+                "title": "🐕 Perro"
+              },
+              {
+                "id": "cat",
+                "title": "🐱 Gato"
+              },
+              {
+                "id": "any",
+                "title": "🐾 Cualquiera"
+              }
             ]
           },
           {
@@ -254,7 +367,8 @@
             }
           }
         ]
-      }
+      },
+      "terminal": true
     },
     {
       "id": "CHAPITA_INFO",
@@ -289,9 +403,18 @@
       "id": "CHAPITA_FORM",
       "title": "Solicitar chapita",
       "data": {
-        "pet_name": { "type": "string", "__example__": "Luna" },
-        "species": { "type": "string", "__example__": "dog" },
-        "requester_name": { "type": "string", "__example__": "Juan" }
+        "pet_name": {
+          "type": "string",
+          "__example__": "Luna"
+        },
+        "species": {
+          "type": "string",
+          "__example__": "dog"
+        },
+        "requester_name": {
+          "type": "string",
+          "__example__": "Juan"
+        }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -310,9 +433,18 @@
             "name": "species",
             "label": "Especie",
             "data-source": [
-              { "id": "dog", "title": "🐕 Perro" },
-              { "id": "cat", "title": "🐱 Gato" },
-              { "id": "other", "title": "🐾 Otro" }
+              {
+                "id": "dog",
+                "title": "🐕 Perro"
+              },
+              {
+                "id": "cat",
+                "title": "🐱 Gato"
+              },
+              {
+                "id": "other",
+                "title": "🐾 Otro"
+              }
             ]
           },
           {
@@ -329,13 +461,17 @@
             }
           }
         ]
-      }
+      },
+      "terminal": true
     },
     {
       "id": "DONATE_INFO",
       "title": "Donar",
       "data": {
-        "donation_method": { "type": "string", "__example__": "transfer" }
+        "donation_method": {
+          "type": "string",
+          "__example__": "transfer"
+        }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -353,9 +489,18 @@
             "name": "donation_method",
             "label": "Método de donación",
             "data-source": [
-              { "id": "transfer", "title": "🏦 Transferencia bancaria" },
-              { "id": "mercadopago", "title": "💳 Mercado Pago" },
-              { "id": "share", "title": "📲 Compartir para difundir" }
+              {
+                "id": "transfer",
+                "title": "🏦 Transferencia bancaria"
+              },
+              {
+                "id": "mercadopago",
+                "title": "💳 Mercado Pago"
+              },
+              {
+                "id": "share",
+                "title": "📲 Compartir para difundir"
+              }
             ]
           },
           {
@@ -373,8 +518,14 @@
       "id": "DONATE_SHOW",
       "title": "Donar",
       "data": {
-        "accounts_text": { "type": "string", "__example__": "Alias: sigotuhuella.mp\nCBU: 00000000000000" },
-        "mp_link": { "type": "string", "__example__": "https://mpago.la/xxxxx" }
+        "accounts_text": {
+          "type": "string",
+          "__example__": "Alias: sigotuhuella.mp\nCBU: 00000000000000"
+        },
+        "mp_link": {
+          "type": "string",
+          "__example__": "https://mpago.la/xxxxx"
+        }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -396,15 +547,25 @@
             }
           }
         ]
-      }
+      },
+      "terminal": true
     },
     {
       "id": "VOLUNTEER_ONBOARDING",
       "title": "Ser voluntario",
       "data": {
-        "zone": { "type": "string", "__example__": "sicardi" },
-        "has_pets": { "type": "string", "__example__": "yes" },
-        "alerts_optin": { "type": "string", "__example__": "yes" }
+        "zone": {
+          "type": "string",
+          "__example__": "sicardi"
+        },
+        "has_pets": {
+          "type": "string",
+          "__example__": "yes"
+        },
+        "alerts_optin": {
+          "type": "string",
+          "__example__": "yes"
+        }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -422,11 +583,26 @@
             "name": "zone",
             "label": "¿Vivís en la zona?",
             "data-source": [
-              { "id": "sicardi", "title": "Sicardi" },
-              { "id": "garibaldi", "title": "Garibaldi" },
-              { "id": "correas", "title": "Correas" },
-              { "id": "near", "title": "Zonas cercanas" },
-              { "id": "other", "title": "Otra" }
+              {
+                "id": "sicardi",
+                "title": "Sicardi"
+              },
+              {
+                "id": "garibaldi",
+                "title": "Garibaldi"
+              },
+              {
+                "id": "correas",
+                "title": "Correas"
+              },
+              {
+                "id": "near",
+                "title": "Zonas cercanas"
+              },
+              {
+                "id": "other",
+                "title": "Otra"
+              }
             ]
           },
           {
@@ -434,10 +610,22 @@
             "name": "has_pets",
             "label": "¿Tenés mascotas?",
             "data-source": [
-              { "id": "dog", "title": "🐕 Perro/s" },
-              { "id": "cat", "title": "🐱 Gato/s" },
-              { "id": "both", "title": "🐾 Perro y gato" },
-              { "id": "none", "title": "No tengo" }
+              {
+                "id": "dog",
+                "title": "🐕 Perro/s"
+              },
+              {
+                "id": "cat",
+                "title": "🐱 Gato/s"
+              },
+              {
+                "id": "both",
+                "title": "🐾 Perro y gato"
+              },
+              {
+                "id": "none",
+                "title": "No tengo"
+              }
             ]
           },
           {
@@ -445,8 +633,14 @@
             "name": "alerts_optin",
             "label": "¿Querés recibir alertas de mascotas perdidas en tu zona?",
             "data-source": [
-              { "id": "yes", "title": "✅ Sí" },
-              { "id": "no", "title": "❌ No" }
+              {
+                "id": "yes",
+                "title": "✅ Sí"
+              },
+              {
+                "id": "no",
+                "title": "❌ No"
+              }
             ]
           },
           {
@@ -467,8 +661,14 @@
       "id": "VOLUNTEER_FORM",
       "title": "Ser voluntario",
       "data": {
-        "name": { "type": "string", "__example__": "Juan Pérez" },
-        "phone": { "type": "string", "__example__": "2215551234" }
+        "name": {
+          "type": "string",
+          "__example__": "Juan Pérez"
+        },
+        "phone": {
+          "type": "string",
+          "__example__": "2215551234"
+        }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -496,7 +696,8 @@
             }
           }
         ]
-      }
+      },
+      "terminal": true
     },
     {
       "id": "FACEBOOK_LINK",
@@ -522,15 +723,25 @@
             }
           }
         ]
-      }
+      },
+      "terminal": true
     },
     {
       "id": "CONTACT_FORM",
       "title": "Contactar equipo",
       "data": {
-        "name": { "type": "string", "__example__": "Juan" },
-        "motive": { "type": "string", "__example__": "question" },
-        "message": { "type": "string", "__example__": "Tengo una consulta sobre..." }
+        "name": {
+          "type": "string",
+          "__example__": "Juan"
+        },
+        "motive": {
+          "type": "string",
+          "__example__": "question"
+        },
+        "message": {
+          "type": "string",
+          "__example__": "Tengo una consulta sobre..."
+        }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -549,10 +760,22 @@
             "name": "motive",
             "label": "Motivo",
             "data-source": [
-              { "id": "question", "title": "Consulta general" },
-              { "id": "suggestion", "title": "Sugerencia" },
-              { "id": "problem", "title": "Problema con la app" },
-              { "id": "other", "title": "Otro" }
+              {
+                "id": "question",
+                "title": "Consulta general"
+              },
+              {
+                "id": "suggestion",
+                "title": "Sugerencia"
+              },
+              {
+                "id": "problem",
+                "title": "Problema con la app"
+              },
+              {
+                "id": "other",
+                "title": "Otro"
+              }
             ]
           },
           {
@@ -569,7 +792,8 @@
             }
           }
         ]
-      }
+      },
+      "terminal": true
     }
   ]
 }
