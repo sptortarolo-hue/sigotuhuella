@@ -1443,13 +1443,13 @@ async function fbConfirm(conv, parsed, intent) {
   const petId = petResult.rows[0].id;
 
   // Download and save image from Facebook post
+  let imgSaved = false;
   if (post.image_urls && post.image_urls.length > 0) {
     const cdnUrls = post.image_urls.filter(u => u.includes('scontent'));
     const photoUrls = post.image_urls.filter(u => u.includes('facebook.com/photo'));
     const otherUrls = post.image_urls.filter(u => !u.includes('scontent') && !u.includes('facebook.com/photo'));
     const orderedUrls = [...cdnUrls, ...photoUrls, ...otherUrls];
     console.log(`fbConfirm: image URLs - cdn=${cdnUrls.length}, photo=${photoUrls.length}, first=${orderedUrls[0]?.slice(0, 80)}`);
-    let imgSaved = false;
     for (const imgUrl of orderedUrls) {
       console.log(`fbConfirm: downloading image from ${imgUrl?.slice(0, 80)}`);
       const img = await downloadImage(imgUrl, post.fb_post_id);
@@ -1474,6 +1474,49 @@ async function fbConfirm(conv, parsed, intent) {
     if (!imgSaved) console.log(`fbConfirm: all image downloads failed for ${post.image_urls.length} URLs`);
   } else {
     console.log(`fbConfirm: no image_urls available`);
+  }
+
+  // Fallback: try to extract image from post URL directly when no image_urls or all downloads failed
+  if (!imgSaved && post.fb_post_url) {
+    console.log(`fbConfirm: trying direct image extraction from post URL`);
+    try {
+      const resp = await fetch(post.fb_post_url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8',
+        },
+        signal: AbortSignal.timeout(15000),
+        redirect: 'follow',
+      });
+      if (resp.ok) {
+        const html = await resp.text();
+        const ogImage = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i)?.[1]
+          || html.match(/<meta\s+content="([^"]+)"\s+property="og:image"/i)?.[1]
+          || html.match(/<meta\s+property="og:image:secure_url"\s+content="([^"]+)"/i)?.[1]
+          || html.match(/<meta\s+name="twitter:image"\s+content="([^"]+)"/i)?.[1]
+          || html.match(/<meta\s+content="([^"]+)"\s+name="twitter:image"/i)?.[1];
+        if (ogImage) {
+          console.log(`fbConfirm: found image via direct fetch: ${ogImage.slice(0, 80)}`);
+          const img = await downloadImage(ogImage, post.fb_post_id);
+          if (img && img.data) {
+            await pool.query(
+              `INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`,
+              [petId, img.data, img.mimeType]
+            );
+            imgSaved = true;
+          } else if (img && img.externalUrl) {
+            await pool.query(
+              `INSERT INTO pet_images (pet_id, external_url) VALUES ($1, $2)`,
+              [petId, img.externalUrl]
+            );
+            imgSaved = true;
+          }
+        }
+      }
+    } catch (e) {
+      console.log(`fbConfirm: direct image extraction failed: ${e.message}`);
+    }
   }
 
   await pool.query(

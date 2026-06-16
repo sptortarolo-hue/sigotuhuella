@@ -286,7 +286,7 @@ async function fetchFbPostBrightData(url, apiKey) {
       return urls;
     })
     .filter(Boolean)
-    .filter(u => u.startsWith('http') && u.includes('scontent'));
+    .filter(u => u.startsWith('http'));
   console.log(`fetchFbPostBrightData: SUCCESS content_length=${content.length}, image_urls=${image_urls.length}`);
   if (content) console.log(`fetchFbPostBrightData: preview=${content.slice(0, 120)}`);
   return {
