@@ -277,7 +277,7 @@
             "on-click-action": {
               "name": "navigate",
               "payload": {},
-              "next_screen_id": "CHAPITA_FORM"
+              "next": "CHAPITA_FORM"
             }
           }
         ]
@@ -453,7 +453,7 @@
             "on-click-action": {
               "name": "navigate",
               "payload": {},
-              "next_screen_id": "VOLUNTEER_FORM"
+              "next": "VOLUNTEER_FORM"
             }
           }
         ]
@@ -515,7 +515,7 @@
             "on-click-action": {
               "name": "navigate",
               "payload": {},
-              "next_screen_id": "MAIN_MENU"
+              "next": "MAIN_MENU"
             }
           }
         ]
