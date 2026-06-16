@@ -19,7 +19,7 @@ async function getAccessToken() {
   return r.rows[0]?.value || '';
 }
 
-async function getFlowId() {
+export async function getFlowId() {
   const r = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_main_flow_id'");
   return r.rows[0]?.value || '';
 }
