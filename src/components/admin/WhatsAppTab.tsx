@@ -754,8 +754,8 @@ export default function WhatsAppTab() {
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">{formatPhone(conv.wa_from)}</p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-bg font-bold text-gray-500 shrink-0">
-                        {conv.bot_name}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-bg font-bold text-gray-500 shrink-0 inline-flex items-center gap-1">
+                        <img src={`/bots/${conv.bot_name.toLowerCase()}.jpg`} className="w-4 h-4 rounded-full" />{conv.bot_name}
                       </span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-bg font-bold text-gray-500 shrink-0">
                         {flowLabel(conv.flow)}
@@ -794,7 +794,7 @@ export default function WhatsAppTab() {
                   <div>
                     <p className="font-bold text-brand-primary text-sm">{formatPhone(selectedConv.wa_from)}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-bg font-bold text-gray-500">{selectedConv.bot_name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-bg font-bold text-gray-500 inline-flex items-center gap-1"><img src={`/bots/${selectedConv.bot_name.toLowerCase()}.jpg`} className="w-4 h-4 rounded-full" />{selectedConv.bot_name}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-bg font-bold text-gray-500">{flowLabel(selectedConv.flow)}</span>
                     </div>
                   </div>
@@ -809,10 +809,10 @@ export default function WhatsAppTab() {
                             key={name}
                             onClick={() => assignBotName(selectedConv.id, name)}
                             className={cn(
-                              "block w-full text-left px-3 py-1.5 text-xs font-bold rounded-lg hover:bg-brand-bg transition-colors",
+                              "block w-full text-left px-3 py-1.5 text-xs font-bold rounded-lg hover:bg-brand-bg transition-colors inline-flex items-center gap-1.5",
                               selectedConv.bot_name === name && "text-brand-primary"
                             )}
-                          >{name}</button>
+                          ><img src={`/bots/${name.toLowerCase()}.jpg`} className="w-4 h-4 rounded-full" />{name}</button>
                         ))}
                       </div>
                     </div>
