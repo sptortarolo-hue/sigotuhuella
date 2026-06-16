@@ -1,14 +1,14 @@
-import React, { lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
-import Navbar from '@/src/components/Navbar';
+import { lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import PwaHandler from '@/src/components/PwaHandler';
 import ScrollToTop from '@/src/components/ScrollToTop';
+import PublicLayout from '@/src/components/PublicLayout';
+import AuthLayout from '@/src/components/auth/AuthLayout';
+import ProtectedRoute from '@/src/components/auth/ProtectedRoute';
 import Home from '@/src/pages/Home';
 import PetGallery from '@/src/components/PetGallery';
-import { useAuth } from '@/src/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 
-// Lazy load admin pages
 const Login = lazy(() => import('@/src/pages/Login'));
 const Admin = lazy(() => import('@/src/pages/Admin'));
 const ReportPet = lazy(() => import('@/src/pages/ReportPet'));
@@ -40,68 +40,62 @@ const SolicitarChapita = lazy(() => import('@/src/pages/SolicitarChapita'));
 const VerifyEmail = lazy(() => import('@/src/pages/VerifyEmail'));
 const FlyerPage = lazy(() => import('@/src/pages/FlyerPage'));
 
-function ProtectedRoute({ children, isAdmin }: { children: React.ReactNode, isAdmin?: boolean }) {
-  const { user, isAdmin: isUserAdmin, loading } = useAuth();
-
-  if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-brand-bg text-brand-primary">
-      <Loader2 className="w-10 h-10 animate-spin" />
-    </div>
-  );
-
-  if (!user || (isAdmin && !isUserAdmin)) return <Navigate to="/login" replace />;
-
-  return <>{children}</>;
-}
+const fallback = (
+  <div className="h-[60vh] flex items-center justify-center text-brand-primary">
+    <Loader2 className="w-8 h-8 animate-spin" />
+  </div>
+);
 
 export default function App() {
-  const { user } = useAuth();
   return (
     <Router>
       <ScrollToTop />
       <div className="min-h-screen bg-brand-bg">
         <PwaHandler />
-        <Navbar />
-        <main>
-          <Suspense fallback={
-            <div className="h-[60vh] flex items-center justify-center text-brand-primary">
-              <Loader2 className="w-8 h-8 animate-spin" />
-            </div>
-          }>
-            <Routes>
+        <Suspense fallback={fallback}>
+          <Routes>
+            {/* Public routes with Navbar + Footer */}
+            <Route element={<PublicLayout />}>
               <Route path="/" element={<Home />} />
-               <Route path="/perdidos" element={<PetGallery type="lost" />} />
-               <Route path="/adopcion" element={<PetGallery type="adoption" />} />
-               <Route path="/pet/:id" element={<PetDetail />} />
-               <Route path="/novedades" element={<Novedades />} />
-               <Route path="/novedad/:id" element={<NovedadDetail />} />
-               <Route path="/perdiste-a-tu-mascota" element={<LostPetGuide />} />
-               <Route path="/reportar" element={<ReportPet />} />
-               <Route path="/reportar-rapido" element={<QuickReport />} />
-               <Route path="/perdi-mi-mascota" element={<LostPetReport />} />
-               <Route path="/completar-registro" element={<CompleteRegistration />} />
-               <Route path="/difusion" element={<DiffusionPage />} />
-                <Route path="/descargar-cartel" element={<DiffusionPage />} />
-               <Route path="/flyer" element={<FlyerPage />} />
-                <Route path="/compartir-qr" element={<DiffusionPage />} />
+              <Route path="/perdidos" element={<PetGallery type="lost" />} />
+              <Route path="/adopcion" element={<PetGallery type="adoption" />} />
+              <Route path="/pet/:id" element={<PetDetail />} />
+              <Route path="/novedades" element={<Novedades />} />
+              <Route path="/novedad/:id" element={<NovedadDetail />} />
+              <Route path="/perdiste-a-tu-mascota" element={<LostPetGuide />} />
+              <Route path="/reportar" element={<ReportPet />} />
+              <Route path="/reportar-rapido" element={<QuickReport />} />
+              <Route path="/perdi-mi-mascota" element={<LostPetReport />} />
+              <Route path="/completar-registro" element={<CompleteRegistration />} />
+              <Route path="/difusion" element={<DiffusionPage />} />
+              <Route path="/descargar-cartel" element={<DiffusionPage />} />
+              <Route path="/flyer" element={<FlyerPage />} />
+              <Route path="/compartir-qr" element={<DiffusionPage />} />
               <Route path="/colaborar" element={<Collaborate />} />
-               <Route path="/solicitar-chapita" element={<SolicitarChapita />} />
-               <Route path="/verificar-email" element={<VerifyEmail />} />
-               <Route path="/sumate" element={<Join />} />
-              <Route path="/perfil" element={<Profile />} />
-              <Route path="/mi-carnet" element={<ProtectedRoute><MemberCardPage /></ProtectedRoute>} />
+              <Route path="/solicitar-chapita" element={<SolicitarChapita />} />
+              <Route path="/verificar-email" element={<VerifyEmail />} />
+              <Route path="/sumate" element={<Join />} />
               <Route path="/verificar/:memberNumber" element={<VerifyMember />} />
-          <Route path="/mis-publicaciones" element={<MyPets />} />
-          <Route path="/mi-mascota" element={<ProtectedRoute><MyPetsPortal /></ProtectedRoute>} />
-          <Route path="/mi-mascota/:id" element={<ProtectedRoute><MyPetDetail /></ProtectedRoute>} />
-          <Route path="/feed" element={<ProtectedRoute><Feed /></ProtectedRoute>} />
-          <Route path="/concursos" element={<ProtectedRoute><Contests /></ProtectedRoute>} />
-          <Route path="/mascota/:shareToken" element={<PublicPetProfile />} />
-          <Route path="/vet/:token" element={<VetPetProfile />} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password/:token" element={<ResetPassword />} />
+              <Route path="/mascota/:shareToken" element={<PublicPetProfile />} />
+              <Route path="/vet/:token" element={<VetPetProfile />} />
+            </Route>
+
+            {/* Auth routes with sidebar/bottom-nav layout */}
+            <Route
+              element={
+                <ProtectedRoute>
+                  <AuthLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/mi-mascota" element={<MyPetsPortal />} />
+              <Route path="/mi-mascota/:id" element={<MyPetDetail />} />
+              <Route path="/mis-publicaciones" element={<MyPets />} />
+              <Route path="/feed" element={<Feed />} />
+              <Route path="/concursos" element={<Contests />} />
+              <Route path="/perfil" element={<Profile />} />
+              <Route path="/mi-carnet" element={<MemberCardPage />} />
               <Route
                 path="/admin"
                 element={
@@ -110,55 +104,16 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </main>
+            </Route>
 
-        <footer className="bg-white border-t border-brand-accent py-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid md:grid-cols-4 gap-8 md:gap-12">
-              <div className="col-span-2 md:col-span-1">
-                <span className="text-xl md:text-2xl font-serif font-bold text-brand-primary mb-4 block">Sigo tu huella</span>
-                <p className="text-gray-500 max-w-sm leading-relaxed text-sm">
-                  Comprometidos con el bienestar animal en nuestra zona sur.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-bold text-gray-800 mb-4 uppercase text-xs tracking-widest">Navegación</h4>
-                <ul className="space-y-2 text-gray-600 text-sm">
-          <li><Link to="/perdidos" className="hover:text-brand-primary">Mascotas Reportadas</Link></li>
-          <li><Link to="/adopcion" className="hover:text-brand-primary">Adopción</Link></li>
-          <li><Link to="/reportar" className="hover:text-brand-primary">Publicar</Link></li>
-          <li><Link to="/reportar-rapido" className="hover:text-brand-primary">Reporte Rápido</Link></li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-bold text-gray-800 mb-4 uppercase text-xs tracking-widest">Comunidad</h4>
-                <ul className="space-y-2 text-gray-600 text-sm">
-                  <li>
-                    <Link to="/sumate" className="hover:text-brand-primary">
-                      {user && user.volunteer_status === 'active' ? 'Asociado' : 'Sumate'}
-                    </Link>
-                  </li>
-                  <li><Link to="/colaborar" className="hover:text-brand-primary">Colaborar</Link></li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-bold text-gray-800 mb-4 uppercase text-xs tracking-widest">Barrios</h4>
-                <ul className="space-y-2 text-gray-600 text-sm">
-                  <li>Villa Garibaldi</li>
-                  <li>Parque Sicardi</li>
-                  <li>Ignacio Correas</li>
-                </ul>
-              </div>
-            </div>
-            <div className="mt-12 pt-8 border-t border-brand-accent flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-gray-400 uppercase tracking-widest font-bold">
-              <span>© 2026 Sigo tu huella</span>
-              <span>Zona Sur, La Plata</span>
-            </div>
-          </div>
-        </footer>
+            {/* Standalone routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </div>
     </Router>
   );

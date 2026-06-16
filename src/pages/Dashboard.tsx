@@ -1,350 +1,278 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import {
-  User, Lock, PawPrint, Mail, Phone, ArrowRight,
-  Loader2, Settings, PlusCircle, Edit3, ShieldAlert, Heart
+  PawPrint, Plus, Eye, Heart, Trophy, Users,
+  Loader2, Clock, ArrowRight, ChevronRight,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Dashboard() {
-  const { user, loading, logout, isAdmin } = useAuth();
+  const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
-  const [pets, setPets] = useState<any[]>([]);
-  const [petsLoading, setPetsLoading] = useState(true);
-  const [profileData, setProfileData] = useState<{
-    display_name: string;
-    email: string;
-    phone: string | null;
-    role: string;
-    created_at: string;
-  } | null>(null);
+  const [myPets, setMyPets] = useState<any[]>([]);
+  const [myPetsLoading, setMyPetsLoading] = useState(true);
+  const [recentReports, setRecentReports] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
+    if (!user) { navigate('/login'); return; }
 
-    const fetchData = async () => {
+    const fetchMyPets = async () => {
       try {
-        // Datos del usuario desde el endpoint /me (siempre actualizados)
-        // pero ya tenemos `user` desde el contexto
-        setProfileData({
-          display_name: user.display_name || '',
-          email: user.email,
-          phone: user.phone || null,
-          role: user.role,
-          created_at: ''
-        });
+        setMyPetsLoading(true);
+        const data = await api.myPets.list();
+        setMyPets(data.myPets || []);
       } catch (e) {
-        console.error(e);
-      }
-    };
-
-    const fetchPets = async () => {
-      try {
-        setPetsLoading(true);
-        const data = await api.users.myPets(user.id);
-        setPets(data.pets || []);
-      } catch (e) {
-        console.error(e);
+        console.error('Error fetching my pets:', e);
       } finally {
-        setPetsLoading(false);
+        setMyPetsLoading(false);
       }
     };
 
-    fetchData();
-    fetchPets();
+    const fetchRecentReports = async () => {
+      try {
+        const data = await api.users.myPets(user.id);
+        const reports = (data.pets || [])
+          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 5);
+        setRecentReports(reports);
+      } catch (e) {
+        console.error('Error fetching recent reports:', e);
+      }
+    };
+
+    fetchMyPets();
+    fetchRecentReports();
   }, [user, navigate]);
 
-  if (loading) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center text-brand-primary">
-        <Loader2 className="w-10 h-10 animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-[60vh] flex items-center justify-center text-brand-primary">
+      <Loader2 className="w-10 h-10 animate-spin" />
+    </div>
+  );
 
   if (!user) return null;
 
-  const formatDate = (iso: string) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
-  };
+  const isMember = user.volunteer_status === 'active' || !!user.member_number;
 
-  // Última publicación
-  const latestPet = pets.reduce((latest, p) => {
-    return !latest || new Date(p.created_at) > new Date(latest.created_at) ? p : latest;
-  }, null as any);
+  const formatRelativeTime = (iso: string) => {
+    if (!iso) return '';
+    const diff = Date.now() - new Date(iso).getTime();
+    const days = Math.floor(diff / 86400000);
+    if (days === 0) return 'hoy';
+    if (days === 1) return 'ayer';
+    if (days < 30) return `hace ${days} días`;
+    return `hace ${Math.floor(days / 30)} meses`;
+  };
 
   const quickActions = [
     {
       icon: <PawPrint className="w-6 h-6" />,
-      title: 'Mis Reportes',
-      description: `${pets.length} publicacion${pets.length !== 1 ? 'es' : ''}`,
-      color: 'bg-brand-primary/10 text-brand-primary',
-      onClick: () => navigate('/mis-publicaciones')
+      label: 'Perdida',
+      desc: 'Reportar mascota perdida',
+      path: '/reportar',
+      color: 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100',
     },
     {
-      icon: <Edit3 className="w-6 h-6" />,
-      title: 'Editar Perfil',
-      description: 'Tu nombre y datos de contacto',
-      color: 'bg-emerald-500/10 text-emerald-600',
-      onClick: () => navigate('/perfil')
+      icon: <Eye className="w-6 h-6" />,
+      label: 'Avistaje',
+      desc: 'Vi una mascota',
+      path: '/reportar-rapido',
+      color: 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100',
     },
     {
-      icon: <Lock className="w-6 h-6" />,
-      title: 'Contraseña',
-      description: 'Cambiar tu contraseña',
-      color: 'bg-amber-500/10 text-amber-600',
-      onClick: () => navigate('/perfil')
+      icon: <Trophy className="w-6 h-6" />,
+      label: 'Concursos',
+      desc: 'Participá y sumá puntos',
+      path: '/concursos',
+      color: 'bg-brand-primary/10 text-brand-primary border-brand-primary/20 hover:bg-brand-primary/20',
     },
     {
-      icon: <PlusCircle className="w-6 h-6" />,
-      title: 'Publicar',
-      description: 'Nuevo reporte de mascota',
-      color: 'bg-red-500/10 text-red-600',
-      onClick: () => navigate('/reportar')
+      icon: <Users className="w-6 h-6" />,
+      label: 'Comunidad',
+      desc: 'Mirá el feed de novedades',
+      path: '/feed',
+      color: 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100',
     },
-    {
-      icon: <Heart className="w-6 h-6" />,
-      title: 'Mi Mascota',
-      description: 'Portal de tu mascota',
-      color: 'bg-brand-secondary/10 text-brand-secondary',
-      onClick: () => navigate('/mi-mascota')
-    }
   ];
 
-  if (isAdmin) {
-    quickActions.push({
-      icon: <ShieldAlert className="w-6 h-6" />,
-      title: 'Panel Admin',
-      description: 'Gestionar usuarios y reportes',
-      color: 'bg-purple-500/10 text-purple-600',
-      onClick: () => navigate('/admin')
-    });
-  }
-
-  const memberSince = user.created_at
-    ? new Date(user.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
-    : '—';
-
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
-      {/* Header */}
-          <div className="relative -mx-4 -mt-4 mb-8 bg-gradient-to-r from-brand-primary to-brand-secondary rounded-b-[3rem] px-6 py-10 shadow-xl overflow-hidden">
-        <div className="flex items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
-            {user.avatar_type === 'photo' && user.avatar_data ? (
-              <img
-                src={`data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`}
-                alt="Avatar"
-                className="w-16 h-16 rounded-2xl object-cover border-2 border-white/20 shrink-0"
-              />
-            ) : (
-              <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/20 shrink-0">
-                <User className="w-8 h-8 text-white" />
-              </div>
-            )}
-            <div className="min-w-0">
-              <h1 className="text-2xl font-semibold text-white truncate">
-                {user.display_name || 'Usuario'}
-              </h1>
-              <p className="text-white/80 text-sm flex items-center gap-1">
-                <Mail className="w-3 h-3 shrink-0" /> <span className="truncate">{user.email}</span>
-              </p>
-              {user.phone && (
-                <p className="text-white/70 text-xs flex items-center gap-1">
-                  <Phone className="w-3 h-3 shrink-0" /> {user.phone}
-                </p>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={() => navigate('/mi-mascota')}
-            className="hidden md:flex items-center gap-2 px-4 py-2.5 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-white/30 transition-all shrink-0"
-          >
-            <Heart className="w-4 h-4" /> Mis Mascotas
-            <ArrowRight className="w-4 h-4" />
-          </button>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      {/* Greeting */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary">
+            ¡Hola, {user.display_name || 'Usuario'}!
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">¿Qué vas a hacer hoy?</p>
         </div>
-        <button
-          onClick={() => navigate('/mi-mascota')}
-          className="md:hidden w-full mt-4 flex items-center justify-center gap-2 px-4 py-3 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-white/30 transition-all"
-        >
-          <Heart className="w-4 h-4" /> Mis Mascotas
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        {isMember && (
+          <span className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-bold shrink-0">
+            ★ Socio
+          </span>
+        )}
       </div>
 
-      {/* Estado de cuenta */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-[2rem] border border-brand-accent p-6 mb-8 shadow-sm"
-      >
-        <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Estado de mi cuenta</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-brand-bg rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-brand-primary">{pets.length}</div>
-            <div className="text-xs text-gray-500">Reportes publicados</div>
-          </div>
-          <div className="bg-brand-bg rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-brand-primary">
-              {pets.filter(p => p.status === 'lost').length}
-            </div>
-            <div className="text-xs text-gray-500">Perdidos</div>
-          </div>
-          <div className="bg-brand-bg rounded-xl p-4 text-center">
-<div className="text-2xl font-bold text-emerald-600">
-               {pets.filter(p => p.status === 'retained').length}
-             </div>
-             <div className="text-xs text-gray-500">Retenidos</div>
-          </div>
-          <div className="bg-brand-bg rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-amber-600">
-              {pets.filter(p => p.is_admin_verified).length}
-            </div>
-            <div className="text-xs text-gray-500">Verificados</div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Acciones rápidas */}
-      <h3 className="text-lg font-bold text-brand-primary mb-4">Accesos rápidos</h3>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8"
-      >
-        {quickActions.map((action, i) => (
+      {/* Mis mascotas strip */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">Mis mascotas</h2>
           <button
-            key={i}
-            onClick={action.onClick}
-            className={`group p-5 rounded-[2rem] border border-brand-accent hover:border-brand-primary hover:shadow-lg transition-all text-left ${action.color}`}
+            onClick={() => navigate('/mi-mascota')}
+            className="text-xs font-bold text-brand-primary flex items-center gap-1"
           >
-            <div className="flex items-center gap-3 mb-2">
-              {action.icon}
-              <span className="text-sm font-bold text-gray-800">{action.title}</span>
-            </div>
-            <p className="text-xs text-gray-500 ml-6">{action.description}</p>
-            <ArrowRight className="w-4 h-4 text-gray-300 ml-4 mt-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+            Ver todas <ChevronRight className="w-3 h-3" />
           </button>
-        ))}
-      </motion.div>
+        </div>
 
-      {/* Última publicación */}
-      {latestPet ? (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-[2rem] border border-brand-accent p-6 mb-8 shadow-sm"
-        >
-          <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Última publicación</h3>
-          <div className="flex items-center gap-4 p-4 bg-brand-bg rounded-2xl">
-            <img
-              src={latestPet.images?.[0]?.image_data || '/sigotuhuella.jpg'}
-              alt={latestPet.name}
-              className="w-20 h-20 object-cover rounded-2xl"
-            />
-            <div className="flex-1">
-              <h4 className="text-sm font-bold text-brand-primary">{latestPet.name || 'Sin nombre'}</h4>
-              <p className="text-xs text-gray-500">{latestPet.location}</p>
-              <p className="text-xs text-gray-400">
-                {latestPet.status === 'lost' ? '🟢 Buscando' : latestPet.status === 'retained' ? '🔵 Retenido' : latestPet.status === 'sighted' ? '🟡 Avistado' : latestPet.status === 'accidented' ? '🟣 Accidentado' : latestPet.status === 'needs_attention' ? '🟠 Necesita Atención' : '🟢 En Adopción'} · {formatDate(latestPet.created_at)}
-              </p>
-            </div>
+        {myPetsLoading ? (
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="shrink-0 w-24 h-24 bg-gray-100 rounded-2xl animate-pulse" />
+            ))}
           </div>
-        </motion.div>
-      ) : (
-        !petsLoading && (
+        ) : myPets.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-6 mb-8 text-center"
+            className="bg-white rounded-2xl border border-dashed border-brand-accent p-6 text-center"
           >
-            <p className="text-gray-400 font-medium">
-              No publicaste ningún reporte todavía.
-            </p>
+            <PawPrint className="w-10 h-10 text-brand-accent mx-auto mb-2" />
+            <p className="text-sm text-gray-500 mb-3">Todavía no registraste mascotas</p>
+            <button
+              onClick={() => navigate('/mi-mascota')}
+              className="px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-bold hover:shadow-lg transition-all"
+            >
+              <Plus className="w-4 h-4 inline mr-1" /> Registrar
+            </button>
+          </motion.div>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-none">
+            {myPets.map((pet) => (
+              <motion.button
+                key={pet.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={() => navigate(`/mi-mascota/${pet.id}`)}
+                className="shrink-0 snap-start group"
+              >
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-brand-bg border border-brand-accent group-hover:border-brand-primary/50 transition-all shadow-sm group-hover:shadow-md">
+                  {pet.avatar_image ? (
+                    <img
+                      src={`/my-pet-avatar/${pet.id}`}
+                      alt={pet.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <PawPrint className="w-8 h-8 sm:w-10 sm:h-10 text-brand-accent" />
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs font-medium text-gray-700 text-center mt-1.5 truncate max-w-20 sm:max-w-24">
+                  {pet.name}
+                </p>
+              </motion.button>
+            ))}
+            <button
+              onClick={() => navigate('/mi-mascota')}
+              className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-2 border-dashed border-brand-accent flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-brand-primary hover:border-brand-primary transition-all"
+            >
+              <Plus className="w-6 h-6" />
+              <span className="text-[10px] font-medium">Agregar</span>
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* Quick Actions */}
+      <section className="mb-8">
+        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">Acciones rápidas</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {quickActions.map((action, i) => (
+            <motion.button
+              key={i}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              onClick={() => navigate(action.path)}
+              className={`p-4 rounded-2xl border text-left transition-all ${action.color}`}
+            >
+              <div className="mb-2">{action.icon}</div>
+              <p className="text-sm font-bold">{action.label}</p>
+              <p className="text-xs opacity-75 mt-0.5">{action.desc}</p>
+            </motion.button>
+          ))}
+        </div>
+      </section>
+
+      {/* Recent Activity */}
+      <section>
+        <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">Actividad reciente</h2>
+        {recentReports.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl border border-dashed border-brand-accent p-8 text-center"
+          >
+            <Clock className="w-10 h-10 text-brand-accent mx-auto mb-2" />
+            <p className="text-sm text-gray-500">Todavía no hay actividad</p>
             <button
               onClick={() => navigate('/reportar')}
-              className="mt-4 px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all"
+              className="mt-3 px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-bold hover:shadow-lg transition-all"
             >
-              <PlusCircle className="w-4 h-4 inline mr-2" />
               Hacer mi primer reporte
             </button>
           </motion.div>
-        )
-      )}
-
-      {/* Datos personales */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-[2rem] border border-brand-accent p-6 mb-8 shadow-sm"
-      >
-        <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Datos personales</h3>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 p-2">
-            <User className="w-4 h-4 text-gray-400" />
-            <div>
-              <p className="text-xs text-gray-400">Nombre</p>
-              <p className="text-sm font-medium text-gray-800">{user.display_name || 'Sin nombre'}</p>
-            </div>
+        ) : (
+          <div className="space-y-2">
+            {recentReports.map((report, i) => (
+              <motion.button
+                key={report.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.03 }}
+                onClick={() => {
+                  if (report.my_pet_id) {
+                    navigate(`/mi-mascota/${report.my_pet_id}`);
+                  } else {
+                    navigate(`/pet/${report.id}`);
+                  }
+                }}
+                className="w-full flex items-center gap-3 p-3 bg-white rounded-xl border border-brand-accent hover:border-brand-primary/30 hover:shadow-sm transition-all text-left"
+              >
+                <div className="w-10 h-10 rounded-xl overflow-hidden bg-brand-bg shrink-0">
+                  {report.images?.[0]?.image_data ? (
+                    <img
+                      src={`data:image/jpeg;base64,${report.images[0].image_data}`}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <PawPrint className="w-5 h-5 text-brand-accent" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {report.name || 'Mascota sin nombre'}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {report.status === 'lost' ? 'Perdido' :
+                     report.status === 'retained' ? 'Retenido' :
+                     report.status === 'sighted' ? 'Avistado' :
+                     report.status === 'adoption' ? 'En adopción' : 'Reportado'}
+                    {' · '}{formatRelativeTime(report.created_at)}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+              </motion.button>
+            ))}
           </div>
-          <div className="flex items-center gap-3 p-2">
-            <Mail className="w-4 h-4 text-gray-400" />
-            <div>
-              <p className="text-xs text-gray-400">Correo</p>
-              <p className="text-sm font-medium text-gray-800">{user.email}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 p-2">
-            <Phone className="w-4 h-4 text-gray-400" />
-            <div>
-              <p className="text-xs text-gray-400">WhatsApp / Teléfono</p>
-              <p className="text-sm font-medium text-gray-800">{user.phone || 'Sin teléfono'}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 p-2">
-            {user.role === 'admin' ? (
-              <ShieldAlert className="w-4 h-4 text-purple-500" />
-            ) : (
-              <User className="w-4 h-4 text-gray-400" />
-            )}
-            <div>
-              <p className="text-xs text-gray-400">Rol</p>
-              <p className="text-sm font-medium text-gray-800">
-                {user.role === 'admin' ? 'Administrador' : 'Vecino'}
-              </p>
-            </div>
-          </div>
-<div className="flex items-center gap-3 p-2">
-             <PawPrint className="w-4 h-4 text-gray-400" />
-             <div>
-               <p className="text-xs text-gray-400">Miembro desde</p>
-               <p className="text-sm font-medium text-gray-800">{memberSince}</p>
-             </div>
-           </div>
-        </div>
-      </motion.div>
-
-      {/* Logout */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <button
-          onClick={() => { logout(); navigate('/'); }}
-          className="w-full py-4 bg-white text-red-600 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-red-50 border border-red-100 transition-all"
-        >
-          <Lock className="w-5 h-5" />
-          Cerrar Sesión
-        </button>
-      </motion.div>
+        )}
+      </section>
     </div>
   );
 }
