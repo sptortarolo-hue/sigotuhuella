@@ -859,11 +859,14 @@ export default function WhatsAppTab() {
                       {msg.text_body ? <p className="whitespace-pre-wrap break-words">{msg.text_body}</p> : null}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
+                      {msg.direction === 'outbound' ? (
+                        <img src={`/bots/${selectedConv.bot_name.toLowerCase()}.jpg`} className="w-4 h-4 rounded-full" />
+                      ) : null}
                       <span className={cn(
                         "text-[10px]",
                         msg.direction === 'outbound' ? "text-brand-primary/60" : "text-gray-400"
                       )}>
-                        {msg.direction === 'outbound' ? 'Admin' : msg.sender_name || 'Usuario'}
+                        {msg.direction === 'outbound' ? selectedConv.bot_name : msg.sender_name || 'Usuario'}
                       </span>
                       <span className="text-[10px] text-gray-300">
                         {new Date(msg.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
