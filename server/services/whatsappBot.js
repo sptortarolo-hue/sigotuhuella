@@ -457,6 +457,14 @@ async function rlSpecies(conv, parsed) {
       : text.includes('otro') || text.includes('🐾') ? 'other' : 'dog';
   }
   await sendMessage(conv.wa_from, `✅ Anotado.`);
+  if (conv.context?.photo_data) {
+    return rlPhoto(conv, {
+      messageType: 'image',
+      imageData: conv.context.photo_data,
+      imageMime: conv.context.photo_mime,
+      textBody: conv.context.caption || '',
+    });
+  }
   await sendMessage(conv.wa_from, `${conv.bot_name}: Ahora enviá una *foto* de la mascota 📸`);
   await setFlow(conv, 'report_lost.photo', { species });
 }
@@ -466,6 +474,38 @@ async function rlPhoto(conv, parsed) {
   const photoMime = parsed.imageMime || conv.context?.photo_mime;
   if (!photoData) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor enviá una *foto* de la mascota 📸`);
+    return;
+  }
+  const extracted = conv.context?._extracted;
+  if (extracted?.location || extracted?.phone) {
+    const ctx = {
+      ...conv.context, species: conv.context?.species || 'dog',
+      photo_data: photoData, photo_mime: photoMime || 'image/jpeg',
+    };
+    if (extracted.location) {
+      ctx.location = extracted.location;
+      const coords = await geocodeAddress(extracted.location).catch(() => null);
+      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+    }
+    if (extracted.phone) ctx.contact = extracted.phone;
+    await sendMessage(conv.wa_from, `✅ Foto recibida.`);
+    if (ctx.location && ctx.contact) {
+      await setFlow(conv, 'report_lost.confirm', ctx);
+      const speciesLabel = { dog: 'Perro 🐕', cat: 'Gato 🐈', other: 'Otro 🐾' };
+      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos:\n\n🐾 *Especie:* ${speciesLabel[ctx.species] || ctx.species}\n📍 *Ubicación:* ${ctx.location}\n📞 *Contacto:* ${ctx.contact}\n\n¿Está todo correcto?`);
+      await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
+        { id: 'confirm_yes', title: '✅ Sí, reportar' },
+        { id: 'confirm_no', title: '❌ Cancelar' },
+      ]);
+      return;
+    }
+    if (!ctx.location) {
+      await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde se perdió? Podés escribir la dirección o compartir tu *ubicación* 📍`);
+      await setFlow(conv, 'report_lost.location', ctx);
+    } else {
+      await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* para que los dueños puedan comunicarse? 📞`);
+      await setFlow(conv, 'report_lost.contact', ctx);
+    }
     return;
   }
   await sendMessage(conv.wa_from, `✅ Foto recibida.`);
@@ -587,6 +627,7 @@ async function rsPhoto(conv, parsed) {
     { id: 'rs_species_other', title: '🐾 Otro' },
   ]);
   await setFlow(conv, 'report_sighted.species', {
+    ...conv.context,
     photo_data: photoData,
     photo_mime: photoMime || 'image/jpeg',
   });
@@ -603,6 +644,27 @@ async function rsSpecies(conv, parsed) {
       : text.includes('otro') ? 'other' : 'dog';
   }
   await sendMessage(conv.wa_from, `✅ Anotado.`);
+  const extracted = conv.context?._extracted;
+  if (extracted?.location) {
+    const ctx = { ...conv.context, species, location: extracted.location };
+    const coords = await geocodeAddress(extracted.location).catch(() => null);
+    if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+    if (extracted.description) ctx.details = extracted.description;
+    if (extracted.phone) ctx.contact = extracted.phone;
+    if (ctx.contact) {
+      await setFlow(conv, 'report_sighted.confirm', ctx);
+      const speciesLabel = { dog: '🐕 Perro', cat: '🐈 Gato', other: '🐾 Otro', unknown: '?' };
+      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás el reporte de avistaje?\n  🐾 *Especie:* ${speciesLabel[species] || '?'}\n  📍 *Ubicación:* ${ctx.location}\n  ${ctx.details ? `📝 *Detalles:* ${ctx.details}\n  ` : ''}${ctx.contact ? `📞 *Contacto:* ${ctx.contact}` : ''}`);
+      await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
+        { id: 'confirm_yes', title: '✅ Sí, reportar' },
+        { id: 'confirm_no', title: '❌ Cancelar' },
+      ]);
+      return;
+    }
+    await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* por si alguien quiere aportar información? (opcional — escribí el número o "saltar")`);
+    await setFlow(conv, 'report_sighted.contact', ctx);
+    return;
+  }
   await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde la viste? Podés escribir la dirección o compartir tu *ubicación* 📍`);
   await setFlow(conv, 'report_sighted.location', { ...conv.context, species });
 }
