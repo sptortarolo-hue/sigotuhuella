@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { registerFlow, publishFlow, getFlowStatus } from '../services/whatsappFlows.js';
 
 async function main() {
