@@ -71,15 +71,21 @@ export async function registerFlow() {
 
   // Always update assets (upload the JSON definition)
   console.log('Uploading flow JSON assets...');
-  const { data: assetData } = await axios.post(`${GRAPH_API}/${flowId}/assets`,
-    {
-      messaging_product: 'whatsapp',
-      flow_json_uri: null,
-      flow_json: JSON.stringify(flowJson),
-    },
-    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
-  );
-  console.log('Assets uploaded:', assetData);
+  try {
+    const { data: assetData } = await axios.post(`${GRAPH_API}/${flowId}/assets`,
+      {
+        messaging_product: 'whatsapp',
+        flow_json_uri: null,
+        flow_json: JSON.stringify(flowJson),
+      },
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+    );
+    console.log('Assets uploaded:', assetData);
+  } catch (err) {
+    const detail = err?.response?.data || err.message;
+    console.error('[registerFlow] Assets upload error:', JSON.stringify(detail, null, 2));
+    throw err;
+  }
 
   return flowId;
 }
