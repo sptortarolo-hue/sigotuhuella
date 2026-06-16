@@ -5,11 +5,6 @@ import { classifyPost } from './geminiClassifier.js';
 import { fetchFbPost } from './vpsSyncService.js';
 import { geocodeAddress } from './geocoding.js';
 import axios from 'axios';
-import { readFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const BOT_NAMES = ['Tute', 'Lilo', 'Toto'];
 
@@ -218,13 +213,9 @@ async function routeFlow(conv, parsed) {
 
 async function sendBotAvatar(conv) {
   try {
-    const avatarPath = join(__dirname, '..', '..', 'public', 'bots', `${conv.bot_name.toLowerCase()}.jpg`);
-    if (existsSync(avatarPath)) {
-      const buffer = readFileSync(avatarPath);
-      const base64 = buffer.toString('base64');
-      const mediaId = await uploadMedia(base64, 'image/jpeg');
-      await sendImage(conv.wa_from, mediaId, conv.bot_name);
-    }
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const avatarUrl = `${frontendUrl}/bots/${conv.bot_name.toLowerCase()}.jpg`;
+    await sendImage(conv.wa_from, avatarUrl, conv.bot_name);
   } catch (e) {
     console.log(`sendBotAvatar error: ${e.message}`);
   }
