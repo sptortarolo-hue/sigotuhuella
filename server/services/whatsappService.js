@@ -58,6 +58,40 @@ export async function sendInteractiveButtons(to, bodyText, buttons) {
   return data;
 }
 
+export async function sendListMessage(to, bodyText, rows, { buttonLabel = 'Ver opciones', headerText, footerText } = {}) {
+  const phoneNumberId = await getPhoneNumberId();
+  const token = await getAccessToken();
+  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      body: { text: bodyText },
+      action: {
+        button: buttonLabel,
+        sections: [{
+          title: '🐾 Sigo Tu Huella',
+          rows: rows.map((r, i) => ({
+            id: String(r.id || i),
+            title: r.title.slice(0, 24),
+          })),
+        }],
+      },
+    },
+  };
+  if (headerText) payload.interactive.header = { type: 'text', text: headerText.slice(0, 60) };
+  if (footerText) payload.interactive.footer = { text: footerText.slice(0, 60) };
+
+  const { data } = await axios.post(`${GRAPH_API}/${phoneNumberId}/messages`, payload,
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  return data;
+}
+
 export async function sendFlowMessage(to, flowId, bodyText, flowToken, screen = 'MAIN_MENU', screenData = {}) {
   const phoneNumberId = await getPhoneNumberId();
   const token = await getAccessToken();

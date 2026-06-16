@@ -1,5 +1,5 @@
 import pool from '../db.js';
-import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups, sendFlowMessage } from './whatsappService.js';
+import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups, sendFlowMessage, sendListMessage } from './whatsappService.js';
 import { matchWhatsAppToPets, processImageCaption } from './geminiMatching.js';
 import { classifyPost } from './geminiClassifier.js';
 import { fetchFbPost } from './vpsSyncService.js';
@@ -164,9 +164,29 @@ async function routeFlow(conv, parsed) {
     return handleImageFromMenu(conv, parsed);
   }
 
+  // Flow abandonment rescue: if user is mid-flow and types reset words or is >60min inactive
+  const isActiveFlow = flow !== 'menu' && flow !== 'welcome' && flow !== 'end_flow' && flow !== 'closed' && flow !== 'flow_interrupted';
+  if (isActiveFlow) {
+    const text = (parsed.textBody || '').toLowerCase().trim();
+    const timeElapsed = conv.last_message_at ? Date.now() - new Date(conv.last_message_at).getTime() : 0;
+    const isInactive = timeElapsed > 60 * 60 * 1000;
+    const resetWords = ['hola', 'menu', 'menú', 'empezar', 'volver', 'inicio', 'principal'];
+    if (isInactive || resetWords.includes(text) || /^(hola|menu|menú|empezar|volver)\b/.test(text)) {
+      const stepName = stepNames[flow] || 'completar el proceso';
+      await setFlow(conv, 'flow_interrupted', { previous_flow: flow, previous_context: conv.context });
+      await sendInteractiveButtons(conv.wa_from,
+        `⏰ *${conv.bot_name}:* Tenías un proceso sin terminar (${stepName}). ¿Qué querés hacer?`, [
+        { id: 'interrupt_continue', title: '▶️ Continuar' },
+        { id: 'interrupt_menu', title: '🏠 Menú principal' },
+      ]);
+      return;
+    }
+  }
+
   switch (flow) {
     case 'welcome': return showWelcome(conv);
     case 'menu': return handleMenu(conv, parsed, intent);
+    case 'flow_interrupted': return handleFlowInterrupted(conv, parsed);
     case 'report_lost.species': return rlSpecies(conv, parsed);
     case 'report_lost.photo': return rlPhoto(conv, parsed);
     case 'report_lost.location': return rlLocation(conv, parsed);
@@ -213,27 +233,65 @@ async function routeFlow(conv, parsed) {
   }
 }
 
+const stepNames = {
+  'report_lost.species': 'decir la especie',
+  'report_lost.photo': 'enviar una foto',
+  'report_lost.location': 'decir la ubicación',
+  'report_lost.contact': 'dar un contacto',
+  'report_lost.name': 'decir el nombre',
+  'report_lost.description': 'dar una descripción',
+  'report_lost.confirm': 'confirmar los datos',
+  'report_sighted.photo': 'enviar una foto',
+  'report_sighted.species': 'decir qué especie viste',
+  'report_sighted.location': 'decir dónde lo viste',
+  'report_sighted.details': 'dar más detalles',
+  'report_sighted.contact': 'dar un contacto',
+  'report_sighted.confirm': 'confirmar los datos',
+  'report_found.photo': 'enviar una foto',
+  'report_found.location': 'decir dónde lo encontraste',
+  'report_found.contact': 'dar un contacto',
+  'report_found.confirm': 'confirmar los datos',
+  'volunteer.name': 'decir tu nombre',
+  'volunteer.zone': 'decir tu zona',
+  'volunteer.phone': 'decir tu teléfono',
+  'volunteer.confirm': 'confirmar tus datos',
+  'human.motive': 'decir tu consulta',
+  'adopt.species': 'decir qué especie querés adoptar',
+  'report_from_fb.ask_url': 'pegar el link de Facebook',
+  'report_from_fb.lookup': 'confirmar la publicación',
+  'report_from_fb.ask_status': 'indicar el estado',
+  'report_from_fb.ask_species': 'decir la especie',
+  'report_from_fb.ask_location': 'decir la ubicación',
+  'report_from_fb.ask_all': 'completar los datos',
+  'report_from_fb.confirm': 'confirmar los datos',
+};
+
+async function handleFlowInterrupted(conv, parsed) {
+  if (parsed.buttonId === 'interrupt_continue') {
+    const prevFlow = conv.context?.previous_flow || 'menu';
+    const prevCtx = conv.context?.previous_context || {};
+    await setFlow(conv, prevFlow, prevCtx);
+    const stepName = stepNames[prevFlow] || 'continuar';
+    await sendMessage(conv.wa_from, `👍 *${conv.bot_name}:* Dale, seguimos con el proceso. Estabas por ${stepName}.`);
+    return;
+  }
+  await sendMessage(conv.wa_from, `${conv.bot_name}: OK, te llevo al menú principal.`);
+  return showMenu(conv);
+}
+
 // ─── Welcome (solo primera vez) ───
 
 async function showWelcome(conv) {
   const isRecurring = conv.context?.is_new === false || conv.context?.return_count > 0;
   const nameFromCtx = conv.context?.name || '';
 
-  if (isRecurring) {
-    const greeting = nameFromCtx
+  const greeting = isRecurring
+    ? nameFromCtx
       ? `🐾 *${conv.bot_name}:* ¡Hola de nuevo, ${nameFromCtx}! ¿En qué puedo ayudarte hoy?`
-      : `🐾 *${conv.bot_name}:* ¡Hola de nuevo! ¿En qué puedo ayudarte hoy?`;
-    await sendMessage(conv.wa_from, greeting);
-  } else {
-    await sendMessage(conv.wa_from,
-      `🐾 ¡Hola! Soy *${conv.bot_name}*, el asistente virtual de *Sigo Tu Huella* 🐾\n\n` +
-      `Estoy acá para ayudarte a reportar mascotas perdidas, avistajes y conectar con nuestra red de ayuda.`);
+      : `🐾 *${conv.bot_name}:* ¡Hola de nuevo! ¿En qué puedo ayudarte hoy?`
+    : `🐾 ¡Hola! Soy *${conv.bot_name}*, el asistente virtual de *Sigo Tu Huella*. ¿En qué podemos ayudarte? Tocá "Ver opciones" abajo 👇`;
 
-    const greeting = await getSetting('whatsapp_greeting');
-    if (greeting) {
-      await sendMessage(conv.wa_from, greeting);
-    }
-  }
+  await sendMessage(conv.wa_from, greeting);
 
   const rc = (conv.context?.return_count || 0) + 1;
   await setFlow(conv, 'menu', { is_new: false, return_count: rc });
@@ -256,33 +314,37 @@ export async function showMenu(conv) {
         await setFlow(conv, 'menu');
         return;
       } catch (err) {
-        console.error('Flow send failed, falling back to buttons:', err.message);
+        console.error('Flow send failed, falling back to list menu:', err.message);
       }
     }
     {
-      // Fallback: interactive buttons si no hay Flow registrado
-      const menus = [
-        ['📌 ¿En qué puedo ayudarte?', [
-          { id: 'report_lost', title: '📷 Mascota perdida' },
-          { id: 'report_sighted', title: '👀 Mascota avistada' },
-          { id: 'report_found', title: '✅ Mascota encontrada' },
-        ]],
-        ['📌 También puedo ayudarte con...', [
-          { id: 'adopt', title: '🙋 Adoptar mascota' },
+      const rows = [
+        { id: 'report_lost', title: '📷 Perdí mi mascota' },
+        { id: 'report_sighted', title: '👀 Vi una mascota' },
+        { id: 'report_found', title: '✅ Encontré una mascota' },
+        { id: 'adopt', title: '🙋 Quiero adoptar' },
+        { id: 'info_qr', title: 'ℹ️ Chapita QR' },
+        { id: 'donate', title: '💰 Donar' },
+        { id: 'volunteer', title: '🙌 Ser voluntario' },
+        { id: 'report_from_fb', title: '📱 Link Facebook' },
+        { id: 'human', title: '🗣 Contactar equipo' },
+      ];
+      try {
+        await sendListMessage(conv.wa_from, '¿En qué podemos ayudarte?', rows, {
+          headerText: '🐾 Sigo Tu Huella',
+          footerText: 'Red Vecinal de Mascotas',
+        });
+      } catch (err) {
+        console.error('List menu send error, falling back to buttons:', err.message);
+        await sendInteractiveButtons(conv.wa_from, '📌 ¿En qué puedo ayudarte?', [
+          { id: 'report_lost', title: '📷 Perdí mi mascota' },
+          { id: 'report_sighted', title: '👀 Vi una mascota' },
+          { id: 'report_found', title: '✅ Encontré una mascota' },
+          { id: 'adopt', title: '🙋 Adoptar' },
           { id: 'info_qr', title: 'ℹ️ Chapita QR' },
           { id: 'donate', title: '💰 Donar' },
-        ]],
-        ['📌 O necesitás...', [
-          { id: 'report_from_fb', title: '📱 Link Facebook' },
           { id: 'human', title: '🗣 Contactar equipo' },
-        ]],
-      ];
-      for (const [body, btns] of menus) {
-        try {
-          await sendInteractiveButtons(conv.wa_from, body, btns);
-        } catch (err) {
-          console.error(`Menu button send error (${body}):`, err.message);
-        }
+        ]);
       }
     }
   } catch (err) {
