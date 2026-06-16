@@ -216,12 +216,7 @@ async function routeFlow(conv, parsed) {
 
 // ─── Welcome (solo primera vez) ───
 
-async function showWelcome(conv) {
-  await sendMessage(conv.wa_from,
-    `🐾 ¡Hola! Soy *${conv.bot_name}*, el asistente virtual de *Sigo Tu Huella* 🐾\n\n` +
-    `Estoy acá para ayudarte a reportar mascotas perdidas, avistajes y conectar con nuestra red de ayuda.`);
-
-  // Send bot avatar image
+async function sendBotAvatar(conv) {
   try {
     const avatarPath = join(__dirname, '..', '..', 'public', 'bots', `${conv.bot_name.toLowerCase()}.jpg`);
     if (existsSync(avatarPath)) {
@@ -231,8 +226,16 @@ async function showWelcome(conv) {
       await sendImage(conv.wa_from, mediaId, conv.bot_name);
     }
   } catch (e) {
-    console.log(`showWelcome: avatar send error: ${e.message}`);
+    console.log(`sendBotAvatar error: ${e.message}`);
   }
+}
+
+async function showWelcome(conv) {
+  await sendMessage(conv.wa_from,
+    `🐾 ¡Hola! Soy *${conv.bot_name}*, el asistente virtual de *Sigo Tu Huella* 🐾\n\n` +
+    `Estoy acá para ayudarte a reportar mascotas perdidas, avistajes y conectar con nuestra red de ayuda.`);
+
+  await sendBotAvatar(conv);
 
   const greeting = await getSetting('whatsapp_greeting');
   if (greeting) {
@@ -245,6 +248,8 @@ async function showWelcome(conv) {
 // ─── Menu ───
 
 export async function showMenu(conv) {
+  await sendBotAvatar(conv);
+
   const menus = [
     ['📌 ¿En qué puedo ayudarte?', [
       { id: 'report_lost', title: '📷 Mascota perdida' },
