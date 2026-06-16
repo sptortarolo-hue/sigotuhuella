@@ -15,6 +15,7 @@ export interface PetImage {
   id: string;
   image_data: string;
   mime_type: string;
+  external_url?: string;
   has_original?: boolean;
 }
 
@@ -46,11 +47,19 @@ export interface Pet {
 }
 
 export function getPetImageUrl(pet: Pet): string | undefined {
-  return pet.images?.[0] ? `data:${pet.images[0].mime_type};base64,${pet.images[0].image_data}` : undefined;
+  if (!pet.images?.[0]) return undefined;
+  const img = pet.images[0];
+  if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
+  if (img.external_url) return img.external_url;
+  return undefined;
 }
 
 export function getPetImageUrls(pet: Pet): string[] {
-  return pet.images?.map(img => `data:${img.mime_type};base64,${img.image_data}`) || [];
+  return pet.images?.map(img => {
+    if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
+    if (img.external_url) return img.external_url;
+    return '';
+  }).filter(Boolean) || [];
 }
 
 export function getPetOriginalImageUrl(pet: Pet): string | undefined {
