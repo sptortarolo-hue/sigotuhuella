@@ -69,16 +69,20 @@ export async function registerFlow() {
     console.log(`Created flow ${flowId}`);
   }
 
-  // Always update assets (upload the JSON definition)
+  // Always update assets (upload the JSON definition as a file via multipart/form-data)
   console.log('Uploading flow JSON assets...');
   try {
+    const { default: FormData } = await import('form-data');
+    const assetForm = new FormData();
+    assetForm.append('messaging_product', 'whatsapp');
+    assetForm.append('file', Buffer.from(JSON.stringify(flowJson)), {
+      filename: 'flow.json',
+      contentType: 'application/json',
+    });
+
     const { data: assetData } = await axios.post(`${GRAPH_API}/${flowId}/assets`,
-      {
-        messaging_product: 'whatsapp',
-        flow_json_uri: null,
-        flow_json: JSON.stringify(flowJson),
-      },
-      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      assetForm,
+      { headers: { Authorization: `Bearer ${token}`, ...assetForm.getHeaders() } }
     );
     console.log('Assets uploaded:', assetData);
   } catch (err) {
