@@ -673,6 +673,50 @@ export async function initDb() {
       ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS embed_html TEXT
     `, 'facebook_posts embed_html');
 
+    // WhatsApp Flows tables
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS whatsapp_chapita_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        wa_from VARCHAR(20) NOT NULL,
+        pet_name VARCHAR(255) NOT NULL,
+        species VARCHAR(50),
+        requester_name VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'pending',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `, 'whatsapp_chapita_requests');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS whatsapp_adoption_interests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        wa_from VARCHAR(20) NOT NULL,
+        species_preference VARCHAR(20),
+        pet_id UUID REFERENCES pets(id),
+        status VARCHAR(20) DEFAULT 'pending',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `, 'whatsapp_adoption_interests');
+
+    await migrate(client, `
+      ALTER TABLE whatsapp_chapita_requests ADD COLUMN IF NOT EXISTS notes TEXT
+    `, 'whatsapp_chapita_requests notes');
+    await migrate(client, `
+      ALTER TABLE whatsapp_chapita_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
+    `, 'whatsapp_chapita_requests updated_at');
+    await migrate(client, `
+      ALTER TABLE whatsapp_adoption_interests ADD COLUMN IF NOT EXISTS notes TEXT
+    `, 'whatsapp_adoption_interests notes');
+    await migrate(client, `
+      ALTER TABLE whatsapp_adoption_interests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
+    `, 'whatsapp_adoption_interests updated_at');
+    await migrate(client, `
+      ALTER TABLE whatsapp_adoption_interests ADD COLUMN IF NOT EXISTS pet_id UUID REFERENCES pets(id)
+    `, 'whatsapp_adoption_interests pet_id');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

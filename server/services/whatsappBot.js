@@ -1,9 +1,10 @@
 import pool from '../db.js';
-import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups } from './whatsappService.js';
-import { matchWhatsAppToPets } from './geminiMatching.js';
+import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups, sendFlowMessage } from './whatsappService.js';
+import { matchWhatsAppToPets, processImageCaption } from './geminiMatching.js';
 import { classifyPost } from './geminiClassifier.js';
 import { fetchFbPost } from './vpsSyncService.js';
 import { geocodeAddress } from './geocoding.js';
+import { getFlowId } from './whatsappFlows.js';
 import axios from 'axios';
 
 const BOT_NAMES = ['Tute', 'Lilo', 'Toto'];
@@ -140,6 +141,9 @@ export async function processMessage(parsed) {
 }
 
 async function routeFlow(conv, parsed) {
+  // Flow responses are handled by the HTTP endpoint, not here
+  if (parsed.messageType === 'flow_response') return;
+
   const flow = conv.flow || 'menu';
   const intent = detectIntent(parsed);
 
@@ -212,43 +216,70 @@ async function routeFlow(conv, parsed) {
 // ─── Welcome (solo primera vez) ───
 
 async function showWelcome(conv) {
-  await sendMessage(conv.wa_from,
-    `🐾 ¡Hola! Soy *${conv.bot_name}*, el asistente virtual de *Sigo Tu Huella* 🐾\n\n` +
-    `Estoy acá para ayudarte a reportar mascotas perdidas, avistajes y conectar con nuestra red de ayuda.`);
+  const isRecurring = conv.context?.is_new === false || conv.context?.return_count > 0;
+  const nameFromCtx = conv.context?.name || '';
 
-  const greeting = await getSetting('whatsapp_greeting');
-  if (greeting) {
+  if (isRecurring) {
+    const greeting = nameFromCtx
+      ? `🐾 *${conv.bot_name}:* ¡Hola de nuevo, ${nameFromCtx}! ¿En qué puedo ayudarte hoy?`
+      : `🐾 *${conv.bot_name}:* ¡Hola de nuevo! ¿En qué puedo ayudarte hoy?`;
     await sendMessage(conv.wa_from, greeting);
+  } else {
+    await sendMessage(conv.wa_from,
+      `🐾 ¡Hola! Soy *${conv.bot_name}*, el asistente virtual de *Sigo Tu Huella* 🐾\n\n` +
+      `Estoy acá para ayudarte a reportar mascotas perdidas, avistajes y conectar con nuestra red de ayuda.`);
+
+    const greeting = await getSetting('whatsapp_greeting');
+    if (greeting) {
+      await sendMessage(conv.wa_from, greeting);
+    }
   }
-  await setFlow(conv, 'menu', { is_new: false });
+
+  const rc = (conv.context?.return_count || 0) + 1;
+  await setFlow(conv, 'menu', { is_new: false, return_count: rc });
   return showMenu(conv);
 }
 
 // ─── Menu ───
 
 export async function showMenu(conv) {
-  const menus = [
-    ['📌 ¿En qué puedo ayudarte?', [
-      { id: 'report_lost', title: '📷 Mascota perdida' },
-      { id: 'report_sighted', title: '👀 Mascota avistada' },
-      { id: 'report_found', title: '✅ Mascota encontrada' },
-    ]],
-    ['📌 También puedo ayudarte con...', [
-      { id: 'adopt', title: '🙋 Adoptar mascota' },
-      { id: 'info_qr', title: 'ℹ️ Chapita QR' },
-      { id: 'donate', title: '💰 Donar' },
-    ]],
-    ['📌 O necesitás...', [
-      { id: 'report_from_fb', title: '📱 Link Facebook' },
-      { id: 'human', title: '🗣 Contactar equipo' },
-    ]],
-  ];
-  for (const [body, btns] of menus) {
-    try {
-      await sendInteractiveButtons(conv.wa_from, body, btns);
-    } catch (err) {
-      console.error(`Menu button send error (${body}):`, err.message);
+  try {
+    const flowId = await getFlowId();
+    if (flowId) {
+      const flowToken = `menu_${conv.id}_${Date.now()}`;
+      await sendFlowMessage(conv.wa_from, flowId,
+        '¿En qué podemos ayudarte? Abrí el menú interactivo:',
+        flowToken,
+        'MAIN_MENU'
+      );
+    } else {
+      // Fallback: interactive buttons si no hay Flow registrado
+      const menus = [
+        ['📌 ¿En qué puedo ayudarte?', [
+          { id: 'report_lost', title: '📷 Mascota perdida' },
+          { id: 'report_sighted', title: '👀 Mascota avistada' },
+          { id: 'report_found', title: '✅ Mascota encontrada' },
+        ]],
+        ['📌 También puedo ayudarte con...', [
+          { id: 'adopt', title: '🙋 Adoptar mascota' },
+          { id: 'info_qr', title: 'ℹ️ Chapita QR' },
+          { id: 'donate', title: '💰 Donar' },
+        ]],
+        ['📌 O necesitás...', [
+          { id: 'report_from_fb', title: '📱 Link Facebook' },
+          { id: 'human', title: '🗣 Contactar equipo' },
+        ]],
+      ];
+      for (const [body, btns] of menus) {
+        try {
+          await sendInteractiveButtons(conv.wa_from, body, btns);
+        } catch (err) {
+          console.error(`Menu button send error (${body}):`, err.message);
+        }
+      }
     }
+  } catch (err) {
+    console.error('Menu send error:', err.message);
   }
   await setFlow(conv, 'menu');
 }
@@ -275,9 +306,37 @@ async function handleMenu(conv, parsed, intent) {
     case 'human': return startHumanRequest(conv);
     case 'image_received': return handleImageFromMenu(conv, parsed);
     default:
-      await sendMessage(conv.wa_from, `${conv.bot_name}: No entendí tu mensaje. Usá los botones de abajo 👇`);
-      return showMenu(conv);
+      return handleUnrecognizedText(conv, parsed);
   }
+}
+
+async function handleUnrecognizedText(conv, parsed) {
+  const text = (parsed.textBody || '').trim();
+  if (!text) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: No entendí tu mensaje. Usá el menú de abajo 👇`);
+    return showMenu(conv);
+  }
+
+  try {
+    const { classifyTextIntent } = await import('./geminiMatching.js');
+    const classification = await classifyTextIntent(text);
+    if (classification && classification !== 'other' && classification !== 'greeting') {
+      const intentMap = {
+        lost: 'report_lost', found: 'report_found', sighted: 'report_sighted',
+        adopt: 'adopt', volunteer: 'volunteer', donate: 'donate',
+        info_qr: 'info_qr', human: 'human',
+      };
+      const mappedIntent = intentMap[classification];
+      if (mappedIntent) {
+        return handleMenu(conv, parsed, mappedIntent);
+      }
+    }
+  } catch (err) {
+    console.error('Gemini classification error:', err);
+  }
+
+  await sendMessage(conv.wa_from, `${conv.bot_name}: No entendí tu mensaje. Usá el menú interactivo 👇`);
+  return showMenu(conv);
 }
 
 // ─── Image from Menu ───

@@ -1,0 +1,585 @@
+{
+  "version": "7.0",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "MAIN_MENU": [
+      "REPORT_LOST", "REPORT_SIGHTED", "REPORT_FOUND",
+      "ADOPT_FILTER", "CHAPITA_INFO",
+      "DONATE_INFO", "VOLUNTEER_ONBOARDING",
+      "FACEBOOK_LINK", "CONTACT_FORM"
+    ],
+    "REPORT_LOST": ["MAIN_MENU"],
+    "REPORT_SIGHTED": ["MAIN_MENU"],
+    "REPORT_FOUND": ["MAIN_MENU"],
+    "ADOPT_FILTER": ["MAIN_MENU"],
+    "CHAPITA_INFO": ["CHAPITA_FORM", "MAIN_MENU"],
+    "CHAPITA_FORM": ["MAIN_MENU"],
+    "DONATE_INFO": ["DONATE_SHOW", "MAIN_MENU"],
+    "DONATE_SHOW": ["MAIN_MENU"],
+    "VOLUNTEER_ONBOARDING": ["VOLUNTEER_FORM", "MAIN_MENU"],
+    "VOLUNTEER_FORM": ["MAIN_MENU"],
+    "FACEBOOK_LINK": ["MAIN_MENU"],
+    "CONTACT_FORM": ["MAIN_MENU"]
+  },
+  "screens": [
+    {
+      "id": "MAIN_MENU",
+      "title": "Sigo Tu Huella",
+      "data": {
+        "selected_option": { "type": "string", "__example__": "lost" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "🐾 Sigo Tu Huella"
+          },
+          {
+            "type": "TextBody",
+            "text": "Red Vecinal de Mascotas\nSicardi · Garibaldi · Correas\n\n¿En qué podemos ayudarte?"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "label": "Elegí una opción:",
+            "data_ref": "selected_option",
+            "properties": [
+              { "value": "lost", "display_text": "📷 Perdí mi mascota" },
+              { "value": "sighted", "display_text": "👀 Vi una mascota (avistaje)" },
+              { "value": "found", "display_text": "✅ Encontré una mascota" },
+              { "value": "adopt", "display_text": "🙋 Quiero adoptar" },
+              { "value": "chapita", "display_text": "ℹ️ Chapita QR" },
+              { "value": "donate", "display_text": "💰 Donar" },
+              { "value": "volunteer", "display_text": "🙌 Ser voluntario" },
+              { "value": "facebook", "display_text": "📱 Link de Facebook" },
+              { "value": "contact", "display_text": "🗣 Contactar equipo" }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Continuar",
+            "onClickAction": {
+              "name": "data_exchange",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "REPORT_LOST",
+      "title": "Perdí mi mascota",
+      "data": {
+        "pet_name": { "type": "string", "__example__": "Luna" },
+        "species": { "type": "string", "__example__": "dog" },
+        "location": { "type": "string", "__example__": "Sicardi, cerca de la plaza" },
+        "description": { "type": "string", "__example__": "Color marrón, collar rojo" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "📷 Perdí mi mascota"
+          },
+          {
+            "type": "TextInput",
+            "label": "Nombre de tu mascota (si sabés)",
+            "data_ref": "pet_name",
+            "placeholder": "Ej: Luna"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "label": "Especie",
+            "data_ref": "species",
+            "properties": [
+              { "value": "dog", "display_text": "🐕 Perro" },
+              { "value": "cat", "display_text": "🐱 Gato" },
+              { "value": "other", "display_text": "🐾 Otro" }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "label": "¿Dónde se perdió?",
+            "data_ref": "location",
+            "placeholder": "Ej: Calle 7 y 48, Sicardi"
+          },
+          {
+            "type": "TextArea",
+            "label": "Descripción (señas particulares, color, etc.)",
+            "data_ref": "description",
+            "placeholder": "Ej: Color marrón, tamaño mediano, collar rojo"
+          },
+          {
+            "type": "Footer",
+            "label": "Enviar reporte",
+            "onClickAction": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "REPORT_SIGHTED",
+      "title": "Vi una mascota",
+      "data": {
+        "species": { "type": "string", "__example__": "dog" },
+        "location": { "type": "string", "__example__": "Sicardi" },
+        "description": { "type": "string", "__example__": "Vagaba por la calle 7" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "👀 Vi una mascota"
+          },
+          {
+            "type": "TextBody",
+            "text": "Ayudanos a reunirla con su familia. Contanos qué viste."
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "label": "Especie",
+            "data_ref": "species",
+            "properties": [
+              { "value": "dog", "display_text": "🐕 Perro" },
+              { "value": "cat", "display_text": "🐱 Gato" },
+              { "value": "other", "display_text": "🐾 Otro" }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "label": "¿Dónde la viste?",
+            "data_ref": "location",
+            "placeholder": "Ej: Calle 7 y 48"
+          },
+          {
+            "type": "TextArea",
+            "label": "Descripción (color, tamaño, señas particulares)",
+            "data_ref": "description",
+            "placeholder": "Ej: Color marrón, tamaño mediano, sin collar"
+          },
+          {
+            "type": "Footer",
+            "label": "Enviar avistaje",
+            "onClickAction": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "REPORT_FOUND",
+      "title": "Encontré una mascota",
+      "data": {
+        "species": { "type": "string", "__example__": "dog" },
+        "location": { "type": "string", "__example__": "Sicardi" },
+        "description": { "type": "string", "__example__": "Color marrón, collar azul" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "✅ Encontré una mascota"
+          },
+          {
+            "type": "TextBody",
+            "text": "¡Gracias por querer ayudar! Decinos dónde la encontraste."
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "label": "Especie",
+            "data_ref": "species",
+            "properties": [
+              { "value": "dog", "display_text": "🐕 Perro" },
+              { "value": "cat", "display_text": "🐱 Gato" },
+              { "value": "other", "display_text": "🐾 Otro" }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "label": "¿Dónde la encontraste?",
+            "data_ref": "location",
+            "placeholder": "Ej: Calle 7 y 48"
+          },
+          {
+            "type": "TextArea",
+            "label": "Descripción (color, tamaño, señas particulares)",
+            "data_ref": "description",
+            "placeholder": "Ej: Color marrón, tamaño mediano, collar azul"
+          },
+          {
+            "type": "Footer",
+            "label": "Enviar",
+            "onClickAction": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ADOPT_FILTER",
+      "title": "Quiero adoptar",
+      "data": {
+        "species_preference": { "type": "string", "__example__": "dog" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "🙋 Quiero adoptar"
+          },
+          {
+            "type": "TextBody",
+            "text": "¡Qué lindo que quieras adoptar! ¿Qué especie te interesa?"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "label": "Especie",
+            "data_ref": "species_preference",
+            "properties": [
+              { "value": "dog", "display_text": "🐕 Perro" },
+              { "value": "cat", "display_text": "🐱 Gato" },
+              { "value": "any", "display_text": "🐾 Cualquiera" }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Quiero adoptar",
+            "onClickAction": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "CHAPITA_INFO",
+      "title": "Chapita QR",
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "ℹ️ Chapita QR"
+          },
+          {
+            "type": "TextBody",
+            "text": "La chapita QR de Sigo Tu Huella es una identificación digital para tu mascota.\n\n🔹 Cómo funciona:\n1. Pedís la chapita\n2. La adherís al collar\n3. Si alguien la encuentra, escanea el QR y ve tus datos de contacto\n\n🔹 Ventajas:\n• Sin números grabados (seguro)\n• Podés actualizar tus datos\n• Sin cuotas ni renovaciones"
+          },
+          {
+            "type": "Footer",
+            "label": "Solicitar chapita",
+            "onClickAction": {
+              "name": "navigate",
+              "payload": {},
+              "next_screen_id": "CHAPITA_FORM"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "CHAPITA_FORM",
+      "title": "Solicitar chapita",
+      "data": {
+        "pet_name": { "type": "string", "__example__": "Luna" },
+        "species": { "type": "string", "__example__": "dog" },
+        "requester_name": { "type": "string", "__example__": "Juan" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Solicitar chapita QR"
+          },
+          {
+            "type": "TextInput",
+            "label": "Nombre de tu mascota",
+            "data_ref": "pet_name",
+            "placeholder": "Ej: Luna"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "label": "Especie",
+            "data_ref": "species",
+            "properties": [
+              { "value": "dog", "display_text": "🐕 Perro" },
+              { "value": "cat", "display_text": "🐱 Gato" },
+              { "value": "other", "display_text": "🐾 Otro" }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "label": "Tu nombre",
+            "data_ref": "requester_name",
+            "placeholder": "Ej: Juan"
+          },
+          {
+            "type": "Footer",
+            "label": "Enviar solicitud",
+            "onClickAction": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "DONATE_INFO",
+      "title": "Donar",
+      "data": {
+        "donation_method": { "type": "string", "__example__": "transfer" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "💰 Donar"
+          },
+          {
+            "type": "TextBody",
+            "text": "¡Gracias por querer ayudar! 🙌\n\nCada donación se destina a:\n🐾 Atención veterinaria\n🍖 Alimento para rescatados\n🏠 Refugio transitorio\n\n¿Cómo querés donar?"
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "label": "Método de donación",
+            "data_ref": "donation_method",
+            "properties": [
+              { "value": "transfer", "display_text": "🏦 Transferencia bancaria" },
+              { "value": "mercadopago", "display_text": "💳 Mercado Pago" },
+              { "value": "share", "display_text": "📲 Compartir para difundir" }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Continuar",
+            "onClickAction": {
+              "name": "data_exchange",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "DONATE_SHOW",
+      "title": "Donar",
+      "data": {
+        "accounts_text": { "type": "string", "__example__": "Alias: sigotuhuella.mp\nCBU: 00000000000000" },
+        "mp_link": { "type": "string", "__example__": "https://mpago.la/xxxxx" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "💰 Donar"
+          },
+          {
+            "type": "TextBody",
+            "text": "$.accounts_text"
+          },
+          {
+            "type": "Footer",
+            "label": "Ya doné",
+            "onClickAction": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "VOLUNTEER_ONBOARDING",
+      "title": "Ser voluntario",
+      "data": {
+        "zone": { "type": "string", "__example__": "sicardi" },
+        "has_pets": { "type": "string", "__example__": "yes" },
+        "alerts_optin": { "type": "string", "__example__": "yes" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "🙌 Ser voluntario"
+          },
+          {
+            "type": "TextBody",
+            "text": "Contanos un poco sobre vos para sumarte a la red."
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "label": "¿Vivís en la zona?",
+            "data_ref": "zone",
+            "properties": [
+              { "value": "sicardi", "display_text": "Sicardi" },
+              { "value": "garibaldi", "display_text": "Garibaldi" },
+              { "value": "correas", "display_text": "Correas" },
+              { "value": "near", "display_text": "Zonas cercanas" },
+              { "value": "other", "display_text": "Otra" }
+            ]
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "label": "¿Tenés mascotas?",
+            "data_ref": "has_pets",
+            "properties": [
+              { "value": "dog", "display_text": "🐕 Perro/s" },
+              { "value": "cat", "display_text": "🐱 Gato/s" },
+              { "value": "both", "display_text": "🐾 Perro y gato" },
+              { "value": "none", "display_text": "No tengo" }
+            ]
+          },
+          {
+            "type": "RadioButtonsGroup",
+            "label": "¿Querés recibir alertas de mascotas perdidas en tu zona?",
+            "data_ref": "alerts_optin",
+            "properties": [
+              { "value": "yes", "display_text": "✅ Sí" },
+              { "value": "no", "display_text": "❌ No" }
+            ]
+          },
+          {
+            "type": "Footer",
+            "label": "Continuar",
+            "onClickAction": {
+              "name": "navigate",
+              "payload": {},
+              "next_screen_id": "VOLUNTEER_FORM"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "VOLUNTEER_FORM",
+      "title": "Ser voluntario",
+      "data": {
+        "name": { "type": "string", "__example__": "Juan Pérez" },
+        "phone": { "type": "string", "__example__": "2215551234" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "🙌 Datos de contacto"
+          },
+          {
+            "type": "TextInput",
+            "label": "Tu nombre completo",
+            "data_ref": "name",
+            "placeholder": "Ej: Juan Pérez"
+          },
+          {
+            "type": "TextInput",
+            "label": "Tu teléfono (sin 0 ni 15)",
+            "data_ref": "phone",
+            "placeholder": "Ej: 2215551234"
+          },
+          {
+            "type": "Footer",
+            "label": "Enviar y sumarme",
+            "onClickAction": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "FACEBOOK_LINK",
+      "title": "Link de Facebook",
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "📱 Link de Facebook"
+          },
+          {
+            "type": "TextBody",
+            "text": "¿Querés vincular tu cuenta de Facebook con Sigo Tu Huella?\n\nEsto nos permite buscar mascotas perdidas en los grupos de la zona y avisarte si encontramos a la tuya.\n\nPara vincular, inicíá sesión en nuestra web y andá a tu perfil > Facebook."
+          },
+          {
+            "type": "Footer",
+            "label": "Volver al menú",
+            "onClickAction": {
+              "name": "navigate",
+              "payload": {},
+              "next_screen_id": "MAIN_MENU"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "CONTACT_FORM",
+      "title": "Contactar equipo",
+      "data": {
+        "name": { "type": "string", "__example__": "Juan" },
+        "motive": { "type": "string", "__example__": "question" },
+        "message": { "type": "string", "__example__": "Tengo una consulta sobre..." }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "🗣 Contactar equipo"
+          },
+          {
+            "type": "TextInput",
+            "label": "Tu nombre",
+            "data_ref": "name",
+            "placeholder": "Ej: Juan"
+          },
+          {
+            "type": "Dropdown",
+            "label": "Motivo",
+            "data_ref": "motive",
+            "properties": [
+              { "value": "question", "display_text": "Consulta general" },
+              { "value": "suggestion", "display_text": "Sugerencia" },
+              { "value": "problem", "display_text": "Problema con la app" },
+              { "value": "other", "display_text": "Otro" }
+            ]
+          },
+          {
+            "type": "TextArea",
+            "label": "Tu mensaje",
+            "data_ref": "message",
+            "placeholder": "Escribí tu mensaje acá..."
+          },
+          {
+            "type": "Footer",
+            "label": "Enviar mensaje",
+            "onClickAction": {
+              "name": "complete",
+              "payload": {}
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

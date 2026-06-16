@@ -58,6 +58,50 @@ export async function sendInteractiveButtons(to, bodyText, buttons) {
   return data;
 }
 
+export async function sendFlowMessage(to, flowId, bodyText, flowToken, screen = 'MAIN_MENU', screenData = {}) {
+  const phoneNumberId = await getPhoneNumberId();
+  const token = await getAccessToken();
+  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
+
+  const { data } = await axios.post(`${GRAPH_API}/${phoneNumberId}/messages`,
+    {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'interactive',
+      interactive: {
+        type: 'flow',
+        header: {
+          type: 'text',
+          text: '🐾 Sigo Tu Huella',
+        },
+        body: {
+          text: bodyText || '¿En qué podemos ayudarte?',
+        },
+        footer: {
+          text: 'Red Vecinal de Mascotas',
+        },
+        action: {
+          name: 'flow',
+          parameters: {
+            flow_message_version: '3',
+            flow_id: flowId,
+            flow_token: flowToken || `flow_${Date.now()}_${to}`,
+            mode: 'draft',
+            flow_action: 'navigate',
+            flow_action_payload: {
+              screen,
+              data: screenData,
+            },
+          },
+        },
+      },
+    },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  return data;
+}
+
 export async function sendImage(to, imageIdOrUrl, caption) {
   const phoneNumberId = await getPhoneNumberId();
   const token = await getAccessToken();
@@ -160,6 +204,8 @@ export function processIncomingMessage(payload) {
   let mediaId = null;
   let locationLat = null;
   let locationLng = null;
+  let flowToken = null;
+  let flowData = null;
 
   if (msg.type === 'text') {
     messageType = 'text';
@@ -174,10 +220,19 @@ export function processIncomingMessage(payload) {
     locationLng = msg.location?.longitude;
     textBody = msg.location?.name || '';
   } else if (msg.type === 'interactive') {
-    messageType = 'interactive';
     textBody = msg.interactive?.button_reply?.title ||
                msg.interactive?.list_reply?.title ||
                '';
+    if (msg.interactive?.type === 'flow') {
+      messageType = 'flow_response';
+      flowToken = msg.interactive?.flow_reply?.flow_token || null;
+      try {
+        const raw = msg.interactive?.flow_reply?.data;
+        flowData = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      } catch { flowData = null; }
+    } else {
+      messageType = 'interactive';
+    }
   }
 
   const profileName = value.contacts?.[0]?.profile?.name || '';
@@ -194,6 +249,8 @@ export function processIncomingMessage(payload) {
     locationLng,
     profileName,
     timestamp: msg.timestamp,
+    flowToken,
+    flowData,
   };
 }
 

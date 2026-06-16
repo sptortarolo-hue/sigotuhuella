@@ -398,3 +398,37 @@ async function notifyAdminMatch(type, source, matches) {
     url,
   }).catch(err => console.error('Push error:', err));
 }
+
+// ─── Text intent classification (Gemini fallback for WhatsApp bot) ───
+
+const CLASSIFY_PROMPT = `Classify this message from a pet rescue app user. Return ONLY a single word:
+- "lost" if they lost their pet
+- "found" if they found a pet
+- "sighted" if they saw a stray/sighting
+- "adopt" if they want to adopt
+- "volunteer" if they want to volunteer
+- "donate" if they want to donate
+- "info_qr" if they ask about QR tags
+- "human" if they want to talk to a person
+- "greeting" if they just say hello/hi
+- "other" for anything else
+
+Message:`;
+
+export async function classifyTextIntent(text) {
+  if (!GEMINI_API_KEY || !isGeminiAvailable()) return null;
+  try {
+    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    const result = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-lite',
+      contents: `${CLASSIFY_PROMPT}\n${text}`,
+      config: { maxOutputTokens: 10, temperature: 0 },
+    });
+    const response = (result.text || '').trim().toLowerCase();
+    const valid = ['lost', 'found', 'sighted', 'adopt', 'volunteer', 'donate', 'info_qr', 'human', 'greeting', 'other'];
+    return valid.includes(response) ? response : null;
+  } catch (err) {
+    handleGeminiError(err);
+    return null;
+  }
+}
