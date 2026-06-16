@@ -51,29 +51,35 @@ export async function registerFlow() {
   let flowId;
 
   if (existingFlowId) {
-    const { data } = await axios.post(`${GRAPH_API}/${existingFlowId}/assets`,
-      {
-        messaging_product: 'whatsapp',
-        flow_json_uri: null,
-        flow_json: JSON.stringify(flowJson),
-      },
-      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
-    );
     flowId = existingFlowId;
+    console.log(`Updating assets for existing flow ${flowId}...`);
   } else {
+    console.log('Creating new flow...');
     const { default: FormData } = await import('form-data');
     const form = new FormData();
     form.append('name', 'Sigo Tu Huella - Menu Principal');
     form.append('categories', JSON.stringify(['OTHER']));
     form.append('endpoint_uri', endpointUri);
-    form.append('flow_json', JSON.stringify(flowJson));
 
     const { data } = await axios.post(`${GRAPH_API}/${wabaId}/flows`, form, {
       headers: { Authorization: `Bearer ${token}`, ...form.getHeaders() },
     });
     flowId = data.id;
     await setFlowId(flowId);
+    console.log(`Created flow ${flowId}`);
   }
+
+  // Always update assets (upload the JSON definition)
+  console.log('Uploading flow JSON assets...');
+  const { data: assetData } = await axios.post(`${GRAPH_API}/${flowId}/assets`,
+    {
+      messaging_product: 'whatsapp',
+      flow_json_uri: null,
+      flow_json: JSON.stringify(flowJson),
+    },
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+  console.log('Assets uploaded:', assetData);
 
   return flowId;
 }
@@ -83,10 +89,16 @@ export async function publishFlow() {
   const token = await getAccessToken();
   if (!flowId || !token) throw new Error('Flow not registered or token missing');
 
-  const { data } = await axios.post(`${GRAPH_API}/${flowId}/publish`, {},
-    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
-  );
-  return data;
+  try {
+    const { data } = await axios.post(`${GRAPH_API}/${flowId}/publish`, {},
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+    );
+    return data;
+  } catch (err) {
+    const detail = err?.response?.data?.error || err?.response?.data || err.message;
+    console.error('[publishFlow] Error details:', JSON.stringify(detail, null, 2));
+    throw err;
+  }
 }
 
 export async function sendFlow(to, flowToken = null) {
