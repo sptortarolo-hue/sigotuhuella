@@ -211,22 +211,10 @@ async function routeFlow(conv, parsed) {
 
 // ─── Welcome (solo primera vez) ───
 
-async function sendBotAvatar(conv) {
-  try {
-    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
-    const avatarUrl = `${frontendUrl}/bots/${conv.bot_name.toLowerCase()}.jpg`;
-    await sendImage(conv.wa_from, avatarUrl, conv.bot_name);
-  } catch (e) {
-    console.log(`sendBotAvatar error: ${e.message}`);
-  }
-}
-
 async function showWelcome(conv) {
   await sendMessage(conv.wa_from,
     `🐾 ¡Hola! Soy *${conv.bot_name}*, el asistente virtual de *Sigo Tu Huella* 🐾\n\n` +
     `Estoy acá para ayudarte a reportar mascotas perdidas, avistajes y conectar con nuestra red de ayuda.`);
-
-  await sendBotAvatar(conv);
 
   const greeting = await getSetting('whatsapp_greeting');
   if (greeting) {
@@ -239,8 +227,6 @@ async function showWelcome(conv) {
 // ─── Menu ───
 
 export async function showMenu(conv) {
-  await sendBotAvatar(conv);
-
   const menus = [
     ['📌 ¿En qué puedo ayudarte?', [
       { id: 'report_lost', title: '📷 Mascota perdida' },
