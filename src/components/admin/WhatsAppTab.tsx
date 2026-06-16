@@ -231,8 +231,9 @@ export default function WhatsAppTab() {
     try {
       const keys = [
         'whatsapp_enabled', 'whatsapp_phone_number_id', 'whatsapp_access_token',
-        'whatsapp_verify_token', 'whatsapp_business_phone', 'whatsapp_greeting',
-        'whatsapp_broadcast_enabled', 'matching_radius_km', 'matching_min_score',
+        'whatsapp_verify_token', 'whatsapp_business_phone', 'whatsapp_waba_id',
+        'whatsapp_greeting', 'whatsapp_broadcast_enabled', 'matching_radius_km',
+        'matching_min_score',
       ];
       await Promise.all(keys.map(k => api.settings.update(k, settings[k] || '')));
       setSettingsSaved(true);
@@ -642,6 +643,7 @@ export default function WhatsAppTab() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
+              { key: 'whatsapp_waba_id', label: 'WABA ID (WhatsApp Business Account)', type: 'text' },
               { key: 'whatsapp_phone_number_id', label: 'Phone Number ID', type: 'text' },
               { key: 'whatsapp_access_token', label: 'Access Token', type: 'password' },
               { key: 'whatsapp_verify_token', label: 'Verify Token', type: 'password' },
