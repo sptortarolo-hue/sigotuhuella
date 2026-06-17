@@ -49,15 +49,21 @@ export default function Dashboard() {
           image: item.image_data || null,
           created_at: item.created_at,
         }));
-        const petItems = (petsData.pets || []).slice(0, 5).map((item: any) => ({
-          id: item.id,
-          type: 'pet' as const,
-          typeLabel: item.status,
-          title: item.name || 'Mascota sin nombre',
-          description: '',
-          image: item.images?.[0]?.image_data || null,
-          created_at: item.created_at,
-        }));
+        const petItems = (petsData.pets || []).slice(0, 5).map((item: any) => {
+          const petTitle = item.status === 'lost' ? `Mascota perdida: ${item.name}`
+            : item.status === 'sighted' ? `Avistaje: ${item.name}`
+            : item.status === 'adoption' ? `En adopción: ${item.name}`
+            : item.name || 'Mascota sin nombre';
+          return {
+            id: item.id,
+            type: 'pet' as const,
+            typeLabel: item.status,
+            title: petTitle,
+            description: '',
+            image: item.images?.[0]?.image_data || null,
+            created_at: item.created_at,
+          };
+        });
         const merged = [...newsItems, ...petItems]
           .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           .slice(0, 10);
