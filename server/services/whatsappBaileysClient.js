@@ -96,7 +96,7 @@ async function startClient() {
     const logger = pino({ level: 'fatal' });
 
     client = makeWASocket({
-      version: [2, 3000, 1034074495],
+      version: [2, 3000, 1040656236],
       browser: Browsers.macOS('Desktop'),
       auth: state,
       logger,
