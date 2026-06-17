@@ -5,7 +5,7 @@ export default function PublicMobileLayout() {
   return (
     <>
       <PublicMobileTopBar />
-      <main className="pb-16 md:pb-0">
+      <main className="pt-14 md:pt-0 pb-16 md:pb-0">
         <Outlet />
       </main>
     </>

@@ -10,7 +10,7 @@ export default function PublicLayout() {
     <>
       <PublicMobileTopBar />
       <Navbar />
-      <main className="pb-16 md:pb-0">
+      <main className="pt-14 md:pt-0 pb-16 md:pb-0">
         <Outlet />
       </main>
       <footer className="hidden md:block bg-white border-t border-brand-accent py-12">

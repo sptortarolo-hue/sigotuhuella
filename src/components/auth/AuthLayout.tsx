@@ -19,7 +19,7 @@ export default function AuthLayout() {
       <Sidebar onReportClick={() => setReportOpen(true)} />
 
       {/* Main content */}
-      <div className="lg:ml-64 pb-16 lg:pb-0">
+      <div className="lg:ml-64 pt-14 lg:pt-0 pb-16 lg:pb-0">
         <Outlet />
       </div>
 

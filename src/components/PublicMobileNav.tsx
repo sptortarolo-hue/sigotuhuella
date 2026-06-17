@@ -6,7 +6,7 @@ import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 
 const publicTabs = [
-  { label: 'Home', icon: Home, path: '/' },
+  { label: 'Inicio', icon: Home, path: '/' },
   { label: 'Perdidos', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
   { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
@@ -14,7 +14,7 @@ const publicTabs = [
 ];
 
 const authTabs = [
-  { label: 'Mi Portal', icon: PawPrint, path: '/dashboard' },
+  { label: 'Inicio', icon: Home, path: '/dashboard' },
   { label: 'Perdidos', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
   { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
