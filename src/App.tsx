@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import PwaHandler from '@/src/components/PwaHandler';
 import ScrollToTop from '@/src/components/ScrollToTop';
 import PublicLayout from '@/src/components/PublicLayout';
+import PublicMobileLayout from '@/src/components/PublicMobileLayout';
+import PublicMobileNav from '@/src/components/PublicMobileNav';
 import AuthLayout from '@/src/components/auth/AuthLayout';
 import ProtectedRoute from '@/src/components/auth/ProtectedRoute';
 import Home from '@/src/pages/Home';
@@ -106,14 +108,19 @@ export default function App() {
               />
             </Route>
 
-            {/* Standalone routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:token" element={<ResetPassword />} />
+            {/* Standalone routes with mobile shell */}
+            <Route element={<PublicMobileLayout />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password/:token" element={<ResetPassword />} />
+            </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+
+        {/* Global mobile bottom nav — always visible */}
+        <PublicMobileNav />
       </div>
     </Router>
   );
