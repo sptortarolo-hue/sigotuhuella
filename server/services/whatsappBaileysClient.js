@@ -1,6 +1,7 @@
 import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const _require = createRequire(import.meta.url);
+const baileysPath = _require.resolve('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = await import(baileysPath);
 import pino from 'pino';
 import QR from 'qrcode';
 import path from 'path';
