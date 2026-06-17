@@ -1,10 +1,13 @@
 const baileysUrl = import.meta.resolve('@whiskeysockets/baileys');
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = await import(baileysUrl);
+const { makeWASocket, useMultiFileAuthState, DisconnectReason } = await import(baileysUrl);
 import pino from 'pino';
 import QR from 'qrcode';
 import path from 'path';
-import { mkdirSync, existsSync } from 'fs';
+import { mkdirSync, existsSync, readFileSync } from 'fs';
 import pool from '../db.js';
+
+const baileysPkgUrl = import.meta.resolve('@whiskeysockets/baileys/package.json');
+const BAILEYS_VERSION = JSON.parse(readFileSync(new URL(baileysPkgUrl), 'utf-8')).version;
 
 let client = null;
 let status = 'disconnected';
@@ -77,7 +80,7 @@ async function startClient() {
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(absolutePath);
-    const { version } = await fetchLatestBaileysVersion();
+    const version = BAILEYS_VERSION;
 
     const logger = pino({ level: 'fatal' });
 
