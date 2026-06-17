@@ -220,6 +220,26 @@ export default function Login() {
 
   return (
     <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-20">
+      <div className="flex items-center justify-between mb-6">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Volver a Inicio
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="p-1 bg-brand-primary rounded-lg">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </div>
+          <span className="text-sm font-serif font-bold text-brand-primary">Sigo tu huella</span>
+        </div>
+      </div>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

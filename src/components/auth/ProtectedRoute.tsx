@@ -11,7 +11,7 @@ export default function ProtectedRoute({ children, isAdmin }: { children: React.
     </div>
   );
 
-  if (!user || (isAdmin && !isUserAdmin)) return <Navigate to="/login" replace />;
+  if (!user || (isAdmin && !isUserAdmin)) return <Navigate to="/" replace />;
 
   return <>{children}</>;
 }

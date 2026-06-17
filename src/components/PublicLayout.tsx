@@ -2,6 +2,7 @@ import { Outlet, Link } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import Navbar from '@/src/components/Navbar';
 import PublicMobileTopBar from '@/src/components/PublicMobileTopBar';
+import Sidebar from '@/src/components/auth/Sidebar';
 
 export default function PublicLayout() {
   const { user } = useAuth();
@@ -9,11 +10,14 @@ export default function PublicLayout() {
   return (
     <>
       <PublicMobileTopBar />
-      <Navbar />
-      <main className="pt-14 md:pt-0 pb-16 md:pb-0">
+      <div className="md:hidden">
+        <Navbar />
+      </div>
+      <Sidebar />
+      <main className="pt-14 md:pt-0 pb-16 md:pb-0 lg:ml-64">
         <Outlet />
       </main>
-      <footer className="hidden md:block bg-white border-t border-brand-accent py-12">
+      <footer className="hidden lg:block bg-white border-t border-brand-accent py-12 lg:ml-64">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-8 md:gap-12">
             <div className="col-span-2 md:col-span-1">
