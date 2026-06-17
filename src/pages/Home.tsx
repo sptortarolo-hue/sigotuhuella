@@ -172,33 +172,6 @@ export default function Home() {
         </section>
       )}
 
-      {/* Mascotas Reportadas strip */}
-      <section className="py-6 lg:py-0">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">Mascotas Reportadas</h2>
-            <Link to="/perdidos" className="text-xs font-bold text-brand-primary">Ver todas →</Link>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-none">
-            {[
-              { label: 'Perdidos', icon: '🔍', path: '/perdidos', color: 'bg-red-50 border-red-200' },
-              { label: 'Adopción', icon: '❤️', path: '/adopcion', color: 'bg-pink-50 border-pink-200' },
-              { label: 'Reportar', icon: '📋', path: '/reportar', color: 'bg-brand-primary/10 border-brand-primary/20' },
-              { label: 'Avistaje', icon: '👁️', path: '/reportar-rapido', color: 'bg-amber-50 border-amber-200' },
-            ].map((item, i) => (
-              <Link
-                key={i}
-                to={item.path}
-                className={`shrink-0 snap-start w-32 h-28 ${item.color} border rounded-2xl flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all`}
-              >
-                <span className="text-2xl">{item.icon}</span>
-                <span className="text-xs font-bold text-gray-700">{item.label}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* News Carousel */}
       <NewsCarousel news={news} />
 
