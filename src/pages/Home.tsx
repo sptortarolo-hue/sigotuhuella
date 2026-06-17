@@ -222,6 +222,41 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Features */}
+      <section className="py-16 sm:py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+            <div className="space-y-3 sm:space-y-4 p-4 sm:p-6 bg-brand-bg/50 rounded-2xl sm:rounded-3xl">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-xl sm:rounded-2xl flex items-center justify-center text-red-600">
+                <Search className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <h3 className="text-lg sm:text-2xl font-serif font-bold text-gray-800">Reporte Inmediato</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Difundimos rápidamente las alertas de mascotas perdidas entre toda la red de vecinos para aumentar las posibilidades de encuentro.
+              </p>
+            </div>
+            <div className="space-y-3 sm:space-y-4 p-4 sm:p-6 bg-brand-bg/50 rounded-2xl sm:rounded-3xl">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-pink-100 rounded-xl sm:rounded-2xl flex items-center justify-center text-pink-600">
+                <Heart className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <h3 className="text-lg sm:text-2xl font-serif font-bold text-gray-800">Adopción Responsable</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Fomentamos el vínculo entre familias y mascotas rescatadas, asegurando que cada animal tenga una segunda oportunidad real.
+              </p>
+            </div>
+            <div className="space-y-3 sm:space-y-4 p-4 sm:p-6 bg-brand-bg/50 rounded-2xl sm:rounded-3xl">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-brand-primary/10 rounded-xl sm:rounded-2xl flex items-center justify-center text-brand-primary">
+                <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <h3 className="text-lg sm:text-2xl font-serif font-bold text-gray-800">Acción Vecinal</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Somos vecinos de Parque Sicardi, Villa Garibaldi e Ignacio Correas trabajando para mejorar la vida de los que no tienen voz.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Chapita info modal */}
       <AnimatePresence>
         {showChapitaModal && (
