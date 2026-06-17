@@ -1,13 +1,10 @@
 const baileysUrl = import.meta.resolve('@whiskeysockets/baileys');
-const { makeWASocket, useMultiFileAuthState, DisconnectReason } = await import(baileysUrl);
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = await import(baileysUrl);
 import pino from 'pino';
 import QR from 'qrcode';
 import path from 'path';
-import { mkdirSync, existsSync, readFileSync } from 'fs';
+import { mkdirSync, existsSync } from 'fs';
 import pool from '../db.js';
-
-const baileysPkgUrl = import.meta.resolve('@whiskeysockets/baileys/package.json');
-const BAILEYS_VERSION = JSON.parse(readFileSync(new URL(baileysPkgUrl), 'utf-8')).version;
 
 let client = null;
 let status = 'disconnected';
@@ -91,19 +88,21 @@ async function startClient() {
 
     console.log('[Baileys] Loading auth state from', absolutePath);
     const { state, saveCreds } = await useMultiFileAuthState(absolutePath);
-    const version = BAILEYS_VERSION;
-    console.log('[Baileys] Auth loaded, creating socket (v' + version + ')');
+    console.log('[Baileys] Auth loaded, creating socket...');
 
     const logger = pino({ level: 'fatal' });
 
     client = makeWASocket({
-      version,
+      version: [2, 3000, 1033893291],
+      browser: Browsers.macOS('Desktop'),
       auth: state,
       logger,
       printQRInTerminal: false,
       markOnlineOnConnect: false,
       syncFullHistory: false,
       generateHighQualityLinkPreview: false,
+      connectTimeoutMs: 60000,
+      keepAliveIntervalMs: 30000,
     });
 
     client.ev.on('creds.update', saveCreds);
@@ -127,10 +126,11 @@ async function startClient() {
       }
 
       if (connection === 'close') {
-        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         status = 'disconnected';
         connectedPhone = null;
-        console.log('[Baileys] Connection closed, will reconnect:', shouldReconnect);
+        console.log('[Baileys] Connection closed, statusCode:', statusCode, 'reason:', lastDisconnect?.error?.message);
         connecting = false;
 
         if (shouldReconnect) {
