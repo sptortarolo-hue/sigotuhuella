@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Search, Heart, HandCoins, Sparkles, X, PawPrint, Users, Share2, Camera, LogIn } from 'lucide-react';
+import { Home, Search, Heart, HandCoins, Sparkles, X, PawPrint, Users, User, Share2, Camera, LogIn, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 
-const tabs = [
+const publicTabs = [
   { label: 'Home', icon: Home, path: '/' },
   { label: 'Perdidos', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
@@ -13,23 +13,46 @@ const tabs = [
   { label: 'Más', icon: Sparkles, path: null },
 ];
 
-const moreOptions = [
+const authTabs = [
+  { label: 'Mi Portal', icon: PawPrint, path: '/dashboard' },
+  { label: 'Perdidos', icon: Search, path: '/perdidos' },
+  { label: 'Adopción', icon: Heart, path: '/adopcion' },
+  { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
+  { label: 'Más', icon: Sparkles, path: null },
+];
+
+const publicMoreOptions = [
   { label: 'Novedades', icon: Sparkles, path: '/novedades' },
   { label: 'Sumate', icon: Users, path: '/sumate' },
   { label: 'Difusión', icon: Share2, path: '/difusion' },
   { label: 'Generar Flyer', icon: Camera, path: '/flyer' },
 ];
 
+const authMorePortal = [
+  { label: 'Mis Mascotas', icon: PawPrint, path: '/mi-mascota' },
+  { label: 'Mi Perfil', icon: User, path: '/perfil' },
+  { label: 'Mi Portal', icon: Home, path: '/dashboard' },
+];
+
 export default function PublicMobileNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
+
+  const tabs = user ? authTabs : publicTabs;
 
   const isActive = (path: string | null) => {
     if (!path) return false;
     if (path === '/') return location.pathname === '/';
+    if (path === '/dashboard') return location.pathname === '/dashboard';
     return location.pathname.startsWith(path);
+  };
+
+  const handleLogout = () => {
+    setMoreOpen(false);
+    logout();
+    navigate('/');
   };
 
   return (
@@ -78,7 +101,7 @@ export default function PublicMobileNav() {
                 </button>
               </div>
               <div className="px-6 pb-6 space-y-1">
-                {moreOptions.map((opt) => (
+                {publicMoreOptions.map((opt) => (
                   <button
                     key={opt.label}
                     onClick={() => { setMoreOpen(false); navigate(opt.path); }}
@@ -88,21 +111,41 @@ export default function PublicMobileNav() {
                     {opt.label}
                   </button>
                 ))}
-                <div className="border-t border-brand-accent my-2" />
-                {!user ? (
-                  <button
-                    onClick={() => { setMoreOpen(false); navigate('/login'); }}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-brand-primary hover:bg-brand-bg transition-colors"
-                  >
-                    <LogIn className="w-5 h-5" /> Iniciar Sesión
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => { setMoreOpen(false); navigate('/dashboard'); }}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-brand-primary hover:bg-brand-bg transition-colors"
-                  >
-                    <PawPrint className="w-5 h-5" /> Mi Panel
-                  </button>
+
+                {user && (
+                  <>
+                    <div className="border-t border-brand-accent my-2" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 px-4 pb-1">Tu Portal</p>
+                    {authMorePortal.map((opt) => (
+                      <button
+                        key={opt.path}
+                        onClick={() => { setMoreOpen(false); navigate(opt.path); }}
+                        className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-brand-primary hover:bg-brand-bg transition-colors"
+                      >
+                        <opt.icon className="w-5 h-5" />
+                        {opt.label}
+                      </button>
+                    ))}
+                    <div className="border-t border-brand-accent my-2" />
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="w-5 h-5" /> Cerrar sesión
+                    </button>
+                  </>
+                )}
+
+                {!user && (
+                  <>
+                    <div className="border-t border-brand-accent my-2" />
+                    <button
+                      onClick={() => { setMoreOpen(false); navigate('/login'); }}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-brand-primary hover:bg-brand-bg transition-colors"
+                    >
+                      <LogIn className="w-5 h-5" /> Iniciar Sesión
+                    </button>
+                  </>
                 )}
               </div>
             </motion.div>

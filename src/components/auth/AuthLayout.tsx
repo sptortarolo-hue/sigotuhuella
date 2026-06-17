@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import TopBar from './TopBar';
-import AuthSubNav from './AuthSubNav';
 import AuthFAB from './AuthFAB';
 import Sidebar from './Sidebar';
 import ReportSheet from './ReportSheet';
@@ -11,10 +10,9 @@ export default function AuthLayout() {
 
   return (
     <div className="min-h-screen bg-brand-bg">
-      {/* Mobile: TopBar + AuthSubNav */}
+      {/* Mobile: TopBar */}
       <div className="lg:hidden">
         <TopBar />
-        <AuthSubNav />
       </div>
 
       {/* Desktop: Sidebar */}

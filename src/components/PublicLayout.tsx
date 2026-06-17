@@ -2,7 +2,6 @@ import { Outlet, Link } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import Navbar from '@/src/components/Navbar';
 import PublicMobileTopBar from '@/src/components/PublicMobileTopBar';
-import AuthSubNav from '@/src/components/auth/AuthSubNav';
 
 export default function PublicLayout() {
   const { user } = useAuth();
@@ -10,7 +9,6 @@ export default function PublicLayout() {
   return (
     <>
       <PublicMobileTopBar />
-      {user && <AuthSubNav />}
       <Navbar />
       <main className="pb-16 md:pb-0">
         <Outlet />
