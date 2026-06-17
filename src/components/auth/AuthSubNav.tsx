@@ -3,7 +3,7 @@ import { Home, PawPrint, User } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 const tabs = [
-  { label: 'Inicio', icon: Home, path: '/dashboard' },
+  { label: 'Mi Portal', icon: Home, path: '/dashboard' },
   { label: 'Mascotas', icon: PawPrint, path: '/mi-mascota' },
   { label: 'Perfil', icon: User, path: '/perfil' },
 ];
