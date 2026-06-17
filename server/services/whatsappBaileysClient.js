@@ -15,6 +15,7 @@ let currentQR = null;
 let connectedPhone = null;
 let initPromise = null;
 let reconnectTimer = null;
+let connecting = false;
 
 const SESSION_DIR = '.baileys_auth';
 
@@ -39,14 +40,13 @@ async function getEnabled() {
 }
 
 export async function initBaileysClient() {
-  console.log('[Baileys] initBaileysClient called');
-  if (initPromise) {
-    console.log('[Baileys] Already initializing, returning existing promise');
+  console.log('[Baileys] initBaileysClient called, connecting:', connecting);
+  if (connecting || initPromise) {
+    console.log('[Baileys] Already connecting, skipping');
     return initPromise;
   }
 
   const enabled = await getEnabled();
-  console.log('[Baileys] getEnabled returned:', enabled);
   if (!enabled) {
     status = 'disabled';
     console.log('[Baileys] Disabled by setting');
@@ -59,6 +59,16 @@ export async function initBaileysClient() {
 }
 
 async function startClient() {
+  if (connecting) return;
+  connecting = true;
+
+  const timeout = setTimeout(() => {
+    connecting = false;
+    initPromise = null;
+    console.error('[Baileys] Timeout starting client (20s)');
+    status = 'disconnected';
+  }, 20000);
+
   try {
     if (client) {
       client.end(undefined);
@@ -79,8 +89,10 @@ async function startClient() {
       mkdirSync(absolutePath, { recursive: true });
     }
 
+    console.log('[Baileys] Loading auth state from', absolutePath);
     const { state, saveCreds } = await useMultiFileAuthState(absolutePath);
     const version = BAILEYS_VERSION;
+    console.log('[Baileys] Auth loaded, creating socket (v' + version + ')');
 
     const logger = pino({ level: 'fatal' });
 
@@ -102,6 +114,7 @@ async function startClient() {
       if (qr) {
         status = 'qr';
         currentQR = await QR.toDataURL(qr);
+        console.log('[Baileys] QR received, status=qr');
       }
 
       if (connection === 'open') {
@@ -109,12 +122,16 @@ async function startClient() {
         currentQR = null;
         connectedPhone = client.user?.id?.split(':')[0] || null;
         console.log('[Baileys] Connected:', connectedPhone);
+        clearTimeout(timeout);
+        connecting = false;
       }
 
       if (connection === 'close') {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
         status = 'disconnected';
         connectedPhone = null;
+        console.log('[Baileys] Connection closed, will reconnect:', shouldReconnect);
+        connecting = false;
 
         if (shouldReconnect) {
           reconnectTimer = setTimeout(() => {
@@ -126,8 +143,14 @@ async function startClient() {
         }
       }
     });
+
+    clearTimeout(timeout);
+    connecting = false;
+    console.log('[Baileys] Socket created, waiting for events...');
   } catch (err) {
-    console.error('[Baileys] Error starting client:', err.message);
+    clearTimeout(timeout);
+    connecting = false;
+    console.error('[Baileys] Error starting client:', err.message, err.stack?.split('\n')[1]);
     status = 'disconnected';
     initPromise = null;
   }
