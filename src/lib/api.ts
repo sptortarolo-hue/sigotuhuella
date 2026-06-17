@@ -91,6 +91,9 @@ export const api = {
     update: (id: string, data: any) => request(`/collaboration/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/collaboration/${id}`, { method: 'DELETE' }),
   },
+  gamification: {
+    myStats: () => request('/my-stats'),
+  },
   volunteers: {
     list: () => request('/volunteers'),
     create: (data: any) => request('/volunteers', { method: 'POST', body: JSON.stringify(data) }),

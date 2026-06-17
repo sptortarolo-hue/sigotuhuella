@@ -16,6 +16,7 @@ export default function Dashboard() {
   const [myPetsLoading, setMyPetsLoading] = useState(true);
   const [recentReports, setRecentReports] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const [gamification, setGamification] = useState<any>(null);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -53,9 +54,19 @@ export default function Dashboard() {
       }
     };
 
+    const fetchGamification = async () => {
+      try {
+        const data = await api.gamification.myStats();
+        setGamification(data);
+      } catch (e) {
+        console.error('Error fetching gamification:', e);
+      }
+    };
+
     fetchMyPets();
     fetchRecentReports();
     fetchStats();
+    fetchGamification();
   }, [user, navigate]);
 
   if (loading) return (
@@ -89,7 +100,7 @@ export default function Dashboard() {
     { icon: FileText, label: 'Reportes', value: stats?.stats?.total_reports ?? 0, color: 'text-blue-600 bg-blue-50' },
     { icon: RotateCcw, label: 'Reencuentros', value: stats?.stats?.reunited_count ?? 0, color: 'text-green-600 bg-green-50' },
     { icon: PawPrint, label: 'Mascotas', value: myPets.length, color: 'text-brand-primary bg-brand-primary/10' },
-    { icon: Star, label: 'Puntos', value: stats?.stats?.points ?? 0, color: 'text-amber-600 bg-amber-50' },
+    { icon: Star, label: 'Puntos', value: gamification?.points ?? 0, color: 'text-amber-600 bg-amber-50' },
   ];
 
   const quickActions = [

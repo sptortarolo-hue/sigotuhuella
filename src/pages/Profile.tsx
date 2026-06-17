@@ -42,14 +42,20 @@ export default function Profile() {
 
   const [statsData, setStatsData] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [gamification, setGamification] = useState<any>(null);
+  const [gamificationLoading, setGamificationLoading] = useState(false);
+  const [myPetsCount, setMyPetsCount] = useState(0);
 
   useEffect(() => {
     if (user && isMember) {
       setStatsLoading(true);
-      api.users.stats(user.id)
-        .then(data => setStatsData(data))
-        .catch(err => console.error('Error al cargar estadísticas:', err))
-        .finally(() => setStatsLoading(false));
+      setGamificationLoading(true);
+      Promise.all([
+        api.users.stats(user.id).then(data => setStatsData(data)),
+        api.gamification.myStats().then(data => setGamification(data)),
+        api.users.myPets(user.id).then(data => setMyPetsCount((data.pets || []).length)),
+      ]).catch(err => console.error('Error al cargar estadísticas:', err))
+        .finally(() => { setStatsLoading(false); setGamificationLoading(false); });
     }
   }, [user]);
 
@@ -177,8 +183,8 @@ export default function Profile() {
   const statItems = [
     { label: 'Reportes', value: statsData?.stats?.total_reports ?? 0 },
     { label: 'Encuentros', value: statsData?.stats?.reunited_count ?? 0 },
-    { label: 'Mascotas', value: statsData?.stats?.my_pets_count ?? 0 },
-    { label: 'Puntos', value: statsData?.stats?.points ?? 0 },
+    { label: 'Mascotas', value: myPetsCount },
+    { label: 'Puntos', value: gamification?.points ?? 0 },
   ];
 
   return (
