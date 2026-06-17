@@ -156,7 +156,7 @@ export default function Dashboard() {
         </div>
 
         {/* 2. Quick Actions (4 buttons like public home) */}
-        <section>
+        <section className="bg-white rounded-2xl shadow-sm p-4 sm:p-5">
           <div className="grid grid-cols-2 gap-3">
             {mobileQuickActions.map((action, i) => (
               <motion.button
@@ -177,7 +177,7 @@ export default function Dashboard() {
         </section>
 
         {/* 3. Mis mascotas strip */}
-        <section>
+        <section className="bg-white rounded-2xl shadow-sm p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400">Mis mascotas</h2>
             <button
@@ -249,7 +249,7 @@ export default function Dashboard() {
         </section>
 
         {/* 4. Recent Activity */}
-        <section>
+        <section className="bg-white rounded-2xl shadow-sm p-4 sm:p-5">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Última actividad</h2>
           {recentReports.length === 0 ? (
             <motion.div
@@ -304,7 +304,7 @@ export default function Dashboard() {
         </section>
 
         {/* 5. Stats */}
-        <section>
+        <section className="bg-white rounded-2xl shadow-sm p-4 sm:p-5">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Tu impacto</h2>
           <div className="grid grid-cols-2 gap-3">
             {statCards.map((card, i) => (
