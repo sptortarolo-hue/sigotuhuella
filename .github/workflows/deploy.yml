@@ -36,6 +36,7 @@ jobs:
         echo "FACEBOOK_APP_SECRET=${{ secrets.FACEBOOK_APP_SECRET }}" >> server/.env
         echo "APIFY_TOKEN=${{ secrets.APIFY_TOKEN }}" >> server/.env
         echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> server/.env
+        echo "BAILEYS_PROXY=${{ secrets.BAILEYS_PROXY }}" >> server/.env
 
     - name: Transfer files to VPS
       run: |
@@ -71,3 +72,5 @@ jobs:
           pm2 delete sigotuhuella 2>/dev/null || true
           pm2 start npm --name sigotuhuella --update-env -- start
           pm2 save
+          # Ensure Cloudflare WARP proxy is active for Baileys
+          warp-cli connect 2>/dev/null || true

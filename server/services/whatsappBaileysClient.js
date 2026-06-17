@@ -4,6 +4,7 @@ import pino from 'pino';
 import QR from 'qrcode';
 import path from 'path';
 import { mkdirSync, existsSync, rmSync } from 'fs';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 import pool from '../db.js';
 
 let client = null;
@@ -95,7 +96,7 @@ async function startClient() {
 
     const logger = pino({ level: 'fatal' });
 
-    client = makeWASocket({
+    const socketOptions = {
       version: [2, 3000, 1040656236],
       browser: Browsers.macOS('Desktop'),
       auth: state,
@@ -106,7 +107,17 @@ async function startClient() {
       generateHighQualityLinkPreview: false,
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
-    });
+    };
+
+    const proxyUrl = process.env.BAILEYS_PROXY;
+    if (proxyUrl) {
+      const agent = new SocksProxyAgent(proxyUrl);
+      socketOptions.agent = agent;
+      socketOptions.fetchAgent = agent;
+      console.log('[Baileys] Using proxy:', proxyUrl);
+    }
+
+    client = makeWASocket(socketOptions);
 
     client.ev.on('creds.update', saveCreds);
 
