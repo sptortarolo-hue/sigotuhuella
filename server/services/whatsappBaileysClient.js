@@ -27,21 +27,30 @@ async function getSessionPath() {
 async function getEnabled() {
   try {
     const result = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_web_enabled'");
+    console.log('[Baileys] getEnabled query result:', result.rows);
     return result.rows[0]?.value === 'true';
-  } catch {
+  } catch (err) {
+    console.error('[Baileys] getEnabled query error:', err.message);
     return false;
   }
 }
 
 export async function initBaileysClient() {
-  if (initPromise) return initPromise;
+  console.log('[Baileys] initBaileysClient called');
+  if (initPromise) {
+    console.log('[Baileys] Already initializing, returning existing promise');
+    return initPromise;
+  }
 
   const enabled = await getEnabled();
+  console.log('[Baileys] getEnabled returned:', enabled);
   if (!enabled) {
     status = 'disabled';
+    console.log('[Baileys] Disabled by setting');
     return;
   }
 
+  console.log('[Baileys] Starting client...');
   initPromise = startClient();
   return initPromise;
 }
