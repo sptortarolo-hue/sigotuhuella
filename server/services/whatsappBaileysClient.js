@@ -97,7 +97,7 @@ async function startClient() {
 
     client = makeWASocket({
       version: [2, 3000, 1034074495],
-      browser: Browsers.windows('Chrome'),
+      browser: Browsers.macOS('Desktop'),
       auth: state,
       logger,
       printQRInTerminal: false,
