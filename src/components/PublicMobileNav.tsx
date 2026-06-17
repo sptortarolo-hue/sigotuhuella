@@ -54,11 +54,13 @@ export default function PublicMobileNav() {
 
       <AnimatePresence>
         {moreOpen && (
-          <div className="fixed inset-0 z-[60] lg:hidden">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] lg:hidden"
+          >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/30"
               onClick={() => setMoreOpen(false)}
             />
@@ -82,7 +84,7 @@ export default function PublicMobileNav() {
                     onClick={() => { setMoreOpen(false); navigate(opt.path); }}
                     className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-brand-bg transition-colors"
                   >
-                    <span className="text-brand-primary">{opt.icon}</span>
+                    <opt.icon className="w-5 h-5 text-brand-primary" />
                     {opt.label}
                   </button>
                 ))}
@@ -104,7 +106,7 @@ export default function PublicMobileNav() {
                 )}
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </>
