@@ -1,12 +1,18 @@
-import { Link } from 'react-router-dom';
-import { PawPrint, Bell, BellOff, User } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { PawPrint, Bell, BellOff, User, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
 import { cn } from '@/src/lib/utils';
 
 export default function TopBar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -48,6 +54,13 @@ export default function TopBar() {
             {pushEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
           </button>
         )}
+        <button
+          onClick={handleLogout}
+          className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+          title="Cerrar sesión"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
         <Link
           to="/perfil"
           className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-accent"
