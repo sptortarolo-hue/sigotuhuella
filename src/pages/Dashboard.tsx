@@ -88,7 +88,7 @@ export default function Dashboard() {
   const statCards = [
     { icon: FileText, label: 'Reportes', value: stats?.stats?.total_reports ?? 0, color: 'text-blue-600 bg-blue-50' },
     { icon: RotateCcw, label: 'Reencuentros', value: stats?.stats?.reunited_count ?? 0, color: 'text-green-600 bg-green-50' },
-    { icon: PawPrint, label: 'Mascotas', value: stats?.stats?.my_pets_count ?? 0, color: 'text-brand-primary bg-brand-primary/10' },
+    { icon: PawPrint, label: 'Mascotas', value: myPets.length, color: 'text-brand-primary bg-brand-primary/10' },
     { icon: Star, label: 'Puntos', value: stats?.stats?.points ?? 0, color: 'text-amber-600 bg-amber-50' },
   ];
 
