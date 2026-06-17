@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
-import { getBaileysStatus, getBaileysQR, reconnectBaileys, sendBaileysMessage, requestPairingBaileys } from '../services/whatsappBaileysClient.js';
+import { getBaileysStatus, getBaileysQR, reconnectBaileys, sendBaileysMessage, requestPairingBaileys, clearBaileysAuth } from '../services/whatsappBaileysClient.js';
 
 const router = Router();
 
@@ -56,6 +56,16 @@ router.post('/whatsapp-web/request-pairing', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('[WhatsAppWeb] Pairing error:', err);
     res.status(502).json({ error: err.message });
+  }
+});
+
+router.post('/whatsapp-web/clear-auth', requireAdmin, async (req, res) => {
+  try {
+    await clearBaileysAuth();
+    res.json({ success: true, status: getBaileysStatus() });
+  } catch (err) {
+    console.error('[WhatsAppWeb] Clear auth error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -87,6 +87,7 @@ export default function WhatsAppTab() {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [pairingLoading, setPairingLoading] = useState(false);
   const [pairingError, setPairingError] = useState<string | null>(null);
+  const [clearingAuth, setClearingAuth] = useState(false);
 
   const fetchGroups = async () => {
     setGroupsLoading(true);
@@ -186,6 +187,21 @@ export default function WhatsAppTab() {
       setPairingError(e?.message || 'Error al generar código');
     }
     setPairingLoading(false);
+  };
+
+  const handleClearAuth = async () => {
+    if (!confirm('¿Limpiar estado de WhatsApp Web? Se borrará la sesión actual y se reconectará.')) return;
+    setClearingAuth(true);
+    setWebQR(null);
+    setPairingCode(null);
+    setPairingError(null);
+    try {
+      await api.whatsappWeb.clearAuth();
+      setTimeout(fetchWebStatus, 5000);
+    } catch (e: any) {
+      console.error(e);
+    }
+    setClearingAuth(false);
   };
 
   const saveWebPhone = async () => {
@@ -919,6 +935,14 @@ export default function WhatsAppTab() {
                     className="px-4 py-3 bg-white text-brand-primary font-bold rounded-xl border border-brand-accent hover:shadow-md transition-all text-sm flex items-center gap-2"
                   >
                     <RefreshCw className="w-4 h-4" /> Reconectar
+                  </button>
+                  <button
+                    onClick={handleClearAuth}
+                    disabled={webLoading || clearingAuth}
+                    className="px-4 py-3 bg-red-50 text-red-600 font-bold rounded-xl border border-red-200 hover:bg-red-100 transition-all text-sm flex items-center gap-2"
+                  >
+                    {clearingAuth ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    {clearingAuth ? 'Limpiando...' : 'Limpiar estado'}
                   </button>
                 </div>
               </div>

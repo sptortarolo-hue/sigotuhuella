@@ -158,6 +158,8 @@ export const api = {
       request('/whatsapp-web/send-test', { method: 'POST', body: JSON.stringify({ phone, text }) }),
     requestPairing: (phone: string) =>
       request('/whatsapp-web/request-pairing', { method: 'POST', body: JSON.stringify({ phone }) }),
+    clearAuth: () =>
+      request('/whatsapp-web/clear-auth', { method: 'POST' }),
   },
   lostReport: (data: any) => request('/pets/lost-report', { method: 'POST', body: JSON.stringify(data) }),
   requestChapita: (data: any) => request('/request-chapita', { method: 'POST', body: JSON.stringify(data) }),
