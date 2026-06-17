@@ -65,6 +65,7 @@ function detectIntent(parsed) {
     if (/voluntario/i.test(text)) return 'volunteer';
     if (/adoptar|adopt/i.test(text)) return 'adopt';
     if (/donar|donación|don/i.test(text)) return 'donate';
+    if (/face|fb\./i.test(text)) return 'report_from_fb';
     if (/humano/i.test(text)) return 'human';
     if (/s[ií]|confirmar|dale|end_yes/i.test(text)) return 'confirm';
     if (/^no$|no |cancelar|end_no/i.test(text)) return 'cancel';
@@ -77,6 +78,7 @@ function detectIntent(parsed) {
   if (/voluntario|ayudar|colaborar/.test(text)) return 'volunteer';
   if (/adoptar|adopt/.test(text)) return 'adopt';
   if (/donar|donación|don/.test(text)) return 'donate';
+  if (/face|facebook|fb\./i.test(text)) return 'report_from_fb';
   if (/humano|persona|hablar/.test(text)) return 'human';
   if (/s[ií]|confirmar|dale|end_yes/.test(text)) return 'confirm';
   if (/^no$|no |cancelar|end_no/.test(text)) return 'cancel';
@@ -355,16 +357,19 @@ export async function showMenu(conv) {
           footerText: 'Red Vecinal de Mascotas',
         });
       } catch (err) {
-        console.error('List menu send error, falling back to buttons:', err.message);
-        await sendInteractiveButtons(conv.wa_from, '📌 ¿En qué puedo ayudarte?', [
-          { id: 'report_lost', title: '📷 Perdí mi mascota' },
-          { id: 'report_sighted', title: '👀 Vi una mascota' },
-          { id: 'report_found', title: '✅ Encontré una mascota' },
-          { id: 'adopt', title: '🙋 Adoptar' },
-          { id: 'info_qr', title: 'ℹ️ Chapita QR' },
-          { id: 'donate', title: '💰 Donar' },
-          { id: 'human', title: '🗣 Contactar equipo' },
-        ]);
+        console.error('List menu send error, falling back to text instructions:', err.message);
+        await setFlow(conv, 'menu');
+        await sendMessage(conv.wa_from,
+          `📱 ${conv.bot_name}: No pude mostrar el menú interactivo. Escribí lo que necesitás, por ejemplo:\n\n` +
+          `• "Perdí mi mascota"\n` +
+          `• "Vi una mascota"\n` +
+          `• "Encontré una mascota"\n` +
+          `• "Quiero adoptar"\n` +
+          `• "Chapita QR"\n` +
+          `• "Donar"\n` +
+          `• "Link Facebook"\n` +
+          `• "Contactar equipo"`
+        );
       }
     }
   } catch (err) {
@@ -413,7 +418,7 @@ async function handleUnrecognizedText(conv, parsed) {
       const intentMap = {
         lost: 'report_lost', found: 'report_found', sighted: 'report_sighted',
         adopt: 'adopt', volunteer: 'volunteer', donate: 'donate',
-        info_qr: 'info_qr', human: 'human',
+        info_qr: 'info_qr', report_from_fb: 'report_from_fb', human: 'human',
       };
       const mappedIntent = intentMap[classification];
       if (mappedIntent) {
@@ -467,7 +472,6 @@ async function showImageTypeChoice(conv, parsed) {
     { id: 'report_found', title: '🐾 La encontré' },
     { id: 'report_lost', title: '🐾 Se perdió' },
     { id: 'report_sighted', title: '👀 La vi' },
-    { id: 'menu_back', title: '🔙 Menú' },
   ]);
 }
 
@@ -497,8 +501,6 @@ async function startHumanRequest(conv) {
     { id: 'h_motive_question', title: '📋 Consulta general' },
     { id: 'h_motive_suggestion', title: '💡 Sugerencia' },
     { id: 'h_motive_problem', title: '⚙️ Problema técnico' },
-    { id: 'h_motive_collab', title: '🙌 Quiero colaborar' },
-    { id: 'h_motive_other', title: 'Otro' },
   ]);
   await setFlow(conv, 'human.motive');
 }
@@ -1173,8 +1175,6 @@ async function startVolunteer(conv) {
   await sendInteractiveButtons(conv.wa_from, '¿Vivís en la zona?', [
     { id: 'v_zone_sicardi', title: '📍 Sicardi' },
     { id: 'v_zone_garibaldi', title: '📍 Garibaldi' },
-    { id: 'v_zone_correas', title: '📍 Correas' },
-    { id: 'v_zone_near', title: '📍 Zonas cercanas' },
     { id: 'v_zone_other', title: '📍 Otra' },
   ]);
   await setFlow(conv, 'volunteer.zone');
@@ -1195,8 +1195,7 @@ async function vZone(conv, parsed) {
   await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Tenés mascotas?`, [
     { id: 'v_pets_dog', title: '🐕 Perro/s' },
     { id: 'v_pets_cat', title: '🐱 Gato/s' },
-    { id: 'v_pets_both', title: '🐾 Perro y gato' },
-    { id: 'v_pets_none', title: 'No tengo' },
+    { id: 'v_pets_both', title: '🐾 Ambos' },
   ]);
   await setFlow(conv, 'volunteer.has_pets', { zone });
 }

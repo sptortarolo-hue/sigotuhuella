@@ -409,6 +409,7 @@ const CLASSIFY_PROMPT = `Classify this message from a pet rescue app user. Retur
 - "volunteer" if they want to volunteer
 - "donate" if they want to donate
 - "info_qr" if they ask about QR tags
+- "report_from_fb" if they want to report a Facebook post or link their Facebook
 - "human" if they want to talk to a person
 - "greeting" if they just say hello/hi
 - "other" for anything else
@@ -425,7 +426,7 @@ export async function classifyTextIntent(text) {
       config: { maxOutputTokens: 10, temperature: 0 },
     });
     const response = (result.text || '').trim().toLowerCase();
-    const valid = ['lost', 'found', 'sighted', 'adopt', 'volunteer', 'donate', 'info_qr', 'human', 'greeting', 'other'];
+    const valid = ['lost', 'found', 'sighted', 'adopt', 'volunteer', 'donate', 'info_qr', 'report_from_fb', 'human', 'greeting', 'other'];
     return valid.includes(response) ? response : null;
   } catch (err) {
     handleGeminiError(err);
