@@ -3,8 +3,8 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import {
-  PawPrint, Plus, Eye, Heart, Trophy, Users,
-  Loader2, Clock, ArrowRight, ChevronRight,
+  PawPrint, Plus, Eye, Heart,
+  Loader2, Clock, ChevronRight,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -80,20 +80,6 @@ export default function Dashboard() {
       desc: 'Vi una mascota',
       path: '/reportar-rapido',
       color: 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100',
-    },
-    {
-      icon: <Trophy className="w-6 h-6" />,
-      label: 'Concursos',
-      desc: 'Participá y sumá puntos',
-      path: '/concursos',
-      color: 'bg-brand-primary/10 text-brand-primary border-brand-primary/20 hover:bg-brand-primary/20',
-    },
-    {
-      icon: <Users className="w-6 h-6" />,
-      label: 'Comunidad',
-      desc: 'Mirá el feed de novedades',
-      path: '/feed',
-      color: 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100',
     },
   ];
 

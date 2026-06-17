@@ -9,7 +9,7 @@ import PetMap from '@/src/components/PetMap';
 import MapLoader from '@/src/components/MapLoader';
 import PetRecordsModal from '@/src/components/PetRecordsModal';
 import ImageCropper from '@/src/components/ImageCropper';
-import { Search, Loader2, Grid, Map as MapIcon, ArrowLeft, PawPrint, X, Save, HeartHandshake, Activity, Heart, ChevronRight, ChevronLeft, Check, Calendar, Weight } from 'lucide-react';
+import { Search, Loader2, Grid, Map as MapIcon, PawPrint, X, Save, HeartHandshake, Activity, Heart, ChevronRight, ChevronLeft, Check, Calendar, Weight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { ALL_TAGS, formatTag } from '@/src/lib/personalityTags';
@@ -244,12 +244,9 @@ export default function MyPets() {
       {cropFile && (
         <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
       )}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold mb-8">
-        <ArrowLeft className="w-4 h-4" /> Volver
-      </button>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12">
 
-      <header className="mb-12 text-center max-w-2xl mx-auto">
+      <header className="mb-8 sm:mb-12 text-center max-w-2xl mx-auto">
         <div className="inline-flex p-3 bg-brand-primary/10 text-brand-primary rounded-2xl mb-4"><PawPrint className="w-8 h-8" /></div>
         <h1 className="text-4xl font-serif font-bold text-brand-primary mb-2">Mis Publicaciones</h1>
         <p className="text-gray-500">{pets.length} mascota{pets.length !== 1 ? 's' : ''} reportada{pets.length !== 1 ? 's' : ''}</p>

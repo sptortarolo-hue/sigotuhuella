@@ -1,11 +1,10 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, PawPrint, Users, User } from 'lucide-react';
+import { Home, PawPrint, User } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 const tabs = [
   { label: 'Inicio', icon: Home, path: '/dashboard' },
   { label: 'Mascotas', icon: PawPrint, path: '/mi-mascota' },
-  { label: 'Comunidad', icon: Users, path: '/feed' },
   { label: 'Perfil', icon: User, path: '/perfil' },
 ];
 
@@ -16,7 +15,6 @@ export default function BottomNav({ onReportClick }: { onReportClick: () => void
   const isActive = (path: string) => {
     if (path === '/dashboard') return location.pathname === '/dashboard';
     if (path === '/mi-mascota') return location.pathname.startsWith('/mi-mascota');
-    if (path === '/feed') return location.pathname.startsWith('/feed');
     if (path === '/perfil') return location.pathname === '/perfil';
     return false;
   };

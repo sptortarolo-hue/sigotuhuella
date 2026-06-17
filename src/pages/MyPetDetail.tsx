@@ -6,7 +6,7 @@ import { fileToBase64 } from '@/src/lib/storageService';
 import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
 import ImageCropper from '@/src/components/ImageCropper';
 import {
-  PawPrint, ArrowLeft, Loader2, Syringe, Scissors, Bug, Weight,
+  PawPrint, Loader2, Syringe, Scissors, Bug, Weight,
   Calendar, Plus, X, Save, Camera, Trash2, Sparkles, Heart,
   Dog, Cat, Edit3, Image as ImageIcon, Activity, Clock,
   QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle, Download,
@@ -539,51 +539,45 @@ export default function MyPetDetail() {
         <ImageCropper file={recordCropFile} aspect={1} onCropComplete={handleRecordCropComplete} onCancel={handleRecordCropCancel} />
       )}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
-      <button onClick={() => navigate('/mi-mascota')} className="flex items-center gap-2 text-gray-400 hover:text-brand-primary transition-colors mb-4 text-sm">
-        <ArrowLeft className="w-4 h-4" /> Volver a mis mascotas
-      </button>
-
-      <div className="relative -mx-4 sm:-mx-6 lg:-mx-8 mb-6 bg-gradient-to-r from-brand-primary to-brand-secondary rounded-b-[3rem] px-6 py-8 shadow-xl overflow-hidden">
-        <div className="flex items-center gap-4">
-          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
-          <button
-            onClick={() => avatarInputRef.current?.click()}
-            disabled={avatarLoading}
-            className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-white/20 bg-white/10 shrink-0 relative group"
-            title="Cambiar foto de perfil"
-          >
-{pet.avatar_image ? (
-  <img src={`/my-pet-avatar/${pet.id}?t=${Date.now()}`} alt={pet.name}
-    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-    className="w-full h-full object-cover" />
-) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <PawPrint className="w-10 h-10 text-white/60" />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-              {avatarLoading ? (
-                <Loader2 className="w-6 h-6 text-white animate-spin opacity-0 group-hover:opacity-100" />
-              ) : (
-                <Camera className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-              )}
+      <div className="flex items-center gap-4 mb-6">
+        <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+        <button
+          onClick={() => avatarInputRef.current?.click()}
+          disabled={avatarLoading}
+          className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-brand-accent bg-brand-bg shrink-0 relative group"
+          title="Cambiar foto de perfil"
+        >
+          {pet.avatar_image ? (
+            <img src={`/my-pet-avatar/${pet.id}?t=${Date.now()}`} alt={pet.name}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <PawPrint className="w-7 h-7 text-brand-primary/40" />
             </div>
-          </button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-semibold text-white truncate">{pet.name}</h1>
-            <p className="text-white/80 text-sm">
-              {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otro'}
-              {pet.breed ? ` · ${pet.breed}` : ''}
-              {pet.birth_date ? ` · ${getAge(pet.birth_date)}` : ''}
-            </p>
-            {pet.personality_tags?.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {pet.personality_tags.map((tag: string) => (
-                  <span key={tag} className="text-[10px] sm:text-xs px-2 py-0.5 bg-white/20 text-white rounded-full">{formatTag(tag)}</span>
-                ))}
-              </div>
+          )}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center rounded-2xl">
+            {avatarLoading ? (
+              <Loader2 className="w-5 h-5 text-white animate-spin opacity-0 group-hover:opacity-100" />
+            ) : (
+              <Camera className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
             )}
           </div>
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary truncate">{pet.name}</h1>
+          <p className="text-sm text-gray-500">
+            {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otro'}
+            {pet.breed ? ` · ${pet.breed}` : ''}
+            {pet.birth_date ? ` · ${getAge(pet.birth_date)}` : ''}
+          </p>
+          {pet.personality_tags?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {pet.personality_tags.map((tag: string) => (
+                <span key={tag} className="text-[10px] sm:text-xs px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded-full">{formatTag(tag)}</span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

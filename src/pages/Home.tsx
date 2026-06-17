@@ -5,14 +5,12 @@ import { useState, useEffect } from 'react';
 import NewsCarousel from '@/src/components/NewsCarousel';
 import { getNews } from '@/src/lib/newsService';
 import { api } from '@/src/lib/api';
-import { formatTag } from '@/src/lib/personalityTags';
 import { useAuth } from '@/src/hooks/useAuth';
 
 export default function Home() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [news, setNews] = useState<any[]>([]);
-  const [featuredPet, setFeaturedPet] = useState<any>(null);
   const [bannerVisible, setBannerVisible] = useState(true);
   const [bannerPrice, setBannerPrice] = useState('500');
   const [bannerIsFree, setBannerIsFree] = useState(true);
@@ -21,7 +19,6 @@ export default function Home() {
 
   useEffect(() => {
     getNews().then(setNews).catch(() => {});
-    api.myPets.featured().then((data: any) => { if (data.pet) setFeaturedPet(data.pet); }).catch(() => {});
     api.settings.getPublic().then((data: any) => {
       if (data.banner_chapita_visible !== undefined) setBannerVisible(data.banner_chapita_visible !== 'false');
       if (data.banner_chapita_price !== undefined) setBannerPrice(data.banner_chapita_price);
@@ -32,8 +29,8 @@ export default function Home() {
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
-      <section className="relative min-h-[70vh] sm:min-h-[80vh] flex items-center overflow-hidden bg-brand-bg px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center relative z-10 py-12 sm:py-20">
+      <section className="relative min-h-0 lg:min-h-[80vh] flex items-center overflow-hidden bg-brand-bg px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center relative z-10 py-8 lg:py-20">
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
@@ -111,14 +108,14 @@ export default function Home() {
             transition={{ duration: 1, delay: 0.2 }}
             className="relative flex justify-center md:justify-end"
           >
-            <div className="w-60 sm:w-72 md:w-80 aspect-[4/5] bg-brand-accent rounded-[2rem] sm:rounded-[3rem] overflow-hidden rotate-3 shadow-2xl relative">
+            <div className="hidden lg:block w-60 sm:w-72 lg:w-80 aspect-[4/5] bg-brand-accent rounded-[2rem] sm:rounded-[3rem] overflow-hidden rotate-3 shadow-2xl relative">
               <img
                 src="/sigotuhuella.jpg"
                 alt="Sigo tu huella"
                 className="w-full h-full object-cover hover:scale-105 transition-all duration-700"
               />
             </div>
-            <div className="absolute -bottom-4 -left-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xl border border-brand-accent -rotate-2">
+            <div className="hidden lg:block absolute -bottom-4 -left-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xl border border-brand-accent -rotate-2">
               <span className="block text-2xl sm:text-3xl font-serif font-bold text-brand-secondary">+150</span>
               <span className="text-[10px] sm:text-xs uppercase tracking-widest text-gray-500 font-bold">Mascotas Ayudadas</span>
             </div>
@@ -175,47 +172,35 @@ export default function Home() {
         </section>
       )}
 
+      {/* Mascotas Reportadas strip */}
+      <section className="py-6 lg:py-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">Mascotas Reportadas</h2>
+            <Link to="/perdidos" className="text-xs font-bold text-brand-primary">Ver todas →</Link>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-none">
+            {[
+              { label: 'Perdidos', icon: '🔍', path: '/perdidos', color: 'bg-red-50 border-red-200' },
+              { label: 'Adopción', icon: '❤️', path: '/adopcion', color: 'bg-pink-50 border-pink-200' },
+              { label: 'Reportar', icon: '📋', path: '/reportar', color: 'bg-brand-primary/10 border-brand-primary/20' },
+              { label: 'Avistaje', icon: '👁️', path: '/reportar-rapido', color: 'bg-amber-50 border-amber-200' },
+            ].map((item, i) => (
+              <Link
+                key={i}
+                to={item.path}
+                className={`shrink-0 snap-start w-32 h-28 ${item.color} border rounded-2xl flex flex-col items-center justify-center gap-2 hover:shadow-md transition-all`}
+              >
+                <span className="text-2xl">{item.icon}</span>
+                <span className="text-xs font-bold text-gray-700">{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* News Carousel */}
       <NewsCarousel news={news} />
-
-      {/* Mascota del mes */}
-      {featuredPet && (
-        <section className="py-12 sm:py-16 bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-2 mb-6">
-              <span className="px-3 py-1 bg-brand-secondary/10 text-brand-secondary rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-widest">
-                Mascota del mes
-              </span>
-            </div>
-            <div className="bg-brand-bg rounded-[2.5rem] p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-6">
-              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl overflow-hidden bg-brand-accent shrink-0">
-                <img
-                  src={`/my-pet-avatar/${featuredPet.id}`}
-                  alt={featuredPet.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="text-center sm:text-left">
-                <h3 className="text-xl sm:text-2xl font-bold text-brand-primary">{featuredPet.name}</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  {featuredPet.species === 'dog' ? 'Perro' : featuredPet.species === 'cat' ? 'Gato' : 'Otro'}
-                  {featuredPet.breed ? ` · ${featuredPet.breed}` : ''}
-                </p>
-                {featuredPet.bio && <p className="text-sm text-gray-600 mt-2 italic">"{featuredPet.bio}"</p>}
-                {featuredPet.personality_tags?.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-3 justify-center sm:justify-start">
-                    {featuredPet.personality_tags.slice(0, 5).map((tag: string) => (
-                      <span key={tag} className="text-[10px] sm:text-xs px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded-full">
-                        {formatTag(tag)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Diffusion callout */}
       <section className="py-12 bg-brand-bg/30">

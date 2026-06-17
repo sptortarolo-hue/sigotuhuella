@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Upload, Loader2, CheckCircle2, AlertCircle, PawPrint, TrendingUp } from 'lucide-react';
+import { Camera, Upload, Loader2, CheckCircle2, AlertCircle, PawPrint, TrendingUp } from 'lucide-react';
 import { motion } from 'motion/react';
 import MemberCard, { BADGE_CONFIG } from '@/src/components/MemberCard';
 import ImageCropper from '@/src/components/ImageCropper';
@@ -94,10 +94,7 @@ export default function MemberCardPage() {
   const nextLevel = statsData?.nextLevel;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12 space-y-8">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold">
-        <ArrowLeft className="w-4 h-4" /> Volver
-      </button>
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12 space-y-8">
 
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl">
