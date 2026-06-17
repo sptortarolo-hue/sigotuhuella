@@ -1,6 +1,7 @@
 import { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } from '@whiskeysockets/baileys';
+import QR from 'qrcode';
 import pino from 'pino';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -12,10 +13,6 @@ async function main() {
   console.log('╔══════════════════════════════════════════════════╗');
   console.log('║   Generador de sesión WhatsApp Web (Baileys)    ║');
   console.log('╚══════════════════════════════════════════════════╝');
-  console.log('');
-  console.log('1. Abrí WhatsApp en tu celular');
-  console.log('2. Andá a Dispositivos vinculados');
-  console.log('3. Escaneá el QR que aparece abajo');
   console.log('');
   console.log(`Sesión se guardará en: ${SESSION_DIR}`);
   console.log('');
@@ -41,8 +38,25 @@ async function main() {
 
   sock.ev.on('creds.update', saveCreds);
 
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update;
+  const qrFile = path.resolve(__dirname, '..', 'qr.html');
+
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      const qrDataUrl = await QR.toDataURL(qr);
+      const html = `<!DOCTYPE html><html><body style="display:flex;justify-content:center;align-items:center;height:100vh;background:#f5f5f5"><div style="text-align:center"><h2>Escanéá este QR con WhatsApp</h2><img src="${qrDataUrl}" style="width:300px;height:300px"/></div></body></html>`;
+      writeFileSync(qrFile, html);
+      console.log('');
+      console.log('📱 QR generado');
+      console.log('📂 Abrí este archivo en tu navegador:', qrFile);
+      console.log('   (hacé doble clic en el archivo o abrílo con Chrome/Edge)');
+      console.log('');
+      console.log('1. Abrí WhatsApp en tu celular');
+      console.log('2. Andá a Dispositivos vinculados');
+      console.log('3. Escaneá el QR');
+      console.log('');
+    }
 
     if (connection === 'open') {
       console.log('');
@@ -52,20 +66,25 @@ async function main() {
       console.log('');
       console.log('Copiá la carpeta .baileys_auth/ al VPS:');
       console.log('');
-      console.log('  rsync -avz .baileys_auth/ user@vps:/var/www/sigotuhuella/.baileys_auth/');
+      console.log('  rsync -avz .baileys_auth/ root@IP_DEL_VPS:/var/www/sigotuhuella/.baileys_auth/');
       console.log('');
       process.exit(0);
     }
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
+      console.log(`🔌 Conexión cerrada (código: ${statusCode})`);
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-
       if (shouldReconnect) {
-        console.log('Reconectando...');
+        console.log('🔄 Reconectando en 5s...');
       } else {
-        console.log('Sesión cerrada. Escaneá el QR de nuevo.');
+        console.log('Sesión cerrada permanentemente.');
+        process.exit(1);
       }
+    }
+
+    if (connection === 'connecting') {
+      console.log('🟡 Conectando...');
     }
   });
 }
