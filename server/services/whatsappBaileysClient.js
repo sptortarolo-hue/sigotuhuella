@@ -128,18 +128,22 @@ async function startClient() {
       if (connection === 'close') {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        status = 'disconnected';
         connectedPhone = null;
         console.log('[Baileys] Connection closed, statusCode:', statusCode, 'reason:', lastDisconnect?.error?.message);
         connecting = false;
 
-        if (shouldReconnect) {
-          reconnectTimer = setTimeout(() => {
-            initPromise = null;
-            startClient();
-          }, 5000);
+        if (status === 'pairing') {
+          console.log('[Baileys] Was in pairing mode, keeping status');
         } else {
-          initPromise = null;
+          status = 'disconnected';
+          if (shouldReconnect) {
+            reconnectTimer = setTimeout(() => {
+              initPromise = null;
+              startClient();
+            }, 5000);
+          } else {
+            initPromise = null;
+          }
         }
       }
     });
@@ -178,18 +182,28 @@ export function getBaileysQR() {
 }
 
 export async function requestPairingBaileys(phone) {
-  if (!client || (status !== 'qr' && status !== 'connecting')) {
-    throw new Error(`Baileys not in pairing state (status=${status})`);
-  }
-
   const cleanPhone = phone.replace(/[+\- ]/g, '');
   if (!/^\d{7,15}$/.test(cleanPhone)) {
     throw new Error('Invalid phone number format');
   }
 
+  if (status === 'disconnected') {
+    console.log('[Baileys] Auto-reconnecting for pairing...');
+    reconnectBaileys();
+    const waitStart = Date.now();
+    while (status !== 'qr' && status !== 'ready' && (Date.now() - waitStart) < 30000) {
+      await new Promise(r => setTimeout(r, 800));
+    }
+  }
+
+  if (!client || (status !== 'qr' && status !== 'connecting')) {
+    throw new Error(`Baileys not in pairing state (status=${status})`);
+  }
+
   try {
     const code = await client.requestPairingCode(cleanPhone);
     status = 'pairing';
+    console.log('[Baileys] Pairing code generated');
     return code;
   } catch (err) {
     console.error('[Baileys] requestPairingCode error:', err.message);
