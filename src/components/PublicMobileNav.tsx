@@ -34,7 +34,7 @@ export default function PublicMobileNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-brand-accent lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-brand-accent md:hidden">
         <div className="flex items-center justify-around h-16 px-2">
           {tabs.map((tab) => (
             <button
@@ -58,7 +58,7 @@ export default function PublicMobileNav() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] lg:hidden"
+            className="fixed inset-0 z-[60] md:hidden"
           >
             <motion.div
               className="absolute inset-0 bg-black/30"

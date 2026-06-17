@@ -29,8 +29,8 @@ export default function Home() {
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
-      <section className="relative min-h-0 lg:min-h-[80vh] flex items-center overflow-hidden bg-brand-bg px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center relative z-10 py-8 lg:py-20">
+      <section className="relative min-h-0 md:min-h-[80vh] flex items-center overflow-hidden bg-brand-bg px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center relative z-10 py-8 md:py-20">
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
@@ -108,14 +108,14 @@ export default function Home() {
             transition={{ duration: 1, delay: 0.2 }}
             className="relative flex justify-center md:justify-end"
           >
-            <div className="hidden lg:block w-60 sm:w-72 lg:w-80 aspect-[4/5] bg-brand-accent rounded-[2rem] sm:rounded-[3rem] overflow-hidden rotate-3 shadow-2xl relative">
+            <div className="hidden md:block w-60 sm:w-72 md:w-80 aspect-[4/5] bg-brand-accent rounded-[2rem] sm:rounded-[3rem] overflow-hidden rotate-3 shadow-2xl relative">
               <img
                 src="/sigotuhuella.jpg"
                 alt="Sigo tu huella"
                 className="w-full h-full object-cover hover:scale-105 transition-all duration-700"
               />
             </div>
-            <div className="hidden lg:block absolute -bottom-4 -left-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xl border border-brand-accent -rotate-2">
+            <div className="hidden md:block absolute -bottom-4 -left-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xl border border-brand-accent -rotate-2">
               <span className="block text-2xl sm:text-3xl font-serif font-bold text-brand-secondary">+150</span>
               <span className="text-[10px] sm:text-xs uppercase tracking-widest text-gray-500 font-bold">Mascotas Ayudadas</span>
             </div>

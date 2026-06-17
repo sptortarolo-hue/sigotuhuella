@@ -11,11 +11,11 @@ export default function PublicLayout() {
     <>
       <PublicMobileTopBar />
       <Navbar />
-      <main className="pb-16 lg:pb-0">
+      <main className="pb-16 md:pb-0">
         <Outlet />
       </main>
       <PublicMobileNav />
-      <footer className="hidden lg:block bg-white border-t border-brand-accent py-12">
+      <footer className="hidden md:block bg-white border-t border-brand-accent py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-8 md:gap-12">
             <div className="col-span-2 md:col-span-1">
