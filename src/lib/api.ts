@@ -150,6 +150,13 @@ export const api = {
     broadcast: (text: string) => request('/whatsapp/groups/broadcast', { method: 'POST', body: JSON.stringify({ text }) }),
     broadcastPet: (petId: string) => request(`/whatsapp/groups/broadcast-pet/${petId}`, { method: 'POST' }),
   },
+  whatsappWeb: {
+    status: () => request('/whatsapp-web/status'),
+    qr: () => request('/whatsapp-web/qr'),
+    reconnect: () => request('/whatsapp-web/reconnect', { method: 'POST' }),
+    sendTest: (phone: string, text: string) =>
+      request('/whatsapp-web/send-test', { method: 'POST', body: JSON.stringify({ phone, text }) }),
+  },
   lostReport: (data: any) => request('/pets/lost-report', { method: 'POST', body: JSON.stringify(data) }),
   requestChapita: (data: any) => request('/request-chapita', { method: 'POST', body: JSON.stringify(data) }),
   checkEmail: (email: string) => request('/auth/check-email', { method: 'POST', body: JSON.stringify({ email }) }),

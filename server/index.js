@@ -27,6 +27,8 @@ import requestChapitaRoutes from './routes/requestChapita.js';
 import facebookRoutes from './routes/facebook.js';
 import instagramRoutes from './routes/instagram.js';
 import imageRoutes from './routes/images.js';
+import whatsappWebRoutes from './routes/whatsappWeb.js';
+import { initBaileysClient } from './services/whatsappBaileysClient.js';
 import { startSyncTimer } from './services/vpsSyncService.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
@@ -179,6 +181,7 @@ app.use('/api/feed', feedRoutes);
 app.use('/api/contests', contestRoutes);
 app.use('/api/gamification', gamificationRoutes);
 app.use('/api/facebook', facebookRoutes);
+app.use('/api', whatsappWebRoutes);
 app.use('/api/instagram', instagramRoutes);
 app.use('/api/images', imageRoutes);
 
@@ -585,6 +588,8 @@ async function start() {
   }, 10 * 60 * 1000);
 
   checkWhatsAppTimeouts();
+
+  initBaileysClient().catch(err => console.error('[Baileys] Init error:', err.message));
 }
 
 start().catch(err => {

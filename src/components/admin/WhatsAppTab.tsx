@@ -4,7 +4,7 @@ import { cn } from '@/src/lib/utils';
 import {
   Save, Loader2, MessageSquare, RefreshCw, Send,
   Phone, User, X, CheckCircle, XCircle,
-  Bot, Settings, BarChart3, Map, FlaskConical, Building2, Users, Trash2, Plus,
+  Bot, Settings, BarChart3, Map, FlaskConical, Building2, Users, Trash2, Plus, Smartphone,
 } from 'lucide-react';
 
 interface Conversation {
@@ -75,6 +75,14 @@ export default function WhatsAppTab() {
   const [broadcastPetId, setBroadcastPetId] = useState('');
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastResults, setBroadcastResults] = useState<any[] | null>(null);
+  const [showWebClient, setShowWebClient] = useState(false);
+  const [webStatus, setWebStatus] = useState<any>(null);
+  const [webLoading, setWebLoading] = useState(false);
+  const [webPhone, setWebPhone] = useState('');
+  const [testPhone, setTestPhone] = useState('');
+  const [testText, setTestText] = useState('');
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [webQR, setWebQR] = useState<string | null>(null);
 
   const fetchGroups = async () => {
     setGroupsLoading(true);
@@ -123,6 +131,48 @@ export default function WhatsAppTab() {
       alert(e?.message || 'Error al enviar broadcast');
     }
     setBroadcasting(false);
+  };
+
+  const fetchWebStatus = async () => {
+    setWebLoading(true);
+    try {
+      const data = await api.whatsappWeb.status();
+      setWebStatus(data);
+      setWebPhone(data.whatsapp_web_phone || '');
+      if (data.status === 'qr') {
+        const qrData = await api.whatsappWeb.qr();
+        setWebQR(qrData.qr);
+      } else {
+        setWebQR(null);
+      }
+    } catch (e) { console.error(e); }
+    setWebLoading(false);
+  };
+
+  const handleWebReconnect = async () => {
+    try {
+      setWebQR(null);
+      await api.whatsappWeb.reconnect();
+      setTimeout(fetchWebStatus, 3000);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleWebTest = async () => {
+    if (!testPhone.trim() || !testText.trim()) return;
+    setTestResult(null);
+    try {
+      const res = await api.whatsappWeb.sendTest(testPhone.trim(), testText.trim());
+      setTestResult(res.success ? '✅ Enviado' : '❌ Error');
+    } catch (e: any) {
+      setTestResult('❌ ' + (e.message || 'Error'));
+    }
+  };
+
+  const saveWebPhone = async () => {
+    try {
+      await api.settings.update('whatsapp_web_phone', webPhone);
+      await fetchWebStatus();
+    } catch (e) { console.error(e); }
   };
 
   const handleBroadcastPet = async () => {
@@ -356,6 +406,12 @@ export default function WhatsAppTab() {
           showGroups ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-brand-primary border-brand-accent hover:shadow-md"
         )}>
           <Users className="w-4 h-4" /> Grupos
+        </button>
+        <button onClick={() => { setShowWebClient(!showWebClient); if (!showWebClient) fetchWebStatus(); }} className={cn(
+          "flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-bold transition-all",
+          showWebClient ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-brand-primary border-brand-accent hover:shadow-md"
+        )}>
+          <Smartphone className="w-4 h-4" /> Notif. WhatsApp
         </button>
       </div>
 
@@ -714,6 +770,137 @@ export default function WhatsAppTab() {
             {settingsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
             {settingsLoading ? 'Guardando...' : settingsSaved ? '✅ Guardado' : 'Guardar Configuración'}
           </button>
+        </div>
+      )}
+
+      {/* WhatsApp Web Client (chip secundario) */}
+      {showWebClient && (
+        <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
+          <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+            <Smartphone className="w-6 h-6" /> Notificaciones WhatsApp (chip secundario)
+          </h2>
+
+          <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl">
+            <input
+              type="checkbox"
+              id="whatsapp_web_enabled"
+              checked={settings.whatsapp_web_enabled === 'true'}
+              onChange={(e) => {
+                const val = e.target.checked ? 'true' : 'false';
+                setSettings(p => ({ ...p, whatsapp_web_enabled: val }));
+                api.settings.update('whatsapp_web_enabled', val).then(() => {
+                  if (val === 'true') fetchWebStatus();
+                });
+              }}
+              className="w-5 h-5 rounded accent-brand-primary"
+            />
+            <label htmlFor="whatsapp_web_enabled" className="font-bold text-brand-primary">
+              Activar envío por chip secundario
+              <span className="block text-xs font-normal text-gray-500">Usa WhatsApp Web (Baileys) para notificaciones. Si está desactivado, se usa la API de Meta.</span>
+            </label>
+          </div>
+
+          {webLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>
+          ) : (
+            <>
+              <div className="flex items-center gap-4 p-4 bg-brand-bg rounded-2xl">
+                <div className={cn(
+                  "w-3 h-3 rounded-full shrink-0",
+                  webStatus?.status === 'ready' ? "bg-green-500" :
+                  webStatus?.status === 'connecting' ? "bg-yellow-500" :
+                  webStatus?.status === 'qr' ? "bg-blue-500" :
+                  webStatus?.status === 'disabled' ? "bg-gray-400" :
+                  "bg-red-500"
+                )} />
+                <div>
+                  <p className="font-bold text-brand-primary text-sm">
+                    {webStatus?.status === 'ready' && 'Conectado'}
+                    {webStatus?.status === 'connecting' && 'Conectando...'}
+                    {webStatus?.status === 'qr' && 'Esperando escaneo QR'}
+                    {webStatus?.status === 'disconnected' && 'Desconectado'}
+                    {webStatus?.status === 'disabled' && 'Deshabilitado'}
+                  </p>
+                  {webStatus?.phone && (
+                    <p className="text-xs text-gray-500 mt-0.5">{formatPhone(webStatus.phone)}</p>
+                  )}
+                </div>
+              </div>
+
+              {webStatus?.status === 'qr' && (
+                <div className="flex flex-col items-center gap-3 p-6 bg-brand-bg rounded-2xl">
+                  <p className="text-sm font-bold text-brand-primary">Escanéá este QR con WhatsApp del chip secundario</p>
+                  <img src={webQR} alt="QR Code" className="w-48 h-48" />
+                  <button
+                    onClick={handleWebReconnect}
+                    className="px-4 py-2 text-sm font-bold text-brand-primary border border-brand-accent rounded-xl hover:shadow-md transition-all"
+                  >
+                    <RefreshCw className="w-4 h-4 inline mr-1" /> Generar nuevo QR
+                  </button>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-600 mb-1">Número del chip secundario</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={webPhone}
+                      onChange={(e) => setWebPhone(e.target.value)}
+                      placeholder="Ej: 5492212025190"
+                      className="flex-1 px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+                    />
+                    <button
+                      onClick={saveWebPhone}
+                      className="px-4 py-3 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all text-sm"
+                    >
+                      <Save className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-end gap-2">
+                  <button
+                    onClick={handleWebReconnect}
+                    disabled={webLoading}
+                    className="px-4 py-3 bg-white text-brand-primary font-bold rounded-xl border border-brand-accent hover:shadow-md transition-all text-sm flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" /> Reconectar
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-t border-brand-accent pt-6">
+                <h3 className="font-bold text-brand-primary mb-3">Enviar mensaje de prueba</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <input
+                    type="text"
+                    value={testPhone}
+                    onChange={(e) => setTestPhone(e.target.value)}
+                    placeholder="Teléfono (ej: 549221XXXXXX)"
+                    className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={testText}
+                    onChange={(e) => setTestText(e.target.value)}
+                    placeholder="Mensaje de prueba"
+                    className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+                  />
+                  <button
+                    onClick={handleWebTest}
+                    disabled={!testPhone.trim() || !testText.trim()}
+                    className="px-4 py-3 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 text-sm flex items-center gap-2 justify-center"
+                  >
+                    <Send className="w-4 h-4" /> Enviar prueba
+                  </button>
+                </div>
+                {testResult && (
+                  <p className="text-sm mt-2 font-medium text-gray-600">{testResult}</p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
