@@ -177,6 +177,26 @@ export function getBaileysQR() {
   return status === 'qr' ? currentQR : null;
 }
 
+export async function requestPairingBaileys(phone) {
+  if (!client || (status !== 'qr' && status !== 'connecting')) {
+    throw new Error(`Baileys not in pairing state (status=${status})`);
+  }
+
+  const cleanPhone = phone.replace(/[+\- ]/g, '');
+  if (!/^\d{7,15}$/.test(cleanPhone)) {
+    throw new Error('Invalid phone number format');
+  }
+
+  try {
+    const code = await client.requestPairingCode(cleanPhone);
+    status = 'pairing';
+    return code;
+  } catch (err) {
+    console.error('[Baileys] requestPairingCode error:', err.message);
+    throw new Error('Error al solicitar código de vinculación: ' + err.message);
+  }
+}
+
 export async function reconnectBaileys() {
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);

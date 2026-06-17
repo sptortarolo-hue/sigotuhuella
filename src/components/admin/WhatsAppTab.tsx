@@ -83,6 +83,10 @@ export default function WhatsAppTab() {
   const [testText, setTestText] = useState('');
   const [testResult, setTestResult] = useState<string | null>(null);
   const [webQR, setWebQR] = useState<string | null>(null);
+  const [pairingPhone, setPairingPhone] = useState('');
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const [pairingError, setPairingError] = useState<string | null>(null);
 
   const fetchGroups = async () => {
     setGroupsLoading(true);
@@ -152,6 +156,8 @@ export default function WhatsAppTab() {
   const handleWebReconnect = async () => {
     try {
       setWebQR(null);
+      setPairingCode(null);
+      setPairingError(null);
       await api.whatsappWeb.reconnect();
       setTimeout(fetchWebStatus, 3000);
     } catch (e) { console.error(e); }
@@ -166,6 +172,20 @@ export default function WhatsAppTab() {
     } catch (e: any) {
       setTestResult('❌ ' + (e.message || 'Error'));
     }
+  };
+
+  const handleRequestPairing = async () => {
+    if (!pairingPhone.trim()) return;
+    setPairingLoading(true);
+    setPairingCode(null);
+    setPairingError(null);
+    try {
+      const res = await api.whatsappWeb.requestPairing(pairingPhone.trim());
+      setPairingCode(res.pairingCode);
+    } catch (e: any) {
+      setPairingError(e?.message || 'Error al generar código');
+    }
+    setPairingLoading(false);
   };
 
   const saveWebPhone = async () => {
@@ -809,6 +829,7 @@ export default function WhatsAppTab() {
                   "w-3 h-3 rounded-full shrink-0",
                   webStatus?.status === 'ready' ? "bg-green-500" :
                   webStatus?.status === 'connecting' ? "bg-yellow-500" :
+                  webStatus?.status === 'pairing' ? "bg-purple-500" :
                   webStatus?.status === 'qr' ? "bg-blue-500" :
                   webStatus?.status === 'disabled' ? "bg-gray-400" :
                   "bg-red-500"
@@ -817,6 +838,7 @@ export default function WhatsAppTab() {
                   <p className="font-bold text-brand-primary text-sm">
                     {webStatus?.status === 'ready' && 'Conectado'}
                     {webStatus?.status === 'connecting' && 'Conectando...'}
+                    {webStatus?.status === 'pairing' && 'Vinculando...'}
                     {webStatus?.status === 'qr' && 'Esperando escaneo QR'}
                     {webStatus?.status === 'disconnected' && 'Desconectado'}
                     {webStatus?.status === 'disabled' && 'Deshabilitado'}
@@ -839,6 +861,37 @@ export default function WhatsAppTab() {
                   </button>
                 </div>
               )}
+
+              <div className="border-t border-brand-accent pt-6">
+                <h3 className="font-bold text-brand-primary mb-2">¿No podés escanear el QR?</h3>
+                <p className="text-xs text-gray-500 mb-4">Probá vincular por código desde WhatsApp Mobile → Dispositivos vinculados → Vincular con número de teléfono</p>
+                <div className="flex gap-3 items-start">
+                  <input
+                    type="text"
+                    value={pairingPhone}
+                    onChange={(e) => setPairingPhone(e.target.value)}
+                    placeholder="Número del chip (ej: 549221XXXXXX)"
+                    className="flex-1 px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+                  />
+                  <button
+                    onClick={handleRequestPairing}
+                    disabled={!pairingPhone.trim() || pairingLoading}
+                    className="px-6 py-3 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 text-sm flex items-center gap-2 shrink-0"
+                  >
+                    {pairingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Generar código'}
+                  </button>
+                </div>
+                {pairingCode && (
+                  <div className="mt-4 p-5 bg-green-50 border border-green-200 rounded-2xl text-center">
+                    <p className="text-sm font-bold text-green-800 mb-2">Código de vinculación</p>
+                    <p className="text-3xl sm:text-4xl font-mono font-bold tracking-widest text-green-700 select-all">{pairingCode}</p>
+                    <p className="text-xs text-green-600 mt-2">Abrí WhatsApp → Dispositivos vinculados → Vincular con número de teléfono</p>
+                  </div>
+                )}
+                {pairingError && (
+                  <p className="mt-2 text-sm text-red-600">{pairingError}</p>
+                )}
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

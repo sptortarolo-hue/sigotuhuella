@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
-import { getBaileysStatus, getBaileysQR, reconnectBaileys, sendBaileysMessage } from '../services/whatsappBaileysClient.js';
+import { getBaileysStatus, getBaileysQR, reconnectBaileys, sendBaileysMessage, requestPairingBaileys } from '../services/whatsappBaileysClient.js';
 
 const router = Router();
 
@@ -42,6 +42,20 @@ router.post('/whatsapp-web/reconnect', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('[WhatsAppWeb] Reconnect error:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/whatsapp-web/request-pairing', requireAdmin, async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Phone is required' });
+
+    const pairingCode = await requestPairingBaileys(phone);
+    const formatted = pairingCode.match(/.{1,4}/g)?.join('-') || pairingCode;
+    res.json({ pairingCode: formatted });
+  } catch (err) {
+    console.error('[WhatsAppWeb] Pairing error:', err);
+    res.status(502).json({ error: err.message });
   }
 });
 
