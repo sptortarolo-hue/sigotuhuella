@@ -1,11 +1,12 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, PawPrint, User, Plus } from 'lucide-react';
+import { Home, PawPrint, Users, User, Plus } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 
 const navItems = [
   { label: 'Inicio', icon: Home, path: '/dashboard' },
   { label: 'Mascotas', icon: PawPrint, path: '/mi-mascota' },
+  { label: 'Comunidad', icon: Users, path: '/feed' },
   { label: 'Perfil', icon: User, path: '/perfil' },
 ];
 
@@ -17,6 +18,7 @@ export default function Sidebar({ onReportClick }: { onReportClick: () => void }
   const isActive = (path: string) => {
     if (path === '/dashboard') return location.pathname === '/dashboard';
     if (path === '/mi-mascota') return location.pathname.startsWith('/mi-mascota');
+    if (path === '/feed') return location.pathname.startsWith('/feed');
     if (path === '/perfil') return location.pathname === '/perfil';
     return false;
   };

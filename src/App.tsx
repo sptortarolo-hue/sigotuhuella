@@ -34,6 +34,8 @@ const MyPetsPortal = lazy(() => import('@/src/pages/MyPetsPortal'));
 const MyPetDetail = lazy(() => import('@/src/pages/MyPetDetail'));
 const PublicPetProfile = lazy(() => import('@/src/pages/PublicPetProfile'));
 const VetPetProfile = lazy(() => import('@/src/pages/VetPetProfile'));
+const Feed = lazy(() => import('@/src/pages/Feed'));
+const Contests = lazy(() => import('@/src/pages/Contests'));
 const SolicitarChapita = lazy(() => import('@/src/pages/SolicitarChapita'));
 const VerifyEmail = lazy(() => import('@/src/pages/VerifyEmail'));
 const FlyerPage = lazy(() => import('@/src/pages/FlyerPage'));
@@ -90,8 +92,8 @@ export default function App() {
               <Route path="/mi-mascota" element={<MyPetsPortal />} />
               <Route path="/mi-mascota/:id" element={<MyPetDetail />} />
               <Route path="/mis-publicaciones" element={<MyPets />} />
-              <Route path="/feed" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/concursos" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/feed" element={<Feed />} />
+              <Route path="/concursos" element={<Contests />} />
               <Route path="/perfil" element={<Profile />} />
               <Route path="/mi-carnet" element={<MemberCardPage />} />
               <Route
