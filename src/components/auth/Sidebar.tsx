@@ -1,26 +1,38 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, PawPrint, Users, User, Plus } from 'lucide-react';
+import { Home, PawPrint, User, Plus, Sparkles, Share2, Camera, HandCoins, LogOut } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 
-const navItems = [
-  { label: 'Inicio', icon: Home, path: '/dashboard' },
-  { label: 'Mascotas', icon: PawPrint, path: '/mi-mascota' },
-  { label: 'Comunidad', icon: Users, path: '/feed' },
-  { label: 'Perfil', icon: User, path: '/perfil' },
+const portalItems = [
+  { label: 'Mi Portal', icon: Home, path: '/dashboard' },
+  { label: 'Mis Mascotas', icon: PawPrint, path: '/mi-mascota' },
+  { label: 'Mi Perfil', icon: User, path: '/perfil' },
+];
+
+const moreItems = [
+  { label: 'Novedades', icon: Sparkles, path: '/novedades' },
+  { label: 'Sumate', icon: User, path: '/sumate' },
+  { label: 'Difusión', icon: Share2, path: '/difusion' },
+  { label: 'Generar Flyer', icon: Camera, path: '/flyer' },
+  { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
 ];
 
 export default function Sidebar({ onReportClick }: { onReportClick: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const isActive = (path: string) => {
     if (path === '/dashboard') return location.pathname === '/dashboard';
-    if (path === '/mi-mascota') return location.pathname.startsWith('/mi-mascota');
-    if (path === '/feed') return location.pathname.startsWith('/feed');
     if (path === '/perfil') return location.pathname === '/perfil';
-    return false;
+    if (path === '/sumate') return location.pathname === '/sumate';
+    if (path === '/colaborar') return location.pathname === '/colaborar';
+    return location.pathname.startsWith(path);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
   };
 
   return (
@@ -32,25 +44,50 @@ export default function Sidebar({ onReportClick }: { onReportClick: () => void }
         <span className="text-lg font-serif font-bold text-brand-primary">Sigo tu huella</span>
       </div>
 
-      <nav className="flex flex-col gap-1 p-4 flex-1">
-        {navItems.map((item) => (
+      <nav className="flex flex-col gap-1 p-4 flex-1 overflow-y-auto">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 px-4 pb-1">Tu Portal</p>
+        {portalItems.map((item) => (
           <button
             key={item.path}
             onClick={() => navigate(item.path)}
             className={cn(
-              "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-left",
+              "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all text-left",
               isActive(item.path)
                 ? "bg-brand-primary/10 text-brand-primary font-bold"
                 : "text-gray-600 hover:bg-brand-bg hover:text-gray-900"
             )}
           >
-            <item.icon className={cn(
-              "w-5 h-5 shrink-0",
-              isActive(item.path) && "fill-brand-primary/15"
-            )} />
+            <item.icon className={cn("w-5 h-5 shrink-0", isActive(item.path) && "fill-brand-primary/15")} />
             {item.label}
           </button>
         ))}
+
+        <div className="border-t border-brand-accent my-2" />
+
+        {moreItems.map((item) => (
+          <button
+            key={item.path}
+            onClick={() => navigate(item.path)}
+            className={cn(
+              "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all text-left",
+              isActive(item.path)
+                ? "bg-brand-primary/10 text-brand-primary font-bold"
+                : "text-gray-600 hover:bg-brand-bg hover:text-gray-900"
+            )}
+          >
+            <item.icon className={cn("w-5 h-5 shrink-0", isActive(item.path) && "fill-brand-primary/15")} />
+            {item.label}
+          </button>
+        ))}
+
+        <div className="border-t border-brand-accent my-2" />
+
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-all"
+        >
+          <LogOut className="w-5 h-5 shrink-0" /> Cerrar sesión
+        </button>
       </nav>
 
       <div className="p-4 border-t border-brand-accent">
