@@ -6,7 +6,7 @@ export default function PublicMobileTopBar() {
   const { user } = useAuth();
 
   return (
-    <div className="flex items-center justify-between h-14 px-4 border-b border-brand-accent bg-white md:hidden">
+    <div className="sticky top-0 z-50 flex items-center justify-between h-14 px-4 border-b border-brand-accent bg-white md:hidden">
       <Link to="/" className="flex items-center gap-2">
         <div className="p-1.5 bg-brand-primary rounded-xl">
           <PawPrint className="w-5 h-5 text-white" />
@@ -14,7 +14,7 @@ export default function PublicMobileTopBar() {
         <span className="text-lg font-serif font-bold text-brand-primary">Sigo tu huella</span>
       </Link>
 
-      {user && (
+      {user ? (
         <Link
           to="/dashboard"
           className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-accent"
@@ -31,6 +31,13 @@ export default function PublicMobileTopBar() {
               <User className="w-4 h-4 text-brand-primary" />
             </div>
           )}
+        </Link>
+      ) : (
+        <Link
+          to="/login"
+          className="px-4 py-1.5 bg-brand-primary text-white rounded-xl text-xs font-bold"
+        >
+          Iniciar sesión
         </Link>
       )}
     </div>
