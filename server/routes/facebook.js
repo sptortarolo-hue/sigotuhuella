@@ -242,13 +242,18 @@ router.put('/posts/:id', requireAdmin, async (req, res) => {
 
 router.delete('/posts/:id', requireAdmin, async (req, res) => {
   try {
-    await pool.query('DELETE FROM facebook_matches WHERE (source_type = $1 AND source_id = $2) OR (target_type = $1 AND target_id = $2)',
-      ['fb_post', req.params.id]);
-    await pool.query('DELETE FROM facebook_posts WHERE id = $1', [req.params.id]);
+    try {
+      await pool.query('DELETE FROM facebook_matches WHERE (source_type = $1 AND source_id = $2) OR (target_type = $1 AND target_id = $2)',
+        ['fb_post', req.params.id]);
+    } catch (matchErr) {
+      console.error('Error deleting matches (non-fatal):', matchErr.message);
+    }
+    const result = await pool.query('DELETE FROM facebook_posts WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Publicación no encontrada' });
     res.json({ deleted: true });
   } catch (err) {
-    console.error('Error deleting post:', err);
-    res.status(500).json({ error: 'Error al eliminar publicación' });
+    console.error('Error deleting post:', err.message);
+    res.status(500).json({ error: `Error al eliminar publicación: ${err.message}` });
   }
 });
 
@@ -259,15 +264,19 @@ router.post('/posts/bulk-delete', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Se requiere un array de IDs' });
     }
     const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-    await pool.query(
-      `DELETE FROM facebook_matches WHERE (source_type = 'fb_post' AND source_id IN (${placeholders})) OR (target_type = 'fb_post' AND target_id IN (${placeholders}))`,
-      [...ids, ...ids]
-    );
-    await pool.query(`DELETE FROM facebook_posts WHERE id IN (${placeholders})`, ids);
-    res.json({ deleted: ids.length });
+    try {
+      await pool.query(
+        `DELETE FROM facebook_matches WHERE (source_type = 'fb_post' AND source_id IN (${placeholders})) OR (target_type = 'fb_post' AND target_id IN (${placeholders}))`,
+        [...ids, ...ids]
+      );
+    } catch (matchErr) {
+      console.error('Error bulk-deleting matches (non-fatal):', matchErr.message);
+    }
+    const result = await pool.query(`DELETE FROM facebook_posts WHERE id IN (${placeholders}) RETURNING id`, ids);
+    res.json({ deleted: result.rows.length });
   } catch (err) {
-    console.error('Error bulk-deleting posts:', err);
-    res.status(500).json({ error: 'Error al eliminar publicaciones' });
+    console.error('Error bulk-deleting posts:', err.message);
+    res.status(500).json({ error: `Error al eliminar publicaciones: ${err.message}` });
   }
 });
 
