@@ -109,7 +109,7 @@ async function startClient() {
       keepAliveIntervalMs: 30000,
     };
 
-    const proxyUrl = process.env.BAILEYS_PROXY;
+    const proxyUrl = process.env.BAILEYS_PROXY_URL;
     if (proxyUrl) {
       const agent = new SocksProxyAgent(proxyUrl);
       socketOptions.agent = agent;
