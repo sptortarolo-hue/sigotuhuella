@@ -96,8 +96,8 @@ async function startClient() {
     const logger = pino({ level: 'fatal' });
 
     client = makeWASocket({
-      version: [2, 3000, 1033893291],
-      browser: Browsers.macOS('Desktop'),
+      version: [2, 3000, 1034074495],
+      browser: Browsers.windows('Chrome'),
       auth: state,
       logger,
       printQRInTerminal: false,
@@ -216,6 +216,9 @@ export async function requestPairingBaileys(phone) {
   if (!client || (status !== 'qr' && status !== 'connecting')) {
     throw new Error(`Baileys not in pairing state (status=${status})`);
   }
+
+  console.log('[Baileys] Waiting 3s before sending pairing request...');
+  await new Promise(r => setTimeout(r, 3000));
 
   try {
     const code = await client.requestPairingCode(cleanPhone);
