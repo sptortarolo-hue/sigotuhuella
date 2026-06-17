@@ -5,7 +5,7 @@ import { api } from '@/src/lib/api';
 import {
   PawPrint, Plus, Eye, Heart, Trophy, Users,
   Loader2, Clock, ChevronRight, Search, Camera,
-  FileText, RotateCcw, Star,
+  FileText, RotateCcw, Star, HandCoins, Sparkles,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -14,7 +14,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [myPets, setMyPets] = useState<any[]>([]);
   const [myPetsLoading, setMyPetsLoading] = useState(true);
-  const [recentReports, setRecentReports] = useState<any[]>([]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [recentActivityLoading, setRecentActivityLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
   const [gamification, setGamification] = useState<any>(null);
 
@@ -33,15 +34,38 @@ export default function Dashboard() {
       }
     };
 
-    const fetchRecentReports = async () => {
+    const fetchRecentActivity = async () => {
       try {
-        const data = await api.users.myPets(user.id);
-        const reports = (data.pets || [])
+        const [newsData, petsData] = await Promise.all([
+          api.news.list(),
+          api.pets.list(),
+        ]);
+        const newsItems = (newsData.news || []).map((item: any) => ({
+          id: item.id,
+          type: 'news' as const,
+          typeLabel: item.type,
+          title: item.title,
+          description: (item.content || '').replace(/<[^>]*>/g, '').slice(0, 80),
+          image: item.image_data || null,
+          created_at: item.created_at,
+        }));
+        const petItems = (petsData.pets || []).slice(0, 5).map((item: any) => ({
+          id: item.id,
+          type: 'pet' as const,
+          typeLabel: item.status,
+          title: item.name || 'Mascota sin nombre',
+          description: '',
+          image: item.images?.[0]?.image_data || null,
+          created_at: item.created_at,
+        }));
+        const merged = [...newsItems, ...petItems]
           .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 5);
-        setRecentReports(reports);
+          .slice(0, 10);
+        setRecentActivity(merged);
       } catch (e) {
-        console.error('Error fetching recent reports:', e);
+        console.error('Error fetching recent activity:', e);
+      } finally {
+        setRecentActivityLoading(false);
       }
     };
 
@@ -64,7 +88,7 @@ export default function Dashboard() {
     };
 
     fetchMyPets();
-    fetchRecentReports();
+    fetchRecentActivity();
     fetchStats();
     fetchGamification();
   }, [user, navigate]);
@@ -176,6 +200,23 @@ export default function Dashboard() {
           </div>
         </section>
 
+        {/* 2b. Colaborar — full width */}
+        <motion.button
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          onClick={() => navigate('/colaborar')}
+          className="w-full bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all"
+        >
+          <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-600">
+            <HandCoins className="w-5 h-5" />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-bold text-gray-700">Colaborar con el rescate</p>
+            <p className="text-xs text-gray-500">Tu ayuda transforma vidas</p>
+          </div>
+        </motion.button>
+
         {/* 3. Mis mascotas strip */}
         <section className="bg-white rounded-2xl shadow-sm p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3">
@@ -251,7 +292,13 @@ export default function Dashboard() {
         {/* 4. Recent Activity */}
         <section className="bg-white rounded-2xl shadow-sm p-4 sm:p-5">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Última actividad</h2>
-          {recentReports.length === 0 ? (
+          {recentActivityLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          ) : recentActivity.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -259,46 +306,45 @@ export default function Dashboard() {
             >
               <Clock className="w-8 h-8 text-brand-accent mx-auto mb-2" />
               <p className="text-xs text-gray-500">Todavía no hay actividad</p>
-              <button
-                onClick={() => navigate('/reportar')}
-                className="mt-3 px-4 py-2 bg-brand-primary text-white rounded-xl text-xs font-bold hover:shadow-lg transition-all"
-              >
-                Hacer mi primer reporte
-              </button>
             </motion.div>
           ) : (
             <div className="space-y-2">
-              {recentReports.slice(0, 3).map((report, i) => (
-                <motion.button
-                  key={report.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.03 }}
-                  onClick={() => {
-                    if (report.my_pet_id) navigate(`/mi-mascota/${report.my_pet_id}`);
-                    else navigate(`/pet/${report.id}`);
-                  }}
-                  className="w-full flex items-center gap-3 p-3 bg-white rounded-xl border border-brand-accent hover:border-brand-primary/30 hover:shadow-sm transition-all text-left"
-                >
-                  <div className="w-9 h-9 rounded-xl overflow-hidden bg-brand-bg shrink-0">
-                    {report.images?.[0]?.image_data ? (
-                      <img src={`data:image/jpeg;base64,${report.images[0].image_data}`} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <PawPrint className="w-4 h-4 text-brand-accent" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-800 truncate">{report.name || 'Mascota sin nombre'}</p>
-                    <p className="text-[10px] text-gray-400">
-                      {report.status === 'lost' ? 'Perdido' : report.status === 'retained' ? 'Retenido' : report.status === 'sighted' ? 'Avistado' : report.status === 'adoption' ? 'En adopción' : 'Reportado'}
-                      {' · '}{formatRelativeTime(report.created_at)}
-                    </p>
-                  </div>
-                  <ChevronRight className="w-3 h-3 text-gray-300 shrink-0" />
-                </motion.button>
-              ))}
+              {recentActivity.slice(0, 5).map((item: any, i: number) => {
+                const isNews = item.type === 'news';
+                const iconInfo = isNews
+                  ? item.typeLabel === 'reunited'
+                    ? { Icon: RotateCcw, bg: 'bg-green-100 text-green-600', badge: 'Reencuentro' }
+                    : item.typeLabel === 'adopted'
+                    ? { Icon: Heart, bg: 'bg-red-100 text-red-500', badge: 'Adopción' }
+                    : { Icon: Sparkles, bg: 'bg-brand-primary/10 text-brand-primary', badge: 'Novedad' }
+                  : item.typeLabel === 'lost'
+                  ? { Icon: PawPrint, bg: 'bg-red-100 text-red-500', badge: 'Perdido' }
+                  : item.typeLabel === 'sighted'
+                  ? { Icon: Eye, bg: 'bg-amber-100 text-amber-700', badge: 'Avistaje' }
+                  : { Icon: Heart, bg: 'bg-red-100 text-red-500', badge: 'Adopción' };
+                return (
+                  <motion.button
+                    key={`${item.type}-${item.id}`}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                    onClick={() => navigate(isNews ? `/novedad/${item.id}` : `/pet/${item.id}`)}
+                    className="w-full flex items-center gap-3 p-3 bg-white rounded-xl border border-brand-accent hover:border-brand-primary/30 hover:shadow-sm transition-all text-left"
+                  >
+                    <div className={`w-9 h-9 rounded-xl ${iconInfo.bg} flex items-center justify-center shrink-0`}>
+                      <iconInfo.Icon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-800 truncate">{item.title}</p>
+                      <p className="text-[10px] text-gray-400">
+                        {iconInfo.badge}
+                        {' · '}{formatRelativeTime(item.created_at)}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-3 h-3 text-gray-300 shrink-0" />
+                  </motion.button>
+                );
+              })}
             </div>
           )}
         </section>
@@ -327,9 +373,9 @@ export default function Dashboard() {
       </div>
 
       {/* ─── DESKTOP LAYOUT ─── */}
-      <div className="hidden lg:block">
+      <div className="hidden lg:block space-y-8">
         {/* Greeting */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary">
               ¡Hola, {user.display_name || 'Usuario'}!
@@ -343,9 +389,47 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Quick Actions 2x2 */}
+        <section className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="grid grid-cols-2 gap-4">
+            {mobileQuickActions.map((action, i) => (
+              <motion.button
+                key={i}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                onClick={() => navigate(action.path)}
+                className={`${action.color} border border-brand-accent rounded-2xl p-6 flex flex-col items-center gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all`}
+              >
+                <div className={`p-3 rounded-xl ${action.label === 'Perdí mi mascota' ? 'bg-brand-primary text-white' : action.label === 'Avistaje' ? 'bg-amber-100 text-amber-700' : action.label === 'Quiero adoptar' ? 'bg-red-100 text-red-500' : 'bg-brand-secondary/20 text-brand-secondary'}`}>
+                  <action.icon className="w-6 h-6" />
+                </div>
+                <span className="text-sm font-bold text-gray-700">{action.label}</span>
+              </motion.button>
+            ))}
+          </div>
+        </section>
+
+        {/* Colaborar full-width */}
+        <motion.button
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          onClick={() => navigate('/colaborar')}
+          className="w-full bg-emerald-50 border border-emerald-200 rounded-2xl p-6 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all"
+        >
+          <div className="p-3 rounded-xl bg-emerald-100 text-emerald-600">
+            <HandCoins className="w-6 h-6" />
+          </div>
+          <div className="text-left">
+            <p className="text-base font-bold text-gray-700">Colaborar con el rescate</p>
+            <p className="text-sm text-gray-500">Tu ayuda transforma vidas</p>
+          </div>
+        </motion.button>
+
         {/* Mis mascotas strip */}
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-3">
+        <section className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">Mis mascotas</h2>
             <button onClick={() => navigate('/mi-mascota')} className="text-xs font-bold text-brand-primary flex items-center gap-1">
               Ver todas <ChevronRight className="w-3 h-3" />
@@ -360,7 +444,7 @@ export default function Dashboard() {
             </div>
           ) : myPets.length === 0 ? (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-dashed border-brand-accent p-6 text-center">
+              className="rounded-2xl border border-dashed border-brand-accent p-6 text-center">
               <PawPrint className="w-10 h-10 text-brand-accent mx-auto mb-2" />
               <p className="text-sm text-gray-500 mb-3">Todavía no registraste mascotas</p>
               <button onClick={() => navigate('/mi-mascota')}
@@ -373,82 +457,100 @@ export default function Dashboard() {
               {myPets.map((pet) => (
                 <motion.button key={pet.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                   onClick={() => navigate(`/mi-mascota/${pet.id}`)} className="shrink-0 snap-start group">
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-brand-bg border border-brand-accent group-hover:border-brand-primary/50 transition-all shadow-sm group-hover:shadow-md">
+                  <div className="w-24 h-24 rounded-2xl overflow-hidden bg-brand-bg border border-brand-accent group-hover:border-brand-primary/50 transition-all shadow-sm group-hover:shadow-md">
                     {pet.avatar_image ? (
                       <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <PawPrint className="w-8 h-8 sm:w-10 sm:h-10 text-brand-accent" />
+                        <PawPrint className="w-10 h-10 text-brand-accent" />
                       </div>
                     )}
                   </div>
-                  <p className="text-xs font-medium text-gray-700 text-center mt-1.5 truncate max-w-20 sm:max-w-24">{pet.name}</p>
+                  <p className="text-xs font-medium text-gray-700 text-center mt-1.5 truncate max-w-24">{pet.name}</p>
                 </motion.button>
               ))}
               <button onClick={() => navigate('/mi-mascota')}
-                className="shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-2 border-dashed border-brand-accent flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-brand-primary hover:border-brand-primary transition-all">
+                className="shrink-0 w-24 h-24 rounded-2xl border-2 border-dashed border-brand-accent flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-brand-primary hover:border-brand-primary transition-all">
                 <Plus className="w-6 h-6" /><span className="text-[10px] font-medium">Agregar</span>
               </button>
             </div>
           )}
         </section>
 
-        {/* Quick Actions Desktop */}
-        <section className="mb-8">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">Acciones rápidas</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {quickActions.map((action, i) => (
-              <motion.button key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }} onClick={() => navigate(action.path)}
-                className={`p-4 rounded-2xl border text-left transition-all ${action.color}`}>
-                <div className="mb-2">{action.icon}</div>
-                <p className="text-sm font-bold">{action.label}</p>
-                <p className="text-xs opacity-75 mt-0.5">{action.desc}</p>
-              </motion.button>
-            ))}
-          </div>
-        </section>
-
-        {/* Recent Activity Desktop */}
-        <section>
-          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">Actividad reciente</h2>
-          {recentReports.length === 0 ? (
+        {/* Última actividad */}
+        <section className="bg-white rounded-2xl shadow-sm p-6">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Última actividad</h2>
+          {recentActivityLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          ) : recentActivity.length === 0 ? (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border border-dashed border-brand-accent p-8 text-center">
+              className="rounded-2xl border border-dashed border-brand-accent p-8 text-center">
               <Clock className="w-10 h-10 text-brand-accent mx-auto mb-2" />
               <p className="text-sm text-gray-500">Todavía no hay actividad</p>
-              <button onClick={() => navigate('/reportar')}
-                className="mt-3 px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-bold hover:shadow-lg transition-all">
-                Hacer mi primer reporte
-              </button>
             </motion.div>
           ) : (
             <div className="space-y-2">
-              {recentReports.map((report, i) => (
-                <motion.button key={report.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.03 }}
-                  onClick={() => { if (report.my_pet_id) navigate(`/mi-mascota/${report.my_pet_id}`); else navigate(`/pet/${report.id}`); }}
-                  className="w-full flex items-center gap-3 p-3 bg-white rounded-xl border border-brand-accent hover:border-brand-primary/30 hover:shadow-sm transition-all text-left">
-                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-brand-bg shrink-0">
-                    {report.images?.[0]?.image_data ? (
-                      <img src={`data:image/jpeg;base64,${report.images[0].image_data}`} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center"><PawPrint className="w-5 h-5 text-brand-accent" /></div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{report.name || 'Mascota sin nombre'}</p>
-                    <p className="text-xs text-gray-400">
-                      {report.status === 'lost' ? 'Perdido' : report.status === 'retained' ? 'Retenido' : report.status === 'sighted' ? 'Avistado' : report.status === 'adoption' ? 'En adopción' : 'Reportado'}
-                      {' · '}{formatRelativeTime(report.created_at)}
-                    </p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
-                </motion.button>
-              ))}
+              {recentActivity.slice(0, 8).map((item: any, i: number) => {
+                const isNews = item.type === 'news';
+                const iconInfo = isNews
+                  ? item.typeLabel === 'reunited'
+                    ? { Icon: RotateCcw, bg: 'bg-green-100 text-green-600', badge: 'Reencuentro' }
+                    : item.typeLabel === 'adopted'
+                    ? { Icon: Heart, bg: 'bg-red-100 text-red-500', badge: 'Adopción' }
+                    : { Icon: Sparkles, bg: 'bg-brand-primary/10 text-brand-primary', badge: 'Novedad' }
+                  : item.typeLabel === 'lost'
+                  ? { Icon: PawPrint, bg: 'bg-red-100 text-red-500', badge: 'Perdido' }
+                  : item.typeLabel === 'sighted'
+                  ? { Icon: Eye, bg: 'bg-amber-100 text-amber-700', badge: 'Avistaje' }
+                  : { Icon: Heart, bg: 'bg-red-100 text-red-500', badge: 'Adopción' };
+                return (
+                  <motion.button key={`${item.type}-${item.id}`} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                    onClick={() => navigate(isNews ? `/novedad/${item.id}` : `/pet/${item.id}`)}
+                    className="w-full flex items-center gap-3 p-3 bg-white rounded-xl border border-brand-accent hover:border-brand-primary/30 hover:shadow-sm transition-all text-left">
+                    <div className={`w-10 h-10 rounded-xl ${iconInfo.bg} flex items-center justify-center shrink-0`}>
+                      <iconInfo.Icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{item.title}</p>
+                      <p className="text-xs text-gray-400">
+                        {iconInfo.badge}
+                        {' · '}{formatRelativeTime(item.created_at)}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
+                  </motion.button>
+                );
+              })}
             </div>
           )}
+        </section>
+
+        {/* Tu impacto */}
+        <section className="bg-white rounded-2xl shadow-sm p-6">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4">Tu impacto</h2>
+          <div className="grid grid-cols-4 gap-4">
+            {statCards.map((card, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.05 }}
+                className={`${card.color} rounded-2xl p-5 flex items-center gap-4`}
+              >
+                <card.icon className="w-8 h-8 shrink-0" />
+                <div>
+                  <p className="text-2xl font-bold">{card.value}</p>
+                  <p className="text-xs font-medium opacity-75">{card.label}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </section>
       </div>
     </div>

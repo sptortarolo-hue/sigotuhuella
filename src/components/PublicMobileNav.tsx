@@ -26,6 +26,7 @@ const publicMoreOptions = [
   { label: 'Sumate', icon: Users, path: '/sumate' },
   { label: 'Difusión', icon: Share2, path: '/difusion' },
   { label: 'Generar Flyer', icon: Camera, path: '/flyer' },
+  { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
 ];
 
 const authMorePortal = [
