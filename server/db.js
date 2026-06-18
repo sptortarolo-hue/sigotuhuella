@@ -143,8 +143,6 @@ INSERT INTO settings (key, value) VALUES
   ('matching_radius_km', '20'),
   ('matching_min_score', '70'),
   ('whatsapp_greeting', '🐾 ¡Gracias por contactar a Sigo Tu Huella! ¿Qué querés reportar?\n1️⃣ Avistaje (viste una mascota)\n2️⃣ Necesita atención (mascota herida/en riesgo)\n3️⃣ Accidentada'),
-  ('whatsapp_web_enabled', 'false'),
-  ('whatsapp_web_phone', ''),
   ('banner_chapita_visible', 'true'),
   ('banner_chapita_price', '500'),
   ('banner_chapita_is_free', 'true'),

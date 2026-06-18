@@ -1,5 +1,4 @@
 import pool from '../db.js';
-import { sendBaileysMessage, getBaileysStatus } from './whatsappBaileysClient.js';
 
 function normalizePhone(phone) {
   if (!phone) return null;
@@ -19,14 +18,9 @@ async function sendViaWhatsApp(user, textMessage) {
     return;
   }
   try {
-    const sent = await sendBaileysMessage(phone, textMessage);
-    if (sent) {
-      console.log(`[notification] WhatsApp sent via Baileys to ${user.email} (${phone})`);
-    } else {
-      const { sendMessage } = await import('./whatsappService.js');
-      await sendMessage(phone, textMessage);
-      console.log(`[notification] WhatsApp sent via Cloud API (fallback) to ${user.email} (${phone})`);
-    }
+    const { sendMessage } = await import('./whatsappService.js');
+    await sendMessage(phone, textMessage);
+    console.log(`[notification] WhatsApp sent via Cloud API to ${user.email} (${phone})`);
   } catch (err) {
     console.error(`[notification] WhatsApp error for ${user.email}:`, err.message);
   }
