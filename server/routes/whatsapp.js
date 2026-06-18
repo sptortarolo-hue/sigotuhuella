@@ -13,14 +13,13 @@ import {
   broadcastPetToGroups,
 } from '../services/whatsappService.js';
 import { processMessage, showMenu } from '../services/whatsappBot.js';
-import { handleFlowComplete, handleDataExchange, getFlowStatus, registerFlow, publishFlow } from '../services/whatsappFlows.js';
 
 const router = Router();
 
 // GET /api/whatsapp/diagnostic — check WhatsApp config (public)
 router.get('/diagnostic', async (req, res) => {
   try {
-    const keys = ['whatsapp_enabled', 'whatsapp_phone_number_id', 'whatsapp_access_token', 'whatsapp_verify_token', 'whatsapp_business_phone', 'whatsapp_waba_id', 'whatsapp_main_flow_id'];
+    const keys = ['whatsapp_enabled', 'whatsapp_phone_number_id', 'whatsapp_access_token', 'whatsapp_verify_token', 'whatsapp_business_phone', 'whatsapp_waba_id'];
     const rows = (await pool.query('SELECT key, value FROM settings WHERE key = ANY($1)', [keys])).rows;
     const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
 
@@ -76,11 +75,9 @@ router.get('/diagnostic', async (req, res) => {
       has_verify_token: !!settings.whatsapp_verify_token,
       has_business_phone: !!settings.whatsapp_business_phone,
       has_waba_id: !!settings.whatsapp_waba_id,
-      has_main_flow_id: !!settings.whatsapp_main_flow_id,
       phone_number_id: settings.whatsapp_phone_number_id || null,
       business_phone: settings.whatsapp_business_phone || null,
       waba_id: settings.whatsapp_waba_id || null,
-      main_flow_id: settings.whatsapp_main_flow_id || null,
       access_token_preview: settings.whatsapp_access_token ? settings.whatsapp_access_token.substring(0, 10) + '...' : null,
       last_webhook_at: lastWebhook?.created_at || null,
       active_conversations: parseInt(activeConvs),
@@ -399,71 +396,6 @@ router.put('/adoption-interests/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error updating adoption interest:', err);
     res.status(500).json({ error: 'Error al actualizar interés' });
-  }
-});
-
-// ─── WhatsApp Flows ───
-
-// POST /api/whatsapp/flow-endpoint — Meta sends flow submissions here
-router.post('/flow-endpoint', async (req, res) => {
-  try {
-    const body = req.body;
-    const action = body.action || 'navigate';
-    const payload = {
-      flow_token: body.flow_token || '',
-      user_id: body.user_id || '',
-      screen: body.screen || 'MAIN_MENU',
-      data: body.data || {},
-      version: body.version || '3.0',
-    };
-
-    let result;
-    if (action === 'complete') {
-      result = await handleFlowComplete(payload);
-    } else {
-      result = await handleDataExchange(payload);
-    }
-
-    res.json(result);
-  } catch (err) {
-    console.error('Flow endpoint error:', err);
-    res.status(500).json({
-      version: '3.0',
-      screen: 'MAIN_MENU',
-      data: { error_message: 'Error interno. Intenta de nuevo.' },
-    });
-  }
-});
-
-// GET /api/whatsapp/flow-status — health check for the flow
-router.get('/flow-status', async (req, res) => {
-  try {
-    const status = await getFlowStatus();
-    res.json(status);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/whatsapp/flows/register — register or update the flow with Meta
-router.post('/flows/register', requireAdmin, async (req, res) => {
-  try {
-    const flowId = await registerFlow();
-    res.json({ success: true, flowId });
-  } catch (err) {
-    console.error('Flow register error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/whatsapp/flows/publish — publish the flow
-router.post('/flows/publish', requireAdmin, async (req, res) => {
-  try {
-    const result = await publishFlow();
-    res.json({ success: true, result });
-  } catch (err) {
-    console.error('Flow publish error:', err);
-    res.status(500).json({ error: err.message });
   }
 });
 

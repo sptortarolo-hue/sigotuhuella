@@ -1,10 +1,9 @@
 import pool from '../db.js';
-import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups, sendFlowMessage, sendListMessage } from './whatsappService.js';
+import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups, sendListMessage } from './whatsappService.js';
 import { matchWhatsAppToPets, processImageCaption } from './geminiMatching.js';
 import { classifyPost } from './geminiClassifier.js';
 import { fetchFbPost } from './vpsSyncService.js';
 import { geocodeAddress } from './geocoding.js';
-import { getFlowId } from './whatsappFlows.js';
 import axios from 'axios';
 
 const BOT_NAMES = ['Tute', 'Lilo', 'Toto'];
@@ -86,6 +85,24 @@ function detectIntent(parsed) {
   return null;
 }
 
+async function detectIntentWithAI(text) {
+  try {
+    const { classifyTextIntent } = await import('./geminiMatching.js');
+    const classification = await classifyTextIntent(text);
+    if (classification && classification !== 'other' && classification !== 'greeting') {
+      const intentMap = {
+        lost: 'report_lost', found: 'report_found', sighted: 'report_sighted',
+        adopt: 'adopt', volunteer: 'volunteer', donate: 'donate',
+        info_qr: 'info_qr', report_from_fb: 'report_from_fb', human: 'human',
+      };
+      return intentMap[classification] || null;
+    }
+  } catch (err) {
+    console.error('AI intent detection error:', err);
+  }
+  return null;
+}
+
 export async function processMessage(parsed) {
   const saved = await pool.query(
     `INSERT INTO whatsapp_messages (wa_message_id, wa_from, sender_name, message_type, text_body, status)
@@ -143,11 +160,17 @@ export async function processMessage(parsed) {
 }
 
 async function routeFlow(conv, parsed) {
-  // Flow responses are handled by the HTTP endpoint, not here
-  if (parsed.messageType === 'flow_response') return;
-
   const flow = conv.flow || 'menu';
-  const intent = detectIntent(parsed);
+  let intent;
+
+  // AI-first in production mode
+  if (process.env.WHATSAPP_AI_PRIMARY === 'true' && parsed.messageType === 'text') {
+    intent = await detectIntentWithAI(parsed.textBody || '');
+  }
+
+  if (!intent) {
+    intent = detectIntent(parsed);
+  }
 
   if (flow !== 'menu' && intent === 'human') {
     await setFlow(conv, 'pending_human');
@@ -324,53 +347,36 @@ async function showWelcome(conv) {
 
 export async function showMenu(conv) {
   try {
-    const flowId = await getFlowId();
-    if (flowId) {
-      try {
-        const flowToken = `menu_${conv.id}_${Date.now()}`;
-        await sendFlowMessage(conv.wa_from, flowId,
-          '¿En qué podemos ayudarte? Abrí el menú interactivo:',
-          flowToken,
-          'MAIN_MENU'
-        );
-        await setFlow(conv, 'menu');
-        return;
-      } catch (err) {
-        console.error('Flow send failed, falling back to list menu:', err.message);
-      }
-    }
-    {
-      const rows = [
-        { id: 'report_lost', title: '📷 Perdí mi mascota' },
-        { id: 'report_sighted', title: '👀 Vi una mascota' },
-        { id: 'report_found', title: '✅ Encontré una mascota' },
-        { id: 'adopt', title: '🙋 Quiero adoptar' },
-        { id: 'info_qr', title: 'ℹ️ Chapita QR' },
-        { id: 'donate', title: '💰 Donar' },
-        { id: 'volunteer', title: '🙌 Ser voluntario' },
-        { id: 'report_from_fb', title: '📱 Link Facebook' },
-        { id: 'human', title: '🗣 Contactar equipo' },
-      ];
-      try {
-        await sendListMessage(conv.wa_from, '¿En qué podemos ayudarte?', rows, {
-          headerText: '🐾 Sigo Tu Huella',
-          footerText: 'Red Vecinal de Mascotas',
-        });
-      } catch (err) {
-        console.error('List menu send error, falling back to text instructions:', err.message);
-        await setFlow(conv, 'menu');
-        await sendMessage(conv.wa_from,
-          `📱 ${conv.bot_name}: No pude mostrar el menú interactivo. Escribí lo que necesitás, por ejemplo:\n\n` +
-          `• "Perdí mi mascota"\n` +
-          `• "Vi una mascota"\n` +
-          `• "Encontré una mascota"\n` +
-          `• "Quiero adoptar"\n` +
-          `• "Chapita QR"\n` +
-          `• "Donar"\n` +
-          `• "Link Facebook"\n` +
-          `• "Contactar equipo"`
-        );
-      }
+    const rows = [
+      { id: 'report_lost', title: '📷 Perdí mi mascota' },
+      { id: 'report_sighted', title: '👀 Vi una mascota' },
+      { id: 'report_found', title: '✅ Encontré una mascota' },
+      { id: 'adopt', title: '🙋 Quiero adoptar' },
+      { id: 'info_qr', title: 'ℹ️ Chapita QR' },
+      { id: 'donate', title: '💰 Donar' },
+      { id: 'volunteer', title: '🙌 Ser voluntario' },
+      { id: 'report_from_fb', title: '📱 Link Facebook' },
+      { id: 'human', title: '🗣 Contactar equipo' },
+    ];
+    try {
+      await sendListMessage(conv.wa_from, '¿En qué podemos ayudarte?', rows, {
+        headerText: '🐾 Sigo Tu Huella',
+        footerText: 'Red Vecinal de Mascotas',
+      });
+    } catch (err) {
+      console.error('List menu send error, falling back to text instructions:', err.message);
+      await setFlow(conv, 'menu');
+      await sendMessage(conv.wa_from,
+        `📱 ${conv.bot_name}: No pude mostrar el menú interactivo. Escribí lo que necesitás, por ejemplo:\n\n` +
+        `• "Perdí mi mascota"\n` +
+        `• "Vi una mascota"\n` +
+        `• "Encontré una mascota"\n` +
+        `• "Quiero adoptar"\n` +
+        `• "Chapita QR"\n` +
+        `• "Donar"\n` +
+        `• "Link Facebook"\n` +
+        `• "Contactar equipo"`
+      );
     }
   } catch (err) {
     console.error('Menu send error:', err.message);

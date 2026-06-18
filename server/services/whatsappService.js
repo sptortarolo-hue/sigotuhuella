@@ -92,50 +92,6 @@ export async function sendListMessage(to, bodyText, rows, { buttonLabel = 'Ver o
   return data;
 }
 
-export async function sendFlowMessage(to, flowId, bodyText, flowToken, screen = 'MAIN_MENU', screenData = {}) {
-  const phoneNumberId = await getPhoneNumberId();
-  const token = await getAccessToken();
-  if (!phoneNumberId || !token) throw new Error('WhatsApp not configured');
-
-  const { data } = await axios.post(`${GRAPH_API}/${phoneNumberId}/messages`,
-    {
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to,
-      type: 'interactive',
-      interactive: {
-        type: 'flow',
-        header: {
-          type: 'text',
-          text: '🐾 Sigo Tu Huella',
-        },
-        body: {
-          text: bodyText || '¿En qué podemos ayudarte?',
-        },
-        footer: {
-          text: 'Red Vecinal de Mascotas',
-        },
-        action: {
-          name: 'flow',
-          parameters: {
-            flow_message_version: '3',
-            flow_id: flowId,
-            flow_token: flowToken || `flow_${Date.now()}_${to}`,
-            mode: 'draft',
-            flow_action: 'navigate',
-            flow_action_payload: {
-              screen,
-              data: screenData,
-            },
-          },
-        },
-      },
-    },
-    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
-  );
-  return data;
-}
-
 export async function sendImage(to, imageIdOrUrl, caption) {
   const phoneNumberId = await getPhoneNumberId();
   const token = await getAccessToken();

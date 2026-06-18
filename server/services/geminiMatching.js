@@ -1,9 +1,13 @@
 import { GoogleGenAI } from '@google/genai';
+import Groq from 'groq-sdk';
 import pool from '../db.js';
 import { sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from './pushService.js';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+
+const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
 // Shared rate limiter for all Gemini calls
 let geminiCooldownUntil = 0;
@@ -356,13 +360,24 @@ Respondé SOLO un JSON:
 }`;
 
 export async function processImageCaption(caption) {
+  if (!groq) {
+    return { intent: 'unclear', location: null, phone: null, description: null };
+  }
   try {
-    const result = await callGemini(caption, PROCESS_IMAGE_CAPTION_PROMPT);
+    const result = await groq.chat.completions.create({
+      model: 'llama-4-scout-17b-16e-instruct',
+      messages: [
+        { role: 'system', content: PROCESS_IMAGE_CAPTION_PROMPT },
+        { role: 'user', content: caption },
+      ],
+      temperature: 0,
+    });
+    const parsed = JSON.parse(result.choices[0]?.message?.content || '{}');
     return {
-      intent: result.intent || 'unclear',
-      location: result.location || null,
-      phone: result.phone || null,
-      description: result.description || null,
+      intent: parsed.intent || 'unclear',
+      location: parsed.location || null,
+      phone: parsed.phone || null,
+      description: parsed.description || null,
     };
   } catch (err) {
     console.error('processImageCaption error:', err);
@@ -399,7 +414,7 @@ async function notifyAdminMatch(type, source, matches) {
   }).catch(err => console.error('Push error:', err));
 }
 
-// ─── Text intent classification (Gemini fallback for WhatsApp bot) ───
+// ─── Text intent classification (Groq-powered for WhatsApp bot) ───
 
 const CLASSIFY_PROMPT = `Classify this message from a pet rescue app user. Return ONLY a single word:
 - "lost" if they lost their pet
@@ -417,19 +432,22 @@ const CLASSIFY_PROMPT = `Classify this message from a pet rescue app user. Retur
 Message:`;
 
 export async function classifyTextIntent(text) {
-  if (!GEMINI_API_KEY || !isGeminiAvailable()) return null;
+  if (!groq) return null;
   try {
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    const result = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-lite',
-      contents: `${CLASSIFY_PROMPT}\n${text}`,
-      config: { maxOutputTokens: 10, temperature: 0 },
+    const result = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: CLASSIFY_PROMPT },
+        { role: 'user', content: text },
+      ],
+      max_tokens: 10,
+      temperature: 0,
     });
-    const response = (result.text || '').trim().toLowerCase();
+    const response = (result.choices[0]?.message?.content || '').trim().toLowerCase();
     const valid = ['lost', 'found', 'sighted', 'adopt', 'volunteer', 'donate', 'info_qr', 'report_from_fb', 'human', 'greeting', 'other'];
     return valid.includes(response) ? response : null;
   } catch (err) {
-    handleGeminiError(err);
+    console.error('Groq classifyTextIntent error:', err);
     return null;
   }
 }
