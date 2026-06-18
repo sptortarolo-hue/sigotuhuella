@@ -36,6 +36,8 @@ jobs:
         echo "FACEBOOK_APP_SECRET=${{ secrets.FACEBOOK_APP_SECRET }}" >> server/.env
         echo "APIFY_TOKEN=${{ secrets.APIFY_TOKEN }}" >> server/.env
         echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> server/.env
+        echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" >> server/.env
+        echo "WHATSAPP_AI_PRIMARY=${{ secrets.WHATSAPP_AI_PRIMARY }}" >> server/.env
 
     - name: Transfer files to VPS
       run: |
