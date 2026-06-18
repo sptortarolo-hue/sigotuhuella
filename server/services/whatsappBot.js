@@ -443,10 +443,10 @@ async function handleUnrecognizedText(conv, parsed) {
 
 async function handleImageFromMenu(conv, parsed) {
   const caption = parsed.textBody || '';
-  if (caption) {
+  if (caption || parsed.imageData) {
     const { processImageCaption } = await import('./geminiMatching.js');
-    const result = await processImageCaption(caption);
-    if (result.intent === 'found' || result.intent === 'lost' || result.intent === 'sighted') {
+    const result = await processImageCaption(caption, parsed.imageData, parsed.imageMime);
+    if (result.intent && result.intent !== 'unclear') {
       const labels = { found: 'encontraste', lost: 'se te perdió', sighted: 'viste' };
       await setFlow(conv, `image_confirm_${result.intent}`, {
         photo_data: parsed.imageData,

@@ -359,16 +359,30 @@ Respondé SOLO un JSON:
   "description": "notas adicionales sobre la mascota o la situación" o null
 }`;
 
-export async function processImageCaption(caption) {
+export async function processImageCaption(caption, imageData, imageMime) {
   if (!groq) {
     return { intent: 'unclear', location: null, phone: null, description: null };
   }
+  if (!caption && !imageData) {
+    return { intent: 'unclear', location: null, phone: null, description: null };
+  }
   try {
+    const userContent = [];
+    if (imageData && imageMime) {
+      userContent.push({
+        type: 'image_url',
+        image_url: { url: `data:${imageMime};base64,${imageData}` },
+      });
+    }
+    if (caption) {
+      userContent.push({ type: 'text', text: caption });
+    }
+
     const result = await groq.chat.completions.create({
       model: 'llama-4-scout-17b-16e-instruct',
       messages: [
         { role: 'system', content: PROCESS_IMAGE_CAPTION_PROMPT },
-        { role: 'user', content: caption },
+        { role: 'user', content: userContent },
       ],
       temperature: 0,
     });
