@@ -489,6 +489,8 @@ async function start() {
   await initDb();
   await seedAdmin();
   console.log(`GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? '✓ configurada' : '✗ NO configurada (fallback a keywords)'}`);
+  console.log(`GROQ_API_KEY: ${process.env.GROQ_API_KEY ? '✓ configurada' : '✗ NO configurada'}`);
+  console.log(`WHATSAPP_AI_PRIMARY: ${process.env.WHATSAPP_AI_PRIMARY === 'true' ? '✓ AI first' : 'keywords first'}`);
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
