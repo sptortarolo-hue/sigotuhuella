@@ -452,88 +452,169 @@ def _debug_save_state(driver, group_id, label):
     except Exception as e:
         logger.warning(f"Debug save failed: {e}")
 
+def _find_visible(driver, xpaths):
+    for xp in xpaths:
+        try:
+            el = driver.find_element(By.XPATH, xp)
+            if el.is_displayed():
+                return el
+        except: continue
+    return None
+
 def post_to_group(driver, group_id, message, image_urls=None):
     try:
-        return _post_to_group_mbasic(driver, group_id, message, image_urls)
+        return _post_to_group_www(driver, group_id, message, image_urls)
     except Exception as e:
         logger.error(f"Error posting to group {group_id}: {e}")
         return {"success": False, "error": str(e)}
 
-def _post_to_group_mbasic(driver, group_id, message, image_urls=None):
-    mbasic_url = f"https://mbasic.facebook.com/groups/{group_id}/"
-    logger.info(f"Posting to group {group_id} (mbasic)")
-    driver.get(mbasic_url)
-    time.sleep(3)
-
-    # On mbasic, group pages show a form at the top or a link to write
-    # First try to find a textarea directly
-    ta = None
+def _click_composer_btn(driver):
     for xp in [
-        "//form[.//textarea]//textarea",
-        "//textarea[@name='xc_message']",
-        "//textarea[@name='message']",
-        "//textarea",
+        "//div[@role='button']//span[text()='Write something…']/..",
+        "//div[@role='button']//span[text()='Escribe algo…']/..",
+        "//div[@role='button']//span[text()='Write something']/..",
+        "//div[@role='button']//span[text()='Escribe algo']/..",
+        "//div[@role='button'][contains(.,'Write something')]",
+        "//div[@role='button'][contains(.,'Escribe algo')]",
+        "//div[@role='button'][contains(.,'Crear publicación')]",
+        "//div[@role='button'][contains(.,'Create a post')]",
+        "//div[@role='button'][contains(.,'Publicar')]",
+        "//div[@aria-label*='Write something']",
+        "//div[@aria-label*='Escribe algo']",
+        "//div[@aria-label*='Crear publicación']",
+        "//div[@aria-label*='Create a post']",
+        "//div[@aria-label*='What'][@role='button']",
+        "//div[@aria-label*='Qué'][@role='button']",
+        "//span[contains(text(),'Write something')]/ancestor::div[@role='button']",
+        "//span[contains(text(),'Escribe algo')]/ancestor::div[@role='button']",
+        "//span[contains(text(),'What')]/ancestor::div[@role='button']",
+        "//span[contains(text(),'Qué')]/ancestor::div[@role='button']",
+        "//span[contains(text(),'Pensando')]/ancestor::div[@role='button']",
+        "//h2[contains(.,'Crear publicación')]/ancestor::div[@role='button']",
+        "//*[@role='button'][.//*[contains(@aria-label,'Post')]]",
+        "//*[@role='button'][.//*[contains(@aria-label,'Publicar')]]",
+        "//*[@role='button'][.//*[contains(@aria-label,'publicación')]]",
     ]:
         try:
             el = driver.find_element(By.XPATH, xp)
             if el.is_displayed():
-                ta = el; break
+                driver.execute_script("arguments[0].click();", el)
+                return True
         except: continue
+    # JS fallback: find any clickable element containing post-related text
+    try:
+        el = driver.execute_script("""
+            var text = ['Write something','Escribe algo','Crear publicación','What\'s on your mind',
+                        '¿Qué estás pensando?','Create a post','Publicar','comparte'];
+            var sel = ['[role=button]','[tabindex="0"]','a','button','[aria-label]'];
+            for (var s of sel) {
+                var els = document.querySelectorAll(s);
+                for (var e of els) {
+                    if (e.offsetParent === null) continue;
+                    var t = (e.textContent||'').trim() + ' ' + (e.getAttribute('aria-label')||'');
+                    for (var w of text) {
+                        if (t.toLowerCase().includes(w.toLowerCase())) {
+                            return e;
+                        }
+                    }
+                }
+            }
+            return null;
+        """)
+        if el:
+            driver.execute_script("arguments[0].click();", el)
+            return True
+    except: pass
+    return False
 
-    if not ta:
-        # Look for a "Write something" link and click it
-        write_links = [
-            "//a[contains(@href,'/post.php')]",
-            "//a[contains(text(),'Write something')]",
-            "//a[contains(text(),'Escribe algo')]",
-            "//a[contains(text(),'Write')]",
-            "//a[contains(text(),'Escribir')]",
-            "//a[contains(@href,'?write')]",
+def _post_to_group_www(driver, group_id, message, image_urls=None):
+    url = f"https://www.facebook.com/groups/{group_id}/"
+    logger.info(f"Posting to group {group_id}")
+    driver.get(url)
+    time.sleep(4)
+    try:
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='main'], div[role='feed']"))
+        )
+    except:
+        pass
+
+    # Step 1 – find an already-visible editor
+    editor = _find_visible(driver, [
+        "//div[@role='textbox'][@contenteditable='true']",
+        "//div[@contenteditable='true']",
+        "//div[@aria-label*='publicación']//div[@contenteditable='true']",
+        "//div[@aria-label*='post']//div[@contenteditable='true']",
+    ])
+    if not editor:
+        try:
+            editor = driver.execute_script("return document.querySelector('[contenteditable=true]');")
+        except: pass
+    if not editor:
+        # Step 2 – try opening composer via direct URL
+        composer_urls = [
+            f"https://www.facebook.com/composer/?group_id={group_id}",
+            f"https://www.facebook.com/groups/{group_id}/?posting=1",
+            f"https://www.facebook.com/groups/{group_id}/posts/",
         ]
-        for xp in write_links:
+        for cu in composer_urls:
             try:
-                el = driver.find_element(By.XPATH, xp)
-                if el.is_displayed():
-                    driver.execute_script("arguments[0].click();", el)
-                    time.sleep(3)
+                driver.get(cu)
+                time.sleep(3)
+                editor = _find_visible(driver, [
+                    "//div[@role='textbox'][@contenteditable='true']",
+                    "//div[@contenteditable='true']",
+                ])
+                if not editor:
+                    editor = driver.execute_script("return document.querySelector('[contenteditable=true]');")
+                if editor:
                     break
             except: continue
-        for xp in [
-            "//form[.//textarea]//textarea",
-            "//textarea[@name='xc_message']",
-            "//textarea[@name='message']",
-            "//textarea",
-        ]:
-            try:
-                el = driver.find_element(By.XPATH, xp)
-                if el.is_displayed():
-                    ta = el; break
-            except: continue
 
-    if not ta:
-        _debug_save_state(driver, group_id, "textarea_not_found")
-        logger.warning(f"textarea not found (mbasic) for group {group_id}")
-        return {"success": False, "error": "textarea not found (mbasic)"}
+    if not editor:
+        # Step 3 – try to click the composer button
+        driver.get(url)
+        time.sleep(4)
+        clicked = _click_composer_btn(driver)
+        if clicked:
+            time.sleep(4)
+            editor = _find_visible(driver, [
+                "//div[@role='textbox'][@contenteditable='true']",
+                "//div[@contenteditable='true']",
+                "//div[contains(@aria-label,'Write')][@contenteditable='true']",
+                "//div[contains(@aria-label,'Escribe')][@contenteditable='true']",
+                "//div[contains(@aria-label,'What')][@contenteditable='true']",
+                "//div[contains(@aria-label,'Qué')][@contenteditable='true']",
+                "//div[@aria-label*='publicación']//div[@contenteditable='true']",
+                "//div[@aria-label*='post']//div[@contenteditable='true']",
+            ])
+            if not editor:
+                try:
+                    editor = driver.execute_script("return document.querySelector('[contenteditable=true]');")
+                except: pass
 
+    if not editor:
+        _debug_save_state(driver, group_id, "editor_not_found")
+        logger.warning(f"editor not found for group {group_id}")
+        return {"success": False, "error": "editor not found"}
+
+    # Type message
     msg = resolve_spintax(message)
-    ta.clear()
-    ta.send_keys(msg)
+    driver.execute_script("arguments[0].innerText = arguments[1];", editor, msg)
+    driver.execute_script("arguments[0].dispatchEvent(new Event('input', {bubbles: true}));", editor)
     time.sleep(1)
 
-    # Upload photos if provided (mbasic supports file input)
+    # Upload photos
     if image_urls:
         try:
-            fi = None
-            for xp in [
-                "//input[@type='file'][@name='photo']",
-                "//input[@type='file'][@name='file1']",
+            fi = _find_visible(driver, [
                 "//input[@type='file']",
-            ]:
-                try:
-                    el = driver.find_element(By.XPATH, xp)
-                    if el.is_displayed():
-                        fi = el; break
-                except: continue
+                "//div[@aria-label='Photo']//input[@type='file']",
+                "//div[@aria-label='Foto']//input[@type='file']",
+                "//div[@aria-label='Add photos']//input[@type='file']",
+                "//div[@aria-label='Agregar fotos']//input[@type='file']",
+                "//input[@type='file'][@accept*='image']",
+            ])
             if fi:
                 paths = []
                 for url in image_urls[:5]:
@@ -553,29 +634,32 @@ def _post_to_group_mbasic(driver, group_id, message, image_urls=None):
                         try: os.unlink(p)
                         except: pass
         except Exception as e:
-            logger.warning(f"photo upload (mbasic) failed: {e}")
+            logger.warning(f"photo upload failed: {e}")
 
-    # Find and click submit
-    submit = None
-    for xp in [
-        "//input[@type='submit'][@value='Post']",
-        "//input[@type='submit'][@value='Publicar']",
-        "//input[@type='submit']",
+    time.sleep(2)
+
+    # Click Post button
+    post_btn = _find_visible(driver, [
+        "//div[@role='button']//span[text()='Post']/..",
+        "//div[@role='button']//span[text()='Publicar']/..",
+        "//span[text()='Post']/..",
+        "//span[text()='Publicar']/..",
+        "//div[@aria-label='Post'][@role='button']",
+        "//div[@aria-label='Publicar'][@role='button']",
+        "//div[@aria-label='Publicar'][@tabindex='0']",
+        "//div[contains(@aria-label,'Post')][@role='button']",
+        "//div[contains(@aria-label,'Publicar')][@role='button']",
         "//button[@type='submit']",
-        "//input[@name='submit']",
-    ]:
-        try:
-            el = driver.find_element(By.XPATH, xp)
-            if el.is_displayed():
-                submit = el; break
-        except: continue
-    if not submit:
-        logger.warning(f"submit button not found (mbasic) for group {group_id}")
-        return {"success": False, "error": "submit button not found (mbasic)"}
-    driver.execute_script("arguments[0].click();", submit)
+        "//input[@type='submit']",
+    ])
+    if not post_btn:
+        logger.warning(f"Post button not found for group {group_id}")
+        _debug_save_state(driver, group_id, "post_btn_not_found")
+        return {"success": False, "error": "post button not found"}
+    driver.execute_script("arguments[0].click();", post_btn)
     time.sleep(5)
 
-    logger.info(f"Posted successfully to group {group_id} (mbasic)")
+    logger.info(f"Posted successfully to group {group_id}")
     return {"success": True}
 
 sync_app = Flask(__name__)
