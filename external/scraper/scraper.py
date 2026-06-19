@@ -405,7 +405,7 @@ def run():
 # Post driver globals (must be before any route that uses them)
 # ---------------------------------------------------------------------------
 _post_driver = None
-_post_driver_lock = threading.Lock()
+_publish_lock = threading.Lock()
 
 def get_post_driver():
     global _post_driver
@@ -611,33 +611,39 @@ def publish_to_groups():
     if not groups or not message:
         return jsonify({"error": "groups and message required"}), 400
     results = []
-    acquired = _post_driver_lock.acquire(timeout=120)
-    if not acquired:
-        return jsonify({"error": "lock timeout — another publish in progress"}), 429
-    try:
-        driver = get_post_driver()
-        if not driver:
-            return jsonify({"error": "no driver"}), 500
-        if not check_session(driver):
-            close_post_driver()
-            return jsonify({"error": "session expired"}), 401
-        for g in groups:
-            gid = g.get("fb_group_id") or g.get("id")
-            if not gid:
-                results.append({"group_id": g.get("id"), "success": False, "error": "no group id"})
+    for g in groups:
+        gid = g.get("fb_group_id") or g.get("id")
+        if not gid:
+            results.append({"group_id": g.get("id"), "success": False, "error": "no group id"})
+            continue
+        acquired = _publish_lock.acquire(timeout=120)
+        if not acquired:
+            logger.warning(f"Could not acquire lock for group {gid}")
+            results.append({"group_id": g.get("id"), "success": False, "error": "lock timeout"})
+            continue
+        try:
+            driver = init_driver(headless=True)
+            driver.get("https://www.facebook.com/")
+            if COOKIES_PATH.exists():
+                load_cookies(driver, COOKIES_PATH)
+            if not check_session(driver):
+                driver.quit()
+                logger.warning(f"Session invalid for group {gid}, skipping")
+                results.append({"group_id": g.get("id"), "success": False, "error": "session expired"})
                 continue
             result = post_to_group(driver, gid, message, image_urls)
             result["group_id"] = g.get("id")
             results.append(result)
-            delay = random.uniform(10, 20)
-            logger.info(f"Waiting {delay:.0f}s before next group")
-            time.sleep(delay)
-    except Exception as e:
-        logger.error(f"publish-to-groups error: {e}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        _post_driver_lock.release()
-        close_post_driver()
+        except Exception as e:
+            logger.error(f"Error publishing to group {gid}: {e}")
+            results.append({"group_id": g.get("id"), "success": False, "error": str(e)})
+        finally:
+            try: driver.quit()
+            except: pass
+            _publish_lock.release()
+        delay = random.uniform(10, 20)
+        logger.info(f"Waiting {delay:.0f}s before next group")
+        time.sleep(delay)
     return jsonify({"results": results})
 
 def _clamp_interval(h):
