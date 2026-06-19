@@ -5,6 +5,7 @@ import { MapPin, Calendar, Phone, MessageCircle, Share2, ChevronLeft, ChevronRig
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
+import PetImage from '@/src/components/PetImage';
 import SocialShareModal from '@/src/components/SocialShareModal';
 import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
 import { shareOnFacebook } from '@/src/lib/facebookShare';
@@ -78,11 +79,10 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
               }
             }}
           >
-            <img 
+            <PetImage
               src={imageUrls[currentIdx]}
               alt={pet.name || 'Mascota'}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              className="transition-transform duration-500 group-hover:scale-110"
             />
             {imageUrls.length > 1 && (
               <>

@@ -8,6 +8,7 @@ import { cn } from '@/src/lib/utils';
 import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
 import { shareOnFacebook } from '@/src/lib/facebookShare';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
+import PetImage from '@/src/components/PetImage';
 import { LinkifiedText } from '@/src/lib/linkify';
 
 function parseNeighborhoods(n: any): string[] {
@@ -74,8 +75,6 @@ export default function PetDetail() {
     return '';
   }).filter(Boolean) || [];
 
-  const isOriginal = pet.images?.some((img: any) => img.has_original);
-
   const waMessage = `Hola! Estoy escribiendo por la publicación de ${pet.name || 'la mascota'} en Sigo Tu Huella. 
 📍 Ubicación: ${pet.location}
 ${pet.description ? `\n📝 Descripción: ${pet.description}` : ''}
@@ -117,15 +116,14 @@ Me gustaría obtener más información.`;
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* Galería de Imágenes */}
         <div className="space-y-4">
-          <div className={`relative rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-xl group ${isOriginal ? 'max-h-[75vh]' : 'aspect-square'}`}>
+          <div className="relative aspect-square rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-xl group">
             {images.length > 0 ? (
               <>
-        <img 
-          src={images[currentImageIdx]} 
-          alt={pet.name} 
-          onError={(e) => { (e.target as HTMLImageElement).src = '/sigotuhuella.jpg'; }}
-          className={`w-full h-full transition-transform duration-500 group-hover:scale-105 ${isOriginal ? 'object-contain' : 'object-cover'}`}
-        />
+                <PetImage
+                  src={images[currentImageIdx]}
+                  alt={pet.name || 'Mascota'}
+                  className="transition-transform duration-500 group-hover:scale-105"
+                />
                 {images.length > 1 && (
                   <div className="absolute bottom-4 right-4 px-3 py-1 bg-black/50 text-white text-xs font-bold rounded-full backdrop-blur-sm">
                     {currentImageIdx + 1} / {images.length}
