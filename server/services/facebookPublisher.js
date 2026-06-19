@@ -3,6 +3,7 @@ import pool from '../db.js';
 
 const GRAPH_API = 'https://graph.facebook.com/v22.0';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+const VPS_HOST = process.env.VPS_HOST || 'http://138.36.236.69:3001';
 
 const statusLabels = {
   lost: '🐾 PERDIDO',
@@ -258,66 +259,35 @@ export async function verifyAllGroupMemberships() {
   return { updated, results };
 }
 
-export async function publishToGroup(groupFbId, message, link, imageUrl) {
-  const token = await getPageToken();
-  if (!token) return { error: 'Facebook Page no conectada' };
-
-  if (imageUrl) {
-    try {
-      const { data: photoData } = await axios.post(`${GRAPH_API}/${groupFbId}/photos`, null, {
-        params: { url: imageUrl, message, access_token: token },
-        timeout: 30000,
-      });
-      if (link) {
-        await axios.post(`${GRAPH_API}/${photoData.id}/comments`, null, {
-          params: { message: `🔗 Más información: ${link}`, access_token: token },
-          timeout: 15000,
-        }).catch(() => {});
-      }
-      return { success: true, groupPostId: photoData.id, type: 'photo' };
-    } catch {
-    }
-  }
-
+export async function publishToGroupsViaScraper(groups, message, imageUrls, petId) {
   try {
-    const params = {
+    const { data } = await axios.post(`${VPS_HOST}/publish-to-groups`, {
+      groups,
       message,
-      access_token: token,
-    };
-    if (link) params.link = link;
+      image_urls: imageUrls,
+    }, { timeout: 300000 });
 
-    const { data } = await axios.post(`${GRAPH_API}/${groupFbId}/feed`, null, {
-      params,
-      timeout: 30000,
-    });
-    return { success: true, groupPostId: data.id, type: 'feed' };
+    const results = data.results || [];
+
+    for (const r of results) {
+      if (!r.success && r.error && r.error !== 'session expired') {
+        const groupResult = await pool.query(
+          'SELECT id FROM facebook_groups WHERE fb_group_id = $1 OR id = $2',
+          [r.group_id, r.group_id]
+        );
+        if (groupResult.rows.length > 0 && groupResult.rows[0].page_is_member) {
+          await pool.query(
+            'UPDATE facebook_groups SET page_is_member = false, updated_at = NOW() WHERE id = $1',
+            [groupResult.rows[0].id]
+          );
+        }
+      }
+    }
+
+    return { success: true, results };
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-
-    const errorData = err.response?.data?.error || {};
-    const errorCode = errorData.code;
-    const errorMessage = errorData.message || '';
-
-    if (
-      errorCode === 200 ||
-      errorCode === 10 ||
-      errorMessage.includes('not a member') ||
-      errorMessage.includes('not authorized') ||
-      errorMessage.includes('Unsupported post request')
-    ) {
-      const groupResult = await pool.query(
-        'SELECT id, page_is_member FROM facebook_groups WHERE fb_group_id = $1',
-        [groupFbId]
-      );
-      if (groupResult.rows.length > 0 && groupResult.rows[0].page_is_member) {
-        await pool.query(
-          'UPDATE facebook_groups SET page_is_member = false, updated_at = NOW() WHERE id = $1',
-          [groupResult.rows[0].id]
-        );
-      }
-    }
-
-    return { error: `Error al publicar en grupo: ${detail}` };
+    return { error: `Error llamando al scraper VPS: ${detail}`, results: [] };
   }
 }
 
@@ -355,6 +325,8 @@ export async function replicateInstagramToFacebook(instagramPostId) {
      ORDER BY name`
   );
 
+  const eligibleGroups = [];
+
   for (const group of groupsResult.rows) {
     let shouldPost = true;
 
@@ -382,15 +354,31 @@ export async function replicateInstagramToFacebook(instagramPostId) {
       continue;
     }
 
-    const groupImageUrl = group.page_is_member && imageUrls.length > 0 ? imageUrls[0] : null;
-    const groupResult = await publishToGroup(group.fb_group_id, message, link, groupImageUrl);
-    results.groups.push({
-      groupId: group.id,
-      name: group.name,
-      success: groupResult.success,
-      error: groupResult.error,
-      groupPostId: groupResult.groupPostId,
-    });
+    eligibleGroups.push({ id: group.id, fb_group_id: group.fb_group_id, name: group.name });
+  }
+
+  if (eligibleGroups.length > 0) {
+    const scraperResult = await publishToGroupsViaScraper(eligibleGroups, message, imageUrls, post.pet_id);
+    if (scraperResult.success) {
+      for (const r of scraperResult.results) {
+        results.groups.push({
+          groupId: r.group_id,
+          name: r.group_name || eligibleGroups.find(g => g.fb_group_id === r.group_id || g.id === r.group_id)?.name || r.group_id,
+          success: r.success,
+          error: r.error,
+          groupPostId: r.post_id || r.group_post_id,
+        });
+      }
+    } else {
+      for (const g of eligibleGroups) {
+        results.groups.push({
+          groupId: g.id,
+          name: g.name,
+          success: false,
+          error: scraperResult.error,
+        });
+      }
+    }
   }
 
   const groupPostIds = results.groups
@@ -505,17 +493,29 @@ export async function publishPetToGroups(petId) {
      ORDER BY name`
   );
 
-  for (const group of groupsResult.rows) {
-    const link = `${FRONTEND_URL}/pet/${petId}`;
-    const groupImageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
-    const groupResult = await publishToGroup(group.fb_group_id, message, link, groupImageUrl);
-    results.groups.push({
-      groupId: group.id,
-      name: group.name,
-      success: groupResult.success,
-      error: groupResult.error,
-      groupPostId: groupResult.groupPostId,
-    });
+  if (groupsResult.rows.length > 0) {
+    const eligibleGroups = groupsResult.rows.map(g => ({
+      id: g.id, fb_group_id: g.fb_group_id, name: g.name,
+    }));
+
+    const scraperResult = await publishToGroupsViaScraper(eligibleGroups, message, imageUrls, petId);
+    if (scraperResult.success) {
+      for (const r of scraperResult.results) {
+        results.groups.push({
+          groupId: r.group_id,
+          name: r.group_name || eligibleGroups.find(g => g.fb_group_id === r.group_id || g.id === r.group_id)?.name || r.group_id,
+          success: r.success,
+          error: r.error,
+          groupPostId: r.post_id || r.group_post_id,
+        });
+      }
+    } else {
+      for (const g of eligibleGroups) {
+        results.groups.push({
+          groupId: g.id, name: g.name, success: false, error: scraperResult.error,
+        });
+      }
+    }
   }
 
   const groupPostIds = results.groups

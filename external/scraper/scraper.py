@@ -22,8 +22,10 @@ import sys
 import threading
 import time
 import uuid
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.request import urlopen, Request
 
 
 from bs4 import BeautifulSoup
@@ -638,6 +640,173 @@ def start_fetch_cleanup():
     t = threading.Thread(target=_cleanup, daemon=True)
     t.start()
 
+# ---------------------------------------------------------------------------
+# Post driver
+# ---------------------------------------------------------------------------
+
+_post_driver = None
+_post_driver_lock = threading.Lock()
+
+def get_post_driver():
+    global _post_driver
+    if _post_driver is None:
+        d = init_driver(headless=True)
+        d.get("https://www.facebook.com/")
+        if COOKIES_PATH.exists():
+            load_cookies(d, COOKIES_PATH)
+        _post_driver = d
+        logger.info("Post driver created")
+    return _post_driver
+
+def close_post_driver():
+    global _post_driver
+    if _post_driver:
+        try: _post_driver.quit()
+        except Exception: pass
+        _post_driver = None
+
+def resolve_spintax(text):
+    while '{' in text:
+        m = re.search(r'\{([^{}]+)\}', text)
+        if not m: break
+        opts = [x.strip() for x in m.group(1).split('|')]
+        text = text[:m.start()] + random.choice(opts) + text[m.end():]
+    return text
+
+def post_to_group(driver, group_id, message, image_urls=None):
+    url = f"https://www.facebook.com/groups/{group_id}/"
+    logger.info(f"Posting to group {group_id}")
+    try:
+        driver.get(url)
+        time.sleep(4)
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='main'], div[role='feed']"))
+        )
+
+        # Click composer
+        composer_xpaths = [
+            "//div[@role='button']//span[text()='Write something…']/..",
+            "//div[@role='button']//span[text()='Escribe algo…']/..",
+            "//div[@role='button']//span[text()='Write something']/..",
+            "//div[@role='button']//span[text()='Escribe algo']/..",
+            "//div[@role='button'][contains(.,'Write something')]",
+            "//div[@role='button'][contains(.,'Escribe algo')]",
+            "//div[@role='button'][contains(.,'Crear publicación')]",
+            "//div[@aria-label*='Write something']",
+            "//div[@aria-label*='Escribe algo']",
+        ]
+        composer = None
+        for xp in composer_xpaths:
+            try:
+                el = driver.find_element(By.XPATH, xp)
+                if el.is_displayed():
+                    composer = el
+                    break
+            except: continue
+        if not composer:
+            logger.warning(f"composer not found for group {group_id}")
+            return {"success": False, "error": "composer not found"}
+        driver.execute_script("arguments[0].click();", composer)
+        time.sleep(2)
+
+        # Find text editor
+        editor_xpaths = [
+            "//div[@role='textbox'][@contenteditable='true']",
+            "//div[contains(@aria-label,'Write something')][@contenteditable='true']",
+            "//div[contains(@aria-label,'Escribe algo')][@contenteditable='true']",
+            "//div[@contenteditable='true']//p",
+            "//div[@contenteditable='true']",
+        ]
+        editor = None
+        for xp in editor_xpaths:
+            try:
+                el = driver.find_element(By.XPATH, xp)
+                if el.is_displayed():
+                    editor = el
+                    break
+            except: continue
+        if not editor:
+            logger.warning(f"editor not found for group {group_id}")
+            return {"success": False, "error": "editor not found"}
+
+        msg = resolve_spintax(message)
+        driver.execute_script("arguments[0].innerText = arguments[1];", editor, msg)
+        driver.execute_script("arguments[0].dispatchEvent(new Event('input', {bubbles: true}));", editor)
+        time.sleep(1)
+
+        # Upload photos if provided
+        if image_urls:
+            try:
+                photo_btn_xpaths = [
+                    "//div[@aria-label='Photo']//input[@type='file']",
+                    "//div[@aria-label='Foto']//input[@type='file']",
+                    "//div[@aria-label='Add photos']//input[@type='file']",
+                    "//div[@aria-label='Agregar fotos']//input[@type='file']",
+                    "//input[@type='file'][@accept*='image']",
+                ]
+                file_input = None
+                for xp in photo_btn_xpaths:
+                    try:
+                        fi = driver.find_element(By.XPATH, xp)
+                        if fi.is_displayed():
+                            file_input = fi
+                            break
+                    except: continue
+                if file_input:
+                    paths = []
+                    for url in image_urls[:5]:
+                        try:
+                            req = Request(url, headers={'User-Agent': CHROME_UA})
+                            resp = urlopen(req, timeout=30)
+                            ext = 'jpg'
+                            if '.' in url.split('?')[0]:
+                                ext = url.split('?')[0].rsplit('.', 1)[-1][:4]
+                            f = tempfile.NamedTemporaryFile(suffix=f'.{ext}', delete=False)
+                            f.write(resp.read())
+                            f.close()
+                            paths.append(f.name)
+                        except Exception as e:
+                            logger.warning(f"img download failed: {e}")
+                    if paths:
+                        file_input.send_keys('\n'.join(paths))
+                        time.sleep(5)
+                        for p in paths:
+                            try: os.unlink(p)
+                            except: pass
+            except Exception as e:
+                logger.warning(f"photo upload failed: {e}")
+
+        time.sleep(2)
+
+        # Click Post button
+        post_xpaths = [
+            "//div[@role='button']//span[text()='Post']/..",
+            "//div[@role='button']//span[text()='Publicar']/..",
+            "//span[text()='Post']/..",
+            "//span[text()='Publicar']/..",
+            "//div[@aria-label='Post'][@role='button']",
+            "//div[@aria-label='Publicar'][@role='button']",
+        ]
+        post_btn = None
+        for xp in post_xpaths:
+            try:
+                el = driver.find_element(By.XPATH, xp)
+                if el.is_displayed() and el.is_enabled():
+                    post_btn = el
+                    break
+            except: continue
+        if not post_btn:
+            logger.warning(f"Post button not found for group {group_id}")
+            return {"success": False, "error": "post button not found"}
+        driver.execute_script("arguments[0].click();", post_btn)
+        time.sleep(5)
+
+        logger.info(f"Posted successfully to group {group_id}")
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error posting to group {group_id}: {e}")
+        return {"success": False, "error": str(e)}
+
 sync_app = Flask(__name__)
 
 @sync_app.route("/health")
@@ -730,6 +899,39 @@ def sync_config():
             f.write(cookies_txt)
         logger.info(f"Cookies updated from config push ({len(cookies_txt)} bytes)")
     return jsonify({"ok": True})
+
+@sync_app.route("/publish-to-groups", methods=["POST"])
+def publish_to_groups():
+    data = request.get_json()
+    groups = data.get("groups", [])
+    message = data.get("message", "")
+    image_urls = data.get("image_urls", [])
+    if not groups or not message:
+        return jsonify({"error": "groups and message required"}), 400
+    results = []
+    with _post_driver_lock:
+        try:
+            driver = get_post_driver()
+            if not driver:
+                return jsonify({"error": "no driver"}), 500
+            # Ensure session is valid
+            if not check_session(driver):
+                return jsonify({"error": "session expired"}), 401
+            for g in groups:
+                gid = g.get("fb_group_id") or g.get("id")
+                if not gid:
+                    results.append({"group_id": g.get("id"), "success": False, "error": "no group id"})
+                    continue
+                result = post_to_group(driver, gid, message, image_urls)
+                result["group_id"] = g.get("id")
+                results.append(result)
+                delay = random.uniform(30, 60)
+                logger.info(f"Waiting {delay:.0f}s before next group")
+                time.sleep(delay)
+        except Exception as e:
+            logger.error(f"publish-to-groups error: {e}")
+            return jsonify({"error": str(e)}), 500
+    return jsonify({"results": results})
 
 def _clamp_interval(h):
     return max(1, min(24, int(h or 6)))
