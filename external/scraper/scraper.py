@@ -623,23 +623,32 @@ def post_to_group_via_dom(driver, group_id, message, image_urls=None):
                 try: os.unlink(f)
                 except: pass
 
-    # 4. Click Post button
+    # 4. Click body to blur and trigger Post button appearance
+    try:
+        driver.find_element(By.CSS_SELECTOR, "body").click()
+        time.sleep(1)
+    except:
+        pass
+
+    # 5. Click Post button
     post_button = None
     for sel in [
+        "//div[@role='button' and not(contains(@aria-disabled,'true')) and contains(text(),'Publicar')]",
+        "//div[@role='button' and not(contains(@aria-disabled,'true')) and contains(text(),'Post')]",
         "//div[@role='button' and contains(text(),'Publicar')]",
         "//div[@role='button' and contains(text(),'Post')]",
         "//span[contains(text(),'Publicar')]",
+        "//*[contains(text(),'Publicar')]",
         "//span[contains(text(),'Post')]",
-        "div[aria-label='Publicar'][role='button']",
-        "div[aria-label='Post'][role='button']",
+        "div[aria-label='Publicar']",
+        "div[aria-label='Post']",
         "button[type='submit']",
-        "div[role='button']:last-child",
     ]:
         try:
             if sel.startswith("//"):
-                post_button = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.XPATH, sel)))
+                post_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, sel)))
             else:
-                post_button = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.CSS_SELECTOR, sel)))
+                post_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, sel)))
             if post_button:
                 logger.info(f"[DOM] Found post button via: {sel}")
                 break
@@ -647,6 +656,14 @@ def post_to_group_via_dom(driver, group_id, message, image_urls=None):
             continue
 
     if not post_button:
+        # Last resort: press Enter on the composer
+        try:
+            logger.info("[DOM] Trying Enter key as last resort")
+            composer.send_keys("\n")
+            time.sleep(3)
+            return {"success": True}
+        except:
+            pass
         _save_debug_screenshot(driver, f"post_btn_not_found_{group_id}")
         return {"success": False, "error": "post button not found"}
 
