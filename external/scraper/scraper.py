@@ -396,8 +396,9 @@ def run():
     conn.close()
 
 # ---------------------------------------------------------------------------
-# Flask sync server
-# ---------------------------------------------------------------------------_post_driver = None
+# Post driver globals (must be before any route that uses them)
+# ---------------------------------------------------------------------------
+_post_driver = None
 _post_driver_lock = threading.Lock()
 
 def get_post_driver():
