@@ -12,7 +12,7 @@ export default function PublicMobileTopBar() {
   };
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-14 px-4 border-b border-brand-accent bg-white md:hidden">
+    <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-14 px-4 border-b border-brand-accent bg-white lg:hidden">
       <Link to="/" className="flex items-center gap-2">
         <div className="p-1.5 bg-brand-primary rounded-xl">
           <PawPrint className="w-5 h-5 text-white" />

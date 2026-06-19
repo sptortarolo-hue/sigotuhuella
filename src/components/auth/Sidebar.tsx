@@ -23,6 +23,7 @@ const portalItems = [
 ];
 
 const moreItems = [
+  { label: 'Mascotas Reportadas', icon: Search, path: '/perdidos' },
   { label: 'Novedades', icon: Sparkles, path: '/novedades' },
   { label: 'Sumate', icon: User, path: '/sumate' },
   { label: 'Difusión', icon: Share2, path: '/difusion' },

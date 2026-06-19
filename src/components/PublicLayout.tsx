@@ -1,20 +1,17 @@
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
-import Navbar from '@/src/components/Navbar';
 import PublicMobileTopBar from '@/src/components/PublicMobileTopBar';
 import Sidebar from '@/src/components/auth/Sidebar';
 
 export default function PublicLayout() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <>
       <PublicMobileTopBar />
-      <div className="md:hidden">
-        <Navbar />
-      </div>
-      <Sidebar />
-      <main className="pt-14 md:pt-0 pb-16 md:pb-0 lg:ml-64">
+      <Sidebar onReportClick={user ? () => navigate('/reportar') : undefined} />
+      <main className="pt-14 lg:pt-0 pb-16 lg:pb-0 lg:ml-64">
         <Outlet />
       </main>
       <footer className="hidden lg:block bg-white border-t border-brand-accent py-12 lg:ml-64">
