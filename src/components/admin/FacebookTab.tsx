@@ -825,7 +825,9 @@ function ScrapeMatchSection() {
   const [activeSuggestion, setActiveSuggestion] = useState<number | null>(null);
   const debounceTimers = React.useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const [cookieStatus, setCookieStatus] = useState<{ exists: boolean; count: number; expires: string | null } | null>(null);
+  const [storageStateStatus, setStorageStateStatus] = useState<{ exists: boolean; count: number; origins: number } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadingState, setUploadingState] = useState(false);
 
   const searchNominatim = React.useCallback(async (query: string, index: number) => {
     if (query.length < 3) {
@@ -871,7 +873,11 @@ function ScrapeMatchSection() {
         const cook = await fetch('/api/facebook/cookies-status', {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        if (cook.ok) setCookieStatus(await cook.json());
+        if (cook.ok) {
+          const data = await cook.json();
+          setCookieStatus(data.cookies || null);
+          setStorageStateStatus(data.storage_state || null);
+        }
       } catch (e) { console.error(e); }
       setLoading(false);
     };
@@ -915,17 +921,48 @@ function ScrapeMatchSection() {
       });
       if (!resp.ok) {
         const err = await resp.json();
-        alert(err.error || 'Error al subir cookies');
+        alert(err.error || 'Error al subir');
         return;
       }
       const data = await resp.json();
-      setCookieStatus({ exists: true, count: data.count, expires: data.expires });
-      alert(`✅ ${data.count} cookies guardadas${data.expires ? ` (expiran ${new Date(data.expires).toLocaleDateString()})` : ''}`);
+      if (data.type === 'storage_state') {
+        setStorageStateStatus({ exists: true, count: data.count, origins: data.origins });
+        alert(`✅ ${data.count} cookies + ${data.origins} origenes con localStorage`);
+      } else {
+        setCookieStatus({ exists: true, count: data.count, expires: data.expires });
+        alert(`✅ ${data.count} cookies guardadas${data.expires ? ` (expiran ${new Date(data.expires).toLocaleDateString()})` : ''}`);
+      }
     } catch (err) {
       alert('Error al conectar con el servidor');
     }
     setUploading(false);
-    // Reset input
+    e.target.value = '';
+  };
+
+  const handleStorageStateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingState(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const resp = await fetch('/api/facebook/upload-session', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: form,
+      });
+      if (!resp.ok) {
+        const err = await resp.json();
+        alert(err.error || 'Error al subir sesion');
+        return;
+      }
+      const data = await resp.json();
+      setStorageStateStatus({ exists: true, count: data.count, origins: data.origins });
+      alert(`✅ ${data.count} cookies + ${data.origins} origenes con localStorage`);
+    } catch (err) {
+      alert('Error al conectar con el servidor');
+    }
+    setUploadingState(false);
     e.target.value = '';
   };
 
@@ -1137,43 +1174,61 @@ function ScrapeMatchSection() {
         })()}
       </div>
 
-      {/* Cookies de Facebook */}
+      {/* Sesion de Facebook (Storage State) */}
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
         <h2 className="text-xl font-serif font-bold text-brand-primary mb-2 flex items-center gap-3">
-          <Globe className="w-6 h-6" /> Cookies de Facebook
+          <Globe className="w-6 h-6" /> Sesion de Facebook
         </h2>
         <p className="text-sm text-gray-500 mb-4">
-          Subí el archivo <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">cookies.txt</code> exportado desde tu navegador
-          para que el scraper pueda acceder a Facebook sin necesidad de login automático.
+          Subi el archivo <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">storage_state.json</code> generado con <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">generate_session.py</code>
+          para que el scraper publique en grupos.
         </p>
 
         <div className="p-4 bg-brand-bg rounded-2xl mb-4 flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${cookieStatus?.exists ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
-            <div className={`w-3 h-3 rounded-full ${cookieStatus?.exists ? 'bg-green-500' : 'bg-red-400'}`} />
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${storageStateStatus?.exists ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
+            <div className={`w-3 h-3 rounded-full ${storageStateStatus?.exists ? 'bg-green-500' : 'bg-red-400'}`} />
           </div>
           <div className="flex-1 text-sm">
-            {cookieStatus === null ? (
+            {storageStateStatus === null && cookieStatus === null ? (
               <span className="text-gray-400">Verificando...</span>
-            ) : cookieStatus.exists ? (
-              <><span className="font-bold text-green-700">{cookieStatus.count} cookies</span>
-                <span className="text-gray-500"> — expiran {cookieStatus.expires ? new Date(cookieStatus.expires).toLocaleDateString() : '(sesión)'}</span></>
+            ) : storageStateStatus?.exists ? (
+              <><span className="font-bold text-green-700">{storageStateStatus.count} cookies + {storageStateStatus.origins} origenes</span>
+                <span className="text-gray-500"> — storage state activo</span></>
+            ) : cookieStatus?.exists ? (
+              <><span className="font-bold text-amber-700">{cookieStatus.count} cookies (legacy)</span>
+                <span className="text-gray-500"> — migra a storage_state.json</span></>
             ) : (
-              <><span className="font-bold text-red-600">Sin cookies</span>
-                <span className="text-gray-500"> — el scraper no podrá acceder a grupos privados</span></>
+              <><span className="font-bold text-red-600">Sin sesion</span>
+                <span className="text-gray-500"> — genera storage_state.json con generate_session.py</span></>
             )}
           </div>
         </div>
 
-        <label className={`flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'border-brand-accent hover:border-brand-primary hover:bg-brand-bg'}`}>
-          <input type="file" accept=".txt,.cookies.txt" onChange={handleCookiesUpload} className="hidden" disabled={uploading} />
-          {uploading ? (
-            <><Loader2 className="w-8 h-8 animate-spin text-brand-primary mb-2" /><span className="text-sm text-gray-500">Subiendo...</span></>
-          ) : (
-            <><Upload className="w-8 h-8 text-gray-400 mb-2" />
-              <span className="text-sm font-bold text-brand-primary">Hacé clic para seleccionar cookies.txt</span>
-              <span className="text-xs text-gray-400 mt-1">Exportado desde Chrome con extensión "Get cookies.txt LOCALLY"</span></>
-          )}
-        </label>
+        <div className="space-y-3">
+          <label className={`flex flex-col items-center justify-center w-full p-5 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${uploadingState ? 'opacity-50 pointer-events-none' : 'border-brand-accent hover:border-brand-primary hover:bg-brand-bg'}`}>
+            <input type="file" accept=".json" onChange={handleStorageStateUpload} className="hidden" disabled={uploadingState} />
+            {uploadingState ? (
+              <><Loader2 className="w-8 h-8 animate-spin text-brand-primary mb-2" /><span className="text-sm text-gray-500">Subiendo...</span></>
+            ) : (
+              <><Upload className="w-8 h-8 text-gray-400 mb-2" />
+                <span className="text-sm font-bold text-brand-primary">Subir storage_state.json</span>
+                <span className="text-xs text-gray-400 mt-1">Generado con generate_session.py en tu PC</span></>
+            )}
+          </label>
+
+          <details className="text-xs text-gray-400">
+            <summary className="cursor-pointer hover:text-brand-primary">Subir cookies.txt (legacy)</summary>
+            <label className={`flex flex-col items-center justify-center w-full p-4 mt-2 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'border-gray-200 hover:border-brand-accent'}`}>
+              <input type="file" accept=".txt,.cookies.txt" onChange={handleCookiesUpload} className="hidden" disabled={uploading} />
+              {uploading ? (
+                <><Loader2 className="w-5 h-5 animate-spin text-brand-primary mb-1" /><span className="text-xs text-gray-500">Subiendo...</span></>
+              ) : (
+                <><Upload className="w-5 h-5 text-gray-400 mb-1" />
+                  <span className="text-xs font-bold text-brand-primary">Subir cookies.txt</span></>
+              )}
+            </label>
+          </details>
+        </div>
       </div>
 
       {/* Save button */}

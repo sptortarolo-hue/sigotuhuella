@@ -15,6 +15,9 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# Install Playwright browsers (chromium only to save space)
+playwright install chromium
+
 # Read APP_URL and APP_TOKEN from arguments or .env
 APP_URL="${1:-https://sigotuhuella.online}"
 APP_TOKEN="${2}"

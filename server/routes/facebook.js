@@ -13,7 +13,8 @@ import { createJob, startJob, getJob } from '../services/publishJobManager.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const COOKIES_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'cookies.txt');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 } }); // 512KB max
+const STORAGE_STATE_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'storage_state.json');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max (storage_state can be larger)
 
 const router = Router();
 
@@ -541,7 +542,7 @@ router.post('/classify/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// ==================== COOKIES ====================
+// ==================== SESSION (Cookies / Storage State) ====================
 
 function parseCookiesInfo(filepath) {
   if (!existsSync(filepath)) return { exists: false, count: 0, expires: null };
@@ -549,7 +550,6 @@ function parseCookiesInfo(filepath) {
   const lines = content.split('\n').filter(l => {
     const trimmed = l.trim();
     if (!trimmed) return false;
-    // Allow #HttpOnly_ prefix (valid Netscape format), skip other comments
     if (trimmed.startsWith('#') && !trimmed.startsWith('#HttpOnly_')) return false;
     return true;
   });
@@ -565,32 +565,97 @@ function parseCookiesInfo(filepath) {
   };
 }
 
+function parseStorageStateInfo(filepath) {
+  if (!existsSync(filepath)) return { exists: false, count: 0, origins: 0 };
+  try {
+    const state = JSON.parse(readFileSync(filepath, 'utf-8'));
+    return {
+      exists: true,
+      count: (state.cookies || []).length,
+      origins: (state.origins || []).length,
+    };
+  } catch {
+    return { exists: false, count: 0, origins: 0, error: 'corrupt' };
+  }
+}
+
 router.get('/cookies-status', requireAdmin, (_req, res) => {
   try {
-    res.json(parseCookiesInfo(COOKIES_PATH));
+    const cookies = parseCookiesInfo(COOKIES_PATH);
+    const storage = parseStorageStateInfo(STORAGE_STATE_PATH);
+    res.json({ cookies, storage_state: storage });
   } catch (err) {
-    console.error('Error reading cookies status:', err);
-    res.status(500).json({ error: 'Error al leer cookies' });
+    console.error('Error reading session status:', err);
+    res.status(500).json({ error: 'Error al leer estado de sesion' });
   }
 });
 
 router.post('/upload-cookies', requireAdmin, upload.single('file'), (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No se envió ningún archivo' });
+    if (!req.file) return res.status(400).json({ error: 'No se envio ningun archivo' });
     const content = req.file.buffer.toString('utf-8');
-    // Validate basic Netscape format: must contain .facebook.com
-    if (!content.includes('.facebook.com') && !content.includes('facebook.com')) {
-      return res.status(400).json({ error: 'Formato inválido: no se encontraron cookies de facebook.com' });
-    }
     const dir = dirname(COOKIES_PATH);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+    // Detect format: JSON = storage_state, else = Netscape cookies
+    let isStorageState = false;
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed && typeof parsed === 'object' && 'cookies' in parsed && 'origins' in parsed) {
+        isStorageState = true;
+      }
+    } catch {}
+
+    if (isStorageState) {
+      writeFileSync(STORAGE_STATE_PATH, content, 'utf-8');
+      const info = parseStorageStateInfo(STORAGE_STATE_PATH);
+      pushConfig().catch(() => {});
+      return res.json({ ok: true, type: 'storage_state', count: info.count, origins: info.origins });
+    }
+
+    // Legacy Netscape format
+    if (!content.includes('.facebook.com') && !content.includes('facebook.com')) {
+      return res.status(400).json({ error: 'Formato invalido: no se encontraron cookies de facebook.com' });
+    }
     writeFileSync(COOKIES_PATH, content, 'utf-8');
     pushConfig().catch(() => {});
     const info = parseCookiesInfo(COOKIES_PATH);
-    res.json({ ok: true, count: info.count, expires: info.expires });
+    res.json({ ok: true, type: 'cookies', count: info.count, expires: info.expires });
   } catch (err) {
-    console.error('Error uploading cookies:', err);
-    res.status(500).json({ error: 'Error al guardar cookies' });
+    console.error('Error uploading session:', err);
+    res.status(500).json({ error: 'Error al guardar sesion' });
+  }
+});
+
+router.post('/upload-session', requireAdmin, upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No se envio ningun archivo' });
+    const content = req.file.buffer.toString('utf-8');
+
+    // Validate JSON format with cookies array
+    let parsed;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return res.status(400).json({ error: 'Formato invalido: se espera JSON de Playwright storage_state' });
+    }
+    if (!parsed.cookies || !Array.isArray(parsed.cookies)) {
+      return res.status(400).json({ error: 'Formato invalido: falta el array de cookies' });
+    }
+
+    const dir = dirname(STORAGE_STATE_PATH);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(STORAGE_STATE_PATH, JSON.stringify(parsed, null, 2), 'utf-8');
+    pushConfig().catch(() => {});
+    res.json({
+      ok: true,
+      type: 'storage_state',
+      count: parsed.cookies.length,
+      origins: (parsed.origins || []).length,
+    });
+  } catch (err) {
+    console.error('Error uploading session:', err);
+    res.status(500).json({ error: 'Error al guardar sesion' });
   }
 });
 

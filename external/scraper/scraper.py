@@ -1,7 +1,7 @@
 """
 Facebook Group Tool — Sigo Tu Huella
 Scrapes configured Facebook groups via Bright Data API,
-publishes posts to groups via Selenium (headless Chrome),
+publishes posts to groups via Playwright (headless Chromium),
 saves raw posts to local SQLite (server classifies via Gemini on sync),
 and exposes endpoints for the production server.
 
@@ -10,8 +10,8 @@ Usage:
   python scraper.py --daemon                     # Run as scheduled daemon (with sync server on :3001)
 
 Config: config.json or POST /config endpoint.
-Cookies: cookies.txt (for group publishing only).
-ChromeDriver: auto-managed by webdriver-manager.
+Session: storage_state.json (Playwright storage state for group publishing).
+Generate: run generate_session.py on your local machine, upload via admin panel.
 """
 
 import json
@@ -31,13 +31,7 @@ from pathlib import Path
 from urllib.request import urlopen, Request
 
 from flask import Flask, jsonify, request
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
-from webdriver_manager.chrome import ChromeDriverManager
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,11 +43,11 @@ logger = logging.getLogger("fb-scraper")
 _DIR = Path(__file__).parent
 DB_PATH = _DIR / "scraper.db"
 CONFIG_PATH = _DIR / "config.json"
-COOKIES_PATH = _DIR / "cookies.txt"
+STORAGE_STATE_PATH = _DIR / "storage_state.json"
 ENV_PATH = _DIR / ".env"
 
 MIN_CONTENT_LENGTH = 20
-CHROME_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+PLAYWRIGHT_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 SYNC_PORT = int(os.environ.get("SYNC_PORT", "3001"))
 
 if ENV_PATH.exists():
@@ -219,7 +213,7 @@ def scrape_group_via_brightdata(group_name, group_url, api_key):
     req = Request(api_url, data=payload, headers={
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "User-Agent": CHROME_UA,
+        "User-Agent": PLAYWRIGHT_UA,
     })
     try:
         resp = urlopen(req, timeout=120)
@@ -269,139 +263,64 @@ def extract_post_id_from_url(url):
     return m.group(1) if m else None
 
 # ---------------------------------------------------------------------------
-# Selenium driver (only for group publishing)
+# Playwright (only for group publishing)
 # ---------------------------------------------------------------------------
 
-def init_driver(headless=True):
-    options = webdriver.ChromeOptions()
-    if headless:
-        options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--disable-extensions")
-    options.add_argument("--disable-background-timer-throttling")
-    options.add_argument("--disable-backgrounding-occluded-windows")
-    options.add_argument("--disable-component-update")
-    options.add_argument("--disable-sync")
-    options.add_argument("--window-size=1280,720")
-    options.add_argument(f"user-agent={CHROME_UA}")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
-    driver.set_page_load_timeout(60)
-    driver.set_script_timeout(20)
-    driver.implicitly_wait(5)
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-        "source": "Object.defineProperty(navigator, 'webdriver', { get: () => false })"
-    })
-    return driver
+def _launch_playwright(headless=True, storage_state_path=None):
+    """Launch Playwright and return (playwright, browser, context, page)."""
+    p = sync_playwright().start()
+    browser = p.chromium.launch(
+        headless=headless,
+        args=[
+            "--no-sandbox",
+            "--disable-gpu",
+            "--disable-dev-shm-usage",
+            "--disable-extensions",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-component-update",
+            "--disable-sync",
+            f"--user-agent={PLAYWRIGHT_UA}",
+        ],
+    )
+    kwargs = {"user_agent": PLAYWRIGHT_UA, "viewport": {"width": 1280, "height": 720}}
+    if storage_state_path and storage_state_path.exists():
+        kwargs["storage_state"] = str(storage_state_path)
+    context = browser.new_context(**kwargs)
+    page = context.new_page()
+    return p, browser, context, page
 
-def check_session(driver):
+def check_session(page):
+    """Verify Facebook session by loading homepage and checking for login redirect."""
     try:
-        driver.get("https://www.facebook.com/")
-        time.sleep(3)
-        current = driver.current_url
+        page.goto("https://www.facebook.com/", timeout=30000, wait_until="domcontentloaded")
+        page.wait_for_timeout(3000)
+        current = page.url
         if "/login" in current.lower() or "checkpoint" in current.lower():
             logger.warning(f"Session expired ({current})")
             return False
         try:
-            WebDriverWait(driver, 30).until(
-                EC.presence_of_element_located(
-                    (By.CSS_SELECTOR, "div[role='feed'], a[aria-label='Home'], div[aria-label='Home'], div[data-pagelet*='Feed']")
-                )
+            page.wait_for_selector(
+                "div[role='feed'], a[aria-label='Home'], div[aria-label='Home'], div[data-pagelet*='Feed']",
+                timeout=25000,
             )
             logger.info("Session valid")
             return True
-        except TimeoutException:
-            current = driver.current_url
+        except PlaywrightTimeout:
+            current = page.url
             if "/login" in current.lower() or "checkpoint" in current.lower():
                 logger.warning(f"Session expired — redirected to login ({current})")
                 return False
-            title = driver.title.lower()
-            no_login = not driver.find_elements(By.CSS_SELECTOR, "input[name='email'], input#email")
+            title = page.title().lower()
+            no_login = page.locator("input[name='email'], input#email").count() == 0
             if "facebook" in title and no_login:
-                logger.warning("Session may be invalid — title-based check passed but no feed found")
-                return False
-            logger.warning(f"Session check failed (title='{driver.title[:50]}', url='{current}')")
+                logger.warning("Session may be invalid — title-based check passed but no feed found (proceeding anyway)")
+                return True
+            logger.warning(f"Session check failed (title='{page.title()[:50]}', url='{current}')")
             return False
-    except (TimeoutException, NoSuchElementException, WebDriverException) as e:
+    except Exception as e:
         logger.warning(f"Session check error: {e}")
         return False
-
-def save_cookies(driver, filepath):
-    cookies = driver.get_cookies()
-    lines = ["# Netscape HTTP Cookie File"]
-    for c in cookies:
-        domain = c.get("domain", ".facebook.com")
-        if domain.startswith("."):
-            domain = domain[1:]
-        secure = "TRUE" if c.get("secure", False) else "FALSE"
-        path = c.get("path", "/")
-        http_only = "TRUE" if c.get("httpOnly", False) else "FALSE"
-        expires = int(c.get("expiry", 0))
-        lines.append(f"{domain}\t{http_only}\t{path}\t{secure}\t{expires}\t{c['name']}\t{c['value']}")
-    with open(filepath, "w") as f:
-        f.write("\n".join(lines) + "\n")
-    logger.info(f"Saved {len(cookies)} cookies")
-
-def load_cookies(driver, filepath):
-    try:
-        raw = open(filepath).read().strip()
-        loaded = 0
-        try:
-            entries = json.loads(raw)
-            if isinstance(entries, list):
-                for c in entries:
-                    if not isinstance(c, dict) or "name" not in c or "value" not in c:
-                        continue
-                    driver.add_cookie({
-                        "name": c["name"],
-                        "value": c["value"],
-                        "domain": c.get("domain", "").lstrip(".") or ".facebook.com",
-                        "path": c.get("path", "/"),
-                        "secure": c.get("secure", False),
-                        "httpOnly": c.get("httpOnly", False),
-                        "expiry": int(c.get("expirationDate", c.get("expiry", 0))),
-                    })
-                    loaded += 1
-        except (json.JSONDecodeError, TypeError):
-            for line in raw.split("\n"):
-                line = line.strip()
-                if not line:
-                    continue
-                # Handle #HttpOnly_ prefix (Netscape format for HttpOnly cookies)
-                if line.startswith("#HttpOnly_"):
-                    line = line.replace("#HttpOnly_", "", 1)
-                elif line.startswith("#"):
-                    continue
-                parts = line.split("\t")
-                if len(parts) >= 7:
-                    domain = parts[0]
-                    if not domain.startswith("."):
-                        domain = "." + domain
-                    cookie = {
-                        "name": parts[5],
-                        "value": parts[6],
-                        "domain": domain,
-                        "path": parts[2] if parts[2] else "/",
-                    }
-                    # Column 3 = secure flag (TRUE/FALSE)
-                    if len(parts) > 3:
-                        cookie["secure"] = parts[3].upper() == "TRUE"
-                    # Column 4 = expires (unused, but passthrough for completeness)
-                    if len(parts) > 4 and parts[4].isdigit():
-                        cookie["expiry"] = int(parts[4])
-                    try:
-                        driver.add_cookie(cookie)
-                        loaded += 1
-                    except Exception as e:
-                        logger.warning(f"Failed to add cookie {parts[5]}: {e}")
-        logger.info(f"Cookies loaded ({loaded} from {(len(raw))} bytes)")
-    except Exception as e:
-        logger.warning(f"Failed to load cookies: {e}")
 
 # ---------------------------------------------------------------------------
 # Post driver
@@ -432,29 +351,8 @@ def run():
 # ---------------------------------------------------------------------------
 # Post driver globals (must be before any route that uses them)
 # ---------------------------------------------------------------------------
-_post_driver = None
+_playwright_ctx = None  # (pw, browser, context, page)
 _publish_lock = threading.Lock()
-
-def get_post_driver():
-    global _post_driver
-    if _post_driver is None:
-        d = init_driver(headless=True)
-        d.get("https://www.facebook.com/")
-        if COOKIES_PATH.exists():
-            load_cookies(d, COOKIES_PATH)
-        _post_driver = d
-        logger.info("Post driver created")
-    return _post_driver
-
-def close_post_driver():
-    global _post_driver
-    if _post_driver:
-        try:
-            _post_driver.quit()
-            logger.info("Post driver closed (memory freed)")
-        except Exception as e:
-            logger.warning(f"Error closing post driver: {e}")
-        _post_driver = None
 
 def resolve_spintax(text):
     while '{' in text:
@@ -464,128 +362,136 @@ def resolve_spintax(text):
         text = text[:m.start()] + random.choice(opts) + text[m.end():]
     return text
 
-def _extract_token_via_js(driver):
-    """Extract fb_dtsg or lsd token from the live DOM/JS context."""
-    try:
-        result = driver.execute_script("""
-            function extract() {
-                var el = document.querySelector('[name="fb_dtsg"]');
-                if (el && el.value) return 'fb_dtsg:' + el.value;
-                var lsd = document.querySelector('[name="lsd"]');
-                if (lsd && lsd.value) return 'lsd:' + lsd.value;
-                var scripts = document.querySelectorAll('script');
-                for (var i = 0; i < scripts.length; i++) {
-                    var t = scripts[i].textContent || '';
-                    if (t.indexOf('DTSGInitialData') !== -1 || t.indexOf('DTSGInitData') !== -1) {
-                        var m = t.match(/["']token["']\\s*:\\s*["']([^"']+)["']/);
-                        if (m) return 'fb_dtsg:' + m[1];
-                    }
-                }
-                if (window.__DTSGInitialData && window.__DTSGInitialData.token) {
-                    return 'fb_dtsg:' + window.__DTSGInitialData.token;
-                }
-                return null;
-            }
-            return extract();
-        """)
-        if result and ':' in result:
-            kind, token = result.split(':', 1)
-            return kind, token
-    except: pass
-    return None, None
+def get_playwright():
+    global _playwright_ctx
+    if _playwright_ctx is None:
+        pw, browser, context, page = _launch_playwright(headless=True, storage_state_path=STORAGE_STATE_PATH)
+        _playwright_ctx = (pw, browser, context, page)
+        logger.info("Playwright browser created")
+    return _playwright_ctx[3], _playwright_ctx[2]  # page, context
 
-def _extract_fb_dtsg(html):
-    for pat in [
-        r'name="fb_dtsg"[^>]+value="([^"]+)"',
-        r'"fb_dtsg":"([^"]+)"',
-        r'"DTSGInitialData"\s*:\s*{[^}]*"token"\s*:\s*"([^"]+)"',
-        r'"token"\s*:\s*"([^"]+)",\s*"async_get_token"',
-        r'"dtsg"\s*:\s*{[\s\S]*?"token"\s*:\s*"([^"]+)"',
-        r'"DTSG"\s*:\s*{[\s\S]*?"token"\s*:\s*"([^"]+)"',
-    ]:
-        m = re.search(pat, html)
-        if m:
-            return m.group(1)
-    return None
+def close_playwright():
+    global _playwright_ctx
+    if _playwright_ctx:
+        pw, browser, context, page = _playwright_ctx
+        try:
+            context.close()
+            browser.close()
+            pw.stop()
+            logger.info("Playwright closed (memory freed)")
+        except Exception as e:
+            logger.warning(f"Error closing Playwright: {e}")
+        _playwright_ctx = None
 
-def _save_debug_screenshot(driver, name):
+def _save_debug_screenshot(page, name):
     try:
         debug_dir = _DIR / "debug"
         debug_dir.mkdir(exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        driver.save_screenshot(str(debug_dir / f"{name}_{ts}.png"))
+        page.screenshot(path=str(debug_dir / f"{name}_{ts}.png"))
         with open(debug_dir / f"{name}_{ts}.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
+            f.write(page.content())
         logger.info(f"[Debug] Saved {name}_{ts}")
     except Exception as e:
         logger.warning(f"[Debug] Failed to save: {e}")
 
-def post_to_group_via_dom(driver, group_id, message, image_urls=None):
-    """Post to a Facebook group using Selenium DOM interaction with robust selector fallbacks."""
+def _find_composer(page):
+    """Find the composer element using multiple selector strategies."""
+    strategies = [
+        # 1. Direct contenteditable
+        ("css", "div[role='textbox'][contenteditable='true']:visible"),
+        ("css", "div.notranslate[contenteditable='true']:visible"),
+        # 2. By aria-label
+        ("css", "div[aria-label*='Escribe' i]:visible"),
+        ("css", "div[aria-label*='Write' i]:visible"),
+        ("css", "div[aria-label*='Crea' i]:visible"),
+        ("css", "div[aria-label*='Create' i]:visible"),
+        # 3. Any contenteditable
+        ("css", "[contenteditable='true']:visible"),
+    ]
+    for kind, sel in strategies:
+        try:
+            locator = page.locator(sel)
+            if locator.count() > 0 and locator.first.is_visible():
+                return locator.first
+        except:
+            continue
+    return None
+
+def _find_post_button(page):
+    """Find the Post/Publicar button using multiple selector strategies."""
+    strategies = [
+        # XPath selectors first (more flexible)
+        "//div[@role='button' and not(contains(@aria-disabled,'true')) and contains(text(),'Publicar')]",
+        "//div[@role='button' and not(contains(@aria-disabled,'true')) and contains(text(),'Post')]",
+        "//div[@role='button' and contains(text(),'Publicar')]",
+        "//div[@role='button' and contains(text(),'Post')]",
+        "//span[contains(text(),'Publicar')]",
+        "//*[contains(text(),'Publicar')]",
+        "//span[contains(text(),'Post')]",
+        # CSS selectors
+        "div[aria-label='Publicar']",
+        "div[aria-label='Post']",
+        "button[type='submit']",
+    ]
+    for sel in strategies:
+        try:
+            locator = page.locator(sel)
+            if locator.count() > 0:
+                return locator.first
+        except:
+            continue
+    return None
+
+def post_to_group_via_dom(page, context, group_id, message, image_urls=None):
+    """Post to a Facebook group using Playwright DOM interaction with robust selector fallbacks."""
     group_id = str(group_id).strip()
     logger.info(f"[DOM] Posting to group {group_id}")
 
-    # Navigate to the main site first, then the group
+    # Navigate to group
     for url in [
         "https://www.facebook.com/",
         f"https://www.facebook.com/groups/{group_id}/",
     ]:
         try:
-            driver.get(url)
-            time.sleep(2)
-        except TimeoutException:
+            page.goto(url, timeout=30000, wait_until="domcontentloaded")
+            page.wait_for_timeout(2000)
+        except Exception:
             pass
-    time.sleep(5)
+    page.wait_for_timeout(5000)
 
-    current_url = driver.current_url
-    page_title = driver.title[:80] if driver.title else ""
+    current_url = page.url
+    page_title = page.title()[:80]
     logger.info(f"[DOM] URL={current_url} title='{page_title}'")
 
     # If redirected to login, try refreshing
     if "/login" in current_url or "login" in current_url.lower():
         logger.warning("[DOM] Redirected to login, refreshing")
         try:
-            driver.get(f"https://www.facebook.com/groups/{group_id}/")
-            time.sleep(5)
-        except TimeoutException:
+            page.goto(f"https://www.facebook.com/groups/{group_id}/", timeout=30000, wait_until="domcontentloaded")
+            page.wait_for_timeout(5000)
+        except Exception:
             pass
-        current_url = driver.current_url
-        logger.info(f"[DOM] After refresh URL={current_url}")
-
-    # Helper to find composer quickly
-    def _find_composer_now():
-        for sel in [
-            "div[role='textbox'][contenteditable='true']",
-            "div.notranslate[contenteditable='true']",
-            "div[aria-label*='Escribe' i]",
-            "div[aria-label*='Write' i]",
-            "div[aria-label*='Crea' i]",
-            "div[aria-label*='Create' i]",
-            "[contenteditable='true']",
-        ]:
-            try:
-                el = driver.find_element(By.CSS_SELECTOR, sel)
-                if el and el.is_displayed():
-                    return el, sel
-            except:
-                continue
-        return None, None
+        logger.info(f"[DOM] After refresh URL={page.url}")
 
     composer = None
 
-    # Strategy A: quick find (immediate check, then wait)
-    composer, sel = _find_composer_now()
+    # Strategy A: quick find
+    composer = _find_composer(page)
     if composer:
-        logger.info(f"[DOM] Found composer via quick: {sel}")
-    else:
+        logger.info("[DOM] Found composer via quick find")
+
+    # Strategy B: wait for contenteditable
+    if not composer:
         try:
-            composer = WebDriverWait(driver, 8).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='textbox'][contenteditable='true'], [contenteditable='true']")))
-            logger.info("[DOM] Found composer via wait")
-        except:
+            page.wait_for_selector("div[role='textbox'][contenteditable='true'], [contenteditable='true']", timeout=8000)
+            composer = _find_composer(page)
+            if composer:
+                logger.info("[DOM] Found composer via wait")
+        except PlaywrightTimeout:
             pass
 
-    # Strategy B: click "Create Post" button
+    # Strategy C: click "Create Post" button
     if not composer:
         for btn_sel in [
             "//span[contains(text(),'Crear publicaci')]",
@@ -597,81 +503,76 @@ def post_to_group_via_dom(driver, group_id, message, image_urls=None):
             "//*[@aria-label='Crear publicaci' or @aria-label='Create post']",
         ]:
             try:
-                btn = driver.find_element(By.XPATH, btn_sel)
-                driver.execute_script("arguments[0].click();", btn)
-                time.sleep(2)
-                composer, sel = _find_composer_now()
-                if composer:
-                    logger.info(f"[DOM] Found composer after create-btn via: {sel}")
-                    break
+                btn = page.locator(btn_sel)
+                if btn.count() > 0:
+                    btn.first.click()
+                    page.wait_for_timeout(2000)
+                    composer = _find_composer(page)
+                    if composer:
+                        logger.info(f"[DOM] Found composer after create-btn click")
+                        break
             except:
                 continue
 
-    # Strategy C: open composer URL directly
+    # Strategy D: open composer URL directly
     if not composer:
         try:
-            driver.get(f"https://www.facebook.com/composer/?group_id={group_id}")
-            time.sleep(5)
-            composer, sel = _find_composer_now()
+            page.goto(f"https://www.facebook.com/composer/?group_id={group_id}", timeout=30000, wait_until="domcontentloaded")
+            page.wait_for_timeout(5000)
+            composer = _find_composer(page)
             if composer:
-                logger.info(f"[DOM] Found composer via direct URL: {sel}")
+                logger.info("[DOM] Found composer via direct URL")
         except:
             pass
 
-    # Strategy D: reload and try again
+    # Strategy E: reload and retry
     if not composer:
         try:
             logger.warning("[DOM] Reloading page and retrying composer")
-            driver.refresh()
-            time.sleep(6)
-            composer, sel = _find_composer_now()
+            page.reload(wait_until="domcontentloaded")
+            page.wait_for_timeout(6000)
+            composer = _find_composer(page)
             if composer:
-                logger.info(f"[DOM] Found composer after reload via: {sel}")
+                logger.info("[DOM] Found composer after reload")
         except:
             pass
 
-    # Strategy E: try navigating to posts tab
+    # Strategy F: navigate to recent activity tab
     if not composer:
         try:
-            driver.get(f"https://www.facebook.com/groups/{group_id}/?sorting_setting=RECENT_ACTIVITY")
-            time.sleep(5)
-            composer, sel = _find_composer_now()
+            page.goto(f"https://www.facebook.com/groups/{group_id}/?sorting_setting=RECENT_ACTIVITY", timeout=30000, wait_until="domcontentloaded")
+            page.wait_for_timeout(5000)
+            composer = _find_composer(page)
             if composer:
-                logger.info(f"[DOM] Found composer via posts tab: {sel}")
+                logger.info("[DOM] Found composer via posts tab")
         except:
             pass
 
     if not composer:
-        _save_debug_screenshot(driver, f"composer_not_found_{group_id}")
+        _save_debug_screenshot(page, f"composer_not_found_{group_id}")
         return {"success": False, "error": "composer not found"}
 
-    # 2. Type message via JavaScript (avoids Selenium element state issues)
+    # 2. Type message via JavaScript
     try:
         composer.click()
-        time.sleep(1)
+        page.wait_for_timeout(1000)
     except:
         pass
 
-    # Re-find the actual contenteditable after click (composer may have expanded)
-    try:
-        actual = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='textbox'][contenteditable='true']")))
-        if actual:
-            composer = actual
-    except:
-        pass
+    # Re-find composer after click (may have expanded)
+    composer = _find_composer(page) or composer
 
     msg = resolve_spintax(message)
     try:
-        driver.execute_script("arguments[0].focus(); arguments[0].innerText = arguments[1];", composer, msg)
+        page.evaluate("(el, text) => { el.focus(); el.innerText = text; }", composer, msg)
     except Exception as e:
         logger.warning(f"[DOM] JS innerText failed: {e}")
         try:
-            driver.execute_script("arguments[0].textContent = arguments[1];", composer, msg)
+            page.evaluate("(el, text) => { el.textContent = text; }", composer, msg)
         except Exception as e2:
             logger.warning(f"[DOM] JS textContent failed: {e2}")
             try:
-                composer.send_keys(msg)
+                composer.type(msg, delay=50)
             except Exception as e3:
                 return {"success": False, "error": f"cannot type message: {e3}"}
 
@@ -680,7 +581,7 @@ def post_to_group_via_dom(driver, group_id, message, image_urls=None):
     if image_urls:
         for i, url in enumerate(image_urls[:5]):
             try:
-                req = Request(url, headers={"User-Agent": CHROME_UA})
+                req = Request(url, headers={"User-Agent": PLAYWRIGHT_UA})
                 resp = urlopen(req, timeout=30)
                 data = resp.read()
                 ext = "jpg"
@@ -694,95 +595,72 @@ def post_to_group_via_dom(driver, group_id, message, image_urls=None):
                 logger.warning(f"[DOM] Image download failed: {e}")
 
         if temp_files:
-            file_input = None
-            for sel in [
-                "input[type='file']",
-                "input[name='photo']",
-                "input[accept*='image']",
-                "form input[type='file']",
-            ]:
-                try:
-                    file_input = driver.find_element(By.CSS_SELECTOR, sel)
-                    if file_input:
-                        logger.info(f"[DOM] Found file input via: {sel}")
-                        break
-                except:
-                    continue
+            uploaded = False
+            # Try direct file input set
+            try:
+                file_input = page.locator("input[type='file']").first
+                if file_input.count() > 0:
+                    file_input.set_input_files(temp_files)
+                    uploaded = True
+                    logger.info(f"[DOM] Uploaded {len(temp_files)} images via direct input")
+            except:
+                pass
 
-            if not file_input:
-                try:
-                    photo_btn = driver.find_element(By.XPATH,
-                        "//div[@role='button' and (@aria-label='Foto' or @aria-label='Photo' or @aria-label='Agregar foto' or @aria-label='Add photo' or @aria-label='Foto/video' or @aria-label='Photo/video')]")
-                    photo_btn.click()
-                    time.sleep(1)
-                    file_input = WebDriverWait(driver, 5).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='file']")))
-                except:
-                    pass
+            # Try clicking photo button then file chooser
+            if not uploaded:
+                for photo_sel in [
+                    "//div[@role='button' and (@aria-label='Foto' or @aria-label='Photo' or @aria-label='Agregar foto' or @aria-label='Add photo')]",
+                    "//div[@role='button' and (@aria-label='Foto/video' or @aria-label='Photo/video')]",
+                ]:
+                    try:
+                        photo_btn = page.locator(photo_sel).first
+                        if photo_btn.count() > 0:
+                            with page.expect_file_chooser() as fc_info:
+                                photo_btn.click()
+                            file_chooser = fc_info.value
+                            file_chooser.set_files(temp_files)
+                            uploaded = True
+                            logger.info(f"[DOM] Uploaded {len(temp_files)} images via file chooser")
+                            break
+                    except:
+                        continue
 
-            if file_input:
-                try:
-                    file_input.send_keys("\n".join(temp_files))
-                    logger.info(f"[DOM] Uploaded {len(temp_files)} images")
-                    time.sleep(3)
-                except Exception as e:
-                    logger.warning(f"[DOM] File upload failed: {e}")
+            if not uploaded:
+                logger.warning("[DOM] Could not upload images")
 
             for f in temp_files:
                 try: os.unlink(f)
                 except: pass
 
-    # 4. Click body to blur and trigger Post button appearance
+    # 4. Click body to blur and trigger Post button
     try:
-        driver.find_element(By.CSS_SELECTOR, "body").click()
-        time.sleep(1)
+        page.locator("body").click()
+        page.wait_for_timeout(1000)
     except:
         pass
 
     # 5. Click Post button
-    post_button = None
-    for sel in [
-        "//div[@role='button' and not(contains(@aria-disabled,'true')) and contains(text(),'Publicar')]",
-        "//div[@role='button' and not(contains(@aria-disabled,'true')) and contains(text(),'Post')]",
-        "//div[@role='button' and contains(text(),'Publicar')]",
-        "//div[@role='button' and contains(text(),'Post')]",
-        "//span[contains(text(),'Publicar')]",
-        "//*[contains(text(),'Publicar')]",
-        "//span[contains(text(),'Post')]",
-        "div[aria-label='Publicar']",
-        "div[aria-label='Post']",
-        "button[type='submit']",
-    ]:
-        try:
-            if sel.startswith("//"):
-                post_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, sel)))
-            else:
-                post_button = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, sel)))
-            if post_button:
-                logger.info(f"[DOM] Found post button via: {sel}")
-                break
-        except:
-            continue
+    post_button = _find_post_button(page)
 
     if not post_button:
-        # Last resort: press Enter on the composer
+        # Last resort: press Enter
         try:
             logger.info("[DOM] Trying Enter key as last resort")
-            composer.send_keys("\n")
-            time.sleep(3)
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(3000)
             return {"success": True}
         except:
             pass
-        _save_debug_screenshot(driver, f"post_btn_not_found_{group_id}")
+        _save_debug_screenshot(page, f"post_btn_not_found_{group_id}")
         return {"success": False, "error": "post button not found"}
 
     try:
         post_button.click()
         logger.info(f"[DOM] Post button clicked for group {group_id}")
-        time.sleep(3)
+        page.wait_for_timeout(3000)
         return {"success": True}
     except Exception as e:
-        _save_debug_screenshot(driver, f"post_click_failed_{group_id}")
+        _save_debug_screenshot(page, f"post_click_failed_{group_id}")
         return {"success": False, "error": f"click failed: {e}"}
 
 
@@ -809,11 +687,11 @@ def sync_config():
         return jsonify({"error": "invalid"}), 400
     save_config(data["groups"], data.get("scrape_interval_hours", 6), data.get("max_posts_per_group", 50), data.get("brightdata_api_key", ""))
     logger.info(f"Config received: {len(data['groups'])} groups")
-    cookies_txt = data.get("cookies_txt", "")
-    if cookies_txt:
-        with open(_DIR / "cookies.txt", "w") as f:
-            f.write(cookies_txt)
-        logger.info(f"Cookies updated from config push ({len(cookies_txt)} bytes)")
+    state_json = data.get("storage_state_json", "")
+    if state_json:
+        with open(STORAGE_STATE_PATH, "w") as f:
+            f.write(state_json)
+        logger.info(f"Storage state updated from config push ({len(state_json)} bytes)")
     if data.get("brightdata_api_key"):
         logger.info("Bright Data API key updated from config push")
     return jsonify({"ok": True})
@@ -831,15 +709,12 @@ def publish_to_groups():
     if not acquired:
         return jsonify({"error": "lock timeout — another publish in progress"}), 429
 
-    driver = None
+    pw = browser = context = page = None
     try:
-        driver = init_driver(headless=True)
-        driver.get("https://www.facebook.com/")
-        if COOKIES_PATH.exists():
-            load_cookies(driver, COOKIES_PATH)
-        driver.refresh()
-        time.sleep(3)
-        if not check_session(driver):
+        pw, browser, context, page = _launch_playwright(headless=True, storage_state_path=STORAGE_STATE_PATH)
+        page.goto("https://www.facebook.com/", timeout=30000, wait_until="domcontentloaded")
+        page.wait_for_timeout(3000)
+        if not check_session(page):
             return jsonify({"error": "session expired"}), 401
 
         results = []
@@ -849,7 +724,7 @@ def publish_to_groups():
                 results.append({"group_id": g.get("id"), "success": False, "error": "no group id"})
                 continue
             try:
-                result = post_to_group_via_dom(driver, gid, message, image_urls)
+                result = post_to_group_via_dom(page, context, gid, message, image_urls)
                 result["group_id"] = g.get("id")
                 results.append(result)
             except Exception as e:
@@ -864,8 +739,14 @@ def publish_to_groups():
         logger.error(f"Publish error: {e}\n{traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500
     finally:
-        if driver:
-            try: driver.quit()
+        if context:
+            try: context.close()
+            except: pass
+        if browser:
+            try: browser.close()
+            except: pass
+        if pw:
+            try: pw.stop()
             except: pass
         _publish_lock.release()
 
