@@ -439,10 +439,17 @@ def resolve_spintax(text):
     return text
 
 def _extract_fb_dtsg(html):
-    m = re.search(r'name="fb_dtsg"[^>]+value="([^"]+)"', html)
-    if m: return m.group(1)
-    m = re.search(r'"fb_dtsg":"([^"]+)"', html)
-    if m: return m.group(1)
+    for pat in [
+        r'name="fb_dtsg"[^>]+value="([^"]+)"',
+        r'"fb_dtsg":"([^"]+)"',
+        r'"DTSGInitialData"\s*:\s*{[^}]*"token"\s*:\s*"([^"]+)"',
+        r'"token"\s*:\s*"([^"]+)",\s*"async_get_token"',
+        r'"dtsg"\s*:\s*{[\s\S]*?"token"\s*:\s*"([^"]+)"',
+        r'"DTSG"\s*:\s*{[\s\S]*?"token"\s*:\s*"([^"]+)"',
+    ]:
+        m = re.search(pat, html)
+        if m:
+            return m.group(1)
     return None
 
 def post_to_group(driver, group_id, message, image_urls=None):
@@ -598,11 +605,27 @@ def publish_to_groups():
         driver.get("https://www.facebook.com/")
         if COOKIES_PATH.exists():
             load_cookies(driver, COOKIES_PATH)
+        driver.refresh()
+        time.sleep(3)
         if not check_session(driver):
             return jsonify({"error": "session expired"}), 401
         cookies = {c["name"]: c["value"] for c in driver.get_cookies()}
         html = driver.page_source
         fb_dtsg = _extract_fb_dtsg(html)
+        # Try composer page if token not on homepage
+        if not fb_dtsg:
+            for try_url in [
+                f"https://www.facebook.com/composer/?group_id={groups[0].get('fb_group_id') or groups[0].get('id')}",
+                "https://www.facebook.com/",
+            ]:
+                try:
+                    driver.get(try_url)
+                    time.sleep(3)
+                    html = driver.page_source
+                    fb_dtsg = _extract_fb_dtsg(html)
+                    if fb_dtsg: break
+                except: continue
+        logger.info(f"fb_dtsg token {'found' if fb_dtsg else 'NOT found'}")
     except Exception as e:
         logger.error(f"Failed to init session: {e}")
         return jsonify({"error": str(e)}), 500
