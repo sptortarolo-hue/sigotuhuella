@@ -33,6 +33,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import AdminConfirmDialog from '@/src/components/admin/AdminConfirmDialog';
 import UserDetailPanel from '@/src/components/admin/UserDetailPanel';
+import AdminMyPetDetail from '@/src/components/admin/AdminMyPetDetail';
 import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
 
 export default function Admin() {
@@ -116,6 +117,7 @@ export default function Admin() {
   const [selectedUserData, setSelectedUserData] = useState<any>(null);
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   const [selectedPetData, setSelectedPetData] = useState<any>(null);
+  const [selectedMyPetData, setSelectedMyPetData] = useState<any>(null);
   const [userRelationsLoading, setUserRelationsLoading] = useState(false);
   const [petRelationsLoading, setPetRelationsLoading] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'user' | 'pet'>('list');
@@ -572,7 +574,15 @@ export default function Admin() {
 
   const handleSelectPet = async (petId: string) => {
     setMobileView('pet');
+    setSelectedMyPetData(null);
     await fetchPetRelations(petId);
+  };
+
+  const handleSelectMyPet = (mp: any) => {
+    setMobileView('pet');
+    setSelectedPetData(null);
+    setSelectedPetId(null);
+    setSelectedMyPetData(mp);
   };
 
   const handleDeleteUser = async (id: string) => {
@@ -1264,6 +1274,7 @@ export default function Admin() {
                       <UserDetailPanel
                         data={selectedUserData}
                         onSelectPet={handleSelectPet}
+                        onSelectMyPet={handleSelectMyPet}
                       />
                       <div className="px-6 pb-6 flex gap-2">
                         {selectedUserData.user.email !== 'sptortarolo@gmail.com' && (
@@ -1295,6 +1306,10 @@ export default function Admin() {
                           if (selectedUserId !== userId) handleSelectUser(userId);
                         }}
                       />
+                    </div>
+                  ) : selectedMyPetData ? (
+                    <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
+                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} />
                     </div>
                   ) : (
                     <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-brand-accent h-full flex items-center justify-center">
@@ -1359,15 +1374,16 @@ export default function Admin() {
                   </div>
                 )}
 
-                {mobileView === 'user' && selectedUserData && (
+                  {mobileView === 'user' && selectedUserData && (
                   <div>
-                    <button onClick={() => { setMobileView('list'); setSelectedUserData(null); setSelectedUserId(null); setSelectedPetData(null); setSelectedPetId(null); }} className="flex items-center gap-2 text-sm text-brand-primary font-bold mb-4">
+                    <button onClick={() => { setMobileView('list'); setSelectedUserData(null); setSelectedUserId(null); setSelectedPetData(null); setSelectedPetId(null); setSelectedMyPetData(null); }} className="flex items-center gap-2 text-sm text-brand-primary font-bold mb-4">
                       ← Volver a usuarios
                     </button>
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent">
                       <UserDetailPanel
                         data={selectedUserData}
                         onSelectPet={handleSelectPet}
+                        onSelectMyPet={handleSelectMyPet}
                         isMobile
                         onClose={() => { setMobileView('list'); setSelectedUserData(null); setSelectedUserId(null); }}
                       />
@@ -1377,7 +1393,7 @@ export default function Admin() {
 
                 {mobileView === 'pet' && selectedPetData && (
                   <div>
-                    <button onClick={() => { setMobileView('user'); setSelectedPetData(null); setSelectedPetId(null); }} className="flex items-center gap-2 text-sm text-brand-primary font-bold mb-4">
+                    <button onClick={() => { setMobileView('user'); setSelectedPetData(null); setSelectedPetId(null); setSelectedMyPetData(null); }} className="flex items-center gap-2 text-sm text-brand-primary font-bold mb-4">
                       ← Volver al usuario
                     </button>
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent">
@@ -1389,6 +1405,17 @@ export default function Admin() {
                         }}
                         isMobile
                       />
+                    </div>
+                  </div>
+                )}
+
+                {mobileView === 'pet' && selectedMyPetData && (
+                  <div>
+                    <button onClick={() => { setMobileView('user'); setSelectedMyPetData(null); }} className="flex items-center gap-2 text-sm text-brand-primary font-bold mb-4">
+                      ← Volver al usuario
+                    </button>
+                    <div className="bg-white rounded-[2.5rem] border border-brand-accent">
+                      <AdminMyPetDetail pet={selectedMyPetData} isMobile />
                     </div>
                   </div>
                 )}
