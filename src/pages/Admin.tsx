@@ -860,7 +860,7 @@ export default function Admin() {
                       if (!petSearch.trim()) return true;
                       const q = petSearch.toLowerCase();
                       return (p.name && p.name.toLowerCase().includes(q)) || (p.location && p.location.toLowerCase().includes(q)) || (p.species && p.species.toLowerCase().includes(q)) || (p.breed && p.breed.toLowerCase().includes(q)) || (p.color && p.color.toLowerCase().includes(q));
-                    }).map(pet => (
+                    }                    ).map(pet => (
                       <div
                         key={pet.id}
                         onClick={() => fetchPetRelations(pet.id)}
@@ -869,12 +869,12 @@ export default function Admin() {
                           selectedPetId === pet.id && "bg-brand-primary/5"
                         )}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-brand-bg overflow-hidden shrink-0">
+                        <div className="flex items-start gap-3">
+                          <div className="w-16 h-16 rounded-xl bg-brand-bg overflow-hidden shrink-0">
                             {pet.images?.[0]?.image_data || pet.images?.[0]?.external_url ? (
                               <img src={pet.images[0].external_url || `data:${pet.images[0].mime_type || 'image/jpeg'};base64,${pet.images[0].image_data}`} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-5 h-5" /></div>
+                              <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-6 h-6" /></div>
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -892,6 +892,21 @@ export default function Admin() {
                               pet.status === 'lost' ? 'bg-red-100 text-red-700' :
                               'bg-amber-100 text-amber-700'
                             )}>{pet.status}</span>
+                            <div className="flex items-center gap-1 mt-2" onClick={e => e.stopPropagation()}>
+                              <button onClick={() => setSharePet(pet)} className="p-1.5 rounded-lg bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-md transition-all" title="Redes Sociales"><Share2 className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => editPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setConfirmDialog({ isOpen: true, title: 'Eliminar mascota', message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`, actionLabel: 'CONFIRMAR', variant: 'danger', onConfirm: async () => { await deletePet(pet.id); fetchPets(); setConfirmDialog(prev => ({ ...prev, isOpen: false })); } })} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => handleTrackPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Seguimiento"><Activity className="w-3.5 h-3.5" /></button>
+                              {pet.status === PetStatus.FOR_ADOPTION ? (
+                                <button onClick={async () => { if (confirm('¿Marcar como adoptada?')) { await updatePet(pet.id, { status: PetStatus.ADOPTED }); fetchPets(); } }} className="ml-auto p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Marcar adoptado"><Heart className="w-3.5 h-3.5" /></button>
+                              ) : pet.status === PetStatus.REUNITED ? (
+                                <span className="ml-auto text-[10px] px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 font-bold">Reencontrado</span>
+                              ) : pet.status === PetStatus.ADOPTED ? (
+                                <span className="ml-auto text-[10px] px-2 py-1 rounded-lg bg-purple-50 text-purple-600 font-bold">Adoptado</span>
+                              ) : (
+                                <button onClick={() => handleReencuentro(pet.id)} className="ml-auto p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Hubo reencuentro"><HeartHandshake className="w-3.5 h-3.5" /></button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
