@@ -438,6 +438,36 @@ def resolve_spintax(text):
         text = text[:m.start()] + random.choice(opts) + text[m.end():]
     return text
 
+def _extract_token_via_js(driver):
+    """Extract fb_dtsg or lsd token from the live DOM/JS context."""
+    try:
+        result = driver.execute_script("""
+            function extract() {
+                var el = document.querySelector('[name="fb_dtsg"]');
+                if (el && el.value) return 'fb_dtsg:' + el.value;
+                var lsd = document.querySelector('[name="lsd"]');
+                if (lsd && lsd.value) return 'lsd:' + lsd.value;
+                var scripts = document.querySelectorAll('script');
+                for (var i = 0; i < scripts.length; i++) {
+                    var t = scripts[i].textContent || '';
+                    if (t.indexOf('DTSGInitialData') !== -1 || t.indexOf('DTSGInitData') !== -1) {
+                        var m = t.match(/["']token["']\\s*:\\s*["']([^"']+)["']/);
+                        if (m) return 'fb_dtsg:' + m[1];
+                    }
+                }
+                if (window.__DTSGInitialData && window.__DTSGInitialData.token) {
+                    return 'fb_dtsg:' + window.__DTSGInitialData.token;
+                }
+                return null;
+            }
+            return extract();
+        """)
+        if result and ':' in result:
+            kind, token = result.split(':', 1)
+            return kind, token
+    except: pass
+    return None, None
+
 def _extract_fb_dtsg(html):
     for pat in [
         r'name="fb_dtsg"[^>]+value="([^"]+)"',
@@ -610,10 +640,14 @@ def publish_to_groups():
         if not check_session(driver):
             return jsonify({"error": "session expired"}), 401
         cookies = {c["name"]: c["value"] for c in driver.get_cookies()}
-        html = driver.page_source
-        fb_dtsg = _extract_fb_dtsg(html)
-        # Try composer page if token not on homepage
-        if not fb_dtsg:
+        # Extract token via JS (live DOM) with HTML fallback
+        kind, token = _extract_token_via_js(driver)
+        if not token:
+            html = driver.page_source
+            token = _extract_fb_dtsg(html)
+            if token:
+                kind = "fb_dtsg"
+        if not token:
             for try_url in [
                 f"https://www.facebook.com/composer/?group_id={groups[0].get('fb_group_id') or groups[0].get('id')}",
                 "https://www.facebook.com/",
@@ -621,11 +655,13 @@ def publish_to_groups():
                 try:
                     driver.get(try_url)
                     time.sleep(3)
-                    html = driver.page_source
-                    fb_dtsg = _extract_fb_dtsg(html)
-                    if fb_dtsg: break
+                    kind, token = _extract_token_via_js(driver)
+                    if token: break
                 except: continue
-        logger.info(f"fb_dtsg token {'found' if fb_dtsg else 'NOT found'}")
+        if not token:
+            logger.error("fb_dtsg / lsd token NOT found")
+            return jsonify({"error": "no CSRF token found"}), 500
+        logger.info(f"Token found: {kind} ({token[:8]}...)")
     except Exception as e:
         logger.error(f"Failed to init session: {e}")
         return jsonify({"error": str(e)}), 500
@@ -633,9 +669,6 @@ def publish_to_groups():
         try: driver.quit()
         except: pass
         _publish_lock.release()
-
-    if not fb_dtsg:
-        return jsonify({"error": "no fb_dtsg token"}), 500
 
     results = []
     s = requests.Session()
@@ -654,7 +687,7 @@ def publish_to_groups():
             results.append({"group_id": g.get("id"), "success": False, "error": "no group id"})
             continue
         try:
-            result = _post_via_session(s, fb_dtsg, gid, message, image_urls)
+            result = _post_via_session(s, token, gid, message, image_urls)
             result["group_id"] = g.get("id")
             results.append(result)
         except Exception as e:
@@ -665,7 +698,7 @@ def publish_to_groups():
         time.sleep(delay)
     return jsonify({"results": results})
 
-def _post_via_session(s, fb_dtsg, group_id, message, image_urls=None):
+def _post_via_session(s, csrf_token, group_id, message, image_urls=None):
     group_url = f"https://mbasic.facebook.com/groups/{group_id}/"
     resp = s.get(group_url, timeout=30)
     if "login" in resp.url.lower() or "/login" in resp.url:
@@ -684,8 +717,15 @@ def _post_via_session(s, fb_dtsg, group_id, message, image_urls=None):
     if not form_action:
         return {"success": False, "error": "no post form found"}
 
+    # Try to extract token from the mbasic page's own form
     form_fb_dtsg = _extract_fb_dtsg(resp.text)
-    data = {"fb_dtsg": form_fb_dtsg or fb_dtsg}
+    form_lsd = None
+    m = re.search(r'name="lsd"[^>]+value="([^"]+)"', resp.text)
+    if m: form_lsd = m.group(1)
+
+    data = {"fb_dtsg": form_fb_dtsg or csrf_token}
+    if form_lsd:
+        data["lsd"] = form_lsd
     data["message"] = resolve_spintax(message)
     data["submit"] = "Publicar"
 
