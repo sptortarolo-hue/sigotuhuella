@@ -428,6 +428,17 @@ app.get('/buscar-facebook', (_req, res) => {
 // Video generator admin routes
  app.use('/api/admin/videos', videoGeneratorRoutes);
 
+ // Multer / file upload error handler
+ app.use((err, _req, res, next) => {
+   if (err.code === 'LIMIT_FILE_SIZE') {
+     return res.status(400).json({ error: 'El archivo excede el límite de 512KB' });
+   }
+   if (err.type === 'entity.too.large') {
+     return res.status(413).json({ error: 'Solicitud demasiado grande' });
+   }
+   next(err);
+ });
+
  app.get('*', (_req, res) => {
   res.sendFile(join(__dirname, '..', 'dist', 'index.html'));
 });

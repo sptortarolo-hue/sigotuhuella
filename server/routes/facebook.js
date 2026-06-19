@@ -546,8 +546,14 @@ router.post('/classify/:id', requireAdmin, async (req, res) => {
 function parseCookiesInfo(filepath) {
   if (!existsSync(filepath)) return { exists: false, count: 0, expires: null };
   const content = readFileSync(filepath, 'utf-8');
-  const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('HttpOnly'));
-  const parsed = lines.map(l => l.split('\t')).filter(p => p.length >= 7);
+  const lines = content.split('\n').filter(l => {
+    const trimmed = l.trim();
+    if (!trimmed) return false;
+    // Allow #HttpOnly_ prefix (valid Netscape format), skip other comments
+    if (trimmed.startsWith('#') && !trimmed.startsWith('#HttpOnly_')) return false;
+    return true;
+  });
+  const parsed = lines.map(l => l.replace(/^#HttpOnly_/, '').split('\t')).filter(p => p.length >= 7);
   const expires = parsed
     .map(p => parseInt(p[4], 10))
     .filter(e => e > 0)
