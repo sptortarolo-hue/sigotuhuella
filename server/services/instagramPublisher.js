@@ -39,9 +39,12 @@ function buildPetCaption(pet, hashtags) {
 }
 
 function buildImageUrls(petId, imagesData) {
+  const count = (imagesData || []).length;
+  if (count <= 1) return [`${FRONTEND_URL}/api/images/pet/${petId}/cover`];
   return [
     `${FRONTEND_URL}/api/images/pet/${petId}/cover`,
-    ...(imagesData || []).slice(0, 9).map((_, i) => `${FRONTEND_URL}/api/images/pet/${petId}/${i}`),
+    ...Array(Math.min(count - 1, 9)).fill(null).map((_, i) =>
+      `${FRONTEND_URL}/api/images/pet/${petId}/${i}/insta`),
   ];
 }
 

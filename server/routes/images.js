@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import sharp from 'sharp';
 import pool from '../db.js';
 import { renderFlyer } from '../services/flyerRenderer.js';
 import { overlayStatus } from '../services/imageOverlay.js';
@@ -125,6 +126,37 @@ router.get('/pet/:petId/:index', async (req, res) => {
     }
   } catch (err) {
     console.error('Image serve error:', err);
+    res.status(500).end();
+  }
+});
+
+// Instagram-safe version: resizes to 1080×1350 (4:5) with white padding, no status overlay
+router.get('/pet/:petId/:index/insta', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT image_data, mime_type, external_url FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2',
+      [req.params.petId, parseInt(req.params.index) || 0]
+    );
+    if (result.rows.length === 0) return res.status(404).end();
+    const img = result.rows[0];
+    if (img.image_data) {
+      const buffer = Buffer.from(img.image_data, 'base64');
+      const resized = await sharp(buffer)
+        .resize(1080, 1350, { fit: 'contain', background: { r: 255, g: 255, b: 255 } })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+      res.set('Content-Type', 'image/jpeg');
+      res.set('Content-Length', resized.length);
+      res.set('Cache-Control', 'public, max-age=31536000, immutable');
+      res.set('Access-Control-Allow-Origin', '*');
+      res.end(resized);
+    } else if (img.external_url) {
+      res.redirect(302, img.external_url);
+    } else {
+      res.status(404).end();
+    }
+  } catch (err) {
+    console.error('Image insta resize error:', err);
     res.status(500).end();
   }
 });
