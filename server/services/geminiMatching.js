@@ -386,7 +386,9 @@ export async function processImageCaption(caption, imageData, imageMime) {
       ],
       temperature: 0,
     });
-    const parsed = JSON.parse(result.choices[0]?.message?.content || '{}');
+    let raw = result.choices[0]?.message?.content || '{}';
+    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const parsed = JSON.parse(raw);
     return {
       intent: parsed.intent || 'unclear',
       location: parsed.location || null,
@@ -457,9 +459,10 @@ export async function classifyTextIntent(text) {
       max_tokens: 10,
       temperature: 0,
     });
-    const response = (result.choices[0]?.message?.content || '').trim().toLowerCase();
+    let raw = (result.choices[0]?.message?.content || '').trim();
+    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim().toLowerCase();
     const valid = ['lost', 'found', 'sighted', 'adopt', 'volunteer', 'donate', 'info_qr', 'report_from_fb', 'human', 'greeting', 'other'];
-    return valid.includes(response) ? response : null;
+    return valid.includes(raw) ? raw : null;
   } catch (err) {
     console.error('Groq classifyTextIntent error:', err);
     return null;
