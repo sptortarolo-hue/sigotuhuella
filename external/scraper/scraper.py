@@ -19,6 +19,7 @@ import logging
 import os
 import random
 import re
+import sqlite3
 import sys
 import threading
 import time
