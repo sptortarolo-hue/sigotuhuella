@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X, User, Mail, Phone, Calendar, Shield, Award, PawPrint, MessageSquare,
@@ -253,13 +253,14 @@ export default function UserDetailPanel({ data, onSelectPet, isMobile, onClose }
             myPets.map((mp: any) => (
               <div
                 key={mp.id}
-                className="border border-brand-accent rounded-2xl p-4"
+                onClick={() => onSelectPet?.(mp.id)}
+                className="border border-brand-accent rounded-2xl p-4 hover:shadow-sm transition-shadow cursor-pointer"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-brand-bg overflow-hidden shrink-0">
-                    {mp.photos?.[0]?.image_data ? (
+                    {mp.avatar_image || mp.photos?.[0]?.image_data ? (
                       <img
-                        src={`data:${mp.photos[0].mime_type || 'image/jpeg'};base64,${mp.photos[0].image_data}`}
+                        src={mp.avatar_image ? `data:${mp.avatar_mime_type || 'image/jpeg'};base64,${mp.avatar_image}` : `data:${mp.photos[0].mime_type || 'image/jpeg'};base64,${mp.photos[0].image_data}`}
                         alt=""
                         className="w-full h-full object-cover"
                       />
@@ -286,6 +287,7 @@ export default function UserDetailPanel({ data, onSelectPet, isMobile, onClose }
                       {mp.birth_date && <span className="text-[10px] text-gray-400">Nac: {new Date(mp.birth_date).toLocaleDateString()}</span>}
                     </div>
                   </div>
+                  <ChevronRight className="w-5 h-5 text-gray-300 shrink-0" />
                 </div>
               </div>
             ))
@@ -402,3 +404,5 @@ export default function UserDetailPanel({ data, onSelectPet, isMobile, onClose }
     </div>
   );
 }
+
+
