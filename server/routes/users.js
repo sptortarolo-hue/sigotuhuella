@@ -286,6 +286,17 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
       };
     }));
 
+    const myPetsRes = await pool.query(
+      `SELECT mp.*,
+        COALESCE(json_agg(json_build_object('id', mpp.id, 'image_data', mpp.image_data, 'mime_type', mpp.mime_type, 'caption', mpp.caption) ORDER BY mpp.created_at) FILTER (WHERE mpp.id IS NOT NULL), '[]') as photos
+      FROM my_pets mp
+      LEFT JOIN my_pet_photos mpp ON mpp.my_pet_id = mp.id
+      WHERE mp.user_id = $1
+      GROUP BY mp.id
+      ORDER BY mp.created_at DESC`,
+      [userId]
+    );
+
     const statsRes = await pool.query(
       `SELECT
         COUNT(*) FILTER (WHERE TRUE) AS total_reports,
@@ -301,6 +312,7 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
       user,
       volunteer_request: volRes.rows[0] || null,
       conversations,
+      myPets: myPetsRes.rows,
       pets: petsWithRelations,
       stats: {
         total_reports: parseInt(statsRes.rows[0].total_reports) || 0,

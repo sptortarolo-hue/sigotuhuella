@@ -88,8 +88,8 @@ interface UserDetailPanelProps {
 }
 
 export default function UserDetailPanel({ data, onSelectPet, isMobile, onClose }: UserDetailPanelProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'info' | 'pets' | 'activity'>('info');
-  const { user, volunteer_request, conversations, pets, stats } = data;
+  const [activeSubTab, setActiveSubTab] = useState<'info' | 'myPets' | 'reported' | 'activity'>('info');
+  const { user, volunteer_request, conversations, myPets, pets, stats } = data;
 
   const avatarSrc = user.avatar_data
     ? `data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`
@@ -145,7 +145,8 @@ export default function UserDetailPanel({ data, onSelectPet, isMobile, onClose }
       <div className="flex border-b border-brand-accent gap-0">
         {[
           { id: 'info', label: 'Info' },
-          { id: 'pets', label: `Mascotas (${pets.length})` },
+          { id: 'myPets', label: `Mis Mascotas (${(myPets || []).length})` },
+          { id: 'reported', label: `Reportadas (${pets.length})` },
           { id: 'activity', label: 'Actividad' },
         ].map(tab => (
           <button
@@ -243,8 +244,57 @@ export default function UserDetailPanel({ data, onSelectPet, isMobile, onClose }
         </div>
       )}
 
-      {/* Pets tab */}
-      {activeSubTab === 'pets' && (
+      {/* My Pets tab */}
+      {activeSubTab === 'myPets' && (
+        <div className="space-y-3">
+          {(!myPets || myPets.length === 0) ? (
+            <p className="text-gray-400 text-sm text-center py-8">No tiene mascotas en su perfil</p>
+          ) : (
+            myPets.map((mp: any) => (
+              <div
+                key={mp.id}
+                className="border border-brand-accent rounded-2xl p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-brand-bg overflow-hidden shrink-0">
+                    {mp.photos?.[0]?.image_data ? (
+                      <img
+                        src={`data:${mp.photos[0].mime_type || 'image/jpeg'};base64,${mp.photos[0].image_data}`}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-300">
+                        <PawPrint className="w-5 h-5" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-brand-primary truncate">{mp.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase bg-brand-primary/10 text-brand-primary">
+                        {mp.species === 'dog' ? 'Perro' : mp.species === 'cat' ? 'Gato' : mp.species}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                      {mp.breed && <span>{mp.breed}</span>}
+                      {mp.color && <span>{mp.color}</span>}
+                      <span className="shrink-0">{new Date(mp.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {mp.gender && <span className="text-[10px] text-gray-400">{mp.gender}</span>}
+                      {mp.birth_date && <span className="text-[10px] text-gray-400">Nac: {new Date(mp.birth_date).toLocaleDateString()}</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Reported pets tab */}
+      {activeSubTab === 'reported' && (
         <div className="space-y-3">
           {pets.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-8">No tiene mascotas registradas</p>
