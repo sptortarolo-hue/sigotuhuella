@@ -446,63 +446,15 @@ def post_to_group(driver, group_id, message, image_urls=None):
             EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='main'], div[role='feed']"))
         )
 
-        # Click composer
-        composer_xpaths = [
-            "//div[@role='button']//span[text()='Write something…']/..",
-            "//div[@role='button']//span[text()='Escribe algo…']/..",
-            "//div[@role='button']//span[text()='Write something']/..",
-            "//div[@role='button']//span[text()='Escribe algo']/..",
-            "//div[@role='button'][contains(.,'Write something')]",
-            "//div[@role='button'][contains(.,'Escribe algo')]",
-            "//div[@role='button'][contains(.,'Crear publicación')]",
-            "//div[@role='button'][contains(.,'Create a post')]",
-            "//div[@aria-label*='Write something']",
-            "//div[@aria-label*='Escribe algo']",
-            "//div[@aria-label*='Crear publicación']",
-            "//div[@aria-label*='Create a post']",
-            "//div[@aria-label*='What'][@role='button']",
-            "//div[@aria-label*='Qué'][@role='button']",
-            "//span[contains(text(),'Write something')]/ancestor::div[@role='button']",
-            "//span[contains(text(),'Escribe algo')]/ancestor::div[@role='button']",
-            "//span[contains(text(),'What')]/ancestor::div[@role='button']",
-            "//h2[contains(.,'Crear publicación')]/ancestor::div[@role='button']",
-        ]
-        composer = None
-        for xp in composer_xpaths:
-            try:
-                el = driver.find_element(By.XPATH, xp)
-                if el.is_displayed():
-                    composer = el
-                    break
-            except: continue
-        if not composer:
-            try:
-                composer = driver.find_element(By.XPATH, "//div[@role='button'][.//span[contains(text(),'Publicar')] or .//span[contains(text(),'Post')]]")
-            except: pass
-        if not composer:
-            try:
-                composer = driver.execute_script("return document.querySelector('[role=button][contenteditable], [aria-label*=publicación i], [aria-label*=post i]');")
-            except: pass
-        if not composer:
-            logger.warning(f"composer not found for group {group_id}")
-            return {"success": False, "error": "composer not found"}
-        driver.execute_script("arguments[0].click();", composer)
-        time.sleep(2)
-
-        # Find text editor
-        editor_xpaths = [
+        # Try to find an already-visible contenteditable (direct editor, no composer click needed)
+        editor = None
+        for xp in [
             "//div[@role='textbox'][@contenteditable='true']",
-            "//div[contains(@aria-label,'Write something')][@contenteditable='true']",
-            "//div[contains(@aria-label,'Escribe algo')][@contenteditable='true']",
-            "//div[contains(@aria-label,'What')][@contenteditable='true']",
-            "//div[contains(@aria-label,'Qué')][@contenteditable='true']",
             "//div[@contenteditable='true']//p",
             "//div[@contenteditable='true']",
             "//div[@aria-label*='publicación']//div[@contenteditable='true']",
             "//div[@aria-label*='post']//div[@contenteditable='true']",
-        ]
-        editor = None
-        for xp in editor_xpaths:
+        ]:
             try:
                 el = driver.find_element(By.XPATH, xp)
                 if el.is_displayed():
@@ -513,9 +465,77 @@ def post_to_group(driver, group_id, message, image_urls=None):
             try:
                 editor = driver.execute_script("return document.querySelector('[contenteditable=true]');")
             except: pass
+
         if not editor:
-            logger.warning(f"editor not found for group {group_id}")
-            return {"success": False, "error": "editor not found"}
+            # Click composer first
+            composer_xpaths = [
+                "//div[@role='button']//span[text()='Write something…']/..",
+                "//div[@role='button']//span[text()='Escribe algo…']/..",
+                "//div[@role='button']//span[text()='Write something']/..",
+                "//div[@role='button']//span[text()='Escribe algo']/..",
+                "//div[@role='button'][contains(.,'Write something')]",
+                "//div[@role='button'][contains(.,'Escribe algo')]",
+                "//div[@role='button'][contains(.,'Crear publicación')]",
+                "//div[@role='button'][contains(.,'Create a post')]",
+                "//div[@aria-label*='Write something']",
+                "//div[@aria-label*='Escribe algo']",
+                "//div[@aria-label*='Crear publicación']",
+                "//div[@aria-label*='Create a post']",
+                "//div[@aria-label*='What'][@role='button']",
+                "//div[@aria-label*='Qué'][@role='button']",
+                "//span[contains(text(),'Write something')]/ancestor::div[@role='button']",
+                "//span[contains(text(),'Escribe algo')]/ancestor::div[@role='button']",
+                "//span[contains(text(),'What')]/ancestor::div[@role='button']",
+                "//h2[contains(.,'Crear publicación')]/ancestor::div[@role='button']",
+            ]
+            composer = None
+            for xp in composer_xpaths:
+                try:
+                    el = driver.find_element(By.XPATH, xp)
+                    if el.is_displayed():
+                        composer = el
+                        break
+                except: continue
+            if not composer:
+                for sel in [
+                    "[role=button] [aria-label*=publicación], [role=button] [aria-label*=post i]",
+                    "[aria-label*=publicación i], [aria-label*=post i]",
+                ]:
+                    try:
+                        composer = driver.execute_script(f"return document.querySelector('{sel}');")
+                        if composer: break
+                    except: pass
+            if not composer:
+                logger.warning(f"composer not found for group {group_id}")
+                return {"success": False, "error": "composer not found"}
+            driver.execute_script("arguments[0].click();", composer)
+            time.sleep(3)
+
+            # Find editor after composer click
+            for xp in [
+                "//div[@role='textbox'][@contenteditable='true']",
+                "//div[contains(@aria-label,'Write something')][@contenteditable='true']",
+                "//div[contains(@aria-label,'Escribe algo')][@contenteditable='true']",
+                "//div[contains(@aria-label,'What')][@contenteditable='true']",
+                "//div[contains(@aria-label,'Qué')][@contenteditable='true']",
+                "//div[@contenteditable='true']//p",
+                "//div[@contenteditable='true']",
+                "//div[@aria-label*='publicación']//div[@contenteditable='true']",
+                "//div[@aria-label*='post']//div[@contenteditable='true']",
+            ]:
+                try:
+                    el = driver.find_element(By.XPATH, xp)
+                    if el.is_displayed():
+                        editor = el
+                        break
+                except: continue
+            if not editor:
+                try:
+                    editor = driver.execute_script("return document.querySelector('[contenteditable=true]');")
+                except: pass
+            if not editor:
+                logger.warning(f"editor not found for group {group_id}")
+                return {"success": False, "error": "editor not found"}
 
         msg = resolve_spintax(message)
         driver.execute_script("arguments[0].innerText = arguments[1];", editor, msg)
