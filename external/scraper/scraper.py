@@ -639,7 +639,11 @@ def publish_to_groups():
         time.sleep(3)
         if not check_session(driver):
             return jsonify({"error": "session expired"}), 401
+        # Visit mbasic to get subdomain-specific cookies
+        driver.get("https://mbasic.facebook.com/")
+        time.sleep(2)
         cookies = {c["name"]: c["value"] for c in driver.get_cookies()}
+        logger.info(f"Cookies loaded ({len(cookies)} total)")
         # Extract token via JS (live DOM) with HTML fallback
         kind, token = _extract_token_via_js(driver)
         if not token:
@@ -785,22 +789,37 @@ def _post_via_graphql(s, csrf_token, group_id, message, image_urls=None):
         if text.startswith("for (;;);"):
             text = text[9:]
         result = json.loads(text)
+        logger.info(f"GraphQL response for group {group_id}: type={type(result).__name__} val={str(result)[:200]}")
         if isinstance(result, dict):
             if result.get("data") and result["data"].get("story_create"):
                 story = result["data"]["story_create"].get("story", {})
                 post_id = story.get("id") or story.get("legacy_story_id", "")
                 logger.info(f"GraphQL posted OK group {group_id}, post_id={post_id}")
                 return {"success": True, "post_id": post_id}
-            error_msg = (result.get("error", {}) or {}).get("message", "") or (result.get("errors") or [{}])[0].get("message", "")
+            error_msg = _get_graphql_error(result)
             if error_msg:
-                logger.warning(f"GraphQL failed group {group_id}: {error_msg[:200]}")
-                return {"success": False, "error": f"GraphQL: {error_msg[:200]}"}
-        # result is an int/bool (Facebook throttled/ack response)
-        logger.warning(f"GraphQL non-dict response for group {group_id}: {type(result).__name__}={result}")
-        return {"success": False, "error": f"GraphQL: non-dict response ({result})"}
+                logger.warning(f"GraphQL failed group {group_id}: {error_msg}")
+                return {"success": False, "error": f"GraphQL: {error_msg}"}
+        return {"success": False, "error": f"GraphQL: unexpected response ({type(result).__name__})"}
     except Exception as e:
         logger.error(f"GraphQL POST failed group {group_id}: {e}")
         return {"success": False, "error": str(e)}
+
+def _get_graphql_error(result):
+    """Safely extract error message from a GraphQL response dict."""
+    if not isinstance(result, dict):
+        return ""
+    err = result.get("error")
+    if isinstance(err, dict):
+        msg = err.get("message", "")
+        if msg:
+            return msg[:200]
+    errors = result.get("errors")
+    if isinstance(errors, list) and len(errors) > 0 and isinstance(errors[0], dict):
+        msg = errors[0].get("message", "")
+        if msg:
+            return msg[:200]
+    return ""
 
 def _clamp_interval(h):
     return max(1, min(24, int(h or 6)))
