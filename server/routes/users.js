@@ -297,6 +297,13 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
       [userId]
     );
 
+    const myPets = myPetsRes.rows.map(mp => ({
+      ...mp,
+      photos: mp.avatar_image
+        ? [{ id: 'avatar', image_data: mp.avatar_image, mime_type: mp.avatar_mime_type || 'image/jpeg', caption: null }, ...(mp.photos || [])]
+        : (mp.photos || []),
+    }));
+
     const statsRes = await pool.query(
       `SELECT
         COUNT(*) FILTER (WHERE TRUE) AS total_reports,
@@ -312,7 +319,7 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
       user,
       volunteer_request: volRes.rows[0] || null,
       conversations,
-      myPets: myPetsRes.rows,
+      myPets,
       pets: petsWithRelations,
       stats: {
         total_reports: parseInt(statsRes.rows[0].total_reports) || 0,

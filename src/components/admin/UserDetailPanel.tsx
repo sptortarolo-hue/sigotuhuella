@@ -2,7 +2,8 @@
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X, User, Mail, Phone, Calendar, Shield, Award, PawPrint, MessageSquare,
-  BadgeCheck, MapPin, Activity, ExternalLink, ChevronRight, ChevronDown
+  BadgeCheck, MapPin, Activity, ExternalLink, ChevronRight, ChevronDown,
+  ArrowLeft, Syringe, Heart, Droplet
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { BADGE_CONFIG } from '@/src/components/MemberCard';
@@ -89,6 +90,7 @@ interface UserDetailPanelProps {
 
 export default function UserDetailPanel({ data, onSelectPet, isMobile, onClose }: UserDetailPanelProps) {
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'myPets' | 'reported' | 'activity'>('info');
+  const [selectedMyPet, setSelectedMyPet] = useState<any>(null);
   const { user, volunteer_request, conversations, myPets, pets, stats } = data;
 
   const avatarSrc = user.avatar_data
@@ -245,7 +247,100 @@ export default function UserDetailPanel({ data, onSelectPet, isMobile, onClose }
       )}
 
       {/* My Pets tab */}
-      {activeSubTab === 'myPets' && (
+      {activeSubTab === 'myPets' && selectedMyPet ? (
+        <div className="space-y-4">
+          <button onClick={() => setSelectedMyPet(null)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
+            <ArrowLeft className="w-4 h-4" /> Volver a mascotas
+          </button>
+          <div className="border border-brand-accent rounded-2xl p-5">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-20 h-20 rounded-2xl bg-brand-bg overflow-hidden shrink-0">
+                {selectedMyPet.avatar_image || selectedMyPet.photos?.[0]?.image_data ? (
+                  <img src={selectedMyPet.avatar_image ? `data:${selectedMyPet.avatar_mime_type || 'image/jpeg'};base64,${selectedMyPet.avatar_image}` : `data:${selectedMyPet.photos[0].mime_type || 'image/jpeg'};base64,${selectedMyPet.photos[0].image_data}`} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-8 h-8" /></div>
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-lg text-brand-primary">{selectedMyPet.name}</h3>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase bg-brand-primary/10 text-brand-primary">
+                    {selectedMyPet.species === 'dog' ? 'Perro' : selectedMyPet.species === 'cat' ? 'Gato' : selectedMyPet.species}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mt-1">
+                  {selectedMyPet.breed && <span>Raza: {selectedMyPet.breed}</span>}
+                  {selectedMyPet.color && <span>Color: {selectedMyPet.color}</span>}
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mt-1">
+                  {selectedMyPet.gender && <span>Sexo: {selectedMyPet.gender}</span>}
+                  {selectedMyPet.birth_date && <span>Nac: {new Date(selectedMyPet.birth_date).toLocaleDateString()}</span>}
+                  {selectedMyPet.weight_kg && <span>Peso: {selectedMyPet.weight_kg} kg</span>}
+                </div>
+              </div>
+            </div>
+
+            {selectedMyPet.bio && (
+              <div className="mb-4">
+                <h4 className="text-xs font-bold text-gray-500 uppercase mb-1">Biografía</h4>
+                <p className="text-sm text-gray-600">{selectedMyPet.bio}</p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-brand-bg/50 rounded-xl p-3">
+                <Syringe className="w-4 h-4 text-brand-primary" />
+                <span>{selectedMyPet.is_vaccinated ? 'Vacunado' : 'No vacunado'}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-brand-bg/50 rounded-xl p-3">
+                <Heart className="w-4 h-4 text-brand-primary" />
+                <span>{selectedMyPet.is_sterilized ? 'Esterilizado' : 'No esterilizado'}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-brand-bg/50 rounded-xl p-3">
+                <Droplet className="w-4 h-4 text-brand-primary" />
+                <span>{selectedMyPet.is_dewormed ? 'Desparasitado' : 'No desparasitado'}</span>
+              </div>
+              {selectedMyPet.chip_id && (
+                <div className="flex items-center gap-2 text-xs text-gray-500 bg-brand-bg/50 rounded-xl p-3">
+                  <span className="text-brand-primary font-bold">🐾</span>
+                  <span>Chip: {selectedMyPet.chip_id}</span>
+                </div>
+              )}
+            </div>
+
+            {selectedMyPet.personality_tags?.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-xs font-bold text-gray-500 uppercase mb-1">Personalidad</h4>
+                <div className="flex flex-wrap gap-1">
+                  {selectedMyPet.personality_tags.map((tag: string, i: number) => (
+                    <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-brand-primary/5 text-brand-primary">{tag}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedMyPet.photos?.filter((p: any) => p.id !== 'avatar').length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold text-gray-500 uppercase mb-1">Fotos adicionales</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {selectedMyPet.photos.filter((p: any) => p.id !== 'avatar').map((photo: any) => (
+                    <div key={photo.id} className="aspect-square rounded-xl overflow-hidden bg-brand-bg">
+                      <img src={`data:${photo.mime_type || 'image/jpeg'};base64,${photo.image_data}`} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedMyPet.qr_code && (
+              <div className="mt-4 p-3 bg-brand-bg/50 rounded-xl text-center">
+                <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Código QR</p>
+                <img src={`data:image/png;base64,${selectedMyPet.qr_code}`} alt="QR" className="w-24 h-24 mx-auto" />
+              </div>
+            )}
+          </div>
+        </div>
+      ) : activeSubTab === 'myPets' && (
         <div className="space-y-3">
           {(!myPets || myPets.length === 0) ? (
             <p className="text-gray-400 text-sm text-center py-8">No tiene mascotas en su perfil</p>
@@ -253,7 +348,7 @@ export default function UserDetailPanel({ data, onSelectPet, isMobile, onClose }
             myPets.map((mp: any) => (
               <div
                 key={mp.id}
-                onClick={() => onSelectPet?.(mp.id)}
+                onClick={() => setSelectedMyPet(mp)}
                 className="border border-brand-accent rounded-2xl p-4 hover:shadow-sm transition-shadow cursor-pointer"
               >
                 <div className="flex items-center gap-3">
