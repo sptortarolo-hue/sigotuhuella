@@ -278,16 +278,22 @@ def init_driver(headless=True):
         options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-backgrounding-occluded-windows")
+    options.add_argument("--disable-component-update")
+    options.add_argument("--disable-sync")
+    options.add_argument("--window-size=1280,720")
     options.add_argument(f"user-agent={CHROME_UA}")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
-    driver.set_page_load_timeout(180)
-    driver.set_script_timeout(30)
-    driver.implicitly_wait(10)
+    driver.set_page_load_timeout(60)
+    driver.set_script_timeout(20)
+    driver.implicitly_wait(5)
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
         "source": "Object.defineProperty(navigator, 'webdriver', { get: () => false })"
     })
@@ -415,8 +421,11 @@ def get_post_driver():
 def close_post_driver():
     global _post_driver
     if _post_driver:
-        try: _post_driver.quit()
-        except Exception: pass
+        try:
+            _post_driver.quit()
+            logger.info("Post driver closed (memory freed)")
+        except Exception as e:
+            logger.warning(f"Error closing post driver: {e}")
         _post_driver = None
 
 def resolve_spintax(text):
@@ -602,28 +611,32 @@ def publish_to_groups():
     if not groups or not message:
         return jsonify({"error": "groups and message required"}), 400
     results = []
-    with _post_driver_lock:
-        try:
-            driver = get_post_driver()
-            if not driver:
-                return jsonify({"error": "no driver"}), 500
-            # Ensure session is valid
-            if not check_session(driver):
-                return jsonify({"error": "session expired"}), 401
-            for g in groups:
-                gid = g.get("fb_group_id") or g.get("id")
-                if not gid:
-                    results.append({"group_id": g.get("id"), "success": False, "error": "no group id"})
-                    continue
-                result = post_to_group(driver, gid, message, image_urls)
-                result["group_id"] = g.get("id")
-                results.append(result)
-                delay = random.uniform(30, 60)
-                logger.info(f"Waiting {delay:.0f}s before next group")
-                time.sleep(delay)
-        except Exception as e:
-            logger.error(f"publish-to-groups error: {e}")
-            return jsonify({"error": str(e)}), 500
+    acquired = _post_driver_lock.acquire(timeout=120)
+    if not acquired:
+        return jsonify({"error": "lock timeout — another publish in progress"}), 429
+    try:
+        driver = get_post_driver()
+        if not driver:
+            return jsonify({"error": "no driver"}), 500
+        if not check_session(driver):
+            close_post_driver()
+            return jsonify({"error": "session expired"}), 401
+        for g in groups:
+            gid = g.get("fb_group_id") or g.get("id")
+            if not gid:
+                results.append({"group_id": g.get("id"), "success": False, "error": "no group id"})
+                continue
+            result = post_to_group(driver, gid, message, image_urls)
+            result["group_id"] = g.get("id")
+            results.append(result)
+            delay = random.uniform(30, 60)
+            logger.info(f"Waiting {delay:.0f}s before next group")
+            time.sleep(delay)
+    except Exception as e:
+        logger.error(f"publish-to-groups error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        close_post_driver()
     return jsonify({"results": results})
 
 def _clamp_interval(h):
