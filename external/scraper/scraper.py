@@ -629,7 +629,7 @@ def publish_to_groups():
             result = post_to_group(driver, gid, message, image_urls)
             result["group_id"] = g.get("id")
             results.append(result)
-            delay = random.uniform(30, 60)
+            delay = random.uniform(10, 20)
             logger.info(f"Waiting {delay:.0f}s before next group")
             time.sleep(delay)
     except Exception as e:

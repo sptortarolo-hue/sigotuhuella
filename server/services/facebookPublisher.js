@@ -275,7 +275,7 @@ export async function publishToGroupsViaScraper(groups, message, imageUrls, petI
       groups,
       message,
       image_urls: imageUrls,
-    }, { timeout: 120000 });
+    }, { timeout: 900000 });
 
     const results = data.results || [];
 
