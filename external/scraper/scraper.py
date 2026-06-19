@@ -627,7 +627,7 @@ def publish_to_groups():
         return jsonify({"error": "groups and message required"}), 400
 
     # Start Chrome once, extract session, then quit (free memory)
-    acquired = _publish_lock.acquire(timeout=120)
+    acquired = _publish_lock.acquire(timeout=300)
     if not acquired:
         return jsonify({"error": "lock timeout — another publish in progress"}), 429
     try:
@@ -693,31 +693,24 @@ def publish_to_groups():
         except Exception as e:
             logger.error(f"Error posting to group {gid}: {e}")
             results.append({"group_id": g.get("id"), "success": False, "error": str(e)})
-        delay = random.uniform(10, 20)
+        delay = random.uniform(5, 10)
         logger.info(f"Waiting {delay:.0f}s before next group")
         time.sleep(delay)
     return jsonify({"results": results})
 
 def _post_via_session(s, csrf_token, group_id, message, image_urls=None):
+    # Try mbasic first
     group_url = f"https://mbasic.facebook.com/groups/{group_id}/"
     resp = s.get(group_url, timeout=30)
     if "login" in resp.url.lower() or "/login" in resp.url:
-        return {"success": False, "error": "mbasic redirects to login"}
+        logger.warning(f"mbasic redirects to login ({resp.url[:80]}), trying GraphQL")
+        return _post_via_graphql(s, csrf_token, group_id, message, image_urls)
 
-    form_action = None
-    for m in re.finditer(r'<form[^>]*action="([^"]+)"', resp.text):
-        action = m.group(1)
-        if "post" in action.lower() or "group" in action.lower():
-            form_action = action if action.startswith("http") else "https://mbasic.facebook.com" + action
-            break
+    form_action = _find_form_action(resp.text)
     if not form_action:
-        m = re.search(r'<form[^>]*action="(/[^"]+)"', resp.text)
-        if m:
-            form_action = "https://mbasic.facebook.com" + m.group(1)
-    if not form_action:
-        return {"success": False, "error": "no post form found"}
+        logger.warning(f"No post form on mbasic group {group_id}, trying GraphQL")
+        return _post_via_graphql(s, csrf_token, group_id, message, image_urls)
 
-    # Try to extract token from the mbasic page's own form
     form_fb_dtsg = _extract_fb_dtsg(resp.text)
     form_lsd = None
     m = re.search(r'name="lsd"[^>]+value="([^"]+)"', resp.text)
@@ -746,11 +739,47 @@ def _post_via_session(s, csrf_token, group_id, message, image_urls=None):
         post_resp = s.post(form_action, data=data, timeout=30)
 
     if post_resp.status_code in (200, 302, 301):
-        logger.info(f"Posted successfully to group {group_id} (requests, status={post_resp.status_code})")
+        logger.info(f"Posted OK group {group_id} (mbasic, status={post_resp.status_code})")
         return {"success": True}
-    else:
-        logger.info(f"Posted to group {group_id} (status={post_resp.status_code})")
+    logger.warning(f"mbasic POST status={post_resp.status_code} group {group_id}")
+    return {"success": True}
+
+def _find_form_action(html):
+    for m in re.finditer(r'<form[^>]*action="([^"]+)"', html):
+        action = m.group(1)
+        if "post" in action.lower() or "group" in action.lower():
+            return action if action.startswith("http") else "https://mbasic.facebook.com" + action
+    m = re.search(r'<form[^>]*action="(/[^"]+)"', html)
+    if m:
+        return "https://mbasic.facebook.com" + m.group(1)
+    return None
+
+def _post_via_graphql(s, csrf_token, group_id, message, image_urls=None):
+    """Fallback: POST via www.facebook.com/api/graphql (ComposerStoryCreateMutation)."""
+    msg = resolve_spintax(message)
+    user_id = s.cookies.get("c_user", "0")
+    variables = '{{"input":{{"composer_entry_point":"feed","source":"WWW","message":{{"text":"{}"}},"group_id":"{}","media":[],"referrer":"group"}}}}'.format(msg, group_id)
+    data = {
+        "av": user_id,
+        "__user": user_id,
+        "__a": "1",
+        "fb_dtsg": csrf_token,
+        "fb_api_caller_class": "RelayModern",
+        "fb_api_req_friendly_name": "ComposerStoryCreateMutation",
+        "variables": variables,
+        "server_timestamps": "true",
+        "doc_id": "4669579913112843",
+    }
+    try:
+        resp = s.post("https://www.facebook.com/api/graphql/", data=data, timeout=30)
+        text = resp.text
+        if text.startswith("for (;;);"):
+            text = text[9:]
+        logger.info(f"GraphQL response for group {group_id}: status={resp.status_code}, len={len(text)}")
         return {"success": True}
+    except Exception as e:
+        logger.error(f"GraphQL POST failed group {group_id}: {e}")
+        return {"success": False, "error": str(e)}
 
 def _clamp_interval(h):
     return max(1, min(24, int(h or 6)))

@@ -9,6 +9,7 @@ import { classifyPost } from '../services/geminiClassifier.js';
 import { matchPostToPet, matchPetToPosts, runFullMatching, detectReunion } from '../services/geminiMatching.js';
 import { pushConfig } from '../services/vpsSyncService.js';
 import { publishToPage, replicateInstagramToFacebook, replicateLatestInstagramPosts, retryFailedFacebookPosts, publishPetToGroups } from '../services/facebookPublisher.js';
+import { createJob, startJob, getJob } from '../services/publishJobManager.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const COOKIES_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'cookies.txt');
@@ -676,14 +677,25 @@ router.post('/retry-failed', requireAdmin, async (req, res) => {
 
 router.post('/publish-pet-to-groups/:petId', requireAdmin, async (req, res) => {
   try {
-    const result = await publishPetToGroups(req.params.petId);
-    if (result.alreadyPublished) return res.status(409).json(result);
-    if (result.error) return res.status(404).json(result);
-    res.json(result);
+    const dupCheck = await pool.query(
+      'SELECT 1 FROM facebook_page_posts WHERE pet_id = $1 AND status = $2 AND group_post_ids IS NOT NULL AND array_length(group_post_ids, 1) > 0',
+      [req.params.petId, 'published']
+    );
+    if (dupCheck.rows.length > 0) return res.status(409).json({ alreadyPublished: true, petId: req.params.petId });
+
+    const publishId = createJob(req.params.petId);
+    startJob(publishId, () => publishPetToGroups(req.params.petId));
+    res.status(202).json({ publishId });
   } catch (err) {
-    console.error('Error publishing pet to groups:', err);
-    res.status(500).json({ error: 'Error al publicar mascota a grupos' });
+    console.error('Error starting publish job:', err);
+    res.status(500).json({ error: 'Error al iniciar publicacion' });
   }
+});
+
+router.get('/publish-status/:publishId', requireAdmin, async (req, res) => {
+  const job = getJob(req.params.publishId);
+  if (!job) return res.status(404).json({ error: 'Publicacion no encontrada o expirada' });
+  res.json(job);
 });
 
 router.post('/extract-group-ids', requireAdmin, async (req, res) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/src/lib/api';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -1198,6 +1198,7 @@ function PublisherSection() {
   const [groupSaving, setGroupSaving] = useState<Record<string, boolean>>({});
   const [retrying, setRetrying] = useState(false);
   const [publishingPet, setPublishingPet] = useState<string | null>(null);
+  const publishIntervalsRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
   const fetchData = useCallback(async () => {
     try {
@@ -1223,7 +1224,13 @@ function PublisherSection() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    return () => {
+      Object.values(publishIntervalsRef.current).forEach(clearInterval);
+      publishIntervalsRef.current = {};
+    };
+  }, [fetchData]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -1283,6 +1290,7 @@ function PublisherSection() {
   };
 
   const handlePublishToGroups = async (petId: string) => {
+    if (publishIntervalsRef.current[petId]) return;
     setPublishingPet(petId);
     try {
       const resp = await fetch(`/api/facebook/publish-pet-to-groups/${petId}`, {
@@ -1291,15 +1299,38 @@ function PublisherSection() {
       });
       const data = await resp.json();
       if (!resp.ok) {
-        if (resp.status === 409 && data.alreadyPublished) { alert('Esta mascota ya fue publicada anteriormente'); return; }
-        alert(data.error || 'Error'); return;
+        if (resp.status === 409 && data.alreadyPublished) { alert('Esta mascota ya fue publicada anteriormente'); setPublishingPet(null); return; }
+        alert(data.error || 'Error'); setPublishingPet(null); return;
       }
-      const groupOk = data.groups?.filter((g: any) => g.success).length || 0;
-      const groupTotal = data.groups?.length || 0;
-      alert(`✅ Publicado en Page${groupTotal > 0 ? ` + ${groupOk}/${groupTotal} grupo(s)` : ''}`);
-      await fetchData();
-    } catch (e: any) { alert('Error: ' + e.message); }
-    setPublishingPet(null);
+      if (!data.publishId) { alert('Error: no se pudo iniciar la publicacion'); setPublishingPet(null); return; }
+
+      const interval = setInterval(async () => {
+        try {
+          const statusResp = await fetch(`/api/facebook/publish-status/${data.publishId}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+          });
+          if (!statusResp.ok) { clearInterval(interval); delete publishIntervalsRef.current[petId]; setPublishingPet(null); alert('Error al consultar estado'); return; }
+          const job = await statusResp.json();
+          if (job.status === 'completed') {
+            clearInterval(interval);
+            delete publishIntervalsRef.current[petId];
+            setPublishingPet(null);
+            const r = job.result;
+            const groupOk = r?.groups?.filter((g: any) => g.success).length || 0;
+            const groupTotal = r?.groups?.length || 0;
+            alert(`Publicado en Page${groupTotal > 0 ? ` + ${groupOk}/${groupTotal} grupo(s)` : ''}`);
+            await fetchData();
+          } else if (job.status === 'failed') {
+            clearInterval(interval);
+            delete publishIntervalsRef.current[petId];
+            setPublishingPet(null);
+            alert('Error: ' + (job.error || 'Error desconocido'));
+            await fetchData();
+          }
+        } catch (e: any) { clearInterval(interval); delete publishIntervalsRef.current[petId]; setPublishingPet(null); alert('Error: ' + e.message); }
+      }, 3000);
+      publishIntervalsRef.current[petId] = interval;
+    } catch (e: any) { alert('Error: ' + e.message); setPublishingPet(null); }
   };
 
   const handleStatus = async () => {
