@@ -19,10 +19,10 @@ import logging
 import os
 import random
 import re
-import sqlite3
 import sys
 import threading
 import time
+import traceback
 import uuid
 import tempfile
 from datetime import datetime, timezone
@@ -802,7 +802,7 @@ def _post_via_graphql(s, csrf_token, group_id, message, image_urls=None):
                 return {"success": False, "error": f"GraphQL: {error_msg}"}
         return {"success": False, "error": f"GraphQL: unexpected response ({type(result).__name__})"}
     except Exception as e:
-        logger.error(f"GraphQL POST failed group {group_id}: {e}")
+        logger.error(f"GraphQL POST failed group {group_id}: {e}\n{traceback.format_exc()}")
         return {"success": False, "error": str(e)}
 
 def _get_graphql_error(result):
