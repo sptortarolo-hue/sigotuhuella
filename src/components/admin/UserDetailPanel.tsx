@@ -332,10 +332,21 @@ export default function UserDetailPanel({ data, onSelectPet, isMobile, onClose }
               </div>
             )}
 
-            {selectedMyPet.qr_code && (
-              <div className="mt-4 p-3 bg-brand-bg/50 rounded-xl text-center">
-                <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Código QR</p>
-                <img src={`data:image/png;base64,${selectedMyPet.qr_code}`} alt="QR" className="w-24 h-24 mx-auto" />
+            {selectedMyPet.qr_data && (
+              <div className="mt-4 p-3 bg-brand-bg/50 rounded-xl">
+                <h4 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Identificación QR</h4>
+                <div className="text-xs text-gray-600 space-y-1">
+                  <p>Código: <span className="font-bold text-brand-primary">{selectedMyPet.qr_data.code}</span></p>
+                  <p className="text-[10px] text-gray-400 break-all">Token: {selectedMyPet.qr_data.share_token}</p>
+                  <a
+                    href={`${window.location.origin}/mascota/${selectedMyPet.qr_data.share_token}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-brand-primary hover:underline mt-1"
+                  >
+                    <ExternalLink className="w-3 h-3" /> Ver perfil público
+                  </a>
+                </div>
               </div>
             )}
           </div>

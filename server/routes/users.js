@@ -288,17 +288,20 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
 
     const myPetsRes = await pool.query(
       `SELECT mp.*,
-        COALESCE(json_agg(json_build_object('id', mpp.id, 'image_data', mpp.image_data, 'mime_type', mpp.mime_type, 'caption', mpp.caption) ORDER BY mpp.created_at) FILTER (WHERE mpp.id IS NOT NULL), '[]') as photos
+        COALESCE(json_agg(json_build_object('id', mpp.id, 'image_data', mpp.image_data, 'mime_type', mpp.mime_type, 'caption', mpp.caption) ORDER BY mpp.created_at) FILTER (WHERE mpp.id IS NOT NULL), '[]') as photos,
+        CASE WHEN qi.id IS NOT NULL THEN json_build_object('code', qi.code, 'share_token', qi.share_token) ELSE NULL END as qr_data
       FROM my_pets mp
       LEFT JOIN my_pet_photos mpp ON mpp.my_pet_id = mp.id
+      LEFT JOIN qr_identifiers qi ON qi.id = mp.qr_id
       WHERE mp.user_id = $1
-      GROUP BY mp.id
+      GROUP BY mp.id, qi.id, qi.code, qi.share_token
       ORDER BY mp.created_at DESC`,
       [userId]
     );
 
     const myPets = myPetsRes.rows.map(mp => ({
       ...mp,
+      qr_data: mp.qr_data || null,
       photos: mp.avatar_image
         ? [{ id: 'avatar', image_data: mp.avatar_image, mime_type: mp.avatar_mime_type || 'image/jpeg', caption: null }, ...(mp.photos || [])]
         : (mp.photos || []),
