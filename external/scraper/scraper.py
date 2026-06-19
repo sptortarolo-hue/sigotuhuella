@@ -500,11 +500,12 @@ def post_to_group_via_dom(driver, group_id, message, image_urls=None):
         driver.get(group_url)
     except TimeoutException:
         pass
+    time.sleep(6)
 
-    time.sleep(3)
-
-    # 1. Find composer
+    # 1. Find composer (inline or via "Create Post" button)
     composer = None
+
+    # Strategy A: inline composer
     for sel in [
         "div[role='textbox'][contenteditable='true']",
         "div.notranslate[contenteditable='true']",
@@ -521,14 +522,35 @@ def post_to_group_via_dom(driver, group_id, message, image_urls=None):
         except:
             continue
 
+    # Strategy B: click "Create Post" button then find composer
+    if not composer:
+        for btn_sel in [
+            "//span[contains(text(),'Crear publicaci') or contains(text(),'Create post') or contains(text(),'Escribe algo') or contains(text(),'Write something')]",
+            "//div[@role='button' and contains(text(),'Crear')]",
+            "//div[@role='button' and contains(text(),'Create')]",
+            "//*[@aria-label='Crear publicaci' or @aria-label='Create post']",
+        ]:
+            try:
+                btn = driver.find_element(By.XPATH, btn_sel)
+                btn.click()
+                logger.info(f"[DOM] Clicked create post button via: {btn_sel}")
+                time.sleep(2)
+                composer = WebDriverWait(driver, 8).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "div[role='textbox'][contenteditable='true']")))
+                logger.info("[DOM] Found composer after clicking create post")
+                break
+            except:
+                continue
+
+    # Strategy C: open composer URL directly
     if not composer:
         try:
-            placeholder = driver.find_element(By.XPATH,
-                "//span[contains(text(),'Escribe') or contains(text(),'Write') or contains(text(),'Crea') or contains(text(),'Create') or contains(text(),'¿')]")
-            placeholder.click()
-            time.sleep(1)
-            composer = WebDriverWait(driver, 5).until(
+            composer_url = f"https://www.facebook.com/composer/?group_id={group_id}"
+            driver.get(composer_url)
+            time.sleep(4)
+            composer = WebDriverWait(driver, 8).until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, "div[role='textbox'][contenteditable='true']")))
+            logger.info("[DOM] Found composer via direct URL")
         except:
             pass
 
