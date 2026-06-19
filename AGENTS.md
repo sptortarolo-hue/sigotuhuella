@@ -1,4 +1,6 @@
-# Responsive Design Rules
+# Manual de reglas de desarrollo - SiHuella
+
+## Responsive Design Rules
 
 Mobile-first approach usando Tailwind CSS v4 con breakpoints default.
 

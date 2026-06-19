@@ -1,21 +1,23 @@
 """
-Facebook Group Scraper — Sigo Tu Huella
-Scrapes configured Facebook groups via Selenium (headless Chrome),
-saves raw posts to local SQLite (DonWeb classifies via Gemini on sync),
-and exposes a sync endpoint for the production server.
+Facebook Group Tool — Sigo Tu Huella
+Scrapes configured Facebook groups via Bright Data API,
+publishes posts to groups via Selenium (headless Chrome),
+saves raw posts to local SQLite (server classifies via Gemini on sync),
+and exposes endpoints for the production server.
 
 Usage:
   python scraper.py                              # Run once
   python scraper.py --daemon                     # Run as scheduled daemon (with sync server on :3001)
 
 Config: config.json or POST /config endpoint.
-Cookies: cookies.txt (auto-refreshed via FB_EMAIL/FB_PASSWORD).
+Cookies: cookies.txt (for group publishing only).
 ChromeDriver: auto-managed by webdriver-manager.
 """
 
 import json
 import logging
 import os
+import random
 import re
 import sqlite3
 import sys
@@ -28,12 +30,10 @@ from pathlib import Path
 from urllib.request import urlopen, Request
 
 
-from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
@@ -173,15 +173,24 @@ def get_unsynced_posts(conn, since=None):
     return posts
 
 def load_groups():
+    cfg = _load_config()
+    return cfg.get("groups", []), cfg.get("scrape_interval_hours", 6), cfg.get("max_posts_per_group", 50)
+
+def _load_config():
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH) as f:
-            cfg = json.load(f)
-        return cfg.get("groups", []), cfg.get("scrape_interval_hours", 6), cfg.get("max_posts_per_group", 50)
-    return [], 6, 50
+            return json.load(f)
+    return {}
 
-def save_config(groups, interval=6, max_posts=50):
+def save_config(groups, interval=6, max_posts=50, api_key=""):
+    cfg = _load_config()
+    cfg["groups"] = groups
+    cfg["scrape_interval_hours"] = interval
+    cfg["max_posts_per_group"] = max_posts
+    if api_key:
+        cfg["brightdata_api_key"] = api_key
     with open(CONFIG_PATH, "w") as f:
-        json.dump({"groups": groups, "scrape_interval_hours": interval, "max_posts_per_group": max_posts}, f, indent=2)
+        json.dump(cfg, f, indent=2)
 
 # ---------------------------------------------------------------------------
 # Raw classifier (DonWeb does the real Gemini classification)
@@ -191,28 +200,76 @@ def classify_post(text, image_urls=None):
     return {"classification": "unclassified", "species": None, "color": None, "location_hint": None, "phone": None, "location_lat": None, "location_lng": None, "confidence": 0}
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Bright Data API
 # ---------------------------------------------------------------------------
+
+BRIGHTDATA_GROUP_DATASET = "gd_lz11l67o2cb3r0lkj3"
+BRIGHTDATA_POST_DATASET = "gd_lyclm1571iy3mv57zw"
 
 def extract_group_id(url):
     m = re.search(r"/groups/([^/?]+)", url)
     raw = m.group(1) if m else url
     return raw.split("?")[0].split("/")[0]
 
-def get_fb_email():
-    for arg in sys.argv:
-        if arg.startswith("--fb-email="):
-            return arg.split("=", 1)[1]
-    return os.environ.get("FB_EMAIL")
+def scrape_group_via_brightdata(group_name, group_url, api_key):
+    group_id = extract_group_id(group_url)
+    logger.info(f"[BD] Scraping {group_name} ({group_id})")
+    api_url = f"https://api.brightdata.com/datasets/v3/scrape?dataset_id={BRIGHTDATA_GROUP_DATASET}&format=json&include_errors=true"
+    payload = json.dumps([{"url": f"https://www.facebook.com/groups/{group_id}/"}]).encode()
+    req = Request(api_url, data=payload, headers={
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": CHROME_UA,
+    })
+    try:
+        resp = urlopen(req, timeout=120)
+        data = json.loads(resp.read().decode())
+    except Exception as e:
+        logger.error(f"[BD] API error for {group_name}: {e}")
+        return []
+    if isinstance(data, dict) and data.get("snapshot_id"):
+        logger.info(f"[BD] Async snapshot {data['snapshot_id']} for {group_name}, will skip this cycle")
+        return []
+    if not isinstance(data, list):
+        logger.warning(f"[BD] Unexpected response type for {group_name}: {type(data).__name__}")
+        return []
+    posts = []
+    for record in data:
+        if record.get("_error") or record.get("error"):
+            if record.get("_error"):
+                logger.warning(f"[BD] Error for one URL in {group_name}: {record['_error']}")
+            continue
+        pid = record.get("post_id") or extract_post_id_from_url(record.get("url", ""))
+        if not pid:
+            continue
+        content = record.get("content") or ""
+        if len(content.strip()) < MIN_CONTENT_LENGTH:
+            continue
+        images = []
+        for a in record.get("attachments") or []:
+            src = a.get("photo_image") or a.get("image_url") or a.get("thumbnail_url") or a.get("src")
+            if src and src.startswith("http"):
+                images.append(src)
+        posts.append({
+            "group_id": group_id,
+            "group_name": group_name,
+            "fb_post_id": pid,
+            "fb_post_url": record.get("url") or f"https://www.facebook.com/groups/{group_id}/posts/{pid}/",
+            "author_name": record.get("user_username_raw") or record.get("user_url") or "",
+            "content": content[:2000],
+            "image_urls": images[:5],
+            "posted_at": record.get("date_posted") or "",
+            "comments": [],
+        })
+    logger.info(f"[BD] {group_name}: got {len(posts)} posts")
+    return posts
 
-def get_fb_password():
-    for arg in sys.argv:
-        if arg.startswith("--fb-password="):
-            return arg.split("=", 1)[1]
-    return os.environ.get("FB_PASSWORD")
+def extract_post_id_from_url(url):
+    m = re.search(r'/posts/(\d+)', url)
+    return m.group(1) if m else None
 
 # ---------------------------------------------------------------------------
-# Selenium driver
+# Selenium driver (only for group publishing)
 # ---------------------------------------------------------------------------
 
 def init_driver(headless=True):
@@ -235,10 +292,6 @@ def init_driver(headless=True):
         "source": "Object.defineProperty(navigator, 'webdriver', { get: () => false })"
     })
     return driver
-
-# ---------------------------------------------------------------------------
-# Session / Login
-# ---------------------------------------------------------------------------
 
 def check_session(driver):
     try:
@@ -316,335 +369,35 @@ def load_cookies(driver, filepath):
     except Exception as e:
         logger.warning(f"Failed to load cookies: {e}")
 
-def _save_debug(driver, name):
-    try:
-        driver.save_screenshot(str(_DIR / f"{name}.png"))
-    except Exception:
-        pass
-    try:
-        with open(str(_DIR / f"{name}.html"), "w") as f:
-            f.write(driver.page_source[:5000])
-    except Exception:
-        pass
-    logger.info(f"Saved {name}.png and {name}.html for debugging")
-
-def _click_first(driver, selectors, timeout=3):
-    for by, sel in selectors:
-        try:
-            el = WebDriverWait(driver, timeout).until(EC.element_to_be_clickable((by, sel)))
-            el.click()
-            return True
-        except (TimeoutException, NoSuchElementException, WebDriverException):
-            continue
-    return False
-
-def _find_first(driver, selectors, timeout=3):
-    for by, sel in selectors:
-        try:
-            return WebDriverWait(driver, timeout).until(EC.visibility_of_element_located((by, sel)))
-        except (TimeoutException, NoSuchElementException):
-            continue
-    return None
-
-def login_to_facebook(driver, email, password):
-    logger.info("Logging in to Facebook")
-    try:
-        driver.get("https://www.facebook.com/")
-        time.sleep(3)
-        _click_first(driver, [
-            (By.CSS_SELECTOR, "button[data-cookiebanner='accept_button'], button[title='Allow all cookies'], div[aria-label='Accept all']"),
-        ], timeout=2)
-        email_el = _find_first(driver, [
-            (By.ID, "email"),
-            (By.CSS_SELECTOR, "input[autocomplete='username']"),
-            (By.CSS_SELECTOR, "input[name='email']"),
-            (By.XPATH, "//input[@type='text']"),
-            (By.XPATH, "//input[@type='email']"),
-        ])
-        if not email_el:
-            fed = _find_first(driver, [
-                (By.CSS_SELECTOR, "div[role='feed']"),
-                (By.CSS_SELECTOR, "a[aria-label='Home']"),
-                (By.CSS_SELECTOR, "div[aria-label='Home']"),
-            ], timeout=10)
-            if fed or ("facebook" in driver.title.lower()):
-                logger.info("Already logged in (feed/title found instead of login form)")
-                return True
-            _save_debug(driver, "login_no_email")
-            logger.error("Could not find email input.")
-            return False
-        email_el.clear()
-        email_el.send_keys(email)
-        _click_first(driver, [
-            (By.XPATH, "//button[contains(., 'Next') or contains(., 'Siguiente') or contains(., 'Continuar')]"),
-            (By.XPATH, "//a[contains(., 'Next') or contains(., 'Siguiente') or contains(., 'Continuar')]"),
-            (By.CSS_SELECTOR, "button[type='submit']"),
-            (By.NAME, "login"),
-            (By.CSS_SELECTOR, "button[name='login']"),
-            (By.XPATH, "//button[contains(., 'Log in') or contains(., 'Iniciar sesión')]"),
-        ], timeout=2)
-        time.sleep(1)
-        pass_el = _find_first(driver, [
-            (By.ID, "pass"),
-            (By.CSS_SELECTOR, "input[autocomplete='current-password']"),
-            (By.CSS_SELECTOR, "input[name='pass']"),
-            (By.XPATH, "//input[@type='password']"),
-        ])
-        if not pass_el:
-            driver.save_screenshot(str(_DIR / "debug_after_email.png"))
-            _save_html(driver, "debug_after_email")
-            logger.error("Could not find password input after email.")
-            return False
-        pass_el.clear()
-        pass_el.send_keys(password)
-        time.sleep(1)
-        pass_el.send_keys(Keys.RETURN)
-        time.sleep(2)
-        login_ok = _click_first(driver, [
-            (By.XPATH, "//button[contains(., 'Log in') or contains(., 'Iniciar sesión') or contains(., 'Entrar')]"),
-            (By.CSS_SELECTOR, "button[type='submit']"),
-            (By.NAME, "login"),
-            (By.CSS_SELECTOR, "button[name='login']"),
-            (By.CSS_SELECTOR, "div[role='button']"),
-            (By.XPATH, "//form//*[@type='submit']"),
-            (By.CSS_SELECTOR, "a[role='button']"),
-        ], timeout=2)
-        if not login_ok:
-            try:
-                driver.execute_script("document.querySelector('input[type=\"password\"]')?.closest('form')?.requestSubmit()")
-                login_ok = True
-            except Exception:
-                pass
-        if not login_ok:
-            _save_debug(driver, "login_no_button")
-            logger.error("Could not find login button")
-            return False
-        time.sleep(3)
-        try:
-            WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='feed'], a[aria-label='Home'], div[aria-label='Home']")))
-            logger.info("Login successful")
-            return True
-        except (TimeoutException):
-            _save_debug(driver, "login_no_feed")
-            logger.warning("Login submitted but feed not found.")
-            return False
-    except Exception as e:
-        try:
-            driver.save_screenshot(str(_DIR / "debug_login_error.png"))
-        except Exception:
-            pass
-        logger.error(f"Login failed: {e}")
-        return False
-
 # ---------------------------------------------------------------------------
-# BS4 extraction
+# Post driver
 # ---------------------------------------------------------------------------
-
-POST_CONTAINER_BS = 'div.x1yztbdb.x1n2onr6.xh8yej3.x1ja2u2z, div[role="article"], div[data-ad-preview="message"], div[data-pagelet^="FeedUnit_"]'
-AUTHOR_NAME_BS = 'h2 strong, h2 a[role="link"] strong, h3 strong, h3 a[role="link"] strong, a[aria-label][href*="/user/"] > strong, a[aria-label][href*="/profile.php"] > strong, a[href*="/groups/"][href*="/user/"] span, a[href*="/profile.php"] span'
-POST_TEXT_BS = 'div[data-ad-rendering-role="story_message"], div[data-ad-preview="message"], div[data-ad-comet-preview="message"], div[dir="auto"]:not([class*=" "]):not(:has(button))'
-POST_IMAGE_BS = 'img.x168nmei, div[data-imgperflogname="MediaGridPhoto"] img, img[src*="scontent"], img[src*="fbcdn"]'
-POST_TIME_BS = 'abbr[title], a[href*="/posts/"] span[data-lexical-text="true"]'
-COMMENT_CONTAINER_BS = 'div[aria-label*="Comment by"], ul > li div[role="article"]'
-COMMENTER_NAME_BS = 'a[href*="/user/"] span, a[href*="/profile.php"] span, span > a[role="link"] > span'
-COMMENT_TEXT_BS = 'div[data-ad-preview="message"] > span, div[dir="auto"][style="text-align: start;"]'
-COMMENT_TIME_BS = 'abbr[title]'
-
-def parse_post(article_soup, group_name):
-    html_str = str(article_soup)
-    fb_id = None
-    fb_post_url = ""
-    for a in article_soup.find_all("a", href=True):
-        href = a.get("href", "")
-        m = re.search(r'(?:story_fbid=|/posts/|/permalink/|fbid=)(\d+)', href)
-        if m:
-            fb_id = m.group(1)
-            fb_post_url = href if href.startswith("http") else "https://www.facebook.com" + href
-            break
-    if not fb_id:
-        m = re.search(r'"post_id":\s*"(\d+)"', html_str)
-        if m:
-            fb_id = m.group(1)
-    if not fb_id:
-        return None
-    author = (article_soup.select_one(AUTHOR_NAME_BS).get_text(strip=True) if article_soup.select_one(AUTHOR_NAME_BS) else "")
-    text_el = article_soup.select_one(POST_TEXT_BS)
-    content = text_el.get_text("\n", strip=True) if text_el else article_soup.get_text("\n", strip=True)[:500]
-    images = []
-    for img in article_soup.select(POST_IMAGE_BS):
-        src = img.get("src") or img.get("data-src") or ""
-        if src and any(x in src for x in ["scontent", "fbcdn", "safe_image", "cdninstagram"]) and src not in images:
-            images.append(src)
-    time_el = article_soup.select_one(POST_TIME_BS)
-    posted_at = time_el.get("title", "") or time_el.get_text(strip=True) if time_el else ""
-    comments = []
-    for ce in article_soup.select(COMMENT_CONTAINER_BS):
-        cname = (ce.select_one(COMMENTER_NAME_BS).get_text(strip=True) if ce.select_one(COMMENTER_NAME_BS) else "")
-        ctxt = (ce.select_one(COMMENT_TEXT_BS).get_text(strip=True) if ce.select_one(COMMENT_TEXT_BS) else "")
-        ctime = (ce.select_one(COMMENT_TIME_BS).get("title", "") if ce.select_one(COMMENT_TIME_BS) else "")
-        if cname or ctxt:
-            comments.append({"id": str(uuid.uuid4()), "author": cname, "text": ctxt[:1000], "timestamp": ctime})
-    return {"group_id": None, "group_name": group_name, "fb_post_id": fb_id, "fb_post_url": fb_post_url, "author_name": author, "content": content[:2000], "image_urls": images[:5], "posted_at": posted_at, "comments": comments[:20]}
-
-# ---------------------------------------------------------------------------
-# Scraper
-# ---------------------------------------------------------------------------
-
-def scrape_group(driver, group_name, group_url, max_posts=50):
-    group_id = extract_group_id(group_url)
-    logger.info(f"Scraping {group_name} ({group_id})")
-    try:
-        driver.get(f"https://www.facebook.com/groups/{group_id}/?sorting_setting=RECENT_ACTIVITY")
-    except Exception:
-        logger.warning(f"[{group_name}] Page load timeout")
-        return []
-    try:
-        WebDriverWait(driver, 25).until(EC.presence_of_element_located((By.CSS_SELECTOR, POST_CONTAINER_BS.replace(", ", ","))))
-    except TimeoutException:
-        logger.warning(f"[{group_name}] No posts appeared")
-        return []
-    posts, seen = [], set()
-    scrolls, no_new = 0, 0
-    while len(posts) < max_posts and scrolls < 30:
-        scrolls += 1
-        try:
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)
-        except Exception:
-            logger.warning(f"[{group_name}] Scroll failed, continuing")
-            time.sleep(3)
-        try:
-            for btn in driver.find_elements(By.XPATH, ".//div[@role='button'][contains(.,'See more') or contains(.,'Ver más')] | .//a[contains(.,'See more') or contains(.,'Ver más')]"):
-                if btn.is_displayed():
-                    driver.execute_script("arguments[0].click();", btn)
-                    time.sleep(0.3)
-        except Exception:
-            pass
-        try:
-            WebDriverWait(driver, 5).until(lambda d: len(d.find_elements(By.CSS_SELECTOR, POST_CONTAINER_BS.replace(", ", ","))) > len(posts))
-            no_new = 0
-        except TimeoutException:
-            no_new += 1
-            if no_new >= 3 and posts:
-                break
-        try:
-            source = driver.page_source
-        except Exception:
-            logger.warning(f"[{group_name}] page_source error, using cached")
-            continue
-        for article in BeautifulSoup(source, "html.parser").select(POST_CONTAINER_BS):
-            if len(posts) >= max_posts:
-                break
-            parsed = parse_post(article, group_name)
-            if parsed and parsed["fb_post_id"] not in seen:
-                seen.add(parsed["fb_post_id"])
-                posts.append(parsed)
-    logger.info(f"[{group_name}] Scraped {len(posts)} posts")
-    return posts[:max_posts]
-
-# ---------------------------------------------------------------------------
-# Orchestration
-# ---------------------------------------------------------------------------
-
-def ensure_logged_in(fb_email, fb_password):
-    driver = init_driver(headless=True)
-    try:
-        driver.get("https://www.facebook.com/")
-        if COOKIES_PATH.exists():
-            load_cookies(driver, COOKIES_PATH)
-            driver.get("https://www.facebook.com/")
-            if check_session(driver):
-                return True
-        if not fb_email or not fb_password:
-            logger.error("No FB_EMAIL/FB_PASSWORD and cookies expired")
-            return False
-        if login_to_facebook(driver, fb_email, fb_password):
-            save_cookies(driver, COOKIES_PATH)
-            return True
-        return False
-    finally:
-        driver.quit()
 
 def run():
     groups, _, max_posts = load_groups()
     if not groups:
         logger.warning("No groups configured. Use POST /config endpoint or edit config.json")
         return
-    fb_email, fb_password = get_fb_email(), get_fb_password()
-    if not ensure_logged_in(fb_email, fb_password):
+    cfg = _load_config()
+    api_key = cfg.get("brightdata_api_key", "")
+    if not api_key:
+        logger.error("No brightdata_api_key configured. Set it via admin panel or config endpoint")
         return
     conn = init_db()
-    driver = init_driver(headless=True)
-    try:
-        driver.get("https://www.facebook.com/")
-        if COOKIES_PATH.exists():
-            load_cookies(driver, COOKIES_PATH)
-            driver.get("https://www.facebook.com/")
-        for group in groups:
-            if not group.get("url"):
-                continue
-            for post in scrape_group(driver, group["name"], group["url"], max_posts):
-                if len((post.get("content") or "").strip()) < MIN_CONTENT_LENGTH:
-                    continue
-                cls = classify_post(post.get("content", ""), post.get("image_urls", []))
-                pid = save_post(conn, post, cls)
-                if pid:
-                    save_comments(conn, pid, post.get("comments", []), [])
-                    conn.commit()
-                    logger.info(f"Saved {post['fb_post_id']} → raw")
-    finally:
-        driver.quit()
-        conn.close()
+    for group in groups:
+        if not group.get("url"):
+            continue
+        posts = scrape_group_via_brightdata(group["name"], group["url"], api_key)
+        for post in posts:
+            pid = save_post(conn, post, classify_post(post.get("content", ""), post.get("image_urls", [])))
+            if pid:
+                conn.commit()
+                logger.info(f"Saved {post['fb_post_id']} → raw")
+    conn.close()
 
 # ---------------------------------------------------------------------------
-# Flask sync routes
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Fetch driver (lazy, with idle timeout)
-# ---------------------------------------------------------------------------
-
-_fetch_driver = None
-_fetch_driver_lock = threading.Lock()
-_fetch_driver_last_used = 0
-
-def get_fetch_driver():
-    global _fetch_driver
-    if _fetch_driver is None:
-        _fetch_driver = init_driver(headless=True)
-        _fetch_driver.get("https://www.facebook.com/")
-        if COOKIES_PATH.exists():
-            load_cookies(_fetch_driver, COOKIES_PATH)
-        logger.info("Fetch driver created")
-    return _fetch_driver
-
-def close_fetch_driver():
-    global _fetch_driver
-    if _fetch_driver:
-        try:
-            _fetch_driver.quit()
-        except Exception:
-            pass
-        _fetch_driver = None
-        logger.info("Fetch driver closed")
-
-def start_fetch_cleanup():
-    def _cleanup():
-        global _fetch_driver_last_used
-        while True:
-            time.sleep(60)
-            if _fetch_driver and time.time() - _fetch_driver_last_used > 300:
-                with _fetch_driver_lock:
-                    if _fetch_driver and time.time() - _fetch_driver_last_used > 300:
-                        close_fetch_driver()
-    t = threading.Thread(target=_cleanup, daemon=True)
-    t.start()
-
-# ---------------------------------------------------------------------------
-# Post driver
-# ---------------------------------------------------------------------------
-
-_post_driver = None
+# Flask sync server
+# ---------------------------------------------------------------------------_post_driver = None
 _post_driver_lock = threading.Lock()
 
 def get_post_driver():
@@ -813,69 +566,6 @@ sync_app = Flask(__name__)
 def health():
     return jsonify({"ok": True})
 
-@sync_app.route("/fetch-post")
-def fetch_post():
-    url = request.args.get("url")
-    if not url:
-        return jsonify({"error": "url parameter required"}), 400
-    conn = init_db()
-    with _fetch_driver_lock:
-        try:
-            driver = get_fetch_driver()
-            driver.get(url)
-            time.sleep(4)
-            for btn in driver.find_elements(By.XPATH, ".//div[@role='button'][contains(.,'See more') or contains(.,'Ver más')]"):
-                try:
-                    if btn.is_displayed():
-                        driver.execute_script("arguments[0].click();", btn)
-                        time.sleep(0.3)
-                except Exception:
-                    pass
-            global _fetch_driver_last_used
-            _fetch_driver_last_used = time.time()
-        except WebDriverException:
-            logger.warning("Fetch driver crashed, recreating...")
-            close_fetch_driver()
-            driver = get_fetch_driver()
-            driver.get(url)
-            time.sleep(4)
-    try:
-        soup = BeautifulSoup(driver.page_source, "html.parser")
-        article = soup.select_one(POST_CONTAINER_BS)
-        if article:
-            parsed = parse_post(article, "url_fetch")
-            if parsed:
-                cls = classify_post(parsed.get("content", ""), parsed.get("image_urls", []))
-                pid = save_post(conn, parsed, cls)
-                if pid:
-                    save_comments(conn, pid, parsed.get("comments", []), [])
-                    conn.commit()
-                return jsonify(parsed)
-        fb_id, fb_post_url = None, driver.current_url
-        for pat in [r'/posts/(\d+)', r'story_fbid=(\d+)', r'fbid=(\d+)', r'share/p/(\w+)']:
-            m = re.search(pat, fb_post_url)
-            if m:
-                fb_id = m.group(1)
-                break
-        if not fb_id:
-            m = re.search(r'"post_id":\s*"(\d+)"', str(soup))
-            if m:
-                fb_id = m.group(1)
-        if not fb_id:
-            return jsonify({"error": "Could not find post ID"}), 400
-        author = next((soup.select_one(s).get_text(strip=True) for s in ['h2 strong', 'h3 strong', 'a[aria-label][role="link"] strong', 'strong[dir="auto"]'] if soup.select_one(s)), "")
-        content = next((soup.select_one(s).get_text("\n", strip=True)[:2000] for s in ['div[data-ad-rendering-role="story_message"]', 'div[data-ad-preview="message"]'] if soup.select_one(s)), "")
-        images = list(dict.fromkeys(img.get("src") or "" for img in soup.select('img[src*="scontent"], img[src*="fbcdn"]') if (img.get("src") or "")))[:5]
-        result = {"fb_post_id": fb_id, "fb_post_url": fb_post_url, "author_name": author, "content": content, "image_urls": images, "posted_at": "", "comments": [], "group_id": None, "group_name": "url_fetch"}
-        pid = save_post(conn, result, classify_post(content, images))
-        conn.commit()
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"fetch-post error: {e}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
-
 @sync_app.route("/sync")
 def sync_get():
     since = request.args.get("since")
@@ -891,13 +581,15 @@ def sync_config():
     data = request.get_json()
     if not data or "groups" not in data:
         return jsonify({"error": "invalid"}), 400
-    save_config(data["groups"], data.get("scrape_interval_hours", 6), data.get("max_posts_per_group", 50))
+    save_config(data["groups"], data.get("scrape_interval_hours", 6), data.get("max_posts_per_group", 50), data.get("brightdata_api_key", ""))
     logger.info(f"Config received: {len(data['groups'])} groups")
     cookies_txt = data.get("cookies_txt", "")
     if cookies_txt:
         with open(_DIR / "cookies.txt", "w") as f:
             f.write(cookies_txt)
         logger.info(f"Cookies updated from config push ({len(cookies_txt)} bytes)")
+    if data.get("brightdata_api_key"):
+        logger.info("Bright Data API key updated from config push")
     return jsonify({"ok": True})
 
 @sync_app.route("/publish-to-groups", methods=["POST"])
@@ -942,8 +634,6 @@ def run_daemon():
     except ImportError:
         logger.error("schedule library required")
         sys.exit(1)
-    import random
-    start_fetch_cleanup()
     threading.Thread(target=lambda: sync_app.run(host="0.0.0.0", port=SYNC_PORT, debug=False, use_reloader=False), daemon=True).start()
     logger.info(f"Sync server on port {SYNC_PORT}")
     def job():
@@ -977,7 +667,6 @@ if __name__ == "__main__":
     if "--daemon" in sys.argv:
         run_daemon()
     elif "--sync-server" in sys.argv:
-        start_fetch_cleanup()
         sync_app.run(host="0.0.0.0", port=SYNC_PORT, debug=False)
     else:
         run()

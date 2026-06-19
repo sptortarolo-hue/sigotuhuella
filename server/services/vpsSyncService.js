@@ -19,7 +19,7 @@ export async function pushConfig() {
       "SELECT name, url FROM facebook_groups WHERE is_active = true"
     );
     const settingsRes = await pool.query(
-      "SELECT key, value FROM settings WHERE key IN ('fb_scraper_interval_hours', 'fb_scraper_max_posts')"
+      "SELECT key, value FROM settings WHERE key IN ('fb_scraper_interval_hours', 'fb_scraper_max_posts', 'brightdata_api_key')"
     );
     const s = {};
     settingsRes.rows.forEach(r => (s[r.key] = r.value));
@@ -33,6 +33,7 @@ export async function pushConfig() {
       groups: groupsRes.rows,
       scrape_interval_hours: parseInt(s.fb_scraper_interval_hours, 10) || 6,
       max_posts_per_group: parseInt(s.fb_scraper_max_posts, 10) || 50,
+      brightdata_api_key: s.brightdata_api_key || '',
       cookies_txt,
     };
     const resp = await fetch(`${VPS_HOST}/config`, {
