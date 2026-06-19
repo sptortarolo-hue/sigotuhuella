@@ -301,24 +301,33 @@ def init_driver(headless=True):
 def check_session(driver):
     try:
         driver.get("https://www.facebook.com/")
+        time.sleep(3)
+        current = driver.current_url
+        if "/login" in current.lower() or "checkpoint" in current.lower():
+            logger.warning(f"Session expired ({current})")
+            return False
         try:
             WebDriverWait(driver, 30).until(
                 EC.presence_of_element_located(
                     (By.CSS_SELECTOR, "div[role='feed'], a[aria-label='Home'], div[aria-label='Home'], div[data-pagelet*='Feed']")
                 )
             )
-            logger.info("Session valid — logged in")
+            logger.info("Session valid")
             return True
         except TimeoutException:
+            current = driver.current_url
+            if "/login" in current.lower() or "checkpoint" in current.lower():
+                logger.warning(f"Session expired — redirected to login ({current})")
+                return False
             title = driver.title.lower()
             no_login = not driver.find_elements(By.CSS_SELECTOR, "input[name='email'], input#email")
             if "facebook" in title and no_login:
-                logger.info("Session valid (detected via title)")
-                return True
-            logger.warning(f"Session check failed (title='{driver.title[:50]}')")
+                logger.warning("Session may be invalid — title-based check passed but no feed found")
+                return False
+            logger.warning(f"Session check failed (title='{driver.title[:50]}', url='{current}')")
             return False
-    except (TimeoutException, NoSuchElementException, WebDriverException):
-        logger.warning("Session check failed — likely logged out")
+    except (TimeoutException, NoSuchElementException, WebDriverException) as e:
+        logger.warning(f"Session check error: {e}")
         return False
 
 def save_cookies(driver, filepath):
