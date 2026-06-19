@@ -636,6 +636,7 @@ def publish_to_groups():
         logger.error(f"publish-to-groups error: {e}")
         return jsonify({"error": str(e)}), 500
     finally:
+        _post_driver_lock.release()
         close_post_driver()
     return jsonify({"results": results})
 
