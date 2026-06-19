@@ -536,25 +536,35 @@ def post_to_group_via_dom(driver, group_id, message, image_urls=None):
         _save_debug_screenshot(driver, f"composer_not_found_{group_id}")
         return {"success": False, "error": "composer not found"}
 
-    # 2. Type message
+    # 2. Type message via JavaScript (avoids Selenium element state issues)
     try:
         composer.click()
-        time.sleep(0.5)
+        time.sleep(1)
+    except:
+        pass
+
+    # Re-find the actual contenteditable after click (composer may have expanded)
+    try:
+        actual = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='textbox'][contenteditable='true']")))
+        if actual:
+            composer = actual
     except:
         pass
 
     msg = resolve_spintax(message)
     try:
-        composer.clear()
-        for char in msg:
-            composer.send_keys(char)
-            time.sleep(random.uniform(0.008, 0.03))
+        driver.execute_script("arguments[0].focus(); arguments[0].innerText = arguments[1];", composer, msg)
     except Exception as e:
-        logger.warning(f"[DOM] Char-by-char typing failed: {e}")
+        logger.warning(f"[DOM] JS innerText failed: {e}")
         try:
-            composer.send_keys(msg)
+            driver.execute_script("arguments[0].textContent = arguments[1];", composer, msg)
         except Exception as e2:
-            return {"success": False, "error": f"cannot type message: {e2}"}
+            logger.warning(f"[DOM] JS textContent failed: {e2}")
+            try:
+                composer.send_keys(msg)
+            except Exception as e3:
+                return {"success": False, "error": f"cannot type message: {e3}"}
 
     # 3. Upload images
     temp_files = []
