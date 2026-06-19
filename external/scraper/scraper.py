@@ -785,14 +785,19 @@ def _post_via_graphql(s, csrf_token, group_id, message, image_urls=None):
         if text.startswith("for (;;);"):
             text = text[9:]
         result = json.loads(text)
-        if result.get("data") and result["data"].get("story_create"):
-            story = result["data"]["story_create"].get("story", {})
-            post_id = story.get("id") or story.get("legacy_story_id", "")
-            logger.info(f"GraphQL posted OK group {group_id}, post_id={post_id}")
-            return {"success": True, "post_id": post_id}
-        error_msg = result.get("error", {}).get("message", "") or result.get("errors", [{}])[0].get("message", "")
-        logger.warning(f"GraphQL failed group {group_id}: {error_msg[:200]}")
-        return {"success": False, "error": f"GraphQL: {error_msg[:200] or 'unknown error'}"}
+        if isinstance(result, dict):
+            if result.get("data") and result["data"].get("story_create"):
+                story = result["data"]["story_create"].get("story", {})
+                post_id = story.get("id") or story.get("legacy_story_id", "")
+                logger.info(f"GraphQL posted OK group {group_id}, post_id={post_id}")
+                return {"success": True, "post_id": post_id}
+            error_msg = (result.get("error", {}) or {}).get("message", "") or (result.get("errors") or [{}])[0].get("message", "")
+            if error_msg:
+                logger.warning(f"GraphQL failed group {group_id}: {error_msg[:200]}")
+                return {"success": False, "error": f"GraphQL: {error_msg[:200]}"}
+        # result is an int/bool (Facebook throttled/ack response)
+        logger.warning(f"GraphQL non-dict response for group {group_id}: {type(result).__name__}={result}")
+        return {"success": False, "error": f"GraphQL: non-dict response ({result})"}
     except Exception as e:
         logger.error(f"GraphQL POST failed group {group_id}: {e}")
         return {"success": False, "error": str(e)}
