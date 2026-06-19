@@ -7,7 +7,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 
 const publicTabs = [
   { label: 'Inicio', icon: Home, path: '/' },
-  { label: 'Perdidos', icon: Search, path: '/perdidos' },
+  { label: 'Reportados', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
   { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
   { label: 'Más', icon: Sparkles, path: null },
@@ -16,7 +16,7 @@ const publicTabs = [
 const authTabs = [
   { label: 'Inicio', icon: Home, path: '/' },
   { label: 'Mi Portal', icon: PawPrint, path: '/dashboard' },
-  { label: 'Perdidos', icon: Search, path: '/perdidos' },
+  { label: 'Reportados', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
   { label: 'Más', icon: Sparkles, path: null },
 ];
