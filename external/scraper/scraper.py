@@ -758,7 +758,16 @@ def _post_via_graphql(s, csrf_token, group_id, message, image_urls=None):
     """Fallback: POST via www.facebook.com/api/graphql (ComposerStoryCreateMutation)."""
     msg = resolve_spintax(message)
     user_id = s.cookies.get("c_user", "0")
-    variables = '{{"input":{{"composer_entry_point":"feed","source":"WWW","message":{{"text":"{}"}},"group_id":"{}","media":[],"referrer":"group"}}}}'.format(msg, group_id)
+    variables = json.dumps({
+        "input": {
+            "composer_entry_point": "feed",
+            "source": "WWW",
+            "message": {"text": msg},
+            "group_id": group_id,
+            "media": [],
+            "referrer": "group",
+        }
+    })
     data = {
         "av": user_id,
         "__user": user_id,
@@ -775,8 +784,15 @@ def _post_via_graphql(s, csrf_token, group_id, message, image_urls=None):
         text = resp.text
         if text.startswith("for (;;);"):
             text = text[9:]
-        logger.info(f"GraphQL response for group {group_id}: status={resp.status_code}, len={len(text)}")
-        return {"success": True}
+        result = json.loads(text)
+        if result.get("data") and result["data"].get("story_create"):
+            story = result["data"]["story_create"].get("story", {})
+            post_id = story.get("id") or story.get("legacy_story_id", "")
+            logger.info(f"GraphQL posted OK group {group_id}, post_id={post_id}")
+            return {"success": True, "post_id": post_id}
+        error_msg = result.get("error", {}).get("message", "") or result.get("errors", [{}])[0].get("message", "")
+        logger.warning(f"GraphQL failed group {group_id}: {error_msg[:200]}")
+        return {"success": False, "error": f"GraphQL: {error_msg[:200] or 'unknown error'}"}
     except Exception as e:
         logger.error(f"GraphQL POST failed group {group_id}: {e}")
         return {"success": False, "error": str(e)}
