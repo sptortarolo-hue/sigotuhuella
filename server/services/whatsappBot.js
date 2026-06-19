@@ -453,7 +453,11 @@ async function handleImageFromMenu(conv, parsed) {
         photo_mime: parsed.imageMime,
         caption,
         _intent: result.intent,
-        _extracted: { location: result.location, phone: result.phone, description: result.description },
+        _extracted: {
+          location: result.location, phone: result.phone, description: result.description,
+          species: result.species, gender: result.gender, breed: result.breed,
+          color: result.color, name: result.name,
+        },
       });
       await sendMessage(conv.wa_from, `${conv.bot_name}: Según tu mensaje, ¿*${labels[result.intent]}* esta mascota?`);
       await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
@@ -616,9 +620,13 @@ async function rlPhoto(conv, parsed) {
   const extracted = conv.context?._extracted;
   if (extracted?.location || extracted?.phone) {
     const ctx = {
-      ...conv.context, species: conv.context?.species || 'dog',
+      ...conv.context, species: extracted?.species || conv.context?.species || 'dog',
       photo_data: photoData, photo_mime: photoMime || 'image/jpeg',
     };
+    if (extracted.gender) ctx.gender = extracted.gender;
+    if (extracted.breed) ctx.breed = extracted.breed;
+    if (extracted.color) ctx.color = extracted.color;
+    if (extracted.name) ctx.pet_name = extracted.name;
     if (extracted.location) {
       ctx.location = extracted.location;
       const coords = await geocodeAddress(extracted.location).catch(() => null);
@@ -718,10 +726,10 @@ async function rlConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
     const petResult = await pool.query(
-      `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, description)
-       VALUES ($1, $2, 'lost', $3, $4, $5, $6, $7)
+      `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, description, gender, breed, color)
+       VALUES ($1, $2, 'lost', $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id`,
-      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.description || 'Reportado por WhatsApp como perdida']
+      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.description || 'Reportado por WhatsApp como perdida', ctx.gender || null, ctx.breed || null, ctx.color || null]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -789,6 +797,11 @@ async function rsSpecies(conv, parsed) {
   const extracted = conv.context?._extracted;
   if (extracted?.location) {
     const ctx = { ...conv.context, species, location: extracted.location };
+    if (extracted.species) ctx.species = extracted.species;
+    if (extracted.gender) ctx.gender = extracted.gender;
+    if (extracted.breed) ctx.breed = extracted.breed;
+    if (extracted.color) ctx.color = extracted.color;
+    if (extracted.name) ctx.pet_name = extracted.name;
     const coords = await geocodeAddress(extracted.location).catch(() => null);
     if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
     if (extracted.description) ctx.details = extracted.description;
@@ -860,9 +873,9 @@ async function rsConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
     const petResult = await pool.query(
-      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description)
-       VALUES ($1, 'sighted', $2, $3, $4, $5, $6) RETURNING id`,
-      [ctx.species || 'unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje']
+      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description, gender, breed, color)
+       VALUES ($1, 'sighted', $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [ctx.species || 'unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje', ctx.gender || null, ctx.breed || null, ctx.color || null]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -906,6 +919,11 @@ async function rfPhoto(conv, parsed) {
   const extracted = conv.context?._extracted;
   if (extracted) {
     const ctx = { photo_data: photoData, photo_mime: photoMime || 'image/jpeg' };
+    if (extracted.species) ctx.species = extracted.species;
+    if (extracted.gender) ctx.gender = extracted.gender;
+    if (extracted.breed) ctx.breed = extracted.breed;
+    if (extracted.color) ctx.color = extracted.color;
+    if (extracted.name) ctx.pet_name = extracted.name;
     if (extracted.location) {
       ctx.location = extracted.location;
       const coords = await geocodeAddress(extracted.location).catch(() => null);
@@ -936,6 +954,11 @@ async function rfPhoto(conv, parsed) {
       const { processImageCaption } = await import('./geminiMatching.js');
       const result = await processImageCaption(caption);
       const ctx = { photo_data: photoData, photo_mime: photoMime || 'image/jpeg' };
+      if (result.species) ctx.species = result.species;
+      if (result.gender) ctx.gender = result.gender;
+      if (result.breed) ctx.breed = result.breed;
+      if (result.color) ctx.color = result.color;
+      if (result.name) ctx.pet_name = result.name;
       if (result.location) {
         ctx.location = result.location;
         const coords = await geocodeAddress(result.location).catch(() => null);
@@ -1018,9 +1041,9 @@ async function rfConfirm(conv, parsed, intent) {
     const ctx = conv.context;
     const description = ctx.description || 'Reportado por WhatsApp como encontrada';
     const petResult = await pool.query(
-      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description)
-       VALUES ($1, 'retained', $2, $3, $4, $5, $6) RETURNING id`,
-      ['unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', description]
+      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description, gender, breed, color)
+       VALUES ($1, 'retained', $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [ctx.species || 'unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', description, ctx.gender || null, ctx.breed || null, ctx.color || null]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {

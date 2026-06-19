@@ -346,17 +346,27 @@ const PROCESS_IMAGE_CAPTION_PROMPT = `Analizá el siguiente mensaje de WhatsApp 
    - "sighted": vio/avió una mascota
    - "unclear": no se puede determinar
 
-2. Si la intención es "found", extraé:
-   - ubicación (barrio, ciudad, dirección, punto de referencia)
-   - teléfono de contacto
-   - descripción adicional (color, tamaño, estado físico, etc.)
+2. Datos de la mascota (extraé todo lo que puedas de la imagen y el texto):
+   - especie: "dog" | "cat" | "other" | null
+   - género/sexo: "male" | "female" | "unknown" | null
+   - raza: ej "labrador", "criollo", null
+   - color: ej "negro", "blanco y marrón", null
+   - nombre: si se ve una chapita con nombre, null si no
+   - ubicación: barrio, ciudad, dirección, punto de referencia
+   - teléfono de contacto: solo números, sin + ni guiones, ej 2215551234
+   - descripción: tamaño, estado físico, señas particulares
 
 Respondé SOLO un JSON:
 {
   "intent": "found" | "lost" | "sighted" | "unclear",
-  "location": "descripción textual de la ubicación" o null,
-  "phone": "solo números, sin + ni guiones, ej: 2215551234" o null,
-  "description": "notas adicionales sobre la mascota o la situación" o null
+  "species": "dog" | "cat" | "other" | null,
+  "gender": "male" | "female" | "unknown" | null,
+  "breed": "texto" | null,
+  "color": "texto" | null,
+  "name": "texto" | null,
+  "location": "texto" | null,
+  "phone": "texto solo números" | null,
+  "description": "texto" | null
 }`;
 
 export async function processImageCaption(caption, imageData, imageMime) {
@@ -391,13 +401,18 @@ export async function processImageCaption(caption, imageData, imageMime) {
     const parsed = JSON.parse(raw);
     return {
       intent: parsed.intent || 'unclear',
+      species: parsed.species || null,
+      gender: parsed.gender || null,
+      breed: parsed.breed || null,
+      color: parsed.color || null,
+      name: parsed.name || null,
       location: parsed.location || null,
       phone: parsed.phone || null,
       description: parsed.description || null,
     };
   } catch (err) {
     console.error('processImageCaption error:', err);
-    return { intent: 'unclear', location: null, phone: null, description: null };
+    return { intent: 'unclear', species: null, gender: null, breed: null, color: null, name: null, location: null, phone: null, description: null };
   }
 }
 
