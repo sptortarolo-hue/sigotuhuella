@@ -87,6 +87,16 @@ function buildImageUrls(petId, imagesData) {
 }
 
 export async function publishToPage(petId) {
+  const existing = await pool.query(
+    `SELECT page_post_id FROM facebook_page_posts
+     WHERE pet_id = $1 AND status = 'published' AND page_post_id IS NOT NULL
+     ORDER BY published_at DESC LIMIT 1`,
+    [petId]
+  );
+  if (existing.rows.length > 0) {
+    return { success: true, pagePostId: existing.rows[0].page_post_id, skipped: true };
+  }
+
   const token = await getPageToken();
   if (!token) return { error: 'Facebook Page no conectada' };
 
@@ -437,10 +447,10 @@ export async function replicateLatestInstagramPosts(limit = 5) {
 
 export async function retryFailedFacebookPosts(limit = 10) {
   const posts = await pool.query(
-    `SELECT fpp.id, fpp.instagram_post_id
+    `SELECT fpp.id, fpp.instagram_post_id, fpp.pet_id, fpp.message, fpp.page_post_id
      FROM facebook_page_posts fpp
      WHERE fpp.status = 'failed'
-       AND fpp.instagram_post_id IS NOT NULL
+       AND fpp.page_post_id IS NOT NULL
      ORDER BY fpp.created_at DESC
      LIMIT $1`,
     [limit]
@@ -449,11 +459,40 @@ export async function retryFailedFacebookPosts(limit = 10) {
   const results = [];
   for (const row of posts.rows) {
     try {
-      const result = await replicateInstagramToFacebook(row.instagram_post_id);
-      results.push({ postId: row.instagram_post_id, result });
+      const groupsResult = await pool.query(
+        `SELECT id, name, fb_group_id FROM facebook_groups
+         WHERE is_active = true AND fb_group_id IS NOT NULL AND fb_group_id != ''
+         ORDER BY name`
+      );
+
+      const eligibleGroups = groupsResult.rows.map(g => ({
+        id: g.id, fb_group_id: g.fb_group_id, name: g.name,
+      }));
+
+      const scraperResult = await publishToGroupsViaScraper(eligibleGroups, row.message, [], row.pet_id);
+      const anySuccess = scraperResult.success && scraperResult.results.some(r => r.success);
+
+      if (anySuccess) {
+        const groupPostIds = scraperResult.results.filter(r => r.success).map(r => r.post_id || r.group_post_id);
+        await pool.query(
+          `UPDATE facebook_page_posts
+           SET status = 'published', group_post_ids = $1, error_message = NULL, updated_at = NOW()
+           WHERE id = $2`,
+          [groupPostIds, row.id]
+        );
+        results.push({ postId: row.instagram_post_id, result: { success: true } });
+      } else {
+        const errorMsg = scraperResult.error || 'Group posting failed on retry';
+        await pool.query(
+          `UPDATE facebook_page_posts
+           SET error_message = $1, updated_at = NOW()
+           WHERE id = $2`,
+          [errorMsg, row.id]
+        );
+        results.push({ postId: row.instagram_post_id, result: { error: errorMsg } });
+      }
     } catch (err) {
       const errMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-      console.error(`[FB Publisher] Error retrying post ${row.instagram_post_id}:`, errMsg);
       results.push({ postId: row.instagram_post_id, result: { error: errMsg } });
     }
   }
