@@ -369,16 +369,35 @@ def load_cookies(driver, filepath):
         except (json.JSONDecodeError, TypeError):
             for line in raw.split("\n"):
                 line = line.strip()
-                if not line or line.startswith("#") or line.startswith("HttpOnly"):
+                if not line:
+                    continue
+                # Handle #HttpOnly_ prefix (Netscape format for HttpOnly cookies)
+                if line.startswith("#HttpOnly_"):
+                    line = line.replace("#HttpOnly_", "", 1)
+                elif line.startswith("#"):
                     continue
                 parts = line.split("\t")
                 if len(parts) >= 7:
-                    driver.add_cookie({
-                        "name": parts[5], "value": parts[6],
-                        "domain": parts[0] if parts[0].startswith(".") else "." + parts[0],
+                    domain = parts[0]
+                    if not domain.startswith("."):
+                        domain = "." + domain
+                    cookie = {
+                        "name": parts[5],
+                        "value": parts[6],
+                        "domain": domain,
                         "path": parts[2] if parts[2] else "/",
-                    })
-                    loaded += 1
+                    }
+                    # Column 3 = secure flag (TRUE/FALSE)
+                    if len(parts) > 3:
+                        cookie["secure"] = parts[3].upper() == "TRUE"
+                    # Column 4 = expires (unused, but passthrough for completeness)
+                    if len(parts) > 4 and parts[4].isdigit():
+                        cookie["expiry"] = int(parts[4])
+                    try:
+                        driver.add_cookie(cookie)
+                        loaded += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to add cookie {parts[5]}: {e}")
         logger.info(f"Cookies loaded ({loaded} from {(len(raw))} bytes)")
     except Exception as e:
         logger.warning(f"Failed to load cookies: {e}")
