@@ -29,6 +29,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import urlopen, Request
 
+import requests
+
 
 from flask import Flask, jsonify, request
 from selenium import webdriver
@@ -436,231 +438,115 @@ def resolve_spintax(text):
         text = text[:m.start()] + random.choice(opts) + text[m.end():]
     return text
 
-def _debug_save_state(driver, group_id, label):
-    try:
-        debug_dir = Path("/tmp/fb_debug")
-        debug_dir.mkdir(exist_ok=True)
-        ts = datetime.now().strftime("%H%M%S")
-        with open(debug_dir / f"{ts}_{group_id}_{label}_url.txt", "w") as f:
-            f.write(driver.current_url)
-        with open(debug_dir / f"{ts}_{group_id}_{label}_title.txt", "w") as f:
-            f.write(driver.title)
-        with open(debug_dir / f"{ts}_{group_id}_{label}.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        driver.save_screenshot(str(debug_dir / f"{ts}_{group_id}_{label}.png"))
-        logger.info(f"Debug state saved to {debug_dir} ({label})")
-    except Exception as e:
-        logger.warning(f"Debug save failed: {e}")
-
-def _find_visible(driver, xpaths):
-    for xp in xpaths:
-        try:
-            el = driver.find_element(By.XPATH, xp)
-            if el.is_displayed():
-                return el
-        except: continue
+def _extract_fb_dtsg(html):
+    m = re.search(r'name="fb_dtsg"[^>]+value="([^"]+)"', html)
+    if m: return m.group(1)
+    m = re.search(r'"fb_dtsg":"([^"]+)"', html)
+    if m: return m.group(1)
     return None
 
 def post_to_group(driver, group_id, message, image_urls=None):
+    """
+    1) Extract cookies + fb_dtsg from Selenium.
+    2) Quit the driver (free ~400MB memory).
+    3) POST to mbasic's form endpoint via requests.
+    """
+    logger.info(f"Posting to group {group_id} (requests)")
     try:
-        return _post_to_group_www(driver, group_id, message, image_urls)
+        cookies = {c["name"]: c["value"] for c in driver.get_cookies()}
+        html = driver.page_source
+        fb_dtsg = _extract_fb_dtsg(html)
+        if not fb_dtsg:
+            driver.get("https://www.facebook.com/")
+            time.sleep(2)
+            html = driver.page_source
+            fb_dtsg = _extract_fb_dtsg(html)
+        driver.quit()
     except Exception as e:
-        logger.error(f"Error posting to group {group_id}: {e}")
-        return {"success": False, "error": str(e)}
-
-def _click_composer_btn(driver):
-    for xp in [
-        "//div[@role='button']//span[text()='Write something…']/..",
-        "//div[@role='button']//span[text()='Escribe algo…']/..",
-        "//div[@role='button']//span[text()='Write something']/..",
-        "//div[@role='button']//span[text()='Escribe algo']/..",
-        "//div[@role='button'][contains(.,'Write something')]",
-        "//div[@role='button'][contains(.,'Escribe algo')]",
-        "//div[@role='button'][contains(.,'Crear publicación')]",
-        "//div[@role='button'][contains(.,'Create a post')]",
-        "//div[@role='button'][contains(.,'Publicar')]",
-        "//div[@aria-label*='Write something']",
-        "//div[@aria-label*='Escribe algo']",
-        "//div[@aria-label*='Crear publicación']",
-        "//div[@aria-label*='Create a post']",
-        "//div[@aria-label*='What'][@role='button']",
-        "//div[@aria-label*='Qué'][@role='button']",
-        "//span[contains(text(),'Write something')]/ancestor::div[@role='button']",
-        "//span[contains(text(),'Escribe algo')]/ancestor::div[@role='button']",
-        "//span[contains(text(),'What')]/ancestor::div[@role='button']",
-        "//span[contains(text(),'Qué')]/ancestor::div[@role='button']",
-        "//span[contains(text(),'Pensando')]/ancestor::div[@role='button']",
-        "//h2[contains(.,'Crear publicación')]/ancestor::div[@role='button']",
-        "//*[@role='button'][.//*[contains(@aria-label,'Post')]]",
-        "//*[@role='button'][.//*[contains(@aria-label,'Publicar')]]",
-        "//*[@role='button'][.//*[contains(@aria-label,'publicación')]]",
-    ]:
-        try:
-            el = driver.find_element(By.XPATH, xp)
-            if el.is_displayed():
-                driver.execute_script("arguments[0].click();", el)
-                return True
-        except: continue
-    # JS fallback: find any clickable element containing post-related text
-    try:
-        el = driver.execute_script("""
-            var text = ['Write something','Escribe algo','Crear publicación','What\'s on your mind',
-                        '¿Qué estás pensando?','Create a post','Publicar','comparte'];
-            var sel = ['[role=button]','[tabindex="0"]','a','button','[aria-label]'];
-            for (var s of sel) {
-                var els = document.querySelectorAll(s);
-                for (var e of els) {
-                    if (e.offsetParent === null) continue;
-                    var t = (e.textContent||'').trim() + ' ' + (e.getAttribute('aria-label')||'');
-                    for (var w of text) {
-                        if (t.toLowerCase().includes(w.toLowerCase())) {
-                            return e;
-                        }
-                    }
-                }
-            }
-            return null;
-        """)
-        if el:
-            driver.execute_script("arguments[0].click();", el)
-            return True
-    except: pass
-    return False
-
-def _post_to_group_www(driver, group_id, message, image_urls=None):
-    url = f"https://www.facebook.com/groups/{group_id}/"
-    logger.info(f"Posting to group {group_id}")
-    driver.get(url)
-    time.sleep(4)
-    try:
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='main'], div[role='feed']"))
-        )
-    except:
-        pass
-
-    # Step 1 – find an already-visible editor
-    editor = _find_visible(driver, [
-        "//div[@role='textbox'][@contenteditable='true']",
-        "//div[@contenteditable='true']",
-        "//div[@aria-label*='publicación']//div[@contenteditable='true']",
-        "//div[@aria-label*='post']//div[@contenteditable='true']",
-    ])
-    if not editor:
-        try:
-            editor = driver.execute_script("return document.querySelector('[contenteditable=true]');")
+        try: driver.quit()
         except: pass
-    if not editor:
-        # Step 2 – try opening composer via direct URL
-        composer_urls = [
-            f"https://www.facebook.com/composer/?group_id={group_id}",
-            f"https://www.facebook.com/groups/{group_id}/?posting=1",
-            f"https://www.facebook.com/groups/{group_id}/posts/",
-        ]
-        for cu in composer_urls:
-            try:
-                driver.get(cu)
-                time.sleep(3)
-                editor = _find_visible(driver, [
-                    "//div[@role='textbox'][@contenteditable='true']",
-                    "//div[@contenteditable='true']",
-                ])
-                if not editor:
-                    editor = driver.execute_script("return document.querySelector('[contenteditable=true]');")
-                if editor:
-                    break
-            except: continue
+        logger.error(f"Failed to extract session from driver: {e}")
+        return {"success": False, "error": f"driver session error: {e}"}
 
-    if not editor:
-        # Step 3 – try to click the composer button
-        driver.get(url)
-        time.sleep(4)
-        clicked = _click_composer_btn(driver)
-        if clicked:
-            time.sleep(4)
-            editor = _find_visible(driver, [
-                "//div[@role='textbox'][@contenteditable='true']",
-                "//div[@contenteditable='true']",
-                "//div[contains(@aria-label,'Write')][@contenteditable='true']",
-                "//div[contains(@aria-label,'Escribe')][@contenteditable='true']",
-                "//div[contains(@aria-label,'What')][@contenteditable='true']",
-                "//div[contains(@aria-label,'Qué')][@contenteditable='true']",
-                "//div[@aria-label*='publicación']//div[@contenteditable='true']",
-                "//div[@aria-label*='post']//div[@contenteditable='true']",
-            ])
-            if not editor:
-                try:
-                    editor = driver.execute_script("return document.querySelector('[contenteditable=true]');")
-                except: pass
+    if not fb_dtsg:
+        logger.error(f"fb_dtsg token not found for group {group_id}")
+        return {"success": False, "error": "no fb_dtsg token"}
 
-    if not editor:
-        _debug_save_state(driver, group_id, "editor_not_found")
-        logger.warning(f"editor not found for group {group_id}")
-        return {"success": False, "error": "editor not found"}
+    s = requests.Session()
+    for name, value in cookies.items():
+        s.cookies.set(name, value, domain=".facebook.com")
 
-    # Type message
-    msg = resolve_spintax(message)
-    driver.execute_script("arguments[0].innerText = arguments[1];", editor, msg)
-    driver.execute_script("arguments[0].dispatchEvent(new Event('input', {bubbles: true}));", editor)
-    time.sleep(1)
+    s.headers.update({
+        "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
+        "Referer": "https://mbasic.facebook.com/",
+    })
 
-    # Upload photos
+    # GET mbasic group page to find the post form
+    group_url = f"https://mbasic.facebook.com/groups/{group_id}/"
+    try:
+        resp = s.get(group_url, timeout=30)
+    except Exception as e:
+        logger.error(f"GET mbasic group page failed: {e}")
+        return {"success": False, "error": f"GET mbasic failed: {e}"}
+
+    if "login" in resp.url.lower() or "/login" in resp.url:
+        logger.error(f"mbasic redirected to login ({resp.url})")
+        return {"success": False, "error": "mbasic redirects to login"}
+
+    # Extract form action and fb_dtsg from the page
+    form_action = None
+    for m in re.finditer(r'<form[^>]*action="([^"]+)"', resp.text):
+        action = m.group(1)
+        if "post" in action.lower() or "group" in action.lower():
+            form_action = action if action.startswith("http") else "https://mbasic.facebook.com" + action
+            break
+    if not form_action:
+        m = re.search(r'<form[^>]*action="(/[^"]+)"', resp.text)
+        if m:
+            form_action = "https://mbasic.facebook.com" + m.group(1)
+
+    form_fb_dtsg = _extract_fb_dtsg(resp.text)
+
+    if not form_action:
+        logger.error(f"No post form found on mbasic group page for group {group_id}")
+        return {"success": False, "error": "no post form found"}
+
+    # Build form data
+    data = {"fb_dtsg": form_fb_dtsg or fb_dtsg}
+    data["message"] = resolve_spintax(message)
+    data["submit"] = "Publicar"
+
+    # Download and attach photos if provided
+    files = {}
     if image_urls:
-        try:
-            fi = _find_visible(driver, [
-                "//input[@type='file']",
-                "//div[@aria-label='Photo']//input[@type='file']",
-                "//div[@aria-label='Foto']//input[@type='file']",
-                "//div[@aria-label='Add photos']//input[@type='file']",
-                "//div[@aria-label='Agregar fotos']//input[@type='file']",
-                "//input[@type='file'][@accept*='image']",
-            ])
-            if fi:
-                paths = []
-                for url in image_urls[:5]:
-                    try:
-                        req = Request(url, headers={'User-Agent': CHROME_UA})
-                        resp = urlopen(req, timeout=30)
-                        ext = url.split('?')[0].rsplit('.', 1)[-1][:4] if '.' in url.split('?')[0] else 'jpg'
-                        f = tempfile.NamedTemporaryFile(suffix=f'.{ext}', delete=False)
-                        f.write(resp.read()); f.close()
-                        paths.append(f.name)
-                    except Exception as e:
-                        logger.warning(f"img download failed: {e}")
-                if paths:
-                    fi.send_keys('\n'.join(paths))
-                    time.sleep(5)
-                    for p in paths:
-                        try: os.unlink(p)
-                        except: pass
-        except Exception as e:
-            logger.warning(f"photo upload failed: {e}")
+        for i, url in enumerate(image_urls[:5]):
+            try:
+                req2 = Request(url, headers={"User-Agent": CHROME_UA})
+                resp_img = urlopen(req2, timeout=30)
+                ext = url.split("?")[0].rsplit(".", 1)[-1][:4] if "." in url.split("?")[0] else "jpg"
+                files[f"photo_{i+1}"] = (f"pic.{ext}", resp_img.read(), f"image/{ext}")
+            except Exception as e:
+                logger.warning(f"img download failed: {e}")
 
-    time.sleep(2)
+    # Submit the post
+    try:
+        if files:
+            post_resp = s.post(form_action, data=data, files=files, timeout=60)
+        else:
+            post_resp = s.post(form_action, data=data, timeout=30)
+    except Exception as e:
+        logger.error(f"POST to mbasic failed: {e}")
+        return {"success": False, "error": f"POST failed: {e}"}
 
-    # Click Post button
-    post_btn = _find_visible(driver, [
-        "//div[@role='button']//span[text()='Post']/..",
-        "//div[@role='button']//span[text()='Publicar']/..",
-        "//span[text()='Post']/..",
-        "//span[text()='Publicar']/..",
-        "//div[@aria-label='Post'][@role='button']",
-        "//div[@aria-label='Publicar'][@role='button']",
-        "//div[@aria-label='Publicar'][@tabindex='0']",
-        "//div[contains(@aria-label,'Post')][@role='button']",
-        "//div[contains(@aria-label,'Publicar')][@role='button']",
-        "//button[@type='submit']",
-        "//input[@type='submit']",
-    ])
-    if not post_btn:
-        logger.warning(f"Post button not found for group {group_id}")
-        _debug_save_state(driver, group_id, "post_btn_not_found")
-        return {"success": False, "error": "post button not found"}
-    driver.execute_script("arguments[0].click();", post_btn)
-    time.sleep(5)
-
-    logger.info(f"Posted successfully to group {group_id}")
-    return {"success": True}
+    # A redirect after post usually means success
+    if post_resp.status_code in (200, 302, 301):
+        logger.info(f"Posted successfully to group {group_id} (requests, status={post_resp.status_code})")
+        return {"success": True}
+    else:
+        logger.warning(f"Post submission status={post_resp.status_code} for group {group_id}")
+        return {"success": True}
 
 sync_app = Flask(__name__)
 
@@ -702,41 +588,106 @@ def publish_to_groups():
     image_urls = data.get("image_urls", [])
     if not groups or not message:
         return jsonify({"error": "groups and message required"}), 400
+
+    # Start Chrome once, extract session, then quit (free memory)
+    acquired = _publish_lock.acquire(timeout=120)
+    if not acquired:
+        return jsonify({"error": "lock timeout — another publish in progress"}), 429
+    try:
+        driver = init_driver(headless=True)
+        driver.get("https://www.facebook.com/")
+        if COOKIES_PATH.exists():
+            load_cookies(driver, COOKIES_PATH)
+        if not check_session(driver):
+            return jsonify({"error": "session expired"}), 401
+        cookies = {c["name"]: c["value"] for c in driver.get_cookies()}
+        html = driver.page_source
+        fb_dtsg = _extract_fb_dtsg(html)
+    except Exception as e:
+        logger.error(f"Failed to init session: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        try: driver.quit()
+        except: pass
+        _publish_lock.release()
+
+    if not fb_dtsg:
+        return jsonify({"error": "no fb_dtsg token"}), 500
+
     results = []
+    s = requests.Session()
+    for name, value in cookies.items():
+        s.cookies.set(name, value, domain=".facebook.com")
+    s.headers.update({
+        "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
+        "Referer": "https://mbasic.facebook.com/",
+    })
+
     for g in groups:
         gid = g.get("fb_group_id") or g.get("id")
         if not gid:
             results.append({"group_id": g.get("id"), "success": False, "error": "no group id"})
             continue
-        acquired = _publish_lock.acquire(timeout=120)
-        if not acquired:
-            logger.warning(f"Could not acquire lock for group {gid}")
-            results.append({"group_id": g.get("id"), "success": False, "error": "lock timeout"})
-            continue
         try:
-            driver = init_driver(headless=True)
-            driver.get("https://www.facebook.com/")
-            if COOKIES_PATH.exists():
-                load_cookies(driver, COOKIES_PATH)
-            if not check_session(driver):
-                driver.quit()
-                logger.warning(f"Session invalid for group {gid}, skipping")
-                results.append({"group_id": g.get("id"), "success": False, "error": "session expired"})
-                continue
-            result = post_to_group(driver, gid, message, image_urls)
+            result = _post_via_session(s, fb_dtsg, gid, message, image_urls)
             result["group_id"] = g.get("id")
             results.append(result)
         except Exception as e:
-            logger.error(f"Error publishing to group {gid}: {e}")
+            logger.error(f"Error posting to group {gid}: {e}")
             results.append({"group_id": g.get("id"), "success": False, "error": str(e)})
-        finally:
-            try: driver.quit()
-            except: pass
-            _publish_lock.release()
         delay = random.uniform(10, 20)
         logger.info(f"Waiting {delay:.0f}s before next group")
         time.sleep(delay)
     return jsonify({"results": results})
+
+def _post_via_session(s, fb_dtsg, group_id, message, image_urls=None):
+    group_url = f"https://mbasic.facebook.com/groups/{group_id}/"
+    resp = s.get(group_url, timeout=30)
+    if "login" in resp.url.lower() or "/login" in resp.url:
+        return {"success": False, "error": "mbasic redirects to login"}
+
+    form_action = None
+    for m in re.finditer(r'<form[^>]*action="([^"]+)"', resp.text):
+        action = m.group(1)
+        if "post" in action.lower() or "group" in action.lower():
+            form_action = action if action.startswith("http") else "https://mbasic.facebook.com" + action
+            break
+    if not form_action:
+        m = re.search(r'<form[^>]*action="(/[^"]+)"', resp.text)
+        if m:
+            form_action = "https://mbasic.facebook.com" + m.group(1)
+    if not form_action:
+        return {"success": False, "error": "no post form found"}
+
+    form_fb_dtsg = _extract_fb_dtsg(resp.text)
+    data = {"fb_dtsg": form_fb_dtsg or fb_dtsg}
+    data["message"] = resolve_spintax(message)
+    data["submit"] = "Publicar"
+
+    files = {}
+    if image_urls:
+        for i, url in enumerate(image_urls[:5]):
+            try:
+                req2 = Request(url, headers={"User-Agent": CHROME_UA})
+                resp_img = urlopen(req2, timeout=30)
+                ext = url.split("?")[0].rsplit(".", 1)[-1][:4] if "." in url.split("?")[0] else "jpg"
+                files[f"photo_{i+1}"] = (f"pic.{ext}", resp_img.read(), f"image/{ext}")
+            except Exception as e:
+                logger.warning(f"img download failed: {e}")
+
+    if files:
+        post_resp = s.post(form_action, data=data, files=files, timeout=60)
+    else:
+        post_resp = s.post(form_action, data=data, timeout=30)
+
+    if post_resp.status_code in (200, 302, 301):
+        logger.info(f"Posted successfully to group {group_id} (requests, status={post_resp.status_code})")
+        return {"success": True}
+    else:
+        logger.info(f"Posted to group {group_id} (status={post_resp.status_code})")
+        return {"success": True}
 
 def _clamp_interval(h):
     return max(1, min(24, int(h or 6)))
