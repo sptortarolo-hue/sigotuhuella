@@ -27,7 +27,7 @@ import WhatsAppTab from '@/src/components/admin/WhatsAppTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award, MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award, MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
