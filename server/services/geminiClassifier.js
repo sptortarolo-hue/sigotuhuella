@@ -1,10 +1,7 @@
-import { GoogleGenAI } from '@google/genai';
+import Groq from 'groq-sdk';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-let geminiCooldownUntil = 0;
-
-function isGeminiAvailable() { return Date.now() > geminiCooldownUntil; }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
 const CLASSIFICATION_PROMPT = `Eres un clasificador de publicaciones de Facebook sobre mascotas perdidas y encontradas para la app "Sigo Tu Huella".
 Analizá el post, las imágenes y los comentarios asociados. Devolvé SOLO un JSON válido sin markdown:
@@ -43,74 +40,91 @@ Reglas:
 - No incluyas la URL del post ni metadatos de Facebook en el summary`;
 
 export async function classifyPost(text, imageUrls, comments = [], imageBuffers = []) {
-  if (!GEMINI_API_KEY) return fallbackClassification(text);
-  if (!isGeminiAvailable()) {
-    console.log(`classifyPost: en cooldown hasta ${new Date(geminiCooldownUntil).toISOString()}`);
-    return fallbackClassification(text);
-  }
+  if (!groq) return fallbackClassification(text);
 
   const commentsText = comments.map(c => `- ${c.author}: "${c.text}"`).join('\n');
-  const promptText = `${CLASSIFICATION_PROMPT}\n\nPost:\n${text || '(sin texto)'}\n\nComentarios:\n${commentsText || '(sin comentarios)'}`;
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-      const parts = [{ text: promptText }];
+  try {
+    const hasImages = (imageBuffers && imageBuffers.length > 0) || (imageUrls && imageUrls.some(u => u && u.startsWith('http')));
+
+    if (hasImages) {
+      const userContent = [];
+      userContent.push({
+        type: 'text',
+        text: `${CLASSIFICATION_PROMPT}\n\nPost:\n${text || '(sin texto)'}\n\nComentarios:\n${commentsText || '(sin comentarios)'}`,
+      });
 
       if (imageBuffers && imageBuffers.length > 0) {
         for (const buf of imageBuffers.slice(0, 3)) {
-          parts.push({ inlineData: { data: buf.data, mimeType: buf.mimeType || 'image/jpeg' } });
+          userContent.push({
+            type: 'image_url',
+            image_url: { url: `data:${buf.mimeType || 'image/jpeg'};base64,${buf.data}` },
+          });
         }
       } else if (imageUrls && imageUrls.length > 0) {
         for (const url of imageUrls.filter(u => u && u.startsWith('http')).slice(0, 3)) {
-          parts.push({ fileData: { fileUri: url, mimeType: 'image/jpeg' } });
+          try {
+            const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } });
+            if (resp.ok) {
+              const buf = Buffer.from(await resp.arrayBuffer());
+              userContent.push({
+                type: 'image_url',
+                image_url: { url: `data:${resp.headers.get('content-type') || 'image/jpeg'};base64,${buf.toString('base64')}` },
+              });
+            }
+          } catch (e) {
+            console.warn('classifyPost: fallo al descargar imagen', url, e.message);
+          }
         }
       }
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash-lite',
-        contents: [{ role: 'user', parts }],
-        config: { responseMimeType: 'application/json' },
+      const result = await groq.chat.completions.create({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        messages: [{ role: 'user', content: userContent }],
+        temperature: 0,
+        max_tokens: 1000,
       });
-
-      const result = JSON.parse(response.text);
-      return {
-        classification: ['lost', 'found', 'sighting', 'reunion', 'other'].includes(result.classification) ? result.classification : 'other',
-        species: ['dog', 'cat', 'other', null].includes(result.species) ? result.species : null,
-        species_other: result.species_other || null,
-        name: result.name || null,
-        breed: result.breed || null,
-        gender: ['male', 'female', null].includes(result.gender) ? result.gender : null,
-        color: Array.isArray(result.colors) ? result.colors.join(', ') : null,
-        colors: Array.isArray(result.colors) ? result.colors : [],
-        location_hint: result.location || null,
-        phone: result.phone || null,
-        confidence: Math.min(100, Math.max(0, result.confidence || 0)),
-        location_lat: null,
-        location_lng: null,
-        comments: Array.isArray(result.comments) ? result.comments.map(c => ({
-          text: c.text || '',
-          classification: ['sighting', 'reunion', 'info', 'irrelevant'].includes(c.classification) ? c.classification : 'info',
-        })) : [],
-      };
-    } catch (err) {
-      const msg = (err.message || '').toLowerCase();
-      if (msg.includes('429') || msg.includes('quota') || msg.includes('exhausted') || msg.includes('rate')) {
-        if (msg.includes('quota') || msg.includes('exhausted')) {
-          geminiCooldownUntil = Date.now() + 60 * 60 * 1000;
-          console.log(`classifyPost: cuota agotada, cooldown 60min hasta ${new Date(geminiCooldownUntil).toISOString()}`);
-        } else {
-          const delay = Math.pow(2, attempt) * 1000;
-          console.log(`classifyPost: 429 (intento ${attempt}/3), esperando ${delay}ms`);
-          await sleep(delay);
-          continue;
-        }
-      }
-      console.error('Gemini classification error:', err.message);
-      return fallbackClassification(text);
+      let raw = result.choices[0]?.message?.content || '{}';
+      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      return parseResponse(raw);
     }
+
+    const result = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: `${CLASSIFICATION_PROMPT}\n\nPost:\n${text || '(sin texto)'}\n\nComentarios:\n${commentsText || '(sin comentarios)'}` }],
+      temperature: 0,
+      max_tokens: 1000,
+    });
+    let raw = result.choices[0]?.message?.content || '{}';
+    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    return parseResponse(raw);
+  } catch (err) {
+    console.error('Groq classifyPost error:', err.message);
+    return fallbackClassification(text);
   }
-  return fallbackClassification(text);
+}
+
+function parseResponse(raw) {
+  const result = JSON.parse(raw);
+  return {
+    classification: ['lost', 'found', 'sighting', 'reunion', 'other'].includes(result.classification) ? result.classification : 'other',
+    species: ['dog', 'cat', 'other', null].includes(result.species) ? result.species : null,
+    species_other: result.species_other || null,
+    name: result.name || null,
+    breed: result.breed || null,
+    gender: ['male', 'female', null].includes(result.gender) ? result.gender : null,
+    color: Array.isArray(result.colors) ? result.colors.join(', ') : null,
+    colors: Array.isArray(result.colors) ? result.colors : [],
+    location_hint: result.location || null,
+    phone: result.phone || null,
+    confidence: Math.min(100, Math.max(0, result.confidence || 0)),
+    location_lat: null,
+    location_lng: null,
+    comments: Array.isArray(result.comments) ? result.comments.map(c => ({
+      text: c.text || '',
+      classification: ['sighting', 'reunion', 'info', 'irrelevant'].includes(c.classification) ? c.classification : 'info',
+    })) : [],
+  };
 }
 
 function fallbackClassification(text) {
