@@ -733,7 +733,14 @@ async function rlConfirm(conv, parsed, intent) {
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
-      await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`, [petId, ctx.photo_data, ctx.photo_mime || 'image/jpeg']);
+      let imageData = ctx.photo_data;
+      let originalImageData = null;
+      try {
+        const { detectAndCropPetFace } = await import('./geminiMatching.js');
+        const cropped = await detectAndCropPetFace(ctx.photo_data, ctx.photo_mime);
+        if (cropped) { imageData = cropped.cropped; originalImageData = cropped.original; }
+      } catch (e) { console.error('Face crop error:', e); }
+      await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type, original_image_data) VALUES ($1, $2, $3, $4)`, [petId, imageData, ctx.photo_mime || 'image/jpeg', originalImageData]);
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
@@ -879,7 +886,14 @@ async function rsConfirm(conv, parsed, intent) {
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
-      await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`, [petId, ctx.photo_data, ctx.photo_mime || 'image/jpeg']);
+      let imageData = ctx.photo_data;
+      let originalImageData = null;
+      try {
+        const { detectAndCropPetFace } = await import('./geminiMatching.js');
+        const cropped = await detectAndCropPetFace(ctx.photo_data, ctx.photo_mime);
+        if (cropped) { imageData = cropped.cropped; originalImageData = cropped.original; }
+      } catch (e) { console.error('Face crop error:', e); }
+      await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type, original_image_data) VALUES ($1, $2, $3, $4)`, [petId, imageData, ctx.photo_mime || 'image/jpeg', originalImageData]);
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
@@ -1047,7 +1061,14 @@ async function rfConfirm(conv, parsed, intent) {
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
-      await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`, [petId, ctx.photo_data, ctx.photo_mime || 'image/jpeg']);
+      let imageData = ctx.photo_data;
+      let originalImageData = null;
+      try {
+        const { detectAndCropPetFace } = await import('./geminiMatching.js');
+        const cropped = await detectAndCropPetFace(ctx.photo_data, ctx.photo_mime);
+        if (cropped) { imageData = cropped.cropped; originalImageData = cropped.original; }
+      } catch (e) { console.error('Face crop error:', e); }
+      await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type, original_image_data) VALUES ($1, $2, $3, $4)`, [petId, imageData, ctx.photo_mime || 'image/jpeg', originalImageData]);
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));

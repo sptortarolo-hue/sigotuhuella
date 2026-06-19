@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import Groq from 'groq-sdk';
+import sharp from 'sharp';
 import pool from '../db.js';
 import { sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from './pushService.js';
@@ -480,6 +481,57 @@ export async function classifyTextIntent(text) {
     return valid.includes(raw) ? raw : null;
   } catch (err) {
     console.error('Groq classifyTextIntent error:', err);
+    return null;
+  }
+}
+
+export async function detectAndCropPetFace(imageBase64, mimeType) {
+  if (!groq || !imageBase64) return null;
+  try {
+    const result = await groq.chat.completions.create({
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'You are a pet photo cropper. This image contains a pet (dog or cat). Find the animal\'s face/head and return its bounding box as normalized coordinates (0-1). Return ONLY a JSON object with this exact format: {"x":0.5,"y":0.4,"width":0.3,"height":0.3}. If no animal face is visible, return {"error":"no_face"}.' },
+          { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` } },
+        ],
+      }],
+      temperature: 0,
+      max_tokens: 200,
+    });
+    let raw = result.choices[0]?.message?.content || '{}';
+    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const faceData = JSON.parse(raw);
+    if (faceData.error === 'no_face') return null;
+    if (typeof faceData.x !== 'number' || typeof faceData.y !== 'number' || typeof faceData.width !== 'number' || typeof faceData.height !== 'number') return null;
+
+    const buffer = Buffer.from(imageBase64, 'base64');
+    const image = sharp(buffer);
+    const metadata = await image.metadata();
+    const imgW = metadata.width || 1000;
+    const imgH = metadata.height || 1000;
+
+    const padding = 0.5;
+    const cx = faceData.x * imgW;
+    const cy = faceData.y * imgH;
+    let cw = faceData.width * imgW * (1 + padding);
+    let ch = faceData.height * imgH * (1 + padding);
+    let left = Math.round(cx - cw / 2);
+    let top = Math.round(cy - ch / 2);
+    let width = Math.round(cw);
+    let height = Math.round(ch);
+
+    if (left < 0) { width += left; left = 0; }
+    if (top < 0) { height += top; top = 0; }
+    width = Math.min(width, imgW - left);
+    height = Math.min(height, imgH - top);
+    if (width < 50 || height < 50) return null;
+
+    const cropped = await image.extract({ left, top, width, height }).jpeg({ quality: 85 }).toBuffer();
+    return { cropped: cropped.toString('base64'), original: imageBase64, mimeType: 'image/jpeg' };
+  } catch (err) {
+    console.error('detectAndCropPetFace error:', err);
     return null;
   }
 }
