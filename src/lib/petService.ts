@@ -37,6 +37,7 @@ export interface Pet {
   latitude: number | null;
   longitude: number | null;
   contact_info: string | null;
+  contact_info_2: string | null;
   neighborhoods: string[];
   images: PetImage[];
   facebook_embed_html?: string;

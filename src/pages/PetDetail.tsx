@@ -81,9 +81,10 @@ export default function PetDetail() {
 ${pet.description ? `\n📝 Descripción: ${pet.description}` : ''}
 Me gustaría obtener más información.`;
 
-  const contactWhatsApp = () => {
-    const phone = pet.contact_info?.replace(/\D/g, '');
-    const url = `https://wa.me/${phone || ''}?text=${encodeURIComponent(waMessage)}`;
+  const contactWhatsApp = (contactField: 'contact_info' | 'contact_info_2' = 'contact_info') => {
+    const phone = pet?.[contactField]?.replace(/\D/g, '');
+    if (!phone) return;
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(waMessage)}`;
     window.open(url, '_blank');
   };
 
@@ -241,23 +242,38 @@ Me gustaría obtener más información.`;
           </div>
 
           <div className="mt-auto space-y-3">
-            <button 
-              onClick={contactWhatsApp}
-              disabled={!pet.contact_info}
-              className={cn(
-                "w-full py-5 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl",
-                pet.contact_info 
-                  ? "bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200" 
-                  : "bg-gray-200 text-gray-400 cursor-not-allowed"
-              )}
-            >
-              <MessageCircle className="w-6 h-6" />
-              Contactar por WhatsApp
-            </button>
-            {!pet.contact_info && (
-              <p className="text-center text-xs text-gray-400 mt-3">
-                El contacto no está disponible para esta publicación.
-              </p>
+            {pet.contact_info ? (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => contactWhatsApp('contact_info')}
+                  className="flex-1 py-5 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200"
+                >
+                  <MessageCircle className="w-5 h-5 shrink-0" />
+                  <span className="text-sm leading-tight">1er<br/>contacto</span>
+                </button>
+                {pet.contact_info_2 && (
+                  <button
+                    onClick={() => contactWhatsApp('contact_info_2')}
+                    className="flex-1 py-5 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200"
+                  >
+                    <MessageCircle className="w-5 h-5 shrink-0" />
+                    <span className="text-sm leading-tight">2do<br/>contacto</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <button
+                  disabled
+                  className="w-full py-5 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl bg-gray-200 text-gray-400 cursor-not-allowed"
+                >
+                  <MessageCircle className="w-6 h-6" />
+                  Contactar por WhatsApp
+                </button>
+                <p className="text-center text-xs text-gray-400 mt-3">
+                  El contacto no está disponible para esta publicación.
+                </p>
+              </>
             )}
             <button
               onClick={() => shareOnWhatsApp(pet)}

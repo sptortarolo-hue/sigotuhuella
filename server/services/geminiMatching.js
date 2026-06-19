@@ -354,8 +354,9 @@ const PROCESS_IMAGE_CAPTION_PROMPT = `Analizá el siguiente mensaje de WhatsApp 
    - color: ej "negro", "blanco y marrón", null
    - nombre: si se ve una chapita con nombre, null si no
    - ubicación: barrio, ciudad, dirección, punto de referencia
-   - teléfono de contacto: solo números, sin + ni guiones, ej 2215551234
-   - descripción: tamaño, estado físico, señas particulares
+    - teléfono de contacto (phone): solo números, sin + ni guiones, ej 2215551234
+    - teléfono secundario (phone2): si hay OTRO número de contacto distinto en el mismo mensaje/imagen, solo números, ej 2215555678. Si solo hay un número, poner null
+    - descripción: tamaño, estado físico, señas particulares
 
 Respondé SOLO un JSON:
 {
@@ -367,15 +368,16 @@ Respondé SOLO un JSON:
   "name": "texto" | null,
   "location": "texto" | null,
   "phone": "texto solo números" | null,
+  "phone2": "texto solo números" | null,
   "description": "texto" | null
 }`;
 
 export async function processImageCaption(caption, imageData, imageMime) {
   if (!groq) {
-    return { intent: 'unclear', location: null, phone: null, description: null };
+    return { intent: 'unclear', location: null, phone: null, phone2: null, description: null };
   }
   if (!caption && !imageData) {
-    return { intent: 'unclear', location: null, phone: null, description: null };
+    return { intent: 'unclear', location: null, phone: null, phone2: null, description: null };
   }
   try {
     const userContent = [];
@@ -409,11 +411,12 @@ export async function processImageCaption(caption, imageData, imageMime) {
       name: parsed.name || null,
       location: parsed.location || null,
       phone: parsed.phone || null,
+      phone2: parsed.phone2 || null,
       description: parsed.description || null,
     };
   } catch (err) {
     console.error('processImageCaption error:', err);
-    return { intent: 'unclear', species: null, gender: null, breed: null, color: null, name: null, location: null, phone: null, description: null };
+    return { intent: 'unclear', species: null, gender: null, breed: null, color: null, name: null, location: null, phone: null, phone2: null, description: null };
   }
 }
 

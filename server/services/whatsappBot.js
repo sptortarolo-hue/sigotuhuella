@@ -633,6 +633,7 @@ async function rlPhoto(conv, parsed) {
       if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
     }
     if (extracted.phone) ctx.contact = extracted.phone;
+    if (extracted.phone2) ctx.contact2 = extracted.phone2;
     await sendMessage(conv.wa_from, `✅ Foto recibida.`);
     if (ctx.location && ctx.contact) {
       await setFlow(conv, 'report_lost.confirm', ctx);
@@ -726,10 +727,10 @@ async function rlConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
     const petResult = await pool.query(
-      `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, description, gender, breed, color)
-       VALUES ($1, $2, 'lost', $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color)
+       VALUES ($1, $2, 'lost', $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
-      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.description || 'Reportado por WhatsApp como perdida', ctx.gender || null, ctx.breed || null, ctx.color || null]
+      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.description || 'Reportado por WhatsApp como perdida', ctx.gender || null, ctx.breed || null, ctx.color || null]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -813,6 +814,7 @@ async function rsSpecies(conv, parsed) {
     if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
     if (extracted.description) ctx.details = extracted.description;
     if (extracted.phone) ctx.contact = extracted.phone;
+    if (extracted.phone2) ctx.contact2 = extracted.phone2;
     if (ctx.contact) {
       await setFlow(conv, 'report_sighted.confirm', ctx);
       const speciesLabel = { dog: '🐕 Perro', cat: '🐈 Gato', other: '🐾 Otro', unknown: '?' };
@@ -880,9 +882,9 @@ async function rsConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
     const petResult = await pool.query(
-      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description, gender, breed, color)
-       VALUES ($1, 'sighted', $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [ctx.species || 'unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje', ctx.gender || null, ctx.breed || null, ctx.color || null]
+      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color)
+       VALUES ($1, 'sighted', $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [ctx.species || 'unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje', ctx.gender || null, ctx.breed || null, ctx.color || null]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -944,6 +946,7 @@ async function rfPhoto(conv, parsed) {
       if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
     }
     if (extracted.phone) ctx.contact = extracted.phone;
+    if (extracted.phone2) ctx.contact2 = extracted.phone2;
     if (extracted.description) ctx.description = extracted.description;
 
     if (ctx.location && ctx.contact) {
@@ -979,6 +982,7 @@ async function rfPhoto(conv, parsed) {
         if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
       }
       if (result.phone) ctx.contact = result.phone;
+      if (result.phone2) ctx.contact2 = result.phone2;
       if (result.description) ctx.description = result.description;
 
       if (ctx.location && ctx.contact) {
@@ -1055,9 +1059,9 @@ async function rfConfirm(conv, parsed, intent) {
     const ctx = conv.context;
     const description = ctx.description || 'Reportado por WhatsApp como encontrada';
     const petResult = await pool.query(
-      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description, gender, breed, color)
-       VALUES ($1, 'retained', $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [ctx.species || 'unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', description, ctx.gender || null, ctx.breed || null, ctx.color || null]
+      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color)
+       VALUES ($1, 'retained', $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [ctx.species || 'unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, description, ctx.gender || null, ctx.breed || null, ctx.color || null]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
