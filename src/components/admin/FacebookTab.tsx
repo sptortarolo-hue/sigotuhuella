@@ -1463,12 +1463,12 @@ function PublisherSection() {
                     {p.published_at ? new Date(p.published_at).toLocaleString('es-AR') : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => handlePublishToGroups(p.pet_id)} disabled={publishingPet === p.pet_id || !p.pet_id || p.status === 'published'}
+                    <button onClick={() => handlePublishToGroups(p.pet_id)} disabled={publishingPet === p.pet_id || !p.pet_id || (p.group_post_ids?.length > 0)}
                       className="px-3 py-1.5 bg-brand-primary text-white text-[10px] font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-40 flex items-center gap-1">
                       {publishingPet === p.pet_id
                         ? <Loader2 className="w-3 h-3 animate-spin" />
-                        : p.status === 'published' ? <Check className="w-3 h-3" /> : <Upload className="w-3 h-3" />}
-                      {publishingPet === p.pet_id ? 'Publicando...' : p.status === 'published' ? 'Ya publicado' : 'Publicar a grupos'}
+                        : p.group_post_ids?.length > 0 ? <Check className="w-3 h-3" /> : <Upload className="w-3 h-3" />}
+                      {publishingPet === p.pet_id ? 'Publicando...' : p.group_post_ids?.length > 0 ? 'Ya publicado' : 'Publicar a grupos'}
                     </button>
                   </td>
                 </tr>
