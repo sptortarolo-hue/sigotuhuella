@@ -55,6 +55,15 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
     fetchPets();
   }, [type]);
 
+  useEffect(() => {
+    if (loading) return;
+    const saved = sessionStorage.getItem('pet_list_scroll');
+    if (saved) {
+      sessionStorage.removeItem('pet_list_scroll');
+      requestAnimationFrame(() => window.scrollTo(0, parseInt(saved, 10)));
+    }
+  }, [loading]);
+
   const displayedPets = useMemo(() => {
     let result = pets.filter(p => p.status !== PetStatus.REUNITED);
 

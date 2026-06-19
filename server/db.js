@@ -208,6 +208,14 @@ CREATE TABLE IF NOT EXISTS my_pet_events (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS pet_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pet_id UUID REFERENCES pets(id),
+  record_type TEXT NOT NULL DEFAULT 'general',
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS my_pet_id UUID REFERENCES my_pets(id) ON DELETE SET NULL;
 ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS photo_ids TEXT[] DEFAULT '{}';
 ALTER TABLE pet_records ADD COLUMN IF NOT EXISTS link_url TEXT;

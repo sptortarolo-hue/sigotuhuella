@@ -60,7 +60,12 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
 
     return (
       <div 
-        onClick={() => !showAdminActions && navigate(`/pet/${pet.id}`)}
+        onClick={() => {
+          if (!showAdminActions) {
+            sessionStorage.setItem('pet_list_scroll', window.scrollY.toString());
+            navigate(`/pet/${pet.id}`);
+          }
+        }}
         className={cn(
           "group bg-white rounded-3xl overflow-hidden border border-brand-accent hover:border-brand-secondary transition-all hover:shadow-xl hover:-translate-y-1",
           !showAdminActions && "cursor-pointer"
