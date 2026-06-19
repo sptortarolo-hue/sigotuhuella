@@ -241,54 +241,59 @@ Me gustaría obtener más información.`;
             </p>
           </div>
 
-          <div className="mt-auto space-y-3">
-            {pet.contact_info ? (
-              <div className="flex gap-3">
-                <button
-                  onClick={() => contactWhatsApp('contact_info')}
-                  className="flex-1 py-5 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200"
-                >
-                  <MessageCircle className="w-5 h-5 shrink-0" />
-                  <span className="text-sm leading-tight">1er<br/>contacto</span>
-                </button>
-                {pet.contact_info_2 && (
+          <div className="mt-auto space-y-6">
+            <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
+              {pet.contact_info ? (
+                <div className="flex gap-3">
                   <button
-                    onClick={() => contactWhatsApp('contact_info_2')}
-                    className="flex-1 py-5 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200"
+                    onClick={() => contactWhatsApp('contact_info')}
+                    className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
                   >
                     <MessageCircle className="w-5 h-5 shrink-0" />
-                    <span className="text-sm leading-tight">2do<br/>contacto</span>
+                    <span className="text-sm">{pet.contact_info_2 ? 'Contactar 1' : 'Contactar'}</span>
                   </button>
-                )}
-              </div>
-            ) : (
-              <>
-                <button
-                  disabled
-                  className="w-full py-5 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl bg-gray-200 text-gray-400 cursor-not-allowed"
-                >
-                  <MessageCircle className="w-6 h-6" />
-                  Contactar por WhatsApp
-                </button>
-                <p className="text-center text-xs text-gray-400 mt-3">
-                  El contacto no está disponible para esta publicación.
-                </p>
-              </>
-            )}
-            <button
-              onClick={() => shareOnWhatsApp(pet)}
-              className="w-full py-5 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-lg hover:from-green-600 hover:to-emerald-700"
-            >
-              <Share2 className="w-6 h-6" />
-              Difundir en WhatsApp
-            </button>
-            <button
-              onClick={() => shareOnFacebook(pet)}
-              className="w-full py-5 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-xl bg-blue-600 text-white hover:shadow-lg hover:bg-blue-700"
-            >
-              <Share2 className="w-6 h-6" />
-              Compartir en Facebook
-            </button>
+                  {pet.contact_info_2 && (
+                    <button
+                      onClick={() => contactWhatsApp('contact_info_2')}
+                      className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
+                    >
+                      <MessageCircle className="w-5 h-5 shrink-0" />
+                      <span className="text-sm">Contactar 2</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <button
+                    disabled
+                    className="w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all bg-gray-200 text-gray-400 cursor-not-allowed"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                    Contactar
+                  </button>
+                  <p className="text-center text-xs text-gray-400">
+                    El contacto no está disponible para esta publicación.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-brand-accent pt-4 space-y-3">
+              <button
+                onClick={() => shareOnWhatsApp(pet)}
+                className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-lg hover:from-green-600 hover:to-emerald-700"
+              >
+                <Share2 className="w-5 h-5" />
+                Difundir en WhatsApp
+              </button>
+              <button
+                onClick={() => shareOnFacebook(pet)}
+                className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-blue-600 text-white hover:shadow-lg hover:bg-blue-700"
+              >
+                <Share2 className="w-5 h-5" />
+                Compartir en Facebook
+              </button>
+            </div>
           </div>
         </div>
       </div>
