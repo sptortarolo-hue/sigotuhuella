@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { BADGE_CONFIG } from '@/src/components/MemberCard';
+import ImageLightbox from './ImageLightbox';
 
 const BADGE_ICONS: Record<string, { label: string; icon: string }> = {
   volunteer: { label: 'Voluntario/a', icon: '🤝' },
@@ -90,6 +91,8 @@ interface UserDetailPanelProps {
 
 export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMobile, onClose }: UserDetailPanelProps) {
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'myPets' | 'reported' | 'activity'>('info');
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const { user, volunteer_request, conversations, myPets, pets, stats } = data;
 
   const avatarSrc = user.avatar_data
@@ -263,7 +266,14 @@ export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMo
                       <img
                         src={mp.avatar_image ? `data:${mp.avatar_mime_type || 'image/jpeg'};base64,${mp.avatar_image}` : `data:${mp.photos[0].mime_type || 'image/jpeg'};base64,${mp.photos[0].image_data}`}
                         alt=""
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const imgs: string[] = [];
+                          if (mp.avatar_image) imgs.push(`data:${mp.avatar_mime_type || 'image/jpeg'};base64,${mp.avatar_image}`);
+                          (mp.photos || []).forEach((p: any) => { if (p.image_data) imgs.push(`data:${p.mime_type || 'image/jpeg'};base64,${p.image_data}`); });
+                          if (imgs.length > 0) { setLightboxImages(imgs); setLightboxIndex(0); }
+                        }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-300">
@@ -314,7 +324,12 @@ export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMo
                       <img
                         src={`data:${pet.images[0].mime_type || 'image/jpeg'};base64,${pet.images[0].image_data}`}
                         alt=""
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const imgs = (pet.images || []).filter((i: any) => i.image_data).map((i: any) => `data:${i.mime_type || 'image/jpeg'};base64,${i.image_data}`);
+                          if (imgs.length > 0) { setLightboxImages(imgs); setLightboxIndex(0); }
+                        }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-300">
@@ -401,6 +416,15 @@ export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMo
             </div>
           </div>
         </div>
+      )}
+
+      {lightboxImages.length > 0 && (
+        <ImageLightbox
+          images={lightboxImages}
+          currentIndex={lightboxIndex}
+          onClose={() => setLightboxImages([])}
+          onChange={setLightboxIndex}
+        />
       )}
     </div>
   );

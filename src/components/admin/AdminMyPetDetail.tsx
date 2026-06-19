@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { cn } from '@/src/lib/utils';
 import { PawPrint, Syringe, Heart, Droplet, ExternalLink } from 'lucide-react';
+import ImageLightbox from './ImageLightbox';
 
 interface AdminMyPetDetailProps {
   pet: any;
@@ -8,6 +10,8 @@ interface AdminMyPetDetailProps {
 }
 
 export default function AdminMyPetDetail({ pet, onClose, isMobile }: AdminMyPetDetailProps) {
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const avatarSrc = pet.avatar_image
     ? `data:${pet.avatar_mime_type || 'image/jpeg'};base64,${pet.avatar_image}`
     : pet.photos?.[0]?.image_data
@@ -19,7 +23,17 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile }: AdminMyPetD
       <div className="flex items-center gap-4">
         <div className="w-20 h-20 rounded-2xl bg-brand-bg overflow-hidden shrink-0">
           {avatarSrc ? (
-            <img src={avatarSrc} alt="" className="w-full h-full object-cover" />
+            <img
+              src={avatarSrc}
+              alt=""
+              className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => {
+                const imgs: string[] = [];
+                if (pet.avatar_image) imgs.push(`data:${pet.avatar_mime_type || 'image/jpeg'};base64,${pet.avatar_image}`);
+                (pet.photos || []).forEach((p: any) => { if (p.image_data) imgs.push(`data:${p.mime_type || 'image/jpeg'};base64,${p.image_data}`); });
+                if (imgs.length > 0) { setLightboxImages(imgs); setLightboxIndex(0); }
+              }}
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-8 h-8" /></div>
           )}
@@ -86,8 +100,14 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile }: AdminMyPetD
         <div>
           <h4 className="text-xs font-bold text-gray-500 uppercase mb-1">Fotos adicionales</h4>
           <div className="grid grid-cols-3 gap-2">
-            {pet.photos.filter((p: any) => p.id !== 'avatar').map((photo: any) => (
-              <div key={photo.id} className="aspect-square rounded-xl overflow-hidden bg-brand-bg">
+            {pet.photos.filter((p: any) => p.id !== 'avatar').map((photo: any, idx: number) => (
+              <div key={photo.id} className="aspect-square rounded-xl overflow-hidden bg-brand-bg cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => {
+                  const imgs: string[] = [];
+                  if (pet.avatar_image) imgs.push(`data:${pet.avatar_mime_type || 'image/jpeg'};base64,${pet.avatar_image}`);
+                  (pet.photos || []).forEach((p: any) => { if (p.image_data) imgs.push(`data:${p.mime_type || 'image/jpeg'};base64,${p.image_data}`); });
+                  setLightboxImages(imgs); setLightboxIndex(idx + (pet.avatar_image ? 1 : 0));
+                }}>
                 <img src={`data:${photo.mime_type || 'image/jpeg'};base64,${photo.image_data}`} alt="" className="w-full h-full object-cover" />
               </div>
             ))}
@@ -117,6 +137,15 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile }: AdminMyPetD
         <button onClick={onClose} className="w-full py-2.5 border border-brand-accent rounded-xl text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors">
           Cerrar
         </button>
+      )}
+
+      {lightboxImages.length > 0 && (
+        <ImageLightbox
+          images={lightboxImages}
+          currentIndex={lightboxIndex}
+          onClose={() => setLightboxImages([])}
+          onChange={setLightboxIndex}
+        />
       )}
     </div>
   );
