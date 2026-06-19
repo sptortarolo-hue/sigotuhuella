@@ -493,7 +493,7 @@ export async function detectAndCropPetFace(imageBase64, mimeType) {
       messages: [{
         role: 'user',
         content: [
-          { type: 'text', text: 'You are a pet photo cropper. This image contains a pet (dog or cat). Find the animal\'s face/head and return its bounding box as normalized coordinates (0-1). Return ONLY a JSON object with this exact format: {"x":0.5,"y":0.4,"width":0.3,"height":0.3}. If no animal face is visible, return {"error":"no_face"}.' },
+          { type: 'text', text: 'You are a pet photo cropper. This image contains a pet (dog or cat). Find the animal\'s face/head and return its bounding box as normalized coordinates (0-1) where (x,y) is the top-left corner and (width,height) extends right and down. Return ONLY a JSON object with this exact format: {"x":0.35,"y":0.3,"width":0.3,"height":0.3}. If no animal face is visible, return {"error":"no_face"}.' },
           { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` } },
         ],
       }],
@@ -513,8 +513,8 @@ export async function detectAndCropPetFace(imageBase64, mimeType) {
     const imgH = metadata.height || 1000;
 
     const padding = 0.5;
-    const cx = faceData.x * imgW;
-    const cy = faceData.y * imgH;
+    const cx = (faceData.x + faceData.width / 2) * imgW;
+    const cy = (faceData.y + faceData.height / 2) * imgH;
     let cw = faceData.width * imgW * (1 + padding);
     let ch = faceData.height * imgH * (1 + padding);
     let left = Math.round(cx - cw / 2);
