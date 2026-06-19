@@ -436,6 +436,22 @@ def resolve_spintax(text):
         text = text[:m.start()] + random.choice(opts) + text[m.end():]
     return text
 
+def _debug_save_state(driver, group_id, label):
+    try:
+        debug_dir = Path("/tmp/fb_debug")
+        debug_dir.mkdir(exist_ok=True)
+        ts = datetime.now().strftime("%H%M%S")
+        with open(debug_dir / f"{ts}_{group_id}_{label}_url.txt", "w") as f:
+            f.write(driver.current_url)
+        with open(debug_dir / f"{ts}_{group_id}_{label}_title.txt", "w") as f:
+            f.write(driver.title)
+        with open(debug_dir / f"{ts}_{group_id}_{label}.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        driver.save_screenshot(str(debug_dir / f"{ts}_{group_id}_{label}.png"))
+        logger.info(f"Debug state saved to {debug_dir} ({label})")
+    except Exception as e:
+        logger.warning(f"Debug save failed: {e}")
+
 def post_to_group(driver, group_id, message, image_urls=None):
     try:
         return _post_to_group_mbasic(driver, group_id, message, image_urls)
@@ -495,6 +511,7 @@ def _post_to_group_mbasic(driver, group_id, message, image_urls=None):
             except: continue
 
     if not ta:
+        _debug_save_state(driver, group_id, "textarea_not_found")
         logger.warning(f"textarea not found (mbasic) for group {group_id}")
         return {"success": False, "error": "textarea not found (mbasic)"}
 
