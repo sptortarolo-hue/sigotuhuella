@@ -455,8 +455,17 @@ def post_to_group(driver, group_id, message, image_urls=None):
             "//div[@role='button'][contains(.,'Write something')]",
             "//div[@role='button'][contains(.,'Escribe algo')]",
             "//div[@role='button'][contains(.,'Crear publicación')]",
+            "//div[@role='button'][contains(.,'Create a post')]",
             "//div[@aria-label*='Write something']",
             "//div[@aria-label*='Escribe algo']",
+            "//div[@aria-label*='Crear publicación']",
+            "//div[@aria-label*='Create a post']",
+            "//div[@aria-label*='What'][@role='button']",
+            "//div[@aria-label*='Qué'][@role='button']",
+            "//span[contains(text(),'Write something')]/ancestor::div[@role='button']",
+            "//span[contains(text(),'Escribe algo')]/ancestor::div[@role='button']",
+            "//span[contains(text(),'What')]/ancestor::div[@role='button']",
+            "//h2[contains(.,'Crear publicación')]/ancestor::div[@role='button']",
         ]
         composer = None
         for xp in composer_xpaths:
@@ -466,6 +475,14 @@ def post_to_group(driver, group_id, message, image_urls=None):
                     composer = el
                     break
             except: continue
+        if not composer:
+            try:
+                composer = driver.find_element(By.XPATH, "//div[@role='button'][.//span[contains(text(),'Publicar')] or .//span[contains(text(),'Post')]]")
+            except: pass
+        if not composer:
+            try:
+                composer = driver.execute_script("return document.querySelector('[role=button][contenteditable], [aria-label*=publicación i], [aria-label*=post i]');")
+            except: pass
         if not composer:
             logger.warning(f"composer not found for group {group_id}")
             return {"success": False, "error": "composer not found"}
@@ -477,8 +494,12 @@ def post_to_group(driver, group_id, message, image_urls=None):
             "//div[@role='textbox'][@contenteditable='true']",
             "//div[contains(@aria-label,'Write something')][@contenteditable='true']",
             "//div[contains(@aria-label,'Escribe algo')][@contenteditable='true']",
+            "//div[contains(@aria-label,'What')][@contenteditable='true']",
+            "//div[contains(@aria-label,'Qué')][@contenteditable='true']",
             "//div[@contenteditable='true']//p",
             "//div[@contenteditable='true']",
+            "//div[@aria-label*='publicación']//div[@contenteditable='true']",
+            "//div[@aria-label*='post']//div[@contenteditable='true']",
         ]
         editor = None
         for xp in editor_xpaths:
@@ -488,6 +509,10 @@ def post_to_group(driver, group_id, message, image_urls=None):
                     editor = el
                     break
             except: continue
+        if not editor:
+            try:
+                editor = driver.execute_script("return document.querySelector('[contenteditable=true]');")
+            except: pass
         if not editor:
             logger.warning(f"editor not found for group {group_id}")
             return {"success": False, "error": "editor not found"}
@@ -655,7 +680,7 @@ def run_daemon():
     except ImportError:
         logger.error("schedule library required")
         sys.exit(1)
-    threading.Thread(target=lambda: sync_app.run(host="0.0.0.0", port=SYNC_PORT, debug=False, use_reloader=False), daemon=True).start()
+    threading.Thread(target=lambda: sync_app.run(host="0.0.0.0", port=SYNC_PORT, threaded=True, debug=False, use_reloader=False), daemon=True).start()
     logger.info(f"Sync server on port {SYNC_PORT}")
     def job():
         try:
