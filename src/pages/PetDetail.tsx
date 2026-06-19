@@ -10,6 +10,7 @@ import { shareOnFacebook } from '@/src/lib/facebookShare';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import PetImage from '@/src/components/PetImage';
 import { LinkifiedText } from '@/src/lib/linkify';
+import ImageLightbox from '@/src/components/admin/ImageLightbox';
 
 function parseNeighborhoods(n: any): string[] {
   if (Array.isArray(n)) return n;
@@ -23,6 +24,8 @@ export default function PetDetail() {
   const [pet, setPet] = useState<Pet | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIdx, setCurrentImageIdx] = useState(0);
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   useEffect(() => {
     const fetchPet = async () => {
@@ -115,7 +118,8 @@ Me gustaría obtener más información.`;
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* Galería de Imágenes */}
         <div className="space-y-4">
-          <div className="relative aspect-square rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-xl group">
+          <div className="relative aspect-square rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-xl group cursor-pointer"
+            onClick={() => { if (images.length > 0) { setLightboxImages(images); setLightboxIndex(currentImageIdx); } }}>
             {images.length > 0 ? (
               <>
                 <PetImage
@@ -294,6 +298,15 @@ Me gustaría obtener más información.`;
           </div>
         </div>
       </div>
+
+      {lightboxImages.length > 0 && (
+        <ImageLightbox
+          images={lightboxImages}
+          currentIndex={lightboxIndex}
+          onClose={() => setLightboxImages([])}
+          onChange={setLightboxIndex}
+        />
+      )}
     </div>
   );
 }
