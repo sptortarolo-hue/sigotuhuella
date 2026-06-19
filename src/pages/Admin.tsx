@@ -31,6 +31,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import AdminConfirmDialog from '@/src/components/admin/AdminConfirmDialog';
+import UserDetailPanel from '@/src/components/admin/UserDetailPanel';
+import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
 
 export default function Admin() {
   const { user } = useAuth();
@@ -109,6 +112,23 @@ export default function Admin() {
   // Users State
   const [userList, setUserList] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserData, setSelectedUserData] = useState<any>(null);
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
+  const [selectedPetData, setSelectedPetData] = useState<any>(null);
+  const [userRelationsLoading, setUserRelationsLoading] = useState(false);
+  const [petRelationsLoading, setPetRelationsLoading] = useState(false);
+  const [mobileView, setMobileView] = useState<'list' | 'user' | 'pet'>('list');
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    actionLabel?: string;
+    variant?: 'danger' | 'warning';
+    onConfirm: () => void | Promise<void>;
+  }>({ isOpen: false, title: '', message: '', onConfirm: async () => {} });
 
   // News State
   const [newsList, setNewsList] = useState<News[]>([]);
@@ -515,17 +535,79 @@ export default function Admin() {
     } catch (e) { console.error(e); }
   };
 
-  const handleDeleteUser = async (id: string) => {
-    if (confirm('¿Eliminar este usuario definitivamente?')) {
-      await api.users.delete(id);
-      fetchUsers();
+  const fetchUserRelations = async (userId: string) => {
+    setUserRelationsLoading(true);
+    setSelectedUserId(userId);
+    setSelectedPetId(null);
+    setSelectedPetData(null);
+    try {
+      const data = await api.users.relations(userId);
+      setSelectedUserData(data);
+    } catch (e) {
+      console.error(e);
+      setSelectedUserData(null);
+    } finally {
+      setUserRelationsLoading(false);
     }
+  };
+
+  const fetchPetRelations = async (petId: string) => {
+    setPetRelationsLoading(true);
+    setSelectedPetId(petId);
+    try {
+      const data = await api.pets.relations(petId);
+      setSelectedPetData(data);
+    } catch (e) {
+      console.error(e);
+      setSelectedPetData(null);
+    } finally {
+      setPetRelationsLoading(false);
+    }
+  };
+
+  const handleSelectUser = async (userId: string) => {
+    setMobileView('user');
+    await fetchUserRelations(userId);
+  };
+
+  const handleSelectPet = async (petId: string) => {
+    setMobileView('pet');
+    await fetchPetRelations(petId);
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Eliminar usuario',
+      message: '¿Eliminar este usuario definitivamente? Se perderán todos sus datos asociados.',
+      actionLabel: 'CONFIRMAR',
+      variant: 'danger',
+      onConfirm: async () => {
+        await api.users.delete(id);
+        setSelectedUserId(null);
+        setSelectedUserData(null);
+        fetchUsers();
+      },
+    });
   };
 
   const handleToggleRole = async (id: string, currentRole: string) => {
     const newRole = currentRole === 'admin' ? 'user' : 'admin';
-    await api.users.update(id, { role: newRole });
-    fetchUsers();
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Cambiar rol',
+      message: `¿Cambiar el rol de este usuario de "${currentRole}" a "${newRole}"?`,
+      actionLabel: 'CONFIRMAR',
+      variant: 'warning',
+      onConfirm: async () => {
+        await api.users.update(id, { role: newRole });
+        if (selectedUserId === id) {
+          setSelectedUserData(null);
+          setSelectedUserId(null);
+        }
+        fetchUsers();
+      },
+    });
   };
 
   // Reencuentro handler
@@ -738,118 +820,195 @@ export default function Admin() {
           {/* ====== MASCOTAS ====== */}
           {activeTab === 'pets' && (
             <>
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                <div className="relative flex-1">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por nombre, ubicación, especie, contacto..."
-                    value={petSearch}
-                    onChange={e => setPetSearch(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
-                  />
-                </div>
-                <select
-                  value={petStatusFilter}
-                  onChange={e => setPetStatusFilter(e.target.value)}
-                  className="px-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm text-sm"
-                >
-                  <option value="all">Todos los estados</option>
-                  <option value={PetStatus.LOST}>Perdido</option>
-                  <option value={PetStatus.RETAINED}>Retenido</option>
-                  <option value={PetStatus.SIGHTED}>Avistado</option>
-                  <option value={PetStatus.ACCIDENTED}>Accidentado</option>
-                  <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
-                  <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
-                  <option value={PetStatus.ADOPTED}>Adoptado</option>
-                  <option value={PetStatus.REUNITED}>Reencuentro</option>
-                </select>
-                <button
-                  onClick={() => { resetPetForm(); setShowForm(true); }}
-                  className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:shadow-lg transition-all shrink-0"
-                >
-                  <Plus className="w-5 h-5" /> Nuevo Reporte
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {pets.filter(p => {
-                  if (petStatusFilter !== 'all' && p.status !== petStatusFilter) return false;
-                  if (!petSearch.trim()) return true;
-                  const q = petSearch.toLowerCase();
-                  return (
-                    (p.name && p.name.toLowerCase().includes(q)) ||
-                    (p.location && p.location.toLowerCase().includes(q)) ||
-                    (p.description && p.description.toLowerCase().includes(q)) ||
-                    (p.contact_info && p.contact_info.toLowerCase().includes(q)) ||
-                    (p.species && p.species.toLowerCase().includes(q)) ||
-                    (p.breed && p.breed.toLowerCase().includes(q)) ||
-                    (p.color && p.color.toLowerCase().includes(q))
-                  );
-                }).map(pet => (
-                  <div key={pet.id} className="relative">
-                    <PetCard
-                      pet={pet}
-                      showAdminActions
-                      onEdit={editPet}
-                      onDelete={async (id) => { if (confirm('Eliminar?')) { await deletePet(id); fetchPets(); } }}
-                    />
-                    {/* Botón Acción de Estado */}
-                    {pet.status === PetStatus.FOR_ADOPTION ? (
-                      <button
-                        onClick={async () => {
-                          if (confirm('¿Marcar esta mascota como adoptada?')) {
-                            try {
-                              await updatePet(pet.id, { status: PetStatus.ADOPTED });
-                              fetchPets();
-                            } catch (e) {
-                              console.error(e);
-                              alert('Error al actualizar el estado.');
-                            }
-                          }
-                        }}
-                        className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"
-                      >
-                        <Heart className="w-4 h-4" />
-                        Marcar como Adoptado
-                      </button>
-                    ) : pet.status === PetStatus.ADOPTED ? (
-                      <div className="mt-3 w-full py-2.5 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border border-gray-200">
-                        <Heart className="w-4 h-4 text-emerald-500" />
-                        Adoptado
-                      </div>
-                    ) : pet.status === PetStatus.REUNITED ? (
-                      <div className="mt-3 w-full py-2.5 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border border-gray-200">
-                        <HeartHandshake className="w-4 h-4 text-emerald-500" />
-                        Reencontrado
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleReencuentro(pet.id)}
-                        className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"
-                      >
-                        <HeartHandshake className="w-4 h-4" />
-                        Hubo reencuentro
-                      </button>
-                    )}
-                    {/* Botón Redes Sociales */}
-                    <button
-                      onClick={() => setSharePet(pet)}
-                      className="mt-2 w-full py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+              {/* Desktop: split panel */}
+              <div className="hidden lg:flex lg:gap-6">
+                {/* Left: Search + Filters + Pet list */}
+                <div className="w-[400px] shrink-0 space-y-4">
+                  <div className="flex flex-col gap-3">
+                    <div className="relative">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Buscar por nombre, ubicación..."
+                        value={petSearch}
+                        onChange={e => setPetSearch(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
+                      />
+                    </div>
+                    <select
+                      value={petStatusFilter}
+                      onChange={e => setPetStatusFilter(e.target.value)}
+                      className="px-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm text-sm"
                     >
-                      <Share2 className="w-4 h-4" />
-                      Redes Sociales
-                    </button>
-                    {/* Botón Seguimiento */}
-                    <button
-                      onClick={() => handleTrackPet(pet)}
-                      className="mt-2 w-full py-2.5 bg-brand-bg text-brand-primary border border-brand-accent rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary hover:text-white hover:border-brand-primary transition-all"
-                    >
-                      <Activity className="w-4 h-4" />
-                      Seguimiento
+                      <option value="all">Todos los estados</option>
+                      <option value={PetStatus.LOST}>Perdido</option>
+                      <option value={PetStatus.RETAINED}>Retenido</option>
+                      <option value={PetStatus.SIGHTED}>Avistado</option>
+                      <option value={PetStatus.ACCIDENTED}>Accidentado</option>
+                      <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
+                      <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
+                      <option value={PetStatus.ADOPTED}>Adoptado</option>
+                      <option value={PetStatus.REUNITED}>Reencuentro</option>
+                    </select>
+                    <button onClick={() => { resetPetForm(); setShowForm(true); }} className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">
+                      <Plus className="w-5 h-5" /> Nuevo Reporte
                     </button>
                   </div>
-                ))}
+                  <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-340px)]">
+                    {pets.filter(p => {
+                      if (petStatusFilter !== 'all' && p.status !== petStatusFilter) return false;
+                      if (!petSearch.trim()) return true;
+                      const q = petSearch.toLowerCase();
+                      return (p.name && p.name.toLowerCase().includes(q)) || (p.location && p.location.toLowerCase().includes(q)) || (p.species && p.species.toLowerCase().includes(q)) || (p.breed && p.breed.toLowerCase().includes(q)) || (p.color && p.color.toLowerCase().includes(q));
+                    }).map(pet => (
+                      <div
+                        key={pet.id}
+                        onClick={() => fetchPetRelations(pet.id)}
+                        className={cn(
+                          "p-4 border-b border-brand-accent last:border-b-0 hover:bg-brand-bg/50 transition-colors cursor-pointer",
+                          selectedPetId === pet.id && "bg-brand-primary/5"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-brand-bg overflow-hidden shrink-0">
+                            {pet.images?.[0]?.image_data || pet.images?.[0]?.external_url ? (
+                              <img src={pet.images[0].external_url || `data:${pet.images[0].mime_type || 'image/jpeg'};base64,${pet.images[0].image_data}`} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-5 h-5" /></div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm text-brand-primary truncate">{pet.name || 'Sin nombre'}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0 bg-brand-primary/10 text-brand-primary">{pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                              <span className="truncate">{pet.location}</span>
+                            </div>
+                            <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold mt-1 inline-block",
+                              pet.status === 'reunited' ? 'bg-emerald-100 text-emerald-700' :
+                              pet.status === 'adopted' ? 'bg-purple-100 text-purple-700' :
+                              pet.status === 'for_adoption' ? 'bg-blue-100 text-blue-700' :
+                              pet.status === 'lost' ? 'bg-red-100 text-red-700' :
+                              'bg-amber-100 text-amber-700'
+                            )}>{pet.status}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {pets.filter(p => {
+                      if (petStatusFilter !== 'all' && p.status !== petStatusFilter) return false;
+                      if (!petSearch.trim()) return true;
+                      const q = petSearch.toLowerCase();
+                      return (p.name && p.name.toLowerCase().includes(q)) || (p.location && p.location.toLowerCase().includes(q)) || (p.species && p.species.toLowerCase().includes(q)) || (p.breed && p.breed.toLowerCase().includes(q)) || (p.color && p.color.toLowerCase().includes(q));
+                    }).length === 0 && (
+                      <div className="text-center py-12"><p className="text-gray-400 text-sm">No hay mascotas que coincidan.</p></div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right: Pet detail panel */}
+                <div className="flex-1 min-w-0">
+                  {petRelationsLoading ? (
+                    <div className="bg-white rounded-[2.5rem] border border-brand-accent h-full flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
+                    </div>
+                  ) : selectedPetData ? (
+                    <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
+                      <PetDetailPanel data={selectedPetData} />
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-brand-accent h-full flex items-center justify-center">
+                      <div className="text-center py-20">
+                        <PawPrint className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                        <p className="text-gray-400 font-medium">Seleccioná una mascota</p>
+                        <p className="text-gray-300 text-sm mt-1">para ver su información detallada</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Mobile: grid + bottom sheet */}
+              <div className="lg:hidden space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre, ubicación..."
+                      value={petSearch}
+                      onChange={e => setPetSearch(e.target.value)}
+                      className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
+                    />
+                  </div>
+                  <select
+                    value={petStatusFilter}
+                    onChange={e => setPetStatusFilter(e.target.value)}
+                    className="px-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm text-sm"
+                  >
+                    <option value="all">Todos los estados</option>
+                    <option value={PetStatus.LOST}>Perdido</option>
+                    <option value={PetStatus.RETAINED}>Retenido</option>
+                    <option value={PetStatus.SIGHTED}>Avistado</option>
+                    <option value={PetStatus.ACCIDENTED}>Accidentado</option>
+                    <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
+                    <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
+                    <option value={PetStatus.ADOPTED}>Adoptado</option>
+                    <option value={PetStatus.REUNITED}>Reencuentro</option>
+                  </select>
+                  <button onClick={() => { resetPetForm(); setShowForm(true); }} className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:shadow-lg transition-all shrink-0">
+                    <Plus className="w-5 h-5" /> Nuevo
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {pets.filter(p => {
+                    if (petStatusFilter !== 'all' && p.status !== petStatusFilter) return false;
+                    if (!petSearch.trim()) return true;
+                    const q = petSearch.toLowerCase();
+                    return (p.name && p.name.toLowerCase().includes(q)) || (p.location && p.location.toLowerCase().includes(q)) || (p.species && p.species.toLowerCase().includes(q)) || (p.breed && p.breed.toLowerCase().includes(q)) || (p.color && p.color.toLowerCase().includes(q));
+                  }).map(pet => (
+                    <div key={pet.id} className="relative">
+                      <PetCard
+                        pet={pet}
+                        showAdminActions
+                        onEdit={editPet}
+                        onDelete={(id) => {
+                          setConfirmDialog({
+                            isOpen: true,
+                            title: 'Eliminar mascota',
+                            message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`,
+                            actionLabel: 'CONFIRMAR',
+                            variant: 'danger',
+                            onConfirm: async () => { await deletePet(id); fetchPets(); setConfirmDialog(prev => ({ ...prev, isOpen: false })); },
+                          });
+                        }}
+                      />
+                      {pet.status === PetStatus.FOR_ADOPTION ? (
+                        <button onClick={async () => { if (confirm('¿Marcar como adoptada?')) { await updatePet(pet.id, { status: PetStatus.ADOPTED }); fetchPets(); } }} className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"><Heart className="w-4 h-4" /> Marcar como Adoptado</button>
+                      ) : pet.status === PetStatus.ADOPTED ? (
+                        <div className="mt-3 w-full py-2.5 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border border-gray-200"><Heart className="w-4 h-4 text-emerald-500" /> Adoptado</div>
+                      ) : pet.status === PetStatus.REUNITED ? (
+                        <div className="mt-3 w-full py-2.5 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border border-gray-200"><HeartHandshake className="w-4 h-4 text-emerald-500" /> Reencontrado</div>
+                      ) : (
+                        <button onClick={() => handleReencuentro(pet.id)} className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"><HeartHandshake className="w-4 h-4" /> Hubo reencuentro</button>
+                      )}
+                      <button onClick={() => setSharePet(pet)} className="mt-2 w-full py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"><Share2 className="w-4 h-4" /> Redes Sociales</button>
+                      <button onClick={() => handleTrackPet(pet)} className="mt-2 w-full py-2.5 bg-brand-bg text-brand-primary border border-brand-accent rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary hover:text-white hover:border-brand-primary transition-all"><Activity className="w-4 h-4" /> Seguimiento</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <AdminConfirmDialog
+                isOpen={confirmDialog.isOpen}
+                onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmDialog.onConfirm}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                actionLabel={confirmDialog.actionLabel}
+                variant={confirmDialog.variant}
+              />
             </>
           )}
 
@@ -1034,80 +1193,202 @@ export default function Admin() {
 
           {/* ====== USUARIOS ====== */}
           {activeTab === 'users' && (
-            <div className="space-y-6">
-              <div className="relative max-w-md w-full">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar por email, nombre o teléfono..."
-                  value={userSearch}
-                  onChange={e => setUserSearch(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
-                />
-              </div>
-              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-x-auto">
-                <table className="w-full text-left min-w-max">
-                  <thead>
-                    <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
-                      <th className="px-6 py-4">Email</th>
-                      <th className="px-6 py-4">Nombre</th>
-                      <th className="px-6 py-4">Teléfono</th>
-                      <th className="px-6 py-4">Rol</th>
-                      <th className="px-6 py-4">Miembro</th>
-                      <th className="px-6 py-4">Registro</th>
-                      <th className="px-6 py-4 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-brand-accent">
+            <>
+              {/* Desktop: 3-column layout */}
+              <div className="hidden lg:flex lg:gap-6">
+                {/* Column 1: Search + User list */}
+                <div className="w-[360px] shrink-0 space-y-4">
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por email, nombre o teléfono..."
+                      value={userSearch}
+                      onChange={e => setUserSearch(e.target.value)}
+                      className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
+                    />
+                  </div>
+                  <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
                     {userList
-                      .filter(
-                        u =>
-                          !userSearch ||
-                          (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) ||
-                          (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) ||
-                          (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase()))
-                      )
+                      .filter(u => !userSearch || (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) || (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) || (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase())))
                       .map(u => (
-                        <tr key={u.id} className="hover:bg-brand-bg/50 transition-colors">
-                          <td className="px-6 py-4 font-bold text-brand-primary">{u.email}</td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{u.display_name || '-'}</td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{u.phone || '-'}</td>
-                          <td className="px-6 py-4">
-                            <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold uppercase", u.role === 'admin' ? "bg-brand-primary/10 text-brand-primary" : "bg-gray-100 text-gray-500")}>{u.role}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            {u.member_number ? (
-                              <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-emerald-100 text-emerald-700">{u.member_number}</span>
-                            ) : (
-                              <span className="text-[10px] text-gray-400">—</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-xs text-gray-400">{new Date(u.created_at).toLocaleDateString()}</td>
-                          <td className="px-6 py-4 text-right space-x-2">
-                            {u.email !== 'sptortarolo@gmail.com' && (
-                              <>
-                                <button onClick={() => handleToggleRole(u.id, u.role)} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors" title="Cambiar rol"><UserCog className="w-4 h-4" /></button>
-                                <button onClick={() => handleDeleteUser(u.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
+                        <div
+                          key={u.id}
+                          onClick={() => handleSelectUser(u.id)}
+                          className={cn(
+                            "p-4 border-b border-brand-accent last:border-b-0 hover:bg-brand-bg/50 transition-colors cursor-pointer",
+                            selectedUserId === u.id && "bg-brand-primary/5"
+                          )}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-sm text-brand-primary truncate">{u.email}</span>
+                            <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase shrink-0 ml-2", u.role === 'admin' ? "bg-brand-primary/10 text-brand-primary" : "bg-gray-100 text-gray-500")}>{u.role}</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                            <span className="truncate">{u.display_name || '-'}</span>
+                            {u.phone && <span className="shrink-0">{u.phone}</span>}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            {u.member_number && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700">{u.member_number}</span>}
+                            <span className="text-[10px] text-gray-400">{new Date(u.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
                       ))}
-                  </tbody>
-                </table>
-                {userList.filter(
-                  u =>
-                    !userSearch ||
-                    (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) ||
-                    (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) ||
-                    (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase()))
-                ).length === 0 && (
-                  <div className="text-center py-20 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
-                    <p className="text-gray-400 font-medium">No hay usuarios que coincidan con la búsqueda.</p>
+                    {userList.filter(u => !userSearch || (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) || (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) || (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase()))).length === 0 && (
+                      <div className="text-center py-12">
+                        <p className="text-gray-400 text-sm">No hay usuarios que coincidan.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Column 2: User detail */}
+                <div className="w-[420px] shrink-0">
+                  {selectedUserData ? (
+                    <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
+                      <UserDetailPanel
+                        data={selectedUserData}
+                        onSelectPet={handleSelectPet}
+                      />
+                      <div className="px-6 pb-6 flex gap-2">
+                        {selectedUserData.user.email !== 'sptortarolo@gmail.com' && (
+                          <>
+                            <button onClick={() => handleToggleRole(selectedUserData.user.id, selectedUserData.user.role)} className="flex-1 px-4 py-2.5 border border-brand-accent rounded-xl text-sm font-bold text-brand-primary hover:bg-brand-bg/50 transition-colors flex items-center justify-center gap-2"><UserCog className="w-4 h-4" /> Cambiar rol</button>
+                            <button onClick={() => handleDeleteUser(selectedUserData.user.id)} className="flex-1 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Eliminar</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-brand-accent h-full flex items-center justify-center">
+                      <div className="text-center py-20">
+                        <User className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                        <p className="text-gray-400 font-medium">Seleccioná un usuario</p>
+                        <p className="text-gray-300 text-sm mt-1">para ver su información detallada</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Column 3: Pet detail */}
+                <div className="flex-1 min-w-0">
+                  {selectedPetData ? (
+                    <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
+                      <PetDetailPanel
+                        data={selectedPetData}
+                        onSelectUser={(userId) => {
+                          if (selectedUserId !== userId) handleSelectUser(userId);
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-brand-accent h-full flex items-center justify-center">
+                      <div className="text-center py-20">
+                        <PawPrint className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                        <p className="text-gray-400 font-medium">Seleccioná una mascota</p>
+                        <p className="text-gray-300 text-sm mt-1">desde el detalle del usuario</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Mobile: stacked sequential views */}
+              <div className="lg:hidden">
+                {mobileView === 'list' && (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Buscar por email, nombre o teléfono..."
+                        value={userSearch}
+                        onChange={e => setUserSearch(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      {userList
+                        .filter(u => !userSearch || (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) || (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) || (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase())))
+                        .map(u => (
+                          <div
+                            key={u.id}
+                            onClick={() => handleSelectUser(u.id)}
+                            className="bg-white p-4 rounded-2xl border border-brand-accent shadow-sm"
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center shrink-0">
+                                  <User className="w-5 h-5 text-brand-primary" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-bold text-sm text-brand-primary truncate">{u.display_name || 'Sin nombre'}</p>
+                                  <p className="text-xs text-gray-500 truncate">{u.email}</p>
+                                </div>
+                              </div>
+                              <ChevronRight className="w-5 h-5 text-gray-300 shrink-0" />
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase", u.role === 'admin' ? "bg-brand-primary/10 text-brand-primary" : "bg-gray-100 text-gray-500")}>{u.role}</span>
+                              {u.member_number && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700">{u.member_number}</span>}
+                              {u.phone && <span className="text-[10px] text-gray-400">{u.phone}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      {userList.filter(u => !userSearch || (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) || (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) || (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase()))).length === 0 && (
+                        <div className="text-center py-12 bg-white rounded-2xl border border-brand-accent">
+                          <p className="text-gray-400 text-sm">No hay usuarios que coincidan.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {mobileView === 'user' && selectedUserData && (
+                  <div>
+                    <button onClick={() => { setMobileView('list'); setSelectedUserData(null); setSelectedUserId(null); setSelectedPetData(null); setSelectedPetId(null); }} className="flex items-center gap-2 text-sm text-brand-primary font-bold mb-4">
+                      ← Volver a usuarios
+                    </button>
+                    <div className="bg-white rounded-[2.5rem] border border-brand-accent">
+                      <UserDetailPanel
+                        data={selectedUserData}
+                        onSelectPet={handleSelectPet}
+                        isMobile
+                        onClose={() => { setMobileView('list'); setSelectedUserData(null); setSelectedUserId(null); }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {mobileView === 'pet' && selectedPetData && (
+                  <div>
+                    <button onClick={() => { setMobileView('user'); setSelectedPetData(null); setSelectedPetId(null); }} className="flex items-center gap-2 text-sm text-brand-primary font-bold mb-4">
+                      ← Volver al usuario
+                    </button>
+                    <div className="bg-white rounded-[2.5rem] border border-brand-accent">
+                      <PetDetailPanel
+                        data={selectedPetData}
+                        onSelectUser={(userId) => {
+                          setMobileView('user');
+                          if (selectedUserId !== userId) handleSelectUser(userId);
+                        }}
+                        isMobile
+                      />
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
+
+              <AdminConfirmDialog
+                isOpen={confirmDialog.isOpen}
+                onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmDialog.onConfirm}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                actionLabel={confirmDialog.actionLabel}
+                variant={confirmDialog.variant}
+              />
+            </>
           )}
 
             {/* ====== VOLUNTARIOS ====== */}

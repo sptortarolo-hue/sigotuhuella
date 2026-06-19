@@ -682,6 +682,10 @@ export async function initDb() {
       ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS embed_html TEXT
     `, 'facebook_posts embed_html');
 
+    await migrate(client, `
+      ALTER TABLE pet_images ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0
+    `, 'pet_images sort_order');
+
     // WhatsApp Flows tables
     await migrate(client, `
       CREATE TABLE IF NOT EXISTS whatsapp_chapita_requests (

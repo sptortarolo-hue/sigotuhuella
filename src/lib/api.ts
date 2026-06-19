@@ -54,6 +54,11 @@ export const api = {
     publicCreate: (data: any) => request('/pets/public', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => request(`/pets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/pets/${id}`, { method: 'DELETE' }),
+    relations: (id: string) => request(`/pets/${id}/relations`),
+    reorderImages: (id: string, imageIds: string[]) =>
+      request(`/pets/${id}/images/reorder`, { method: 'PUT', body: JSON.stringify({ imageIds }) }),
+    deleteImage: (petId: string, imageId: string) =>
+      request(`/pets/${petId}/images/${imageId}`, { method: 'DELETE' }),
     verify: (id: string, verified: boolean) =>
       request(`/pets/${id}/verify`, { method: 'PUT', body: JSON.stringify({ verified }) }),
     records: {
@@ -103,6 +108,8 @@ export const api = {
   },
   users: {
     list: () => request('/users'),
+    search: (q: string) => request(`/users/search?q=${encodeURIComponent(q)}`),
+    relations: (id: string) => request(`/users/${id}/relations`),
     update: (id: string, data: any) => request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/users/${id}`, { method: 'DELETE' }),
     changePassword: (id: string, currentPassword: string, newPassword: string) =>
@@ -111,6 +118,8 @@ export const api = {
     uploadAvatar: (id: string, data: { imageData: string; mimeType: string }) =>
       request(`/users/${id}/avatar`, { method: 'PUT', body: JSON.stringify(data) }),
     stats: (id: string) => request(`/users/${id}/stats`),
+    updateMember: (id: string, data: { memberNumber?: string; displayName?: string }) =>
+      request(`/users/${id}/member`, { method: 'PUT', body: JSON.stringify(data) }),
   },
   members: {
     me: () => request('/members/me'),

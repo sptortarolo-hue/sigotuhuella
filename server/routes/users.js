@@ -164,6 +164,187 @@ router.put('/:id/avatar', requireAuth, async (req, res) => {
   }
 });
 
+// ── Search users ──────────────────────────────────────────────────────────────
+router.get('/search', requireAdmin, async (req, res) => {
+  const { q } = req.query;
+  if (!q || q.length < 2) return res.json({ users: [] });
+  try {
+    const result = await pool.query(
+      `SELECT id, email, display_name, phone, role, created_at,
+              avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges
+       FROM users
+       WHERE email ILIKE $1 OR display_name ILIKE $1 OR phone ILIKE $1
+       ORDER BY
+         CASE WHEN email ILIKE $1 THEN 0 ELSE 1 END,
+         created_at DESC
+       LIMIT 50`,
+      [`%${q}%`]
+    );
+    res.json({ users: result.rows.map(u => ({ ...u, badges: u.badges || [] })) });
+  } catch (err) {
+    console.error('Search users error:', err);
+    res.status(500).json({ error: 'Failed to search users' });
+  }
+});
+
+// ── Admin: get user with all relations (pets + deep data) ─────────────────────
+router.get('/:id/relations', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const userRes = await pool.query(
+      `SELECT id, email, display_name, phone, role, created_at, updated_at,
+              avatar_data, avatar_mime_type, avatar_type, member_number,
+              volunteer_status, badges, contribution_areas, points, level,
+              email_verified, registration_pending, notification_preference
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+    if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const user = { ...userRes.rows[0], badges: userRes.rows[0].badges || [] };
+
+    const volRes = await pool.query(
+      'SELECT * FROM volunteer_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [userId]
+    );
+
+    let conversations = [];
+    if (user.phone) {
+      const convRes = await pool.query(
+        `SELECT wc.*,
+          COALESCE(json_agg(json_build_object('id', wm.id, 'text_body', wm.text_body, 'message_type', wm.message_type, 'direction', wm.direction, 'created_at', wm.created_at, 'pet_id', wm.pet_id) ORDER BY wm.created_at DESC) FILTER (WHERE wm.id IS NOT NULL), '[]') as messages
+        FROM whatsapp_conversations wc
+        LEFT JOIN whatsapp_messages wm ON wm.conversation_id = wc.id
+        WHERE wc.wa_from LIKE $1
+        GROUP BY wc.id
+        ORDER BY wc.last_message_at DESC
+        LIMIT 20`,
+        [`%${user.phone.slice(-8)}%`]
+      );
+      conversations = convRes.rows;
+    }
+
+    const petsRes = await pool.query(
+      `SELECT p.*,
+        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL, 'sort_order', pi.sort_order) ORDER BY pi.sort_order, pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+      FROM pets p
+      LEFT JOIN pet_images pi ON pi.pet_id = p.id
+      WHERE p.created_by = $1
+      GROUP BY p.id
+      ORDER BY p.created_at DESC`,
+      [userId]
+    );
+
+    const petsWithRelations = await Promise.all(petsRes.rows.map(async (pet) => {
+      const [fbPosts, igPosts, waMessages, fbMatches, qrIdents] = await Promise.all([
+        pool.query(
+          `SELECT id, fb_post_id, fb_post_url, author_name, content, image_urls,
+                  classification, species, phone, location_hint, is_matched, posted_at, notes
+           FROM facebook_posts
+           WHERE id IN (
+             SELECT target_id FROM facebook_matches
+             WHERE source_type = 'pet' AND source_id = $1 AND target_type = 'facebook_post'
+           )
+           ORDER BY posted_at DESC
+           LIMIT 10`,
+          [pet.id]
+        ),
+        pool.query(
+          'SELECT id, media_type, caption, ig_permalink, status, published_at, created_at FROM instagram_posts WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 10',
+          [pet.id]
+        ),
+        pool.query(
+          `SELECT id, wa_from, sender_name, text_body, message_type, direction, created_at
+           FROM whatsapp_messages WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 20`,
+          [pet.id]
+        ),
+        pool.query(
+          `SELECT fm.*, fp.fb_post_id, fp.fb_post_url, fp.content as fb_content, fp.author_name as fb_author,
+                  fp.classification as fb_classification
+           FROM facebook_matches fm
+           LEFT JOIN facebook_posts fp ON fp.id = fm.source_id
+           WHERE (fm.source_type = 'pet' AND fm.source_id = $1)
+              OR (fm.target_type = 'pet' AND fm.target_id = $1)
+           ORDER BY fm.created_at DESC
+           LIMIT 20`,
+          [pet.id]
+        ),
+        pool.query(
+          'SELECT id, code, share_token, assigned_at, created_at FROM qr_identifiers WHERE my_pet_id IN (SELECT id FROM my_pets WHERE lost_report_id = $1) LIMIT 5',
+          [pet.id]
+        ),
+      ]);
+
+      return {
+        ...pet,
+        neighborhoods: typeof pet.neighborhoods === 'string' ? JSON.parse(pet.neighborhoods) : pet.neighborhoods,
+        facebook_posts: fbPosts.rows,
+        instagram_posts: igPosts.rows,
+        whatsapp_messages: waMessages.rows,
+        facebook_matches: fbMatches.rows,
+        qr_identifiers: qrIdents.rows,
+      };
+    }));
+
+    const statsRes = await pool.query(
+      `SELECT
+        COUNT(*) FILTER (WHERE TRUE) AS total_reports,
+        COUNT(*) FILTER (WHERE status = 'reunited') AS reunited_count,
+        COUNT(*) FILTER (WHERE status = 'sighted') AS sighted_count,
+        COUNT(*) FILTER (WHERE status = 'adopted') AS adopted_count,
+        COUNT(*) FILTER (WHERE status = 'for_adoption') AS for_adoption_count
+       FROM pets WHERE created_by = $1`,
+      [userId]
+    );
+
+    res.json({
+      user,
+      volunteer_request: volRes.rows[0] || null,
+      conversations,
+      pets: petsWithRelations,
+      stats: {
+        total_reports: parseInt(statsRes.rows[0].total_reports) || 0,
+        reunited_count: parseInt(statsRes.rows[0].reunited_count) || 0,
+        sighted_count: parseInt(statsRes.rows[0].sighted_count) || 0,
+        adopted_count: parseInt(statsRes.rows[0].adopted_count) || 0,
+        for_adoption_count: parseInt(statsRes.rows[0].for_adoption_count) || 0,
+      },
+    });
+  } catch (err) {
+    console.error('Get user relations error:', err);
+    res.status(500).json({ error: 'Failed to fetch user relations' });
+  }
+});
+
+// ── Admin: update user member info ────────────────────────────────────────────
+router.put('/:id/member', requireAdmin, async (req, res) => {
+  const { memberNumber, displayName } = req.body;
+  try {
+    const fields = [];
+    const values = [];
+    let idx = 1;
+    if (memberNumber !== undefined) {
+      fields.push(`member_number = $${idx++}`);
+      values.push(memberNumber);
+    }
+    if (displayName !== undefined) {
+      fields.push(`display_name = $${idx++}`);
+      values.push(displayName);
+    }
+    fields.push(`updated_at = NOW()`);
+    values.push(req.params.id);
+    const result = await pool.query(
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, member_number`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error('Update member error:', err);
+    res.status(500).json({ error: 'Failed to update member info' });
+  }
+});
+
 // ── User Stats & Gamification Level ─────────────────────────────────────────
 router.get('/:id/stats', requireAuth, async (req, res) => {
   if (req.user.id !== req.params.id && req.user.role !== 'admin') {

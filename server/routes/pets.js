@@ -441,6 +441,140 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 });
 
+// ── Admin: get pet with all relations ──────────────────────────────────────────
+router.get('/:id/relations', requireAdmin, async (req, res) => {
+  try {
+    const petId = req.params.id;
+
+    const petRes = await pool.query(
+      `SELECT p.*,
+        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL, 'sort_order', pi.sort_order) ORDER BY pi.sort_order, pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+      FROM pets p
+      LEFT JOIN pet_images pi ON pi.pet_id = p.id
+      WHERE p.id = $1
+      GROUP BY p.id`,
+      [petId]
+    );
+    if (petRes.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
+    const pet = petRes.rows[0];
+    pet.neighborhoods = typeof pet.neighborhoods === 'string' ? JSON.parse(pet.neighborhoods) : pet.neighborhoods;
+
+    let createdBy = null;
+    if (pet.created_by) {
+      const userRes = await pool.query(
+        'SELECT id, email, display_name, phone, role FROM users WHERE id = $1',
+        [pet.created_by]
+      );
+      createdBy = userRes.rows[0] || null;
+    }
+
+    const fbPostsRes = await pool.query(
+      `SELECT fp.*, fm.id as match_id, fm.score as match_score, fm.status as match_status, fm.reasons as match_reasons
+       FROM facebook_posts fp
+       JOIN facebook_matches fm ON (
+         (fm.source_type = 'facebook_post' AND fm.source_id = fp.id AND fm.target_type = 'pet' AND fm.target_id = $1)
+         OR
+         (fm.target_type = 'facebook_post' AND fm.target_id = fp.id AND fm.source_type = 'pet' AND fm.source_id = $1)
+       )
+       ORDER BY fp.posted_at DESC
+       LIMIT 20`,
+      [petId]
+    );
+
+    const igPostsRes = await pool.query(
+      'SELECT id, media_type, caption, image_urls, status, ig_media_id, ig_permalink, error_message, scheduled_publish_time, published_at, created_at FROM instagram_posts WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 20',
+      [petId]
+    );
+
+    const waMessagesRes = await pool.query(
+      `SELECT id, wa_from, sender_name, text_body, message_type, direction, created_at
+       FROM whatsapp_messages WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [petId]
+    );
+
+    const matchesRes = await pool.query(
+      `SELECT fm.*,
+        CASE
+          WHEN fm.target_type = 'facebook_post' THEN (SELECT fb_post_id FROM facebook_posts WHERE id = fm.target_id)
+          WHEN fm.source_type = 'facebook_post' THEN (SELECT fb_post_id FROM facebook_posts WHERE id = fm.source_id)
+        END as related_fb_post_id,
+        CASE
+          WHEN fm.target_type = 'facebook_post' THEN (SELECT content FROM facebook_posts WHERE id = fm.target_id)
+          WHEN fm.source_type = 'facebook_post' THEN (SELECT content FROM facebook_posts WHERE id = fm.source_id)
+        END as related_fb_content,
+        CASE
+          WHEN fm.target_type = 'facebook_post' THEN (SELECT author_name FROM facebook_posts WHERE id = fm.target_id)
+          WHEN fm.source_type = 'facebook_post' THEN (SELECT author_name FROM facebook_posts WHERE id = fm.source_id)
+        END as related_fb_author
+       FROM facebook_matches fm
+       WHERE (fm.source_type = 'pet' AND fm.source_id = $1)
+          OR (fm.target_type = 'pet' AND fm.target_id = $1)
+       ORDER BY fm.created_at DESC
+       LIMIT 20`,
+      [petId]
+    );
+
+    const qrRes = await pool.query(
+      `SELECT qi.id, qi.code, qi.share_token, qi.assigned_at, qi.created_at
+       FROM qr_identifiers qi
+       JOIN my_pets mp ON mp.qr_id = qi.id
+       WHERE mp.lost_report_id = $1
+       LIMIT 5`,
+      [petId]
+    );
+
+    res.json({
+      pet,
+      created_by_user: createdBy,
+      facebook_posts: fbPostsRes.rows,
+      instagram_posts: igPostsRes.rows,
+      whatsapp_messages: waMessagesRes.rows,
+      facebook_matches: matchesRes.rows,
+      qr_identifiers: qrRes.rows,
+    });
+  } catch (err) {
+    console.error('Get pet relations error:', err);
+    res.status(500).json({ error: 'Failed to fetch pet relations' });
+  }
+});
+
+// ── Admin: reorder pet images ─────────────────────────────────────────────────
+router.put('/:id/images/reorder', requireAdmin, async (req, res) => {
+  const { imageIds } = req.body;
+  if (!Array.isArray(imageIds)) return res.status(400).json({ error: 'imageIds array is required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (let i = 0; i < imageIds.length; i++) {
+      await client.query('UPDATE pet_images SET sort_order = $1 WHERE id = $2 AND pet_id = $3',
+        [i, imageIds[i], req.params.id]);
+    }
+    await client.query('COMMIT');
+    res.json({ message: 'Images reordered' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Reorder images error:', err);
+    res.status(500).json({ error: 'Failed to reorder images' });
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: delete single pet image ────────────────────────────────────────────
+router.delete('/:petId/images/:imageId', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM pet_images WHERE id = $1 AND pet_id = $2 RETURNING id',
+      [req.params.imageId, req.params.petId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Image not found' });
+    res.json({ message: 'Image deleted' });
+  } catch (err) {
+    console.error('Delete image error:', err);
+    res.status(500).json({ error: 'Failed to delete image' });
+  }
+});
+
 router.put('/:id/verify', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
