@@ -493,64 +493,122 @@ def _save_debug_screenshot(driver, name):
 
 def post_to_group_via_dom(driver, group_id, message, image_urls=None):
     """Post to a Facebook group using Selenium DOM interaction with robust selector fallbacks."""
-    group_url = f"https://www.facebook.com/groups/{group_id}/"
+    group_id = str(group_id).strip()
     logger.info(f"[DOM] Posting to group {group_id}")
 
-    try:
-        driver.get(group_url)
-    except TimeoutException:
-        pass
-    time.sleep(6)
-
-    # 1. Find composer (inline or via "Create Post" button)
-    composer = None
-
-    # Strategy A: inline composer
-    for sel in [
-        "div[role='textbox'][contenteditable='true']",
-        "div.notranslate[contenteditable='true']",
-        "div[aria-label*='Escribe' i]",
-        "div[aria-label*='Write' i]",
-        "div[aria-label*='Crea' i]",
-        "div[aria-label*='Create' i]",
-        "[contenteditable='true']",
+    # Navigate to the main site first, then the group
+    for url in [
+        "https://www.facebook.com/",
+        f"https://www.facebook.com/groups/{group_id}/",
     ]:
         try:
-            composer = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, sel)))
-            logger.info(f"[DOM] Found composer via: {sel}")
-            break
-        except:
-            continue
+            driver.get(url)
+            time.sleep(2)
+        except TimeoutException:
+            pass
+    time.sleep(5)
 
-    # Strategy B: click "Create Post" button then find composer
+    current_url = driver.current_url
+    page_title = driver.title[:80] if driver.title else ""
+    logger.info(f"[DOM] URL={current_url} title='{page_title}'")
+
+    # If redirected to login, try refreshing
+    if "/login" in current_url or "login" in current_url.lower():
+        logger.warning("[DOM] Redirected to login, refreshing")
+        try:
+            driver.get(f"https://www.facebook.com/groups/{group_id}/")
+            time.sleep(5)
+        except TimeoutException:
+            pass
+        current_url = driver.current_url
+        logger.info(f"[DOM] After refresh URL={current_url}")
+
+    # Helper to find composer quickly
+    def _find_composer_now():
+        for sel in [
+            "div[role='textbox'][contenteditable='true']",
+            "div.notranslate[contenteditable='true']",
+            "div[aria-label*='Escribe' i]",
+            "div[aria-label*='Write' i]",
+            "div[aria-label*='Crea' i]",
+            "div[aria-label*='Create' i]",
+            "[contenteditable='true']",
+        ]:
+            try:
+                el = driver.find_element(By.CSS_SELECTOR, sel)
+                if el and el.is_displayed():
+                    return el, sel
+            except:
+                continue
+        return None, None
+
+    composer = None
+
+    # Strategy A: quick find (immediate check, then wait)
+    composer, sel = _find_composer_now()
+    if composer:
+        logger.info(f"[DOM] Found composer via quick: {sel}")
+    else:
+        try:
+            composer = WebDriverWait(driver, 8).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='textbox'][contenteditable='true'], [contenteditable='true']")))
+            logger.info("[DOM] Found composer via wait")
+        except:
+            pass
+
+    # Strategy B: click "Create Post" button
     if not composer:
         for btn_sel in [
-            "//span[contains(text(),'Crear publicaci') or contains(text(),'Create post') or contains(text(),'Escribe algo') or contains(text(),'Write something')]",
+            "//span[contains(text(),'Crear publicaci')]",
+            "//span[contains(text(),'Create post')]",
+            "//span[contains(text(),'Escribe algo')]",
+            "//span[contains(text(),'Write something')]",
             "//div[@role='button' and contains(text(),'Crear')]",
             "//div[@role='button' and contains(text(),'Create')]",
             "//*[@aria-label='Crear publicaci' or @aria-label='Create post']",
         ]:
             try:
                 btn = driver.find_element(By.XPATH, btn_sel)
-                btn.click()
-                logger.info(f"[DOM] Clicked create post button via: {btn_sel}")
+                driver.execute_script("arguments[0].click();", btn)
                 time.sleep(2)
-                composer = WebDriverWait(driver, 8).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, "div[role='textbox'][contenteditable='true']")))
-                logger.info("[DOM] Found composer after clicking create post")
-                break
+                composer, sel = _find_composer_now()
+                if composer:
+                    logger.info(f"[DOM] Found composer after create-btn via: {sel}")
+                    break
             except:
                 continue
 
     # Strategy C: open composer URL directly
     if not composer:
         try:
-            composer_url = f"https://www.facebook.com/composer/?group_id={group_id}"
-            driver.get(composer_url)
-            time.sleep(4)
-            composer = WebDriverWait(driver, 8).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, "div[role='textbox'][contenteditable='true']")))
-            logger.info("[DOM] Found composer via direct URL")
+            driver.get(f"https://www.facebook.com/composer/?group_id={group_id}")
+            time.sleep(5)
+            composer, sel = _find_composer_now()
+            if composer:
+                logger.info(f"[DOM] Found composer via direct URL: {sel}")
+        except:
+            pass
+
+    # Strategy D: reload and try again
+    if not composer:
+        try:
+            logger.warning("[DOM] Reloading page and retrying composer")
+            driver.refresh()
+            time.sleep(6)
+            composer, sel = _find_composer_now()
+            if composer:
+                logger.info(f"[DOM] Found composer after reload via: {sel}")
+        except:
+            pass
+
+    # Strategy E: try navigating to posts tab
+    if not composer:
+        try:
+            driver.get(f"https://www.facebook.com/groups/{group_id}/?sorting_setting=RECENT_ACTIVITY")
+            time.sleep(5)
+            composer, sel = _find_composer_now()
+            if composer:
+                logger.info(f"[DOM] Found composer via posts tab: {sel}")
         except:
             pass
 
