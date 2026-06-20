@@ -54,7 +54,7 @@ jobs:
         port: ${{ secrets.SSH_PORT }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
-        command_timeout: 600000
+        command_timeout: 15m
         script: |
           set -x
           # Install system deps only if missing (skip apt update — packages are stable)
