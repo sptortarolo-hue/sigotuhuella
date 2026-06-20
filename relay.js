@@ -1,30 +1,31 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 const axios = require('axios');
 
 const VPS_URL = 'https://sigotuhuella.online';
-const TOKEN = 'RELAY_TOKEN';  // <-- REEMPLAZAR con el mismo token del GitHub secret
+const TOKEN = 'RELAY_TOKEN';
 const POLL_INTERVAL = 30000;
 
 async function start() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
   const sock = makeWASocket({
+    browser: Browsers.ubuntu('Chrome'),
     auth: state,
     printQRInTerminal: true,
+    syncFullHistory: false,
+    connectTimeoutMs: 60000,
   });
 
   sock.ev.on('creds.update', saveCreds);
 
-  sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
-    if (connection === 'open') {
-      console.log('Conectado a WhatsApp');
-    }
+  sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+    if (qr) console.log('QR RECIBIDO — escanealo con WhatsApp');
+    if (connection === 'open') console.log('Conectado a WhatsApp');
     if (connection === 'close') {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      if (shouldReconnect) {
-        console.log('Reconectando...');
-        start();
-      } else {
-        console.log('Sesión cerrada. Eliminá auth_info y escaneá el QR de nuevo.');
+      const code = lastDisconnect?.error?.output?.statusCode;
+      console.log('Cerrado. Código:', code, lastDisconnect?.error?.message?.substring(0, 80));
+      if (code !== DisconnectReason.loggedOut) {
+        console.log('Reconectando en 5s...');
+        setTimeout(start, 5000);
       }
     }
   });
@@ -33,9 +34,9 @@ async function start() {
     try {
       const { data } = await axios.get(`${VPS_URL}/api/relay/pending`, {
         headers: { Authorization: `Bearer ${TOKEN}` },
-        timeout: 15000,
+        timeout: 20000,
       });
-      if (!data.messages || data.messages.length === 0) return;
+      if (!data.messages?.length) return;
 
       const sentIds = [];
       const failedIds = [];
@@ -44,27 +45,20 @@ async function start() {
           const jid = msg.wa_to.includes('@') ? msg.wa_to : `${msg.wa_to}@s.whatsapp.net`;
           await sock.sendMessage(jid, { text: msg.text });
           sentIds.push(msg.id);
-          console.log(`Enviado a ${msg.wa_to}: ${msg.text.substring(0, 50)}`);
         } catch (e) {
-          console.error(`Error enviando a ${msg.wa_to}:`, e.message);
+          console.error(`Error a ${msg.wa_to}:`, e.message);
           failedIds.push(msg.id);
         }
       }
-      if (sentIds.length > 0) {
-        await axios.post(`${VPS_URL}/api/relay/sent`, { ids: sentIds }, {
-          headers: { Authorization: `Bearer ${TOKEN}` },
-          timeout: 10000,
-        });
-      }
-      if (failedIds.length > 0) {
-        await axios.post(`${VPS_URL}/api/relay/failed`, { ids: failedIds }, {
-          headers: { Authorization: `Bearer ${TOKEN}` },
-          timeout: 10000,
-        });
-      }
-    } catch (e) {
-      // Error de conexion (VPS caido, sin internet, etc.) — ignorar
-    }
+      if (sentIds.length) await axios.post(`${VPS_URL}/api/relay/sent`, { ids: sentIds }, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+        timeout: 10000,
+      });
+      if (failedIds.length) await axios.post(`${VPS_URL}/api/relay/failed`, { ids: failedIds }, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+        timeout: 10000,
+      });
+    } catch (e) { /* ignorar */ }
   }, POLL_INTERVAL);
 }
 
