@@ -1,12 +1,11 @@
 """
-Facebook Group Tool — Sigo Tu Huella
-Scrapes configured Facebook groups via Bright Data API,
-saves raw posts to local SQLite (server classifies via Gemini on sync),
-and exposes endpoints for the production server.
+Facebook Scraper — Sync Server — Sigo Tu Huella
+Receives config pushes from the production server,
+runs as a daemon with HTTP endpoints on :3001.
 
 Usage:
   python scraper.py                              # Run once
-  python scraper.py --daemon                     # Run as scheduled daemon (with sync server on :3001)
+  python scraper.py --daemon                     # Run as scheduled daemon
 
 Config: config.json or POST /config endpoint.
 Publishing: requires playwright (pip install playwright, playwright install chromium).
@@ -179,13 +178,11 @@ def _load_config():
             return json.load(f)
     return {}
 
-def save_config(groups, interval=6, max_posts=50, api_key=""):
+def save_config(groups, interval=6, max_posts=50):
     cfg = _load_config()
     cfg["groups"] = groups
     cfg["scrape_interval_hours"] = interval
     cfg["max_posts_per_group"] = max_posts
-    if api_key:
-        cfg["brightdata_api_key"] = api_key
     with open(CONFIG_PATH, "w") as f:
         json.dump(cfg, f, indent=2)
 
@@ -195,75 +192,6 @@ def save_config(groups, interval=6, max_posts=50, api_key=""):
 
 def classify_post(text, image_urls=None):
     return {"classification": "unclassified", "species": None, "color": None, "location_hint": None, "phone": None, "location_lat": None, "location_lng": None, "confidence": 0}
-
-# ---------------------------------------------------------------------------
-# Bright Data API
-# ---------------------------------------------------------------------------
-
-BRIGHTDATA_GROUP_DATASET = "gd_lz11l67o2cb3r0lkj3"
-BRIGHTDATA_POST_DATASET = "gd_lyclm1571iy3mv57zw"
-
-def extract_group_id(url):
-    m = re.search(r"/groups/([^/?]+)", url)
-    raw = m.group(1) if m else url
-    return raw.split("?")[0].split("/")[0]
-
-def scrape_group_via_brightdata(group_name, group_url, api_key):
-    group_id = extract_group_id(group_url)
-    logger.info(f"[BD] Scraping {group_name} ({group_id})")
-    api_url = f"https://api.brightdata.com/datasets/v3/scrape?dataset_id={BRIGHTDATA_GROUP_DATASET}&format=json&include_errors=true"
-    payload = json.dumps([{"url": f"https://www.facebook.com/groups/{group_id}/"}]).encode()
-    req = Request(api_url, data=payload, headers={
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "User-Agent": PLAYWRIGHT_UA,
-    })
-    try:
-        resp = urlopen(req, timeout=120)
-        data = json.loads(resp.read().decode())
-    except Exception as e:
-        logger.error(f"[BD] API error for {group_name}: {e}")
-        return []
-    if isinstance(data, dict) and data.get("snapshot_id"):
-        logger.info(f"[BD] Async snapshot {data['snapshot_id']} for {group_name}, will skip this cycle")
-        return []
-    if not isinstance(data, list):
-        logger.warning(f"[BD] Unexpected response type for {group_name}: {type(data).__name__}")
-        return []
-    posts = []
-    for record in data:
-        if record.get("_error") or record.get("error"):
-            if record.get("_error"):
-                logger.warning(f"[BD] Error for one URL in {group_name}: {record['_error']}")
-            continue
-        pid = record.get("post_id") or extract_post_id_from_url(record.get("url", ""))
-        if not pid:
-            continue
-        content = record.get("content") or ""
-        if len(content.strip()) < MIN_CONTENT_LENGTH:
-            continue
-        images = []
-        for a in record.get("attachments") or []:
-            src = a.get("photo_image") or a.get("image_url") or a.get("thumbnail_url") or a.get("src")
-            if src and src.startswith("http"):
-                images.append(src)
-        posts.append({
-            "group_id": group_id,
-            "group_name": group_name,
-            "fb_post_id": pid,
-            "fb_post_url": record.get("url") or f"https://www.facebook.com/groups/{group_id}/posts/{pid}/",
-            "author_name": record.get("user_username_raw") or record.get("user_url") or "",
-            "content": content[:2000],
-            "image_urls": images[:5],
-            "posted_at": record.get("date_posted") or "",
-            "comments": [],
-        })
-    logger.info(f"[BD] {group_name}: got {len(posts)} posts")
-    return posts
-
-def extract_post_id_from_url(url):
-    m = re.search(r'/posts/(\d+)', url)
-    return m.group(1) if m else None
 
 # ---------------------------------------------------------------------------
 # Playwright (only for group publishing)
@@ -335,26 +263,7 @@ def check_session(page):
 # ---------------------------------------------------------------------------
 
 def run():
-    groups, _, max_posts = load_groups()
-    if not groups:
-        logger.warning("No groups configured. Use POST /config endpoint or edit config.json")
-        return
-    cfg = _load_config()
-    api_key = cfg.get("brightdata_api_key", "")
-    if not api_key:
-        logger.error("No brightdata_api_key configured. Set it via admin panel or config endpoint")
-        return
-    conn = init_db()
-    for group in groups:
-        if not group.get("url"):
-            continue
-        posts = scrape_group_via_brightdata(group["name"], group["url"], api_key)
-        for post in posts:
-            pid = save_post(conn, post, classify_post(post.get("content", ""), post.get("image_urls", [])))
-            if pid:
-                conn.commit()
-                logger.info(f"Saved {post['fb_post_id']} → raw")
-    conn.close()
+    logger.info("Scraping deshabilitado — Bright Data eliminado. Sync server activo.")
 
 # ---------------------------------------------------------------------------
 # Post driver globals (must be before any route that uses them)
@@ -716,15 +625,13 @@ def sync_config():
     data = request.get_json()
     if not data or "groups" not in data:
         return jsonify({"error": "invalid"}), 400
-    save_config(data["groups"], data.get("scrape_interval_hours", 6), data.get("max_posts_per_group", 50), data.get("brightdata_api_key", ""))
+    save_config(data["groups"], data.get("scrape_interval_hours", 6), data.get("max_posts_per_group", 50))
     logger.info(f"Config received: {len(data['groups'])} groups")
     state_json = data.get("storage_state_json", "")
     if state_json:
         with open(STORAGE_STATE_PATH, "w") as f:
             f.write(state_json)
         logger.info(f"Storage state updated from config push ({len(state_json)} bytes)")
-    if data.get("brightdata_api_key"):
-        logger.info("Bright Data API key updated from config push")
     return jsonify({"ok": True})
 
 @sync_app.route("/publish-to-groups", methods=["POST"])

@@ -20,7 +20,7 @@ export async function pushConfig() {
       "SELECT name, url FROM facebook_groups WHERE is_active = true"
     );
     const settingsRes = await pool.query(
-      "SELECT key, value FROM settings WHERE key IN ('fb_scraper_interval_hours', 'fb_scraper_max_posts', 'brightdata_api_key')"
+      "SELECT key, value FROM settings WHERE key IN ('fb_scraper_interval_hours', 'fb_scraper_max_posts')"
     );
     const s = {};
     settingsRes.rows.forEach(r => (s[r.key] = r.value));
@@ -34,7 +34,6 @@ export async function pushConfig() {
       groups: groupsRes.rows,
       scrape_interval_hours: parseInt(s.fb_scraper_interval_hours, 10) || 6,
       max_posts_per_group: parseInt(s.fb_scraper_max_posts, 10) || 50,
-      brightdata_api_key: s.brightdata_api_key || '',
       storage_state_json,
     };
     const resp = await fetch(`${VPS_HOST}/config`, {
@@ -251,58 +250,6 @@ async function fetchOembedViaGraph(url, token) {
   return await resp.json();
 }
 
-async function fetchFbPostBrightData(url, apiKey) {
-  const resp = await fetch(
-    'https://api.brightdata.com/datasets/v3/scrape?dataset_id=gd_lyclm1571iy3mv57zw&format=json&include_errors=true',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ input: [{ url }] }),
-      signal: AbortSignal.timeout(120000),
-    }
-  );
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`Bright Data error (${resp.status}): ${errText.slice(0, 300)}`);
-  }
-  const data = await resp.json();
-  if (!Array.isArray(data) || data.length === 0) throw new Error('Bright Data: empty response');
-  const record = data[0];
-  if (record._error || record.error) {
-    throw new Error(`Bright Data: ${record.error || record._error}`);
-  }
-  const content = record.content || record.text || record.message || record.body || '';
-  if (record.attachments && record.attachments.length > 0) {
-    console.log(`fetchFbPostBrightData: first attachment keys=${Object.keys(record.attachments[0]).join(',')}`);
-  }
-  const image_urls = (record.attachments || [])
-    .flatMap(a => {
-      const urls = [];
-      if (a.thumbnail_url) urls.push(a.thumbnail_url);
-      if (a.image_url) urls.push(a.image_url);
-      if (a.src) urls.push(a.src);
-      if (a.photo_image) urls.push(a.photo_image);
-      return urls;
-    })
-    .filter(Boolean)
-    .filter(u => u.startsWith('http'));
-  console.log(`fetchFbPostBrightData: SUCCESS content_length=${content.length}, image_urls=${image_urls.length}`);
-  if (content) console.log(`fetchFbPostBrightData: preview=${content.slice(0, 120)}`);
-  return {
-    fb_post_id: record.post_id || record.url || url,
-    fb_post_url: record.url || url,
-    author_name: record.user_username_raw || record.user_url || '',
-    content,
-    image_urls,
-    embed_html: '',
-    posted_at: record.date_posted || '',
-    comments: [],
-  };
-}
-
 async function fetchFbPostApify(url) {
   const token = process.env.APIFY_TOKEN;
   if (!token) throw new Error('APIFY_TOKEN not configured');
@@ -347,25 +294,7 @@ export async function fetchFbPost(url) {
   let author_name = '';
 
   try {
-    // 1. Bright Data (cuenta activa, tier free)
-    const brightKeyRes = await pool.query(
-      "SELECT value FROM settings WHERE key = 'brightdata_api_key'"
-    );
-    const brightKey = brightKeyRes.rows[0]?.value || process.env.BRIGHTDATA_API_KEY;
-    console.log(`fetchFbPost: intentando fuentes → BrightData(${!!brightKey}) Apify(${!!process.env.APIFY_TOKEN}) OG Oembed GraphAPI`);
-    if (brightKey) {
-      try {
-        const bd = await fetchFbPostBrightData(url, brightKey);
-        if (bd.content) content = bd.content;
-        if (bd.image_urls?.length) image_urls = bd.image_urls;
-        if (bd.author_name) author_name = bd.author_name;
-        console.log(`fetchFbPost: Bright Data enriched, content_length=${bd.content?.length}, images=${bd.image_urls?.length}`);
-      } catch (err) {
-        console.error('fetchFbPost: Bright Data falló:', err.message);
-      }
-    }
-
-    // 2. Apify (fallback si Bright Data no dio contenido)
+    // 1. Apify
     if (!content) {
       const apifyToken = process.env.APIFY_TOKEN;
       if (apifyToken) {
