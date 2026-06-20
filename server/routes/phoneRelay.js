@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAllGroups } from '../services/phoneRelayService.js';
+import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAllGroups, saveQR, clearQR, getQR } from '../services/phoneRelayService.js';
 import { requireAdmin } from '../auth.js';
 
 const router = Router();
@@ -38,6 +38,40 @@ router.post('/failed', relayAuth, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('[Relay] markFailed error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/qr', relayAuth, async (req, res) => {
+  try {
+    const { image } = req.body;
+    if (!image) return res.status(400).json({ error: 'image required' });
+    await saveQR(image);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Relay] qr save error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/qr/clear', relayAuth, async (req, res) => {
+  try {
+    await clearQR();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Relay] qr clear error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/qr', requireAdmin, async (req, res) => {
+  try {
+    const b64 = await getQR();
+    if (!b64) return res.status(404).json({ error: 'No QR available' });
+    res.setHeader('Content-Type', 'image/png');
+    res.send(Buffer.from(b64, 'base64'));
+  } catch (err) {
+    console.error('[Relay] qr get error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

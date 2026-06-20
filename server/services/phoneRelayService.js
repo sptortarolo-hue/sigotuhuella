@@ -35,9 +35,29 @@ export async function markFailed(ids) {
   );
 }
 
+export async function saveQR(imageBase64) {
+  await pool.query(
+    "INSERT INTO settings (key, value) VALUES ('relay_qr_image', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+    [imageBase64]
+  );
+}
+
+export async function clearQR() {
+  await pool.query(
+    "DELETE FROM settings WHERE key = 'relay_qr_image'"
+  );
+}
+
+export async function getQR() {
+  const result = await pool.query(
+    "SELECT value FROM settings WHERE key = 'relay_qr_image'"
+  );
+  return result.rows[0]?.value || null;
+}
+
 export async function getStatus() {
   const settings = (await pool.query(
-    "SELECT key, value FROM settings WHERE key IN ('relay_enabled', 'relay_last_poll_at')"
+    "SELECT key, value FROM settings WHERE key IN ('relay_enabled', 'relay_last_poll_at', 'relay_qr_image')"
   )).rows;
   const map = Object.fromEntries(settings.map(r => [r.key, r.value]));
 
@@ -47,6 +67,7 @@ export async function getStatus() {
 
   const enabled = map.relay_enabled === 'true';
   const lastPollAt = map.relay_last_poll_at || null;
+  const qrAvailable = !!map.relay_qr_image;
 
   let connected = false;
   if (lastPollAt) {
@@ -54,7 +75,7 @@ export async function getStatus() {
     connected = diff < 90000;
   }
 
-  return { enabled, connected, lastPollAt, pendingCount };
+  return { enabled, connected, lastPollAt, pendingCount, qrAvailable };
 }
 
 export async function setEnabled(val) {

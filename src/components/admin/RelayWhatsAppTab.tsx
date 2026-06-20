@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { cn } from '@/src/lib/utils';
 
@@ -8,12 +8,15 @@ interface RelayStatus {
   connected: boolean;
   lastPollAt: string | null;
   pendingCount: number;
+  qrAvailable: boolean;
 }
 
 export default function RelayWhatsAppTab() {
   const [status, setStatus] = useState<RelayStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [testTo, setTestTo] = useState('');
   const [testText, setTestText] = useState('');
@@ -33,6 +36,11 @@ export default function RelayWhatsAppTab() {
       const data = await api.whatsappRelay.status();
       setStatus(data);
       setError('');
+      if (data.qrAvailable) {
+        setQrDataUrl(`/api/relay/qr?t=${Date.now()}`);
+      } else {
+        setQrDataUrl(null);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -106,6 +114,7 @@ export default function RelayWhatsAppTab() {
         ) : error && !status ? (
           <p className="text-red-500 text-sm">{error}</p>
         ) : status ? (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="rounded-2xl border border-brand-accent p-4 space-y-1">
               <p className="text-[10px] uppercase tracking-widest font-bold text-gray-500">Conexión</p>
@@ -136,6 +145,25 @@ export default function RelayWhatsAppTab() {
               <p className="text-sm font-medium truncate">{status.lastPollAt ? new Date(status.lastPollAt).toLocaleTimeString() : '—'}</p>
             </div>
           </div>
+
+          {/* QR Code */}
+          {qrDataUrl && (
+            <div className="flex flex-col items-center gap-4 py-6">
+              <div className="flex items-center gap-2 text-brand-primary font-bold">
+                <ScanQrCode className="w-5 h-5" />
+                Escaneá este QR desde WhatsApp del teléfono relay
+              </div>
+              <img
+                src={qrDataUrl}
+                alt="WhatsApp QR"
+                className="w-64 h-64 border-4 border-brand-primary/20 rounded-2xl"
+              />
+              <p className="text-sm text-gray-500 text-center max-w-md">
+                Abrí WhatsApp en el teléfono → Menú (⋮) → Dispositivos vinculados → Vincular dispositivo → Escaneá este QR
+              </p>
+            </div>
+          )}
+          </>
         ) : null}
 
         <button

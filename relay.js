@@ -1,6 +1,7 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 const axios = require('axios');
 const QR = require('qrcode-terminal');
+const QRCode = require('qrcode');
 
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = 'RELAY_TOKEN';
@@ -30,6 +31,26 @@ function getReconnectDelay() {
   const delays = [10, 30, 60, 120];
   const idx = Math.min(reconnectCount, delays.length - 1);
   return delays[idx] * 1000;
+}
+
+async function sendQR(qrData) {
+  try {
+    const buf = await QRCode.toBuffer(qrData, { type: 'png', width: 400, margin: 2 });
+    const b64 = buf.toString('base64');
+    await axios.post(`${VPS_URL}/api/relay/qr`, { image: b64 }, {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      timeout: 10000,
+    });
+  } catch (e) { /* QR upload failure is non-critical */ }
+}
+
+async function clearQR() {
+  try {
+    await axios.post(`${VPS_URL}/api/relay/qr/clear`, {}, {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      timeout: 10000,
+    });
+  } catch (e) { /* ignore */ }
 }
 
 async function sendWithRetry(jid, content, retries = MAX_RETRIES) {
@@ -71,10 +92,12 @@ async function start() {
       console.log('\n=== ESCANEÁ ESTE QR CON WHATSAPP ===');
       QR.generate(qr, { small: true });
       console.log('====================================\n');
+      sendQR(qr);
     }
     if (connection === 'open') {
       reconnectCount = 0;
       console.log('Conectado a WhatsApp');
+      clearQR();
     }
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
