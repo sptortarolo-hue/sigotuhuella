@@ -893,12 +893,6 @@ router.post('/public', async (req, res) => {
         }
 
         res.status(201).json({ pet });
-
-    // Auto-broadcast to WhatsApp groups for active statuses
-    const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention'];
-    if (broadcastStatuses.includes(pet.status)) {
-      broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
-    }
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Create public pet error:', err);
