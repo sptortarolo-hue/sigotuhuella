@@ -1,4 +1,5 @@
 import pool from '../db.js';
+import { enqueue } from './phoneRelayService.js';
 
 function normalizePhone(phone) {
   if (!phone) return null;
@@ -18,11 +19,10 @@ async function sendViaWhatsApp(user, textMessage) {
     return;
   }
   try {
-    const { sendMessage } = await import('./whatsappService.js');
-    await sendMessage(phone, textMessage);
-    console.log(`[notification] WhatsApp sent via Cloud API to ${user.email} (${phone})`);
+    await enqueue(phone, textMessage);
+    console.log(`[notification] Queued via relay for ${user.email} (${phone})`);
   } catch (err) {
-    console.error(`[notification] WhatsApp error for ${user.email}:`, err.message);
+    console.error(`[notification] Relay error for ${user.email}:`, err.message);
   }
 }
 

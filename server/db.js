@@ -523,6 +523,15 @@ CREATE TABLE IF NOT EXISTS whatsapp_groups (
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS relay_messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  wa_to VARCHAR(50) NOT NULL,
+  text TEXT NOT NULL,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT NOW(),
+  sent_at TIMESTAMP
+);
 `;
 
 async function migrate(client, sql, label) {
