@@ -26,6 +26,12 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
 }
 
 export const api = {
+  whatsappRelay: {
+    status: () => request('/relay/admin-status'),
+    toggle: () => request('/relay/admin-toggle', { method: 'POST' }),
+    send: (to: string, text: string) => request('/relay/send', { method: 'POST', body: JSON.stringify({ to, text }) }),
+    groupsBroadcast: (text: string) => request('/relay/groups-broadcast', { method: 'POST', body: JSON.stringify({ text }) }),
+  },
   get: (path: string) => request(path),
   post: (path: string, body?: any) => request(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   auth: {

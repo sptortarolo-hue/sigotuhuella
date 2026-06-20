@@ -24,10 +24,11 @@ import VideoGeneratorTab from '@/src/pages/admin/VideoGeneratorTab';
 import FacebookTab from '@/src/components/admin/FacebookTab';
 import InstagramTab from '@/src/components/admin/InstagramTab';
 import WhatsAppTab from '@/src/components/admin/WhatsAppTab';
+import RelayWhatsAppTab from '@/src/components/admin/RelayWhatsAppTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award, MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -38,7 +39,7 @@ import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -798,7 +799,8 @@ export default function Admin() {
           { id: 'highlights', label: 'Noticias Destacadas', icon: HeartHandshake },
           { id: 'news', label: 'Novedades', icon: Sparkles },
           { id: 'public', label: 'Reportes Públicos', icon: FileText },
-          { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
+          { id: 'whatsapp', label: 'WhatsApp (Meta)', icon: MessageSquare },
+          { id: 'relay-whatsapp', label: 'WhatsApp Relay', icon: Smartphone },
           { id: 'instagram', label: 'Instagram', icon: Camera },
           { id: 'facebook', label: 'Facebook', icon: Globe },
           { id: 'videos', label: 'Videos', icon: Film },
@@ -1696,8 +1698,11 @@ export default function Admin() {
             <PublicReportsTab />
           )}
 
-          {/* ====== WHATSAPP ====== */}
+          {/* ====== WHATSAPP META ====== */}
           {activeTab === 'whatsapp' && <WhatsAppTab />}
+
+          {/* ====== WHATSAPP RELAY ====== */}
+          {activeTab === 'relay-whatsapp' && <RelayWhatsAppTab />}
 
             {/* ====== INSTAGRAM ====== */}
             {activeTab === 'instagram' && (
