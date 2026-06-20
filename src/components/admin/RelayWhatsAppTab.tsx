@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode, Search, CheckSquare, Square } from 'lucide-react';
+import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode, Search, CheckSquare, Square, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { cn } from '@/src/lib/utils';
 
@@ -73,6 +73,44 @@ export default function RelayWhatsAppTab() {
   const [broadcastPetLoading, setBroadcastPetLoading] = useState(false);
   const [broadcastPetResults, setBroadcastPetResults] = useState<any[] | null>(null);
   const [broadcastPetPreview, setBroadcastPetPreview] = useState('');
+
+  // Groups management state
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupId, setNewGroupId] = useState('');
+
+  const addGroup = async () => {
+    if (!newGroupName.trim() || !newGroupId.trim()) return;
+    try {
+      await api.whatsapp.addGroup({ name: newGroupName.trim(), group_id: newGroupId.trim() });
+      setNewGroupName('');
+      setNewGroupId('');
+      await fetchGroups();
+    } catch (e: any) {
+      alert(e?.message || 'Error al agregar grupo');
+    }
+  };
+
+  const toggleGroup = async (id: string, is_active: boolean) => {
+    try {
+      await api.whatsapp.updateGroup(id, { is_active: !is_active });
+      await fetchGroups();
+    } catch (e) { console.error(e); }
+  };
+
+  const toggleAutoBroadcast = async (id: string, auto_broadcast: boolean) => {
+    try {
+      await api.whatsapp.updateGroup(id, { auto_broadcast: !auto_broadcast });
+      await fetchGroups();
+    } catch (e) { console.error(e); }
+  };
+
+  const deleteGroup = async (id: string) => {
+    if (!confirm('¿Eliminar este grupo?')) return;
+    try {
+      await api.whatsapp.deleteGroup(id);
+      await fetchGroups();
+    } catch (e) { console.error(e); }
+  };
 
   const fetchStatus = async () => {
     try {
@@ -293,6 +331,97 @@ export default function RelayWhatsAppTab() {
         </button>
       </div>
 
+      {/* Grupos de WhatsApp */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
+        <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+          <Users className="w-6 h-6" /> Grupos de WhatsApp
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <input
+            value={newGroupName}
+            onChange={(e) => setNewGroupName(e.target.value)}
+            placeholder="Nombre del grupo"
+            className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+          />
+          <input
+            value={newGroupId}
+            onChange={(e) => setNewGroupId(e.target.value)}
+            placeholder="Group ID (ej: 123456789@..."
+            className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+          />
+          <button
+            onClick={addGroup}
+            disabled={!newGroupName.trim() || !newGroupId.trim()}
+            className="px-4 py-3 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2 justify-center text-sm"
+          >
+            <Plus className="w-4 h-4" /> Agregar Grupo
+          </button>
+        </div>
+
+        {groupsLoading ? (
+          <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-brand-primary" /></div>
+        ) : groups.length === 0 ? (
+          <div className="text-center py-8">
+            <Users className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+            <p className="text-gray-400 font-medium">Sin grupos registrados</p>
+            <p className="text-xs text-gray-300 mt-1">Agregá un grupo para empezar a enviar broadcasts</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+            <table className="w-full text-left min-w-max">
+              <thead>
+                <tr className="bg-brand-bg text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3">Nombre</th>
+                  <th className="px-4 py-3">Group ID</th>
+                  <th className="px-4 py-3">Activo</th>
+                  <th className="px-4 py-3">Auto</th>
+                  <th className="px-4 py-3">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-accent">
+                {groups.map((g) => (
+                  <tr key={g.id} className="hover:bg-brand-bg/50 transition-colors text-sm">
+                    <td className="px-4 py-3 font-medium text-brand-primary">{g.name}</td>
+                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{g.group_id}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleGroup(g.id, g.is_active)}
+                        className={cn(
+                          "px-3 py-1 rounded-full text-xs font-bold transition-all",
+                          g.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                        )}
+                      >
+                        {g.is_active ? 'Activo' : 'Inactivo'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleAutoBroadcast(g.id, g.auto_broadcast)}
+                        className={cn(
+                          "px-3 py-1 rounded-full text-xs font-bold transition-all",
+                          g.auto_broadcast ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400"
+                        )}
+                      >
+                        {g.auto_broadcast ? 'Auto' : 'Manual'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => deleteGroup(g.id)}
+                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Mensaje de prueba */}
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
         <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
@@ -373,7 +502,7 @@ export default function RelayWhatsAppTab() {
             {groupsLoading ? (
               <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-brand-primary" /></div>
             ) : groups.length === 0 ? (
-              <p className="text-sm text-gray-400">No hay grupos activos. Agregalos en WhatsApp → Grupos.</p>
+              <p className="text-sm text-gray-400">No hay grupos activos. Agregalos en la sección "Grupos de WhatsApp" arriba.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {groups.map(g => {

@@ -4,7 +4,7 @@ import { cn } from '@/src/lib/utils';
 import {
   Save, Loader2, MessageSquare, RefreshCw, Send,
   Phone, User, X, CheckCircle, XCircle,
-  Bot, Settings, BarChart3, Map, FlaskConical, Building2, Users, Trash2, Plus,
+  Bot, Settings, BarChart3, Map, FlaskConical, Building2,
 } from 'lucide-react';
 
 interface Conversation {
@@ -66,84 +66,6 @@ export default function WhatsAppTab() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileForm, setProfileForm] = useState({ about: '', description: '', email: '', websites: [''] });
-  const [showGroups, setShowGroups] = useState(false);
-  const [groups, setGroups] = useState<any[]>([]);
-  const [groupsLoading, setGroupsLoading] = useState(false);
-  const [newGroupName, setNewGroupName] = useState('');
-  const [newGroupId, setNewGroupId] = useState('');
-  const [broadcastText, setBroadcastText] = useState('');
-  const [broadcastPetId, setBroadcastPetId] = useState('');
-  const [broadcasting, setBroadcasting] = useState(false);
-  const [broadcastResults, setBroadcastResults] = useState<any[] | null>(null);
-  const fetchGroups = async () => {
-    setGroupsLoading(true);
-    try {
-      const data = await api.whatsapp.groups();
-      setGroups(data);
-    } catch (e) { console.error(e); }
-    setGroupsLoading(false);
-  };
-
-  const addGroup = async () => {
-    if (!newGroupName.trim() || !newGroupId.trim()) return;
-    try {
-      await api.whatsapp.addGroup({ name: newGroupName.trim(), group_id: newGroupId.trim() });
-      setNewGroupName('');
-      setNewGroupId('');
-      await fetchGroups();
-    } catch (e: any) {
-      alert(e?.message || 'Error al agregar grupo');
-    }
-  };
-
-  const toggleGroup = async (id: string, is_active: boolean) => {
-    try {
-      await api.whatsapp.updateGroup(id, { is_active: !is_active });
-      await fetchGroups();
-    } catch (e) { console.error(e); }
-  };
-
-  const toggleAutoBroadcast = async (id: string, auto_broadcast: boolean) => {
-    try {
-      await api.whatsapp.updateGroup(id, { auto_broadcast: !auto_broadcast });
-      await fetchGroups();
-    } catch (e) { console.error(e); }
-  };
-
-  const deleteGroup = async (id: string) => {
-    if (!confirm('¿Eliminar este grupo?')) return;
-    try {
-      await api.whatsapp.deleteGroup(id);
-      await fetchGroups();
-    } catch (e) { console.error(e); }
-  };
-
-  const handleBroadcast = async () => {
-    if (!broadcastText.trim()) return;
-    setBroadcasting(true);
-    setBroadcastResults(null);
-    try {
-      const res = await api.whatsapp.broadcast(broadcastText.trim());
-      setBroadcastResults(res.results);
-    } catch (e: any) {
-      alert(e?.message || 'Error al enviar broadcast');
-    }
-    setBroadcasting(false);
-  };
-
-  const handleBroadcastPet = async () => {
-    if (!broadcastPetId.trim()) return;
-    setBroadcasting(true);
-    setBroadcastResults(null);
-    try {
-      await api.whatsapp.broadcastPet(broadcastPetId.trim());
-      setBroadcastResults([{ group: 'Broadcast de mascota', status: 'ok' }]);
-    } catch (e: any) {
-      alert(e?.message || 'Error al publicar mascota');
-    }
-    setBroadcasting(false);
-  };
-
   const fetchProfile = async () => {
     setProfileLoading(true);
     try {
@@ -357,12 +279,7 @@ export default function WhatsAppTab() {
         )}>
           <Building2 className="w-4 h-4" /> Perfil WhatsApp
         </button>
-        <button onClick={() => { setShowGroups(!showGroups); if (!showGroups) fetchGroups(); }} className={cn(
-          "flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-bold transition-all",
-          showGroups ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-brand-primary border-brand-accent hover:shadow-md"
-        )}>
-          <Users className="w-4 h-4" /> Grupos
-        </button>
+
       </div>
 
       {/* Profile panel */}
@@ -466,162 +383,6 @@ export default function WhatsAppTab() {
                   className="px-6 py-3.5 bg-white text-gray-500 text-base font-bold rounded-2xl border border-brand-accent hover:shadow-md transition-all"
                 >Cerrar</button>
               </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Groups panel */}
-      {showGroups && (
-        <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
-          <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
-            <Users className="w-6 h-6" /> Grupos de WhatsApp
-          </h2>
-
-          {groupsLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>
-          ) : (
-            <>
-              {/* Add group form */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <input
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  placeholder="Nombre del grupo"
-                  className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
-                />
-                <input
-                  value={newGroupId}
-                  onChange={(e) => setNewGroupId(e.target.value)}
-                  placeholder="Group ID (ej: 123456789@..."
-                  className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
-                />
-                <button
-                  onClick={addGroup}
-                  disabled={!newGroupName.trim() || !newGroupId.trim()}
-                  className="px-4 py-3 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2 justify-center text-sm"
-                >
-                  <Plus className="w-4 h-4" /> Agregar Grupo
-                </button>
-              </div>
-
-              {/* Group list */}
-              {groups.length === 0 ? (
-                <div className="text-center py-8">
-                  <Users className="w-10 h-10 mx-auto text-gray-300 mb-2" />
-                  <p className="text-gray-400 font-medium">Sin grupos registrados</p>
-                  <p className="text-xs text-gray-300 mt-1">Agregá un grupo para empezar a enviar broadcasts</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-2xl border border-brand-accent">
-                    <table className="w-full text-left min-w-max">
-                      <thead>
-                        <tr className="bg-brand-bg text-xs font-bold text-gray-500 uppercase tracking-wider">
-                          <th className="px-4 py-3">Nombre</th>
-                          <th className="px-4 py-3">Group ID</th>
-                          <th className="px-4 py-3">Activo</th>
-                          <th className="px-4 py-3">Auto</th>
-                          <th className="px-4 py-3">Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-brand-accent">
-                        {groups.map((g) => (
-                          <tr key={g.id} className="hover:bg-brand-bg/50 transition-colors text-sm">
-                            <td className="px-4 py-3 font-medium text-brand-primary">{g.name}</td>
-                            <td className="px-4 py-3 text-gray-500 font-mono text-xs">{g.group_id}</td>
-                            <td className="px-4 py-3">
-                              <button
-                                onClick={() => toggleGroup(g.id, g.is_active)}
-                                className={cn(
-                                  "px-3 py-1 rounded-full text-xs font-bold transition-all",
-                                  g.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-                                )}
-                              >
-                                {g.is_active ? 'Activo' : 'Inactivo'}
-                              </button>
-                            </td>
-                            <td className="px-4 py-3">
-                              <button
-                                onClick={() => toggleAutoBroadcast(g.id, g.auto_broadcast)}
-                                className={cn(
-                                  "px-3 py-1 rounded-full text-xs font-bold transition-all",
-                                  g.auto_broadcast ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400"
-                                )}
-                              >
-                                {g.auto_broadcast ? 'Auto' : 'Manual'}
-                              </button>
-                            </td>
-                            <td className="px-4 py-3">
-                              <button
-                                onClick={() => deleteGroup(g.id)}
-                                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                </div>
-              )}
-
-              {/* Broadcast manual */}
-              <div className="border-t border-brand-accent pt-6">
-                <h3 className="font-bold text-brand-primary mb-3">Enviar mensaje a todos los grupos activos</h3>
-                <textarea
-                  value={broadcastText}
-                  onChange={(e) => setBroadcastText(e.target.value)}
-                  placeholder="Escribí el mensaje para enviar a todos los grupos..."
-                  className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm h-24 resize-none"
-                />
-                <button
-                  onClick={handleBroadcast}
-                  disabled={!broadcastText.trim() || broadcasting}
-                  className="mt-3 px-6 py-3 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2 text-sm"
-                >
-                  {broadcasting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  {broadcasting ? 'Enviando...' : 'Enviar a todos los grupos'}
-                </button>
-              </div>
-
-              {/* Broadcast pet */}
-              <div className="border-t border-brand-accent pt-6">
-                <h3 className="font-bold text-brand-primary mb-3">Publicar mascota en grupos</h3>
-                <div className="flex gap-3">
-                  <input
-                    value={broadcastPetId}
-                    onChange={(e) => setBroadcastPetId(e.target.value)}
-                    placeholder="ID de la mascota (UUID)"
-                    className="flex-1 px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
-                  />
-                  <button
-                    onClick={handleBroadcastPet}
-                    disabled={!broadcastPetId.trim() || broadcasting}
-                    className="px-6 py-3 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2 text-sm"
-                  >
-                    {broadcasting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    Publicar
-                  </button>
-                </div>
-              </div>
-
-              {/* Broadcast results */}
-              {broadcastResults && (
-                <div className="p-4 bg-gray-50 rounded-2xl border border-brand-accent">
-                  <h4 className="font-bold text-sm text-brand-primary mb-2">Resultados del envío</h4>
-                  <div className="space-y-1">
-                    {broadcastResults.map((r, i) => (
-                      <p key={i} className={cn(
-                        "text-xs",
-                        r.status === 'ok' ? "text-green-600" : "text-red-600"
-                      )}>
-                        {r.group}: {r.status === 'ok' ? '✅ Enviado' : `❌ ${r.error}`}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>
