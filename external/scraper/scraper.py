@@ -311,13 +311,8 @@ def check_session(page):
             if "/login" in current.lower() or "checkpoint" in current.lower():
                 logger.warning(f"Session expired — redirected to login ({current})")
                 return False
-            title = page.title().lower()
-            no_login = page.locator("input[name='email'], input#email").count() == 0
-            if "facebook" in title and no_login:
-                logger.warning("Session may be invalid — title-based check passed but no feed found (proceeding anyway)")
-                return True
-            logger.warning(f"Session check failed (title='{page.title()[:50]}', url='{current}')")
-            return False
+            logger.warning(f"No feed found but no login redirect — proceeding anyway (url='{current}')")
+            return True
     except Exception as e:
         logger.warning(f"Session check error: {e}")
         return False
