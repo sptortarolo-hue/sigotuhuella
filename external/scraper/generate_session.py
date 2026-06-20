@@ -28,25 +28,44 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 
 SESSION_PATH = "storage_state.json"
 AUTH_PATTERNS = ["two_step_verification", "checkpoint", "login"]
+XVFB_PROC = None
+
+
+def ensure_display():
+    """Start Xvfb if no DISPLAY is set, so headed browser works."""
+    global XVFB_PROC
+    if "DISPLAY" in os.environ and os.environ["DISPLAY"]:
+        return
+    try:
+        display = ":99"
+        XVFB_PROC = subprocess.Popen(
+            ["Xvfb", display, "-screen", "0", "1280x720x24"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        os.environ["DISPLAY"] = display
+        print(f"[Xvfb] Started on display {display}")
+    except FileNotFoundError:
+        print("[Xvfb] WARNING: Xvfb no instalado. Ejecuta: apt install -y xvfb")
+        print("[Xvfb] Se continua en modo headless (sin pantalla)")
+    except Exception as e:
+        print(f"[Xvfb] Error: {e}")
 
 
 def run_vps_mode():
     """Run browser with Xvfb virtual display so user can VNC in."""
-    display = ":99"
-    xvfb = subprocess.Popen(
-        ["Xvfb", display, "-screen", "0", "1280x720x24"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    print(f"[VPS] Xvfb started on display {display}")
-    vnc = subprocess.Popen(
-        ["x11vnc", "-display", display, "-forever", "-nopw", "-quiet"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    print("[VPS] x11vnc started on port 5900 (no password)")
-    print(f"[VPS] Connect with VNC viewer to VPS_IP:5900")
-    print()
-    os.environ["DISPLAY"] = display
-    return xvfb, vnc
+    ensure_display()
+    try:
+        vnc = subprocess.Popen(
+            ["x11vnc", "-display", os.environ["DISPLAY"], "-forever", "-nopw", "-quiet"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        print("[VNC] x11vnc started on port 5900 (no password)")
+        print("[VNC] Connect with VNC viewer to VPS_IP:5900")
+        print()
+        return vnc
+    except FileNotFoundError:
+        print("[VNC] WARNING: x11vnc no instalado. Ejecuta: apt install -y x11vnc")
+        return None
 
 
 def detect_auth_page(page):
@@ -165,12 +184,14 @@ def main():
     twofa_mode = "--2fa" in sys.argv
     vps_mode = "--vps" in sys.argv
 
-    xvfb_proc = vnc_proc = None
+    vnc_proc = None
     if vps_mode:
-        xvfb_proc, vnc_proc = run_vps_mode()
+        vnc_proc = run_vps_mode()
+    elif twofa_mode:
+        ensure_display()
 
     p = sync_playwright().start()
-    browser = p.chromium.launch(headless=not vps_mode)
+    browser = p.chromium.launch(headless=not (vps_mode or twofa_mode))
 
     # Load existing storage_state if present (for 2FA mode)
     storage_path = Path(SESSION_PATH)
@@ -222,10 +243,12 @@ def main():
     browser.close()
     p.stop()
 
-    if xvfb_proc:
-        xvfb_proc.terminate()
+    if XVFB_PROC:
+        XVFB_PROC.terminate()
+        print("[Xvfb] Detenido")
+    if vnc_proc:
         vnc_proc.terminate()
-        print("[VPS] Xvfb y x11vnc detenidos")
+        print("[VNC] Detenido")
 
     print("Listo.")
 
