@@ -29,6 +29,12 @@ export default function RelayWhatsAppTab() {
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastResults, setBroadcastResults] = useState<any[] | null>(null);
 
+  const [testPetId, setTestPetId] = useState('');
+  const [testBroadcastTo, setTestBroadcastTo] = useState('');
+  const [testingBroadcast, setTestingBroadcast] = useState(false);
+  const [testBroadcastResult, setTestBroadcastResult] = useState('');
+  const [testBroadcastPreview, setTestBroadcastPreview] = useState('');
+
   const [toggling, setToggling] = useState(false);
 
   const fetchStatus = async () => {
@@ -95,6 +101,22 @@ export default function RelayWhatsAppTab() {
       setBroadcastResults([{ group: 'Error', status: 'error', error: err.message }]);
     } finally {
       setBroadcasting(false);
+    }
+  };
+
+  const handleTestBroadcast = async () => {
+    if (!testPetId || !testBroadcastTo) return;
+    setTestingBroadcast(true);
+    setTestBroadcastResult('');
+    setTestBroadcastPreview('');
+    try {
+      const res = await api.whatsappRelay.testBroadcast(testPetId, testBroadcastTo);
+      setTestBroadcastPreview(res.caption);
+      setTestBroadcastResult(`✅ Encolado (id: ${res.id}). El relay lo enviará en segundos.`);
+    } catch (err: any) {
+      setTestBroadcastResult(`❌ Error: ${err.message}`);
+    } finally {
+      setTestingBroadcast(false);
     }
   };
 
@@ -294,6 +316,51 @@ export default function RelayWhatsAppTab() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* Probar broadcast de mascota */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
+        <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+          <Send className="w-6 h-6" /> Probar broadcast de mascota
+        </h2>
+        <p className="text-sm text-gray-500">Genera el mismo mensaje que se enviaría a los grupos cuando se publica una mascota, y lo envía por relay al número que indiques.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">ID de la mascota</label>
+            <input
+              value={testPetId}
+              onChange={e => setTestPetId(e.target.value)}
+              placeholder="UUID de la mascota"
+              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Teléfono destino</label>
+            <input
+              value={testBroadcastTo}
+              onChange={e => setTestBroadcastTo(e.target.value)}
+              placeholder="549221XXXXXX"
+              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleTestBroadcast}
+            disabled={testingBroadcast || !testPetId || !testBroadcastTo}
+            className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
+          >
+            {testingBroadcast ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+            {testingBroadcast ? 'Enviando...' : 'Probar broadcast'}
+          </button>
+          {testBroadcastResult && <p className="text-sm font-medium">{testBroadcastResult}</p>}
+        </div>
+        {testBroadcastPreview && (
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Preview del mensaje:</p>
+            <pre className="whitespace-pre-wrap text-sm bg-brand-bg rounded-xl p-4 border border-brand-accent font-sans">{testBroadcastPreview}</pre>
           </div>
         )}
       </div>

@@ -91,3 +91,44 @@ export async function getAllGroups() {
   );
   return result.rows;
 }
+
+export async function getPetForBroadcast(petId) {
+  const result = await pool.query(`
+    SELECT p.*,
+      (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data
+    FROM pets p WHERE p.id = $1
+  `, [petId]);
+  return result.rows[0] || null;
+}
+
+export function generateBroadcastCaption(pet) {
+  const statusLabels = {
+    lost: '🐾 SE PERDIÓ', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
+    for_adoption: '❤️ EN ADOPCIÓN', adopted: '✅ ADOPTADO',
+    reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
+    needs_attention: '⚠️ NECESITA ATENCIÓN',
+  };
+  const label = statusLabels[pet.status] || '🐾 MASCOTA';
+  const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species || 'Mascota';
+  const genderLabel = pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : '';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+
+  const coverUrl = pet.image_data
+    ? `${frontendUrl}/api/images/pet/${pet.id}/cover`
+    : null;
+
+  const caption = [
+    `${label}`,
+    pet.name ? `Nombre: ${pet.name}` : '',
+    `${speciesLabel}${pet.breed ? ' · ' + pet.breed : ''}`,
+    genderLabel && pet.age ? `${genderLabel} · ${pet.age}` : genderLabel || pet.age || '',
+    `📍 ${pet.location || 'Sin ubicación'}`,
+    pet.contact_info ? `📞 ${pet.contact_info}` : '',
+    '',
+    pet.description ? pet.description.substring(0, 300) : '',
+    '',
+    `🔗 ${frontendUrl}/pet/${pet.id}`,
+  ].filter(Boolean).join('\n');
+
+  return { caption, coverUrl };
+}
