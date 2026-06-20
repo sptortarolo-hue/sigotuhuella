@@ -49,11 +49,53 @@ def run_vps_mode():
     return xvfb, vnc
 
 
+def detect_auth_page(page):
+    """Detect if Facebook is showing an auth/2FA/checkpoint page. Returns True if auth detected."""
+    auth_url_patterns = ["two_step", "checkpoint", "review", "confirm", "identify"]
+    # Check URL
+    url = page.url.lower()
+    for p in auth_url_patterns:
+        if p in url:
+            print(f"  Detectado '{p}' en la URL")
+            return True
+    # Check DOM for 2FA-related elements
+    selectors = [
+        "input[name='approvals_code']",
+        "input#approvals_code",
+        "input[name='code']",
+        "//div[contains(text(),'codigo de autenticacion')]",
+        "//div[contains(text(),'authentication code')]",
+        "//div[contains(text(),'codigo de inicio de sesion')]",
+        "//div[contains(text(),'login code')]",
+    ]
+    for sel in selectors:
+        try:
+            el = page.locator(sel).first
+            if el.count() > 0:
+                print(f"  Detectado elemento 2FA en DOM: {sel}")
+                return True
+        except:
+            continue
+    return False
+
+
 def handle_2fa(page):
     """Detect if 2FA page is shown and prompt for code."""
-    current = page.url
-    if "two_step" not in current.lower():
-        return True  # No 2FA needed
+    print(f"\nURL actual: {page.url}")
+    print("Buscando pagina de autenticacion...")
+
+    # Wait up to 15s for auth redirects
+    for i in range(15):
+        page.wait_for_timeout(1000)
+        if detect_auth_page(page):
+            break
+        if i == 0 or i == 4 or i == 9 or i == 14:
+            print(f"  Esperando... ({i+1}s) URL: {page.url[:100]}")
+
+    if not detect_auth_page(page):
+        print("No se detecto pagina de autenticacion. La sesion puede ser valida.")
+        return True
+
     print()
     print("=" * 60)
     print("Facebook pide verificacion en dos pasos (2FA)")
@@ -62,7 +104,7 @@ def handle_2fa(page):
     print("=" * 60)
     print()
     try:
-        input_field = page.locator("input[name='approvals_code'], input#approvals_code").first
+        input_field = page.locator("input[name='approvals_code'], input#approvals_code, input[name='code']").first
         input_field.wait_for(timeout=5000)
         input_field.fill(code)
         page.wait_for_timeout(500)
@@ -71,6 +113,8 @@ def handle_2fa(page):
             "button[type='submit']",
             "//div[@role='button' and contains(text(),'Continue')]",
             "//div[@role='button' and contains(text(),'Continuar')]",
+            "//div[@role='button' and contains(text(),'Enviar')]",
+            "//div[@role='button' and contains(text(),'Send')]",
         ]:
             try:
                 btn = page.locator(btn_sel).first
@@ -80,14 +124,19 @@ def handle_2fa(page):
             except:
                 continue
         page.wait_for_timeout(5000)
-        current = page.url
-        if "two_step" not in current.lower():
+        if not detect_auth_page(page):
             print("2FA completado correctamente.")
             return True
         print("WARNING: El 2FA no se completo. Revisa el codigo e intenta de nuevo.")
         return False
     except PlaywrightTimeout:
         print("WARNING: No se encontro el campo de codigo 2FA en la pagina.")
+        # Print page text for debugging
+        try:
+            text = page.inner_text("body")[:300]
+            print(f"  Texto visible: {text}")
+        except:
+            pass
         return False
 
 
@@ -124,11 +173,12 @@ def main():
     page = context.new_page()
 
     page.goto("https://www.facebook.com/", timeout=30000, wait_until="domcontentloaded")
-    page.wait_for_timeout(3000)
 
     # Handle 2FA if present (VPS mode)
-    if twofa_mode and any(p in page.url.lower() for p in ["two_step", "checkpoint"]):
+    if twofa_mode:
         handle_2fa(page)
+    else:
+        page.wait_for_timeout(3000)
 
     if not twofa_mode:
         print("=" * 60)
@@ -141,14 +191,22 @@ def main():
         print("=" * 60)
         input()
 
-    # Wait for feed to be ready (up to 30s)
-    try:
-        page.wait_for_selector(
-            "div[role='feed'], a[aria-label='Home'], div[aria-label='Home']",
-            timeout=30000,
-        )
-        print("Feed cargado correctamente.")
-    except PlaywrightTimeout:
+    # Wait for feed to be ready (up to 40s total)
+    for i in range(8):
+        if not detect_auth_page(page):
+            try:
+                page.wait_for_selector(
+                    "div[role='feed'], a[aria-label='Home'], div[aria-label='Home']",
+                    timeout=5000,
+                )
+                print("Feed cargado correctamente.")
+                break
+            except PlaywrightTimeout:
+                pass
+        print(f"  Esperando feed... ({i+1}/8)")
+        page.wait_for_timeout(2000)
+    else:
+        print(f"URL final: {page.url[:120]}")
         print("WARNING: No se detecto el feed, pero se guarda la sesion igual.")
 
     save_session(context)
