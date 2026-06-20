@@ -1,5 +1,6 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 const axios = require('axios');
+const QR = require('qrcode-terminal');
 
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = 'RELAY_TOKEN';
@@ -10,7 +11,7 @@ async function start() {
   const sock = makeWASocket({
     browser: Browsers.ubuntu('Chrome'),
     auth: state,
-    printQRInTerminal: true,
+    printQRInTerminal: false,
     syncFullHistory: false,
     connectTimeoutMs: 60000,
   });
@@ -18,7 +19,11 @@ async function start() {
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
-    if (qr) console.log('QR RECIBIDO — escanealo con WhatsApp');
+    if (qr) {
+      console.log('\n=== ESCANEÁ ESTE QR CON WHATSAPP ===');
+      QR.generate(qr, { small: true });
+      console.log('====================================\n');
+    }
     if (connection === 'open') console.log('Conectado a WhatsApp');
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
@@ -37,7 +42,6 @@ async function start() {
         timeout: 20000,
       });
       if (!data.messages?.length) return;
-
       const sentIds = [];
       const failedIds = [];
       for (const msg of data.messages) {
