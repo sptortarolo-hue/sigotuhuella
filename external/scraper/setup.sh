@@ -15,8 +15,8 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Install Playwright browsers (chromium only to save space)
-playwright install chromium
+# Install Playwright browsers (only if playwright is installed)
+pip show playwright >/dev/null 2>&1 && playwright install chromium || echo "Playwright no instalado, omitiendo browser"
 
 # Read APP_URL and APP_TOKEN from arguments or .env
 APP_URL="${1:-https://sigotuhuella.online}"

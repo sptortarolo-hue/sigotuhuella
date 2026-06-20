@@ -1,7 +1,6 @@
 """
 Facebook Group Tool — Sigo Tu Huella
 Scrapes configured Facebook groups via Bright Data API,
-publishes posts to groups via Playwright (headless Chromium),
 saves raw posts to local SQLite (server classifies via Gemini on sync),
 and exposes endpoints for the production server.
 
@@ -10,8 +9,7 @@ Usage:
   python scraper.py --daemon                     # Run as scheduled daemon (with sync server on :3001)
 
 Config: config.json or POST /config endpoint.
-Session: storage_state.json (Playwright storage state for group publishing).
-Generate: run generate_session.py on your local machine, upload via admin panel.
+Publishing: requires playwright (pip install playwright, playwright install chromium).
 """
 
 import json
@@ -31,7 +29,11 @@ from pathlib import Path
 from urllib.request import urlopen, Request
 
 from flask import Flask, jsonify, request
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+try:
+    from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+    HAS_PLAYWRIGHT = True
+except ImportError:
+    HAS_PLAYWRIGHT = False
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,6 +41,7 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("fb-scraper")
+logger.info(f"Playwright={'si' if HAS_PLAYWRIGHT else 'no'} — publicacion a grupos {'disponible' if HAS_PLAYWRIGHT else 'deshabilitada'}")
 
 _DIR = Path(__file__).parent
 DB_PATH = _DIR / "scraper.db"
@@ -268,6 +271,8 @@ def extract_post_id_from_url(url):
 
 def _launch_playwright(headless=True, storage_state_path=None):
     """Launch Playwright and return (playwright, browser, context, page)."""
+    if not HAS_PLAYWRIGHT:
+        raise RuntimeError("Playwright no instalado")
     p = sync_playwright().start()
     browser = p.chromium.launch(
         headless=headless,
@@ -724,6 +729,8 @@ def sync_config():
 
 @sync_app.route("/publish-to-groups", methods=["POST"])
 def publish_to_groups():
+    if not HAS_PLAYWRIGHT:
+        return jsonify({"error": "Publicacion a grupos deshabilitada — Playwright no instalado"}), 503
     data = request.get_json()
     groups = data.get("groups", [])
     message = data.get("message", "")

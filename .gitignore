@@ -16,3 +16,6 @@ scripts/*.mp4
 scripts/tutorial-audio/
 scripts/tutorial-carrusel/
 scripts/tutorial-slides/
+cookies.txt
+storage_state.json
+external/scraper/debug/
