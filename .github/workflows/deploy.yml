@@ -54,20 +54,19 @@ jobs:
         port: ${{ secrets.SSH_PORT }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
+        command_timeout: 600000
         script: |
           set -x
-          # Kill anything on port 3000 (scraper or old sigotuhuella)
-          kill -9 $(lsof -t -i:3000) 2>/dev/null || true
-          # Remove old scraper from PM2 so it doesn't auto-restart
-          pm2 delete sihuella 2>/dev/null || true
-          # Install system deps
-          sudo apt-get update -qq >/dev/null 2>&1
-          sudo apt-get install -y --no-install-recommends ffmpeg build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev >/dev/null 2>&1
+          # Install system deps only if missing (skip apt update — packages are stable)
+          if ! command -v ffmpeg &>/dev/null; then
+            sudo apt-get update -qq >/dev/null 2>&1
+            sudo apt-get install -y --no-install-recommends ffmpeg build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev >/dev/null 2>&1
+          fi
           cd /var/www/sigotuhuella
           npm install --production
           # Restore DATABASE_URL (never overwritten by deploy)
           if [ -f /root/.sihuella-db.env ]; then
-            cat /root/.sihuella-db.env >> server/.env
+            grep -q 'DATABASE_URL' server/.env 2>/dev/null || cat /root/.sihuella-db.env >> server/.env
           fi
           # Start our app with PM2
           pm2 delete sigotuhuella 2>/dev/null || true
