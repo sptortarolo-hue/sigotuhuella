@@ -22,6 +22,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
@@ -34,21 +35,39 @@ XVFB_PROC = None
 def ensure_display():
     """Start Xvfb if no DISPLAY is set, so headed browser works."""
     global XVFB_PROC
-    if "DISPLAY" in os.environ and os.environ["DISPLAY"]:
+    if os.environ.get("DISPLAY"):
+        print(f"[Display] DISPLAY={os.environ['DISPLAY']} (ya configurado)")
         return
     try:
         display = ":99"
+        # Kill any stale Xvfb on this display
+        subprocess.run(
+            ["fuser", "-k", f"/tmp/.X{display.lstrip(':')}-lock"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        # Start fresh Xvfb
         XVFB_PROC = subprocess.Popen(
-            ["Xvfb", display, "-screen", "0", "1280x720x24"],
+            ["Xvfb", display, "-ac", "-screen", "0", "1280x720x24"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         os.environ["DISPLAY"] = display
-        print(f"[Xvfb] Started on display {display}")
-    except FileNotFoundError:
-        print("[Xvfb] WARNING: Xvfb no instalado. Ejecuta: apt install -y xvfb")
-        print("[Xvfb] Se continua en modo headless (sin pantalla)")
+        # Wait for Xvfb to be ready
+        for _ in range(20):
+            ret = subprocess.run(
+                ["xdpyinfo", "-display", display],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            if ret.returncode == 0:
+                print(f"[Xvfb] Ready on {display}")
+                break
+            time.sleep(0.5)
+        else:
+            print("[Xvfb] WARNING: xdpyinfo no responde, se continua...")
+    except FileNotFoundError as e:
+        print(f"[Display] ERROR: Falta {e.filename}. Ejecuta: apt install -y xvfb")
+        print("[Display] Se continua en modo headless (puede fallar si no hay X11)")
     except Exception as e:
-        print(f"[Xvfb] Error: {e}")
+        print(f"[Display] Error: {e}")
 
 
 def run_vps_mode():
@@ -191,7 +210,12 @@ def main():
         ensure_display()
 
     p = sync_playwright().start()
-    browser = p.chromium.launch(headless=not (vps_mode or twofa_mode))
+    needs_display = vps_mode or twofa_mode
+    has_display = bool(os.environ.get("DISPLAY"))
+    headless = not (needs_display and has_display)
+    if headless and needs_display:
+        print("[Browser] Sin display X11 disponible, usando modo headless")
+    browser = p.chromium.launch(headless=headless)
 
     # Load existing storage_state if present (for 2FA mode)
     storage_path = Path(SESSION_PATH)
