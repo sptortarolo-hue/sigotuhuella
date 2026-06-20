@@ -305,7 +305,7 @@ export async function broadcastPetToGroups(petId) {
     const enabled = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_broadcast_enabled'");
     if (enabled.rows[0]?.value !== 'true') return;
 
-    const groups = await pool.query("SELECT * FROM whatsapp_groups WHERE is_active = TRUE");
+    const groups = await pool.query("SELECT * FROM whatsapp_groups WHERE is_active = TRUE AND auto_broadcast = TRUE");
     if (groups.rows.length === 0) return;
 
     const pet = (await pool.query(`

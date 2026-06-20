@@ -92,6 +92,25 @@ export async function getAllGroups() {
   return result.rows;
 }
 
+export async function searchPets(category, search) {
+  const reportados = ['lost', 'sighted', 'accidented', 'needs_attention', 'retained'];
+  const statuses = category === 'adopcion' ? ['for_adoption'] : reportados;
+  const params = [statuses];
+  let sql = `
+    SELECT p.id, p.name, p.species, p.breed, p.status, p.location, p.created_at,
+      (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) IS NOT NULL as has_image
+    FROM pets p
+    WHERE p.status = ANY($1::varchar[])
+  `;
+  if (search) {
+    params.push(`%${search}%`);
+    sql += ` AND (p.name ILIKE $2 OR p.breed ILIKE $2)`;
+  }
+  sql += ` ORDER BY p.created_at DESC LIMIT 50`;
+  const result = await pool.query(sql, params);
+  return result.rows;
+}
+
 export async function getPetForBroadcast(petId) {
   const result = await pool.query(`
     SELECT p.*,

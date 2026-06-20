@@ -32,6 +32,8 @@ export const api = {
     send: (to: string, text: string, image_url?: string) => request('/relay/send', { method: 'POST', body: JSON.stringify({ to, text, image_url }) }),
     groupsBroadcast: (text: string, image_url?: string) => request('/relay/groups-broadcast', { method: 'POST', body: JSON.stringify({ text, image_url }) }),
     testBroadcast: (petId: string, to: string) => request('/relay/test-broadcast', { method: 'POST', body: JSON.stringify({ petId: petId || undefined, to }) }),
+    pets: (category: string, search?: string) => request(`/relay/pets?category=${category}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
+    broadcastPet: (petId: string, groupIds: string[]) => request('/relay/broadcast-pet', { method: 'POST', body: JSON.stringify({ petId, groupIds }) }),
   },
   get: (path: string) => request(path),
   post: (path: string, body?: any) => request(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),

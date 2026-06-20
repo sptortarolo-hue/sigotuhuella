@@ -742,6 +742,10 @@ export async function initDb() {
       ALTER TABLE relay_messages ADD COLUMN IF NOT EXISTS image_url TEXT
     `, 'relay_messages image_url');
 
+    await migrate(client, `
+      ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS auto_broadcast BOOLEAN DEFAULT TRUE
+    `, 'whatsapp_groups auto_broadcast');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

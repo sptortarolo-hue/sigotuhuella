@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAllGroups, saveQR, clearQR, getQR, getPetForBroadcast, getLatestPet, generateBroadcastCaption } from '../services/phoneRelayService.js';
+import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAllGroups, saveQR, clearQR, getQR, getPetForBroadcast, getLatestPet, generateBroadcastCaption, searchPets } from '../services/phoneRelayService.js';
 import { requireAdmin } from '../auth.js';
 
 const router = Router();
@@ -148,6 +148,46 @@ router.post('/test-broadcast', requireAdmin, async (req, res) => {
     res.json({ success: true, id, petId: pet.id, petName: pet.name, caption, coverUrl });
   } catch (err) {
     console.error('[Relay] test-broadcast error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/pets', requireAdmin, async (req, res) => {
+  try {
+    const { category, search } = req.query;
+    const pets = await searchPets(category || 'reportados', search || '');
+    res.json({ pets });
+  } catch (err) {
+    console.error('[Relay] pets error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/broadcast-pet', requireAdmin, async (req, res) => {
+  try {
+    const { petId, groupIds } = req.body;
+    if (!petId) return res.status(400).json({ error: 'petId required' });
+    if (!groupIds || !Array.isArray(groupIds) || groupIds.length === 0)
+      return res.status(400).json({ error: 'groupIds array required' });
+
+    const pet = await getPetForBroadcast(petId);
+    if (!pet) return res.status(404).json({ error: 'Mascota no encontrada' });
+
+    const { caption, coverUrl } = generateBroadcastCaption(pet);
+    const results = [];
+
+    for (const groupId of groupIds) {
+      try {
+        const id = await enqueue(groupId, caption, coverUrl);
+        results.push({ groupId, status: 'queued', id });
+      } catch (err) {
+        results.push({ groupId, status: 'error', error: err.message });
+      }
+    }
+
+    res.json({ results, caption, coverUrl });
+  } catch (err) {
+    console.error('[Relay] broadcast-pet error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

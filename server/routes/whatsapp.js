@@ -432,10 +432,10 @@ router.post('/groups', requireAdmin, async (req, res) => {
 
 router.put('/groups/:id', requireAdmin, async (req, res) => {
   try {
-    const { name, group_id, is_active } = req.body;
+    const { name, group_id, is_active, auto_broadcast } = req.body;
     const result = await pool.query(
-      'UPDATE whatsapp_groups SET name = COALESCE($1, name), group_id = COALESCE($2, group_id), is_active = COALESCE($3, is_active) WHERE id = $4 RETURNING *',
-      [name || null, group_id || null, is_active !== undefined ? is_active : null, req.params.id]
+      'UPDATE whatsapp_groups SET name = COALESCE($1, name), group_id = COALESCE($2, group_id), is_active = COALESCE($3, is_active), auto_broadcast = COALESCE($4, auto_broadcast) WHERE id = $5 RETURNING *',
+      [name || null, group_id || null, is_active !== undefined ? is_active : null, auto_broadcast !== undefined ? auto_broadcast : null, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Grupo no encontrado' });
     res.json(result.rows[0]);

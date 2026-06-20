@@ -103,6 +103,13 @@ export default function WhatsAppTab() {
     } catch (e) { console.error(e); }
   };
 
+  const toggleAutoBroadcast = async (id: string, auto_broadcast: boolean) => {
+    try {
+      await api.whatsapp.updateGroup(id, { auto_broadcast: !auto_broadcast });
+      await fetchGroups();
+    } catch (e) { console.error(e); }
+  };
+
   const deleteGroup = async (id: string) => {
     if (!confirm('¿Eliminar este grupo?')) return;
     try {
@@ -507,43 +514,55 @@ export default function WhatsAppTab() {
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-2xl border border-brand-accent">
-                  <table className="w-full text-left min-w-max">
-                    <thead>
-                      <tr className="bg-brand-bg text-xs font-bold text-gray-500 uppercase tracking-wider">
-                        <th className="px-4 py-3">Nombre</th>
-                        <th className="px-4 py-3">Group ID</th>
-                        <th className="px-4 py-3">Activo</th>
-                        <th className="px-4 py-3">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-brand-accent">
-                      {groups.map((g) => (
-                        <tr key={g.id} className="hover:bg-brand-bg/50 transition-colors text-sm">
-                          <td className="px-4 py-3 font-medium text-brand-primary">{g.name}</td>
-                          <td className="px-4 py-3 text-gray-500 font-mono text-xs">{g.group_id}</td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => toggleGroup(g.id, g.is_active)}
-                              className={cn(
-                                "px-3 py-1 rounded-full text-xs font-bold transition-all",
-                                g.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
-                              )}
-                            >
-                              {g.is_active ? 'Activo' : 'Inactivo'}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => deleteGroup(g.id)}
-                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
+                    <table className="w-full text-left min-w-max">
+                      <thead>
+                        <tr className="bg-brand-bg text-xs font-bold text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 py-3">Nombre</th>
+                          <th className="px-4 py-3">Group ID</th>
+                          <th className="px-4 py-3">Activo</th>
+                          <th className="px-4 py-3">Auto</th>
+                          <th className="px-4 py-3">Acciones</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-brand-accent">
+                        {groups.map((g) => (
+                          <tr key={g.id} className="hover:bg-brand-bg/50 transition-colors text-sm">
+                            <td className="px-4 py-3 font-medium text-brand-primary">{g.name}</td>
+                            <td className="px-4 py-3 text-gray-500 font-mono text-xs">{g.group_id}</td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => toggleGroup(g.id, g.is_active)}
+                                className={cn(
+                                  "px-3 py-1 rounded-full text-xs font-bold transition-all",
+                                  g.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                                )}
+                              >
+                                {g.is_active ? 'Activo' : 'Inactivo'}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => toggleAutoBroadcast(g.id, g.auto_broadcast)}
+                                className={cn(
+                                  "px-3 py-1 rounded-full text-xs font-bold transition-all",
+                                  g.auto_broadcast ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400"
+                                )}
+                              >
+                                {g.auto_broadcast ? 'Auto' : 'Manual'}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => deleteGroup(g.id)}
+                                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                 </div>
               )}
 

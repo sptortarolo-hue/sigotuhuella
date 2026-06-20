@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode } from 'lucide-react';
+import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode, Search, CheckSquare, Square } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { cn } from '@/src/lib/utils';
 
@@ -11,12 +11,41 @@ interface RelayStatus {
   qrAvailable: boolean;
 }
 
+interface PetBrief {
+  id: string;
+  name: string;
+  species: string;
+  breed: string;
+  status: string;
+  location: string;
+  created_at: string;
+  has_image: boolean;
+}
+
+interface GroupInfo {
+  id: string;
+  name: string;
+  group_id: string;
+  is_active: boolean;
+  auto_broadcast: boolean;
+}
+
+const STATUS_BADGES: Record<string, { label: string; color: string }> = {
+  lost: { label: 'Perdido', color: 'bg-red-100 text-red-700' },
+  for_adoption: { label: 'Adopción', color: 'bg-green-100 text-green-700' },
+  sighted: { label: 'Avistado', color: 'bg-yellow-100 text-yellow-700' },
+  retained: { label: 'Retenido', color: 'bg-orange-100 text-orange-700' },
+  accidented: { label: 'Accidentado', color: 'bg-purple-100 text-purple-700' },
+  needs_attention: { label: 'Atención', color: 'bg-pink-100 text-pink-700' },
+  adopted: { label: 'Adoptado', color: 'bg-blue-100 text-blue-700' },
+  reunited: { label: 'Reencuentro', color: 'bg-teal-100 text-teal-700' },
+};
+
 export default function RelayWhatsAppTab() {
   const [status, setStatus] = useState<RelayStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [testTo, setTestTo] = useState('');
   const [testText, setTestText] = useState('');
@@ -29,13 +58,21 @@ export default function RelayWhatsAppTab() {
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastResults, setBroadcastResults] = useState<any[] | null>(null);
 
-  const [testBroadcastTo, setTestBroadcastTo] = useState('');
-  const [testingBroadcast, setTestingBroadcast] = useState(false);
-  const [testBroadcastResult, setTestBroadcastResult] = useState('');
-  const [testBroadcastPreview, setTestBroadcastPreview] = useState('');
-  const [testBroadcastPetInfo, setTestBroadcastPetInfo] = useState('');
-
   const [toggling, setToggling] = useState(false);
+
+  // Broadcast UI state
+  const [petCategory, setPetCategory] = useState<'reportados' | 'adopcion'>('reportados');
+  const [petSearch, setPetSearch] = useState('');
+  const [pets, setPets] = useState<PetBrief[]>([]);
+  const [petsLoading, setPetsLoading] = useState(false);
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
+  const [selectedPetPreview, setSelectedPetPreview] = useState('');
+  const [groups, setGroups] = useState<GroupInfo[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [broadcastPetLoading, setBroadcastPetLoading] = useState(false);
+  const [broadcastPetResults, setBroadcastPetResults] = useState<any[] | null>(null);
+  const [broadcastPetPreview, setBroadcastPetPreview] = useState('');
 
   const fetchStatus = async () => {
     try {
@@ -59,6 +96,78 @@ export default function RelayWhatsAppTab() {
     const interval = setInterval(fetchStatus, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    fetchGroups();
+  }, []);
+
+  useEffect(() => {
+    fetchPets();
+  }, [petCategory]);
+
+  const fetchGroups = async () => {
+    setGroupsLoading(true);
+    try {
+      const data = await api.whatsapp.groups();
+      setGroups(data);
+    } catch (e) { /* ignore */ }
+    setGroupsLoading(false);
+  };
+
+  const fetchPets = async () => {
+    setPetsLoading(true);
+    setSelectedPetId(null);
+    setSelectedPetPreview('');
+    setSelectedGroupIds(new Set());
+    setBroadcastPetResults(null);
+    try {
+      const data = await api.whatsappRelay.pets(petCategory, petSearch);
+      setPets(data.pets || []);
+    } catch (e) { /* ignore */ }
+    setPetsLoading(false);
+  };
+
+  const handleSearch = () => {
+    fetchPets();
+  };
+
+  const selectPet = async (petId: string) => {
+    if (selectedPetId === petId) {
+      setSelectedPetId(null);
+      setSelectedPetPreview('');
+      setSelectedGroupIds(new Set());
+      setBroadcastPetResults(null);
+      return;
+    }
+    setSelectedPetId(petId);
+    setSelectedPetPreview('');
+    setSelectedGroupIds(new Set());
+    setBroadcastPetResults(null);
+  };
+
+  const toggleGroupSelection = (groupId: string) => {
+    setSelectedGroupIds(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  const handleBroadcastPet = async () => {
+    if (!selectedPetId || selectedGroupIds.size === 0) return;
+    setBroadcastPetLoading(true);
+    setBroadcastPetResults(null);
+    try {
+      const res = await api.whatsappRelay.broadcastPet(selectedPetId, Array.from(selectedGroupIds));
+      setBroadcastPetResults(res.results);
+      setBroadcastPetPreview(res.caption);
+    } catch (err: any) {
+      setBroadcastPetResults([{ groupId: 'Error', status: 'error', error: err.message }]);
+    } finally {
+      setBroadcastPetLoading(false);
+    }
+  };
 
   const handleToggle = async () => {
     setToggling(true);
@@ -104,23 +213,7 @@ export default function RelayWhatsAppTab() {
     }
   };
 
-  const handleTestBroadcast = async () => {
-    if (!testBroadcastTo) return;
-    setTestingBroadcast(true);
-    setTestBroadcastResult('');
-    setTestBroadcastPreview('');
-    setTestBroadcastPetInfo('');
-    try {
-      const res = await api.whatsappRelay.testBroadcast('', testBroadcastTo);
-      setTestBroadcastPetInfo(res.petName ? `${res.petName} (${res.petId})` : res.petId);
-      setTestBroadcastPreview(res.caption);
-      setTestBroadcastResult(`✅ Encolado (id: ${res.id}). El relay lo enviará en segundos.`);
-    } catch (err: any) {
-      setTestBroadcastResult(`❌ Error: ${err.message}`);
-    } finally {
-      setTestingBroadcast(false);
-    }
-  };
+  const speciesIcon = (species: string) => species === 'cat' ? '🐱' : '🐶';
 
   return (
     <div className="space-y-6">
@@ -170,18 +263,13 @@ export default function RelayWhatsAppTab() {
             </div>
           </div>
 
-          {/* QR Code */}
           {qrDataUrl && (
             <div className="flex flex-col items-center gap-4 py-6">
               <div className="flex items-center gap-2 text-brand-primary font-bold">
                 <ScanQrCode className="w-5 h-5" />
                 Escaneá este QR desde WhatsApp del teléfono relay
               </div>
-              <img
-                src={qrDataUrl}
-                alt="WhatsApp QR"
-                className="w-64 h-64 border-4 border-brand-primary/20 rounded-2xl"
-              />
+              <img src={qrDataUrl} alt="WhatsApp QR" className="w-64 h-64 border-4 border-brand-primary/20 rounded-2xl" />
               <p className="text-sm text-gray-500 text-center max-w-md">
                 Abrí WhatsApp en el teléfono → Menú (⋮) → Dispositivos vinculados → Vincular dispositivo → Escaneá este QR
               </p>
@@ -213,41 +301,21 @@ export default function RelayWhatsAppTab() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Teléfono</label>
-            <input
-              value={testTo}
-              onChange={e => setTestTo(e.target.value)}
-              placeholder="549221XXXXXX"
-              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
-            />
+            <input value={testTo} onChange={e => setTestTo(e.target.value)} placeholder="549221XXXXXX" className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Mensaje</label>
-            <textarea
-              value={testText}
-              onChange={e => setTestText(e.target.value)}
-              placeholder="Escribí el mensaje..."
-              rows={2}
-              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 resize-none"
-            />
+            <textarea value={testText} onChange={e => setTestText(e.target.value)} placeholder="Escribí el mensaje..." rows={2} className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 resize-none" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
               <Image className="w-3 h-3 inline mb-0.5 mr-1" />URL de imagen (opcional)
             </label>
-            <input
-              value={testImageUrl}
-              onChange={e => setTestImageUrl(e.target.value)}
-              placeholder="https://ejemplo.com/imagen.jpg"
-              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
-            />
+            <input value={testImageUrl} onChange={e => setTestImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20" />
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <button
-            onClick={handleSendTest}
-            disabled={sending || !testTo || (!testText && !testImageUrl)}
-            className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
-          >
+          <button onClick={handleSendTest} disabled={sending || !testTo || (!testText && !testImageUrl)} className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
             {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
             {sending ? 'Enviando...' : 'Enviar'}
           </button>
@@ -255,41 +323,137 @@ export default function RelayWhatsAppTab() {
         </div>
       </div>
 
-      {/* Publicar en grupos */}
+      {/* Publicar mascota en grupos */}
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
         <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
-          <Globe className="w-6 h-6" /> Publicar en grupos WhatsApp
+          <Globe className="w-6 h-6" /> Publicar mascota en grupos
         </h2>
-        <p className="text-sm text-gray-500">El mensaje se envía a todos los grupos activos a través del relay.</p>
+
+        {/* Category + Search */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex rounded-xl border border-brand-accent overflow-hidden">
+            <button onClick={() => setPetCategory('reportados')} className={cn("px-4 py-2.5 text-sm font-bold transition-all", petCategory === 'reportados' ? 'bg-brand-primary text-white' : 'bg-white text-gray-500 hover:bg-brand-bg')}>Reportados</button>
+            <button onClick={() => setPetCategory('adopcion')} className={cn("px-4 py-2.5 text-sm font-bold transition-all", petCategory === 'adopcion' ? 'bg-brand-primary text-white' : 'bg-white text-gray-500 hover:bg-brand-bg')}>En adopción</button>
+          </div>
+          <div className="flex-1 flex gap-2">
+            <input value={petSearch} onChange={e => setPetSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="Buscar por nombre o raza..." className="flex-1 px-4 py-2.5 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-sm" />
+            <button onClick={handleSearch} className="px-4 py-2.5 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all"><Search className="w-4 h-4" /></button>
+          </div>
+        </div>
+
+        {/* Pet list */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
+          {petsLoading ? (
+            <div className="col-span-full flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-brand-primary" /></div>
+          ) : pets.length === 0 ? (
+            <p className="col-span-full text-center text-gray-400 py-8 text-sm">No hay mascotas en esta categoría</p>
+          ) : pets.map(pet => {
+            const badge = STATUS_BADGES[pet.status] || { label: pet.status, color: 'bg-gray-100 text-gray-600' };
+            const selected = selectedPetId === pet.id;
+            return (
+              <button key={pet.id} onClick={() => selectPet(pet.id)} className={cn("text-left p-3 rounded-xl border-2 transition-all", selected ? 'border-brand-primary bg-brand-primary/5' : 'border-brand-accent hover:border-brand-primary/50')}>
+                <div className="flex items-center gap-3">
+                  <span className="text-xl shrink-0">{speciesIcon(pet.species)}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm truncate">{pet.name || 'Sin nombre'}</p>
+                    <p className="text-xs text-gray-500 truncate">{pet.breed || speciesIcon(pet.species)}</p>
+                    <p className="text-xs text-gray-400 truncate">📍 {pet.location?.substring(0, 40) || 'Sin ubicación'}</p>
+                  </div>
+                  <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0", badge.color)}>{badge.label}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Groups list */}
+        {selectedPetId && (
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Seleccionar grupos</p>
+            {groupsLoading ? (
+              <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-brand-primary" /></div>
+            ) : groups.length === 0 ? (
+              <p className="text-sm text-gray-400">No hay grupos activos. Agregalos en WhatsApp → Grupos.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {groups.map(g => {
+                  const checked = selectedGroupIds.has(g.group_id);
+                  return (
+                    <button key={g.id} onClick={() => toggleGroupSelection(g.group_id)} className="flex items-center gap-3 p-3 rounded-xl border border-brand-accent hover:bg-brand-bg/50 transition-all text-left">
+                      {checked ? <CheckSquare className="w-5 h-5 text-brand-primary shrink-0" /> : <Square className="w-5 h-5 text-gray-300 shrink-0" />}
+                      <span className="text-sm font-medium truncate">{g.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Broadcast button */}
+            <div className="flex items-center gap-4 pt-2">
+              <button onClick={handleBroadcastPet} disabled={broadcastPetLoading || selectedGroupIds.size === 0} className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
+                {broadcastPetLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                {broadcastPetLoading ? 'Publicando...' : `Publicar en ${selectedGroupIds.size} grupo${selectedGroupIds.size !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Preview */}
+        {(selectedPetPreview || broadcastPetPreview) && (
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Preview del mensaje:</p>
+            <pre className="whitespace-pre-wrap text-sm bg-brand-bg rounded-xl p-4 border border-brand-accent font-sans">{broadcastPetPreview || selectedPetPreview}</pre>
+          </div>
+        )}
+
+        {/* Results */}
+        {broadcastPetResults && (
+          <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+            <table className="w-full text-left min-w-max">
+              <thead>
+                <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                  <th className="px-4 py-3">Grupo</th>
+                  <th className="px-4 py-3">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-accent">
+                {broadcastPetResults.map((r, i) => {
+                  const group = groups.find(g => g.group_id === r.groupId);
+                  return (
+                    <tr key={i} className="text-sm">
+                      <td className="px-4 py-3 font-medium">{group?.name || r.groupId}</td>
+                      <td className="px-4 py-3">
+                        {r.status === 'queued' ? <span className="text-green-600 font-bold">Encolado</span> : <span className="text-red-500 font-bold" title={r.error}>Error</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Publicar texto en grupos */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
+        <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+          <MessageSquare className="w-6 h-6" /> Publicar texto en grupos
+        </h2>
+        <p className="text-sm text-gray-500">Envía un mensaje de texto a todos los grupos activos a través del relay.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Mensaje</label>
-            <textarea
-              value={groupText}
-              onChange={e => setGroupText(e.target.value)}
-              placeholder="Escribí el mensaje para enviar a todos los grupos..."
-              rows={3}
-              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 resize-none"
-            />
+            <textarea value={groupText} onChange={e => setGroupText(e.target.value)} placeholder="Escribí el mensaje..." rows={3} className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 resize-none" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
               <Image className="w-3 h-3 inline mb-0.5 mr-1" />URL de imagen (opcional)
             </label>
-            <input
-              value={groupImageUrl}
-              onChange={e => setGroupImageUrl(e.target.value)}
-              placeholder="https://ejemplo.com/imagen.jpg"
-              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
-            />
+            <input value={groupImageUrl} onChange={e => setGroupImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20" />
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <button
-            onClick={handleBroadcast}
-            disabled={broadcasting || (!groupText.trim() && !groupImageUrl.trim())}
-            className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
-          >
+          <button onClick={handleBroadcast} disabled={broadcasting || (!groupText.trim() && !groupImageUrl.trim())} className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
             {broadcasting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Users className="w-5 h-5" />}
             {broadcasting ? 'Publicando...' : 'Publicar en grupos'}
           </button>
@@ -308,53 +472,12 @@ export default function RelayWhatsAppTab() {
                   <tr key={i} className="text-sm">
                     <td className="px-4 py-3 font-medium">{r.group}</td>
                     <td className="px-4 py-3">
-                      {r.status === 'queued' ? (
-                        <span className="text-green-600 font-bold">Encolado</span>
-                      ) : (
-                        <span className="text-red-500 font-bold" title={r.error}>Error</span>
-                      )}
+                      {r.status === 'queued' ? <span className="text-green-600 font-bold">Encolado</span> : <span className="text-red-500 font-bold" title={r.error}>Error</span>}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </div>
-
-      {/* Probar broadcast de mascota */}
-      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
-        <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
-          <Send className="w-6 h-6" /> Probar broadcast de mascota
-        </h2>
-        <p className="text-sm text-gray-500">Genera el mismo mensaje que se enviaría a los grupos (usa la última mascota registrada) y lo envía por relay al número que indiques.</p>
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Teléfono destino</label>
-          <input
-            value={testBroadcastTo}
-            onChange={e => setTestBroadcastTo(e.target.value)}
-            placeholder="549221XXXXXX"
-            className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
-          />
-        </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={handleTestBroadcast}
-            disabled={testingBroadcast || !testBroadcastTo}
-            className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
-          >
-            {testingBroadcast ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-            {testingBroadcast ? 'Enviando...' : 'Probar broadcast'}
-          </button>
-          {testBroadcastResult && <p className="text-sm font-medium">{testBroadcastResult}</p>}
-        </div>
-        {testBroadcastPetInfo && (
-          <p className="text-xs text-gray-400">Mascota: {testBroadcastPetInfo}</p>
-        )}
-        {testBroadcastPreview && (
-          <div className="space-y-2">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Preview del mensaje:</p>
-            <pre className="whitespace-pre-wrap text-sm bg-brand-bg rounded-xl p-4 border border-brand-accent font-sans">{testBroadcastPreview}</pre>
           </div>
         )}
       </div>

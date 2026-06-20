@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
 import { matchPetToPosts } from '../services/geminiMatching.js';
+import { broadcastPetToGroups } from '../services/whatsappService.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import { isConnected, replyToComment } from '../services/instagramService.js';
@@ -885,7 +886,19 @@ router.post('/public', async (req, res) => {
         // Run matching in background
         matchPetToPosts(pet).catch(err => console.error('Matching error:', err));
 
+        // Auto-broadcast to WhatsApp groups for active statuses
+        const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention'];
+        if (broadcastStatuses.includes(pet.status)) {
+          broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
+        }
+
         res.status(201).json({ pet });
+
+    // Auto-broadcast to WhatsApp groups for active statuses
+    const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention'];
+    if (broadcastStatuses.includes(pet.status)) {
+      broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
+    }
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Create public pet error:', err);
@@ -995,6 +1008,12 @@ router.post('/lost-report', async (req, res) => {
 
         // Run matching in background
         matchPetToPosts(pet).catch(err => console.error('Matching error:', err));
+
+        // Auto-broadcast to WhatsApp groups for active statuses
+        const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention'];
+        if (broadcastStatuses.includes(pet.status)) {
+          broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
+        }
 
         res.status(201).json({ pet, registrationPending: !!registrationToken });
   } catch (err) {
