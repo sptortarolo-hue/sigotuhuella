@@ -29,11 +29,11 @@ export default function RelayWhatsAppTab() {
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastResults, setBroadcastResults] = useState<any[] | null>(null);
 
-  const [testPetId, setTestPetId] = useState('');
   const [testBroadcastTo, setTestBroadcastTo] = useState('');
   const [testingBroadcast, setTestingBroadcast] = useState(false);
   const [testBroadcastResult, setTestBroadcastResult] = useState('');
   const [testBroadcastPreview, setTestBroadcastPreview] = useState('');
+  const [testBroadcastPetInfo, setTestBroadcastPetInfo] = useState('');
 
   const [toggling, setToggling] = useState(false);
 
@@ -105,12 +105,14 @@ export default function RelayWhatsAppTab() {
   };
 
   const handleTestBroadcast = async () => {
-    if (!testPetId || !testBroadcastTo) return;
+    if (!testBroadcastTo) return;
     setTestingBroadcast(true);
     setTestBroadcastResult('');
     setTestBroadcastPreview('');
+    setTestBroadcastPetInfo('');
     try {
-      const res = await api.whatsappRelay.testBroadcast(testPetId, testBroadcastTo);
+      const res = await api.whatsappRelay.testBroadcast('', testBroadcastTo);
+      setTestBroadcastPetInfo(res.petName ? `${res.petName} (${res.petId})` : res.petId);
       setTestBroadcastPreview(res.caption);
       setTestBroadcastResult(`✅ Encolado (id: ${res.id}). El relay lo enviará en segundos.`);
     } catch (err: any) {
@@ -325,31 +327,20 @@ export default function RelayWhatsAppTab() {
         <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
           <Send className="w-6 h-6" /> Probar broadcast de mascota
         </h2>
-        <p className="text-sm text-gray-500">Genera el mismo mensaje que se enviaría a los grupos cuando se publica una mascota, y lo envía por relay al número que indiques.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">ID de la mascota</label>
-            <input
-              value={testPetId}
-              onChange={e => setTestPetId(e.target.value)}
-              placeholder="UUID de la mascota"
-              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Teléfono destino</label>
-            <input
-              value={testBroadcastTo}
-              onChange={e => setTestBroadcastTo(e.target.value)}
-              placeholder="549221XXXXXX"
-              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
-            />
-          </div>
+        <p className="text-sm text-gray-500">Genera el mismo mensaje que se enviaría a los grupos (usa la última mascota registrada) y lo envía por relay al número que indiques.</p>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Teléfono destino</label>
+          <input
+            value={testBroadcastTo}
+            onChange={e => setTestBroadcastTo(e.target.value)}
+            placeholder="549221XXXXXX"
+            className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+          />
         </div>
         <div className="flex items-center gap-4">
           <button
             onClick={handleTestBroadcast}
-            disabled={testingBroadcast || !testPetId || !testBroadcastTo}
+            disabled={testingBroadcast || !testBroadcastTo}
             className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
           >
             {testingBroadcast ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
@@ -357,6 +348,9 @@ export default function RelayWhatsAppTab() {
           </button>
           {testBroadcastResult && <p className="text-sm font-medium">{testBroadcastResult}</p>}
         </div>
+        {testBroadcastPetInfo && (
+          <p className="text-xs text-gray-400">Mascota: {testBroadcastPetInfo}</p>
+        )}
         {testBroadcastPreview && (
           <div className="space-y-2">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Preview del mensaje:</p>

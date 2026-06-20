@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAllGroups, saveQR, clearQR, getQR, getPetForBroadcast, generateBroadcastCaption } from '../services/phoneRelayService.js';
+import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAllGroups, saveQR, clearQR, getQR, getPetForBroadcast, getLatestPet, generateBroadcastCaption } from '../services/phoneRelayService.js';
 import { requireAdmin } from '../auth.js';
 
 const router = Router();
@@ -137,16 +137,15 @@ router.post('/groups-broadcast', requireAdmin, async (req, res) => {
 router.post('/test-broadcast', requireAdmin, async (req, res) => {
   try {
     const { petId, to } = req.body;
-    if (!petId) return res.status(400).json({ error: 'petId required' });
     if (!to) return res.status(400).json({ error: 'to required' });
 
-    const pet = await getPetForBroadcast(petId);
-    if (!pet) return res.status(404).json({ error: 'Mascota no encontrada' });
+    const pet = petId ? await getPetForBroadcast(petId) : await getLatestPet();
+    if (!pet) return res.status(404).json({ error: 'No hay mascotas disponibles' });
 
     const { caption, coverUrl } = generateBroadcastCaption(pet);
     const id = await enqueue(to, caption, coverUrl);
 
-    res.json({ success: true, id, caption, coverUrl });
+    res.json({ success: true, id, petId: pet.id, petName: pet.name, caption, coverUrl });
   } catch (err) {
     console.error('[Relay] test-broadcast error:', err.message);
     res.status(500).json({ error: err.message });

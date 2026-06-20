@@ -31,7 +31,7 @@ export const api = {
     toggle: () => request('/relay/admin-toggle', { method: 'POST' }),
     send: (to: string, text: string, image_url?: string) => request('/relay/send', { method: 'POST', body: JSON.stringify({ to, text, image_url }) }),
     groupsBroadcast: (text: string, image_url?: string) => request('/relay/groups-broadcast', { method: 'POST', body: JSON.stringify({ text, image_url }) }),
-    testBroadcast: (petId: string, to: string) => request('/relay/test-broadcast', { method: 'POST', body: JSON.stringify({ petId, to }) }),
+    testBroadcast: (petId: string, to: string) => request('/relay/test-broadcast', { method: 'POST', body: JSON.stringify({ petId: petId || undefined, to }) }),
   },
   get: (path: string) => request(path),
   post: (path: string, body?: any) => request(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),

@@ -101,6 +101,15 @@ export async function getPetForBroadcast(petId) {
   return result.rows[0] || null;
 }
 
+export async function getLatestPet() {
+  const result = await pool.query(`
+    SELECT p.*,
+      (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data
+    FROM pets p ORDER BY p.created_at DESC LIMIT 1
+  `);
+  return result.rows[0] || null;
+}
+
 export function generateBroadcastCaption(pet) {
   const statusLabels = {
     lost: '🐾 SE PERDIÓ', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
