@@ -51,22 +51,30 @@ def run_vps_mode():
 
 def detect_auth_page(page):
     """Detect if Facebook is showing an auth/2FA/checkpoint page. Returns True if auth detected."""
-    auth_url_patterns = ["two_step", "checkpoint", "review", "confirm", "identify"]
+    auth_url_patterns = ["two_step", "checkpoint", "review", "confirm", "identify", "/pin/"]
     # Check URL
     url = page.url.lower()
     for p in auth_url_patterns:
         if p in url:
             print(f"  Detectado '{p}' en la URL")
             return True
-    # Check DOM for 2FA-related elements
+    # Check DOM for auth/PIN/2FA-related elements
     selectors = [
         "input[name='approvals_code']",
         "input#approvals_code",
         "input[name='code']",
+        "input[name='pin']",
+        "input#pin",
         "//div[contains(text(),'codigo de autenticacion')]",
         "//div[contains(text(),'authentication code')]",
         "//div[contains(text(),'codigo de inicio de sesion')]",
         "//div[contains(text(),'login code')]",
+        "//div[contains(text(),'introduce tu pin')]",
+        "//div[contains(text(),'enter your pin')]",
+        "//div[contains(text(),'ingresa tu pin')]",
+        "//input[contains(@placeholder,'PIN')]",
+        "//input[contains(@placeholder,'pin')]",
+        "//input[contains(@placeholder,'codigo')]",
     ]
     for sel in selectors:
         try:
@@ -98,13 +106,13 @@ def handle_2fa(page):
 
     print()
     print("=" * 60)
-    print("Facebook pide verificacion en dos pasos (2FA)")
-    print("Revisa tu app de autenticacion (Google Authenticator, etc.)")
-    code = input("Ingresa el codigo 2FA (6 digitos): ").strip()
+    print("Facebook pide verificacion (2FA / PIN / checkpoint)")
+    print(f"URL: {page.url[:100]}")
+    code = input("Ingresa el codigo (2FA o PIN): ").strip()
     print("=" * 60)
     print()
     try:
-        input_field = page.locator("input[name='approvals_code'], input#approvals_code, input[name='code']").first
+        input_field = page.locator("input[name='approvals_code'], input#approvals_code, input[name='code'], input[name='pin'], input#pin").first
         input_field.wait_for(timeout=5000)
         input_field.fill(code)
         page.wait_for_timeout(500)

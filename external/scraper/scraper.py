@@ -290,7 +290,7 @@ def _launch_playwright(headless=True, storage_state_path=None):
     page = context.new_page()
     return p, browser, context, page
 
-AUTH_URL_PATTERNS = ["/login", "checkpoint", "two_step_verification", "identify", "confirm"]
+AUTH_URL_PATTERNS = ["/login", "checkpoint", "two_step_verification", "identify", "confirm", "/pin/"]
 
 def check_session(page):
     """Verify Facebook session by loading homepage and checking for login/2FA redirect."""
