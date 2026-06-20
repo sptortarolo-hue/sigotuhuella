@@ -5,9 +5,33 @@ const QR = require('qrcode-terminal');
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = 'RELAY_TOKEN';
 const POLL_INTERVAL = 30000;
+const MAX_RETRIES = 3;
 
 let sock = null;
 let pollTimer = null;
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function sendWithRetry(jid, content, retries = MAX_RETRIES) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await sock.sendPresenceUpdate('composing', jid);
+      await sleep(1500);
+      await sock.sendPresenceUpdate('paused', jid);
+      await sock.sendMessage(jid, content);
+      return true;
+    } catch (e) {
+      if (e.message?.includes('463') && i < retries - 1) {
+        console.log(`463 a ${jid}, reintento ${i + 1}/${retries}...`);
+        await sleep(1000 * Math.pow(2, i));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
 
 async function start() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
@@ -52,14 +76,21 @@ async function start() {
       for (const msg of data.messages) {
         try {
           const jid = msg.wa_to.includes('@') ? msg.wa_to : `${msg.wa_to}@s.whatsapp.net`;
+
+          const [exists] = await sock.onWhatsApp(jid);
+          if (!exists?.exists) {
+            console.error(`Número no registrado en WhatsApp: ${msg.wa_to}`);
+            continue;
+          }
+
           if (msg.image_url) {
             const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });
-            await sock.sendMessage(jid, {
+            await sendWithRetry(jid, {
               image: Buffer.from(imgResp.data),
               caption: msg.text || '',
             });
           } else {
-            await sock.sendMessage(jid, { text: msg.text });
+            await sendWithRetry(jid, { text: msg.text });
           }
           sentIds.push(msg.id);
         } catch (e) {
