@@ -24,6 +24,7 @@ const portalItems = [
 
 const moreItems = [
   { label: 'Mascotas Reportadas', icon: Search, path: '/perdidos' },
+  { label: 'Adopción', icon: Heart, path: '/adopcion' },
   { label: 'Novedades', icon: Sparkles, path: '/novedades' },
   { label: 'Sumate', icon: User, path: '/sumate' },
   { label: 'Difusión', icon: Share2, path: '/difusion' },
