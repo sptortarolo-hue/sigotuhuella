@@ -6,9 +6,15 @@ const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = 'RELAY_TOKEN';
 const POLL_INTERVAL = 30000;
 
+let sock = null;
+let pollTimer = null;
+
 async function start() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
-  const sock = makeWASocket({
+
+  if (pollTimer) clearInterval(pollTimer);
+
+  sock = makeWASocket({
     browser: Browsers.ubuntu('Chrome'),
     auth: state,
     printQRInTerminal: false,
@@ -35,7 +41,7 @@ async function start() {
     }
   });
 
-  setInterval(async () => {
+  pollTimer = setInterval(async () => {
     try {
       const { data } = await axios.get(`${VPS_URL}/api/relay/pending`, {
         headers: { Authorization: `Bearer ${TOKEN}` },
@@ -43,7 +49,6 @@ async function start() {
       });
       if (!data.messages?.length) return;
       const sentIds = [];
-      const failedIds = [];
       for (const msg of data.messages) {
         try {
           const jid = msg.wa_to.includes('@') ? msg.wa_to : `${msg.wa_to}@s.whatsapp.net`;
@@ -59,18 +64,15 @@ async function start() {
           sentIds.push(msg.id);
         } catch (e) {
           console.error(`Error a ${msg.wa_to}:`, e.message);
-          failedIds.push(msg.id);
         }
       }
       if (sentIds.length) await axios.post(`${VPS_URL}/api/relay/sent`, { ids: sentIds }, {
         headers: { Authorization: `Bearer ${TOKEN}` },
         timeout: 10000,
       });
-      if (failedIds.length) await axios.post(`${VPS_URL}/api/relay/failed`, { ids: failedIds }, {
-        headers: { Authorization: `Bearer ${TOKEN}` },
-        timeout: 10000,
-      });
-    } catch (e) { /* ignorar */ }
+    } catch (e) {
+      console.error('[Poll]', e.message);
+    }
   }, POLL_INTERVAL);
 }
 
