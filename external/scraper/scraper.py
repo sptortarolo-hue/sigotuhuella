@@ -290,15 +290,18 @@ def _launch_playwright(headless=True, storage_state_path=None):
     page = context.new_page()
     return p, browser, context, page
 
+AUTH_URL_PATTERNS = ["/login", "checkpoint", "two_step_verification", "identify", "confirm"]
+
 def check_session(page):
-    """Verify Facebook session by loading homepage and checking for login redirect."""
+    """Verify Facebook session by loading homepage and checking for login/2FA redirect."""
     try:
         page.goto("https://www.facebook.com/", timeout=30000, wait_until="domcontentloaded")
         page.wait_for_timeout(3000)
         current = page.url
-        if "/login" in current.lower() or "checkpoint" in current.lower():
-            _save_debug_screenshot(page, "session_login_redirect")
-            logger.warning(f"Session expired ({current})")
+        if any(p in current.lower() for p in AUTH_URL_PATTERNS):
+            _save_debug_screenshot(page, "session_auth_redirect")
+            reason = "2FA" if "two_step" in current.lower() else "login/checkpoint"
+            logger.warning(f"Session requires {reason} ({current})")
             return False
         try:
             page.wait_for_selector(
@@ -310,11 +313,12 @@ def check_session(page):
         except PlaywrightTimeout:
             _save_debug_screenshot(page, "session_no_feed")
             current = page.url
-            if "/login" in current.lower() or "checkpoint" in current.lower():
-                _save_debug_screenshot(page, "session_login_redirect_late")
-                logger.warning(f"Session expired — redirected to login ({current})")
+            if any(p in current.lower() for p in AUTH_URL_PATTERNS):
+                _save_debug_screenshot(page, "session_auth_redirect_late")
+                reason = "2FA" if "two_step" in current.lower() else "login/checkpoint"
+                logger.warning(f"Session requires {reason} ({current})")
                 return False
-            logger.warning(f"No feed found but no login redirect — proceeding anyway (url='{current}')")
+            logger.warning(f"No feed found but no auth redirect — proceeding anyway (url='{current}')")
             return True
     except Exception as e:
         _save_debug_screenshot(page, "session_error")
@@ -476,6 +480,11 @@ def post_to_group_via_dom(page, context, group_id, message, image_urls=None):
     current_url = page.url
     page_title = page.title()[:80]
     logger.info(f"[DOM] URL={current_url} title='{page_title}'")
+
+    # If 2FA page, abort immediately
+    if "two_step" in current_url.lower():
+        _save_debug_screenshot(page, f"twofa_{group_id}")
+        return {"success": False, "error": "2FA required — Facebook pide verificacion en dos pasos"}
 
     # If redirected to login, try refreshing
     if "/login" in current_url or "login" in current_url.lower():
@@ -732,7 +741,10 @@ def publish_to_groups():
         page.goto("https://www.facebook.com/", timeout=30000, wait_until="domcontentloaded")
         page.wait_for_timeout(3000)
         if not check_session(page):
-            return jsonify({"error": "session expired"}), 401
+            current_url = page.url
+            if "two_step" in current_url.lower():
+                return jsonify({"error": "2FA required — Facebook pide verificacion en dos pasos por cambio de IP. Genera la sesion desde el VPS o desactiva 2FA en tu cuenta."}), 401
+            return jsonify({"error": "session expired — sesion no valida. Genera un nuevo storage_state desde tu maquina local y subilo."}), 401
 
         results = []
         for g in groups:
