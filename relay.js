@@ -126,13 +126,19 @@ async function start() {
       const sentIds = [];
       for (const msg of data.messages) {
         try {
-          const normalized = normalizeNumber(msg.wa_to);
-          const jid = normalized.includes('@') ? normalized : `${normalized}@s.whatsapp.net`;
+          const isGroup = msg.wa_to.includes('@g.us');
+          const jid = isGroup ? msg.wa_to : (() => {
+            const normalized = normalizeNumber(msg.wa_to);
+            return normalized.includes('@') ? normalized : `${normalized}@s.whatsapp.net`;
+          })();
 
-          const [exists] = await sock.onWhatsApp(normalized);
-          if (!exists?.exists) {
-            console.error(`Número no registrado en WhatsApp: ${normalized}`);
-            continue;
+          if (!isGroup) {
+            const normalized = jid.split('@')[0];
+            const [exists] = await sock.onWhatsApp(normalized);
+            if (!exists?.exists) {
+              console.error(`Número no registrado en WhatsApp: ${normalized}`);
+              continue;
+            }
           }
 
           if (msg.image_url) {
