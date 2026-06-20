@@ -14,6 +14,17 @@ function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
 
+function normalizeNumber(num) {
+  let n = num.replace(/[\s\-\(\)\+]/g, '');
+  if (n.includes('@')) n = n.split('@')[0];
+  if (n.startsWith('549') && n.length > 12) return n;
+  if (n.startsWith('54') && n.length > 11) return n;
+  if (n.startsWith('9') && n.length > 10) return '54' + n;
+  if (n.length === 10) return '549' + n;
+  if (n.length === 11) return '54' + n;
+  return n;
+}
+
 async function sendWithRetry(jid, content, retries = MAX_RETRIES) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -75,11 +86,12 @@ async function start() {
       const sentIds = [];
       for (const msg of data.messages) {
         try {
-          const jid = msg.wa_to.includes('@') ? msg.wa_to : `${msg.wa_to}@s.whatsapp.net`;
+          const normalized = normalizeNumber(msg.wa_to);
+          const jid = normalized.includes('@') ? normalized : `${normalized}@s.whatsapp.net`;
 
-          const [exists] = await sock.onWhatsApp(jid);
+          const [exists] = await sock.onWhatsApp(normalized);
           if (!exists?.exists) {
-            console.error(`Número no registrado en WhatsApp: ${msg.wa_to}`);
+            console.error(`Número no registrado en WhatsApp: ${normalized}`);
             continue;
           }
 
