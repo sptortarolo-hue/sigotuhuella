@@ -297,6 +297,7 @@ def check_session(page):
         page.wait_for_timeout(3000)
         current = page.url
         if "/login" in current.lower() or "checkpoint" in current.lower():
+            _save_debug_screenshot(page, "session_login_redirect")
             logger.warning(f"Session expired ({current})")
             return False
         try:
@@ -307,13 +308,16 @@ def check_session(page):
             logger.info("Session valid")
             return True
         except PlaywrightTimeout:
+            _save_debug_screenshot(page, "session_no_feed")
             current = page.url
             if "/login" in current.lower() or "checkpoint" in current.lower():
+                _save_debug_screenshot(page, "session_login_redirect_late")
                 logger.warning(f"Session expired — redirected to login ({current})")
                 return False
             logger.warning(f"No feed found but no login redirect — proceeding anyway (url='{current}')")
             return True
     except Exception as e:
+        _save_debug_screenshot(page, "session_error")
         logger.warning(f"Session check error: {e}")
         return False
 
@@ -378,6 +382,19 @@ def close_playwright():
             logger.warning(f"Error closing Playwright: {e}")
         _playwright_ctx = None
 
+def _cleanup_debug(max_files=30):
+    try:
+        debug_dir = _DIR / "debug"
+        if not debug_dir.exists():
+            return
+        files = sorted(debug_dir.iterdir(), key=lambda f: f.stat().st_mtime, reverse=True)
+        if len(files) > max_files:
+            for f in files[max_files:]:
+                f.unlink(missing_ok=True)
+            logger.info(f"[Debug] Cleaned {len(files) - max_files} old debug files")
+    except Exception as e:
+        logger.warning(f"[Debug] Cleanup error: {e}")
+
 def _save_debug_screenshot(page, name):
     try:
         debug_dir = _DIR / "debug"
@@ -387,6 +404,7 @@ def _save_debug_screenshot(page, name):
         with open(debug_dir / f"{name}_{ts}.html", "w", encoding="utf-8") as f:
             f.write(page.content())
         logger.info(f"[Debug] Saved {name}_{ts}")
+        _cleanup_debug()
     except Exception as e:
         logger.warning(f"[Debug] Failed to save: {e}")
 
@@ -461,6 +479,7 @@ def post_to_group_via_dom(page, context, group_id, message, image_urls=None):
 
     # If redirected to login, try refreshing
     if "/login" in current_url or "login" in current_url.lower():
+        _save_debug_screenshot(page, f"login_redirect_{group_id}")
         logger.warning("[DOM] Redirected to login, refreshing")
         try:
             page.goto(f"https://www.facebook.com/groups/{group_id}/", timeout=30000, wait_until="domcontentloaded")
@@ -468,6 +487,7 @@ def post_to_group_via_dom(page, context, group_id, message, image_urls=None):
         except Exception:
             pass
         logger.info(f"[DOM] After refresh URL={page.url}")
+        _save_debug_screenshot(page, f"after_refresh_{group_id}")
 
     composer = None
 
@@ -546,6 +566,8 @@ def post_to_group_via_dom(page, context, group_id, message, image_urls=None):
     if not composer:
         _save_debug_screenshot(page, f"composer_not_found_{group_id}")
         return {"success": False, "error": "composer not found"}
+
+    _save_debug_screenshot(page, f"composer_found_{group_id}")
 
     # 2. Type message via JavaScript
     try:
