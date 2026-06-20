@@ -10,7 +10,6 @@ function relayAuth(req, res, next) {
   return res.status(401).json({ error: 'Unauthorized' });
 }
 
-// GET /api/relay/pending — phone polls this
 router.get('/pending', relayAuth, async (req, res) => {
   try {
     const messages = await getPending(parseInt(req.query.limit) || 10);
@@ -21,7 +20,6 @@ router.get('/pending', relayAuth, async (req, res) => {
   }
 });
 
-// POST /api/relay/sent — phone marks messages as sent
 router.post('/sent', relayAuth, async (req, res) => {
   try {
     const { ids } = req.body;
@@ -33,7 +31,6 @@ router.post('/sent', relayAuth, async (req, res) => {
   }
 });
 
-// POST /api/relay/failed — phone marks messages as failed
 router.post('/failed', relayAuth, async (req, res) => {
   try {
     const { ids } = req.body;
@@ -45,12 +42,12 @@ router.post('/failed', relayAuth, async (req, res) => {
   }
 });
 
-// POST /api/relay/send (admin only) — enqueue a message
 router.post('/send', requireAdmin, async (req, res) => {
   try {
-    const { to, text } = req.body;
-    if (!to || !text) return res.status(400).json({ error: 'to and text required' });
-    const id = await enqueue(to, text);
+    const { to, text, image_url } = req.body;
+    if (!to) return res.status(400).json({ error: 'to required' });
+    if (!text && !image_url) return res.status(400).json({ error: 'text or image_url required' });
+    const id = await enqueue(to, text || '', image_url || null);
     res.json({ success: true, id });
   } catch (err) {
     console.error('[Relay] send error:', err.message);
@@ -58,7 +55,6 @@ router.post('/send', requireAdmin, async (req, res) => {
   }
 });
 
-// GET /api/relay/admin-status (admin only) — relay status for panel
 router.get('/admin-status', requireAdmin, async (req, res) => {
   try {
     const status = await getStatus();
@@ -69,7 +65,6 @@ router.get('/admin-status', requireAdmin, async (req, res) => {
   }
 });
 
-// POST /api/relay/admin-toggle (admin only) — toggle relay on/off
 router.post('/admin-toggle', requireAdmin, async (req, res) => {
   try {
     const status = await getStatus();
@@ -81,11 +76,10 @@ router.post('/admin-toggle', requireAdmin, async (req, res) => {
   }
 });
 
-// POST /api/relay/groups-broadcast (admin only) — broadcast via relay to all active groups
 router.post('/groups-broadcast', requireAdmin, async (req, res) => {
   try {
-    const { text } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: 'text required' });
+    const { text, image_url } = req.body;
+    if (!text && !image_url) return res.status(400).json({ error: 'text or image_url required' });
 
     const groups = await getAllGroups();
     if (groups.length === 0) return res.status(404).json({ error: 'No hay grupos activos' });
@@ -93,7 +87,7 @@ router.post('/groups-broadcast', requireAdmin, async (req, res) => {
     const results = [];
     for (const group of groups) {
       try {
-        const id = await enqueue(group.group_id, text.trim());
+        const id = await enqueue(group.group_id, text || '', image_url || null);
         results.push({ group: group.name, status: 'queued', id });
       } catch (err) {
         results.push({ group: group.name, status: 'error', error: err.message });

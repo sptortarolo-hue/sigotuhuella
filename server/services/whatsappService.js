@@ -1,5 +1,6 @@
 import axios from 'axios';
 import pool from '../db.js';
+import { enqueue } from './phoneRelayService.js';
 
 const GRAPH_API = 'https://graph.facebook.com/v22.0';
 
@@ -345,13 +346,18 @@ export async function broadcastPetToGroups(petId) {
 
     for (const group of groups.rows) {
       try {
-        if (coverUrl) {
-          await sendGroupImage(group.group_id, coverUrl, caption);
-        } else {
-          await sendGroupMessage(group.group_id, caption);
+        await enqueue(group.group_id, caption, coverUrl);
+      } catch (relayErr) {
+        console.warn(`[Broadcast] Relay error to ${group.name}, fallback to Meta:`, relayErr.message);
+        try {
+          if (coverUrl) {
+            await sendGroupImage(group.group_id, coverUrl, caption);
+          } else {
+            await sendGroupMessage(group.group_id, caption);
+          }
+        } catch (metaErr) {
+          console.error(`[Broadcast] Meta fallback error to ${group.name}:`, metaErr.message);
         }
-      } catch (err) {
-        console.error(`[Broadcast] Error sending to group ${group.name} (${group.group_id}):`, err.message);
       }
     }
   } catch (err) {

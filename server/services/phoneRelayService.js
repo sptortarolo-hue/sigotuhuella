@@ -1,9 +1,9 @@
 import pool from '../db.js';
 
-export async function enqueue(waTo, text) {
+export async function enqueue(waTo, text, imageUrl) {
   const result = await pool.query(
-    'INSERT INTO relay_messages (wa_to, text) VALUES ($1, $2) RETURNING id',
-    [waTo, text]
+    'INSERT INTO relay_messages (wa_to, text, image_url) VALUES ($1, $2, $3) RETURNING id',
+    [waTo, text, imageUrl || null]
   );
   return result.rows[0].id;
 }
@@ -13,7 +13,7 @@ export async function getPending(limit = 10) {
     "INSERT INTO settings (key, value) VALUES ('relay_last_poll_at', NOW()::text) ON CONFLICT (key) DO UPDATE SET value = NOW()::text"
   );
   const result = await pool.query(
-    "SELECT id, wa_to, text FROM relay_messages WHERE status = 'pending' ORDER BY created_at ASC LIMIT $1",
+    "SELECT id, wa_to, text, image_url FROM relay_messages WHERE status = 'pending' ORDER BY created_at ASC LIMIT $1",
     [limit]
   );
   return result.rows;

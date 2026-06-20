@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe } from 'lucide-react';
+import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { cn } from '@/src/lib/utils';
 
@@ -17,10 +17,12 @@ export default function RelayWhatsAppTab() {
 
   const [testTo, setTestTo] = useState('');
   const [testText, setTestText] = useState('');
+  const [testImageUrl, setTestImageUrl] = useState('');
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState('');
 
   const [groupText, setGroupText] = useState('');
+  const [groupImageUrl, setGroupImageUrl] = useState('');
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastResults, setBroadcastResults] = useState<any[] | null>(null);
 
@@ -57,13 +59,14 @@ export default function RelayWhatsAppTab() {
   };
 
   const handleSendTest = async () => {
-    if (!testTo || !testText) return;
+    if (!testTo || (!testText && !testImageUrl)) return;
     setSending(true);
     setSendResult('');
     try {
-      const res = await api.whatsappRelay.send(testTo, testText);
+      const res = await api.whatsappRelay.send(testTo, testText, testImageUrl || undefined);
       setSendResult(`✅ Encolado (id: ${res.id}). El relay lo enviará en segundos.`);
       setTestText('');
+      setTestImageUrl('');
     } catch (err: any) {
       setSendResult(`❌ Error: ${err.message}`);
     } finally {
@@ -72,13 +75,14 @@ export default function RelayWhatsAppTab() {
   };
 
   const handleBroadcast = async () => {
-    if (!groupText.trim()) return;
+    if (!groupText.trim() && !groupImageUrl.trim()) return;
     setBroadcasting(true);
     setBroadcastResults(null);
     try {
-      const res = await api.whatsappRelay.groupsBroadcast(groupText);
+      const res = await api.whatsappRelay.groupsBroadcast(groupText, groupImageUrl || undefined);
       setBroadcastResults(res.results);
       setGroupText('');
+      setGroupImageUrl('');
     } catch (err: any) {
       setBroadcastResults([{ group: 'Error', status: 'error', error: err.message }]);
     } finally {
@@ -174,11 +178,22 @@ export default function RelayWhatsAppTab() {
               className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 resize-none"
             />
           </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+              <Image className="w-3 h-3 inline mb-0.5 mr-1" />URL de imagen (opcional)
+            </label>
+            <input
+              value={testImageUrl}
+              onChange={e => setTestImageUrl(e.target.value)}
+              placeholder="https://ejemplo.com/imagen.jpg"
+              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+            />
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <button
             onClick={handleSendTest}
-            disabled={sending || !testTo || !testText}
+            disabled={sending || !testTo || (!testText && !testImageUrl)}
             className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
           >
             {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
@@ -194,19 +209,33 @@ export default function RelayWhatsAppTab() {
           <Globe className="w-6 h-6" /> Publicar en grupos WhatsApp
         </h2>
         <p className="text-sm text-gray-500">El mensaje se envía a todos los grupos activos a través del relay.</p>
-        <div className="space-y-2">
-          <textarea
-            value={groupText}
-            onChange={e => setGroupText(e.target.value)}
-            placeholder="Escribí el mensaje para enviar a todos los grupos..."
-            rows={3}
-            className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 resize-none"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Mensaje</label>
+            <textarea
+              value={groupText}
+              onChange={e => setGroupText(e.target.value)}
+              placeholder="Escribí el mensaje para enviar a todos los grupos..."
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 resize-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+              <Image className="w-3 h-3 inline mb-0.5 mr-1" />URL de imagen (opcional)
+            </label>
+            <input
+              value={groupImageUrl}
+              onChange={e => setGroupImageUrl(e.target.value)}
+              placeholder="https://ejemplo.com/imagen.jpg"
+              className="w-full px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+            />
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <button
             onClick={handleBroadcast}
-            disabled={broadcasting || !groupText.trim()}
+            disabled={broadcasting || (!groupText.trim() && !groupImageUrl.trim())}
             className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2"
           >
             {broadcasting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Users className="w-5 h-5" />}

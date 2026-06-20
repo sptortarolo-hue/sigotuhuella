@@ -738,6 +738,10 @@ export async function initDb() {
       ALTER TABLE whatsapp_adoption_interests ADD COLUMN IF NOT EXISTS pet_id UUID REFERENCES pets(id)
     `, 'whatsapp_adoption_interests pet_id');
 
+    await migrate(client, `
+      ALTER TABLE relay_messages ADD COLUMN IF NOT EXISTS image_url TEXT
+    `, 'relay_messages image_url');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

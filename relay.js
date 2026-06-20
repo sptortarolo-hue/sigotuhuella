@@ -47,7 +47,15 @@ async function start() {
       for (const msg of data.messages) {
         try {
           const jid = msg.wa_to.includes('@') ? msg.wa_to : `${msg.wa_to}@s.whatsapp.net`;
-          await sock.sendMessage(jid, { text: msg.text });
+          if (msg.image_url) {
+            const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });
+            await sock.sendMessage(jid, {
+              image: Buffer.from(imgResp.data),
+              caption: msg.text || '',
+            });
+          } else {
+            await sock.sendMessage(jid, { text: msg.text });
+          }
           sentIds.push(msg.id);
         } catch (e) {
           console.error(`Error a ${msg.wa_to}:`, e.message);

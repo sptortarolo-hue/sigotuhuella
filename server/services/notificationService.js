@@ -21,8 +21,15 @@ async function sendViaWhatsApp(user, textMessage) {
   try {
     await enqueue(phone, textMessage);
     console.log(`[notification] Queued via relay for ${user.email} (${phone})`);
-  } catch (err) {
-    console.error(`[notification] Relay error for ${user.email}:`, err.message);
+  } catch (relayErr) {
+    console.warn(`[notification] Relay error for ${user.email}, fallback to Meta:`, relayErr.message);
+    try {
+      const { sendMessage } = await import('./whatsappService.js');
+      await sendMessage(phone, textMessage);
+      console.log(`[notification] Sent via Meta fallback for ${user.email} (${phone})`);
+    } catch (metaErr) {
+      console.error(`[notification] Meta fallback error for ${user.email}:`, metaErr.message);
+    }
   }
 }
 
