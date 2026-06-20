@@ -9,6 +9,7 @@ const MAX_RETRIES = 3;
 
 let sock = null;
 let pollTimer = null;
+let reconnectCount = 0;
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
@@ -23,6 +24,12 @@ function normalizeNumber(num) {
   if (n.length === 10) return '549' + n;
   if (n.length === 11) return '54' + n;
   return n;
+}
+
+function getReconnectDelay() {
+  const delays = [10, 30, 60, 120];
+  const idx = Math.min(reconnectCount, delays.length - 1);
+  return delays[idx] * 1000;
 }
 
 async function sendWithRetry(jid, content, retries = MAX_RETRIES) {
@@ -65,13 +72,23 @@ async function start() {
       QR.generate(qr, { small: true });
       console.log('====================================\n');
     }
-    if (connection === 'open') console.log('Conectado a WhatsApp');
+    if (connection === 'open') {
+      reconnectCount = 0;
+      console.log('Conectado a WhatsApp');
+    }
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
       console.log('Cerrado. Código:', code, lastDisconnect?.error?.message?.substring(0, 80));
       if (code !== DisconnectReason.loggedOut) {
-        console.log('Reconectando en 5s...');
-        setTimeout(start, 5000);
+        if (code === 428 || code === DisconnectReason.connectionClosed) {
+          reconnectCount++;
+          const delay = getReconnectDelay();
+          console.log(`Reconectando en ${delay / 1000}s (intento #${reconnectCount})...`);
+          setTimeout(start, delay);
+        } else {
+          console.log('Reconectando en 5s...');
+          setTimeout(start, 5000);
+        }
       }
     }
   });
