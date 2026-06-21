@@ -7,7 +7,7 @@ const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
 const POLL_INTERVAL = 30000;
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 5;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 const replyCooldowns = new Map();
@@ -66,8 +66,10 @@ async function sendWithRetry(jid, content, retries = MAX_RETRIES) {
       return true;
     } catch (e) {
       if (e.message?.includes('463') && i < retries - 1) {
-        console.log(`463 a ${jid}, reintento ${i + 1}/${retries}...`);
-        await sleep(1000 * Math.pow(2, i));
+        const delays = [2000, 5000, 10000, 20000];
+        const delay = delays[i] || 30000;
+        console.log(`463 a ${jid}, reintento ${i + 2}/${retries} en ${delay/1000}s...`);
+        await sleep(delay);
         continue;
       }
       throw e;
@@ -192,18 +194,6 @@ async function start() {
             await sendWithRetry(jid, { text: msg.text });
           }
           sentIds.push(msg.id);
-          // Segundo intento para contactos nuevos (tctoken recovery silencioso)
-          if (!isGroup) {
-            await sleep(3000);
-            try {
-              if (msg.image_url) {
-                const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });
-                await sock.sendMessage(jid, { image: Buffer.from(imgResp.data), caption: msg.text || '' });
-              } else {
-                await sock.sendMessage(jid, { text: msg.text });
-              }
-            } catch (_) { /* best-effort */ }
-          }
         } catch (e) {
           console.error(`Error a ${msg.wa_to}:`, e.message);
         }
