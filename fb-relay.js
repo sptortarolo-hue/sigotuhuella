@@ -138,10 +138,12 @@ async function postToGroup(b, fbGroupId, message) {
     await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
     await sleep(1000);
 
-    // Escribir texto con teclado real (como PostPilot usa .fill() que equivale a .type() en Puppeteer)
-    const editor = await page.$('div[role="textbox"][contenteditable="true"]');
-    await editor.click();
-    await editor.type(message, { delay: 5 });
+    // Escribir texto con execCommand (inserta todo de una, maneja emojis y saltos de línea)
+    await page.evaluate(text => {
+      const el = document.querySelector('div[role="textbox"][contenteditable="true"]');
+      el.focus();
+      document.execCommand('insertText', false, text);
+    }, message);
     await sleep(2000);
 
     // Click Post con elementHandle.click() (CDP real, como Playwright)
