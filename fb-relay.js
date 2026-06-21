@@ -71,71 +71,60 @@ function cookieHeader() {
 }
 
 async function postToGroup(fbGroupId, message) {
-  const groupUrl = `https://mbasic.facebook.com/groups/${fbGroupId}`;
   const headers = {
     Cookie: cookieHeader(),
     'User-Agent': 'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.58 Mobile Safari/537.36',
   };
 
-  // Page one: grab form tokens
-  const pageRes = await axios.get(groupUrl, { headers, timeout: 30000 });
-  const html = pageRes.data;
+  // Get fb_dtsg and the composer form from the homepage (always available)
+  const homeRes = await axios.get('https://mbasic.facebook.com/home.php', { headers, timeout: 30000 });
+  const html = homeRes.data;
 
   if (html.includes('login_form') || html.includes('Logueate')) {
     throw new Error('session expired');
   }
 
-  // Log HTML snippet for debugging
-  const htmlSnippet = html.substring(0, 2000).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  console.log(`[FB Relay] Page HTML snippet (first 2000 bytes stripped): ${htmlSnippet.substring(0, 500)}...`);
+  // Extract fb_dtsg
+  const dtsgMatch = html.match(/name="fb_dtsg"\s+value="([^"]+)"/);
+  if (!dtsgMatch) throw new Error('Could not find fb_dtsg');
+  const fb_dtsg = dtsgMatch[1];
 
-  // Strategy 1: look for mbasic_inline_feed_composer
-  let formStartIdx = html.search(/<form[^>]*id="mbasic_inline_feed_composer"[^>]*>/i);
+  // Get __user from c_user cookie
+  const c_user = jar.find(c => c.name === 'c_user');
+  const __user = c_user ? c_user.value : '';
+  if (!__user) throw new Error('Could not find c_user cookie (not logged in)');
 
-  // Strategy 2: look for any form with xc_message textarea
-  if (formStartIdx === -1) {
-    formStartIdx = html.search(/<form[^>]*>[\s\S]*?<textarea[^>]*name="xc_message"/i);
-    if (formStartIdx !== -1) console.log('[FB Relay] Found form via xc_message textarea');
-  }
+  // POST directly to m.facebook.com group posting endpoint (mobile web)
+  const postUrl = `https://m.facebook.com/a/group/post/add/?gid=${fbGroupId}&refid=18`;
+  const waterfall_id = Array.from({length: 32}, () => Math.floor(Math.random() * 16).toString(16)).join('');
 
-  if (formStartIdx === -1) throw new Error('Could not find post form on page');
-
-  const formTag = html.substring(formStartIdx);
-  const actionMatch = formTag.match(/action="([^"]+)"/);
-  if (!actionMatch) throw new Error('Could not find form action');
-  let actionUrl = actionMatch[1].replace(/&amp;/g, '&');
-  if (!actionUrl.startsWith('http')) actionUrl = `https://mbasic.facebook.com${actionUrl}`;
-
-  // Extract form content between <form> and </form>
-  const formOpenTagEnd = formTag.indexOf('>') + 1;
-  const formContent = formTag.substring(formOpenTagEnd);
-  const formEndIdx = formContent.indexOf('</form>');
-  const formBody = formContent.substring(0, formEndIdx);
-
-  // Extract ALL input fields from the form (name + value)
   const formData = new URLSearchParams();
-  const inputRegex = /<input[^>]*name="([^"]*)"[^>]*\/?>/gi;
-  let inputMatch;
-  while ((inputMatch = inputRegex.exec(formBody)) !== null) {
-    const name = inputMatch[1];
-    const valueMatch = inputMatch[0].match(/value="([^"]*)"/);
-    const value = valueMatch ? valueMatch[1] : '';
-    formData.append(name, value);
+  formData.append('fb_dtsg', fb_dtsg);
+  formData.append('__user', __user);
+  formData.append('message', message.substring(0, 5000));
+  formData.append('target', fbGroupId);
+  formData.append('source_loc', 'composer_group');
+  formData.append('waterfall_source', 'composer_group');
+  formData.append('waterfall_id', waterfall_id);
+  // Empty fields Facebook expects
+  for (const f of ['[0]','[1]','__ajax__','__dyn__','__req__','album_fbid','appid','at',
+    'backdated_day','backdated_month','backdated_year','ch','csid',
+    'freeform_tag_place','fs','internal_extra','is_backdated','iscurrent',
+    'linkUrl','link_no_change','loc','m_sess','npa','npc','npn','npp',
+    'npw','npz','ogaction','oghideattachment','ogicon','ogobj','ogphrase',
+    'ogsuggestionmechanism','rating','scheduled_am_pm','scheduled_day',
+    'scheduled_hours','scheduled_minutes','scheduled_month','scheduled_year',
+    'sid','text_[0]','text_[1]','unpublished_content_type']) {
+    formData.append(f, '');
   }
 
-  // Override xc_message with our message
-  formData.set('xc_message', message.substring(0, 5000));
+  console.log(`[FB Relay] Posting to ${postUrl} with ${fb_dtsg.substring(0,10)}..., target=${fbGroupId}`);
 
-  // Ensure view_post param exists (submit button name)
-  if (!formData.has('view_post')) formData.append('view_post', 'Post');
-
-  console.log(`[FB Relay] Sending to ${actionUrl} with ${Array.from(formData.keys()).join(', ')}`);
-
-  const postRes = await axios.post(actionUrl, formData.toString(), {
+  const postRes = await axios.post(postUrl, formData.toString(), {
     headers: {
       ...headers,
       'Content-Type': 'application/x-www-form-urlencoded',
-      Referer: groupUrl,
+      Referer: `https://mbasic.facebook.com/groups/${fbGroupId}`,
     },
     maxRedirects: 5,
     timeout: 30000,
@@ -144,25 +133,18 @@ async function postToGroup(fbGroupId, message) {
   const body = typeof postRes.data === 'string' ? postRes.data : '';
   const finalUrl = postRes.request?.res?.responseUrl || postRes.request?.responseURL || '';
 
-  // Log response snippet for debugging
   const bodySnippet = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 300);
   console.log(`[FB Relay] Post response (${body.length} bytes): ${bodySnippet.substring(0, 200)}...`);
   console.log(`[FB Relay] Final URL: ${finalUrl}`);
 
-  // Check for explicit Facebook errors
   const hasError = body.includes('class="_50f7"') || body.includes('class="error"') || body.includes('try again later');
-
   if (hasError) {
     const snippet = body.substring(0, 500).replace(/<[^>]+>/g, ' ').trim().substring(0, 200);
-    console.error(`[FB Relay] Error response snippet:`, snippet);
+    console.error(`[FB Relay] Error response:`, snippet);
     throw new Error('Facebook returned an error');
   }
 
-  if (finalUrl && !finalUrl.includes('/groups/')) {
-    console.warn(`[FB Relay] Redirected to unexpected page: ${finalUrl}`);
-  }
-
-  console.log(`[FB Relay] Posted to group ${fbGroupId} (${body.length} bytes)`);
+  console.log(`[FB Relay] Posted to group ${fbGroupId}`);
   return true;
 }
 
