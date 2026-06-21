@@ -174,8 +174,11 @@ async function postToGroup(b, fbGroupId, message) {
 
     // Esperar y llenar editor (como PostPilot + fb-group-auto-post)
     await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
-    await page.click('div[role="textbox"][contenteditable="true"]');
-    await page.fill('div[role="textbox"][contenteditable="true"]', message);
+    await page.evaluate(text => {
+      const el = document.querySelector('div[role="textbox"][contenteditable="true"]');
+      el.focus();
+      document.execCommand('insertText', false, text);
+    }, message);
     await sleep(3000);
 
     // Click Post por XPath nativo (como fb-group-auto-post)
