@@ -1,10 +1,13 @@
 import { Router } from 'express';
+import multer from 'multer';
 import pool from '../db.js';
 import {
   getPendingTasks, markCompleted, markFailed, isEnabled, setEnabled,
   getStats, getFailedTasks, saveSessionFile, getSessionFile, clearSessionFile,
 } from '../services/facebookRelayService.js';
 import { requireAdmin } from '../auth.js';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -80,12 +83,12 @@ router.post('/fb/toggle', requireAdmin, async (req, res) => {
   }
 });
 
-router.post('/fb/upload-session', requireAdmin, async (req, res) => {
+router.post('/fb/upload-session', requireAdmin, upload.single('session'), async (req, res) => {
   try {
-    if (!req.files?.session) {
+    if (!req.file) {
       return res.status(400).json({ error: 'No session file provided' });
     }
-    const base64 = req.files.session.data.toString('base64');
+    const base64 = req.file.buffer.toString('base64');
     await saveSessionFile(base64);
     res.json({ success: true });
   } catch (err) {
