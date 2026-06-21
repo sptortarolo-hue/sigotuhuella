@@ -118,63 +118,63 @@ async function postToGroup(b, fbGroupId, message) {
 
     await sleep(3000);
 
-    // Dump texto de la página para debug
-    const pageText = await page.evaluate(() => document.body.textContent.substring(0, 2000)).catch(() => 'sin texto');
-    console.log('[FB Relay] Texto visible en la página:');
-    console.log(pageText.substring(0, 1000));
+    // Guardar texto de la página en archivo para debug
+    const pageText = await page.evaluate(() => document.body.textContent).catch(() => '');
+    fs.writeFileSync(path.join(__dirname, 'fb_debug_page.txt'), pageText);
+    console.log('[FB Relay] Debug: texto guardado en fb_debug_page.txt');
 
     // Screenshot de debug
     await page.screenshot({ path: path.join(__dirname, `fb_debug_${fbGroupId}.png`) });
 
-    // Intentar navegar al composer directamente si existe
-    const composerUrl = `https://www.facebook.com/groups/${fbGroupId}/composer/`;
-    const composerResult = await page.evaluate(async (url) => {
-      try {
-        const r = await fetch(url, { credentials: 'include' });
-        return r.url;
-      } catch { return ''; }
-    }, composerUrl);
-    console.log('[FB Relay] Composer URL check:', composerResult);
-
-    // Buscar el trigger del composer (varios intentos)
-    const clicked = await page.evaluate(() => {
-      const candidates = document.querySelectorAll('span[role="button"], div[role="button"], a[role="button"], button, a');
-      for (const el of candidates) {
-        const t = el.textContent.trim();
-        if (/Write something|Escribe algo|Qué estás pensando|Comparte|Publicar en|Create post|Crear publicación|Start a post/i.test(t)) {
-          el.click();
-          return 'trigger:' + t.substring(0, 50);
-        }
-      }
-      // Buscar cualquier elemento que parezca un composer visible
-      const composer = document.querySelector('div[contenteditable="true"], div[role="textbox"]');
-      if (composer) {
-        composer.focus();
-        return 'composer_direct';
-      }
-      return '';
+    // Verificar estado de la página rápidamente
+    const pageInfo = await page.evaluate(() => {
+      const t = document.title || '';
+      const url = location.href;
+      const hasLogin = document.querySelector('#login_form, .login_form, [data-testid="royal_login_form"]') !== null;
+      const hasComposer = document.querySelector('div[contenteditable="true"], div[role="textbox"]') !== null;
+      const text50 = document.body.textContent.substring(0, 200).replace(/\s+/g, ' ').trim();
+      return { title: t, url, hasLogin, hasComposer, snippet: text50 };
     });
-    console.log('[FB Relay] Click result:', clicked);
+    console.log('[FB Relay] Pag:', pageInfo.title);
+    console.log('[FB Relay] URL:', pageInfo.url);
+    if (pageInfo.hasLogin) console.log('[FB Relay] LOGIN detectado');
+    console.log('[FB Relay] Inicio:', pageInfo.snippet);
 
-    if (!clicked) {
-      // Intentar con /composer/ directamente
-      await page.goto(`https://www.facebook.com/groups/${fbGroupId}/composer/`, {
-        waitUntil: 'networkidle2', timeout: 30000,
-      }).catch(() => {});
-      await sleep(3000);
-      console.log('[FB Relay] Después de composer/ URL:', page.url());
-
-      const clicked2 = await page.evaluate(() => {
-        const composer = document.querySelector('div[contenteditable="true"], div[role="textbox"]');
-        if (composer) {
-          composer.focus();
-          return 'found_after_composer';
+    if (pageInfo.hasComposer) {
+      console.log('[FB Relay] Composer ya visible');
+      await page.click('div[contenteditable="true"], div[role="textbox"]');
+    } else {
+      // Buscar el trigger del composer
+      await page.evaluate(() => {
+        const candidates = document.querySelectorAll('span[role="button"], div[role="button"], a[role="button"], button, a');
+        for (const el of candidates) {
+          const t = el.textContent.trim();
+          if (/Write something|Escribe algo|Qué estás pensando|Comparte|Publicar en|Create post|Crear publicación|Start a post|.+post/i.test(t)) {
+            el.click(); return;
+          }
         }
-        return '';
       });
-      if (!clicked2) {
-        await page.screenshot({ path: path.join(__dirname, 'fb_debug_composer.png') });
-        throw new Error('composer trigger not found');
+      await sleep(2000);
+
+      const found = await page.evaluate(() => {
+        return document.querySelector('div[contenteditable="true"], div[role="textbox"]') !== null;
+      });
+
+      if (!found) {
+        // Intentar /composer/ como fallback
+        await page.goto(`https://www.facebook.com/groups/${fbGroupId}/composer/`, {
+          waitUntil: 'networkidle2', timeout: 30000,
+        }).catch(() => {});
+        await sleep(3000);
+
+        const found2 = await page.evaluate(() => {
+          return document.querySelector('div[contenteditable="true"], div[role="textbox"]') !== null;
+        });
+
+        if (!found2) {
+          await page.screenshot({ path: path.join(__dirname, 'fb_debug_nocomposer.png') });
+          throw new Error('composer trigger not found');
+        }
       }
     }
 
