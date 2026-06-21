@@ -85,9 +85,20 @@ async function postToGroup(fbGroupId, message) {
     throw new Error('session expired');
   }
 
-  // Find the post composer form by its id
-  const formStartIdx = html.search(/<form[^>]*id="mbasic_inline_feed_composer"[^>]*>/i);
-  if (formStartIdx === -1) throw new Error('Could not find post form (no mbasic_inline_feed_composer)');
+  // Log HTML snippet for debugging
+  const htmlSnippet = html.substring(0, 2000).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  console.log(`[FB Relay] Page HTML snippet (first 2000 bytes stripped): ${htmlSnippet.substring(0, 500)}...`);
+
+  // Strategy 1: look for mbasic_inline_feed_composer
+  let formStartIdx = html.search(/<form[^>]*id="mbasic_inline_feed_composer"[^>]*>/i);
+
+  // Strategy 2: look for any form with xc_message textarea
+  if (formStartIdx === -1) {
+    formStartIdx = html.search(/<form[^>]*>[\s\S]*?<textarea[^>]*name="xc_message"/i);
+    if (formStartIdx !== -1) console.log('[FB Relay] Found form via xc_message textarea');
+  }
+
+  if (formStartIdx === -1) throw new Error('Could not find post form on page');
 
   const formTag = html.substring(formStartIdx);
   const actionMatch = formTag.match(/action="([^"]+)"/);
