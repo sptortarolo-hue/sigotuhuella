@@ -98,42 +98,93 @@ async function postToGroup(b, fbGroupId, message) {
   try {
     await page.setUserAgent('Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1280, height: 720 });
+
+    // Ir a Facebook primero para establecer dominio
+    await page.goto('https://www.facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.setCookie(...cookies);
+    await sleep(1000);
 
     console.log(`[FB Relay] Navegando al grupo ${fbGroupId}...`);
     await page.goto(`https://www.facebook.com/groups/${fbGroupId}`, {
-      waitUntil: 'networkidle',
+      waitUntil: 'networkidle2',
       timeout: 45000,
     });
 
     if (page.url().includes('login') || page.url().includes('checkpoint')) {
+      const loginText = await page.evaluate(() => document.body.textContent.substring(0, 500)).catch(() => '');
+      console.log('[FB Relay] Login/checkpoint detectado. Texto:', loginText.substring(0, 300));
       throw new Error('session expired');
     }
 
     await sleep(3000);
 
+    // Dump texto de la página para debug
+    const pageText = await page.evaluate(() => document.body.textContent.substring(0, 2000)).catch(() => 'sin texto');
+    console.log('[FB Relay] Texto visible en la página:');
+    console.log(pageText.substring(0, 1000));
+
     // Screenshot de debug
     await page.screenshot({ path: path.join(__dirname, `fb_debug_${fbGroupId}.png`) });
 
-    // Click en "Write something..." / "Escribe algo..."
-    await page.evaluate(() => {
-      const candidates = document.querySelectorAll('span, div[role="button"]');
+    // Intentar navegar al composer directamente si existe
+    const composerUrl = `https://www.facebook.com/groups/${fbGroupId}/composer/`;
+    const composerResult = await page.evaluate(async (url) => {
+      try {
+        const r = await fetch(url, { credentials: 'include' });
+        return r.url;
+      } catch { return ''; }
+    }, composerUrl);
+    console.log('[FB Relay] Composer URL check:', composerResult);
+
+    // Buscar el trigger del composer (varios intentos)
+    const clicked = await page.evaluate(() => {
+      const candidates = document.querySelectorAll('span[role="button"], div[role="button"], a[role="button"], button, a');
       for (const el of candidates) {
-        if (/Write something|Escribe algo|Qué estás pensando|Comparte|Publicar en/i.test(el.textContent)) {
+        const t = el.textContent.trim();
+        if (/Write something|Escribe algo|Qué estás pensando|Comparte|Publicar en|Create post|Crear publicación|Start a post/i.test(t)) {
           el.click();
-          return;
+          return 'trigger:' + t.substring(0, 50);
         }
       }
-      throw new Error('composer trigger not found');
+      // Buscar cualquier elemento que parezca un composer visible
+      const composer = document.querySelector('div[contenteditable="true"], div[role="textbox"]');
+      if (composer) {
+        composer.focus();
+        return 'composer_direct';
+      }
+      return '';
     });
+    console.log('[FB Relay] Click result:', clicked);
+
+    if (!clicked) {
+      // Intentar con /composer/ directamente
+      await page.goto(`https://www.facebook.com/groups/${fbGroupId}/composer/`, {
+        waitUntil: 'networkidle2', timeout: 30000,
+      }).catch(() => {});
+      await sleep(3000);
+      console.log('[FB Relay] Después de composer/ URL:', page.url());
+
+      const clicked2 = await page.evaluate(() => {
+        const composer = document.querySelector('div[contenteditable="true"], div[role="textbox"]');
+        if (composer) {
+          composer.focus();
+          return 'found_after_composer';
+        }
+        return '';
+      });
+      if (!clicked2) {
+        await page.screenshot({ path: path.join(__dirname, 'fb_debug_composer.png') });
+        throw new Error('composer trigger not found');
+      }
+    }
 
     // Esperar editor
-    await sleep(3000);
+    await sleep(2000);
     await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 10000 });
     await page.click('div[role="textbox"][contenteditable="true"]');
     await sleep(500);
 
-    // Insertar texto via execCommand (funciona con Draft.js)
+    // Insertar texto
     await page.evaluate(text => {
       const el = document.querySelector('div[role="textbox"][contenteditable="true"]');
       el.focus();
@@ -142,21 +193,22 @@ async function postToGroup(b, fbGroupId, message) {
     await sleep(1000);
 
     // Click botón Publicar
-    await page.evaluate(() => {
-      const dialog = document.querySelector('div[role="dialog"]');
-      const root = dialog || document;
-      const buttons = root.querySelectorAll('div[role="button"], button, span[role="button"]');
-      for (const btn of buttons) {
-        if (/^Post$|^Publicar$|^Compartir$/i.test(btn.textContent.trim())) {
+    const posted = await page.evaluate(() => {
+      const btns = document.querySelectorAll('div[role="button"], button, span[role="button"], [aria-label]');
+      for (const btn of btns) {
+        const t = btn.textContent.trim();
+        const al = btn.getAttribute('aria-label') || '';
+        if (/^Post$/i.test(t) || /^Publicar$/i.test(t) || /^Compartir$/i.test(t) ||
+            /^Post$/i.test(al) || /^Publicar$/i.test(al)) {
           btn.click();
-          return;
+          return 'clicked:' + t.substring(0, 50);
         }
       }
-      // Fallback: buscar por aria-label
-      const labeled = root.querySelector('[aria-label="Post"], [aria-label="Publicar"]');
-      if (labeled) { labeled.click(); return; }
-      throw new Error('Post button not found');
+      return '';
     });
+    console.log('[FB Relay] Post button click:', posted);
+
+    if (!posted) throw new Error('Post button not found');
 
     // Esperar cierre del diálogo
     await sleep(5000);
