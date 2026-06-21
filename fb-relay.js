@@ -35,6 +35,7 @@ async function getBrowser() {
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
+      '--disable-gpu',
       '--disable-blink-features=AutomationControlled',
     ],
   });
@@ -104,16 +105,16 @@ async function postToGroup(b, fbGroupId, message) {
     await page.evaluateOnNewDocument(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
     });
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
+    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1440, height: 900 });
 
-    // Establecer sesión
-    await page.goto('https://www.facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // Establecer sesión (como fb-group-auto-post)
+    await page.goto('https://facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.setCookie(...cookies);
-    await page.goto('https://www.facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto('https://facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await sleep(2000);
 
-    // Navegar al grupo
+    // Navegar al grupo (como fb-group-auto-post)
     console.log(`[FB Relay] Grupo ${fbGroupId}...`);
     await page.goto(`https://facebook.com/groups/${fbGroupId}`, {
       waitUntil: 'domcontentloaded', timeout: 45000,
@@ -124,43 +125,28 @@ async function postToGroup(b, fbGroupId, message) {
       throw new Error('session expired');
     }
 
-    // Click "Write something..." (igual que fb-group-auto-post)
-    const writeSpan = await page.$('span:has-text("Write something"), span:has-text("Escribe algo"), span:has-text("Qué estás pensando")');
-    if (writeSpan) {
-      await writeSpan.click();
-    } else {
-      // Fallback: buscar por XPath
-      await page.evaluate(() => {
-        const spans = document.querySelectorAll('span');
-        for (const s of spans) {
-          if (/Write something|Escribe algo|Qué estás pensando|Comparte/i.test(s.textContent)) {
-            s.click(); return;
-          }
-        }
-        throw new Error('Write something not found');
-      });
-    }
+    // Click "Write something..." por XPath (como fb-group-auto-post)
+    const [trigger] = await page.$x('//span[contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Qué estás pensando")]');
+    if (!trigger) throw new Error('Write something not found');
+    await trigger.click();
 
-    // Esperar y llenar editor (como PostPilot)
+    // Esperar y llenar editor (como PostPilot + fb-group-auto-post)
     await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
     await page.click('div[role="textbox"][contenteditable="true"]');
-    await sleep(500);
     await page.fill('div[role="textbox"][contenteditable="true"]', message);
-    await sleep(2000);
+    await sleep(3000);
 
-    // Click Post por aria-label (como fb-group-auto-post)
-    const postBtn = await page.$('[aria-label="Post"], [aria-label="Publicar"]');
+    // Click Post por XPath (como fb-group-auto-post)
+    const [postBtn] = await page.$x('//div[@aria-label="Post" or @aria-label="Publicar"]');
     if (!postBtn) throw new Error('Post button not found');
     await postBtn.click();
 
-    // Esperar publicación
+    // Esperar publicación (como fb-group-auto-post)
     await sleep(5000);
-    try {
-      await page.waitForFunction(
-        () => !document.querySelector('div[role="dialog"] div[role="textbox"]'),
-        { timeout: 15000 }
-      );
-    } catch {}
+    await page.waitForFunction(
+      () => !document.querySelector('div[role="dialog"] div[role="textbox"]'),
+      { timeout: 15000 }
+    ).catch(() => {});
 
     console.log(`[FB Relay] Publicado en grupo ${fbGroupId}`);
     return true;
