@@ -188,37 +188,56 @@ async function postToGroup(b, fbGroupId, message) {
     });
     console.log('[FB Relay] Texto en editor:', editorText.substring(0, 80));
 
-    // Click Post dentro del diálogo (como fb-group-auto-post)
-    await page.evaluate(() => {
+    // Estrategia 1: Click Post dentro del diálogo (como fb-group-auto-post)
+    const postBtnInfo = await page.evaluate(() => {
       const xpath = '//div[@role="dialog"]//*[@aria-label="Post" or @aria-label="Publicar"]';
       const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
       const el = result.singleNodeValue;
-      if (!el) throw new Error('Post button not found');
+      if (!el) return 'not_found';
+      const rect = el.getBoundingClientRect();
       el.click();
+      return `tag=${el.tagName} text="${el.textContent.trim()}" x=${Math.round(rect.x)} y=${Math.round(rect.y)}`;
     });
+    console.log('[FB Relay] Post click:', postBtnInfo);
 
-    // Esperar y verificar resultado
-    await sleep(4000);
+    await sleep(3000);
+    await page.screenshot({ path: path.join(__dirname, 'fb_debug_post1.png') });
 
-    // Tomar screenshot post-publicación
-    await page.screenshot({ path: path.join(__dirname, 'fb_debug_post.png') });
+    // Verificar si el diálogo se cerró
+    let dialogOpen = await page.evaluate(() =>
+      document.querySelector('div[role="dialog"] div[role="textbox"]') !== null
+    );
+    console.log('[FB Relay] Dialog after click:', dialogOpen);
 
-    // Verificar estado después del post
-    const postStatus = await page.evaluate(() => {
-      const body = document.body.textContent || '';
-      const pending = /pending|pendiente|aprobación|revisión/i.test(body);
-      const hasError = /something went wrong|algo salió mal|try again later|intenta de nuevo|no se pudo/i.test(body);
-      const dialogOpen = document.querySelector('div[role="dialog"] div[role="textbox"]') !== null;
-      return { pending, hasError, dialogOpen };
-    });
-    console.log('[FB Relay] Post-status:', JSON.stringify(postStatus));
+    // Estrategia 2: Ctrl+Enter si el diálogo sigue abierto
+    if (dialogOpen) {
+      console.log('[FB Relay] Intentando Ctrl+Enter...');
+      await page.keyboard.down('Control');
+      await page.keyboard.press('Enter');
+      await page.keyboard.up('Control');
+      await sleep(3000);
 
-    if (postStatus.hasError) throw new Error('Facebook error after posting');
+      dialogOpen = await page.evaluate(() =>
+        document.querySelector('div[role="dialog"] div[role="textbox"]') !== null
+      );
+      console.log('[FB Relay] Dialog after Ctrl+Enter:', dialogOpen);
+    }
 
-    if (postStatus.pending || postStatus.dialogOpen) {
-      // Cerrar diálogo con Escape
-      await page.keyboard.press('Escape');
-      await sleep(1000);
+    // Estrategia 3: Enter (último recurso)
+    if (dialogOpen) {
+      console.log('[FB Relay] Intentando Enter...');
+      await page.keyboard.press('Enter');
+      await sleep(3000);
+
+      dialogOpen = await page.evaluate(() =>
+        document.querySelector('div[role="dialog"] div[role="textbox"]') !== null
+      );
+      console.log('[FB Relay] Dialog after Enter:', dialogOpen);
+    }
+
+    await page.screenshot({ path: path.join(__dirname, 'fb_debug_post2.png') });
+
+    if (dialogOpen) {
       await page.keyboard.press('Escape');
       await sleep(1000);
     }
