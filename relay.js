@@ -5,6 +5,7 @@ const QRCode = require('qrcode');
 
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = 'RELAY_TOKEN';
+const BOT_NUMBER = '5492212025190';
 const POLL_INTERVAL = 30000;
 const MAX_RETRIES = 3;
 
@@ -113,6 +114,22 @@ async function start() {
           setTimeout(start, 5000);
         }
       }
+    }
+  });
+
+  sock.ev.on('messages.upsert', async ({ messages }) => {
+    for (const msg of messages) {
+      if (msg.key.fromMe) continue;
+      if (msg.key.remoteJid === 'status@broadcast') continue;
+      if (msg.key.remoteJid.endsWith('@g.us')) continue;
+
+      const from = msg.key.remoteJid;
+      const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+      console.log(`[Entrante] ${from}: ${text.substring(0, 80)}`);
+
+      await sock.sendMessage(from, {
+        text: `🐾 ¡Gracias por contactarte con Sigo Tu Huella!\nEste número es solo para notificaciones automáticas.\nPara reportar una mascota, ver adopciones, y mucho más, escribinos a:\n📱 wa.me/${BOT_NUMBER}\n🔗 sigotuhuella.online`
+      });
     }
   });
 
