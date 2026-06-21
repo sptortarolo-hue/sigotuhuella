@@ -208,7 +208,23 @@ async function postToGroup(b, fbGroupId, message) {
     });
     console.log('[FB Relay] Post button click:', posted);
 
-    if (!posted) throw new Error('Post button not found');
+    if (!posted) {
+      const btnsDebug = await page.evaluate(() => {
+        return Array.from(document.querySelectorAll('div[role="button"], button, span[role="button"], [aria-label]'))
+          .map(b => {
+            const text = (b.textContent || '').trim().substring(0, 40);
+            const aria = b.getAttribute('aria-label') || '';
+            const role = b.getAttribute('role') || '';
+            const tag = b.tagName;
+            return `${tag}[${role}] "${text}" aria="${aria}"`;
+          })
+          .filter(s => s.length > 10)
+          .slice(0, 20);
+      });
+      console.log('[FB Relay] Botones en página:', JSON.stringify(btnsDebug, null, 2));
+      await page.screenshot({ path: path.join(__dirname, 'fb_debug_nopostbtn.png') });
+      throw new Error('Post button not found');
+    }
 
     // Esperar cierre del diálogo
     await sleep(5000);
