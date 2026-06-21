@@ -122,11 +122,23 @@ async function postToGroup(fbGroupId, message) {
     timeout: 30000,
   });
 
-  if (postRes.data.includes('comment_text') || postRes.data.includes('error')) {
-    throw new Error('Post may have failed');
+  const body = typeof postRes.data === 'string' ? postRes.data : '';
+  const finalUrl = postRes.request?.res?.responseUrl || postRes.request?.responseURL || '';
+
+  // Check for explicit Facebook errors
+  const hasError = body.includes('class="_50f7"') || body.includes('class="error"') || body.includes('try again later');
+
+  if (hasError) {
+    const snippet = body.substring(0, 500).replace(/<[^>]+>/g, ' ').trim().substring(0, 200);
+    console.error(`[FB Relay] Error response snippet:`, snippet);
+    throw new Error('Facebook returned an error');
   }
 
-  console.log(`[FB Relay] Posted to group ${fbGroupId}`);
+  if (finalUrl && !finalUrl.includes('/groups/')) {
+    console.warn(`[FB Relay] Redirected to unexpected page: ${finalUrl}`);
+  }
+
+  console.log(`[FB Relay] Posted to group ${fbGroupId} (${body.length} bytes)`);
   return true;
 }
 
