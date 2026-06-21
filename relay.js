@@ -59,21 +59,33 @@ async function clearQR() {
 async function sendWithRetry(jid, content, retries = MAX_RETRIES) {
   for (let i = 0; i < retries; i++) {
     try {
-      await sock.sendPresenceUpdate('composing', jid);
-      await sleep(1500);
-      await sock.sendPresenceUpdate('paused', jid);
+      if (i > 0) {
+        await sock.sendPresenceUpdate('composing', jid).catch(() => {});
+        await sleep(2000);
+      }
       await sock.sendMessage(jid, content);
       return true;
     } catch (e) {
       if (e.message?.includes('463') && i < retries - 1) {
-        const delays = [2000, 5000, 10000, 20000];
-        const delay = delays[i] || 30000;
+        const delays = [30000, 60000, 120000, 180000];
+        const delay = delays[i] || 300000;
         console.log(`463 a ${jid}, reintento ${i + 2}/${retries} en ${delay/1000}s...`);
         await sleep(delay);
         continue;
       }
+      if (e.message?.includes('463')) {
+        throw new Send463Error(jid, `463 persistente a ${jid}`);
+      }
       throw e;
     }
+  }
+}
+
+class Send463Error extends Error {
+  constructor(jid, message) {
+    super(message);
+    this.code = 463;
+    this.jid = jid;
   }
 }
 
@@ -182,6 +194,9 @@ async function start() {
               console.error(`Número no registrado en WhatsApp: ${normalized}`);
               continue;
             }
+            // Pre-warm: presence establece handshake para tctoken
+            await sock.sendPresenceUpdate('available', jid).catch(() => {});
+            await sleep(2000);
           }
 
           if (msg.image_url) {
@@ -195,7 +210,15 @@ async function start() {
           }
           sentIds.push(msg.id);
         } catch (e) {
-          console.error(`Error a ${msg.wa_to}:`, e.message);
+          if (e.code === 463) {
+            console.error(`463 persistente a ${msg.wa_to}, marcando como failed`);
+            await axios.post(`${VPS_URL}/api/relay/failed`, { ids: [msg.id] }, {
+              headers: { Authorization: `Bearer ${TOKEN}` },
+              timeout: 10000,
+            }).catch(() => {});
+          } else {
+            console.error(`Error a ${msg.wa_to}:`, e.message);
+          }
         }
       }
       if (sentIds.length) await axios.post(`${VPS_URL}/api/relay/sent`, { ids: sentIds }, {
