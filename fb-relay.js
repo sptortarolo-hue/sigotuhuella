@@ -125,29 +125,33 @@ async function postToGroup(b, fbGroupId, message) {
       throw new Error('session expired');
     }
 
-    // Buscar "Write something..." por XPath y clickearlo con elementHandle.click() (CDP real)
-    const triggerHandle = await page.evaluateHandle(() => {
-      const xpath = '//span[contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Qué estás pensando")]';
-      return document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-    });
-    if (!triggerHandle.asElement()) throw new Error('Write something not found');
-    await triggerHandle.asElement().click();
+    // Buscar "Write something..." con retry hasta que sea visible (como fb-group-auto-post)
+    let triggerClicked = false;
+    for (let attempt = 0; attempt < 8 && !triggerClicked; attempt++) {
+      triggerClicked = await page.evaluate(() => {
+        const xpath = '//span[contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Qué estás pensando")]';
+        const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        const el = result.singleNodeValue;
+        if (el && el.offsetParent !== null) { el.click(); return true; }
+        return false;
+      });
+      if (!triggerClicked) await sleep(1000);
+    }
+    if (!triggerClicked) throw new Error('Write something not found');
     console.log('[FB Relay] Write something clicked');
 
-    // Esperar editor DENTRO del diálogo (no confundir con comentarios de posts)
-    const editor = await page.waitForSelector('div[role="dialog"] div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
-    await sleep(2000);
-
-    // Click en el editor con CDP para foco real
-    await editor.click();
+    // Esperar editor visible DENTRO del diálogo (como fb-group-auto-post)
+    const editor = await page.waitForSelector('div[role="dialog"] div[role="textbox"][contenteditable="true"]', { visible: true, timeout: 15000 });
     await sleep(1500);
 
-    // Escribir texto con teclado real (Draft.js necesita keystrokes)
+    // Click editor + escribir (como PostPilot)
+    await editor.click();
+    await sleep(500);
     await editor.type(message, { delay: 3 });
     await sleep(2000);
 
-    // Click Post con CDP real
-    const postBtn = await page.$('div[role="dialog"] [aria-label="Publicar"], div[role="dialog"] [aria-label="Post"]');
+    // Click Post visible dentro del diálogo (como fb-group-auto-post)
+    const postBtn = await page.waitForSelector('div[role="dialog"] [aria-label="Publicar"], div[role="dialog"] [aria-label="Post"]', { visible: true, timeout: 10000 });
     if (!postBtn) throw new Error('Post button not found');
     await postBtn.click();
     console.log('[FB Relay] Post button clicked');
