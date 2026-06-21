@@ -71,64 +71,124 @@ function cookieHeader() {
 }
 
 async function postToGroup(fbGroupId, message) {
-  const headers = {
+  const baseHeaders = {
     Cookie: cookieHeader(),
     'User-Agent': 'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.58 Mobile Safari/537.36',
   };
 
-  // Get fb_dtsg and the composer form from the homepage (always available)
-  const homeRes = await axios.get('https://mbasic.facebook.com/home.php', { headers, timeout: 30000 });
-  const html = homeRes.data;
+  // Step 1: Visit the group page to see what's there
+  const groupUrl = `https://mbasic.facebook.com/groups/${fbGroupId}`;
+  console.log(`[FB Relay] Visiting ${groupUrl}`);
+  const groupRes = await axios.get(groupUrl, { headers: baseHeaders, timeout: 30000 });
+  const html = groupRes.data;
 
-  if (html.includes('login_form') || html.includes('Logueate')) {
-    throw new Error('session expired');
+  if (html.includes('login_form') || html.includes('Logueate')) throw new Error('session expired');
+
+  // Log stripped HTML snippet for diagnosis
+  const stripped = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  console.log(`[FB Relay] Group page HTML (${html.length} bytes): ${stripped.substring(0, 800)}`);
+
+  // Strategy 1: Find form with xc_message
+  let formStart = html.search(/<form[^>]*>[\s\S]*?<textarea[^>]*name="xc_message"/i);
+  if (formStart !== -1) console.log('[FB Relay] Found form via xc_message textarea');
+
+  // Strategy 2: Find mbasic_inline_feed_composer
+  if (formStart === -1) {
+    formStart = html.search(/id="mbasic_inline_feed_composer"/i);
+    if (formStart !== -1) {
+      // Go back to find the form tag
+      const before = html.substring(0, formStart);
+      const formTagStart = before.lastIndexOf('<form');
+      if (formTagStart !== -1) formStart = formTagStart;
+      console.log('[FB Relay] Found form via mbasic_inline_feed_composer id');
+    }
   }
 
-  // Extract fb_dtsg
-  const dtsgMatch = html.match(/name="fb_dtsg"\s+value="([^"]+)"/);
-  if (!dtsgMatch) throw new Error('Could not find fb_dtsg');
-  const fb_dtsg = dtsgMatch[1];
+  // Strategy 3: Look for a link to the composer page
+  let composerAction = null;
+  let composerFormHtml = null;
 
-  // Get __user from c_user cookie
-  const c_user = jar.find(c => c.name === 'c_user');
-  const __user = c_user ? c_user.value : '';
-  if (!__user) throw new Error('Could not find c_user cookie (not logged in)');
+  if (formStart === -1) {
+    const composerLink = html.match(/<a[^>]*href="([^"]*composer[^"]*)"[^>]*>/i);
+    if (composerLink) {
+      let linkUrl = composerLink[1].replace(/&amp;/g, '&');
+      if (!linkUrl.startsWith('http')) linkUrl = `https://mbasic.facebook.com${linkUrl}`;
+      console.log(`[FB Relay] Found composer link: ${linkUrl}`);
+      const composerRes = await axios.get(linkUrl, { headers: baseHeaders, timeout: 30000 });
+      const composerHtml = composerRes.data;
+      // Look for form in composer page
+      const cMatch = composerHtml.match(/<form[^>]*action="([^"]+)"[^>]*>([\s\S]*?)<\/form>/i);
+      if (cMatch) {
+        composerAction = cMatch[1].replace(/&amp;/g, '&');
+        if (!composerAction.startsWith('http')) composerAction = `https://mbasic.facebook.com${composerAction}`;
+        composerFormHtml = cMatch[2];
+        formStart = 0; // signal found
+        console.log('[FB Relay] Got form from composer page');
+      }
+    }
+  }
 
-  // POST directly to m.facebook.com group posting endpoint (mobile web)
-  const postUrl = `https://m.facebook.com/a/group/post/add/?gid=${fbGroupId}&refid=18`;
-  const waterfall_id = Array.from({length: 32}, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  if (formStart === -1) {
+    // Log what we DID find on the page to debug
+    const forms = html.match(/<form[^>]*>/gi);
+    console.log(`[FB Relay] Forms found on page: ${forms ? forms.length : 0}`);
+    const links = html.match(/<a[^>]*>/gi);
+    console.log(`[FB Relay] Links on page: ${links ? links.length : 0}`);
+    throw new Error('Could not find any posting method on group page');
+  }
 
+  // Extract form data
   const formData = new URLSearchParams();
-  formData.append('fb_dtsg', fb_dtsg);
-  formData.append('__user', __user);
-  formData.append('message', message.substring(0, 5000));
-  formData.append('target', fbGroupId);
-  formData.append('source_loc', 'composer_group');
-  formData.append('waterfall_source', 'composer_group');
-  formData.append('waterfall_id', waterfall_id);
-  // Empty fields Facebook expects
-  for (const f of ['[0]','[1]','__ajax__','__dyn__','__req__','album_fbid','appid','at',
-    'backdated_day','backdated_month','backdated_year','ch','csid',
-    'freeform_tag_place','fs','internal_extra','is_backdated','iscurrent',
-    'linkUrl','link_no_change','loc','m_sess','npa','npc','npn','npp',
-    'npw','npz','ogaction','oghideattachment','ogicon','ogobj','ogphrase',
-    'ogsuggestionmechanism','rating','scheduled_am_pm','scheduled_day',
-    'scheduled_hours','scheduled_minutes','scheduled_month','scheduled_year',
-    'sid','text_[0]','text_[1]','unpublished_content_type']) {
-    formData.append(f, '');
+  let actionUrl;
+
+  if (composerFormHtml) {
+    actionUrl = composerAction;
+    // Extract inputs from the composer page form
+    const inputRe = /<input[^>]*name="([^"]*)"[^>]*\/?>/gi;
+    let m;
+    while ((m = inputRe.exec(composerFormHtml)) !== null) {
+      const vMatch = m[0].match(/value="([^"]*)"/);
+      formData.append(m[1], vMatch ? vMatch[1] : '');
+    }
+  } else {
+    // Extract action from the group page form
+    const formTag = html.substring(formStart);
+    const actionMatch = formTag.match(/action="([^"]+)"/);
+    if (!actionMatch) throw new Error('Could not find form action');
+    actionUrl = actionMatch[1].replace(/&amp;/g, '&');
+    if (!actionUrl.startsWith('http')) actionUrl = `https://mbasic.facebook.com${actionUrl}`;
+
+    // Extract form body
+    const formOpenEnd = formTag.indexOf('>') + 1;
+    const formContent = formTag.substring(formOpenEnd);
+    const formEnd = formContent.indexOf('</form>');
+    const formBody = formContent.substring(0, formEnd);
+
+    // Extract all inputs
+    const inputRe = /<input[^>]*name="([^"]*)"[^>]*\/?>/gi;
+    let m;
+    while ((m = inputRe.exec(formBody)) !== null) {
+      const vMatch = m[0].match(/value="([^"]*)"/);
+      formData.append(m[1], vMatch ? vMatch[1] : '');
+    }
   }
 
-  console.log(`[FB Relay] Posting to ${postUrl} with fb_dtsg=${fb_dtsg.substring(0,10)}..., target=${fbGroupId}`);
+  // Override with our message
+  formData.set('xc_message', message.substring(0, 5000));
+  // Ensure submit button
+  if (!formData.has('view_post')) formData.append('view_post', 'Post');
 
-  const postRes = await axios.post(postUrl, formData.toString(), {
+  console.log(`[FB Relay] Posting to ${actionUrl} fields=${Array.from(formData.keys()).join(',')}`);
+
+  const postRes = await axios.post(actionUrl, formData.toString(), {
     headers: {
-      ...headers,
+      ...baseHeaders,
       'Content-Type': 'application/x-www-form-urlencoded',
-      Referer: `https://mbasic.facebook.com/groups/${fbGroupId}`,
+      Referer: groupUrl,
     },
     maxRedirects: 5,
     timeout: 30000,
-    validateStatus: () => true, // don't throw on any status
+    validateStatus: () => true,
   });
 
   const body = typeof postRes.data === 'string' ? postRes.data : '';
@@ -136,31 +196,19 @@ async function postToGroup(fbGroupId, message) {
   console.log(`[FB Relay] HTTP ${postRes.status} -> ${finalUrl || '(no redirect)'}`);
 
   const bodySnippet = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  console.log(`[FB Relay] Post response (${body.length} bytes): ${bodySnippet.substring(0, 500)}`);
-  console.log(`[FB Relay] Final URL: ${finalUrl}`);
+  console.log(`[FB Relay] Response (${body.length} bytes): ${bodySnippet.substring(0, 600)}`);
 
-  // Check for various Facebook responses
-  const lowerBody = body.toLowerCase();
   if (body.includes('class="_50f7"') || body.includes('class="error"') || body.includes('try again later')) {
-    const snippet = body.substring(0, 500).replace(/<[^>]+>/g, ' ').trim().substring(0, 200);
-    console.error(`[FB Relay] Error response:`, snippet);
     throw new Error('Facebook returned an error');
   }
-
-  if (lowerBody.includes('pending') || lowerBody.includes('review') || lowerBody.includes('approval')) {
-    console.warn(`[FB Relay] Post may be pending approval: redirect=${finalUrl}`);
-    // Not throwing error - post was accepted but needs approval
-  }
-
-  if (lowerBody.includes('join') || lowerBody.includes('not a member')) {
-    console.error(`[FB Relay] Account is not a member of group ${fbGroupId}`);
+  if (body.toLowerCase().includes('join') || body.toLowerCase().includes('not a member')) {
     throw new Error('Account is not a member of this group');
   }
-
-  // Full body log for diagnosis when response is small
-  if (body.length > 0 && body.length < 5000) {
-    console.log(`[FB Relay] Full response body: ${bodySnippet.substring(0, 1000)}`);
+  if (body.toLowerCase().includes('pending') || body.toLowerCase().includes('approval')) {
+    console.warn('[FB Relay] Post may need approval');
   }
+
+  if (body.length < 8000) console.log(`[FB Relay] Full body: ${bodySnippet.substring(0, 1500)}`);
 
   console.log(`[FB Relay] Posted to group ${fbGroupId}`);
   return true;
