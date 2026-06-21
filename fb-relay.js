@@ -108,13 +108,13 @@ async function postToGroup(b, fbGroupId, message) {
     await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1440, height: 900 });
 
-    // Establecer sesión (como fb-group-auto-post)
+    // Sesión (como fb-group-auto-post)
     await page.goto('https://facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.setCookie(...cookies);
     await page.goto('https://facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await sleep(2000);
 
-    // Navegar al grupo (como fb-group-auto-post)
+    // Ir al grupo
     console.log(`[FB Relay] Grupo ${fbGroupId}...`);
     await page.goto(`https://facebook.com/groups/${fbGroupId}`, {
       waitUntil: 'domcontentloaded', timeout: 45000,
@@ -125,120 +125,38 @@ async function postToGroup(b, fbGroupId, message) {
       throw new Error('session expired');
     }
 
-    // Guardar HTML para debug
-    const html = await page.content().catch(() => '');
-    fs.writeFileSync(path.join(__dirname, 'fb_debug.html'), html);
-    await page.screenshot({ path: path.join(__dirname, 'fb_debug.png') });
-
-    // Buscar "Write something..." con estrategias múltiples
-    const found = await page.evaluate(() => {
-      // Estrategia 1: span exacto como fb-group-auto-post
-      let xpath = '//span[contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Qué estás pensando")]';
-      let result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-      let el = result.singleNodeValue;
-      if (el) { el.click(); return 'span_text'; }
-
-      // Estrategia 2: cualquier elemento role=button
-      xpath = '//*[@role="button" and (contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Comparte") or contains(text(), "Crear publicación") or contains(text(), "What\'s on your mind") or contains(text(), "¿Qué estás pensando"))]';
-      result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-      el = result.singleNodeValue;
-      if (el) { el.click(); return 'role_button'; }
-
-      // Estrategia 3: aria-label
-      xpath = '//*[@aria-label="Create a post" or @aria-label="Crear publicación" or @aria-label="Write something..." or @aria-label="Escribe algo..."]';
-      result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-      el = result.singleNodeValue;
-      if (el) { el.click(); return 'aria_label'; }
-
-      // Estrategia 4: placeholder en contenteditable (composer ya abierto)
-      xpath = '//*[@contenteditable="true" or @role="textbox"]';
-      result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-      el = result.singleNodeValue;
-      if (el) { el.focus(); return 'already_open'; }
-
-      return '';
+    // Buscar "Write something..." por XPath y clickearlo con elementHandle.click() (CDP real)
+    const triggerHandle = await page.evaluateHandle(() => {
+      const xpath = '//span[contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Qué estás pensando")]';
+      return document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
     });
-    console.log('[FB Relay] Composer:', found);
+    if (!triggerHandle.asElement()) throw new Error('Write something not found');
+    await triggerHandle.asElement().click();
+    console.log('[FB Relay] Write something clicked');
 
-    if (!found) {
-      // Dump de spans con texto corto para entender qué hay
-      const snippets = await page.evaluate(() => {
-        return Array.from(document.querySelectorAll('span, div[role="button"], a[role="button"], button'))
-          .map(e => ({ tag: e.tagName, role: e.getAttribute('role') || '', text: e.textContent.trim().substring(0, 60) }))
-          .filter(e => e.text.length > 3 && e.text.length < 100)
-          .slice(0, 30);
-      });
-      console.log('[FB Relay] Elementos con texto:', JSON.stringify(snippets, null, 2));
-      throw new Error('Write something not found');
-    }
-
-    // Esperar y llenar editor (como PostPilot + fb-group-auto-post)
+    // Esperar editor
     await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
-    await page.evaluate(text => {
-      const el = document.querySelector('div[role="textbox"][contenteditable="true"]');
-      el.focus();
-      document.execCommand('insertText', false, text);
-    }, message);
-    await sleep(3000);
+    await sleep(1000);
 
-    // Verificar que el editor tenga texto antes de postear
-    const editorText = await page.evaluate(() => {
-      const el = document.querySelector('div[role="textbox"][contenteditable="true"]');
-      return el ? el.textContent : '';
-    });
-    console.log('[FB Relay] Texto en editor:', editorText.substring(0, 80));
+    // Escribir texto con teclado real (como PostPilot usa .fill() que equivale a .type() en Puppeteer)
+    const editor = await page.$('div[role="textbox"][contenteditable="true"]');
+    await editor.click();
+    await editor.type(message, { delay: 5 });
+    await sleep(2000);
 
-    // Click Post con mouse real (evento trusted para React)
-    const postBtnBox = await page.evaluate(() => {
-      const xpath = '//div[@role="dialog"]//*[@aria-label="Post" or @aria-label="Publicar"]';
-      const el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-      if (!el) return null;
-      const r = el.getBoundingClientRect();
-      return { x: r.x + r.width/2, y: r.y + r.height/2, tag: el.tagName, text: el.textContent.trim() };
-    });
-    console.log('[FB Relay] Post button:', JSON.stringify(postBtnBox));
+    // Click Post con elementHandle.click() (CDP real, como Playwright)
+    const postBtn = await page.$('div[role="dialog"] [aria-label="Publicar"], div[role="dialog"] [aria-label="Post"]');
+    if (!postBtn) throw new Error('Post button not found');
+    await postBtn.click();
+    console.log('[FB Relay] Post button clicked');
 
-    if (postBtnBox) {
-      await page.mouse.click(postBtnBox.x, postBtnBox.y);
-      console.log('[FB Relay] Mouse click en Post');
-    } else {
-      throw new Error('Post button not found');
-    }
-
-    await sleep(3000);
-    await page.screenshot({ path: path.join(__dirname, 'fb_debug_post1.png') });
-
-    // Verificar si el diálogo se cerró
-    let dialogOpen = await page.evaluate(() =>
-      document.querySelector('div[role="dialog"] div[role="textbox"]') !== null
-    );
-    console.log('[FB Relay] Dialog after click:', dialogOpen);
-
-    // Fallback: Ctrl+Enter si el diálogo sigue abierto
-    if (dialogOpen) {
-      console.log('[FB Relay] Fallback Ctrl+Enter...');
-      // Hacer focus en el editor primero
-      await page.evaluate(() => {
-        const el = document.querySelector('div[role="textbox"][contenteditable="true"]');
-        if (el) el.focus();
-      });
-      await sleep(300);
-      await page.keyboard.down('Control');
+    // Esperar que el diálogo se cierre (como PostPilot)
+    try {
+      await page.waitForSelector('div[role="dialog"]', { hidden: true, timeout: 15000 });
+    } catch {
+      console.log('[FB Relay] Dialog did not close, trying Enter...');
       await page.keyboard.press('Enter');
-      await page.keyboard.up('Control');
       await sleep(3000);
-
-      dialogOpen = await page.evaluate(() =>
-        document.querySelector('div[role="dialog"] div[role="textbox"]') !== null
-      );
-      console.log('[FB Relay] Dialog after Ctrl+Enter:', dialogOpen);
-    }
-
-    await page.screenshot({ path: path.join(__dirname, 'fb_debug_post2.png') });
-
-    if (dialogOpen) {
-      await page.keyboard.press('Escape');
-      await sleep(1000);
     }
 
     console.log(`[FB Relay] Publicado en grupo ${fbGroupId}`);
