@@ -134,29 +134,29 @@ async function postToGroup(b, fbGroupId, message) {
     await triggerHandle.asElement().click();
     console.log('[FB Relay] Write something clicked');
 
-    // Esperar editor
-    await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
-    await sleep(1000);
-
-    // Escribir texto con execCommand (inserta todo de una, maneja emojis y saltos de línea)
-    await page.evaluate(text => {
-      const el = document.querySelector('div[role="textbox"][contenteditable="true"]');
-      el.focus();
-      document.execCommand('insertText', false, text);
-    }, message);
+    // Esperar editor y asegurar foco antes de escribir
+    const editor = await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
     await sleep(2000);
 
-    // Click Post con elementHandle.click() (CDP real, como Playwright)
+    // Click en el editor con CDP para foco real
+    await editor.click();
+    await sleep(1500);
+
+    // Escribir texto con teclado real (Draft.js necesita keystrokes)
+    await editor.type(message, { delay: 3 });
+    await sleep(2000);
+
+    // Click Post con CDP real
     const postBtn = await page.$('div[role="dialog"] [aria-label="Publicar"], div[role="dialog"] [aria-label="Post"]');
     if (!postBtn) throw new Error('Post button not found');
     await postBtn.click();
     console.log('[FB Relay] Post button clicked');
 
-    // Esperar que el diálogo se cierre (como PostPilot)
+    // Esperar que el diálogo se cierre
     try {
       await page.waitForSelector('div[role="dialog"]', { hidden: true, timeout: 15000 });
     } catch {
-      console.log('[FB Relay] Dialog did not close, trying Enter...');
+      console.log('[FB Relay] Fallback Enter...');
       await page.keyboard.press('Enter');
       await sleep(3000);
     }
