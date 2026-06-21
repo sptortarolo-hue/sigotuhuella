@@ -237,6 +237,19 @@ export const api = {
     extractGroupIds: () => request('/facebook/extract-group-ids', { method: 'POST' }),
   },
 
+  facebookRelay: {
+    status: () => request('/relay/fb/status'),
+    toggle: () => request('/relay/fb/toggle', { method: 'POST' }),
+    uploadSession: (file: File) => {
+      const form = new FormData();
+      form.append('session', file);
+      return request('/relay/fb/upload-session', { method: 'POST', body: form });
+    },
+    clearSession: () => request('/relay/fb/clear-session', { method: 'POST' }),
+    stats: () => request('/relay/fb/stats'),
+    failedTasks: () => request('/relay/fb/failed-tasks'),
+  },
+
   myPets: {
     list: () => request('/my-pets'),
     get: (id: string) => request(`/my-pets/${id}`),

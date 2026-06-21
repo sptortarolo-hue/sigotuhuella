@@ -532,6 +532,21 @@ CREATE TABLE IF NOT EXISTS relay_messages (
   created_at TIMESTAMP DEFAULT NOW(),
   sent_at TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS fb_relay_tasks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pet_id UUID REFERENCES pets(id),
+  group_id UUID REFERENCES facebook_groups(id),
+  fb_group_id VARCHAR(255),
+  message TEXT NOT NULL,
+  image_urls TEXT[] DEFAULT '{}',
+  status VARCHAR(20) DEFAULT 'pending',
+  error_message TEXT,
+  attempts INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  started_at TIMESTAMP,
+  completed_at TIMESTAMP
+);
 `;
 
 async function migrate(client, sql, label) {
@@ -749,6 +764,10 @@ export async function initDb() {
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('relay_admin_phone', '') ON CONFLICT (key) DO NOTHING
     `, 'relay_admin_phone');
+
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('fb_relay_enabled', 'false') ON CONFLICT (key) DO NOTHING
+    `, 'fb_relay_enabled');
 
     console.log('Database migrations complete');
   } finally {

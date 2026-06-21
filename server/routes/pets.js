@@ -3,6 +3,7 @@ import pool from '../db.js';
 import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
 import { matchPetToPosts } from '../services/geminiMatching.js';
 import { broadcastPetToGroups } from '../services/whatsappService.js';
+import { enqueuePublishTask } from '../services/facebookRelayService.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import { isConnected, replyToComment } from '../services/instagramService.js';
@@ -200,6 +201,61 @@ async function awardBadgeIfMissing(userId, code) {
     await pool.query('UPDATE users SET badges = $1::jsonb WHERE id = $2', [updated, userId]);
   } catch (err) {
     console.error('awardBadgeIfMissing error:', err);
+  }
+}
+
+const statusLabels = {
+  lost: '🐾 PERDIDO', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
+  for_adoption: '❤️ EN ADOPCIÓN', adopted: '✅ ADOPTADO',
+  reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
+  needs_attention: '⚠️ NECESITA ATENCIÓN',
+};
+const speciesLabel = { dog: 'Perro', cat: 'Gato', other: 'Otra mascota' };
+const genderLabel = { male: 'Macho', female: 'Hembra', unknown: '' };
+
+async function enqueueFbGroupPublish(pet) {
+  try {
+    const fbRelay = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_enabled'");
+    if (fbRelay.rows[0]?.value !== 'true') return;
+    const groups = await pool.query(
+      `SELECT id, name, fb_group_id FROM facebook_groups
+       WHERE is_active = true AND publish_on_create = true AND fb_group_id IS NOT NULL AND fb_group_id != ''
+       ORDER BY name`
+    );
+    if (groups.rows.length === 0) return;
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const tag = statusLabels[pet.status] || '🐾 MASCOTA';
+    const species = speciesLabel[pet.species] || 'Mascota';
+    const gender = genderLabel[pet.gender] || '';
+    const ageGender = [gender, pet.age].filter(Boolean).join(' · ');
+    const hashtags = '#SigoTuHuella #MascotasPerdidas #AdoptaNoCompres';
+    const message = [
+      `${tag}`,
+      `${pet.name ? 'Nombre: ' + pet.name : ''}`,
+      `${species}${pet.breed ? ' - ' + pet.breed : ''}`,
+      `${ageGender ? ageGender : ''}`,
+      `${pet.color ? '🎨 ' + pet.color : ''}`,
+      `📍 ${pet.location || ''}`,
+      pet.contact_info ? `📞 ${pet.contact_info}` : '',
+      '',
+      pet.description ? pet.description.substring(0, 500) : '',
+      '',
+      `🔗 ${frontendUrl}/pet/${pet.id}`,
+      '',
+      hashtags,
+    ].filter(Boolean).join('\n');
+    const imagesResult = await pool.query(
+      'SELECT image_data FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 5',
+      [pet.id]
+    );
+    const imageUrls = imagesResult.rows.length > 0
+      ? imagesResult.rows.map((_, i) => `${frontendUrl}/api/images/pet/${pet.id}/${i}`)
+      : [`${frontendUrl}/api/images/pet/${pet.id}/cover`];
+    for (const group of groups.rows) {
+      await enqueuePublishTask(pet.id, group.id, group.fb_group_id, message, imageUrls);
+    }
+  } catch (err) {
+    console.error('[FB Relay] enqueueFbGroupPublish error:', err.message);
   }
 }
 
@@ -890,6 +946,7 @@ router.post('/public', async (req, res) => {
         const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention'];
         if (broadcastStatuses.includes(pet.status)) {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
+          enqueueFbGroupPublish(pet).catch(e => console.error('FB Relay error:', e));
         }
 
         res.status(201).json({ pet });
@@ -1007,6 +1064,7 @@ router.post('/lost-report', async (req, res) => {
         const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention'];
         if (broadcastStatuses.includes(pet.status)) {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
+          enqueueFbGroupPublish(pet).catch(e => console.error('FB Relay error:', e));
         }
 
         res.status(201).json({ pet, registrationPending: !!registrationToken });

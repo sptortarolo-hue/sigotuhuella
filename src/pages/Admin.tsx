@@ -25,6 +25,7 @@ import FacebookTab from '@/src/components/admin/FacebookTab';
 import InstagramTab from '@/src/components/admin/InstagramTab';
 import WhatsAppTab from '@/src/components/admin/WhatsAppTab';
 import RelayWhatsAppTab from '@/src/components/admin/RelayWhatsAppTab';
+import FacebookRelayTab from '@/src/components/admin/FacebookRelayTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
@@ -39,7 +40,7 @@ import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -801,6 +802,7 @@ export default function Admin() {
           { id: 'public', label: 'Reportes Públicos', icon: FileText },
           { id: 'whatsapp', label: 'WhatsApp (Meta)', icon: MessageSquare },
           { id: 'relay-whatsapp', label: 'WhatsApp Relay', icon: Smartphone },
+          { id: 'fb-relay', label: 'FB Phone Relay', icon: Smartphone },
           { id: 'instagram', label: 'Instagram', icon: Camera },
           { id: 'facebook', label: 'Facebook', icon: Globe },
           { id: 'videos', label: 'Videos', icon: Film },
@@ -1703,6 +1705,9 @@ export default function Admin() {
 
           {/* ====== WHATSAPP RELAY ====== */}
           {activeTab === 'relay-whatsapp' && <RelayWhatsAppTab />}
+
+          {/* ====== FB RELAY ====== */}
+          {activeTab === 'fb-relay' && <FacebookRelayTab />}
 
             {/* ====== INSTAGRAM ====== */}
             {activeTab === 'instagram' && (

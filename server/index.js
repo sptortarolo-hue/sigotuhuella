@@ -28,6 +28,7 @@ import facebookRoutes from './routes/facebook.js';
 import instagramRoutes from './routes/instagram.js';
 import imageRoutes from './routes/images.js';
 import phoneRelayRoutes from './routes/phoneRelay.js';
+import facebookRelayRoutes from './routes/facebookRelay.js';
 import { startSyncTimer } from './services/vpsSyncService.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
@@ -183,6 +184,7 @@ app.use('/api/facebook', facebookRoutes);
 app.use('/api/instagram', instagramRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/relay', phoneRelayRoutes);
+app.use('/api/relay', facebookRelayRoutes);
 
 // Sync with VPS scraper every 5 minutes
 startSyncTimer(5);

@@ -271,6 +271,21 @@ export async function verifyAllGroupMemberships() {
 
 export async function publishToGroupsViaScraper(groups, message, imageUrls, petId) {
   try {
+    const fbRelayEnabled = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_enabled'");
+    if (fbRelayEnabled.rows[0]?.value === 'true') {
+      const { enqueuePublishTask } = await import('./facebookRelayService.js');
+      const results = [];
+      for (const group of groups) {
+        try {
+          await enqueuePublishTask(petId, group.id, group.fb_group_id, message, imageUrls);
+          results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: true });
+        } catch (err) {
+          results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: false, error: err.message });
+        }
+      }
+      return { success: true, results };
+    }
+
     const { data } = await axios.post(`${VPS_HOST}/publish-to-groups`, {
       groups,
       message,
