@@ -206,15 +206,17 @@ async function postToGroup(b, fbGroupId, message) {
     // Verificar si hay mensaje de pendiente/error
     const postResult = await page.evaluate(() => {
       const body = document.body.textContent || '';
-      const pending = /pending|pendiente|aprobación|revisión|Your post|tu publicación/i.test(body);
-      const error = /error|error|try again|intenta de nuevo|not allowed|no permitido/i.test(body);
+      const pending = /pending|pendiente|aprobación|revisión/i.test(body);
+      const hasError = /something went wrong|algo salió mal|try again later|intenta de nuevo|no se pudo/i.test(body);
       const dialogStillOpen = document.querySelector('div[role="dialog"] div[role="textbox"]') !== null;
-      return { pending, error, dialogStillOpen, snippet: body.substring(0, 200).replace(/\s+/g, ' ').trim() };
+      const errorSnippet = body.match(/[^.]*(something went wrong|algo salió mal|try again|intenta de nuevo|no se pudo)[^.]*\./i);
+      return { pending, hasError, dialogStillOpen, errorSnippet: errorSnippet ? errorSnippet[0].trim().substring(0, 200) : '' };
     });
     console.log('[FB Relay] Post-result:', JSON.stringify(postResult));
 
-    if (postResult.error) {
-      throw new Error('Facebook returned an error after posting');
+    if (postResult.hasError) {
+      console.error('[FB Relay] Error de Facebook:', postResult.errorSnippet);
+      throw new Error('Facebook error: ' + postResult.errorSnippet.substring(0, 100));
     }
     if (postResult.pending) {
       console.log('[FB Relay] Post pendiente de aprobación');
