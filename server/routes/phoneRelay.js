@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import pool from '../db.js';
 import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAllGroups, saveQR, clearQR, getQR, getPetForBroadcast, getLatestPet, generateBroadcastCaption, searchPets } from '../services/phoneRelayService.js';
 import { requireAdmin } from '../auth.js';
 
@@ -34,10 +35,41 @@ router.post('/sent', relayAuth, async (req, res) => {
 router.post('/failed', relayAuth, async (req, res) => {
   try {
     const { ids } = req.body;
+    if (!ids || ids.length === 0) return res.json({ success: true });
+
+    const messages = await pool.query(
+      "SELECT wa_to, text, created_at FROM relay_messages WHERE id = ANY($1::uuid[])",
+      [ids]
+    );
+    const adminPhone = (await pool.query(
+      "SELECT value FROM settings WHERE key = 'relay_admin_phone'"
+    )).rows[0]?.value;
+
+    if (adminPhone && messages.rows.length > 0) {
+      for (const msg of messages.rows) {
+        const text = (msg.text || '(sin texto)').substring(0, 200);
+        const ts = msg.created_at ? new Date(msg.created_at).toLocaleString('es-AR') : '';
+        const notif = `❌ No se pudo enviar por relay\n\n📱 Destino: ${msg.wa_to}\n🕐 ${ts}\n\n${text}`;
+        await enqueue(adminPhone, notif);
+      }
+    }
+
     await markFailed(ids);
     res.json({ success: true });
   } catch (err) {
-    console.error('[Relay] markFailed error:', err.message);
+    console.error('[Relay] failed error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/relay-failed', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, wa_to, text, image_url, created_at FROM relay_messages WHERE status = 'failed' ORDER BY created_at DESC LIMIT 20"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[Relay] failed list error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

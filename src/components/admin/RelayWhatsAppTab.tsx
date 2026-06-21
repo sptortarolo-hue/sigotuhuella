@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode, Search, CheckSquare, Square, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode, Search, CheckSquare, Square, Plus, Trash2, Bell, Check, Save } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { cn } from '@/src/lib/utils';
 
@@ -78,6 +78,14 @@ export default function RelayWhatsAppTab() {
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupId, setNewGroupId] = useState('');
 
+  // Admin notification config
+  const [adminPhone, setAdminPhone] = useState('');
+  const [adminPhoneSaved, setAdminPhoneSaved] = useState(false);
+
+  // Failed messages
+  const [failedMessages, setFailedMessages] = useState<any[]>([]);
+  const [failedLoading, setFailedLoading] = useState(false);
+
   const addGroup = async () => {
     if (!newGroupName.trim() || !newGroupId.trim()) return;
     try {
@@ -112,6 +120,30 @@ export default function RelayWhatsAppTab() {
     } catch (e) { console.error(e); }
   };
 
+  const fetchAdminPhone = async () => {
+    try {
+      const data = await api.settings.get('relay_admin_phone');
+      setAdminPhone(data || '');
+    } catch (e) { /* ignore */ }
+  };
+
+  const saveAdminPhone = async () => {
+    try {
+      await api.settings.update('relay_admin_phone', adminPhone);
+      setAdminPhoneSaved(true);
+      setTimeout(() => setAdminPhoneSaved(false), 3000);
+    } catch (e) { /* ignore */ }
+  };
+
+  const fetchFailedMessages = async () => {
+    setFailedLoading(true);
+    try {
+      const data = await api.whatsappRelay.failedMessages();
+      setFailedMessages(data);
+    } catch (e) { /* ignore */ }
+    setFailedLoading(false);
+  };
+
   const fetchStatus = async () => {
     try {
       const data = await api.whatsappRelay.status();
@@ -137,6 +169,16 @@ export default function RelayWhatsAppTab() {
 
   useEffect(() => {
     fetchGroups();
+  }, []);
+
+  useEffect(() => {
+    fetchAdminPhone();
+  }, []);
+
+  useEffect(() => {
+    fetchFailedMessages();
+    const interval = setInterval(fetchFailedMessages, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -329,6 +371,29 @@ export default function RelayWhatsAppTab() {
           {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
           {status?.enabled ? 'Desactivar Relay' : 'Activar Relay'}
         </button>
+      </div>
+
+      {/* Notificaciones de fallos */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
+        <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+          <Bell className="w-6 h-6" /> Notificaciones de fallos
+        </h2>
+        <p className="text-sm text-gray-500">Si un mensaje no puede enviarse por relay, se notificará a este número de WhatsApp para que lo reenvíes manualmente.</p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <input
+            value={adminPhone}
+            onChange={e => setAdminPhone(e.target.value)}
+            placeholder="5492212025190"
+            className="flex-1 px-4 py-3 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-sm"
+          />
+          <button
+            onClick={saveAdminPhone}
+            className="px-6 py-3 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all flex items-center gap-2 text-sm shrink-0"
+          >
+            {adminPhoneSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+            {adminPhoneSaved ? 'Guardado' : 'Guardar'}
+          </button>
+        </div>
       </div>
 
       {/* Grupos de WhatsApp */}
@@ -603,6 +668,41 @@ export default function RelayWhatsAppTab() {
                     <td className="px-4 py-3">
                       {r.status === 'queued' ? <span className="text-green-600 font-bold">Encolado</span> : <span className="text-red-500 font-bold" title={r.error}>Error</span>}
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Últimos mensajes fallidos */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
+        <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+          <MessageSquare className="w-6 h-6" /> Últimos mensajes fallidos
+        </h2>
+        {failedLoading && failedMessages.length === 0 ? (
+          <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-brand-primary" /></div>
+        ) : failedMessages.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">No hay mensajes fallidos</p>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+            <table className="w-full text-left min-w-max">
+              <thead>
+                <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                  <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Destino</th>
+                  <th className="px-4 py-3">Texto</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-accent">
+                {failedMessages.map((m) => (
+                  <tr key={m.id} className="text-sm">
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
+                      {new Date(m.created_at).toLocaleString('es-AR')}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{m.wa_to}</td>
+                    <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{(m.text || '').substring(0, 100)}</td>
                   </tr>
                 ))}
               </tbody>

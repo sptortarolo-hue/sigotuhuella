@@ -746,6 +746,10 @@ export async function initDb() {
       ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS auto_broadcast BOOLEAN DEFAULT TRUE
     `, 'whatsapp_groups auto_broadcast');
 
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('relay_admin_phone', '') ON CONFLICT (key) DO NOTHING
+    `, 'relay_admin_phone');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

@@ -7,7 +7,7 @@ const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
 const POLL_INTERVAL = 30000;
-const MAX_RETRIES = 5;
+const MAX_RETRIES = 2;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 const replyCooldowns = new Map();
@@ -67,8 +67,7 @@ async function sendWithRetry(jid, content, retries = MAX_RETRIES) {
       return true;
     } catch (e) {
       if (e.message?.includes('463') && i < retries - 1) {
-        const delays = [30000, 60000, 120000, 180000];
-        const delay = delays[i] || 300000;
+        const delay = 10000;
         console.log(`463 a ${jid}, reintento ${i + 2}/${retries} en ${delay/1000}s...`);
         await sleep(delay);
         continue;
