@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-core';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
@@ -153,7 +153,9 @@ async function main() {
     console.error('[FB Relay] FATAL: RELAY_TOKEN not set');
     process.exit(1);
   }
+  const executablePath = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
   const browser = await chromium.launch({
+    executablePath,
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
