@@ -1,4 +1,4 @@
-import { chromium } from 'playwright-core';
+import puppeteer from 'puppeteer-core';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api/relay';
 const TOKEN = process.env.RELAY_TOKEN || process.env.FB_RELAY_TOKEN;
 const POLL_INTERVAL = parseInt(process.env.FB_POLL_INTERVAL || '60000');
-const STORAGE_PATH = process.env.FB_STORAGE_PATH || path.join(__dirname, 'fb_storage_state.json');
+const COOKIES_PATH = process.env.FB_COOKIES_PATH || path.join(__dirname, 'fb_cookies.json');
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -16,105 +16,111 @@ const api = axios.create({
   timeout: 30000,
 });
 
-async function downloadSession() {
+async function downloadCookies() {
   try {
     const { data } = await api.get('/fb/session-file');
     if (data?.data) {
-      fs.writeFileSync(STORAGE_PATH, Buffer.from(data.data, 'base64'));
-      console.log('[FB Relay] Session file downloaded');
+      const raw = Buffer.from(data.data, 'base64').toString('utf-8');
+      let cookies;
+      try {
+        const parsed = JSON.parse(raw);
+        cookies = parsed.cookies || parsed;
+      } catch {
+        cookies = raw;
+      }
+      fs.writeFileSync(COOKIES_PATH, JSON.stringify(cookies));
+      console.log('[FB Relay] Cookies downloaded');
       return true;
     }
   } catch (err) {
     if (err.response?.status !== 404) {
-      console.error('[FB Relay] Error downloading session:', err.message);
+      console.error('[FB Relay] Error downloading cookies:', err.message);
     }
   }
   return false;
 }
 
-async function clearLocalSession() {
+async function clearLocalCookies() {
   try {
-    if (fs.existsSync(STORAGE_PATH)) fs.unlinkSync(STORAGE_PATH);
-    console.log('[FB Relay] Local session cleared');
+    if (fs.existsSync(COOKIES_PATH)) fs.unlinkSync(COOKIES_PATH);
+    console.log('[FB Relay] Local cookies cleared');
   } catch (e) {
-    console.error('[FB Relay] Error clearing local session:', e.message);
+    console.error('[FB Relay] Error clearing cookies:', e.message);
   }
 }
 
-async function ensureSession(context) {
-  if (!fs.existsSync(STORAGE_PATH)) {
-    console.log('[FB Relay] No session file, downloading...');
-    const ok = await downloadSession();
-    if (!ok) {
-      console.log('[FB Relay] No session on server either. Waiting for admin upload.');
-      return false;
-    }
+async function loadCookies(page) {
+  if (!fs.existsSync(COOKIES_PATH)) {
+    console.log('[FB Relay] No cookies file, downloading...');
+    const ok = await downloadCookies();
+    if (!ok) return false;
   }
   try {
-    const storageState = JSON.parse(fs.readFileSync(STORAGE_PATH, 'utf-8'));
-    await context.addCookies(storageState.cookies || []);
+    const cookies = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8'));
+    if (Array.isArray(cookies)) {
+      await page.setCookie(...cookies);
+    }
     return true;
   } catch (e) {
-    console.error('[FB Relay] Error loading session:', e.message);
+    console.error('[FB Relay] Error loading cookies:', e.message);
     return false;
   }
 }
 
-async function saveSession(context) {
+async function saveCookies(page) {
   try {
-    const storageState = await context.storageState();
-    fs.writeFileSync(STORAGE_PATH, JSON.stringify(storageState));
+    const cookies = await page.cookies();
+    fs.writeFileSync(COOKIES_PATH, JSON.stringify(cookies));
   } catch (e) {
-    console.error('[FB Relay] Error saving session:', e.message);
+    console.error('[FB Relay] Error saving cookies:', e.message);
   }
 }
 
 async function isLoggedIn(page) {
-  await page.goto('https://mbasic.facebook.com/', { waitUntil: 'networkidle', timeout: 30000 });
-  const url = page.url();
-  return !url.includes('login') && !url.includes('checkpoint');
+  await page.goto('https://mbasic.facebook.com/', { waitUntil: 'networkidle0', timeout: 30000 });
+  return !page.url().includes('login') && !page.url().includes('checkpoint');
 }
 
 async function postToGroup(page, fbGroupId, message, imageUrls) {
   const groupUrl = `https://mbasic.facebook.com/groups/${fbGroupId}`;
   console.log(`[FB Relay] Posting to group ${fbGroupId}...`);
-  await page.goto(groupUrl, { waitUntil: 'networkidle', timeout: 30000 });
+  await page.goto(groupUrl, { waitUntil: 'networkidle0', timeout: 30000 });
   await page.waitForTimeout(2000);
-  const isLoginPage = page.url().includes('login');
-  if (isLoginPage) {
-    throw new Error('session expired');
-  }
+  if (page.url().includes('login')) throw new Error('session expired');
+
   if (imageUrls && imageUrls.length > 0) {
-    const photoTab = await page.$('a[href*="/photos/"]');
-    if (photoTab) {
-      await photoTab.click();
+    const photoLink = await page.$('a[href*="/photos/"]');
+    if (photoLink) {
+      await photoLink.click();
       await page.waitForTimeout(2000);
     }
-    const photoInput = await page.$('input[type="file"]');
-    if (photoInput) {
+    const fileInput = await page.$('input[type="file"]');
+    if (fileInput) {
       for (const url of imageUrls.slice(0, 5)) {
         try {
           const response = await fetch(url);
           const buffer = Buffer.from(await response.arrayBuffer());
           const tmpFile = path.join(__dirname, `fb_upload_${Date.now()}.jpg`);
           fs.writeFileSync(tmpFile, buffer);
-          await photoInput.setInputFiles(tmpFile);
+          await fileInput.uploadFile(tmpFile);
           fs.unlinkSync(tmpFile);
           await page.waitForTimeout(1000);
         } catch (e) {
           console.error(`[FB Relay] Error downloading image ${url}:`, e.message);
         }
       }
-      const doneBtn = await page.$('input[value="Listo"]');
+      const doneBtn = await page.$('input[value="Listo"], input[value="Done"]');
       if (doneBtn) await doneBtn.click();
       await page.waitForTimeout(2000);
     }
   }
+
   const textarea = await page.$('textarea, [contenteditable="true"]');
   if (textarea) {
-    await textarea.fill(message.substring(0, 5000));
+    await textarea.type(message.substring(0, 5000), { delay: 10 });
     await page.waitForTimeout(500);
   }
+
   const submitBtn = await page.$('input[type="submit"], button[type="submit"]');
   if (submitBtn) {
     await submitBtn.click();
@@ -125,22 +131,24 @@ async function postToGroup(page, fbGroupId, message, imageUrls) {
   throw new Error('Could not find submit button');
 }
 
-async function executeTask(context, task) {
-  const page = await context.newPage();
+async function executeTask(browser, task) {
+  const page = await browser.newPage();
   try {
+    const hasCookies = await loadCookies(page);
+    if (!hasCookies) throw new Error('No cookies available');
     await postToGroup(page, task.fb_group_id, task.message, task.image_urls);
+    await saveCookies(page);
     await api.post('/fb/completed', { task_ids: [task.id] });
     console.log(`[FB Relay] Task ${task.id} completed`);
   } catch (err) {
-    const errorMsg = err.message;
-    console.error(`[FB Relay] Task ${task.id} failed:`, errorMsg);
-    if (errorMsg === 'session expired' || errorMsg.includes('login')) {
-      await api.post('/fb/failed', { task_id: task.id, error: errorMsg });
-      await clearLocalSession();
+    console.error(`[FB Relay] Task ${task.id} failed:`, err.message);
+    if (err.message === 'session expired' || err.message.includes('login')) {
+      await api.post('/fb/failed', { task_id: task.id, error: err.message });
+      await clearLocalCookies();
       await api.post('/fb/clear-session');
       console.log('[FB Relay] Session expired, cleared. Waiting for admin upload.');
     } else {
-      await api.post('/fb/failed', { task_id: task.id, error: errorMsg });
+      await api.post('/fb/failed', { task_id: task.id, error: err.message });
     }
   } finally {
     await page.close();
@@ -154,37 +162,32 @@ async function main() {
     process.exit(1);
   }
   const executablePath = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
-  const browser = await chromium.launch({
+  const browser = await puppeteer.launch({
     executablePath,
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
-  let context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.58 Mobile Safari/537.36',
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
   });
   let sessionChecked = false;
   while (true) {
     try {
       if (!sessionChecked) {
-        const hasSession = await ensureSession(context);
-        if (hasSession) {
-          const loggedIn = await isLoggedIn(await context.newPage());
+        const page = await browser.newPage();
+        const hasCookies = await loadCookies(page);
+        if (hasCookies) {
+          const loggedIn = await isLoggedIn(page);
           if (!loggedIn) {
             console.log('[FB Relay] Session invalid, downloading fresh...');
-            await clearLocalSession();
-            const ok = await downloadSession();
+            await clearLocalCookies();
+            const ok = await downloadCookies();
             if (!ok) {
-              console.log('[FB Relay] No valid session. Waiting for admin upload.');
-              await new Promise(r => setTimeout(r, POLL_INTERVAL));
-              continue;
-            }
-            context = await browser.newContext();
-            if (!(await ensureSession(context))) {
+              console.log('[FB Relay] No valid cookies. Waiting for admin upload.');
+              await page.close();
               await new Promise(r => setTimeout(r, POLL_INTERVAL));
               continue;
             }
           }
         }
+        await page.close();
         sessionChecked = true;
       }
       const { data } = await api.get('/fb/pending?limit=5');
@@ -195,9 +198,8 @@ async function main() {
       }
       console.log(`[FB Relay] Processing ${tasks.length} tasks...`);
       for (const task of tasks) {
-        await executeTask(context, task);
+        await executeTask(browser, task);
       }
-      await saveSession(context);
     } catch (err) {
       console.error('[FB Relay] Loop error:', err.message);
       await new Promise(r => setTimeout(r, POLL_INTERVAL));
