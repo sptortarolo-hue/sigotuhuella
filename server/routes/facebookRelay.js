@@ -127,4 +127,21 @@ router.get('/fb/failed-tasks', requireAdmin, async (req, res) => {
   }
 });
 
+router.post('/fb/add-test-task', requireAdmin, async (req, res) => {
+  try {
+    const { fb_group_id, message } = req.body;
+    if (!fb_group_id || !message) {
+      return res.status(400).json({ error: 'fb_group_id and message are required' });
+    }
+    const result = await pool.query(
+      `INSERT INTO fb_relay_tasks (fb_group_id, message, status) VALUES ($1, $2, 'pending') RETURNING id`,
+      [fb_group_id, message]
+    );
+    res.json({ success: true, task_id: result.rows[0].id });
+  } catch (err) {
+    console.error('[FB Relay] add-test-task error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

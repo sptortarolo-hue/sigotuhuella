@@ -70,16 +70,6 @@ function cookieHeader() {
   return jar.map(c => `${c.name}=${c.value}`).join('; ');
 }
 
-async function getFbDtsg(html) {
-  const m = html.match(/name="fb_dtsg"\s+value="([^"]+)"/);
-  return m ? m[1] : null;
-}
-
-async function jazoest(html) {
-  const m = html.match(/name="jazoest"\s+value="(\d+)"/);
-  return m ? m[1] : '2';
-}
-
 async function postToGroup(fbGroupId, message) {
   const groupUrl = `https://mbasic.facebook.com/groups/${fbGroupId}`;
   const headers = {
@@ -95,24 +85,42 @@ async function postToGroup(fbGroupId, message) {
     throw new Error('session expired');
   }
 
-  // Find post form action
-  const formMatch = html.match(/<form[^>]*method="post"[^>]*action="([^"]+)"/);
-  const actionUrl = formMatch ? formMatch[1].replace(/&amp;/g, '&') : null;
-  if (!actionUrl) throw new Error('Could not find post form');
+  // Find the form that contains comment_text textarea (the post composer)
+  const formStartIdx = html.search(/<form[^>]*>[\s\S]*?<textarea[^>]*name="comment_text"/i);
+  if (formStartIdx === -1) throw new Error('Could not find post form (no comment_text textarea)');
 
-  const fb_dtsg = await getFbDtsg(html);
-  const jz = await jazoest(html);
-  const fullUrl = actionUrl.startsWith('http') ? actionUrl : `https://mbasic.facebook.com${actionUrl}`;
+  const formTag = html.substring(formStartIdx);
+  const actionMatch = formTag.match(/action="([^"]+)"/);
+  if (!actionMatch) throw new Error('Could not find form action');
+  let actionUrl = actionMatch[1].replace(/&amp;/g, '&');
+  if (!actionUrl.startsWith('http')) actionUrl = `https://mbasic.facebook.com${actionUrl}`;
 
-  // Post message
+  // Extract form content between <form> and </form>
+  const formOpenTagEnd = formTag.indexOf('>') + 1;
+  const formContent = formTag.substring(formOpenTagEnd);
+  const formEndIdx = formContent.indexOf('</form>');
+  const formBody = formContent.substring(0, formEndIdx);
+
+  // Extract ALL input fields from the form (name + value)
   const formData = new URLSearchParams();
-  formData.append('fb_dtsg', fb_dtsg || '');
-  formData.append('jazoest', jz);
-  formData.append('comment_text', message.substring(0, 5000));
-  formData.append('post_form_id', '');
-  formData.append('submit', 'Publicar');
+  const inputRegex = /<input[^>]*name="([^"]*)"[^>]*\/?>/gi;
+  let inputMatch;
+  while ((inputMatch = inputRegex.exec(formBody)) !== null) {
+    const name = inputMatch[1];
+    const valueMatch = inputMatch[0].match(/value="([^"]*)"/);
+    const value = valueMatch ? valueMatch[1] : '';
+    formData.append(name, value);
+  }
 
-  const postRes = await axios.post(fullUrl, formData.toString(), {
+  // Override comment_text with our message
+  formData.set('comment_text', message.substring(0, 5000));
+
+  // Ensure submit param exists
+  if (!formData.has('submit')) formData.append('submit', 'Publicar');
+
+  console.log(`[FB Relay] Sending to ${actionUrl} with ${Array.from(formData.keys()).join(', ')}`);
+
+  const postRes = await axios.post(actionUrl, formData.toString(), {
     headers: {
       ...headers,
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -124,6 +132,11 @@ async function postToGroup(fbGroupId, message) {
 
   const body = typeof postRes.data === 'string' ? postRes.data : '';
   const finalUrl = postRes.request?.res?.responseUrl || postRes.request?.responseURL || '';
+
+  // Log response snippet for debugging
+  const bodySnippet = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 300);
+  console.log(`[FB Relay] Post response (${body.length} bytes): ${bodySnippet.substring(0, 200)}...`);
+  console.log(`[FB Relay] Final URL: ${finalUrl}`);
 
   // Check for explicit Facebook errors
   const hasError = body.includes('class="_50f7"') || body.includes('class="error"') || body.includes('try again later');
