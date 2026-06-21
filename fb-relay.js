@@ -134,8 +134,8 @@ async function postToGroup(b, fbGroupId, message) {
     await triggerHandle.asElement().click();
     console.log('[FB Relay] Write something clicked');
 
-    // Esperar editor y asegurar foco antes de escribir
-    const editor = await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
+    // Esperar editor DENTRO del diálogo (no confundir con comentarios de posts)
+    const editor = await page.waitForSelector('div[role="dialog"] div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
     await sleep(2000);
 
     // Click en el editor con CDP para foco real
