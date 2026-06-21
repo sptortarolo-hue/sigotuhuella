@@ -188,17 +188,22 @@ async function postToGroup(b, fbGroupId, message) {
     });
     console.log('[FB Relay] Texto en editor:', editorText.substring(0, 80));
 
-    // Estrategia 1: Click Post dentro del diálogo (como fb-group-auto-post)
-    const postBtnInfo = await page.evaluate(() => {
+    // Click Post con mouse real (evento trusted para React)
+    const postBtnBox = await page.evaluate(() => {
       const xpath = '//div[@role="dialog"]//*[@aria-label="Post" or @aria-label="Publicar"]';
-      const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-      const el = result.singleNodeValue;
-      if (!el) return 'not_found';
-      const rect = el.getBoundingClientRect();
-      el.click();
-      return `tag=${el.tagName} text="${el.textContent.trim()}" x=${Math.round(rect.x)} y=${Math.round(rect.y)}`;
+      const el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x + r.width/2, y: r.y + r.height/2, tag: el.tagName, text: el.textContent.trim() };
     });
-    console.log('[FB Relay] Post click:', postBtnInfo);
+    console.log('[FB Relay] Post button:', JSON.stringify(postBtnBox));
+
+    if (postBtnBox) {
+      await page.mouse.click(postBtnBox.x, postBtnBox.y);
+      console.log('[FB Relay] Mouse click en Post');
+    } else {
+      throw new Error('Post button not found');
+    }
 
     await sleep(3000);
     await page.screenshot({ path: path.join(__dirname, 'fb_debug_post1.png') });
@@ -209,9 +214,15 @@ async function postToGroup(b, fbGroupId, message) {
     );
     console.log('[FB Relay] Dialog after click:', dialogOpen);
 
-    // Estrategia 2: Ctrl+Enter si el diálogo sigue abierto
+    // Fallback: Ctrl+Enter si el diálogo sigue abierto
     if (dialogOpen) {
-      console.log('[FB Relay] Intentando Ctrl+Enter...');
+      console.log('[FB Relay] Fallback Ctrl+Enter...');
+      // Hacer focus en el editor primero
+      await page.evaluate(() => {
+        const el = document.querySelector('div[role="textbox"][contenteditable="true"]');
+        if (el) el.focus();
+      });
+      await sleep(300);
       await page.keyboard.down('Control');
       await page.keyboard.press('Enter');
       await page.keyboard.up('Control');
@@ -221,18 +232,6 @@ async function postToGroup(b, fbGroupId, message) {
         document.querySelector('div[role="dialog"] div[role="textbox"]') !== null
       );
       console.log('[FB Relay] Dialog after Ctrl+Enter:', dialogOpen);
-    }
-
-    // Estrategia 3: Enter (último recurso)
-    if (dialogOpen) {
-      console.log('[FB Relay] Intentando Enter...');
-      await page.keyboard.press('Enter');
-      await sleep(3000);
-
-      dialogOpen = await page.evaluate(() =>
-        document.querySelector('div[role="dialog"] div[role="textbox"]') !== null
-      );
-      console.log('[FB Relay] Dialog after Enter:', dialogOpen);
     }
 
     await page.screenshot({ path: path.join(__dirname, 'fb_debug_post2.png') });
