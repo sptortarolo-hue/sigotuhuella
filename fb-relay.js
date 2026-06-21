@@ -125,10 +125,14 @@ async function postToGroup(b, fbGroupId, message) {
       throw new Error('session expired');
     }
 
-    // Click "Write something..." por XPath (como fb-group-auto-post)
-    const [trigger] = await page.$x('//span[contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Qué estás pensando")]');
-    if (!trigger) throw new Error('Write something not found');
-    await trigger.click();
+    // Click "Write something..." por XPath nativo (como fb-group-auto-post)
+    await page.evaluate(() => {
+      const xpath = '//span[contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Qué estás pensando")]';
+      const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+      const el = result.singleNodeValue;
+      if (!el) throw new Error('Write something not found');
+      el.click();
+    });
 
     // Esperar y llenar editor (como PostPilot + fb-group-auto-post)
     await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
@@ -136,10 +140,14 @@ async function postToGroup(b, fbGroupId, message) {
     await page.fill('div[role="textbox"][contenteditable="true"]', message);
     await sleep(3000);
 
-    // Click Post por XPath (como fb-group-auto-post)
-    const [postBtn] = await page.$x('//div[@aria-label="Post" or @aria-label="Publicar"]');
-    if (!postBtn) throw new Error('Post button not found');
-    await postBtn.click();
+    // Click Post por XPath nativo (como fb-group-auto-post)
+    await page.evaluate(() => {
+      const xpath = '//div[@aria-label="Post" or @aria-label="Publicar"]';
+      const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+      const el = result.singleNodeValue;
+      if (!el) throw new Error('Post button not found');
+      el.click();
+    });
 
     // Esperar publicación (como fb-group-auto-post)
     await sleep(5000);
