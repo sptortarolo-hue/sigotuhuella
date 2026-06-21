@@ -1,4 +1,4 @@
-import { chromium } from 'playwright-core';
+import puppeteer from 'puppeteer-core';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
@@ -28,7 +28,7 @@ async function getBrowser() {
     console.error('[FB Relay] Ejecutá: pkg install x11-repo && pkg install chromium');
     process.exit(1);
   }
-  browser = await chromium.launch({
+  browser = await puppeteer.launch({
     executablePath: CHROMIUM_PATH,
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
@@ -83,17 +83,23 @@ function clearCookies() {
   }
 }
 
-async function postToGroup(b, fbGroupId, message) {
-  const cookies = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8'));
-  const context = await b.newContext({
-    userAgent: 'Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-    viewport: { width: 1280, height: 720 },
+function ensureValidCookies(cookies) {
+  return cookies.map(c => {
+    if (!c.domain) c.domain = '.facebook.com';
+    if (!c.path) c.path = '/';
+    return c;
   });
-  await context.addCookies(cookies);
+}
 
-  const page = await context.newPage();
+async function postToGroup(b, fbGroupId, message) {
+  const cookies = ensureValidCookies(JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8')));
+  const page = await b.newPage();
 
   try {
+    await page.setUserAgent('Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
+    await page.setViewport({ width: 1280, height: 720 });
+    await page.setCookie(...cookies);
+
     console.log(`[FB Relay] Navegando al grupo ${fbGroupId}...`);
     await page.goto(`https://www.facebook.com/groups/${fbGroupId}`, {
       waitUntil: 'networkidle',
@@ -104,43 +110,57 @@ async function postToGroup(b, fbGroupId, message) {
       throw new Error('session expired');
     }
 
-    await page.waitForTimeout(2000);
+    await sleep(3000);
 
-    // Tomar screenshot inicial para debug
+    // Screenshot de debug
     await page.screenshot({ path: path.join(__dirname, `fb_debug_${fbGroupId}.png`) });
 
-    // Click en "Write something..." / "Escribe algo..." / "Comparte..."
-    const composerTrigger = page.locator('span, div[role="button"]').filter({
-      hasText: /Write something|Escribe algo|Qué estás pensando|Comparte|Publicar en/i,
-    }).first();
-    await composerTrigger.waitFor({ timeout: 15000 });
-    await composerTrigger.click();
+    // Click en "Write something..." / "Escribe algo..."
+    await page.evaluate(() => {
+      const candidates = document.querySelectorAll('span, div[role="button"]');
+      for (const el of candidates) {
+        if (/Write something|Escribe algo|Qué estás pensando|Comparte|Publicar en/i.test(el.textContent)) {
+          el.click();
+          return;
+        }
+      }
+      throw new Error('composer trigger not found');
+    });
 
-    // Esperar que aparezca el editor de texto
-    await page.waitForTimeout(2000);
-    const editor = page.locator('div[role="textbox"][contenteditable="true"]').first();
-    await editor.waitFor({ timeout: 10000 });
-    await editor.click();
-    await page.waitForTimeout(500);
+    // Esperar editor
+    await sleep(3000);
+    await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 10000 });
+    await page.click('div[role="textbox"][contenteditable="true"]');
+    await sleep(500);
 
-    // Escribir el contenido del post
-    await editor.fill(message);
-    await page.waitForTimeout(1000);
+    // Insertar texto via execCommand (funciona con Draft.js)
+    await page.evaluate(text => {
+      const el = document.querySelector('div[role="textbox"][contenteditable="true"]');
+      el.focus();
+      document.execCommand('insertText', false, text);
+    }, message);
+    await sleep(1000);
 
-    // Click en botón Post/Publicar
-    const postBtn = page.getByRole('button', { name: /Post|Publicar/ }).last();
-    await postBtn.waitFor({ timeout: 8000 });
-    await postBtn.click();
+    // Click botón Publicar
+    await page.evaluate(() => {
+      const dialog = document.querySelector('div[role="dialog"]');
+      const root = dialog || document;
+      const buttons = root.querySelectorAll('div[role="button"], button, span[role="button"]');
+      for (const btn of buttons) {
+        if (/^Post$|^Publicar$|^Compartir$/i.test(btn.textContent.trim())) {
+          btn.click();
+          return;
+        }
+      }
+      // Fallback: buscar por aria-label
+      const labeled = root.querySelector('[aria-label="Post"], [aria-label="Publicar"]');
+      if (labeled) { labeled.click(); return; }
+      throw new Error('Post button not found');
+    });
 
-    // Esperar que se cierre el diálogo del composer
-    await page.waitForFunction(
-      () => !document.querySelector('div[role="dialog"] div[role="textbox"]'),
-      { timeout: 30000 }
-    ).catch(() => {});
-    await page.waitForTimeout(3000);
-
-    // Verificar si hay pendiente de aprobación
-    const bodyText = await page.textContent('body').catch(() => '');
+    // Esperar cierre del diálogo
+    await sleep(5000);
+    const bodyText = await page.evaluate(() => document.body.textContent || '').catch(() => '');
     if (/pending|pendiente|aprobación/i.test(bodyText)) {
       console.log('[FB Relay] Post pendiente de aprobación en el grupo');
     }
@@ -149,7 +169,6 @@ async function postToGroup(b, fbGroupId, message) {
     return true;
   } finally {
     await page.close();
-    await context.close();
   }
 }
 
@@ -162,7 +181,7 @@ async function executeTask(task) {
 }
 
 async function main() {
-  console.log('[FB Relay] Iniciando Facebook relay (Playwright + Chromium)...');
+  console.log('[FB Relay] Iniciando Facebook relay (Puppeteer + Chromium)...');
   console.log(`[FB Relay] Chromium: ${CHROMIUM_PATH}`);
   if (!TOKEN) {
     console.error('[FB Relay] FATAL: RELAY_TOKEN no configurado');
@@ -218,13 +237,13 @@ async function main() {
   }
 }
 
-// Modo test: node fb-relay.js --test <groupId> "mensaje"
+// Modo test: node fb-relay.mjs --test <groupId> "mensaje"
 if (process.argv.includes('--test')) {
   const idx = process.argv.indexOf('--test');
   const testGroup = process.argv[idx + 1];
   const testMsg = process.argv[idx + 2] || 'Test automático - ' + new Date().toISOString();
   if (!testGroup) {
-    console.error('Uso: node fb-relay.js --test <groupId> "mensaje opcional"');
+    console.error('Uso: node fb-relay.mjs --test <groupId> "mensaje opcional"');
     process.exit(1);
   }
   (async () => {
