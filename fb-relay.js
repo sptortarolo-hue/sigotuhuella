@@ -114,11 +114,18 @@ async function postToGroup(b, fbGroupId, message) {
     await page.setCookie(...cookies);
     await sleep(1000);
 
+    // Capturar errores de JS
+    const jsErrors = [];
+    page.on('pageerror', err => jsErrors.push(err.message));
+
     console.log(`[FB Relay] Navegando al grupo ${fbGroupId}...`);
     await page.goto(`https://www.facebook.com/groups/${fbGroupId}`, {
-      waitUntil: 'networkidle2',
-      timeout: 45000,
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
     });
+
+    console.log('[FB Relay] Esperando carga de React...');
+    await sleep(15000);
 
     if (page.url().includes('login') || page.url().includes('checkpoint')) {
       const loginText = await page.evaluate(() => document.body.textContent.substring(0, 500)).catch(() => '');
@@ -126,29 +133,38 @@ async function postToGroup(b, fbGroupId, message) {
       throw new Error('session expired');
     }
 
-    await sleep(3000);
+    if (jsErrors.length > 0) {
+      console.log('[FB Relay] Errores JS:', jsErrors.slice(0, 5).join(' | '));
+    }
 
-    // Guardar texto de la página en archivo para debug
+    // Guardar página para debug
+    const rawHTML = await page.content().catch(() => '');
+    fs.writeFileSync(path.join(__dirname, 'fb_debug.html'), rawHTML);
     const pageText = await page.evaluate(() => document.body.textContent).catch(() => '');
     fs.writeFileSync(path.join(__dirname, 'fb_debug_page.txt'), pageText);
-    console.log('[FB Relay] Debug: texto guardado en fb_debug_page.txt');
+    console.log('[FB Relay] Debug: HTML y texto guardados');
 
     // Screenshot de debug
     await page.screenshot({ path: path.join(__dirname, `fb_debug_${fbGroupId}.png`) });
+    console.log('[FB Relay] Debug: screenshot guardado');
 
-    // Verificar estado de la página rápidamente
+    // Verificar si React de Facebook se cargó
     const pageInfo = await page.evaluate(() => {
-      const t = document.title || '';
+      const hasReact = document.querySelector('[id^="mount_0_"]') !== null;
+      const t = document.title || '(sin título)';
       const url = location.href;
       const hasLogin = document.querySelector('#login_form, .login_form, [data-testid="royal_login_form"]') !== null;
       const hasComposer = document.querySelector('div[contenteditable="true"], div[role="textbox"]') !== null;
-      const text50 = document.body.textContent.substring(0, 200).replace(/\s+/g, ' ').trim();
-      return { title: t, url, hasLogin, hasComposer, snippet: text50 };
+      const bodyLen = document.body.textContent.length;
+      const text100 = document.body.textContent.substring(0, 300).replace(/\s+/g, ' ').trim();
+      return { hasReact, title: t, url, hasLogin, hasComposer, bodyLen, snippet: text100 };
     });
-    console.log('[FB Relay] Pag:', pageInfo.title);
+    console.log('[FB Relay] React:', pageInfo.hasReact);
+    console.log('[FB Relay] Title:', pageInfo.title);
     console.log('[FB Relay] URL:', pageInfo.url);
+    console.log('[FB Relay] Body:', pageInfo.bodyLen, 'bytes');
     if (pageInfo.hasLogin) console.log('[FB Relay] LOGIN detectado');
-    console.log('[FB Relay] Inicio:', pageInfo.snippet);
+    console.log('[FB Relay] Snippet:', pageInfo.snippet);
 
     if (pageInfo.hasComposer) {
       console.log('[FB Relay] Composer ya visible');
