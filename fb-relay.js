@@ -118,7 +118,7 @@ async function postToGroup(fbGroupId, message) {
     formData.append(f, '');
   }
 
-  console.log(`[FB Relay] Posting to ${postUrl} with ${fb_dtsg.substring(0,10)}..., target=${fbGroupId}`);
+  console.log(`[FB Relay] Posting to ${postUrl} with fb_dtsg=${fb_dtsg.substring(0,10)}..., target=${fbGroupId}`);
 
   const postRes = await axios.post(postUrl, formData.toString(), {
     headers: {
@@ -128,20 +128,38 @@ async function postToGroup(fbGroupId, message) {
     },
     maxRedirects: 5,
     timeout: 30000,
+    validateStatus: () => true, // don't throw on any status
   });
 
   const body = typeof postRes.data === 'string' ? postRes.data : '';
   const finalUrl = postRes.request?.res?.responseUrl || postRes.request?.responseURL || '';
+  console.log(`[FB Relay] HTTP ${postRes.status} -> ${finalUrl || '(no redirect)'}`);
 
-  const bodySnippet = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 300);
-  console.log(`[FB Relay] Post response (${body.length} bytes): ${bodySnippet.substring(0, 200)}...`);
+  const bodySnippet = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  console.log(`[FB Relay] Post response (${body.length} bytes): ${bodySnippet.substring(0, 500)}`);
   console.log(`[FB Relay] Final URL: ${finalUrl}`);
 
-  const hasError = body.includes('class="_50f7"') || body.includes('class="error"') || body.includes('try again later');
-  if (hasError) {
+  // Check for various Facebook responses
+  const lowerBody = body.toLowerCase();
+  if (body.includes('class="_50f7"') || body.includes('class="error"') || body.includes('try again later')) {
     const snippet = body.substring(0, 500).replace(/<[^>]+>/g, ' ').trim().substring(0, 200);
     console.error(`[FB Relay] Error response:`, snippet);
     throw new Error('Facebook returned an error');
+  }
+
+  if (lowerBody.includes('pending') || lowerBody.includes('review') || lowerBody.includes('approval')) {
+    console.warn(`[FB Relay] Post may be pending approval: redirect=${finalUrl}`);
+    // Not throwing error - post was accepted but needs approval
+  }
+
+  if (lowerBody.includes('join') || lowerBody.includes('not a member')) {
+    console.error(`[FB Relay] Account is not a member of group ${fbGroupId}`);
+    throw new Error('Account is not a member of this group');
+  }
+
+  // Full body log for diagnosis when response is small
+  if (body.length > 0 && body.length < 5000) {
+    console.log(`[FB Relay] Full response body: ${bodySnippet.substring(0, 1000)}`);
   }
 
   console.log(`[FB Relay] Posted to group ${fbGroupId}`);
