@@ -192,6 +192,18 @@ async function start() {
             await sendWithRetry(jid, { text: msg.text });
           }
           sentIds.push(msg.id);
+          // Segundo intento para contactos nuevos (tctoken recovery silencioso)
+          if (!isGroup) {
+            await sleep(3000);
+            try {
+              if (msg.image_url) {
+                const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });
+                await sock.sendMessage(jid, { image: Buffer.from(imgResp.data), caption: msg.text || '' });
+              } else {
+                await sock.sendMessage(jid, { text: msg.text });
+              }
+            } catch (_) { /* best-effort */ }
+          }
         } catch (e) {
           console.error(`Error a ${msg.wa_to}:`, e.message);
         }
