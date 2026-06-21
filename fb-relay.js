@@ -101,163 +101,66 @@ async function postToGroup(b, fbGroupId, message) {
   const page = await b.newPage();
 
   try {
-    // Ocultar detección de headless
     await page.evaluateOnNewDocument(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
     });
-
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
-    await page.setViewport({ width: 1280, height: 720 });
+    await page.setViewport({ width: 1440, height: 900 });
 
-    // Ir a Facebook primero para establecer dominio
+    // Establecer sesión
     await page.goto('https://www.facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.setCookie(...cookies);
-    await sleep(1000);
+    await page.goto('https://www.facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await sleep(2000);
 
-    // Capturar errores de JS
-    const jsErrors = [];
-    page.on('pageerror', err => jsErrors.push(err.message));
-
-    console.log(`[FB Relay] Navegando al grupo ${fbGroupId}...`);
-    await page.goto(`https://www.facebook.com/groups/${fbGroupId}`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 60000,
+    // Navegar al grupo
+    console.log(`[FB Relay] Grupo ${fbGroupId}...`);
+    await page.goto(`https://facebook.com/groups/${fbGroupId}`, {
+      waitUntil: 'domcontentloaded', timeout: 45000,
     });
-
-    console.log('[FB Relay] Esperando carga de React...');
-    await sleep(15000);
+    await sleep(3000);
 
     if (page.url().includes('login') || page.url().includes('checkpoint')) {
-      const loginText = await page.evaluate(() => document.body.textContent.substring(0, 500)).catch(() => '');
-      console.log('[FB Relay] Login/checkpoint detectado. Texto:', loginText.substring(0, 300));
       throw new Error('session expired');
     }
 
-    if (jsErrors.length > 0) {
-      console.log('[FB Relay] Errores JS:', jsErrors.slice(0, 5).join(' | '));
-    }
-
-    // Guardar página para debug
-    const rawHTML = await page.content().catch(() => '');
-    fs.writeFileSync(path.join(__dirname, 'fb_debug.html'), rawHTML);
-    const pageText = await page.evaluate(() => document.body.textContent).catch(() => '');
-    fs.writeFileSync(path.join(__dirname, 'fb_debug_page.txt'), pageText);
-    console.log('[FB Relay] Debug: HTML y texto guardados');
-
-    // Screenshot de debug
-    await page.screenshot({ path: path.join(__dirname, `fb_debug_${fbGroupId}.png`) });
-    console.log('[FB Relay] Debug: screenshot guardado');
-
-    // Verificar si React de Facebook se cargó
-    const pageInfo = await page.evaluate(() => {
-      const hasReact = document.querySelector('[id^="mount_0_"]') !== null;
-      const t = document.title || '(sin título)';
-      const url = location.href;
-      const hasLogin = document.querySelector('#login_form, .login_form, [data-testid="royal_login_form"]') !== null;
-      const hasComposer = document.querySelector('div[contenteditable="true"], div[role="textbox"]') !== null;
-      const bodyLen = document.body.textContent.length;
-      const text100 = document.body.textContent.substring(0, 300).replace(/\s+/g, ' ').trim();
-      return { hasReact, title: t, url, hasLogin, hasComposer, bodyLen, snippet: text100 };
-    });
-    console.log('[FB Relay] React:', pageInfo.hasReact);
-    console.log('[FB Relay] Title:', pageInfo.title);
-    console.log('[FB Relay] URL:', pageInfo.url);
-    console.log('[FB Relay] Body:', pageInfo.bodyLen, 'bytes');
-    if (pageInfo.hasLogin) console.log('[FB Relay] LOGIN detectado');
-    console.log('[FB Relay] Snippet:', pageInfo.snippet);
-
-    if (pageInfo.hasComposer) {
-      console.log('[FB Relay] Composer ya visible');
-      await page.click('div[contenteditable="true"], div[role="textbox"]');
+    // Click "Write something..." (igual que fb-group-auto-post)
+    const writeSpan = await page.$('span:has-text("Write something"), span:has-text("Escribe algo"), span:has-text("Qué estás pensando")');
+    if (writeSpan) {
+      await writeSpan.click();
     } else {
-      // Buscar el trigger del composer
+      // Fallback: buscar por XPath
       await page.evaluate(() => {
-        const candidates = document.querySelectorAll('span[role="button"], div[role="button"], a[role="button"], button, a');
-        for (const el of candidates) {
-          const t = el.textContent.trim();
-          if (/Write something|Escribe algo|Qué estás pensando|Comparte|Publicar en|Create post|Crear publicación|Start a post|.+post/i.test(t)) {
-            el.click(); return;
+        const spans = document.querySelectorAll('span');
+        for (const s of spans) {
+          if (/Write something|Escribe algo|Qué estás pensando|Comparte/i.test(s.textContent)) {
+            s.click(); return;
           }
         }
+        throw new Error('Write something not found');
       });
-      await sleep(2000);
-
-      const found = await page.evaluate(() => {
-        return document.querySelector('div[contenteditable="true"], div[role="textbox"]') !== null;
-      });
-
-      if (!found) {
-        // Intentar /composer/ como fallback
-        await page.goto(`https://www.facebook.com/groups/${fbGroupId}/composer/`, {
-          waitUntil: 'networkidle2', timeout: 30000,
-        }).catch(() => {});
-        await sleep(3000);
-
-        const found2 = await page.evaluate(() => {
-          return document.querySelector('div[contenteditable="true"], div[role="textbox"]') !== null;
-        });
-
-        if (!found2) {
-          await page.screenshot({ path: path.join(__dirname, 'fb_debug_nocomposer.png') });
-          throw new Error('composer trigger not found');
-        }
-      }
     }
 
-    // Esperar editor
-    await sleep(2000);
-    await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 10000 });
+    // Esperar y llenar editor (como PostPilot)
+    await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
     await page.click('div[role="textbox"][contenteditable="true"]');
     await sleep(500);
+    await page.fill('div[role="textbox"][contenteditable="true"]', message);
+    await sleep(2000);
 
-    // Insertar texto
-    await page.evaluate(text => {
-      const el = document.querySelector('div[role="textbox"][contenteditable="true"]');
-      el.focus();
-      document.execCommand('insertText', false, text);
-    }, message);
-    await sleep(1000);
+    // Click Post por aria-label (como fb-group-auto-post)
+    const postBtn = await page.$('[aria-label="Post"], [aria-label="Publicar"]');
+    if (!postBtn) throw new Error('Post button not found');
+    await postBtn.click();
 
-    // Click botón Publicar
-    const posted = await page.evaluate(() => {
-      const btns = document.querySelectorAll('div[role="button"], button, span[role="button"], [aria-label]');
-      for (const btn of btns) {
-        const t = btn.textContent.trim();
-        const al = btn.getAttribute('aria-label') || '';
-        if (/^Post$/i.test(t) || /^Publicar$/i.test(t) || /^Compartir$/i.test(t) ||
-            /^Post$/i.test(al) || /^Publicar$/i.test(al)) {
-          btn.click();
-          return 'clicked:' + t.substring(0, 50);
-        }
-      }
-      return '';
-    });
-    console.log('[FB Relay] Post button click:', posted);
-
-    if (!posted) {
-      const btnsDebug = await page.evaluate(() => {
-        return Array.from(document.querySelectorAll('div[role="button"], button, span[role="button"], [aria-label]'))
-          .map(b => {
-            const text = (b.textContent || '').trim().substring(0, 40);
-            const aria = b.getAttribute('aria-label') || '';
-            const role = b.getAttribute('role') || '';
-            const tag = b.tagName;
-            return `${tag}[${role}] "${text}" aria="${aria}"`;
-          })
-          .filter(s => s.length > 10)
-          .slice(0, 20);
-      });
-      console.log('[FB Relay] Botones en página:', JSON.stringify(btnsDebug, null, 2));
-      await page.screenshot({ path: path.join(__dirname, 'fb_debug_nopostbtn.png') });
-      throw new Error('Post button not found');
-    }
-
-    // Esperar cierre del diálogo
+    // Esperar publicación
     await sleep(5000);
-    const bodyText = await page.evaluate(() => document.body.textContent || '').catch(() => '');
-    if (/pending|pendiente|aprobación/i.test(bodyText)) {
-      console.log('[FB Relay] Post pendiente de aprobación en el grupo');
-    }
+    try {
+      await page.waitForFunction(
+        () => !document.querySelector('div[role="dialog"] div[role="textbox"]'),
+        { timeout: 15000 }
+      );
+    } catch {}
 
     console.log(`[FB Relay] Publicado en grupo ${fbGroupId}`);
     return true;
