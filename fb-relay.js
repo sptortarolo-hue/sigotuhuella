@@ -198,38 +198,29 @@ async function postToGroup(b, fbGroupId, message) {
     });
 
     // Esperar y verificar resultado
-    await sleep(5000);
+    await sleep(4000);
 
     // Tomar screenshot post-publicación
     await page.screenshot({ path: path.join(__dirname, 'fb_debug_post.png') });
 
-    // Verificar si hay mensaje de pendiente/error
-    const postResult = await page.evaluate(() => {
+    // Verificar estado después del post
+    const postStatus = await page.evaluate(() => {
       const body = document.body.textContent || '';
       const pending = /pending|pendiente|aprobación|revisión/i.test(body);
       const hasError = /something went wrong|algo salió mal|try again later|intenta de nuevo|no se pudo/i.test(body);
-      const dialogStillOpen = document.querySelector('div[role="dialog"] div[role="textbox"]') !== null;
-      const errorSnippet = body.match(/[^.]*(something went wrong|algo salió mal|try again|intenta de nuevo|no se pudo)[^.]*\./i);
-      return { pending, hasError, dialogStillOpen, errorSnippet: errorSnippet ? errorSnippet[0].trim().substring(0, 200) : '' };
+      const dialogOpen = document.querySelector('div[role="dialog"] div[role="textbox"]') !== null;
+      return { pending, hasError, dialogOpen };
     });
-    console.log('[FB Relay] Post-result:', JSON.stringify(postResult));
+    console.log('[FB Relay] Post-status:', JSON.stringify(postStatus));
 
-    if (postResult.hasError) {
-      console.error('[FB Relay] Error de Facebook:', postResult.errorSnippet);
-      throw new Error('Facebook error: ' + postResult.errorSnippet.substring(0, 100));
-    }
-    if (postResult.pending) {
-      console.log('[FB Relay] Post pendiente de aprobación');
-    }
-    if (postResult.dialogStillOpen) {
-      // Intentar submit de nuevo
-      await page.evaluate(() => {
-        const xpath = '//div[@aria-label="Post" or @aria-label="Publicar"]';
-        const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-        const el = result.singleNodeValue;
-        if (el) el.click();
-      });
-      await sleep(5000);
+    if (postStatus.hasError) throw new Error('Facebook error after posting');
+
+    if (postStatus.pending || postStatus.dialogOpen) {
+      // Cerrar diálogo con Escape
+      await page.keyboard.press('Escape');
+      await sleep(1000);
+      await page.keyboard.press('Escape');
+      await sleep(1000);
     }
 
     console.log(`[FB Relay] Publicado en grupo ${fbGroupId}`);
