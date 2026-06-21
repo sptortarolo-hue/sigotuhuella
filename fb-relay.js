@@ -188,9 +188,9 @@ async function postToGroup(b, fbGroupId, message) {
     });
     console.log('[FB Relay] Texto en editor:', editorText.substring(0, 80));
 
-    // Click Post por XPath nativo (como fb-group-auto-post)
+    // Click Post dentro del diálogo (como fb-group-auto-post)
     await page.evaluate(() => {
-      const xpath = '//div[@aria-label="Post" or @aria-label="Publicar"]';
+      const xpath = '//div[@role="dialog"]//*[@aria-label="Post" or @aria-label="Publicar"]';
       const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
       const el = result.singleNodeValue;
       if (!el) throw new Error('Post button not found');
