@@ -21,7 +21,10 @@ let browser = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function getBrowser() {
-  if (browser && browser.isConnected()) return browser;
+  if (browser) {
+    try { await browser.version(); return browser; }
+    catch (e) { browser = null; }
+  }
   console.log('[FB Relay] Lanzando Chromium...');
   if (!fs.existsSync(CHROMIUM_PATH)) {
     console.error(`[FB Relay] Chromium no encontrado en ${CHROMIUM_PATH}`);
