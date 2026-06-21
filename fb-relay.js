@@ -31,7 +31,12 @@ async function getBrowser() {
   browser = await puppeteer.launch({
     executablePath: CHROMIUM_PATH,
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-blink-features=AutomationControlled',
+    ],
   });
   return browser;
 }
@@ -96,7 +101,12 @@ async function postToGroup(b, fbGroupId, message) {
   const page = await b.newPage();
 
   try {
-    await page.setUserAgent('Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
+    // Ocultar detección de headless
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    });
+
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1280, height: 720 });
 
     // Ir a Facebook primero para establecer dominio
