@@ -181,6 +181,13 @@ async function postToGroup(b, fbGroupId, message) {
     }, message);
     await sleep(3000);
 
+    // Verificar que el editor tenga texto antes de postear
+    const editorText = await page.evaluate(() => {
+      const el = document.querySelector('div[role="textbox"][contenteditable="true"]');
+      return el ? el.textContent : '';
+    });
+    console.log('[FB Relay] Texto en editor:', editorText.substring(0, 80));
+
     // Click Post por XPath nativo (como fb-group-auto-post)
     await page.evaluate(() => {
       const xpath = '//div[@aria-label="Post" or @aria-label="Publicar"]';
@@ -190,12 +197,38 @@ async function postToGroup(b, fbGroupId, message) {
       el.click();
     });
 
-    // Esperar publicación (como fb-group-auto-post)
+    // Esperar y verificar resultado
     await sleep(5000);
-    await page.waitForFunction(
-      () => !document.querySelector('div[role="dialog"] div[role="textbox"]'),
-      { timeout: 15000 }
-    ).catch(() => {});
+
+    // Tomar screenshot post-publicación
+    await page.screenshot({ path: path.join(__dirname, 'fb_debug_post.png') });
+
+    // Verificar si hay mensaje de pendiente/error
+    const postResult = await page.evaluate(() => {
+      const body = document.body.textContent || '';
+      const pending = /pending|pendiente|aprobación|revisión|Your post|tu publicación/i.test(body);
+      const error = /error|error|try again|intenta de nuevo|not allowed|no permitido/i.test(body);
+      const dialogStillOpen = document.querySelector('div[role="dialog"] div[role="textbox"]') !== null;
+      return { pending, error, dialogStillOpen, snippet: body.substring(0, 200).replace(/\s+/g, ' ').trim() };
+    });
+    console.log('[FB Relay] Post-result:', JSON.stringify(postResult));
+
+    if (postResult.error) {
+      throw new Error('Facebook returned an error after posting');
+    }
+    if (postResult.pending) {
+      console.log('[FB Relay] Post pendiente de aprobación');
+    }
+    if (postResult.dialogStillOpen) {
+      // Intentar submit de nuevo
+      await page.evaluate(() => {
+        const xpath = '//div[@aria-label="Post" or @aria-label="Publicar"]';
+        const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        const el = result.singleNodeValue;
+        if (el) el.click();
+      });
+      await sleep(5000);
+    }
 
     console.log(`[FB Relay] Publicado en grupo ${fbGroupId}`);
     return true;
