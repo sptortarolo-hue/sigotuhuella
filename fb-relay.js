@@ -85,9 +85,9 @@ async function postToGroup(fbGroupId, message) {
     throw new Error('session expired');
   }
 
-  // Find the form that contains comment_text textarea (the post composer)
-  const formStartIdx = html.search(/<form[^>]*>[\s\S]*?<textarea[^>]*name="comment_text"/i);
-  if (formStartIdx === -1) throw new Error('Could not find post form (no comment_text textarea)');
+  // Find the post composer form by its id
+  const formStartIdx = html.search(/<form[^>]*id="mbasic_inline_feed_composer"[^>]*>/i);
+  if (formStartIdx === -1) throw new Error('Could not find post form (no mbasic_inline_feed_composer)');
 
   const formTag = html.substring(formStartIdx);
   const actionMatch = formTag.match(/action="([^"]+)"/);
@@ -112,11 +112,11 @@ async function postToGroup(fbGroupId, message) {
     formData.append(name, value);
   }
 
-  // Override comment_text with our message
-  formData.set('comment_text', message.substring(0, 5000));
+  // Override xc_message with our message
+  formData.set('xc_message', message.substring(0, 5000));
 
-  // Ensure submit param exists
-  if (!formData.has('submit')) formData.append('submit', 'Publicar');
+  // Ensure view_post param exists (submit button name)
+  if (!formData.has('view_post')) formData.append('view_post', 'Post');
 
   console.log(`[FB Relay] Sending to ${actionUrl} with ${Array.from(formData.keys()).join(', ')}`);
 
