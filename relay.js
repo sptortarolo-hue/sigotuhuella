@@ -8,7 +8,9 @@ const TOKEN = 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
 const POLL_INTERVAL = 30000;
 const MAX_RETRIES = 3;
+const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
+const replyCooldowns = new Map();
 let sock = null;
 let pollTimer = null;
 let reconnectCount = 0;
@@ -119,19 +121,41 @@ async function start() {
 
   sock.ev.on('messages.upsert', async ({ messages }) => {
     for (const msg of messages) {
-      if (msg.key.fromMe) continue;
       if (msg.key.remoteJid === 'status@broadcast') continue;
       if (msg.key.remoteJid.endsWith('@g.us')) continue;
 
       const from = msg.key.remoteJid;
+
+      // Admin respondió → cooldown 24h para ese número
+      if (msg.key.fromMe) {
+        replyCooldowns.set(from, Date.now());
+        console.log(`[Cooldown] Admin respondió a ${from}, 24h sin auto-reply`);
+        continue;
+      }
+
+      // Usuario escribe, pero está en cooldown → silencio
+      if (replyCooldowns.has(from)) continue;
+
+      // Usuario escribe, sin cooldown → auto-reply + activar cooldown
       const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
       console.log(`[Entrante] ${from}: ${text.substring(0, 80)}`);
 
       await sock.sendMessage(from, {
-        text: `🐾 ¡Gracias por contactarte con Sigo Tu Huella!\nEste número es solo para notificaciones automáticas.\nPara reportar una mascota, ver adopciones, y mucho más, escribinos a:\n📱 wa.me/${BOT_NUMBER}\n🔗 sigotuhuella.online`
+        text: `🐾 ¡Gracias por contactarte con Sigo Tu Huella!\nEste número es solo para notificaciones automáticas.\nPara reportar una mascota, ver adopciones, y mucho más, escribinos a:\n\n📱 wa.me/${BOT_NUMBER}\n\n🔗 sigotuhuella.online`
       });
+
+      replyCooldowns.set(from, Date.now());
+      console.log(`[Cooldown] Auto-reply enviado a ${from}, 24h sin repetir`);
     }
   });
+
+  // Limpiar cooldowns expirados cada hora
+  setInterval(() => {
+    const now = Date.now();
+    for (const [jid, ts] of replyCooldowns) {
+      if (now - ts > COOLDOWN_MS) replyCooldowns.delete(jid);
+    }
+  }, 3600000);
 
   pollTimer = setInterval(async () => {
     try {
