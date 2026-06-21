@@ -125,14 +125,52 @@ async function postToGroup(b, fbGroupId, message) {
       throw new Error('session expired');
     }
 
-    // Click "Write something..." por XPath nativo (como fb-group-auto-post)
-    await page.evaluate(() => {
-      const xpath = '//span[contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Qué estás pensando")]';
-      const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-      const el = result.singleNodeValue;
-      if (!el) throw new Error('Write something not found');
-      el.click();
+    // Guardar HTML para debug
+    const html = await page.content().catch(() => '');
+    fs.writeFileSync(path.join(__dirname, 'fb_debug.html'), html);
+    await page.screenshot({ path: path.join(__dirname, 'fb_debug.png') });
+
+    // Buscar "Write something..." con estrategias múltiples
+    const found = await page.evaluate(() => {
+      // Estrategia 1: span exacto como fb-group-auto-post
+      let xpath = '//span[contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Qué estás pensando")]';
+      let result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+      let el = result.singleNodeValue;
+      if (el) { el.click(); return 'span_text'; }
+
+      // Estrategia 2: cualquier elemento role=button
+      xpath = '//*[@role="button" and (contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Comparte") or contains(text(), "Crear publicación") or contains(text(), "What\'s on your mind") or contains(text(), "¿Qué estás pensando"))]';
+      result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+      el = result.singleNodeValue;
+      if (el) { el.click(); return 'role_button'; }
+
+      // Estrategia 3: aria-label
+      xpath = '//*[@aria-label="Create a post" or @aria-label="Crear publicación" or @aria-label="Write something..." or @aria-label="Escribe algo..."]';
+      result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+      el = result.singleNodeValue;
+      if (el) { el.click(); return 'aria_label'; }
+
+      // Estrategia 4: placeholder en contenteditable (composer ya abierto)
+      xpath = '//*[@contenteditable="true" or @role="textbox"]';
+      result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+      el = result.singleNodeValue;
+      if (el) { el.focus(); return 'already_open'; }
+
+      return '';
     });
+    console.log('[FB Relay] Composer:', found);
+
+    if (!found) {
+      // Dump de spans con texto corto para entender qué hay
+      const snippets = await page.evaluate(() => {
+        return Array.from(document.querySelectorAll('span, div[role="button"], a[role="button"], button'))
+          .map(e => ({ tag: e.tagName, role: e.getAttribute('role') || '', text: e.textContent.trim().substring(0, 60) }))
+          .filter(e => e.text.length > 3 && e.text.length < 100)
+          .slice(0, 30);
+      });
+      console.log('[FB Relay] Elementos con texto:', JSON.stringify(snippets, null, 2));
+      throw new Error('Write something not found');
+    }
 
     // Esperar y llenar editor (como PostPilot + fb-group-auto-post)
     await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 15000 });
