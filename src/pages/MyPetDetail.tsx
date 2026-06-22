@@ -250,15 +250,16 @@ export default function MyPetDetail() {
     setShareResult(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/my-pets/${id}/share`, {
-        method: 'PUT',
+      const res = await fetch(`/api/invites`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ email: shareEmail || undefined, phone: sharePhone || undefined, message: shareMsg || undefined }),
+        body: JSON.stringify({ myPetId: id, email: shareEmail || undefined, phone: sharePhone || undefined, message: shareMsg || undefined }),
       });
       const data = await res.json();
       if (res.ok) {
-        setShareResult(data);
-        if (data.shared) { setTimeout(() => setShowShareModal(false), 2000); }
+        const first = data.results?.[0];
+        setShareResult({ shared: first?.shared, invited: first?.invited, userExists: first?.userExists, inviteLink: data.inviteLink });
+        if (first?.shared) { setTimeout(() => setShowShareModal(false), 2000); }
       } else {
         alert(data.error || 'Error al compartir');
       }

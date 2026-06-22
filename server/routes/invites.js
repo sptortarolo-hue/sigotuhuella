@@ -32,139 +32,148 @@ async function getInviterName(userId) {
   return r.rows[0]?.display_name || 'Alguien';
 }
 
-// POST /api/invites — crear invitación por email o teléfono
-router.post('/', requireAuth, async (req, res) => {
-  const { petId, myPetId, email, phone, message } = req.body;
-  if (!petId && !myPetId) return res.status(400).json({ error: 'Se requiere petId o myPetId' });
-  if (!email && !phone) return res.status(400).json({ error: 'Se requiere email o teléfono' });
+function buildPetName(pet) {
+  if (!pet) return 'mascota';
+  return pet.name || (pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : 'mascota');
+}
 
-  try {
-    const pet = await getPetInfo(petId, myPetId);
-    if (!pet) return res.status(404).json({ error: 'Mascota no encontrada' });
+async function shareOrInviteForPet({ petId, myPetId, email, phone, message, inviterName, reqUserId, token, inviteLink, petName }) {
+  const pet = await getPetInfo(petId, myPetId);
+  if (!pet) return null;
+  const name = petName || buildPetName(pet);
 
-    const inviterName = await getInviterName(req.user.id);
-    const token = generateToken();
-    const inviteLink = `${FRONTEND_URL}/login?invite=${token}`;
-    const petName = pet.name || `${pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : 'mascota'}`;
+  // Existing user by email
+  if (email) {
+    const existing = await pool.query('SELECT id, notification_preference FROM users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) {
+      const targetUser = existing.rows[0];
+      if (petId) {
+        await pool.query('INSERT INTO pet_shares (pet_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [petId, targetUser.id, 'editor']);
+      } else {
+        await pool.query('INSERT INTO my_pet_shares (pet_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [myPetId, targetUser.id, 'editor']);
+      }
+      return { shared: true, userExists: true, petName: name, url: petId ? `/pet/${petId}` : `/mi-mascota/${myPetId}` };
+    }
+  }
 
-    // Si el usuario ya existe por email, compartir directo
-    if (email) {
-      const existing = await pool.query('SELECT id, notification_preference FROM users WHERE email = $1', [email]);
+  // Existing user by phone
+  if (phone) {
+    const normalized = phone.replace(/[^0-9]/g, '');
+    if (normalized.startsWith('54')) {
+      const existing = await pool.query("SELECT id, notification_preference FROM users WHERE phone = $1 OR phone = $2", [normalized, normalized.replace(/^54/, '')]);
       if (existing.rows.length > 0) {
         const targetUser = existing.rows[0];
         if (petId) {
-          await pool.query(
-            'INSERT INTO pet_shares (pet_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-            [petId, targetUser.id, 'editor']
-          );
+          await pool.query('INSERT INTO pet_shares (pet_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [petId, targetUser.id, 'editor']);
         } else {
-          await pool.query(
-            'INSERT INTO my_pet_shares (pet_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-            [myPetId, targetUser.id, 'editor']
-          );
+          await pool.query('INSERT INTO my_pet_shares (pet_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [myPetId, targetUser.id, 'editor']);
         }
-        sendPushToUser(targetUser.id, {
-          title: '🐾 Nuevo acceso compartido',
-          body: `${inviterName} te compartió el perfil de ${petName} en Sigo Tu Huella. Ya tenés acceso para ver y editar su ficha.`,
-          url: petId ? `/pet/${petId}` : `/mi-mascota/${myPetId}`,
-        }).catch(() => {});
-        return res.json({ shared: true, userExists: true });
+        try { await sendMessage(normalized, `🐾 *${inviterName}* te compartió el perfil de *${name}* en Sigo Tu Huella. Ya tenés acceso para ver y editar su ficha.`); } catch (e) { /* ignore */ }
+        return { shared: true, userExists: true, petName: name, url: petId ? `/pet/${petId}` : `/mi-mascota/${myPetId}` };
+      }
+    }
+  }
+
+  // Create invite for future user
+  const result = await pool.query(
+    `INSERT INTO share_invites (pet_id, my_pet_id, invited_email, invited_phone, token, message, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [petId || null, myPetId || null, email || null, phone || null, token, message || null, reqUserId]
+  );
+  return { invite: result.rows[0], inviteLink, petName: name, invited: true };
+}
+
+// POST /api/invites — crear invitación por email o teléfono (soporta arrays petIds/myPetIds)
+router.post('/', requireAuth, async (req, res) => {
+  const { petId, myPetId, petIds, myPetIds, email, phone, message } = req.body;
+
+  // Build list of pets to process
+  const pets = [];
+  if (petId) pets.push({ petId, myPetId: null });
+  if (myPetId) pets.push({ petId: null, myPetId });
+  if (Array.isArray(petIds)) petIds.forEach(id => pets.push({ petId: id, myPetId: null }));
+  if (Array.isArray(myPetIds)) myPetIds.forEach(id => pets.push({ petId: null, myPetId: id }));
+
+  if (pets.length === 0) return res.status(400).json({ error: 'Se requiere al menos un ID de mascota' });
+  if (!email && !phone) return res.status(400).json({ error: 'Se requiere email o teléfono' });
+
+  try {
+    const inviterName = await getInviterName(req.user.id);
+    const token = generateToken();
+    const inviteLink = `${FRONTEND_URL}/login?invite=${token}`;
+
+    const results = [];
+    let userExists = false;
+
+    for (const p of pets) {
+      const r = await shareOrInviteForPet({ ...p, email, phone, message, inviterName, reqUserId: req.user.id, token, inviteLink });
+      if (r) {
+        results.push(r);
+        if (r.userExists) userExists = true;
       }
     }
 
-    // Si el usuario ya existe por teléfono
-    if (phone) {
-      const normalized = phone.replace(/[^0-9]/g, '');
-      if (normalized.startsWith('54')) {
-        const existing = await pool.query(
-          "SELECT id, notification_preference FROM users WHERE phone = $1 OR phone = $2",
-          [normalized, normalized.replace(/^54/, '')]
-        );
-        if (existing.rows.length > 0) {
-          const targetUser = existing.rows[0];
-          if (petId) {
-            await pool.query(
-              'INSERT INTO pet_shares (pet_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-              [petId, targetUser.id, 'editor']
-            );
-          } else {
-            await pool.query(
-              'INSERT INTO my_pet_shares (pet_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-              [myPetId, targetUser.id, 'editor']
-            );
-          }
-          sendPushToUser(targetUser.id, {
-            title: '🐾 Nuevo acceso compartido',
-            body: `${inviterName} te compartió el perfil de ${petName} en Sigo Tu Huella. Ya tenés acceso para ver y editar su ficha.`,
-            url: petId ? `/pet/${petId}` : `/mi-mascota/${myPetId}`,
-          }).catch(() => {});
-          try {
-            await sendMessage(normalized,
-              `🐾 *${inviterName}* te compartió el perfil de *${petName}* en Sigo Tu Huella. Ya tenés acceso para ver y editar su ficha.`
-            );
-          } catch (e) { /* ignore */ }
-          return res.json({ shared: true, userExists: true });
-        }
-      }
+    if (results.length === 0) return res.status(404).json({ error: 'Ninguna mascota encontrada' });
+
+    // Send push once if user exists (first result's url)
+    if (userExists && results[0].url) {
+      const names = results.filter(r => r.shared).map(r => r.petName).join(', ');
+      sendPushToUser(email || phone ? undefined : null, {
+        title: '🐾 Nuevo acceso compartido',
+        body: `${inviterName} te compartió el perfil de ${names} en Sigo Tu Huella. Ya tenés acceso.`,
+        url: results[0].url,
+      }).catch(() => {});
     }
 
-    // Crear invitación para futuro usuario
-    const result = await pool.query(
-      `INSERT INTO share_invites (pet_id, my_pet_id, invited_email, invited_phone, token, message, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [petId || null, myPetId || null, email || null, phone || null, token, message || null, req.user.id]
-    );
+    // Send combined notification for invites (future users)
+    const invited = results.filter(r => r.invited);
+    if (invited.length > 0) {
+      const names = invited.map(r => r.petName).join(', ');
+      const textMsg = `🐾 *${inviterName}* te compartió el perfil de *${names}* en Sigo Tu Huella, una red de vecinos que cuidamos las mascotas de la comunidad.\n\nRegistrate gratis para sumarte: ${inviteLink}`;
 
-    const textMsg = `🐾 *${inviterName}* te compartió el perfil de *${petName}* en Sigo Tu Huella, una red de vecinos que cuidamos las mascotas de la comunidad.\n\nRegistrate gratis para sumarte: ${inviteLink}`;
-
-    // Enviar por email
-    if (email) {
-      const { default: nodemailer } = await import('nodemailer');
-      const t = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'l0061596.ferozo.com',
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: false,
-        tls: { rejectUnauthorized: false },
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      });
-      t.sendMail({
-        from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
-        to: email,
-        subject: `${inviterName} te compartió una mascota en Sigo Tu Huella`,
-        html: `
-          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;border:1px solid #cbd5e1;border-radius:16px;background:#f8fafc;">
-            <div style="text-align:center;margin-bottom:20px;">
-              <div style="background:#3b82f6;color:white;width:60px;height:60px;line-height:60px;font-size:30px;border-radius:20px;display:inline-block;">🐾</div>
+      if (email) {
+        const { default: nodemailer } = await import('nodemailer');
+        const t = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || 'l0061596.ferozo.com',
+          port: parseInt(process.env.SMTP_PORT) || 587,
+          secure: false,
+          tls: { rejectUnauthorized: false },
+          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+        });
+        t.sendMail({
+          from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+          to: email,
+          subject: `${inviterName} te compartió mascotas en Sigo Tu Huella`,
+          html: `
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;border:1px solid #cbd5e1;border-radius:16px;background:#f8fafc;">
+              <div style="text-align:center;margin-bottom:20px;">
+                <div style="background:#3b82f6;color:white;width:60px;height:60px;line-height:60px;font-size:30px;border-radius:20px;display:inline-block;">🐾</div>
+              </div>
+              <h2 style="color:#1e293b;text-align:center;font-size:20px;margin-bottom:16px;">${inviterName} te compartió el perfil de ${names}</h2>
+              <p style="color:#475569;font-size:15px;line-height:1.6;text-align:center;">
+                En Sigo Tu Huella, una red de vecinos que cuidamos las mascotas de la comunidad.
+              </p>
+              ${message ? `<p style="color:#64748b;font-size:14px;text-align:center;font-style:italic;">"${message}"</p>` : ''}
+              <div style="text-align:center;margin:24px 0;">
+                <a href="${inviteLink}" style="background:#5A5A40;color:#fff;padding:12px 32px;border-radius:12px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block;">
+                  Registrate gratis
+                </a>
+              </div>
+              <p style="color:#94a3b8;font-size:12px;text-align:center;">
+                Ya tenés acceso para ver y editar su ficha al registrarte.
+              </p>
             </div>
-            <h2 style="color:#1e293b;text-align:center;font-size:20px;margin-bottom:16px;">${inviterName} te compartió el perfil de ${petName}</h2>
-            <p style="color:#475569;font-size:15px;line-height:1.6;text-align:center;">
-              En Sigo Tu Huella, una red de vecinos que cuidamos las mascotas de la comunidad.
-            </p>
-            ${message ? `<p style="color:#64748b;font-size:14px;text-align:center;font-style:italic;">"${message}"</p>` : ''}
-            <div style="text-align:center;margin:24px 0;">
-              <a href="${inviteLink}" style="background:#5A5A40;color:#fff;padding:12px 32px;border-radius:12px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block;">
-                Registrate gratis
-              </a>
-            </div>
-            <p style="color:#94a3b8;font-size:12px;text-align:center;">
-              Ya tenés acceso para ver y editar su ficha al registrarte.
-            </p>
-          </div>
-        `,
-      }).catch(e => console.error('Failed to send invite email:', e));
-    }
+          `,
+        }).catch(e => console.error('Failed to send invite email:', e));
+      }
 
-    // Enviar por WhatsApp
-    if (phone) {
-      const normalized = phone.replace(/[^0-9]/g, '');
-      try {
-        await sendMessage(normalized, textMsg);
-      } catch (e) {
-        console.error('Failed to send invite WhatsApp:', e);
+      if (phone) {
+        const normalized = phone.replace(/[^0-9]/g, '');
+        try { await sendMessage(normalized, textMsg); } catch (e) { /* ignore */ }
       }
     }
 
-    res.status(201).json({ invite: result.rows[0], inviteLink });
+    res.status(201).json({ results, inviteLink });
   } catch (err) {
     console.error('Create invite error:', err);
     res.status(500).json({ error: 'Error al crear invitación' });
