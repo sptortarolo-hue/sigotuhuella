@@ -659,11 +659,12 @@ async function rlPhoto(conv, parsed) {
       ctx.location = extracted.location;
       const coords = await geocodeAddress(extracted.location).catch(() => null);
       if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+      else { ctx.latitude = null; ctx.longitude = null; }
     }
     if (extracted.phone) ctx.contact = extracted.phone;
     if (extracted.phone2) ctx.contact2 = extracted.phone2;
     await sendMessage(conv.wa_from, `✅ Foto recibida.`);
-    if (ctx.location && ctx.contact) {
+    if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
       await setFlow(conv, 'report_lost.confirm', ctx);
       const speciesLabel = { dog: 'Perro 🐕', cat: 'Gato 🐈', other: 'Otro 🐾' };
       await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos:\n\n🐾 *Especie:* ${speciesLabel[ctx.species] || ctx.species}\n📍 *Ubicación:* ${ctx.location}\n📞 *Contacto:* ${ctx.contact}\n\n¿Está todo correcto?`);
@@ -675,6 +676,10 @@ async function rlPhoto(conv, parsed) {
     }
     if (!ctx.location) {
       await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde se perdió? Podés escribir la dirección o compartir tu *ubicación* 📍`);
+      await setFlow(conv, 'report_lost.location', ctx);
+    } else if (ctx.contact && ctx.latitude == null) {
+      await sendMessage(conv.wa_from, `📍 Encontré la ubicación: *${ctx.location}*.\n${conv.bot_name}: No pude determinar las coordenadas exactas. ¿Podés compartir tu *ubicación actual* o escribir una dirección más específica? 📍`);
+      delete ctx.contact; delete ctx.contact2;
       await setFlow(conv, 'report_lost.location', ctx);
     } else {
       await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* para que los dueños puedan comunicarse? 📞`);
@@ -840,10 +845,11 @@ async function rsSpecies(conv, parsed) {
     if (extracted.name) ctx.pet_name = extracted.name;
     const coords = await geocodeAddress(extracted.location).catch(() => null);
     if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+    else { ctx.latitude = null; ctx.longitude = null; }
     if (extracted.description) ctx.details = extracted.description;
     if (extracted.phone) ctx.contact = extracted.phone;
     if (extracted.phone2) ctx.contact2 = extracted.phone2;
-    if (ctx.contact) {
+    if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
       await setFlow(conv, 'report_sighted.confirm', ctx);
       const speciesLabel = { dog: '🐕 Perro', cat: '🐈 Gato', other: '🐾 Otro', unknown: '?' };
       await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás el reporte de avistaje?\n  🐾 *Especie:* ${speciesLabel[species] || '?'}\n  📍 *Ubicación:* ${ctx.location}\n  ${ctx.details ? `📝 *Detalles:* ${ctx.details}\n  ` : ''}${ctx.contact ? `📞 *Contacto:* ${ctx.contact}` : ''}`);
@@ -851,6 +857,12 @@ async function rsSpecies(conv, parsed) {
         { id: 'confirm_yes', title: '✅ Sí, reportar' },
         { id: 'confirm_no', title: '❌ Cancelar' },
       ]);
+      return;
+    }
+    if (ctx.contact && ctx.latitude == null) {
+      await sendMessage(conv.wa_from, `📍 Encontré la ubicación: *${ctx.location}*.\n${conv.bot_name}: No pude determinar las coordenadas exactas. ¿Podés compartir tu *ubicación actual* o escribir una dirección más específica? 📍`);
+      delete ctx.contact; delete ctx.contact2;
+      await setFlow(conv, 'report_sighted.location', { ...ctx, species });
       return;
     }
     await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* por si alguien quiere aportar información? (opcional)`, [
@@ -972,18 +984,23 @@ async function rfPhoto(conv, parsed) {
       ctx.location = extracted.location;
       const coords = await geocodeAddress(extracted.location).catch(() => null);
       if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+      else { ctx.latitude = null; ctx.longitude = null; }
     }
     if (extracted.phone) ctx.contact = extracted.phone;
     if (extracted.phone2) ctx.contact2 = extracted.phone2;
     if (extracted.description) ctx.description = extracted.description;
 
-    if (ctx.location && ctx.contact) {
+    if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
       await setFlow(conv, 'report_found.confirm', ctx);
       return rfShowConfirm(conv);
     }
     await setFlow(conv, 'report_found.location', ctx);
     if (!ctx.location) {
       await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde está ahora la mascota? 📍`);
+    } else if (ctx.contact && ctx.latitude == null) {
+      await sendMessage(conv.wa_from, `📍 Encontré la ubicación: *${ctx.location}*.\n${conv.bot_name}: No pude determinar las coordenadas exactas. ¿Podés compartir tu *ubicación actual* o escribir una dirección más específica? 📍`);
+      delete ctx.contact; delete ctx.contact2;
+      await setFlow(conv, 'report_found.location', ctx);
     } else {
       await sendMessage(conv.wa_from, `✅ Encontré la ubicación: ${ctx.location}.\n${conv.bot_name}: Dejame un *teléfono de contacto* 📞`);
       await setFlow(conv, 'report_found.contact', ctx);
@@ -1008,12 +1025,13 @@ async function rfPhoto(conv, parsed) {
         ctx.location = result.location;
         const coords = await geocodeAddress(result.location).catch(() => null);
         if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+        else { ctx.latitude = null; ctx.longitude = null; }
       }
       if (result.phone) ctx.contact = result.phone;
       if (result.phone2) ctx.contact2 = result.phone2;
       if (result.description) ctx.description = result.description;
 
-      if (ctx.location && ctx.contact) {
+      if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
         await setFlow(conv, 'report_found.confirm', ctx);
         return rfShowConfirm(conv);
       }
@@ -1025,6 +1043,10 @@ async function rfPhoto(conv, parsed) {
         await setFlow(conv, 'report_found.contact', ctx);
         await sendMessage(conv.wa_from, `✅ Encontré la ubicación: ${ctx.location}.`);
         await sendMessage(conv.wa_from, `${conv.bot_name}: Dejame un *teléfono de contacto* 📞`);
+      } else if (ctx.latitude == null) {
+        delete ctx.contact; delete ctx.contact2;
+        await setFlow(conv, 'report_found.location', ctx);
+        await sendMessage(conv.wa_from, `📍 Encontré la ubicación: *${ctx.location}*.\n${conv.bot_name}: No pude determinar las coordenadas exactas. ¿Podés compartir tu *ubicación actual* o escribir una dirección más específica? 📍`);
       } else {
         await setFlow(conv, 'report_found.location', ctx);
         await sendMessage(conv.wa_from, `✅ Encontré el teléfono: ${ctx.contact}.`);

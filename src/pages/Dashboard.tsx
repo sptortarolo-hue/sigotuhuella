@@ -9,7 +9,6 @@ import {
   Share2, Mail, Phone, Check, X as XIcon,
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import FamilySection from '@/src/components/FamilySection';
 
 export default function Dashboard() {
   const { user, loading, logout } = useAuth();
@@ -416,11 +415,10 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* 6. Family */}
-        <FamilySection />
       </div>
 
       {/* ─── DESKTOP LAYOUT ─── */}
+      <div className="hidden lg:block space-y-8">
         {/* Greeting */}
         <div className="flex items-center justify-between">
           <div>
@@ -599,9 +597,6 @@ export default function Dashboard() {
             ))}
           </div>
         </section>
-
-        {/* Mi Familia */}
-        <FamilySection />
 
         {/* Invitaciones pendientes */}
         {!invitesLoading && pendingInvites.length > 0 && (

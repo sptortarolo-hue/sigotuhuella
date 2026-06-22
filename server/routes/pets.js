@@ -1314,36 +1314,6 @@ router.post('/:id/claim', requireAuth, async (req, res) => {
   }
 });
 
-// POST /:id/share-family/:familyId — compartir con toda la familia (dueño)
-router.post('/:id/share-family/:familyId', requireAuth, async (req, res) => {
-  const { id: petId, familyId } = req.params;
-
-  try {
-    const pet = await pool.query('SELECT created_by FROM pets WHERE id = $1', [petId]);
-    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
-    if (req.user.role !== 'admin' && pet.rows[0].created_by !== req.user.id) {
-      return res.status(403).json({ error: 'Solo el dueño puede compartir' });
-    }
-
-    const members = await pool.query(
-      `SELECT user_id FROM family_members WHERE family_id = $1 AND user_id != $2`,
-      [familyId, req.user.id]
-    );
-
-    if (members.rows.length === 0) return res.json({ shared: 0 });
-
-    const values = members.rows.map(m => `('${petId}', '${m.user_id}', 'editor')`).join(',');
-    await pool.query(
-      `INSERT INTO pet_shares (pet_id, user_id, role) VALUES ${values} ON CONFLICT DO NOTHING`
-    );
-
-    res.json({ shared: members.rows.length });
-  } catch (err) {
-    console.error('Share pet with family error:', err);
-    res.status(500).json({ error: 'Error al compartir con familia' });
-  }
-});
-
 // GET /shared/with-me — pets compartidas conmigo
 router.get('/shared/with-me', requireAuth, async (req, res) => {
   try {

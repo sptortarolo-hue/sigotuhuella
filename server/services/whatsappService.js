@@ -203,7 +203,7 @@ function parseOneMessage(msg, contacts) {
     messageType = 'location';
     locationLat = msg.location?.latitude;
     locationLng = msg.location?.longitude;
-    textBody = msg.location?.name || '';
+    textBody = msg.location?.name || msg.location?.address || '';
   } else if (msg.type === 'interactive') {
     textBody = msg.interactive?.button_reply?.title ||
                msg.interactive?.list_reply?.title ||

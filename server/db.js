@@ -557,21 +557,6 @@ CREATE TABLE IF NOT EXISTS pet_shares (
   PRIMARY KEY (pet_id, user_id)
 );
 
-CREATE TABLE IF NOT EXISTS families (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  created_by UUID NOT NULL REFERENCES users(id),
-  invite_code VARCHAR(20) UNIQUE,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS family_members (
-  family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  joined_at TIMESTAMP DEFAULT NOW(),
-  PRIMARY KEY (family_id, user_id)
-);
-
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS pet_type VARCHAR(20) DEFAULT 'own';
 ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS pet_type VARCHAR(20) DEFAULT 'own';
 
@@ -847,6 +832,13 @@ export async function initDb() {
         PRIMARY KEY (pet_id, user_id)
       )
     `, 'my_pet_shares');
+
+    await migrate(client, `
+      DROP TABLE IF EXISTS family_members
+    `, 'drop family_members');
+    await migrate(client, `
+      DROP TABLE IF EXISTS families
+    `, 'drop families');
 
     console.log('Database migrations complete');
   } finally {
