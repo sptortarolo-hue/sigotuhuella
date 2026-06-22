@@ -10,6 +10,7 @@ const TOKEN = process.env.RELAY_TOKEN || process.env.FB_RELAY_TOKEN;
 const POLL_INTERVAL = parseInt(process.env.FB_POLL_INTERVAL || '60000');
 const COOKIES_PATH = process.env.FB_COOKIES_PATH || path.join(__dirname, 'fb_cookies.json');
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
+const TMP_DIR = path.join(__dirname, '.fb_img_tmp');
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -43,6 +44,30 @@ async function getBrowser() {
     ],
   });
   return browser;
+}
+
+async function downloadImages(imageUrls) {
+  if (!imageUrls || imageUrls.length === 0) return [];
+  fs.mkdirSync(TMP_DIR, { recursive: true });
+  const files = [];
+  for (let i = 0; i < imageUrls.length; i++) {
+    try {
+      const resp = await axios.get(imageUrls[i], { responseType: 'arraybuffer', timeout: 30000 });
+      const filePath = path.join(TMP_DIR, `img_${i}.jpg`);
+      fs.writeFileSync(filePath, resp.data);
+      files.push(filePath);
+      console.log(`[FB Relay] Imagen ${i+1}/${imageUrls.length} descargada`);
+    } catch (err) {
+      console.error(`[FB Relay] Error descargando imagen ${i}:`, err.message);
+    }
+  }
+  return files;
+}
+
+function cleanupImages() {
+  if (fs.existsSync(TMP_DIR)) {
+    fs.rmSync(TMP_DIR, { recursive: true, force: true });
+  }
 }
 
 async function downloadCookies() {
@@ -100,7 +125,7 @@ function ensureValidCookies(cookies) {
   });
 }
 
-async function postToGroup(b, fbGroupId, message) {
+async function postToGroup(b, fbGroupId, message, imageUrls) {
   const cookies = ensureValidCookies(JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8')));
   const page = await b.newPage();
 
@@ -147,6 +172,27 @@ async function postToGroup(b, fbGroupId, message) {
     const editor = await page.waitForSelector('div[role="dialog"] div[role="textbox"][contenteditable="true"]', { visible: true, timeout: 15000 });
     await sleep(1500);
 
+    // Subir primera imagen si hay (opción C: imagen + OG link)
+    if (imageUrls && imageUrls.length > 0) {
+      const files = await downloadImages(imageUrls);
+      if (files.length > 0) {
+        try {
+          const fileInput = await page.$('div[role="dialog"] input[type="file"]');
+          if (fileInput) {
+            await fileInput.uploadFile(files[0]);
+            console.log('[FB Relay] Imagen subida, esperando procesamiento...');
+            try {
+              await page.waitForSelector('div[role="dialog"] img[src*="blob:"], div[role="dialog"] img[src*="data:"]', { timeout: 15000 });
+            } catch {}
+            await sleep(3000);
+          }
+        } catch (err) {
+          console.error('[FB Relay] Error subiendo imagen:', err.message);
+        }
+      }
+      cleanupImages();
+    }
+
     // Click editor + escribir (como PostPilot)
     await editor.click();
     await sleep(500);
@@ -178,7 +224,7 @@ async function postToGroup(b, fbGroupId, message) {
 async function executeTask(task) {
   if (!loadCookies()) throw new Error('No hay cookies disponibles');
   const b = await getBrowser();
-  await postToGroup(b, task.fb_group_id, task.message);
+  await postToGroup(b, task.fb_group_id, task.message, task.image_urls || []);
   await api.post('/fb/completed', { task_ids: [task.id] });
   console.log(`[FB Relay] Tarea ${task.id} completada`);
 }
@@ -260,7 +306,7 @@ if (process.argv.includes('--test')) {
     }
     const b = await getBrowser();
     try {
-      await postToGroup(b, testGroup, testMsg);
+      await postToGroup(b, testGroup, testMsg, []);
       console.log('[FB Relay] Test exitoso');
     } catch (err) {
       console.error('[FB Relay] Test falló:', err.message);
