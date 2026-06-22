@@ -45,7 +45,7 @@ function detectIntent(parsed) {
       case 'human': return 'human';
       case 'end_yes': return 'confirm';
       case 'end_no': return 'cancel';
-      case 'confirm_yes': return 'confirm';
+      case 'confirm_yes': case 'confirm_retained': case 'confirm_sighted': return 'confirm';
       case 'confirm_no': return 'cancel';
       case 'confirm_edit': return 'edit';
       case 'edit_location': case 'edit_contact': case 'edit_description': return 'edit_field';
@@ -460,10 +460,17 @@ async function handleImageFromMenu(conv, parsed) {
         },
       });
       await sendMessage(conv.wa_from, `${conv.bot_name}: Según tu mensaje, ¿*${labels[result.intent]}* esta mascota?`);
-      await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
-        { id: 'confirm_yes', title: '✅ Sí' },
-        { id: 'confirm_no', title: '❌ No' },
-      ]);
+      if (result.intent === 'found') {
+        await sendInteractiveButtons(conv.wa_from, '¿La retuviste?', [
+          { id: 'confirm_retained', title: '🐾 La retuve' },
+          { id: 'confirm_sighted', title: '👀 Solo la vi' },
+        ]);
+      } else {
+        await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
+          { id: 'confirm_yes', title: '✅ Sí' },
+          { id: 'confirm_no', title: '❌ No' },
+        ]);
+      }
       return;
     }
     await sendMessage(conv.wa_from, `${conv.bot_name}: No pude procesar automáticamente tu mensaje.`);
@@ -495,9 +502,11 @@ async function handleImageChoice(conv, parsed, intent) {
 async function handleImageConfirm(conv, parsed, intent) {
   const type = conv.flow.replace('image_confirm_', '');
   if (intent === 'confirm') {
-    const startFn = type === 'found' ? startReportFound
-      : type === 'lost' ? startReportLost
-      : startReportSighted;
+    if (type === 'found') {
+      if (parsed.buttonId === 'confirm_retained') return startReportFound(conv);
+      return startReportSighted(conv);
+    }
+    const startFn = type === 'lost' ? startReportLost : startReportSighted;
     return startFn(conv);
   }
   return showImageTypeChoice(conv, parsed);
