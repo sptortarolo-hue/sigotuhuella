@@ -103,7 +103,26 @@ async function detectIntentWithAI(text) {
   return null;
 }
 
+// Per-user message queue to serialize processing per wa_from
+const messageQueues = new Map();
+
 export async function processMessage(parsed) {
+  const waFrom = parsed.from;
+  const prev = messageQueues.get(waFrom) || Promise.resolve();
+  const next = prev.then(
+    () => processMessageSync(parsed),
+    () => processMessageSync(parsed)
+  );
+  messageQueues.set(waFrom, next);
+  next.finally(() => {
+    if (messageQueues.get(waFrom) === next) {
+      messageQueues.delete(waFrom);
+    }
+  });
+  return next;
+}
+
+async function processMessageSync(parsed) {
   const saved = await pool.query(
     `INSERT INTO whatsapp_messages (wa_message_id, wa_from, sender_name, message_type, text_body, status)
      VALUES ($1, $2, $3, $4, $5, 'pending')

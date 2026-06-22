@@ -47,9 +47,9 @@ router.get('/diagnostic', async (req, res) => {
         }],
       };
       try {
-        const parsed = processIncomingMessage(fakePayload);
-        if (parsed) {
-          await processMessage(parsed);
+        const messages = processIncomingMessage(fakePayload);
+        if (messages.length > 0) {
+          await processMessage(messages[0]);
           testResult = 'ok';
         } else {
           testResult = 'parse_failed: payload format not recognized';
@@ -119,10 +119,12 @@ router.post('/webhook', async (req, res) => {
     const enabled = await isWhatsAppEnabled();
     if (!enabled) return;
 
-    const parsed = processIncomingMessage(req.body);
-    if (!parsed) return;
+    const messages = processIncomingMessage(req.body);
+    if (messages.length === 0) return;
 
-    await processMessage(parsed);
+    // Process all messages in the batch concurrently.
+    // Per-user serialization inside processMessage() prevents races.
+    await Promise.all(messages.map(msg => processMessage(msg)));
   } catch (err) {
     console.error('Webhook processing error:', err);
   }
@@ -364,6 +366,30 @@ router.put('/chapita-requests/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error updating chapita request:', err);
     res.status(500).json({ error: 'Error al actualizar solicitud' });
+  }
+});
+
+router.post('/chapita-requests/:id/notify', requireAdmin, async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || !message.trim()) return res.status(400).json({ error: 'El mensaje no puede estar vacío' });
+
+    const reqResult = await pool.query('SELECT * FROM whatsapp_chapita_requests WHERE id = $1', [req.params.id]);
+    if (reqResult.rows.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+
+    const chapitaReq = reqResult.rows[0];
+    const text = `✏️ *${req.user?.display_name || 'Admin'} (Sigo Tu Huella):*\n\n${message.trim()}`;
+    await sendMessage(chapitaReq.wa_from, text);
+
+    await pool.query(
+      `UPDATE whatsapp_chapita_requests SET status = 'notified', notes = COALESCE(notes, '') || $1, updated_at = NOW() WHERE id = $2`,
+      [`\n[${new Date().toISOString()}] Notificado: ${message.trim().substring(0, 100)}`, req.params.id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error notifying chapita request:', err);
+    res.status(500).json({ error: 'Error al notificar' });
   }
 });
 

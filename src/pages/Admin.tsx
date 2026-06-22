@@ -29,7 +29,7 @@ import FacebookRelayTab from '@/src/components/admin/FacebookRelayTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -171,6 +171,15 @@ export default function Admin() {
   const [reactivateLoading, setReactivateLoading] = useState(false);
   const [reactivateResult, setReactivateResult] = useState<any>(null);
 
+  // Chapita requests state
+  const [whatsappChapitaRequests, setWhatsappChapitaRequests] = useState<any[]>([]);
+  const [chapitaSourceFilter, setChapitaSourceFilter] = useState<'all' | 'web' | 'whatsapp'>('all');
+  const [chapitaStatusFilter, setChapitaStatusFilter] = useState<string>('all');
+  const [chapitaStatusLoading, setChapitaStatusLoading] = useState<number | null>(null);
+  const [notifyModal, setNotifyModal] = useState<{ id: number; waFrom: string; requesterName: string; petName: string } | null>(null);
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [notifyLoading, setNotifyLoading] = useState(false);
+
   // PDF config state
   const [pdfPageWidth, setPdfPageWidth] = useState('570');
   const [pdfPageHeight, setPdfPageHeight] = useState('300');
@@ -217,14 +226,16 @@ export default function Admin() {
 
   const fetchQrData = async () => {
     try {
-      const [unassigned, requests, assigned] = await Promise.all([
+      const [unassigned, requests, assigned, waChapita] = await Promise.all([
         api.qr.unassigned(),
         api.qr.requests(),
         api.qr.assigned(),
+        api.whatsapp.chapitaRequests().catch(() => []),
       ]);
       setQrUnassigned(unassigned.identifiers || []);
       setQrRequests(requests.requests || []);
       setQrAssigned(assigned.assigned || []);
+      setWhatsappChapitaRequests(waChapita || []);
     } catch (e) { console.error(e); }
   };
 
@@ -272,6 +283,33 @@ export default function Admin() {
       const data: any = await api.qr.lastCode();
       setPdfLastCode(data.code);
     } catch (e) { console.error(e); }
+  };
+
+  const handleChapitaStatusChange = async (id: number, status: string) => {
+    try {
+      setChapitaStatusLoading(id);
+      await api.whatsapp.chapitaUpdate(id, { status });
+      await fetchQrData();
+    } catch (e: any) {
+      alert(e.message || 'Error al actualizar estado');
+    } finally {
+      setChapitaStatusLoading(null);
+    }
+  };
+
+  const handleChapitaNotify = async () => {
+    if (!notifyModal || !notifyMessage.trim()) return;
+    try {
+      setNotifyLoading(true);
+      await api.whatsapp.chapitaNotify(notifyModal.id, notifyMessage.trim());
+      await fetchQrData();
+      setNotifyModal(null);
+      setNotifyMessage('');
+    } catch (e: any) {
+      alert(e.message || 'Error al enviar notificación');
+    } finally {
+      setNotifyLoading(false);
+    }
   };
 
   function nextPrefix(prefix: string): string {
@@ -1905,37 +1943,207 @@ export default function Admin() {
       })()}
     </div>
 
-    {qrRequests.length > 0 && (
-      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-        <h3 className="text-lg font-bold text-brand-primary mb-4">Solicitudes de QR ({qrRequests.length})</h3>
-        <div className="space-y-3">
-          {qrRequests.map((req: any) => (
-            <div key={req.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-brand-bg rounded-2xl">
-              <div>
-                <p className="text-sm font-bold text-gray-800">{req.name} <span className="font-normal text-gray-400">({req.species}{req.breed ? ` · ${req.breed}` : ''})</span></p>
-                <p className="text-xs text-gray-400">De: {req.display_name} {req.email ? `· ${req.email}` : ''}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <select
-                  onChange={async (e) => {
-                    if (e.target.value) await handleQrAssign(e.target.value, req.id);
-                  }}
-                  disabled={qrAssignLoading === req.id}
-                  className="px-3 py-2 bg-white rounded-xl border border-brand-accent text-xs outline-none"
-                  defaultValue=""
-                >
-                  <option value="" disabled>Asignar QR...</option>
-                  {qrUnassigned.map(qr => (
-                    <option key={qr.id} value={qr.id}>{qr.code}</option>
-                  ))}
-                </select>
-                {qrAssignLoading === req.id && <Loader2 className="w-4 h-4 animate-spin text-brand-primary" />}
-              </div>
-            </div>
-          ))}
+    {/* Unified Solicitudes section */}
+    <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+        <h3 className="text-lg font-bold text-brand-primary">Solicitudes</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex bg-brand-bg rounded-xl p-0.5">
+            {(['all', 'web', 'whatsapp'] as const).map(src => (
+              <button key={src}
+                onClick={() => setChapitaSourceFilter(src)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  chapitaSourceFilter === src
+                    ? 'bg-white text-brand-primary shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                {src === 'all' ? 'Todos' : src === 'web' ? 'Web' : 'WhatsApp'}
+              </button>
+            ))}
+          </div>
+          <select
+            value={chapitaStatusFilter}
+            onChange={e => setChapitaStatusFilter(e.target.value)}
+            className="px-3 py-1.5 bg-white rounded-xl border border-brand-accent text-xs outline-none"
+          >
+            <option value="all">Todos los estados</option>
+            <option value="pending">Pendiente</option>
+            <option value="in_progress">En progreso</option>
+            <option value="ready">Listo</option>
+            <option value="notified">Notificado</option>
+            <option value="delivered">Entregado</option>
+          </select>
         </div>
       </div>
-    )}
+
+      {(() => {
+        // Map web requests
+        const webItems = qrRequests.map((r: any) => ({
+          id: r.id,
+          type: 'web' as const,
+          requester: r.display_name || '—',
+          contact: r.email || '',
+          petName: r.name,
+          petSpecies: r.species,
+          petBreed: r.breed,
+          date: r.updated_at,
+          status: 'pending',
+          myPetId: r.id,
+        }));
+
+        // Map whatsapp requests
+        const waItems = whatsappChapitaRequests.map((r: any) => ({
+          id: r.id,
+          type: 'whatsapp' as const,
+          requester: r.requester_name || '—',
+          contact: r.wa_from || '',
+          petName: r.pet_name,
+          petSpecies: r.species,
+          petBreed: '',
+          date: r.created_at,
+          status: r.status || 'pending',
+          waFrom: r.wa_from,
+        }));
+
+        let allItems = [...webItems, ...waItems];
+
+        // Apply source filter
+        if (chapitaSourceFilter === 'web') allItems = allItems.filter(i => i.type === 'web');
+        else if (chapitaSourceFilter === 'whatsapp') allItems = allItems.filter(i => i.type === 'whatsapp');
+
+        // Apply status filter
+        if (chapitaStatusFilter !== 'all') allItems = allItems.filter(i => i.status === chapitaStatusFilter);
+
+        // Sort by date desc
+        allItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        const speciesIcon = (s: string) => s === 'dog' ? '🐕' : s === 'cat' ? '🐈' : '🐾';
+
+        if (allItems.length === 0) {
+          return (
+            <div className="text-center py-8">
+              <p className="text-gray-400 text-sm">No hay solicitudes pendientes.</p>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-3">
+            {allItems.map((item: any) => (
+              <div key={`${item.type}-${item.id}`} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-brand-bg rounded-2xl">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-800">
+                    {item.petName} {speciesIcon(item.petSpecies)}
+                    <span className="font-normal text-gray-400 text-xs ml-1">
+                      ({item.petSpecies === 'dog' ? 'Perro' : item.petSpecies === 'cat' ? 'Gato' : item.petSpecies}{item.petBreed ? ` · ${item.petBreed}` : ''})
+                    </span>
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {item.requester} {item.contact ? `· ${item.contact}` : ''}
+                    <span className={`ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                      item.type === 'web' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'
+                    }`}>
+                      {item.type === 'web' ? 'Web' : 'WA'}
+                    </span>
+                    <span className="ml-2 text-gray-300">{new Date(item.date).toLocaleDateString('es-AR')}</span>
+                  </p>
+                </div>
+
+                {item.type === 'web' ? (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <select
+                      onChange={async (e) => {
+                        if (e.target.value) await handleQrAssign(e.target.value, item.myPetId);
+                      }}
+                      disabled={qrAssignLoading === item.myPetId}
+                      className="px-3 py-2 bg-white rounded-xl border border-brand-accent text-xs outline-none"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Asignar QR...</option>
+                      {qrUnassigned.map((qr: any) => (
+                        <option key={qr.id} value={qr.id}>{qr.code}</option>
+                      ))}
+                    </select>
+                    {qrAssignLoading === item.myPetId && <Loader2 className="w-4 h-4 animate-spin text-brand-primary" />}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <select
+                      value={item.status}
+                      onChange={async (e) => {
+                        await handleChapitaStatusChange(item.id, e.target.value);
+                      }}
+                      disabled={chapitaStatusLoading === item.id}
+                      className="px-3 py-2 bg-white rounded-xl border border-brand-accent text-xs outline-none"
+                    >
+                      <option value="pending">Pendiente</option>
+                      <option value="in_progress">En progreso</option>
+                      <option value="ready">Listo</option>
+                      <option value="notified">Notificado</option>
+                      <option value="delivered">Entregado</option>
+                    </select>
+                    {chapitaStatusLoading === item.id && <Loader2 className="w-4 h-4 animate-spin text-brand-primary" />}
+                    <button
+                      onClick={() => setNotifyModal({ id: item.id, waFrom: item.waFrom, requesterName: item.requester, petName: item.petName })}
+                      className="px-3 py-2 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
+                    >
+                      <Bell className="w-3.5 h-3.5" /> Notificar
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+    </div>
+
+    {/* Notify Modal */}
+    <AnimatePresence>
+      {notifyModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={() => setNotifyModal(null)}>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            onClick={e => e.stopPropagation()}
+            className="relative w-full max-w-lg bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-xl"
+          >
+            <button onClick={() => { setNotifyModal(null); setNotifyMessage(''); }}
+              className="absolute top-4 right-4 p-1 hover:bg-gray-100 rounded-full transition-colors">
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+            <h3 className="text-lg font-bold text-brand-primary mb-1">Notificar a {notifyModal.requesterName}</h3>
+            <p className="text-sm text-gray-400 mb-4">Chapita de <strong>{notifyModal.petName}</strong> — WA: {notifyModal.waFrom}</p>
+            <textarea
+              value={notifyMessage}
+              onChange={e => setNotifyMessage(e.target.value)}
+              placeholder="Escribí el mensaje de notificación…"
+              rows={4}
+              className="w-full px-4 py-3 bg-brand-bg rounded-2xl border border-brand-accent text-sm outline-none resize-none mb-4"
+            />
+            <div className="flex items-center gap-3 justify-end">
+              <button onClick={() => { setNotifyModal(null); setNotifyMessage(''); }}
+                className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={handleChapitaNotify} disabled={notifyLoading || !notifyMessage.trim()}
+                className="px-5 py-2 bg-brand-primary text-white rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-brand-primary/90 transition-colors disabled:opacity-50">
+                {notifyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Enviar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
 
     {qrUnassigned.length > 0 && (
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
@@ -2048,10 +2256,10 @@ export default function Admin() {
       </div>
     )}
 
-    {qrRequests.length === 0 && qrUnassigned.length === 0 && qrAssigned.length === 0 && (
+    {qrRequests.length === 0 && qrUnassigned.length === 0 && qrAssigned.length === 0 && whatsappChapitaRequests.length === 0 && (
       <div className="bg-white rounded-[2.5rem] border border-dashed border-brand-accent p-6 sm:p-8 text-center">
         <QrCode className="w-12 h-12 text-brand-accent mx-auto mb-3" />
-        <p className="text-gray-400">No hay QRs generados ni solicitudes pendientes.</p>
+        <p className="text-gray-400">No hay QRs generados ni solicitudes.</p>
       </div>
     )}
 

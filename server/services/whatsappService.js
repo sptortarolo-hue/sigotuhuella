@@ -179,16 +179,10 @@ export function verifyWebhook(mode, token, challenge) {
   return mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN;
 }
 
-export function processIncomingMessage(payload) {
-  if (!payload?.entry?.[0]?.changes?.[0]?.value) return null;
-
-  const value = payload.entry[0].changes[0].value;
-
-  if (!value.messages || value.messages.length === 0) return null;
-
-  const msg = value.messages[0];
+function parseOneMessage(msg, contacts) {
   const from = msg.from;
   const waMessageId = msg.id;
+  const profileName = contacts?.[0]?.profile?.name || '';
 
   let messageType = 'text';
   let textBody = '';
@@ -226,7 +220,6 @@ export function processIncomingMessage(payload) {
     }
   }
 
-  const profileName = value.contacts?.[0]?.profile?.name || '';
   const buttonId = msg.interactive?.button_reply?.id || null;
 
   return {
@@ -243,6 +236,16 @@ export function processIncomingMessage(payload) {
     flowToken,
     flowData,
   };
+}
+
+export function processIncomingMessage(payload) {
+  if (!payload?.entry?.[0]?.changes?.[0]?.value) return [];
+
+  const value = payload.entry[0].changes[0].value;
+  if (!value.messages || value.messages.length === 0) return [];
+
+  const contacts = value.contacts || [];
+  return value.messages.map(msg => parseOneMessage(msg, contacts));
 }
 
 export async function isWhatsAppEnabled() {
