@@ -30,12 +30,14 @@ import imageRoutes from './routes/images.js';
 import phoneRelayRoutes from './routes/phoneRelay.js';
 import facebookRelayRoutes from './routes/facebookRelay.js';
 import familiesRoutes from './routes/families.js';
+import invitesRoutes from './routes/invites.js';
 import { startSyncTimer } from './services/vpsSyncService.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
 import { publishStory, isConnected } from './services/instagramService.js';
 import { checkWhatsAppTimeouts } from './services/whatsappScheduler.js';
 import { broadcastNextAdoptionPet } from './services/whatsappService.js';
+import { processInviteReminders } from './services/reminderService.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
 
@@ -165,6 +167,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/members', memberRoutes);
 app.use('/api/families', familiesRoutes);
+app.use('/api/invites', invitesRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/ai', aiRoutes);
@@ -514,6 +517,10 @@ async function start() {
   });
   setInterval(checkReminders, 6 * 60 * 60 * 1000);
   checkReminders();
+
+  // Invite reminders: every hour
+  setInterval(processInviteReminders, 60 * 60 * 1000);
+  processInviteReminders();
 
   // Instagram publisher: check every minute
   setInterval(async () => {

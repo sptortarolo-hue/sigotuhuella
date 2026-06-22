@@ -143,6 +143,12 @@ export default function MyPetDetail() {
   const [lostPhone, setLostPhone] = useState(user?.phone || '');
   const [lostLoading, setLostLoading] = useState(false);
   const [lostDone, setLostDone] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareEmail, setShareEmail] = useState('');
+  const [sharePhone, setSharePhone] = useState('');
+  const [shareMsg, setShareMsg] = useState('');
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareResult, setShareResult] = useState<{ shared?: boolean; invited?: boolean; userExists?: boolean; inviteLink?: string } | null>(null);
   const [showEditForm, setShowEditForm] = useState(false);
   const [editForm, setEditForm] = useState<any>({ ...EMPTY_EDIT_FORM });
   const [editLoading, setEditLoading] = useState(false);
@@ -235,6 +241,31 @@ export default function MyPetDetail() {
       alert(e.message || 'Error');
     } finally {
       setVetShareLoading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!shareEmail && !sharePhone) return;
+    setShareLoading(true);
+    setShareResult(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/my-pets/${id}/share`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email: shareEmail || undefined, phone: sharePhone || undefined, message: shareMsg || undefined }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setShareResult(data);
+        if (data.shared) { setTimeout(() => setShowShareModal(false), 2000); }
+      } else {
+        alert(data.error || 'Error al compartir');
+      }
+    } catch (e) {
+      alert('Error al compartir');
+    } finally {
+      setShareLoading(false);
     }
   };
 
@@ -768,6 +799,18 @@ export default function MyPetDetail() {
                     Tu veterinario podrá ver ficha médica, registros y tu contacto.
                   </p>
                 )}
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
+                  <Share2 className="w-4 h-4" /> Compartir con
+                </h4>
+                <button
+                  onClick={() => { setShareEmail(''); setSharePhone(''); setShareMsg(''); setShareResult(null); setShowShareModal(true); }}
+                  className="px-4 py-2 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-brand-primary/20 transition-colors"
+                >
+                  <Share2 className="w-3 h-3" /> Invitar por email o WhatsApp
+                </button>
               </div>
 
               <div className="pt-2">
@@ -1722,6 +1765,70 @@ export default function MyPetDetail() {
           </motion.div>
         </motion.div>
       )}
+
+      {/* Share modal */}
+      <AnimatePresence>
+        {showShareModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-brand-primary/20 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              className="relative w-full max-w-md bg-white rounded-[2rem] p-6 sm:p-8">
+              <button onClick={() => setShowShareModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+              <h3 className="text-lg font-bold text-gray-800 mb-1">Compartir mascota</h3>
+              <p className="text-xs text-gray-400 mb-5">Invita por email o WhatsApp a quien quieras que colabore</p>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Email</label>
+                  <input type="email" value={shareEmail} onChange={e => setShareEmail(e.target.value)}
+                    placeholder="ejemplo@correo.com"
+                    className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                  />
+                </div>
+                <div className="text-center text-xs text-gray-300">— o —</div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">WhatsApp / Teléfono</label>
+                  <input type="tel" value={sharePhone} onChange={e => setSharePhone(e.target.value)}
+                    placeholder="221 555 1234"
+                    className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Mensaje (opcional)</label>
+                  <textarea value={shareMsg} onChange={e => setShareMsg(e.target.value)}
+                    placeholder="Ej: Hola! Te comparto la ficha de Firulais para que podamos coordinar sus cuidados"
+                    rows={3}
+                    className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm resize-none"
+                  />
+                </div>
+
+                <button onClick={handleShare} disabled={shareLoading || (!shareEmail && !sharePhone)}
+                  className="w-full py-3 bg-brand-primary text-white rounded-xl text-sm font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {shareLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+                  {shareLoading ? 'Compartiendo...' : 'Compartir'}
+                </button>
+
+                {shareResult && (
+                  <div className={`p-3 rounded-xl text-xs font-medium text-center ${
+                    shareResult.shared ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
+                  }`}>
+                    {shareResult.userExists
+                      ? '✅ Usuario encontrado. Ya tiene acceso a la ficha.'
+                      : shareResult.shared
+                      ? '✅ Acceso compartido exitosamente.'
+                      : shareResult.inviteLink
+                      ? `📧 Invitación enviada. Compartí este link si querés: ${shareResult.inviteLink}`
+                      : '✅ Invitación enviada'}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {previewPhotoUrl && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}

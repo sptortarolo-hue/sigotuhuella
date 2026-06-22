@@ -32,6 +32,24 @@ router.post('/register', async (req, res) => {
     );
     const user = result.rows[0];
 
+    // Auto-accept any pending share invites for this email
+    try {
+      const pendingInvites = await pool.query(
+        "SELECT id, pet_id, my_pet_id FROM share_invites WHERE invited_email = $1 AND status = 'pending'",
+        [email]
+      );
+      for (const inv of pendingInvites.rows) {
+        if (inv.pet_id) {
+          await pool.query('INSERT INTO pet_shares (pet_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+            [inv.pet_id, user.id, 'editor']);
+        } else if (inv.my_pet_id) {
+          await pool.query('INSERT INTO my_pet_shares (pet_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+            [inv.my_pet_id, user.id, 'editor']);
+        }
+        await pool.query("UPDATE share_invites SET status = 'accepted', accepted_at = NOW() WHERE id = $1", [inv.id]);
+      }
+    } catch (e) { /* ignore invite errors on registration */ }
+
     sendVerificationEmail(user.email, user.display_name, verificationToken).catch(err => console.error('Failed to send verification email:', err));
     notifyUser(user, {
       subject: 'Confirmá tu email — Sigo Tu Huella',

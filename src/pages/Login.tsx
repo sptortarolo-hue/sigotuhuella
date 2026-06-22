@@ -28,10 +28,12 @@ export default function Login() {
   const [linkingPassword, setLinkingPassword] = useState('');
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const [pendingCase, setPendingCase] = useState('');
+  const [inviteToken, setInviteToken] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('case')) setPendingCase(params.get('case')!);
+    if (params.get('invite')) setInviteToken(params.get('invite')!);
   }, [location.search]);
   const googleInitedRef = useRef(false);
 
@@ -53,8 +55,11 @@ export default function Login() {
         }
         await api.completeRegistration({ email, password });
         const data = await api.auth.login(email, password);
-        login(data.token, data.user);
-        navigate(from, { replace: true });
+      login(data.token, data.user);
+      if (inviteToken) {
+        try { await fetch(`/api/invites/${inviteToken}/accept`, { method: 'POST', headers: { 'Authorization': `Bearer ${data.token}` } }); } catch {}
+      }
+      navigate(from, { replace: true });
         return;
       }
 
@@ -87,6 +92,9 @@ export default function Login() {
       login(data.token, data.user);
       if (pendingCase) {
         try { await fetch('/api/pets/link-case', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` }, body: JSON.stringify({ caseNumber: pendingCase }) }); } catch {}
+      }
+      if (inviteToken) {
+        try { await fetch(`/api/invites/${inviteToken}/accept`, { method: 'POST', headers: { 'Authorization': `Bearer ${data.token}` } }); } catch {}
       }
       navigate(from, { replace: true });
     } catch (err: any) {

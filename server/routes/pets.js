@@ -1108,24 +1108,119 @@ router.put('/link-case', requireAuth, async (req, res) => {
   }
 });
 
-// PUT /:id/share - share pet with a family member
+// PUT /:id/share - share pet with user (by userId, email, or phone)
 router.put('/:id/share', requireAuth, async (req, res) => {
   const petId = req.params.id;
-  const { userId } = req.body;
-  if (!userId) return res.status(400).json({ error: 'userId requerido' });
+  const { userId, email, phone } = req.body;
+  if (!userId && !email && !phone) return res.status(400).json({ error: 'Se requiere userId, email o teléfono' });
 
   try {
-    const pet = await pool.query('SELECT created_by FROM pets WHERE id = $1', [petId]);
+    const pet = await pool.query('SELECT id, name, species FROM pets WHERE id = $1', [petId]);
     if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
     if (req.user.role !== 'admin' && pet.rows[0].created_by !== req.user.id) {
       return res.status(403).json({ error: 'Solo el dueño puede compartir' });
     }
 
+    // Si ya tenemos userId, compartir directo
+    if (userId) {
+      await pool.query(
+        `INSERT INTO pet_shares (pet_id, user_id, role) VALUES ($1, $2, 'editor') ON CONFLICT DO NOTHING`,
+        [petId, userId]
+      );
+      return res.json({ shared: true });
+    }
+
+    // Buscar usuario por email o teléfono
+    let targetUser = null;
+    if (email) {
+      const r = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+      targetUser = r.rows[0];
+    } else if (phone) {
+      const normalized = phone.replace(/[^0-9]/g, '');
+      const r = await pool.query(
+        "SELECT id FROM users WHERE phone = $1 OR phone = $2",
+        [normalized, normalized.replace(/^54/, '')]
+      );
+      targetUser = r.rows[0];
+    }
+
+    if (targetUser) {
+      await pool.query(
+        `INSERT INTO pet_shares (pet_id, user_id, role) VALUES ($1, $2, 'editor') ON CONFLICT DO NOTHING`,
+        [petId, targetUser.id]
+      );
+      const { sendPushToUser } = await import('../services/pushService.js');
+      const inviter = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
+      const inviterName = inviter.rows[0]?.display_name || 'Alguien';
+      sendPushToUser(targetUser.id, {
+        title: '🐾 Nuevo acceso compartido',
+        body: `${inviterName} te compartió el perfil de ${pet.rows[0].name || 'una mascota'} en Sigo Tu Huella. Ya tenés acceso para ver y editar su ficha.`,
+        url: `/pet/${petId}`,
+      }).catch(() => {});
+      return res.json({ shared: true, userExists: true });
+    }
+
+    // No existe — crear invitación
+    const crypto = await import('crypto');
+    const token = crypto.default.randomBytes(32).toString('hex');
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const inviteLink = `${FRONTEND_URL}/login?invite=${token}`;
+    const petName = pet.rows[0].name || (pet.rows[0].species === 'dog' ? 'perro' : pet.rows[0].species === 'cat' ? 'gato' : 'mascota');
+    const inviter = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
+    const inviterName = inviter.rows[0]?.display_name || 'Alguien';
+
     await pool.query(
-      `INSERT INTO pet_shares (pet_id, user_id, role) VALUES ($1, $2, 'editor') ON CONFLICT (pet_id, user_id) DO NOTHING`,
-      [petId, userId]
+      `INSERT INTO share_invites (pet_id, invited_email, invited_phone, token, message, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [petId, email || null, phone || null, token, req.body.message || null, req.user.id]
     );
-    res.json({ success: true });
+
+    const textMsg = `🐾 *${inviterName}* te compartió el perfil de *${petName}* en Sigo Tu Huella, una red de vecinos que cuidamos las mascotas de la comunidad.\n\nRegistrate gratis para sumarte: ${inviteLink}`;
+
+    if (email) {
+      const { default: nodemailer } = await import('nodemailer');
+      const t = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'l0061596.ferozo.com',
+        port: parseInt(process.env.SMTP_PORT) || 587,
+        secure: false,
+        tls: { rejectUnauthorized: false },
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      });
+      t.sendMail({
+        from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject: `${inviterName} te compartió una mascota en Sigo Tu Huella`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;border:1px solid #cbd5e1;border-radius:16px;background:#f8fafc;">
+            <div style="text-align:center;margin-bottom:20px;">
+              <div style="background:#3b82f6;color:white;width:60px;height:60px;line-height:60px;font-size:30px;border-radius:20px;display:inline-block;">🐾</div>
+            </div>
+            <h2 style="color:#1e293b;text-align:center;font-size:20px;margin-bottom:16px;">${inviterName} te compartió el perfil de ${petName}</h2>
+            <p style="color:#475569;font-size:15px;line-height:1.6;text-align:center;">
+              En Sigo Tu Huella, una red de vecinos que cuidamos las mascotas de la comunidad.
+            </p>
+            ${req.body.message ? `<p style="color:#64748b;font-size:14px;text-align:center;font-style:italic;">"${req.body.message}"</p>` : ''}
+            <div style="text-align:center;margin:24px 0;">
+              <a href="${inviteLink}" style="background:#5A5A40;color:#fff;padding:12px 32px;border-radius:12px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block;">
+                Registrate gratis
+              </a>
+            </div>
+            <p style="color:#94a3b8;font-size:12px;text-align:center;">
+              Ya tenés acceso para ver y editar su ficha al registrarte.
+            </p>
+          </div>
+        `,
+      }).catch(e => console.error('Failed to send invite email:', e));
+    }
+
+    if (phone) {
+      try {
+        const { sendMessage } = await import('../services/whatsappService.js');
+        await sendMessage(phone.replace(/[^0-9]/g, ''), textMsg);
+      } catch (e) { console.error('Failed to send invite WhatsApp:', e); }
+    }
+
+    res.status(201).json({ invited: true, inviteLink });
   } catch (err) {
     console.error('Share pet error:', err);
     res.status(500).json({ error: 'Error al compartir' });
@@ -1216,6 +1311,56 @@ router.post('/:id/claim', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Claim pet error:', err);
     res.status(500).json({ error: 'Error al reclamar' });
+  }
+});
+
+// POST /:id/share-family/:familyId — compartir con toda la familia (dueño)
+router.post('/:id/share-family/:familyId', requireAuth, async (req, res) => {
+  const { id: petId, familyId } = req.params;
+
+  try {
+    const pet = await pool.query('SELECT created_by FROM pets WHERE id = $1', [petId]);
+    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    if (req.user.role !== 'admin' && pet.rows[0].created_by !== req.user.id) {
+      return res.status(403).json({ error: 'Solo el dueño puede compartir' });
+    }
+
+    const members = await pool.query(
+      `SELECT user_id FROM family_members WHERE family_id = $1 AND user_id != $2`,
+      [familyId, req.user.id]
+    );
+
+    if (members.rows.length === 0) return res.json({ shared: 0 });
+
+    const values = members.rows.map(m => `('${petId}', '${m.user_id}', 'editor')`).join(',');
+    await pool.query(
+      `INSERT INTO pet_shares (pet_id, user_id, role) VALUES ${values} ON CONFLICT DO NOTHING`
+    );
+
+    res.json({ shared: members.rows.length });
+  } catch (err) {
+    console.error('Share pet with family error:', err);
+    res.status(500).json({ error: 'Error al compartir con familia' });
+  }
+});
+
+// GET /shared/with-me — pets compartidas conmigo
+router.get('/shared/with-me', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.*, ps.role, ps.created_at as shared_since,
+              u.display_name as owner_name
+       FROM pet_shares ps
+       JOIN pets p ON p.id = ps.pet_id
+       JOIN users u ON u.id = p.created_by
+       WHERE ps.user_id = $1
+       ORDER BY ps.created_at DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Get shared pets error:', err);
+    res.status(500).json({ error: 'Error al obtener mascotas compartidas' });
   }
 });
 

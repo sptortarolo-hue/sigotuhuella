@@ -574,6 +574,30 @@ CREATE TABLE IF NOT EXISTS family_members (
 
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS pet_type VARCHAR(20) DEFAULT 'own';
 ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS pet_type VARCHAR(20) DEFAULT 'own';
+
+CREATE TABLE IF NOT EXISTS share_invites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
+  my_pet_id UUID REFERENCES my_pets(id) ON DELETE CASCADE,
+  invited_email VARCHAR(255),
+  invited_phone VARCHAR(50),
+  token VARCHAR(64) UNIQUE NOT NULL,
+  message TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_by UUID NOT NULL REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  accepted_at TIMESTAMP,
+  reminder_count INT DEFAULT 0,
+  last_reminder_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS my_pet_shares (
+  pet_id UUID NOT NULL REFERENCES my_pets(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role VARCHAR(10) DEFAULT 'editor',
+  created_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (pet_id, user_id)
+);
 `;
 
 async function migrate(client, sql, label) {
@@ -795,6 +819,34 @@ export async function initDb() {
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('fb_relay_enabled', 'false') ON CONFLICT (key) DO NOTHING
     `, 'fb_relay_enabled');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS share_invites (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
+        my_pet_id UUID REFERENCES my_pets(id) ON DELETE CASCADE,
+        invited_email VARCHAR(255),
+        invited_phone VARCHAR(50),
+        token VARCHAR(64) UNIQUE NOT NULL,
+        message TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_by UUID NOT NULL REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        accepted_at TIMESTAMP,
+        reminder_count INT DEFAULT 0,
+        last_reminder_at TIMESTAMP
+      )
+    `, 'share_invites');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS my_pet_shares (
+        pet_id UUID NOT NULL REFERENCES my_pets(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role VARCHAR(10) DEFAULT 'editor',
+        created_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (pet_id, user_id)
+      )
+    `, 'my_pet_shares');
 
     console.log('Database migrations complete');
   } finally {

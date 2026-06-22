@@ -30,6 +30,19 @@ const EVENT_TYPE_ICONS = {
   grooming: '✂️', other: '📋',
 };
 
+async function canEditMyPet(userId, petId) {
+  const result = await pool.query(
+    `SELECT mp.user_id, ms.user_id IS NOT NULL as is_shared
+     FROM my_pets mp
+     LEFT JOIN my_pet_shares ms ON ms.pet_id = mp.id AND ms.user_id = $1
+     WHERE mp.id = $2`,
+    [userId, petId]
+  );
+  if (result.rows.length === 0) return { allowed: false, isOwner: false };
+  const row = result.rows[0];
+  return { allowed: row.user_id === userId || row.is_shared, isOwner: row.user_id === userId };
+}
+
 async function compressAvatar(imageData, mimeType, size = 400) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
@@ -164,10 +177,10 @@ router.post('/', requireAuth, async (req, res) => {
 
 router.put('/:id', requireAuth, async (req, res) => {
   try {
-    const existing = await pool.query(
-      'SELECT id FROM my_pets WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
+
+    const existing = await pool.query('SELECT * FROM my_pets WHERE id = $1', [req.params.id]);
     if (existing.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const {
@@ -213,10 +226,10 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (sets.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
 
     sets.push(`updated_at = NOW()`);
-    values.push(req.params.id, req.user.id);
+    values.push(req.params.id);
 
     const result = await pool.query(
-      `UPDATE my_pets SET ${sets.join(', ')} WHERE id = $${idx} AND user_id = $${idx + 1} RETURNING *`,
+      `UPDATE my_pets SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
       values
     );
     res.json({ myPet: result.rows[0] });
@@ -998,6 +1011,129 @@ router.post('/:id/report-lost', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Error al reportar mascota perdida' });
   } finally {
     client.release();
+  }
+});
+
+// PUT /:id/share — compartir my_pet con userId existente (dueño)
+router.put('/:id/share', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId requerido' });
+
+  try {
+    const access = await canEditMyPet(req.user.id, id);
+    if (!access.isOwner && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Solo el dueño puede compartir' });
+    }
+
+    await pool.query(
+      `INSERT INTO my_pet_shares (pet_id, user_id, role) VALUES ($1, $2, 'editor') ON CONFLICT DO NOTHING`,
+      [id, userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Share my_pet error:', err);
+    res.status(500).json({ error: 'Error al compartir' });
+  }
+});
+
+// DELETE /:id/share/:userId — dejar de compartir (dueño)
+router.delete('/:id/share/:userId', requireAuth, async (req, res) => {
+  const { id, userId } = req.params;
+
+  try {
+    const access = await canEditMyPet(req.user.id, id);
+    if (!access.isOwner && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Solo el dueño puede dejar de compartir' });
+    }
+
+    await pool.query('DELETE FROM my_pet_shares WHERE pet_id = $1 AND user_id = $2', [id, userId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Unshare my_pet error:', err);
+    res.status(500).json({ error: 'Error al dejar de compartir' });
+  }
+});
+
+// GET /:id/shares — lista de shared users + invites pendientes
+router.get('/:id/shares', requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const access = await canEditMyPet(req.user.id, id);
+    if (!access.allowed) return res.status(403).json({ error: 'No autorizado' });
+
+    const shared = await pool.query(
+      `SELECT ms.user_id, ms.role, ms.created_at as shared_at,
+              u.email, u.display_name, u.avatar_data, u.avatar_mime_type, u.avatar_type
+       FROM my_pet_shares ms
+       JOIN users u ON u.id = ms.user_id
+       WHERE ms.pet_id = $1
+       ORDER BY ms.created_at ASC`,
+      [id]
+    );
+
+    const invites = await pool.query(
+      `SELECT id, invited_email, invited_phone, status, created_at, message
+       FROM share_invites
+       WHERE my_pet_id = $1 AND status = 'pending'
+       ORDER BY created_at DESC`,
+      [id]
+    );
+
+    res.json({ shared: shared.rows, invites: invites.rows });
+  } catch (err) {
+    console.error('Get my_pet shares error:', err);
+    res.status(500).json({ error: 'Error al obtener compartidos' });
+  }
+});
+
+// POST /:id/share-family/:familyId — compartir con toda la familia (dueño)
+router.post('/:id/share-family/:familyId', requireAuth, async (req, res) => {
+  const { id, familyId } = req.params;
+
+  try {
+    const access = await canEditMyPet(req.user.id, id);
+    if (!access.isOwner && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Solo el dueño puede compartir' });
+    }
+
+    const members = await pool.query(
+      `SELECT user_id FROM family_members WHERE family_id = $1 AND user_id != $2`,
+      [familyId, req.user.id]
+    );
+
+    if (members.rows.length === 0) return res.json({ shared: 0 });
+
+    const values = members.rows.map(m => `('${id}', '${m.user_id}', 'editor')`).join(',');
+    await pool.query(
+      `INSERT INTO my_pet_shares (pet_id, user_id, role) VALUES ${values} ON CONFLICT DO NOTHING`
+    );
+
+    res.json({ shared: members.rows.length });
+  } catch (err) {
+    console.error('Share my_pet with family error:', err);
+    res.status(500).json({ error: 'Error al compartir con familia' });
+  }
+});
+
+// GET /shared — my_pets compartidas conmigo
+router.get('/shared/with-me', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT mp.*, ms.role, ms.created_at as shared_since,
+              u.display_name as owner_name
+       FROM my_pet_shares ms
+       JOIN my_pets mp ON mp.id = ms.pet_id
+       JOIN users u ON u.id = mp.user_id
+       WHERE ms.user_id = $1
+       ORDER BY ms.created_at DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Get shared my_pets error:', err);
+    res.status(500).json({ error: 'Error al obtener mascotas compartidas' });
   }
 });
 

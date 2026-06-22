@@ -6,6 +6,7 @@ import {
   PawPrint, Plus, Eye, Heart, Trophy, Users,
   Loader2, Clock, ChevronRight, Search, Camera,
   FileText, RotateCcw, Star, HandCoins, Sparkles,
+  Share2, Mail, Phone, Check, X as XIcon,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import FamilySection from '@/src/components/FamilySection';
@@ -19,6 +20,10 @@ export default function Dashboard() {
   const [recentActivityLoading, setRecentActivityLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
   const [gamification, setGamification] = useState<any>(null);
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
+  const [invitesLoading, setInvitesLoading] = useState(true);
+  const [sharedPets, setSharedPets] = useState<any[]>([]);
+  const [sharedPetsLoading, setSharedPetsLoading] = useState(true);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -98,7 +103,40 @@ export default function Dashboard() {
     fetchRecentActivity();
     fetchStats();
     fetchGamification();
+
+    const fetchInvites = async () => {
+      try {
+        const res = await fetch('/api/invites/pending', { credentials: 'include' });
+        if (res.ok) { const data = await res.json(); setPendingInvites(data); }
+      } catch (e) { console.error(e); }
+      finally { setInvitesLoading(false); }
+    };
+    const fetchShared = async () => {
+      try {
+        const res = await fetch('/api/my-pets/shared/with-me', { credentials: 'include' });
+        if (res.ok) { const data = await res.json(); setSharedPets(data); }
+      } catch (e) { console.error(e); }
+      finally { setSharedPetsLoading(false); }
+    };
+    fetchInvites();
+    fetchShared();
   }, [user, navigate]);
+
+  const handleAcceptInvite = async (token: string) => {
+    try {
+      const res = await fetch(`/api/invites/${token}/accept`, { method: 'POST', credentials: 'include' });
+      if (res.ok) {
+        setPendingInvites(prev => prev.filter(i => i.token !== token));
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleRejectInvite = async (token: string) => {
+    try {
+      await fetch(`/api/invites/${token}/reject`, { method: 'POST', credentials: 'include' });
+      setPendingInvites(prev => prev.filter(i => i.token !== token));
+    } catch (e) { console.error(e); }
+  };
 
   if (loading) return (
     <div className="min-h-[60vh] flex items-center justify-center text-brand-primary">
@@ -383,7 +421,6 @@ export default function Dashboard() {
       </div>
 
       {/* ─── DESKTOP LAYOUT ─── */}
-      <div className="hidden lg:block space-y-8">
         {/* Greeting */}
         <div className="flex items-center justify-between">
           <div>
@@ -565,7 +602,66 @@ export default function Dashboard() {
 
         {/* Mi Familia */}
         <FamilySection />
+
+        {/* Invitaciones pendientes */}
+        {!invitesLoading && pendingInvites.length > 0 && (
+          <section className="bg-white rounded-2xl shadow-sm p-6">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-amber-500 mb-4 flex items-center gap-2">
+              <Mail className="w-4 h-4" /> Invitaciones pendientes
+            </h2>
+            <div className="space-y-2">
+              {pendingInvites.map(inv => (
+                <div key={inv.id} className="flex items-center justify-between p-4 bg-amber-50 rounded-xl border border-amber-200">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">
+                      <strong>{inv.inviter_name}</strong> te compartió <strong>{inv.pet_name}</strong>
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {inv.invited_email && <><Mail className="w-3 h-3 inline mr-1" />{inv.invited_email}</>}
+                      {inv.invited_phone && <><Phone className="w-3 h-3 inline mr-1 ml-2" />{inv.invited_phone}</>}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0 ml-3">
+                    <button onClick={() => handleAcceptInvite(inv.token)}
+                      className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold hover:bg-emerald-200 transition-colors flex items-center gap-1">
+                      <Check className="w-4 h-4" /> Aceptar
+                    </button>
+                    <button onClick={() => handleRejectInvite(inv.token)}
+                      className="px-4 py-2 bg-red-50 text-red-500 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors">
+                      Rechazar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Compartidas conmigo */}
+        {!sharedPetsLoading && sharedPets.length > 0 && (
+          <section className="bg-white rounded-2xl shadow-sm p-6">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
+              <Share2 className="w-4 h-4" /> Compartidas conmigo
+            </h2>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {sharedPets.map((pet: any) => (
+                <button key={pet.id} onClick={() => navigate(`/mi-mascota/${pet.id}`)}
+                  className="shrink-0 snap-start group">
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden bg-brand-bg border border-brand-accent group-hover:border-brand-primary/50 transition-all shadow-sm">
+                    {pet.avatar_image ? (
+                      <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <PawPrint className="w-8 h-8 text-brand-accent" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs font-medium text-gray-700 text-center mt-1.5 truncate max-w-20">{pet.name}</p>
+                  <p className="text-[10px] text-gray-400 text-center">{pet.owner_name}</p>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
-    </div>
-  );
-}
