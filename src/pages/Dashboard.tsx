@@ -660,3 +660,6 @@ export default function Dashboard() {
           </section>
         )}
       </div>
+    </div>
+  );
+}
