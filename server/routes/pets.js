@@ -451,6 +451,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       await autoCreateNews(updatedPet.rows[0], newsType);
       await autoInstagramComment(updatedPet.rows[0], newsType);
       await autoQueueCelebrationPost(updatedPet.rows[0], newsType);
+      broadcastPetToGroups(petId).catch(e => console.error('Broadcast reunion/adoption error:', e));
     }
     // Auto-badge: reunited_hero (first reunion)
     if (isReunited && pet.created_by) {

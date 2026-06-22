@@ -368,6 +368,73 @@ export async function broadcastPetToGroups(petId) {
   }
 }
 
+export async function broadcastNextAdoptionPet() {
+  try {
+    const pet = (await pool.query(`
+      SELECT p.*,
+        (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
+        (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
+      FROM pets p
+      WHERE p.status = 'for_adoption' AND p.adoption_broadcasted_at IS NULL
+      ORDER BY p.created_at ASC LIMIT 1
+    `)).rows[0];
+    if (!pet) {
+      console.log('[AdoptionBroadcast] No pending adoption pets to broadcast');
+      return;
+    }
+
+    const groups = await pool.query("SELECT * FROM whatsapp_groups WHERE is_active = TRUE AND auto_broadcast = TRUE");
+    if (groups.rows.length === 0) return;
+
+    const speciesLabel = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : (pet.species || 'mascota');
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const desc = pet.description ? pet.description.substring(0, 200) : '';
+    const edadInfo = pet.age ? ` de ${pet.age}` : '';
+
+    const caption = [
+      `🏡 *Buscamos hogar para ${pet.name}*`,
+      '',
+      'En Sigo Tu Huella conectamos mascotas con familias.',
+      '',
+      `Hoy te presentamos a *${pet.name}*, ${speciesLabel}${edadInfo} que está buscando un hogar.`,
+      desc ? `\n${desc}` : '',
+      '',
+      `📍 ${pet.location || 'Sin ubicación'}`,
+      pet.contact_info ? `📞 ${pet.contact_info}` : '',
+      '',
+      `👉 ${frontendUrl}/pet/${pet.id}`,
+      '',
+      'Si no podés adoptar, compartir también ayuda 🐾',
+    ].filter(Boolean).join('\n');
+
+    const coverUrl = pet.image_data
+      ? `${frontendUrl}/api/images/pet/${pet.id}/cover`
+      : null;
+
+    for (const group of groups.rows) {
+      try {
+        await enqueue(group.group_id, caption, coverUrl);
+      } catch (relayErr) {
+        console.warn(`[AdoptionBroadcast] Relay error to ${group.name}, fallback to Meta:`, relayErr.message);
+        try {
+          if (coverUrl) {
+            await sendGroupImage(group.group_id, coverUrl, caption);
+          } else {
+            await sendGroupMessage(group.group_id, caption);
+          }
+        } catch (metaErr) {
+          console.error(`[AdoptionBroadcast] Meta fallback error to ${group.name}:`, metaErr.message);
+        }
+      }
+    }
+
+    await pool.query('UPDATE pets SET adoption_broadcasted_at = NOW() WHERE id = $1', [pet.id]);
+    console.log(`[AdoptionBroadcast] Broadcast "${pet.name}" (${pet.id}) to ${groups.rows.length} groups`);
+  } catch (err) {
+    console.error('[AdoptionBroadcast] Error:', err.message);
+  }
+}
+
 export async function updateBusinessProfile(fields) {
   const phoneNumberId = await getPhoneNumberId();
   const token = await getAccessToken();

@@ -34,6 +34,7 @@ import { autoQueueForAdoption, processQueue } from './services/instagramPublishe
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
 import { publishStory, isConnected } from './services/instagramService.js';
 import { checkWhatsAppTimeouts } from './services/whatsappScheduler.js';
+import { broadcastNextAdoptionPet } from './services/whatsappService.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
 
@@ -602,6 +603,20 @@ async function start() {
   }, 10 * 60 * 1000);
 
   checkWhatsAppTimeouts();
+
+  // Adoption broadcast: every hour, publish at 10:00 and 18:00
+  async function checkAdoptionBroadcast() {
+    try {
+      const hour = new Date().getHours();
+      if (hour === 10 || hour === 18) {
+        await broadcastNextAdoptionPet();
+      }
+    } catch (err) {
+      console.error('[AdoptionBroadcast Scheduler] Error:', err.message);
+    }
+  }
+  setTimeout(checkAdoptionBroadcast, 10_000);
+  setInterval(checkAdoptionBroadcast, 60 * 60 * 1000);
 }
 
 start().catch(err => {
