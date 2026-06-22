@@ -947,7 +947,6 @@ router.post('/public', async (req, res) => {
         const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention'];
         if (broadcastStatuses.includes(pet.status)) {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
-          enqueueFbGroupPublish(pet).catch(e => console.error('FB Relay error:', e));
         }
 
         res.status(201).json({ pet });
@@ -1065,7 +1064,6 @@ router.post('/lost-report', async (req, res) => {
         const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention'];
         if (broadcastStatuses.includes(pet.status)) {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
-          enqueueFbGroupPublish(pet).catch(e => console.error('FB Relay error:', e));
         }
 
         res.status(201).json({ pet, registrationPending: !!registrationToken });

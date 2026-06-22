@@ -513,7 +513,7 @@ async function start() {
   setInterval(checkReminders, 6 * 60 * 60 * 1000);
   checkReminders();
 
-  // Instagram publisher: check every 5 minutes
+  // Instagram publisher: check every minute
   setInterval(async () => {
     try {
       await autoQueueForAdoption();
@@ -521,7 +521,7 @@ async function start() {
     } catch (err) {
       console.error('[Instagram Publisher] Error:', err.message);
     }
-  }, 5 * 60 * 1000);
+  }, 60 * 1000);
 
   // Run Instagram publisher once immediately on startup (with a small 5s delay to let server start up fully)
   setTimeout(async () => {
@@ -534,7 +534,7 @@ async function start() {
     }
   }, 5000);
 
-  // Facebook publisher: replicate new Instagram posts to Page + Groups every 10 minutes
+  // Facebook publisher: replicate new Instagram posts to Page + Groups every 2 minutes
   setInterval(async () => {
     try {
       const enabled = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_publisher_enabled'");
@@ -547,7 +547,7 @@ async function start() {
     } catch (err) {
       console.error('[Facebook Publisher] Error:', err.message);
     }
-  }, 10 * 60 * 1000);
+  }, 2 * 60 * 1000);
 
   setTimeout(async () => {
     try {
