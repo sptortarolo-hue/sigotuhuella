@@ -1906,7 +1906,7 @@ async function fbShowConfirm(conv) {
 
   const msg =
     `${conv.bot_name}: Confirmá los datos:\n\n` +
-    `📋 *Especie:* ${speciesLabels[post.species] || post.species || 'unknown'}\n` +
+    `📋 *Especie:* ${speciesLabels[post.species] || post.species || 'Sin especificar'}\n` +
     `📍 *Ubicación:* ${post.location_hint || ctx.fbLatitude ? 'Compartida' : '(sin ubicación)'}\n` +
     `📌 *Tipo:* ${statusLabels[post.classification] || post.classification}\n` +
     `👤 *Contacto:* ${post.author_name || 'Anónimo'} vía Facebook\n\n` +

@@ -28,7 +28,7 @@ function buildPetCaption(pet, hashtags) {
     `${speciesLabel[pet.species] || 'Mascota'}${pet.breed ? ' - ' + pet.breed : ''}`,
     `${genderLabel[pet.gender] ? genderLabel[pet.gender] + (pet.age ? ' · ' + pet.age : '') : (pet.age || '')}`,
     `${pet.color ? '🎨 ' + pet.color : ''}`,
-    `📍 ${pet.location || ''}${pet.contact_info ? ' · ' + pet.contact_info : ''}`,
+    pet.location ? `📍 ${pet.location}${pet.contact_info ? ' · ' + pet.contact_info : ''}` : (pet.contact_info ? `📞 ${pet.contact_info}` : ''),
     ``,
     `${pet.description ? pet.description.substring(0, 400) : ''}`,
     ``,

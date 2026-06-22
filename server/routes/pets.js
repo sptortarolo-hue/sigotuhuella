@@ -235,7 +235,7 @@ async function enqueueFbGroupPublish(pet) {
       `${species}${pet.breed ? ' - ' + pet.breed : ''}`,
       `${ageGender ? ageGender : ''}`,
       `${pet.color ? '🎨 ' + pet.color : ''}`,
-      `📍 ${pet.location || ''}`,
+      `${pet.location ? '📍 ' + pet.location : ''}`,
       pet.contact_info ? `📞 ${pet.contact_info}` : '',
       '',
       pet.description ? pet.description.substring(0, 500) : '',

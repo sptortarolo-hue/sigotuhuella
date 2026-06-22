@@ -66,7 +66,7 @@ function buildPetMessage(pet, hashtags, originalUrl, authorName) {
     `${species}${pet.breed ? ' - ' + pet.breed : ''}`,
     `${ageGender ? ageGender : ''}`,
     `${pet.color ? '🎨 ' + pet.color : ''}`,
-    `📍 ${pet.location || ''}`,
+    `${pet.location ? '📍 ' + pet.location : ''}`,
     pet.contact_info ? `📞 ${pet.contact_info}` : '',
     originalUrl ? `🔗 Publicación original: ${originalUrl}` : '',
     authorName ? `👤 Publicado por: ${authorName}` : '',
@@ -81,7 +81,9 @@ function buildPetMessage(pet, hashtags, originalUrl, authorName) {
 
 function buildImageUrls(petId, imagesData) {
   if (imagesData && imagesData.length > 0) {
-    return imagesData.map((_, i) => `${FRONTEND_URL}/api/images/pet/${petId}/${i}`);
+    return [`${FRONTEND_URL}/api/images/pet/${petId}/cover`,
+      ...Array(Math.min(imagesData.length - 1, 4)).fill(null).map((_, i) =>
+        `${FRONTEND_URL}/api/images/pet/${petId}/${i + 1}`)];
   }
   return [`${FRONTEND_URL}/api/images/pet/${petId}/cover`];
 }
