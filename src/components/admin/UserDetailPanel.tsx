@@ -2,11 +2,12 @@
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X, User, Mail, Phone, Calendar, Shield, Award, PawPrint, MessageSquare,
-  BadgeCheck, MapPin, Activity, ExternalLink, ChevronRight, ChevronDown
+  BadgeCheck, MapPin, Activity, ExternalLink, ChevronRight, ChevronDown, Edit2, Save, Loader2
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { BADGE_CONFIG } from '@/src/components/MemberCard';
 import ImageLightbox from './ImageLightbox';
+import { api } from '@/src/lib/api';
 
 const BADGE_ICONS: Record<string, { label: string; icon: string }> = {
   volunteer: { label: 'Voluntario/a', icon: '🤝' },
@@ -87,13 +88,32 @@ interface UserDetailPanelProps {
   onSelectMyPet?: (mp: any) => void;
   isMobile?: boolean;
   onClose?: () => void;
+  onUserUpdate?: (updatedUser: any) => void;
 }
 
-export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMobile, onClose }: UserDetailPanelProps) {
+export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMobile, onClose, onUserUpdate }: UserDetailPanelProps) {
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'myPets' | 'reported' | 'activity'>('info');
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
   const { user, volunteer_request, conversations, myPets, pets, stats } = data;
+
+  async function handleSavePhone() {
+    if (!phoneInput.trim()) return;
+    setSavingPhone(true);
+    try {
+      const updated = await api.users.update(user.id, { phone: phoneInput.trim() });
+      setIsEditingPhone(false);
+      onUserUpdate?.(updated);
+    } catch (err) {
+      console.error('Error saving phone:', err);
+      alert('Error al guardar teléfono');
+    } finally {
+      setSavingPhone(false);
+    }
+  }
 
   const avatarSrc = user.avatar_data
     ? `data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`
@@ -177,9 +197,43 @@ export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMo
               <Mail className="w-4 h-4 shrink-0" />
               <span className="truncate">{user.email}</span>
             </div>
-            <div className="flex items-center gap-2 text-gray-500">
+<div className="flex items-center gap-2 text-gray-500">
               <Phone className="w-4 h-4 shrink-0" />
-              <span>{user.phone || '-'}</span>
+              {isEditingPhone ? (
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    type="tel"
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    className="flex-1 px-2 py-1 border border-brand-accent rounded-lg text-sm"
+                    placeholder="549XXXXXXXXXX"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSavePhone}
+                    disabled={savingPhone}
+                    className="p-1 text-brand-primary hover:text-brand-primary/80 disabled:opacity-50"
+                  >
+                    {savingPhone ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => { setIsEditingPhone(false); setPhoneInput(''); }}
+                    className="p-1 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span>{user.phone || '-'}</span>
+                  <button
+                    onClick={() => { setPhoneInput(user.phone || ''); setIsEditingPhone(true); }}
+                    className="p-1 text-gray-400 hover:text-brand-primary"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 text-gray-500">
               <Calendar className="w-4 h-4 shrink-0" />

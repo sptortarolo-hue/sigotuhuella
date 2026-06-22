@@ -641,6 +641,10 @@ export default function Admin() {
     });
   };
 
+  const handleUserUpdate = (updatedUser: any) => {
+    setSelectedUserData((prev: any) => prev ? { ...prev, user: updatedUser } : prev);
+  };
+
   const handleToggleRole = async (id: string, currentRole: string) => {
     const newRole = currentRole === 'admin' ? 'user' : 'admin';
     setConfirmDialog({
@@ -1317,6 +1321,7 @@ export default function Admin() {
                         data={selectedUserData}
                         onSelectPet={handleSelectPet}
                         onSelectMyPet={handleSelectMyPet}
+                        onUserUpdate={handleUserUpdate}
                       />
                       <div className="px-6 pb-6 flex gap-2">
                         {selectedUserData.user.email !== 'sptortarolo@gmail.com' && (
@@ -1428,6 +1433,7 @@ export default function Admin() {
                         onSelectMyPet={handleSelectMyPet}
                         isMobile
                         onClose={() => { setMobileView('list'); setSelectedUserData(null); setSelectedUserId(null); }}
+                        onUserUpdate={handleUserUpdate}
                       />
                     </div>
                   </div>
