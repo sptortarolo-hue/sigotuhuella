@@ -8,6 +8,7 @@ import {
   FileText, RotateCcw, Star, HandCoins, Sparkles,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import FamilySection from '@/src/components/FamilySection';
 
 export default function Dashboard() {
   const { user, loading, logout } = useAuth();
@@ -376,6 +377,9 @@ export default function Dashboard() {
             ))}
           </div>
         </section>
+
+        {/* 6. Family */}
+        <FamilySection />
       </div>
 
       {/* ─── DESKTOP LAYOUT ─── */}
@@ -558,6 +562,9 @@ export default function Dashboard() {
             ))}
           </div>
         </section>
+
+        {/* Mi Familia */}
+        <FamilySection />
       </div>
     </div>
   );

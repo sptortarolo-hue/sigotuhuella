@@ -11,6 +11,19 @@ import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 
+async function canEditPet(userId, petId) {
+  const result = await pool.query(
+    `SELECT p.created_by, ps.user_id IS NOT NULL as is_shared
+     FROM pets p
+     LEFT JOIN pet_shares ps ON ps.pet_id = p.id AND ps.user_id = $1
+     WHERE p.id = $2`,
+    [userId, petId]
+  );
+  if (result.rows.length === 0) return false;
+  const row = result.rows[0];
+  return row.created_by === userId || row.is_shared;
+}
+
 async function processImage(imageData, mimeType, size = 800) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
@@ -379,7 +392,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Pet not found' });
     }
     const pet = existing.rows[0];
-    if (pet.created_by !== req.user.id && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && !(await canEditPet(req.user.id, petId))) {
       return res.status(403).json({ error: 'Not authorized' });
     }
     const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info'];
@@ -488,7 +501,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Pet not found' });
     }
     const pet = existing.rows[0];
-    if (pet.created_by !== req.user.id && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && pet.created_by !== req.user.id) {
       return res.status(403).json({ error: 'Not authorized' });
     }
     await pool.query('DELETE FROM pets WHERE id = $1', [petId]);
@@ -688,7 +701,7 @@ router.post('/:petId/records', requireAuth, async (req, res) => {
   try {
     const pet = await pool.query('SELECT created_by FROM pets WHERE id = $1', [req.params.petId]);
     if (pet.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
-    if (pet.rows[0].created_by !== req.user.id && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && !(await canEditPet(req.user.id, req.params.petId))) {
       return res.status(403).json({ error: 'Not authorized' });
     }
     const result = await pool.query(
@@ -743,8 +756,7 @@ router.delete('/:petId/records/:recordId', requireAuth, async (req, res) => {
     const rec = await pool.query('SELECT pr.* FROM pet_records pr JOIN pets p ON p.id = pr.pet_id WHERE pr.id = $1', [req.params.recordId]);
     if (rec.rows.length === 0) return res.status(404).json({ error: 'Record not found' });
     const record = rec.rows[0];
-    const pet = await pool.query('SELECT created_by FROM pets WHERE id = $1', [record.pet_id]);
-    if (pet.rows[0].created_by !== req.user.id && req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && !(await canEditPet(req.user.id, record.pet_id))) {
       return res.status(403).json({ error: 'Not authorized' });
     }
     await pool.query('DELETE FROM pet_records WHERE id = $1', [req.params.recordId]);
@@ -1093,6 +1105,117 @@ router.put('/link-case', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Link case error:', err);
     res.status(500).json({ error: 'Failed to link case' });
+  }
+});
+
+// PUT /:id/share - share pet with a family member
+router.put('/:id/share', requireAuth, async (req, res) => {
+  const petId = req.params.id;
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId requerido' });
+
+  try {
+    const pet = await pool.query('SELECT created_by FROM pets WHERE id = $1', [petId]);
+    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    if (req.user.role !== 'admin' && pet.rows[0].created_by !== req.user.id) {
+      return res.status(403).json({ error: 'Solo el dueño puede compartir' });
+    }
+
+    await pool.query(
+      `INSERT INTO pet_shares (pet_id, user_id, role) VALUES ($1, $2, 'editor') ON CONFLICT (pet_id, user_id) DO NOTHING`,
+      [petId, userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Share pet error:', err);
+    res.status(500).json({ error: 'Error al compartir' });
+  }
+});
+
+// DELETE /:id/share/:userId - remove share access
+router.delete('/:id/share/:userId', requireAuth, async (req, res) => {
+  const { id: petId, userId } = req.params;
+
+  try {
+    const pet = await pool.query('SELECT created_by FROM pets WHERE id = $1', [petId]);
+    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    if (req.user.role !== 'admin' && pet.rows[0].created_by !== req.user.id) {
+      return res.status(403).json({ error: 'Solo el dueño puede dejar de compartir' });
+    }
+
+    await pool.query('DELETE FROM pet_shares WHERE pet_id = $1 AND user_id = $2', [petId, userId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Unshare pet error:', err);
+    res.status(500).json({ error: 'Error al dejar de compartir' });
+  }
+});
+
+// GET /:id/shares - list users this pet is shared with
+router.get('/:id/shares', requireAuth, async (req, res) => {
+  const petId = req.params.id;
+
+  try {
+    const pet = await pool.query('SELECT created_by FROM pets WHERE id = $1', [petId]);
+    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    if (req.user.role !== 'admin' && !(await canEditPet(req.user.id, petId))) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
+
+    const result = await pool.query(
+      `SELECT ps.user_id, ps.role, ps.created_at as shared_at,
+              u.email, u.display_name, u.avatar_data, u.avatar_mime_type, u.avatar_type
+       FROM pet_shares ps
+       JOIN users u ON u.id = ps.user_id
+       WHERE ps.pet_id = $1
+       ORDER BY ps.created_at ASC`,
+      [petId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Get shares error:', err);
+    res.status(500).json({ error: 'Error al obtener usuarios compartidos' });
+  }
+});
+
+// POST /:id/follow - follow a pet (follower role)
+router.post('/:id/follow', requireAuth, async (req, res) => {
+  const petId = req.params.id;
+
+  try {
+    const pet = await pool.query('SELECT id FROM pets WHERE id = $1', [petId]);
+    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+
+    await pool.query(
+      `INSERT INTO pet_shares (pet_id, user_id, role) VALUES ($1, $2, 'follower') ON CONFLICT (pet_id, user_id) DO NOTHING`,
+      [petId, req.user.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Follow pet error:', err);
+    res.status(500).json({ error: 'Error al seguir' });
+  }
+});
+
+// POST /:id/claim - upgrade follower to editor
+router.post('/:id/claim', requireAuth, async (req, res) => {
+  const petId = req.params.id;
+
+  try {
+    const pet = await pool.query('SELECT id FROM pets WHERE id = $1', [petId]);
+    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+
+    const result = await pool.query(
+      `UPDATE pet_shares SET role = 'editor' WHERE pet_id = $1 AND user_id = $2 AND role = 'follower' RETURNING *`,
+      [petId, req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'No hay solicitud de seguimiento pendiente' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Claim pet error:', err);
+    res.status(500).json({ error: 'Error al reclamar' });
   }
 });
 

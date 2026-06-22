@@ -31,12 +31,20 @@ const PERSONALITY_TAGS = [
   'leal', 'curioso', 'mimoso', 'atlético', 'glotón',
 ];
 
+const PET_TYPE_OPTIONS = [
+  { value: 'own', label: 'Propia', desc: 'Mascota de la familia' },
+  { value: 'foster', label: 'Tránsito', desc: 'Está de paso en casa' },
+  { value: 'adoption', label: 'Adopción', desc: 'Busca un hogar' },
+  { value: 'community', label: 'Comunitaria', desc: 'De la cuadra/barrio' },
+];
+
 const emptyForm = {
   name: '', species: 'dog' as 'dog' | 'cat' | 'other', breed: '', color: '',
   gender: 'unknown' as string, birth_date: '', chip_id: '', bio: '',
   personality_tags: [] as string[], is_vaccinated: false, is_sterilized: false,
   is_dewormed: false, weight_kg: '',
   behavior_notes: '', medical_notes: '', emergency_phone: '',
+  pet_type: 'own',
 };
 
 function getAge(birthDate: string) {
@@ -138,6 +146,7 @@ export default function MyPetsPortal() {
       is_dewormed: pet.is_dewormed, weight_kg: pet.weight_kg || '',
       behavior_notes: pet.behavior_notes || '', medical_notes: pet.medical_notes || '',
       emergency_phone: pet.emergency_phone || '',
+      pet_type: pet.pet_type || 'own',
     });
     setAvatarPreview(null);
     setAvatarFile(null);
@@ -327,6 +336,25 @@ export default function MyPetsPortal() {
                         }`}
                       >
                         {opt.icon} {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Tipo</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PET_TYPE_OPTIONS.map(opt => (
+                      <button key={opt.value}
+                        onClick={() => setForm(prev => ({ ...prev, pet_type: opt.value }))}
+                        className={`p-3 rounded-xl border text-sm font-medium text-left transition-all ${
+                          form.pet_type === opt.value
+                            ? 'border-brand-primary bg-brand-primary/10 text-brand-primary'
+                            : 'border-brand-accent hover:border-brand-primary/50 text-gray-600'
+                        }`}
+                      >
+                        <div className="font-semibold">{opt.label}</div>
+                        <div className="text-[10px] opacity-70">{opt.desc}</div>
                       </button>
                     ))}
                   </div>

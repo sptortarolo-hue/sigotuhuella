@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/src/hooks/useAuth';
 import { getPets, Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Heart, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
@@ -21,11 +22,14 @@ function parseNeighborhoods(n: any): string[] {
 export default function PetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [pet, setPet] = useState<Pet | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIdx, setCurrentImageIdx] = useState(0);
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [following, setFollowing] = useState(false);
 
   useEffect(() => {
     const fetchPet = async () => {
@@ -294,6 +298,27 @@ Me gustaría obtener más información.`;
                 <Share2 className="w-5 h-5" />
                 Compartir en Facebook
               </button>
+              {user && (
+                <button
+                  onClick={async () => {
+                    setFollowLoading(true);
+                    try {
+                      await fetch(`/api/pets/${id}/follow`, { method: 'POST', credentials: 'include' });
+                      setFollowing(true);
+                    } catch (e) { console.error(e); }
+                    finally { setFollowLoading(false); }
+                  }}
+                  disabled={followLoading || following}
+                  className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md ${
+                    following
+                      ? 'bg-pink-100 text-pink-500 border border-pink-200'
+                      : 'bg-gradient-to-r from-pink-500 to-rose-600 text-white hover:shadow-lg hover:from-pink-600 hover:to-rose-700'
+                  }`}
+                >
+                  {followLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Heart className="w-5 h-5" />}
+                  {following ? 'Siguiendo' : 'Seguir mascota'}
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -548,6 +548,32 @@ CREATE TABLE IF NOT EXISTS fb_relay_tasks (
   started_at TIMESTAMP,
   completed_at TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS pet_shares (
+  pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role VARCHAR(10) DEFAULT 'editor',
+  created_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (pet_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS families (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  created_by UUID NOT NULL REFERENCES users(id),
+  invite_code VARCHAR(20) UNIQUE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS family_members (
+  family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  joined_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (family_id, user_id)
+);
+
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS pet_type VARCHAR(20) DEFAULT 'own';
+ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS pet_type VARCHAR(20) DEFAULT 'own';
 `;
 
 async function migrate(client, sql, label) {

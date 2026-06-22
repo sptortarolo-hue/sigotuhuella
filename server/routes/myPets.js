@@ -142,8 +142,8 @@ router.post('/', requireAuth, async (req, res) => {
     const result = await pool.query(
       `INSERT INTO my_pets (user_id, name, species, breed, color, gender, birth_date, chip_id,
         bio, personality_tags, is_vaccinated, is_sterilized, is_dewormed, weight_kg,
-        avatar_image, avatar_mime_type, crop_x, crop_y, original_avatar_data)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+        avatar_image, avatar_mime_type, crop_x, crop_y, original_avatar_data, pet_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        RETURNING *`,
       [
         req.user.id, name, species, breed || null, color || null, gender || 'unknown',
@@ -152,6 +152,7 @@ router.post('/', requireAuth, async (req, res) => {
         is_vaccinated || false, is_sterilized || false, is_dewormed || false,
         weight_kg || null, avatarData, avatarMime,
         crop_x ?? 0.5, crop_y ?? 0.5, avatarOriginal,
+        req.body.pet_type || 'own',
       ]
     );
     res.status(201).json({ myPet: result.rows[0] });
@@ -198,6 +199,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (behavior_notes !== undefined) addField('behavior_notes', behavior_notes || null);
     if (medical_notes !== undefined) addField('medical_notes', medical_notes || null);
     if (emergency_phone !== undefined) addField('emergency_phone', emergency_phone || null);
+    if (pet_type !== undefined) addField('pet_type', pet_type);
 
     if (avatar_image !== undefined) {
       const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg');
