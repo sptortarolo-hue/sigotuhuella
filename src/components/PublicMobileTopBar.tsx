@@ -1,10 +1,32 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { PawPrint, User, LogOut } from 'lucide-react';
+import { PawPrint, User, LogOut, Bell, BellOff, Settings } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
+import { cn } from '@/src/lib/utils';
+import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
 
 export default function PublicMobileTopBar() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    isSupported().then(async (ok) => {
+      if (!ok) { setPushEnabled(null); return; }
+      const sub = await isSubscribed();
+      setPushEnabled(sub);
+    });
+  }, []);
+
+  const handleBellClick = async () => {
+    if (pushEnabled) {
+      const ok = await unsubscribe();
+      if (ok) setPushEnabled(false);
+    } else {
+      const ok = await subscribe();
+      if (ok) setPushEnabled(true);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -20,41 +42,65 @@ export default function PublicMobileTopBar() {
         <span className="text-lg font-serif font-bold text-brand-primary">Sigo tu huella</span>
       </Link>
 
-      {user ? (
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
+        {pushEnabled !== null && (
           <button
-            onClick={handleLogout}
-            className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-            title="Cerrar sesión"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-          <Link
-            to="/dashboard"
-            className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-accent"
-            title="Ir al dashboard"
-          >
-            {user.avatar_type === 'photo' && user.avatar_data ? (
-              <img
-                src={`data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`}
-                alt="Avatar"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-brand-primary/10">
-                <User className="w-4 h-4 text-brand-primary" />
-              </div>
+            onClick={handleBellClick}
+            title={pushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}
+            className={cn(
+              "p-2 rounded-full transition-colors",
+              pushEnabled ? "text-brand-primary bg-brand-primary/10" : "text-gray-400"
             )}
+          >
+            {pushEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+          </button>
+        )}
+
+        {user ? (
+          <div className="flex items-center gap-1">
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="p-2 rounded-full text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors"
+                title="Panel Admin"
+              >
+                <Settings className="w-5 h-5" />
+              </Link>
+            )}
+            <button
+              onClick={handleLogout}
+              className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+            <Link
+              to="/dashboard"
+              className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-accent"
+              title="Ir al dashboard"
+            >
+              {user.avatar_type === 'photo' && user.avatar_data ? (
+                <img
+                  src={`data:${user.avatar_mime_type || 'image/jpeg'};base64,${user.avatar_data}`}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-brand-primary/10">
+                  <User className="w-4 h-4 text-brand-primary" />
+                </div>
+              )}
+            </Link>
+          </div>
+        ) : (
+          <Link
+            to="/login"
+            className="px-4 py-1.5 bg-brand-primary text-white rounded-xl text-xs font-bold"
+          >
+            Iniciar sesión
           </Link>
-        </div>
-      ) : (
-        <Link
-          to="/login"
-          className="px-4 py-1.5 bg-brand-primary text-white rounded-xl text-xs font-bold"
-        >
-          Iniciar sesión
-        </Link>
-      )}
+        )}
+      </div>
     </div>
   );
 }
