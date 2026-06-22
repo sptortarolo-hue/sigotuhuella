@@ -1,12 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { PawPrint, Bell, BellOff, User, LogOut } from 'lucide-react';
+import { PawPrint, Bell, BellOff, User, LogOut, Settings } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
 import { cn } from '@/src/lib/utils';
 
 export default function TopBar() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -53,6 +53,15 @@ export default function TopBar() {
           >
             {pushEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
           </button>
+        )}
+        {isAdmin && (
+          <Link
+            to="/admin"
+            className="p-2 rounded-full text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors"
+            title="Panel Admin"
+          >
+            <Settings className="w-5 h-5" />
+          </Link>
         )}
         <button
           onClick={handleLogout}

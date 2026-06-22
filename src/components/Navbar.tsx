@@ -119,6 +119,15 @@ export default function Navbar() {
                   {pushEnabled ? <Bell className="w-4 h-4 sm:w-5 sm:h-5" /> : <BellOff className="w-4 h-4 sm:w-5 sm:h-5" />}
                 </button>
               )}
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className="px-3 py-1.5 bg-gradient-to-r from-brand-primary to-purple-600 text-white text-xs sm:text-sm font-bold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all whitespace-nowrap flex items-center gap-1.5"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  Admin
+                </Link>
+              )}
               <div className="w-px h-6 bg-gray-300" />
 
               {!user && (
@@ -290,6 +299,15 @@ export default function Navbar() {
           >
             {pushEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
           </button>
+        )}
+        {isAdmin && (
+          <Link
+            to="/admin"
+            className="p-2 rounded-full text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors"
+            title="Panel Admin"
+          >
+            <Settings className="w-5 h-5" />
+          </Link>
         )}
         <button
           className="p-2 text-brand-primary"

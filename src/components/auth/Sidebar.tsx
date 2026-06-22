@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, PawPrint, User, Plus, Sparkles, Share2, Camera, HandCoins, LogOut, Heart, Search, LogIn, LayoutDashboard, Bell, BellOff } from 'lucide-react';
+import { Home, PawPrint, User, Plus, Sparkles, Share2, Camera, HandCoins, LogOut, Heart, Search, LogIn, LayoutDashboard, Bell, BellOff, Settings } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useEffect, useState } from 'react';
@@ -35,7 +35,7 @@ const moreItems = [
 export default function Sidebar({ onReportClick }: { onReportClick?: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -89,6 +89,15 @@ export default function Sidebar({ onReportClick }: { onReportClick?: () => void 
             )}
           >
             {pushEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+          </button>
+        )}
+        {isAdmin && (
+          <button
+            onClick={() => navigate('/admin')}
+            className="p-2 rounded-full text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors shrink-0"
+            title="Panel Admin"
+          >
+            <Settings className="w-4 h-4" />
           </button>
         )}
       </div>

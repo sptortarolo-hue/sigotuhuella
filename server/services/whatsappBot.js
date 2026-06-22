@@ -1881,13 +1881,20 @@ async function fbAskAll(conv, parsed) {
   const locMatch = text.match(/(?:en|cerca de|por|zona)\s+(.+)/i);
   if (locMatch) location = locMatch[1].trim();
 
+  // Geocode location to get coordinates
+  let lat = null, lng = null;
+  if (location) {
+    const coords = await geocodeAddress(location);
+    if (coords) { lat = coords.lat; lng = coords.lng; }
+  }
+
   const ctx = conv.context;
   ctx.fbPost = { ...ctx.fbPost };
   if (classification) ctx.fbPost.classification = classification;
   ctx.fbPost.species = species;
   if (location) ctx.fbPost.location_hint = location;
 
-  await setFlow(conv, 'report_from_fb.lookup', ctx);
+  await setFlow(conv, 'report_from_fb.lookup', { ...ctx, fbLatitude: lat, fbLongitude: lng });
   return fbContinue(conv);
 }
 

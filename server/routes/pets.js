@@ -249,7 +249,7 @@ async function enqueueFbGroupPublish(pet) {
       [pet.id]
     );
     const imageUrls = imagesResult.rows.length > 0
-      ? imagesResult.rows.map((_, i) => `${frontendUrl}/api/images/pet/${pet.id}/${i}`)
+      ? [`${frontendUrl}/api/images/pet/${pet.id}/cover`, ...imagesResult.rows.slice(1).map((_, i) => `${frontendUrl}/api/images/pet/${pet.id}/${i + 1}`)]
       : [`${frontendUrl}/api/images/pet/${pet.id}/cover`];
     for (const group of groups.rows) {
       await enqueuePublishTask(pet.id, group.id, group.fb_group_id, message, imageUrls);
