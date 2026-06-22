@@ -15,7 +15,7 @@ const TMP_DIR = path.join(__dirname, '.fb_img_tmp');
 const api = axios.create({
   baseURL: API_BASE,
   headers: { Authorization: `Bearer ${TOKEN}` },
-  timeout: 30000,
+  timeout: 60000,
 });
 
 let browser = null;
@@ -52,7 +52,7 @@ async function downloadImages(imageUrls) {
   const files = [];
   for (let i = 0; i < imageUrls.length; i++) {
     try {
-      const resp = await axios.get(imageUrls[i], { responseType: 'arraybuffer', timeout: 30000 });
+      const resp = await axios.get(imageUrls[i], { responseType: 'arraybuffer', timeout: 120000 });
       const filePath = path.join(TMP_DIR, `img_${i}.jpg`);
       fs.writeFileSync(filePath, resp.data);
       files.push(filePath);
