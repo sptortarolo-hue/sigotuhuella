@@ -241,6 +241,16 @@ export default function MyPetsPortal() {
             <Plus className="w-4 h-4" /> Registrar
           </button>
           <button
+            onClick={() => {
+              setShareEmail(''); setSharePhone(''); setShareMsg(''); setShareResult(null);
+              setShareSelectedPets(new Set(myPets.map(p => p.id)));
+              setShowShareModal(true);
+            }}
+            className="w-full sm:w-auto px-4 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl font-bold text-sm hover:bg-brand-primary/20 transition-all flex items-center justify-center gap-2 border border-brand-primary/20"
+          >
+            <Share2 className="w-4 h-4" /> Compartir mascotas
+          </button>
+          <button
             onClick={() => setShowQrClaim(true)}
             className="w-full sm:w-auto px-4 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl font-bold text-sm hover:bg-brand-primary/20 transition-all flex items-center justify-center gap-2 border border-brand-primary/20"
           >
@@ -328,7 +338,7 @@ export default function MyPetsPortal() {
 
       {/* ─── SHARE SECTION ─── */}
       {myPets.length > 0 && (
-        <div className="mt-8 bg-white rounded-2xl border border-brand-accent p-5 sm:p-6">
+        <div className="hidden sm:block mt-8 bg-white rounded-2xl border border-brand-accent p-5 sm:p-6">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-brand-primary/10 text-brand-primary shrink-0">
               <Share2 className="w-5 h-5" />
