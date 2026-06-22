@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { normalizePhone } from './services/phoneUtils.js';
 
 const { Pool } = pg;
 
@@ -839,6 +840,31 @@ export async function initDb() {
     await migrate(client, `
       DROP TABLE IF EXISTS families
     `, 'drop families');
+
+    const phoneTables = [
+      { table: 'users', col: 'phone', pk: 'id' },
+      { table: 'volunteer_requests', col: 'whatsapp', pk: 'id' },
+      { table: 'share_invites', col: 'invited_phone', pk: 'id' },
+      { table: 'my_pets', col: 'emergency_phone', pk: 'id' },
+    ];
+
+    for (const { table, col, pk } of phoneTables) {
+      const { rows } = await client.query(
+        `SELECT ${pk} AS id, ${col} AS phone FROM ${table} WHERE ${col} IS NOT NULL AND ${col} != ''`
+      );
+      let count = 0;
+      for (const row of rows) {
+        const normalized = normalizePhone(row.phone);
+        if (normalized && normalized !== row.phone) {
+          await client.query(
+            `UPDATE ${table} SET ${col} = $1 WHERE ${pk} = $2`,
+            [normalized, row.id]
+          );
+          count++;
+        }
+      }
+      if (count > 0) console.log(`[MIGRATION] Normalized ${count} phones in ${table}.${col}`);
+    }
 
     console.log('Database migrations complete');
   } finally {
