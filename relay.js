@@ -22,12 +22,11 @@ function sleep(ms) {
 function normalizeNumber(num) {
   let n = num.replace(/[\s\-\(\)\+]/g, '');
   if (n.includes('@')) n = n.split('@')[0];
-  if (n.startsWith('549') && n.length > 12) return n;
-  if (n.startsWith('54') && n.length > 11) return n;
-  if (n.startsWith('9') && n.length > 10) return '54' + n;
-  if (n.length === 10) return '549' + n;
-  if (n.length === 11) return '54' + n;
-  return n;
+  if (/^549\d{7,}$/.test(n)) return n;
+  if (/^54\d{7,}$/.test(n)) n = '549' + n.slice(2);
+  if (n.startsWith('0')) n = n.slice(1);
+  n = n.replace(/^(\d{2,4})15(\d{4,})$/, '$1$2');
+  return '549' + n;
 }
 
 function getReconnectDelay() {

@@ -6,6 +6,7 @@ import { sendPushToUser } from '../services/pushService.js';
 import { notifyUser } from '../services/notificationService.js';
 import { sendMessage } from '../services/whatsappService.js';
 import { sendAdminNotificationEmail } from '../auth.js';
+import { normalizePhone } from '../services/phoneUtils.js';
 
 const router = Router();
 
@@ -58,9 +59,9 @@ async function shareOrInviteForPet({ petId, myPetId, email, phone, message, invi
 
   // Existing user by phone
   if (phone) {
-    const normalized = phone.replace(/[^0-9]/g, '');
-    if (normalized.startsWith('54')) {
-      const existing = await pool.query("SELECT id, notification_preference FROM users WHERE phone = $1 OR phone = $2", [normalized, normalized.replace(/^54/, '')]);
+    const normalized = normalizePhone(phone);
+    if (normalized) {
+      const existing = await pool.query("SELECT id, notification_preference FROM users WHERE phone = $1", [normalized]);
       if (existing.rows.length > 0) {
         const targetUser = existing.rows[0];
         if (petId) {
@@ -168,8 +169,10 @@ router.post('/', requireAuth, async (req, res) => {
       }
 
       if (phone) {
-        const normalized = phone.replace(/[^0-9]/g, '');
-        try { await sendMessage(normalized, textMsg); } catch (e) { /* ignore */ }
+        const normalized = normalizePhone(phone);
+        if (normalized) {
+          try { await sendMessage(normalized, textMsg); } catch (e) { /* ignore */ }
+        }
       }
     }
 

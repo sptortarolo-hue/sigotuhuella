@@ -1,16 +1,6 @@
 import pool from '../db.js';
 import { enqueue } from './phoneRelayService.js';
-
-function normalizePhone(phone) {
-  if (!phone) return null;
-  let cleaned = phone.replace(/[\s\-\(\)\+]/g, '');
-  if (cleaned.startsWith('549') && cleaned.length > 12) return cleaned;
-  if (cleaned.startsWith('54') && cleaned.length > 11) return cleaned;
-  if (cleaned.startsWith('9') && cleaned.length > 10) cleaned = '54' + cleaned;
-  else if (cleaned.length === 10) cleaned = '549' + cleaned;
-  else if (cleaned.length === 11) cleaned = '54' + cleaned;
-  return cleaned;
-}
+import { normalizePhone } from './phoneUtils.js';
 
 async function sendViaWhatsApp(user, textMessage) {
   const phone = normalizePhone(user.phone);

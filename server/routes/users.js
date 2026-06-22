@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, hashPassword, comparePassword } from '../auth.js';
 import sharp from 'sharp';
+import { normalizePhone } from '../services/phoneUtils.js';
 
 const router = Router();
 
@@ -35,8 +36,9 @@ router.put('/:id', requireAuth, async (req, res) => {
       values.push(displayName);
     }
     if (phone !== undefined) {
+      const normalized = normalizePhone(phone);
       fields.push(`phone = $${idx++}`);
-      values.push(phone);
+      values.push(normalized);
     }
     if (role !== undefined && isAdmin) {
       fields.push(`role = $${idx++}`);

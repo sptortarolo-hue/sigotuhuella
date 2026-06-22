@@ -3,6 +3,7 @@ import pool from '../db.js';
 import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
 import { matchPetToPosts } from '../services/geminiMatching.js';
 import { broadcastPetToGroups } from '../services/whatsappService.js';
+import { normalizePhone } from '../services/phoneUtils.js';
 import { enqueuePublishTask } from '../services/facebookRelayService.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
@@ -1136,10 +1137,10 @@ router.put('/:id/share', requireAuth, async (req, res) => {
       const r = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
       targetUser = r.rows[0];
     } else if (phone) {
-      const normalized = phone.replace(/[^0-9]/g, '');
+      const normalized = normalizePhone(phone);
       const r = await pool.query(
-        "SELECT id FROM users WHERE phone = $1 OR phone = $2",
-        [normalized, normalized.replace(/^54/, '')]
+        "SELECT id FROM users WHERE phone = $1",
+        [normalized]
       );
       targetUser = r.rows[0];
     }
@@ -1216,7 +1217,7 @@ router.put('/:id/share', requireAuth, async (req, res) => {
     if (phone) {
       try {
         const { sendMessage } = await import('../services/whatsappService.js');
-        await sendMessage(phone.replace(/[^0-9]/g, ''), textMsg);
+        await sendMessage(normalizePhone(phone), textMsg);
       } catch (e) { console.error('Failed to send invite WhatsApp:', e); }
     }
 

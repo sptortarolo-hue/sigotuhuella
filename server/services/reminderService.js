@@ -1,6 +1,7 @@
 import pool from '../db.js';
 import { sendMessage } from './whatsappService.js';
 import { sendPushToUser } from './pushService.js';
+import { normalizePhone } from './phoneUtils.js';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
 
@@ -79,7 +80,7 @@ export async function processInviteReminders() {
 
         if (invite.invited_phone) {
           try {
-            await sendMessage(invite.invited_phone.replace(/[^0-9]/g, ''), textMsg);
+            await sendMessage(normalizePhone(invite.invited_phone), textMsg);
           } catch (e) { /* ignore whatsapp errors */ }
         }
 

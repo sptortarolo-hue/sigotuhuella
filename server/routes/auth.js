@@ -3,6 +3,7 @@ import pool from '../db.js';
 import { generateToken, hashPassword, comparePassword, requireAuth, sendPasswordResetEmail, generateResetToken, sendVerificationEmail, generateVerificationToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
 import crypto from 'crypto';
 import { sendPushToAdmins } from '../services/pushService.js';
+import { normalizePhone } from '../services/phoneUtils.js';
 import { notifyUser } from '../services/notificationService.js';
 import { OAuth2Client } from 'google-auth-library';
 
@@ -22,13 +23,14 @@ router.post('/register', async (req, res) => {
     const passwordHash = await hashPassword(password);
     const verificationToken = generateVerificationToken();
     const verificationExpires = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    const normalizedPhone = normalizePhone(phone);
     const result = await pool.query(
       `INSERT INTO users (email, password_hash, display_name, phone, role, email_verified, email_verification_token, email_verification_expires, notification_preference)
        VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8)
        RETURNING id, email, display_name, phone, role, created_at,
                  avatar_data, avatar_mime_type, avatar_type,
                  member_number, volunteer_status, badges, notification_preference`,
-      [email, passwordHash, displayName || email.split('@')[0], phone || null, 'user', verificationToken, verificationExpires, notificationPreference]
+      [email, passwordHash, displayName || email.split('@')[0], normalizedPhone, 'user', verificationToken, verificationExpires, notificationPreference]
     );
     const user = result.rows[0];
 
