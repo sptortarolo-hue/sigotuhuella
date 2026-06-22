@@ -29,6 +29,20 @@ export default function Login() {
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const [pendingCase, setPendingCase] = useState('');
   const [inviteToken, setInviteToken] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+
+  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
+
+  const handlePhoneChange = (value: string) => {
+    setPhone(value);
+    if (!value) { setPhoneError(''); return; }
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length > 0 && !isValidPhone(value)) {
+      setPhoneError('Formato: 549XXXXXXXXXX (13 dígitos)');
+    } else {
+      setPhoneError('');
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -64,6 +78,11 @@ export default function Login() {
       }
 
       if (mode === 'register') {
+        if (phoneError) {
+          setError('El teléfono no tiene el formato correcto');
+          setAuthLoading(false);
+          return;
+        }
         if (password !== confirmPassword) {
           setError('Las contraseñas no coinciden');
           setAuthLoading(false);
@@ -465,12 +484,15 @@ export default function Login() {
                   <input
                     type="tel"
                     className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
-                    placeholder="+54 9 221 123456"
+                    placeholder="549XXXXXXXXXX"
                     value={phone}
-                    onChange={e => setPhone(e.target.value)}
+                    onChange={e => handlePhoneChange(e.target.value)}
                   />
+                  {phoneError && (
+                    <p className="text-xs text-red-500 mt-1">{phoneError}</p>
+                  )}
                 </div>
-                {phone && (
+                {phone && !phoneError && (
                   <label className="flex items-center gap-2 p-3 bg-brand-bg rounded-xl cursor-pointer">
                     <input
                       type="checkbox"
@@ -571,7 +593,7 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={authLoading}
+              disabled={authLoading || (mode === 'register' && !!phoneError)}
               className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
             >
               {authLoading ? (

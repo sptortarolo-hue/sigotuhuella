@@ -36,6 +36,19 @@ export default function Profile() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const [phoneError, setPhoneError] = useState('');
+
+  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
+
+  const handlePhoneChange = (value: string) => {
+    setPhone(value);
+    if (!value) { setPhoneError(''); return; }
+    if (!isValidPhone(value)) {
+      setPhoneError('Formato: 549XXXXXXXXXX (13 dígitos)');
+    } else {
+      setPhoneError('');
+    }
+  };
 
   const isMember = user?.member_number && user?.volunteer_status !== 'none';
   const { isAdmin, loading } = useAuth();
@@ -74,6 +87,10 @@ export default function Profile() {
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (phoneError) {
+      setProfileError('El teléfono no tiene el formato correcto');
+      return;
+    }
     setProfileLoading(true);
     setProfileMsg('');
     setProfileError('');
@@ -303,11 +320,14 @@ export default function Profile() {
                           <PhoneIcon className="w-4 h-4" /> WhatsApp / Teléfono
                         </label>
                         <input type="tel" className="w-full mt-1 px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
-                          placeholder="+54 9 221 123456" value={phone} onChange={e => setPhone(e.target.value)} />
+                          placeholder="549XXXXXXXXXX" value={phone} onChange={e => handlePhoneChange(e.target.value)} />
+                        {phoneError && (
+                          <p className="text-xs text-red-500 mt-1">{phoneError}</p>
+                        )}
                       </div>
                       {profileMsg && <div className="p-3 bg-green-50 text-green-600 rounded-xl text-sm flex gap-2 items-center"><CheckCircle2 className="w-4 h-4" />{profileMsg}</div>}
                       {profileError && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm flex gap-2 items-center"><AlertCircle className="w-4 h-4" />{profileError}</div>}
-                      <button type="submit" disabled={profileLoading}
+                      <button type="submit" disabled={profileLoading || !!phoneError}
                         className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-50"
                       >
                         {profileLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar Cambios

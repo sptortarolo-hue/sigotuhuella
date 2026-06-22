@@ -28,6 +28,19 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regPhone, setRegPhone] = useState('');
+  const [regPhoneError, setRegPhoneError] = useState('');
+
+  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
+
+  const handleRegPhoneChange = (value: string) => {
+    setRegPhone(value);
+    if (!value) { setRegPhoneError(''); return; }
+    if (!isValidPhone(value)) {
+      setRegPhoneError('Formato: 549XXXXXXXXXX (13 dígitos)');
+    } else {
+      setRegPhoneError('');
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +67,10 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
     }
     if (regPassword.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+    if (regPhoneError) {
+      setError('El teléfono no tiene el formato correcto');
       return;
     }
 
@@ -220,10 +237,13 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
                     <input
                       type="tel"
                       className="w-full pl-12 pr-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                      placeholder="Ej: +54 9 221 123456"
+                      placeholder="549XXXXXXXXXX"
                       value={regPhone}
-                      onChange={e => setRegPhone(e.target.value)}
+                      onChange={e => handleRegPhoneChange(e.target.value)}
                     />
+                    {regPhoneError && (
+                      <p className="text-xs text-red-500 mt-1">{regPhoneError}</p>
+                    )}
                   </div>
                 </div>
 
@@ -271,7 +291,7 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !!regPhoneError}
                   className="w-full py-5 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 font-serif text-xl"
                 >
                   {loading ? <Loader2 className="animate-spin w-6 h-6" /> : <UserPlus className="w-6 h-6" />}

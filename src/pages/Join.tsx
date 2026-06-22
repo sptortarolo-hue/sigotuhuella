@@ -56,6 +56,19 @@ export default function Join() {
     whatsapp: ''
   });
   const [contributionAreas, setContributionAreas] = useState<string[]>([]);
+  const [phoneError, setPhoneError] = useState('');
+
+  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
+
+  const handleWhatsappChange = (value: string) => {
+    setFormData(prev => ({ ...prev, whatsapp: value }));
+    if (!value) { setPhoneError(''); return; }
+    if (!isValidPhone(value)) {
+      setPhoneError('Formato: 549XXXXXXXXXX (13 dígitos)');
+    } else {
+      setPhoneError('');
+    }
+  };
 
   const toggleArea = (code: string) => {
     setContributionAreas(prev => {
@@ -73,6 +86,10 @@ export default function Join() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (phoneError) {
+      setError('El teléfono no tiene el formato correcto');
+      return;
+    }
     
     // Validate max 3 areas
     if (contributionAreas.length > 3) {
@@ -271,10 +288,13 @@ export default function Join() {
             required
             type="tel"
             className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-            placeholder="+54 9 221 ..."
+            placeholder="549XXXXXXXXXX"
             value={formData.whatsapp}
-            onChange={e => setFormData({ ...formData, whatsapp: e.target.value })}
+            onChange={e => handleWhatsappChange(e.target.value)}
           />
+          {phoneError && (
+            <p className="text-xs text-red-500 mt-1">{phoneError}</p>
+          )}
                     {user?.phone && (
                       <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400" />
                     )}
@@ -335,7 +355,7 @@ export default function Join() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !!phoneError}
                 className="w-full py-5 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 font-serif text-xl"
               >
                 {loading ? <Loader2 className="animate-spin" /> : <Users className="w-6 h-6" />}

@@ -2,7 +2,6 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, hashPassword, comparePassword } from '../auth.js';
 import sharp from 'sharp';
-import { normalizePhone } from '../services/phoneUtils.js';
 
 const router = Router();
 
@@ -36,9 +35,11 @@ router.put('/:id', requireAuth, async (req, res) => {
       values.push(displayName);
     }
     if (phone !== undefined) {
-      const normalized = normalizePhone(phone);
+      if (phone && !/^549\d{10}$/.test(phone.replace(/\D/g, ''))) {
+        return res.status(400).json({ error: 'El teléfono debe tener formato 549XXXXXXXXXX (13 dígitos)' });
+      }
       fields.push(`phone = $${idx++}`);
-      values.push(normalized);
+      values.push(phone || null);
     }
     if (role !== undefined && isAdmin) {
       fields.push(`role = $${idx++}`);
