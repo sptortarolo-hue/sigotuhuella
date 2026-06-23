@@ -8,6 +8,7 @@ import { enqueuePublishTask } from '../services/facebookRelayService.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import { isConnected, replyToComment } from '../services/instagramService.js';
+import { generateCelebrationText } from '../services/textTemplates.js';
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
@@ -84,36 +85,6 @@ async function createCollage(images) {
   }
 
   return { data: null, mimeType: null };
-}
-
-function generateCelebrationText(pet, type) {
-  const name = pet.name || 'una mascota';
-  const species = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : 'mascota';
-  const location = pet.location || 'nuestra zona';
-  const isFemale = pet.gender === 'female';
-
-  if (type === 'reunited') {
-    const action = isFemale ? 'reencontrada' : 'reencontrado';
-    const lostAction = isFemale ? 'perdida' : 'perdido';
-    const messages = [
-      `¡Qué alegría! 🎉 ${name} ya está de vuelta en casa. Este ${species} que buscábamos en ${location} fue ${action} con su familia. ¡Gracias a toda la comunidad que difundió y ayudó! Juntos hacemos la diferencia. 🐾💚`,
-      `¡Final feliz! 🥳 ${name}, el ${species} que estaba ${lostAction} en ${location}, ya se reencontró con su familia. Gracias a la red de vecinos que compartieron su publicación. ¡Sigo Tu Huella sigue sumando reencuentros! 🐾❤️`,
-      `¡Buenas noticias! ✨ ¡${name} apareció! Este ${species} que buscábamos en ${location} ya está con los suyos. La comunidad de Sicardi/Garibaldi una vez más demostró su solidaridad. 🙌🐾`,
-    ];
-    return messages[Math.floor(Math.random() * messages.length)];
-  }
-
-  if (type === 'adopted') {
-    const action = isFemale ? 'adoptada' : 'adoptado';
-    const messages = [
-      `¡Nuevo hogar! 🏡 ${name} encontró una familia. Este ${species} fue ${action} y ahora tiene un hogar lleno de amor. ¡Gracias a todos los que compartieron y ayudaron a difundir! 🐾💚`,
-      `¡Feliz adopción! 🎊 ${name} ya tiene familia. Después de esperar, este ${species} fue ${action}. Deseamos que sea muy feliz en su nuevo hogar. ¡Sigo Tu Huella celebra! 🐾❤️`,
-      `¡Un final feliz más! 🌟 ${name} fue ${action}. Este ${species} encontró un hogar lleno de amor. Gracias a la red de adopción por hacer esto posible. 🐾💕`,
-    ];
-    return messages[Math.floor(Math.random() * messages.length)];
-  }
-
-  return '';
 }
 
 async function autoCreateNews(pet, newsType) {
@@ -242,26 +213,42 @@ async function enqueueFbGroupPublish(pet) {
     ]);
     const commentText = commentResult.rows[0]?.value || '';
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
-    const tag = statusLabels[pet.status] || '🐾 MASCOTA';
-    const species = speciesLabel[pet.species] || 'Mascota';
-    const gender = genderLabel[pet.gender] || '';
-    const ageGender = [gender, pet.age].filter(Boolean).join(' · ');
-    const hashtags = '#SigoTuHuella #MascotasPerdidas #AdoptaNoCompres';
-    let message = [
-      `${tag}`,
-      `${pet.name ? 'Nombre: ' + pet.name : ''}`,
-      `${species}${pet.breed ? ' - ' + pet.breed : ''}`,
-      `${ageGender ? ageGender : ''}`,
-      `${pet.color ? '🎨 ' + pet.color : ''}`,
-      `${pet.location ? '📍 ' + pet.location : ''}`,
-      pet.contact_info ? `📞 ${pet.contact_info}` : '',
-      '',
-      pet.description ? pet.description.substring(0, 500) : '',
-      '',
-      `🔗 ${frontendUrl}/pet/${pet.id}`,
-      '',
-      hashtags,
-    ].filter(Boolean).join('\n');
+    const isCelebration = pet.status === 'reunited' || pet.status === 'adopted';
+    let message;
+
+    if (isCelebration) {
+      const hashtagResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_default_hashtags'");
+      const hashtags = hashtagResult.rows[0]?.value || '#SigoTuHuella';
+      const celebrationText = generateCelebrationText(pet, pet.status);
+      message = [
+        celebrationText,
+        '',
+        `🔗 ${frontendUrl}/pet/${pet.id}`,
+        '',
+        hashtags,
+      ].join('\n');
+    } else {
+      const tag = statusLabels[pet.status] || '🐾 MASCOTA';
+      const species = speciesLabel[pet.species] || 'Mascota';
+      const gender = genderLabel[pet.gender] || '';
+      const ageGender = [gender, pet.age].filter(Boolean).join(' · ');
+      const hashtags = '#SigoTuHuella #MascotasPerdidas #AdoptaNoCompres';
+      message = [
+        `${tag}`,
+        `${pet.name ? 'Nombre: ' + pet.name : ''}`,
+        `${species}${pet.breed ? ' - ' + pet.breed : ''}`,
+        `${ageGender ? ageGender : ''}`,
+        `${pet.color ? '🎨 ' + pet.color : ''}`,
+        `${pet.location ? '📍 ' + pet.location : ''}`,
+        pet.contact_info ? `📞 ${pet.contact_info}` : '',
+        '',
+        pet.description ? pet.description.substring(0, 500) : '',
+        '',
+        `🔗 ${frontendUrl}/pet/${pet.id}`,
+        '',
+        hashtags,
+      ].filter(Boolean).join('\n');
+    }
     const imagesResult = await pool.query(
       'SELECT image_data FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 5',
       [pet.id]
@@ -474,6 +461,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       await autoInstagramComment(updatedPet.rows[0], newsType);
       await autoQueueCelebrationPost(updatedPet.rows[0], newsType);
       broadcastPetToGroups(petId).catch(e => console.error('Broadcast reunion/adoption error:', e));
+      enqueueFbGroupPublish(updatedPet.rows[0]).catch(e => console.error('[FB Relay] enqueueFbGroupPublish error:', e));
     }
     // Auto-badge: reunited_hero (first reunion)
     if (isReunited && pet.created_by) {

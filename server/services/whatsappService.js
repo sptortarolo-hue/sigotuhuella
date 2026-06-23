@@ -1,6 +1,7 @@
 import axios from 'axios';
 import pool from '../db.js';
 import { enqueue } from './phoneRelayService.js';
+import { generateCelebrationText } from './textTemplates.js';
 
 const GRAPH_API = 'https://graph.facebook.com/v22.0';
 
@@ -330,20 +331,36 @@ export async function broadcastPetToGroups(petId) {
     const genderLabel = pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : '';
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
 
-    const caption = [
-      `${label}`,
-      pet.name ? `Nombre: ${pet.name}` : '',
-      `${speciesLabel}${pet.breed ? ' · ' + pet.breed : ''}`,
-      genderLabel && pet.age ? `${genderLabel} · ${pet.age}` : genderLabel || pet.age || '',
-      `📍 ${pet.location || 'Sin ubicación'}`,
-      pet.contact_info ? `📞 ${pet.contact_info}` : '',
-      '',
-      pet.description ? pet.description.substring(0, 300) : '',
-      '',
-      `🔗 ${frontendUrl}/pet/${pet.id}`,
-    ].filter(Boolean).join('\n');
+    const isCelebration = pet.status === 'reunited' || pet.status === 'adopted';
+    let caption, coverUrl;
 
-    const coverUrl = pet.image_data
+    if (isCelebration) {
+      const hashtagResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_default_hashtags'");
+      const hashtags = hashtagResult.rows[0]?.value || '#SigoTuHuella';
+      const celebrationText = generateCelebrationText(pet, pet.status);
+      caption = [
+        celebrationText,
+        '',
+        `🔗 ${frontendUrl}/pet/${pet.id}`,
+        '',
+        hashtags,
+      ].join('\n');
+    } else {
+      caption = [
+        `${label}`,
+        pet.name ? `Nombre: ${pet.name}` : '',
+        `${speciesLabel}${pet.breed ? ' · ' + pet.breed : ''}`,
+        genderLabel && pet.age ? `${genderLabel} · ${pet.age}` : genderLabel || pet.age || '',
+        `📍 ${pet.location || 'Sin ubicación'}`,
+        pet.contact_info ? `📞 ${pet.contact_info}` : '',
+        '',
+        pet.description ? pet.description.substring(0, 300) : '',
+        '',
+        `🔗 ${frontendUrl}/pet/${pet.id}`,
+      ].filter(Boolean).join('\n');
+    }
+
+    coverUrl = pet.image_data
       ? `${frontendUrl}/api/images/pet/${petId}/cover`
       : null;
 
