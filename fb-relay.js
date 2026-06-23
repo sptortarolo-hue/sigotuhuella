@@ -153,10 +153,17 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
       throw new Error('session expired');
     }
 
-    // Buscar "Write something..." con retry hasta que sea visible (como fb-group-auto-post)
+    // Activar composer inline (Lexical) o legacy dialog
     let triggerClicked = false;
     for (let attempt = 0; attempt < 8 && !triggerClicked; attempt++) {
       triggerClicked = await page.evaluate(() => {
+        // 1) Lexical inline editor
+        const lexical = document.querySelector('[data-lexical-editor="true"]');
+        if (lexical && lexical.offsetParent !== null) { lexical.click(); return true; }
+        // 2) Create a post (ARIA estable)
+        const create = document.querySelector('[aria-label="Create a post"]');
+        if (create && create.offsetParent !== null) { create.click(); return true; }
+        // 3) XPath legacy
         const xpath = '//span[contains(., "Write something") or contains(., "Escribe algo") or contains(., "Qué estás pensando")]';
         const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
         const el = result.singleNodeValue;
@@ -165,26 +172,42 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
       });
       if (!triggerClicked) await sleep(1000);
     }
-    if (!triggerClicked) throw new Error('Write something not found');
-    console.log('[FB Relay] Write something clicked');
+    if (!triggerClicked) throw new Error('Composer trigger not found');
+    console.log('[FB Relay] Composer activated');
 
-    // Esperar editor visible DENTRO del diálogo (como fb-group-auto-post)
-    const editor = await page.waitForSelector('div[role="dialog"] div[role="textbox"][contenteditable="true"]', { visible: true, timeout: 15000 });
+    // Esperar editor visible (inline o legacy dialog)
+    let editor = await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { visible: true, timeout: 15000 })
+      .catch(() => null);
+    if (!editor) {
+      editor = await page.waitForSelector('[data-lexical-editor="true"] div[contenteditable="true"]', { visible: true, timeout: 10000 })
+        .catch(() => null);
+    }
+    if (!editor) throw new Error('Editor not found');
     await sleep(1500);
 
-    // Subir primera imagen si hay (opción C: imagen + OG link)
+    // Subir primera imagen si hay
     if (imageUrls && imageUrls.length > 0) {
       const files = await downloadImages(imageUrls);
       if (files.length > 0) {
         try {
-          const fileInput = await page.$('div[role="dialog"] input[type="file"]');
+          // Intentar click en Photo/video primero (inline composer), luego file input directo
+          const photoBtn = await page.$('[aria-label="Photo/video"], [aria-label="Foto/video"]');
+          if (photoBtn) {
+            await photoBtn.click();
+            await sleep(1000);
+          }
+          const fileInput = await page.$('input[type="file"]');
           if (fileInput) {
             await fileInput.uploadFile(files[0]);
             console.log('[FB Relay] Imagen subida, esperando procesamiento...');
             try {
-              await page.waitForSelector('div[role="dialog"] img[src*="blob:"], div[role="dialog"] img[src*="data:"]', { timeout: 15000 });
+              await page.waitForSelector('img[src*="blob:"], img[src*="data:"]', { timeout: 15000 });
             } catch {}
             await sleep(3000);
+          } else {
+            // Fallback: incluir URL en texto para OG card
+            console.log('[FB Relay] Sin file input, incluyendo URL en texto');
+            message = message + '\n\n' + imageUrls[0];
           }
         } catch (err) {
           console.error('[FB Relay] Error subiendo imagen:', err.message);
@@ -193,23 +216,36 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
       cleanupImages();
     }
 
-    // Click editor + escribir (como PostPilot)
+    // Click editor + escribir
     await editor.click();
     await sleep(500);
     await editor.type(message, { delay: 3 });
     await sleep(2000);
 
-    // Click Post visible dentro del diálogo (como fb-group-auto-post)
-    const postBtn = await page.waitForSelector('div[role="dialog"] [aria-label="Publicar"], div[role="dialog"] [aria-label="Post"]', { visible: true, timeout: 10000 });
-    if (!postBtn) throw new Error('Post button not found');
-    await postBtn.click();
-    console.log('[FB Relay] Post button clicked');
+    // Click Publicar (sin scope dialog)
+    let postBtn = await page.$('[aria-label="Publicar"], [aria-label="Post"]');
+    if (!postBtn) {
+      postBtn = await page.waitForSelector('div[role="dialog"] [aria-label="Publicar"], div[role="dialog"] [aria-label="Post"]', { visible: true, timeout: 5000 })
+        .catch(() => null);
+    }
+    if (!postBtn) {
+      console.log('[FB Relay] Post button not found, intentando Enter...');
+      await page.keyboard.press('Enter');
+      await sleep(3000);
+    } else {
+      await postBtn.click();
+      console.log('[FB Relay] Post button clicked');
+    }
 
-    // Esperar que el diálogo se cierre
+    // Esperar que desaparezca el composer
     try {
-      await page.waitForSelector('div[role="dialog"]', { hidden: true, timeout: 15000 });
+      await page.waitForFunction(() => {
+        return document.querySelector('div[role="dialog"]') === null
+          && (document.querySelector('[data-lexical-editor="true"]') === null
+            || document.querySelector('[data-lexical-editor="true"]').offsetParent === null);
+      }, { timeout: 15000 });
     } catch {
-      console.log('[FB Relay] Fallback Enter...');
+      console.log('[FB Relay] Enter fallback por si quedó abierto');
       await page.keyboard.press('Enter');
       await sleep(3000);
     }
