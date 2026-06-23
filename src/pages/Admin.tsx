@@ -1996,6 +1996,7 @@ export default function Admin() {
           date: r.updated_at,
           status: 'pending',
           myPetId: r.id,
+          registrationPending: r.registration_pending,
         }));
 
         // Map whatsapp requests
@@ -2062,15 +2063,17 @@ export default function Admin() {
                       onChange={async (e) => {
                         if (e.target.value) await handleQrAssign(e.target.value, item.myPetId);
                       }}
-                      disabled={qrAssignLoading === item.myPetId}
-                      className="px-3 py-2 bg-white rounded-xl border border-brand-accent text-xs outline-none"
+                      disabled={qrAssignLoading === item.myPetId || item.registrationPending}
+                      className="px-3 py-2 bg-white rounded-xl border border-brand-accent text-xs outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                       defaultValue=""
+                      title={item.registrationPending ? 'El dueño no completó el registro' : 'Asignar código QR'}
                     >
-                      <option value="" disabled>Asignar QR...</option>
+                      <option value="" disabled>{item.registrationPending ? 'Registro pendiente' : 'Asignar QR...'}</option>
                       {qrUnassigned.map((qr: any) => (
                         <option key={qr.id} value={qr.id}>{qr.code}</option>
                       ))}
                     </select>
+                    {item.registrationPending && <span className="text-[10px] text-amber-600 max-w-[120px]">Pendiente de registro</span>}
                     {qrAssignLoading === item.myPetId && <Loader2 className="w-4 h-4 animate-spin text-brand-primary" />}
                   </div>
                 ) : (

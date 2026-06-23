@@ -92,7 +92,7 @@ router.get('/unassigned', requireAdmin, async (req, res) => {
 router.get('/requests', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT mp.id, mp.name, mp.species, mp.breed, u.display_name, u.email, u.phone
+      `SELECT mp.id, mp.name, mp.species, mp.breed, u.display_name, u.email, u.phone, u.registration_pending
        FROM my_pets mp JOIN users u ON u.id = mp.user_id
        WHERE mp.qr_requested = true AND mp.qr_id IS NULL ORDER BY mp.updated_at DESC`
     );
