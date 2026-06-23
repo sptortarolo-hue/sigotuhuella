@@ -128,6 +128,7 @@ function ensureValidCookies(cookies) {
 async function postToGroup(b, fbGroupId, message, imageUrls) {
   const cookies = ensureValidCookies(JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8')));
   const page = await b.newPage();
+  const debugDir = process.env.TMPDIR || process.cwd();
 
   try {
     await page.evaluateOnNewDocument(() => {
@@ -175,9 +176,9 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
     if (!triggerClicked) {
       // Debug dump
       try {
-        await page.screenshot({ path: '/tmp/fb_debug_trigger.png', fullPage: false });
+        await page.screenshot({ path: path.join(debugDir, 'fb_debug_trigger.png'), fullPage: false });
         const html = await page.evaluate(() => document.body.innerHTML.substring(0, 50000));
-        fs.writeFileSync('/tmp/fb_debug_body.html', html);
+        fs.writeFileSync(path.join(debugDir, 'fb_debug_body.html'), html);
         const ariaLabels = await page.evaluate(() =>
           [...document.querySelectorAll('[aria-label]')].map(el => el.tagName + ' ' + el.getAttribute('aria-label')).slice(0, 50)
         );
@@ -186,8 +187,8 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
           return { hasLexical: !!document.querySelector('[data-lexical-editor]'), count: document.querySelectorAll('[data-lexical-editor]').length };
         });
         console.log('[FB Relay DEBUG] data-lexical-editor:', JSON.stringify(lexical));
-        console.log('[FB Relay DEBUG] Screenshot: /tmp/fb_debug_trigger.png');
-        console.log('[FB Relay DEBUG] HTML: /tmp/fb_debug_body.html');
+        console.log('[FB Relay DEBUG] Screenshot: ' + path.join(debugDir, 'fb_debug_trigger.png'));
+        console.log('[FB Relay DEBUG] HTML: ' + path.join(debugDir, 'fb_debug_body.html'));
       } catch (e) {
         console.error('[FB Relay DEBUG] Error capturando debug:', e.message);
       }
