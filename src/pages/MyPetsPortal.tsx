@@ -77,9 +77,22 @@ export default function MyPetsPortal() {
   const [shareEmail, setShareEmail] = useState('');
   const [sharePhone, setSharePhone] = useState('');
   const [shareMsg, setShareMsg] = useState('');
+  const [sharePhoneError, setSharePhoneError] = useState('');
   const [shareLoading, setShareLoading] = useState(false);
   const [shareResult, setShareResult] = useState<{ shared?: boolean; invited?: boolean; inviteLink?: string } | null>(null);
   const [shareSelectedPets, setShareSelectedPets] = useState<Set<string>>(new Set());
+
+  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
+
+  const handleSharePhoneChange = (value: string) => {
+    setSharePhone(value);
+    if (!value) { setSharePhoneError(''); return; }
+    if (!isValidPhone(value)) {
+      setSharePhoneError('Formato: 549XXXXXXXXXX');
+    } else {
+      setSharePhoneError('');
+    }
+  };
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -170,6 +183,7 @@ export default function MyPetsPortal() {
 
   const handleShare = async () => {
     if (!shareEmail && !sharePhone) return;
+    if (sharePhone && sharePhoneError) return;
     if (shareSelectedPets.size === 0) return;
     setShareLoading(true);
     setShareResult(null);
@@ -399,6 +413,10 @@ export default function MyPetsPortal() {
                 ))}
               </div>
 
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 mb-4 leading-relaxed">
+                Completá el mail o el WhatsApp de la persona a la que le querés compartir el perfil de tus mascotas.
+              </div>
+
               <div className="space-y-3">
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Email</label>
@@ -407,13 +425,18 @@ export default function MyPetsPortal() {
                     className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
                   />
                 </div>
-                <div className="text-center text-xs text-gray-300">— o —</div>
+                <div className="flex items-center gap-3 text-xs text-gray-400 font-medium my-3">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span>o</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">WhatsApp / Teléfono</label>
-                  <input type="tel" value={sharePhone} onChange={e => setSharePhone(e.target.value)}
-                    placeholder="221 555 1234"
+                  <input type="tel" value={sharePhone} onChange={e => handleSharePhoneChange(e.target.value)}
+                    placeholder="549XXXXXXXXXX"
                     className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
                   />
+                  {sharePhoneError && <p className="text-xs text-red-500 mt-1">{sharePhoneError}</p>}
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Mensaje (opcional)</label>
@@ -425,7 +448,7 @@ export default function MyPetsPortal() {
                 </div>
 
                 <button onClick={handleShare}
-                  disabled={shareLoading || (!shareEmail && !sharePhone) || shareSelectedPets.size === 0}
+                  disabled={shareLoading || (!shareEmail && !sharePhone) || shareSelectedPets.size === 0 || !!sharePhoneError}
                   className="w-full py-3 bg-brand-primary text-white rounded-xl text-sm font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {shareLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
