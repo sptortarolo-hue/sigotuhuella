@@ -1253,6 +1253,9 @@ function PublisherSection() {
   const [groupSaving, setGroupSaving] = useState<Record<string, boolean>>({});
   const [retrying, setRetrying] = useState(false);
   const [publishingPet, setPublishingPet] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState('');
+  const [savingComment, setSavingComment] = useState(false);
+  const [savedComment, setSavedComment] = useState(false);
   const publishIntervalsRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
   const fetchData = useCallback(async () => {
@@ -1260,14 +1263,18 @@ function PublisherSection() {
       // Auto-extraer fb_group_id de URLs
       await api.facebook.extractGroupIds();
 
-      const [settingsData, groupsData] = await Promise.all([
+      const [settingsData, groupsData, commentData] = await Promise.all([
         api.settings.list(),
         api.facebook.groups.list(),
+        fetch('/api/facebook/settings/fb-comment-text', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        }).then(r => r.ok ? r.json() : { text: '' }),
       ]);
       const map: Record<string, string> = {};
       settingsData.forEach((s: any) => { map[s.key] = s.value; });
       setSettings(map);
       setGroups(groupsData);
+      setCommentText(commentData.text || '');
       const postsResp = await fetch('/api/facebook/page-posts?limit=10', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
@@ -1400,6 +1407,26 @@ function PublisherSection() {
     } catch (e) { console.error(e); }
   };
 
+  const handleSaveCommentText = async () => {
+    setSavingComment(true);
+    setSavedComment(false);
+    try {
+      const resp = await fetch('/api/facebook/settings/fb-comment-text', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ text: commentText }),
+      });
+      if (resp.ok) {
+        setSavedComment(true);
+        setTimeout(() => setSavedComment(false), 3000);
+      }
+    } catch (e) { console.error(e); }
+    setSavingComment(false);
+  };
+
   if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
 
   return (
@@ -1465,6 +1492,39 @@ function PublisherSection() {
         </div>
       </div>
 
+      {/* Texto comentario global */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <h2 className="text-xl font-serif font-bold text-brand-primary mb-4 flex items-center gap-3">
+          <MessageSquare className="w-6 h-6" /> Comentario automático
+        </h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Texto que se publicará como comentario en el post de Facebook. Usá <code>{'{POST_LINK}'}</code> como marcador del link del post.
+        </p>
+        <textarea value={commentText}
+          onChange={e => setCommentText(e.target.value)}
+          rows={4}
+          className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm resize-y"
+          placeholder='🔗 {POST_LINK}
+
+🐾 Te esperamos para que nos conozcas 💚
+sigotuhuella.online
+📱 wa.me/5492212025190' />
+        <div className="flex items-center gap-3 mt-3">
+          <button onClick={handleSaveCommentText} disabled={savingComment}
+            className="px-4 py-2 bg-brand-primary text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2">
+            {savingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Guardar texto
+          </button>
+          {savedComment && <span className="text-sm text-green-600">✓ Guardado</span>}
+        </div>
+        {commentText && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-xl">
+            <p className="text-xs text-gray-500 mb-2">Preview (reemplazando {'{POST_LINK}'}):</p>
+            <pre className="text-sm whitespace-pre-wrap break-all font-sans">{commentText.replace('{POST_LINK}', 'https://facebook.com/groups/xxx/posts/yyy')}</pre>
+          </div>
+        )}
+      </div>
+
       {/* Configuracion por grupo */}
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
         <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
@@ -1482,6 +1542,7 @@ function PublisherSection() {
                 <th className="px-4 py-3">FB Group ID</th>
                 <th className="px-4 py-3 text-center">Page miembro</th>
                 <th className="px-4 py-3 text-center">Publicar</th>
+                <th className="px-4 py-3 text-center">Sin links</th>
                 <th className="px-4 py-3">Acción</th>
               </tr>
             </thead>
@@ -1492,7 +1553,7 @@ function PublisherSection() {
                   saving={groupSaving[g.id] || false} />
               ))}
               {groups.filter((g: any) => g.is_active).length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">No hay grupos activos.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">No hay grupos activos.</td></tr>
               )}
             </tbody>
           </table>
@@ -1611,11 +1672,13 @@ function GroupConfigRow({ group, onSave, saving }: { group: any; onSave: (id: st
   const [fbGroupId, setFbGroupId] = useState(group.fb_group_id || '');
   const [pageIsMember, setPageIsMember] = useState(group.page_is_member || false);
   const [publishOnCreate, setPublishOnCreate] = useState(group.publish_on_create || false);
+  const [stripLinks, setStripLinks] = useState(group.strip_links || false);
 
   const handleSave = () => onSave(group.id, {
     fb_group_id: fbGroupId || null,
     page_is_member: pageIsMember,
     publish_on_create: publishOnCreate,
+    strip_links: stripLinks,
   });
 
   return (
@@ -1635,6 +1698,11 @@ function GroupConfigRow({ group, onSave, saving }: { group: any; onSave: (id: st
       <td className="px-4 py-3 text-center">
         <input type="checkbox" checked={publishOnCreate}
           onChange={e => setPublishOnCreate(e.target.checked)}
+          className="w-5 h-5 rounded accent-brand-primary" />
+      </td>
+      <td className="px-4 py-3 text-center">
+        <input type="checkbox" checked={stripLinks}
+          onChange={e => setStripLinks(e.target.checked)}
           className="w-5 h-5 rounded accent-brand-primary" />
       </td>
       <td className="px-4 py-3">

@@ -1,17 +1,19 @@
 import pool from '../db.js';
+import crypto from 'crypto';
 
-export async function enqueuePublishTask(petId, groupId, fbGroupId, message, imageUrls) {
+export async function enqueuePublishTask(petId, groupId, fbGroupId, message, imageUrls, commentText) {
+  const marker = '#' + crypto.randomUUID().substring(0, 5) + '#';
   const result = await pool.query(
-    `INSERT INTO fb_relay_tasks (pet_id, group_id, fb_group_id, message, image_urls)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [petId, groupId, fbGroupId, message, imageUrls || []]
+    `INSERT INTO fb_relay_tasks (pet_id, group_id, fb_group_id, message, image_urls, comment_text, marker)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [petId, groupId, fbGroupId, message, imageUrls || [], commentText || '', marker]
   );
-  return result.rows[0].id;
+  return { taskId: result.rows[0].id, marker };
 }
 
 export async function getPendingTasks(limit = 5) {
   const result = await pool.query(
-    "SELECT id, pet_id, group_id, fb_group_id, message, image_urls, created_at FROM fb_relay_tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT $1",
+    "SELECT id, pet_id, group_id, fb_group_id, message, image_urls, comment_text, marker, created_at FROM fb_relay_tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT $1",
     [limit]
   );
   return result.rows;

@@ -835,6 +835,20 @@ export async function initDb() {
     `, 'my_pet_shares');
 
     await migrate(client, `
+      ALTER TABLE facebook_groups ADD COLUMN IF NOT EXISTS strip_links BOOLEAN DEFAULT FALSE
+    `, 'facebook_groups strip_links');
+
+    await migrate(client, `
+      ALTER TABLE fb_relay_tasks ADD COLUMN IF NOT EXISTS comment_text TEXT DEFAULT ''
+    `, 'fb_relay_tasks comment_text');
+    await migrate(client, `
+      ALTER TABLE fb_relay_tasks ADD COLUMN IF NOT EXISTS marker VARCHAR(20) DEFAULT ''
+    `, 'fb_relay_tasks marker');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('fb_relay_comment_text', '') ON CONFLICT (key) DO NOTHING
+    `, 'fb_relay_comment_text');
+
+    await migrate(client, `
       DROP TABLE IF EXISTS family_members
     `, 'drop family_members');
     await migrate(client, `

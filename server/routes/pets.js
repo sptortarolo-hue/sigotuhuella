@@ -232,18 +232,22 @@ async function enqueueFbGroupPublish(pet) {
     const fbRelay = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_enabled'");
     if (fbRelay.rows[0]?.value !== 'true') return;
     const groups = await pool.query(
-      `SELECT id, name, fb_group_id FROM facebook_groups
+      `SELECT id, name, fb_group_id, strip_links FROM facebook_groups
        WHERE is_active = true AND publish_on_create = true AND fb_group_id IS NOT NULL AND fb_group_id != ''
        ORDER BY name`
     );
     if (groups.rows.length === 0) return;
+    const [commentResult] = await Promise.all([
+      pool.query("SELECT value FROM settings WHERE key = 'fb_relay_comment_text'"),
+    ]);
+    const commentText = commentResult.rows[0]?.value || '';
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
     const tag = statusLabels[pet.status] || '🐾 MASCOTA';
     const species = speciesLabel[pet.species] || 'Mascota';
     const gender = genderLabel[pet.gender] || '';
     const ageGender = [gender, pet.age].filter(Boolean).join(' · ');
     const hashtags = '#SigoTuHuella #MascotasPerdidas #AdoptaNoCompres';
-    const message = [
+    let message = [
       `${tag}`,
       `${pet.name ? 'Nombre: ' + pet.name : ''}`,
       `${species}${pet.breed ? ' - ' + pet.breed : ''}`,
@@ -266,7 +270,11 @@ async function enqueueFbGroupPublish(pet) {
       ? [`${frontendUrl}/api/images/pet/${pet.id}/cover`, ...imagesResult.rows.slice(1).map((_, i) => `${frontendUrl}/api/images/pet/${pet.id}/${i + 1}`)]
       : [`${frontendUrl}/api/images/pet/${pet.id}/cover`];
     for (const group of groups.rows) {
-      await enqueuePublishTask(pet.id, group.id, group.fb_group_id, message, imageUrls);
+      let groupMessage = message;
+      if (group.strip_links) {
+        groupMessage = message.replace(/https?:\/\/\S+/g, '').replace(/#\w+/g, '').replace(/\n{4,}/g, '\n\n\n').trim();
+      }
+      const task = await enqueuePublishTask(pet.id, group.id, group.fb_group_id, groupMessage, imageUrls, commentText);
     }
   } catch (err) {
     console.error('[FB Relay] enqueueFbGroupPublish error:', err.message);

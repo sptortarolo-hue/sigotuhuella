@@ -125,7 +125,7 @@ function ensureValidCookies(cookies) {
   });
 }
 
-async function postToGroup(b, fbGroupId, message, imageUrls) {
+async function postToGroup(b, fbGroupId, message, imageUrls, commentText, marker) {
   const cookies = ensureValidCookies(JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8')));
   const page = await b.newPage();
 
@@ -243,6 +243,67 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
     }
 
     console.log(`[FB Relay] Publicado en grupo ${fbGroupId}`);
+
+    // Comentar en el post si hay comment_text
+    if (commentText) {
+      try {
+        console.log('[FB Relay] Buscando post para comentar...');
+        await sleep(3000);
+        // Scroll arriba para ver el feed
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await sleep(1000);
+        // Buscar el marker en los posts del feed
+        const postFound = await page.evaluate((mkr) => {
+          const feed = document.querySelector('div[role="feed"]');
+          if (!feed) return null;
+          const posts = feed.querySelectorAll(':scope > div');
+          for (const post of posts) {
+            if (post.textContent.includes(mkr)) {
+              // Extraer link del post
+              const link = post.querySelector('a[href*="/groups/"]');
+              return {
+                index: [...posts].indexOf(post),
+                href: link ? link.href : null,
+              };
+            }
+          }
+          return null;
+        }, marker);
+        if (postFound) {
+          console.log('[FB Relay] Post encontrado, comentando...');
+          // Click en botón Comentar de ese post
+          const commentClicked = await page.evaluate((idx) => {
+            const feed = document.querySelector('div[role="feed"]');
+            const posts = feed.querySelectorAll(':scope > div');
+            const post = posts[idx];
+            if (!post) return false;
+            const commentBtn = post.querySelector('[aria-label="Comentar"], [aria-label="Comment"]');
+            if (commentBtn) { commentBtn.click(); return true; }
+            return false;
+          }, postFound.index);
+          if (commentClicked) {
+            await sleep(2000);
+            // Escribir comentario
+            const commentEditor = await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { visible: true, timeout: 10000 }).catch(() => null);
+            if (commentEditor) {
+              const link = postFound.href || `https://facebook.com/groups/${fbGroupId}/`;
+              const text = commentText.replace('{POST_LINK}', link);
+              await commentEditor.type(text, { delay: 5 });
+              await sleep(1000);
+              // Publicar comentario (Enter)
+              await page.keyboard.press('Enter');
+              console.log('[FB Relay] Comentario enviado');
+              await sleep(3000);
+            }
+          }
+        } else {
+          console.log('[FB Relay] No se encontró el post en el feed');
+        }
+      } catch (err) {
+        console.error('[FB Relay] Error al comentar:', err.message);
+      }
+    }
+
     return true;
   } finally {
     await page.close();
@@ -252,7 +313,7 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
 async function executeTask(task) {
   if (!loadCookies()) throw new Error('No hay cookies disponibles');
   const b = await getBrowser();
-  await postToGroup(b, task.fb_group_id, task.message, task.image_urls || []);
+  await postToGroup(b, task.fb_group_id, task.message, task.image_urls || [], task.comment_text || '', task.marker || '');
   await api.post('/fb/completed', { task_ids: [task.id] });
   console.log(`[FB Relay] Tarea ${task.id} completada`);
 }
@@ -334,7 +395,7 @@ if (process.argv.includes('--test')) {
     }
     const b = await getBrowser();
     try {
-      await postToGroup(b, testGroup, testMsg, []);
+      await postToGroup(b, testGroup, testMsg, [], '', '');
       console.log('[FB Relay] Test exitoso');
     } catch (err) {
       console.error('[FB Relay] Test falló:', err.message);

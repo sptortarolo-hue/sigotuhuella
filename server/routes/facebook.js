@@ -816,21 +816,46 @@ router.get('/page-posts', requireAdmin, async (req, res) => {
 
 router.put('/groups/:id/page-member', requireAdmin, async (req, res) => {
   try {
-    const { page_is_member, fb_group_id, publish_on_create } = req.body;
+    const { page_is_member, fb_group_id, publish_on_create, strip_links } = req.body;
     const result = await pool.query(
       `UPDATE facebook_groups SET
         page_is_member = COALESCE($1, page_is_member),
         fb_group_id = COALESCE($2, fb_group_id),
         publish_on_create = COALESCE($3, publish_on_create),
+        strip_links = COALESCE($4, strip_links),
         updated_at = NOW()
-       WHERE id = $4 RETURNING *`,
-      [page_is_member, fb_group_id, publish_on_create, req.params.id]
+       WHERE id = $5 RETURNING *`,
+      [page_is_member, fb_group_id, publish_on_create, strip_links, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Grupo no encontrado' });
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating group page membership:', err);
     res.status(500).json({ error: 'Error al actualizar membresía del grupo' });
+  }
+});
+
+router.get('/settings/fb-comment-text', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_comment_text'");
+    res.json({ text: result.rows[0]?.value || '' });
+  } catch (err) {
+    console.error('Error getting comment text:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/settings/fb-comment-text', requireAdmin, async (req, res) => {
+  try {
+    const { text } = req.body;
+    await pool.query(
+      "INSERT INTO settings (key, value) VALUES ('fb_relay_comment_text', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [text || '']
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving comment text:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
