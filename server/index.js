@@ -35,7 +35,7 @@ import { autoQueueForAdoption, processQueue } from './services/instagramPublishe
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
 import { publishStory, isConnected } from './services/instagramService.js';
 import { checkWhatsAppTimeouts } from './services/whatsappScheduler.js';
-import { broadcastNextAdoptionPet } from './services/whatsappService.js';
+import { broadcastNextAdoptionPet, broadcastFbAdoptionPets } from './services/whatsappService.js';
 import { processInviteReminders } from './services/reminderService.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
@@ -617,6 +617,7 @@ async function start() {
       const hour = new Date().getHours();
       if (hour === 10 || hour === 18) {
         await broadcastNextAdoptionPet();
+        await broadcastFbAdoptionPets();
       }
     } catch (err) {
       console.error('[AdoptionBroadcast Scheduler] Error:', err.message);

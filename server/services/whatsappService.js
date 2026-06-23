@@ -2,6 +2,7 @@ import axios from 'axios';
 import pool from '../db.js';
 import { enqueue } from './phoneRelayService.js';
 import { generateCelebrationText } from './textTemplates.js';
+import { enqueuePublishTask } from './facebookRelayService.js';
 
 const GRAPH_API = 'https://graph.facebook.com/v22.0';
 
@@ -448,6 +449,79 @@ export async function broadcastNextAdoptionPet() {
     console.log(`[AdoptionBroadcast] Broadcast "${pet.name}" (${pet.id}) to ${groups.rows.length} groups`);
   } catch (err) {
     console.error('[AdoptionBroadcast] Error:', err.message);
+  }
+}
+
+export async function broadcastFbAdoptionPets() {
+  try {
+    const pet = (await pool.query(`
+      SELECT p.*,
+        (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
+        (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
+      FROM pets p
+      WHERE p.status = 'for_adoption' AND p.adoption_broadcasted_at IS NULL
+      ORDER BY p.created_at ASC LIMIT 1
+    `)).rows[0];
+    if (!pet) {
+      console.log('[FbAdoptionBroadcast] No pending adoption pets to broadcast');
+      return;
+    }
+
+    const groups = await pool.query(
+      `SELECT id, name, fb_group_id FROM facebook_groups
+       WHERE is_active = true AND publish_on_create = true
+       AND fb_group_id IS NOT NULL AND fb_group_id != ''
+       ORDER BY name`
+    );
+    if (groups.rows.length === 0) return;
+
+    const speciesLabel = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : (pet.species || 'mascota');
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const desc = pet.description ? pet.description.substring(0, 200) : '';
+    const edadInfo = pet.age ? ` de ${pet.age}` : '';
+
+    const hashtags = '#SigoTuHuella #AdoptaNoCompres';
+    const message = [
+      `🏡 *Buscamos hogar para ${pet.name}*`,
+      '',
+      'En Sigo Tu Huella conectamos mascotas con familias.',
+      '',
+      `Hoy te presentamos a *${pet.name}*, ${speciesLabel}${edadInfo} que está buscando un hogar.`,
+      desc ? `\n${desc}` : '',
+      '',
+      `📍 ${pet.location || 'Sin ubicación'}`,
+      pet.contact_info ? `📞 ${pet.contact_info}` : '',
+      '',
+      `👉 ${frontendUrl}/pet/${pet.id}`,
+      '',
+      'Si no podés adoptar, compartir también ayuda 🐾',
+      '',
+      hashtags,
+    ].filter(Boolean).join('\n');
+
+    const imagesResult = await pool.query(
+      'SELECT image_data FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 5',
+      [pet.id]
+    );
+    const imageUrls = imagesResult.rows.length > 0
+      ? [`${frontendUrl}/api/images/pet/${pet.id}/cover`, ...imagesResult.rows.slice(1).map((_, i) => `${frontendUrl}/api/images/pet/${pet.id}/${i + 1}`)]
+      : [`${frontendUrl}/api/images/pet/${pet.id}/cover`];
+
+    const commentResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_comment_text'");
+    const commentText = commentResult.rows[0]?.value || '';
+
+    for (const group of groups.rows) {
+      try {
+        await enqueuePublishTask(pet.id, group.id, group.fb_group_id, message, imageUrls, commentText);
+      } catch (err) {
+        console.error(`[FbAdoptionBroadcast] Error enqueuing to ${group.name}:`, err.message);
+      }
+    }
+
+    await pool.query('UPDATE pets SET adoption_broadcasted_at = NOW() WHERE id = $1', [pet.id]);
+    console.log(`[FbAdoptionBroadcast] Enqueued "${pet.name}" (${pet.id}) to ${groups.rows.length} FB groups`);
+  } catch (err) {
+    console.error('[FbAdoptionBroadcast] Error:', err.message);
   }
 }
 
