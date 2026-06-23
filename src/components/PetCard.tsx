@@ -117,6 +117,11 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
         )}>
           {statusLabels[pet.status]}
         </div>
+        {pet.source_type === 'whatsapp_owner' && (
+          <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md bg-amber-50/90 text-amber-700 border border-amber-200">
+            Difusión particular
+          </div>
+        )}
       </div>
 
       <div className="p-6">

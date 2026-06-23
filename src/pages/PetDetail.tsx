@@ -210,8 +210,15 @@ Me gustaría obtener más información.`;
         {/* Información Detallada */}
         <div className="flex flex-col h-full">
           <div className="mb-6">
-            <div className={cn("inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-4", statusColors[pet.status])}>
-              {statusLabels[pet.status]}
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <div className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide", statusColors[pet.status])}>
+                {statusLabels[pet.status]}
+              </div>
+              {pet.source_type === 'whatsapp_owner' && (
+                <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                  Difusión particular
+                </div>
+              )}
             </div>
             {pet.name && (
               <h1 className="text-4xl md:text-5xl font-serif font-bold text-brand-primary mb-2">
@@ -283,6 +290,16 @@ Me gustaría obtener más información.`;
             <p className={cn("leading-relaxed whitespace-pre-wrap", pet.name ? "text-gray-600 text-base" : "text-gray-700 text-lg")}>
               {pet.description ? <LinkifiedText text={pet.description} /> : 'No se proporcionó una descripción detallada.'}
             </p>
+            {pet.source_type === 'whatsapp_owner' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-4 flex items-start gap-3">
+                <Info className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Esta publicación es una <strong>difusión particular</strong>.
+                  Sigo Tu Huella solo difunde el aviso, no gestiona la adopción.
+                  Comunicate directamente con el dueño para más información.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="mt-auto space-y-6">

@@ -53,6 +53,7 @@ function detectIntent(parsed) {
       case 'motive_report': case 'motive_technical': case 'motive_collab': case 'motive_other': return 'motive';
       case 'species_dog': case 'species_cat': case 'species_other': return 'species';
       case 'report_from_fb': return 'report_from_fb';
+      case 'adopt_post': return 'adopt_post';
     }
   }
 
@@ -63,6 +64,7 @@ function detectIntent(parsed) {
     if (/info|qr/i.test(text)) return 'info_qr';
     if (/voluntario/i.test(text)) return 'volunteer';
     if (/adoptar|adopt/i.test(text)) return 'adopt';
+    if (/publicar|difusi[oó]n/i.test(text)) return 'adopt_post';
     if (/donar|donación|don/i.test(text)) return 'donate';
     if (/face|fb\./i.test(text)) return 'report_from_fb';
     if (/humano/i.test(text)) return 'human';
@@ -76,6 +78,7 @@ function detectIntent(parsed) {
   if (/info|información|chapita|qr/.test(text)) return 'info_qr';
   if (/voluntario|ayudar|colaborar/.test(text)) return 'volunteer';
   if (/adoptar|adopt/.test(text)) return 'adopt';
+  if (/publicar|difusi[oó]n/.test(text)) return 'adopt_post';
   if (/donar|donación|don/.test(text)) return 'donate';
   if (/face|facebook|fb\./i.test(text)) return 'report_from_fb';
   if (/humano|persona|hablar/.test(text)) return 'human';
@@ -272,6 +275,16 @@ async function routeFlow(conv, parsed) {
     case 'chapita.requester_name': return chapitaRequesterName(conv, parsed);
     case 'chapita.confirm': return chapitaConfirm(conv, parsed, intent);
     case 'adopt.species': return adoptSpecies(conv, parsed);
+    case 'register.name': return registerName(conv, parsed);
+    case 'register.confirm': return registerConfirm(conv, parsed, intent);
+    case 'adopt_post.species': return apSpecies(conv, parsed);
+    case 'adopt_post.photo': return apPhoto(conv, parsed);
+    case 'adopt_post.location': return apLocation(conv, parsed);
+    case 'adopt_post.contact_check': return apContactCheck(conv, parsed);
+    case 'adopt_post.contact_ask': return apContactAsk(conv, parsed);
+    case 'adopt_post.name': return apName(conv, parsed);
+    case 'adopt_post.description': return apDescription(conv, parsed);
+    case 'adopt_post.confirm': return apConfirm(conv, parsed, intent);
     case 'info_qr': return showInfoQr(conv);
     case 'report_from_fb.ask_url': return fbAskUrl(conv, parsed);
     case 'report_from_fb.lookup': return fbLookup(conv, parsed);
@@ -321,6 +334,16 @@ const stepNames = {
   'chapita.requester_name': 'decir tu nombre',
   'chapita.confirm': 'confirmar los datos',
   'adopt.species': 'decir qué especie querés adoptar',
+  'register.name': 'decir tu nombre',
+  'register.confirm': 'confirmar el registro',
+  'adopt_post.species': 'decir la especie',
+  'adopt_post.photo': 'enviar una foto',
+  'adopt_post.location': 'decir la ubicación',
+  'adopt_post.contact_check': 'confirmar el contacto',
+  'adopt_post.contact_ask': 'dar un teléfono de contacto',
+  'adopt_post.name': 'decir el nombre',
+  'adopt_post.description': 'dar una descripción',
+  'adopt_post.confirm': 'confirmar los datos',
   'report_from_fb.ask_url': 'pegar el link de Facebook',
   'report_from_fb.lookup': 'confirmar la publicación',
   'report_from_fb.ask_status': 'indicar el estado',
@@ -371,6 +394,7 @@ export async function showMenu(conv) {
       { id: 'report_sighted', title: '👀 Vi una mascota' },
       { id: 'report_found', title: '✅ Encontré una mascota' },
       { id: 'adopt', title: '🙋 Quiero adoptar' },
+      { id: 'adopt_post', title: '🐾 Publicar en adopción' },
       { id: 'info_qr', title: 'ℹ️ Chapita QR' },
       { id: 'donate', title: '💰 Donar' },
       { id: 'volunteer', title: '🙌 Ser voluntario' },
@@ -391,6 +415,7 @@ export async function showMenu(conv) {
         `• "Vi una mascota"\n` +
         `• "Encontré una mascota"\n` +
         `• "Quiero adoptar"\n` +
+        `• "Publicar en adopción"\n` +
         `• "Chapita QR"\n` +
         `• "Donar"\n` +
         `• "Link Facebook"\n` +
@@ -420,6 +445,7 @@ async function handleMenu(conv, parsed, intent) {
     case 'info_qr': return showInfoQr(conv);
     case 'volunteer': return startVolunteer(conv);
     case 'adopt': return startAdoptFlow(conv);
+    case 'adopt_post': return startAdoptPost(conv);
     case 'donate': return startDonateFlow(conv);
     case 'report_from_fb': return startReportFromFb(conv);
     case 'human': return startHumanRequest(conv);
@@ -2063,6 +2089,235 @@ async function fbConfirm(conv, parsed, intent) {
     (post.fb_post_url ? `\n🔗 Publicación original: ${post.fb_post_url}` : '')
   );
 
+  return endFlow(conv);
+}
+
+// ─── Register + Adopt Post ───
+
+async function startAdoptPost(conv) {
+  const waFrom = conv.wa_from;
+  const user = (await pool.query(
+    `SELECT id, display_name FROM users WHERE phone LIKE $1 OR phone LIKE $2 LIMIT 1`,
+    [`%${waFrom.slice(-8)}`, `%${waFrom.slice(-10)}`]
+  )).rows[0];
+
+  if (user) {
+    conv.context = { ...conv.context, user_id: user.id, user_name: user.display_name };
+    return apAskSpecies(conv);
+  }
+
+  await sendMessage(conv.wa_from,
+    `${conv.bot_name}: Para publicar una mascota en adopción necesitás registrarte primero. ¿Cómo te llamás?`
+  );
+  await setFlow(conv, 'register.name', { _redirect: 'adopt_post.species' });
+}
+
+async function registerName(conv, parsed) {
+  const name = (parsed.textBody || '').trim();
+  if (!name || name.length < 2) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor decime tu nombre para registrarte.`);
+    return;
+  }
+  await sendMessage(conv.wa_from, `✅ Gracias, ${name}. Ahora te registramos con tu número de WhatsApp.`);
+  await setFlow(conv, 'register.confirm', { ...conv.context, reg_name: name });
+  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Confirmás tu registro?`, [
+    { id: 'confirm_yes', title: '✅ Sí, registrarme' },
+    { id: 'confirm_no', title: '❌ Cancelar' },
+  ]);
+}
+
+async function registerConfirm(conv, parsed, intent) {
+  if (intent !== 'confirm') {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
+    return endFlow(conv);
+  }
+  const name = conv.context.reg_name;
+  const waFrom = conv.wa_from;
+  const syntheticEmail = `wa_${waFrom}@placeholder.sigotuhuella`;
+  const randomPass = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+
+  const userResult = await pool.query(
+    `INSERT INTO users (email, password_hash, display_name, phone, email_verified)
+     VALUES ($1, $2, $3, $4, TRUE)
+     ON CONFLICT (phone) DO UPDATE SET display_name = EXCLUDED.display_name
+     RETURNING id`,
+    [syntheticEmail, randomPass, name, waFrom]
+  );
+  const userId = userResult.rows[0].id;
+  conv.context = { ...conv.context, user_id: userId, user_name: name };
+
+  await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Registro completado! Ahora vamos a publicar la adopción.`);
+
+  const redirect = conv.context._redirect || 'adopt_post.species';
+  await setFlow(conv, redirect, { ...conv.context });
+  if (redirect === 'adopt_post.species') {
+    await apAskSpecies(conv);
+  }
+}
+
+async function apAskSpecies(conv) {
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿De qué *especie* es la mascota que querés dar en adopción?`);
+  await sendInteractiveButtons(conv.wa_from, 'Especie:', [
+    { id: 'species_dog', title: '🐕 Perro' },
+    { id: 'species_cat', title: '🐈 Gato' },
+    { id: 'species_other', title: '🐾 Otro' },
+  ]);
+  await setFlow(conv, 'adopt_post.species');
+}
+
+async function apSpecies(conv, parsed) {
+  let species;
+  if (parsed.buttonId) {
+    species = parsed.buttonId === 'species_cat' ? 'cat'
+      : parsed.buttonId === 'species_other' ? 'other' : 'dog';
+  } else {
+    const text = (parsed.textBody || '').toLowerCase();
+    species = text.includes('gato') || text.includes('🐈') ? 'cat'
+      : text.includes('otro') || text.includes('🐾') ? 'other' : 'dog';
+  }
+  await sendMessage(conv.wa_from, `✅ Anotado.`);
+  await sendMessage(conv.wa_from, `${conv.bot_name}: Ahora enviá una *foto* de la mascota 📸`);
+  await setFlow(conv, 'adopt_post.photo', { ...conv.context, species });
+}
+
+async function apPhoto(conv, parsed) {
+  const photoData = parsed.imageData || conv.context?.photo_data;
+  const photoMime = parsed.imageMime || conv.context?.photo_mime;
+  if (!photoData) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor enviá una *foto* de la mascota 📸`);
+    return;
+  }
+  await sendMessage(conv.wa_from, `✅ Foto recibida.`);
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde está la mascota? Podés escribir la dirección o compartir tu *ubicación* 📍`);
+  await setFlow(conv, 'adopt_post.location', {
+    ...conv.context,
+    photo_data: photoData,
+    photo_mime: photoMime || 'image/jpeg',
+  });
+}
+
+async function apLocation(conv, parsed) {
+  const location = parsed.textBody || '';
+  let lat = parsed.locationLat || null;
+  let lng = parsed.locationLng || null;
+  if (!location && !lat) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Decime dónde está la mascota o compartí tu ubicación 📍`);
+    return;
+  }
+  if (!lat && location) {
+    const coords = await geocodeAddress(location).catch(() => null);
+    if (coords) { lat = coords.lat; lng = coords.lng; }
+  }
+
+  const waFrom = conv.wa_from;
+  const formattedPhone = `${waFrom.slice(0, 3)} ${waFrom.slice(3, 5)} ${waFrom.slice(5, 8)} ${waFrom.slice(8)}`;
+  await sendMessage(conv.wa_from, `✅ Ubicación registrada.`);
+  await sendInteractiveButtons(conv.wa_from,
+    `${conv.bot_name}: ¿El número de contacto para esta adopción es tu número de WhatsApp (+${formattedPhone})?`, [
+    { id: 'confirm_yes', title: '✅ Sí' },
+    { id: 'confirm_no', title: '❌ No' },
+  ]);
+  await setFlow(conv, 'adopt_post.contact_check', { ...conv.context, location, latitude: lat, longitude: lng });
+}
+
+async function apContactCheck(conv, parsed) {
+  const text = (parsed.textBody || '').toLowerCase().trim();
+  if (parsed.buttonId === 'confirm_yes' || text === 'sí' || text === 'si' || text === 'yes' || text === 'dale') {
+    await sendMessage(conv.wa_from, `✅ Usamos tu número de WhatsApp como contacto.`);
+    await setFlow(conv, 'adopt_post.name', { ...conv.context, contact: conv.wa_from });
+    return apAskName(conv);
+  }
+  await sendMessage(conv.wa_from, `${conv.bot_name}: Decime el número de teléfono para la publicación 📞`);
+  await setFlow(conv, 'adopt_post.contact_ask', conv.context);
+}
+
+async function apContactAsk(conv, parsed) {
+  const phone = parsed.textBody || '';
+  if (!phone || phone.length < 5) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí un número de teléfono válido 📞`);
+    return;
+  }
+  await sendMessage(conv.wa_from, `✅ Teléfono registrado.`);
+  await setFlow(conv, 'adopt_post.name', { ...conv.context, contact: phone });
+  await apAskName(conv);
+}
+
+async function apAskName(conv) {
+  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Cómo se llama la mascota? (opcional)`, [
+    { id: 'skip', title: '⏭ Saltar' },
+  ]);
+  await setFlow(conv, 'adopt_post.name', conv.context);
+}
+
+async function apName(conv, parsed) {
+  const text = (parsed.textBody || '').toLowerCase().trim();
+  const name = (parsed.buttonId === 'skip' || text === 'saltar' || text === 'no' || text === 'skip') ? '' : parsed.textBody || '';
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Alguna descripción adicional? (edad, tamaño, color, personalidad — opcional)`);
+  await sendInteractiveButtons(conv.wa_from, 'Descripción:', [
+    { id: 'skip', title: '⏭ Saltar' },
+  ]);
+  await setFlow(conv, 'adopt_post.description', { ...conv.context, pet_name: name });
+}
+
+async function apDescription(conv, parsed) {
+  const text = (parsed.textBody || '').toLowerCase().trim();
+  const description = (parsed.buttonId === 'skip' || text === 'saltar' || text === 'no' || text === 'skip') ? '' : parsed.textBody || '';
+  const ctx = { ...conv.context, description };
+  await setFlow(conv, 'adopt_post.confirm', ctx);
+
+  const speciesLabels = { dog: 'Perro 🐕', cat: 'Gato 🐈', other: 'Otro 🐾' };
+  const contactDisplay = ctx.contact === conv.wa_from ? '(+54) mismo WhatsApp' : ctx.contact;
+  await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos de la adopción:\n\n` +
+    `🐾 *Especie:* ${speciesLabels[ctx.species] || ctx.species}\n` +
+    `📍 *Ubicación:* ${ctx.location || 'Compartida'}\n` +
+    `📞 *Contacto:* ${contactDisplay}\n` +
+    `${ctx.pet_name ? `🏷️ *Nombre:* ${ctx.pet_name}\n` : ''}` +
+    `${description ? `📝 *Descripción:* ${description}\n` : ''}\n` +
+    `⚠️ Recordá: Sigo Tu Huella solo difunde. La gestión de la adopción queda a cargo tuyo.`);
+  await sendInteractiveButtons(conv.wa_from, '¿Publicamos?', [
+    { id: 'confirm_yes', title: '✅ Sí, publicar' },
+    { id: 'confirm_no', title: '❌ Cancelar' },
+  ]);
+}
+
+async function apConfirm(conv, parsed, intent) {
+  if (intent === 'confirm') {
+    const ctx = conv.context;
+    const petResult = await pool.query(
+      `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, description, source_type, created_by)
+       VALUES ($1, $2, 'for_adoption', $3, $4, $5, $6, $7, 'whatsapp_owner', $8)
+       RETURNING id`,
+      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.description || 'En adopción — difusión particular', ctx.user_id || null]
+    );
+    const petId = petResult.rows[0].id;
+
+    if (ctx.photo_data) {
+      let imageData = ctx.photo_data;
+      let originalImageData = null;
+      try {
+        const { detectAndCropPetFace } = await import('./geminiMatching.js');
+        const cropped = await detectAndCropPetFace(ctx.photo_data, ctx.photo_mime);
+        if (cropped) { imageData = cropped.cropped; originalImageData = cropped.original; }
+      } catch (e) { console.error('Face crop error:', e); }
+      await pool.query(
+        `INSERT INTO pet_images (pet_id, image_data, mime_type, original_image_data) VALUES ($1, $2, $3, $4)`,
+        [petId, imageData, ctx.photo_mime || 'image/jpeg', originalImageData]
+      );
+    }
+
+    await pool.query(
+      `UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`,
+      [petId, conv.id]
+    );
+
+    broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
+    await sendMessage(conv.wa_from,
+      `✅ *${conv.bot_name}:* ¡Publicación creada con éxito! Ya la difundimos en nuestra red.\n\n` +
+      `📌 *Importante:* esta publicación figura como *difusión particular*. Sigo Tu Huella solo la difunde, no gestiona la adopción. Cualquier consulta la respondés vos directamente.`
+    );
+    return endFlow(conv);
+  }
+  await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
   return endFlow(conv);
 }
 

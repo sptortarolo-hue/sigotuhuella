@@ -40,6 +40,7 @@ export interface Pet {
   contact_info_2: string | null;
   neighborhoods: string[];
   images: PetImage[];
+  source_type?: string;
   facebook_embed_html?: string;
   created_by: string;
   is_admin_verified: boolean;
