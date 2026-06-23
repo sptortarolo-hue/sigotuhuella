@@ -611,10 +611,14 @@ async function start() {
 
   checkWhatsAppTimeouts();
 
-  // Adoption broadcast: every hour, publish at 10:00 and 18:00
+  // Adoption broadcast: every hour, publish at 08, 12, 16, 20 Argentina time
   async function checkAdoptionBroadcast() {
     try {
-      const hour = new Date().getHours();
+      const hour = parseInt(new Intl.DateTimeFormat('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        hour: 'numeric',
+        hour12: false,
+      }).format(new Date()));
       if ([8, 12, 16, 20].includes(hour)) {
         await broadcastNextAdoptionPet();
         await broadcastFbAdoptionPets();
