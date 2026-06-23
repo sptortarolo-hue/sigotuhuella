@@ -834,30 +834,6 @@ router.put('/groups/:id/page-member', requireAdmin, async (req, res) => {
   }
 });
 
-router.get('/settings/fb-comment-text', requireAdmin, async (req, res) => {
-  try {
-    const result = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_comment_text'");
-    res.json({ text: result.rows[0]?.value || '' });
-  } catch (err) {
-    console.error('Error getting comment text:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.put('/settings/fb-comment-text', requireAdmin, async (req, res) => {
-  try {
-    const { text } = req.body;
-    await pool.query(
-      "INSERT INTO settings (key, value) VALUES ('fb_relay_comment_text', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
-      [text || '']
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error saving comment text:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 router.post('/groups/verify-memberships', requireAdmin, async (_req, res) => {
   try {
     const { verifyAllGroupMemberships } = await import('../services/facebookPublisher.js');
