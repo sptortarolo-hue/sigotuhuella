@@ -128,7 +128,6 @@ function ensureValidCookies(cookies) {
 async function postToGroup(b, fbGroupId, message, imageUrls) {
   const cookies = ensureValidCookies(JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8')));
   const page = await b.newPage();
-  const debugDir = process.env.TMPDIR || process.cwd();
 
   try {
     await page.evaluateOnNewDocument(() => {
@@ -200,8 +199,6 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
       } catch (e) {
         console.error('[FB Relay] Error capturando debug:', e.message);
       }
-      throw new Error('Composer trigger not found');
-    }
       throw new Error('Composer trigger not found');
     }
     console.log('[FB Relay] Composer activated');
