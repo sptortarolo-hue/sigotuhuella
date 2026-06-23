@@ -153,35 +153,17 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
       throw new Error('session expired');
     }
 
-    // Buscar "Write something..." con retry hasta que sea visible
+    // Buscar "Write something..." con retry hasta que sea visible (como fb-group-auto-post)
     let triggerClicked = false;
-    for (let attempt = 0; attempt < 10 && !triggerClicked; attempt++) {
+    for (let attempt = 0; attempt < 8 && !triggerClicked; attempt++) {
       triggerClicked = await page.evaluate(() => {
-        // 1) XPath con contains(., ...) que busca en todo el sub-árbol, no solo primer text()
-        const xpaths = [
-          '//span[contains(., "Write something") or contains(., "Share something") or contains(., "What") or contains(., "Create a post")]',
-          '//span[contains(., "Escribe algo") or contains(., "Comparte") or contains(., "pensando") or contains(., "compartir")]',
-          '//span[contains(., "Crea") or contains(., "Nueva publicación")]',
-          '//*[@role="button" and (contains(., "Write") or contains(., "Create") or contains(., "Escribe") or contains(., "Comparte"))]',
-        ];
-        for (const xpath of xpaths) {
-          const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-          const el = result.singleNodeValue;
-          if (el && el.offsetParent !== null) { el.click(); return true; }
-        }
-        // 2) Fallback: aria-label del composer
-        const ariaBtn = document.querySelector('[aria-label="Create a post"], [aria-label="Crear publicación"], [aria-label="Escribe algo"]');
-        if (ariaBtn && ariaBtn.offsetParent !== null) { ariaBtn.click(); return true; }
-        // 3) Fallback: cualquier div clickeable con role="button" dentro del area del grupo
-        const allBtns = document.querySelectorAll('div[role="button"]');
-        for (const btn of allBtns) {
-          if (btn.offsetParent !== null && btn.textContent.trim().length > 0) {
-            btn.click(); return true;
-          }
-        }
+        const xpath = '//span[contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Qué estás pensando")]';
+        const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        const el = result.singleNodeValue;
+        if (el && el.offsetParent !== null) { el.click(); return true; }
         return false;
       });
-      if (!triggerClicked) await sleep(2000);
+      if (!triggerClicked) await sleep(1000);
     }
     if (!triggerClicked) throw new Error('Write something not found');
     console.log('[FB Relay] Write something clicked');
