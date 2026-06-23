@@ -798,7 +798,8 @@ router.get('/page-posts', requireAdmin, async (req, res) => {
     const { limit = 50, offset = 0 } = req.query;
     const result = await pool.query(
       `SELECT fpp.*, ip.ig_permalink, ip.status as ig_status,
-              p.name as pet_name, p.status as pet_status, p.species
+              p.name as pet_name, p.status as pet_status, p.species,
+              (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as pet_image
        FROM facebook_page_posts fpp
        LEFT JOIN instagram_posts ip ON ip.id = fpp.instagram_post_id
        LEFT JOIN pets p ON p.id = fpp.pet_id

@@ -1523,7 +1523,14 @@ function PublisherSection() {
             <tbody className="divide-y divide-brand-accent">
               {pagePosts.map((p: any) => (
                 <tr key={p.id} className="hover:bg-brand-bg/50 transition-colors">
-                  <td className="px-4 py-3 font-medium">{p.pet_name || '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {p.pet_image
+                        ? <img src={`data:image/jpeg;base64,${p.pet_image}`} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                        : <div className="w-10 h-10 rounded-lg bg-gray-100 shrink-0" />}
+                      <span className="font-medium">{p.pet_name || '—'}</span>
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <span className={cn(
                       "px-3 py-1 rounded-full text-[10px] font-bold",
