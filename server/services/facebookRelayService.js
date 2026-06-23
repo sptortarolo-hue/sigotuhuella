@@ -2,11 +2,12 @@ import pool from '../db.js';
 import crypto from 'crypto';
 
 export async function enqueuePublishTask(petId, groupId, fbGroupId, message, imageUrls, commentText) {
-  const marker = '#' + crypto.randomUUID().substring(0, 5) + '#';
+  const marker = crypto.randomUUID().substring(0, 5);
+  const messageWithMarker = message + '\n\n[MKR-' + marker + ']';
   const result = await pool.query(
     `INSERT INTO fb_relay_tasks (pet_id, group_id, fb_group_id, message, image_urls, comment_text, marker)
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-    [petId, groupId, fbGroupId, message, imageUrls || [], commentText || '', marker]
+    [petId, groupId, fbGroupId, messageWithMarker, imageUrls || [], commentText || '', marker]
   );
   return { taskId: result.rows[0].id, marker };
 }

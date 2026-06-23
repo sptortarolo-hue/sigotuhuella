@@ -258,7 +258,7 @@ async function postToGroup(b, fbGroupId, message, imageUrls, commentText, marker
           if (!feed) return null;
           const posts = feed.querySelectorAll(':scope > div');
           for (const post of posts) {
-            if (post.textContent.includes(mkr)) {
+            if (post.textContent.includes('[MKR-' + mkr + ']')) {
               // Extraer link del post
               const link = post.querySelector('a[href*="/groups/"]');
               return {
