@@ -7,7 +7,8 @@ import { normalizePhone } from '../services/phoneUtils.js';
 import { enqueuePublishTask } from '../services/facebookRelayService.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
-import { isConnected, replyToComment } from '../services/instagramService.js';
+import { isConnected, replyToComment, commentOnMedia } from '../services/instagramService.js';
+import { commentOnPagePost } from '../services/facebookPublisher.js';
 import { generateCelebrationText } from '../services/textTemplates.js';
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
@@ -142,10 +143,26 @@ async function autoInstagramComment(pet, newsType) {
     if (igPost.rows.length === 0) return;
     const commentText = generateCelebrationText(pet, newsType);
     if (!commentText) return;
-    await replyToComment(igPost.rows[0].ig_media_id, commentText);
+    await commentOnMedia(igPost.rows[0].ig_media_id, commentText);
     console.log(`[Instagram] Auto-commented on pet ${pet.id}: ${commentText.slice(0, 60)}...`);
   } catch (err) {
     console.error('[Instagram] Auto-comment error:', err);
+  }
+}
+
+async function autoFacebookPageComment(pet, newsType) {
+  try {
+    const pagePost = await pool.query(
+      "SELECT page_post_id FROM facebook_page_posts WHERE pet_id = $1 AND page_post_id IS NOT NULL ORDER BY published_at DESC LIMIT 1",
+      [pet.id]
+    );
+    if (pagePost.rows.length === 0) return;
+    const commentText = generateCelebrationText(pet, newsType);
+    if (!commentText) return;
+    await commentOnPagePost(pagePost.rows[0].page_post_id, commentText);
+    console.log(`[Facebook Page] Auto-commented on pet ${pet.id}: ${commentText.slice(0, 60)}...`);
+  } catch (err) {
+    console.error('[Facebook Page] Auto-comment error:', err);
   }
 }
 
@@ -257,6 +274,30 @@ async function enqueueFbGroupPublish(pet) {
     }
   } catch (err) {
     console.error('[FB Relay] enqueueFbGroupPublish error:', err.message);
+  }
+}
+
+async function enqueueFbGroupComment(pet, newsType) {
+  try {
+    const fbRelay = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_enabled'");
+    if (fbRelay.rows[0]?.value !== 'true') return;
+    const tasks = await pool.query(
+      "SELECT DISTINCT ON (group_id) id, fb_group_id, fb_post_url FROM fb_relay_tasks WHERE pet_id = $1 AND status = 'completed' AND fb_post_url != '' ORDER BY group_id, completed_at DESC",
+      [pet.id]
+    );
+    if (tasks.rows.length === 0) return;
+    const commentText = generateCelebrationText(pet, newsType);
+    if (!commentText) return;
+    for (const task of tasks.rows) {
+      await pool.query(
+        `INSERT INTO fb_relay_tasks (pet_id, group_id, fb_group_id, action, target_url, message, status, created_at)
+         VALUES ($1, $2, $3, 'comment', $4, $5, 'pending', NOW())`,
+        [pet.id, task.group_id, task.fb_group_id, task.fb_post_url, commentText]
+      );
+    }
+    console.log(`[FB Relay] Enqueued ${tasks.rows.length} comment task(s) for pet ${pet.id}`);
+  } catch (err) {
+    console.error('[FB Relay] enqueueFbGroupComment error:', err.message);
   }
 }
 
@@ -451,9 +492,11 @@ router.put('/:id', requireAuth, async (req, res) => {
       const newsType = isReunited ? 'reunited' : 'adopted';
       await autoCreateNews(updatedPet.rows[0], newsType);
       await autoInstagramComment(updatedPet.rows[0], newsType);
+      await autoFacebookPageComment(updatedPet.rows[0], newsType);
       await autoQueueCelebrationPost(updatedPet.rows[0], newsType);
       broadcastPetToGroups(petId).catch(e => console.error('Broadcast reunion/adoption error:', e));
       enqueueFbGroupPublish(updatedPet.rows[0]).catch(e => console.error('[FB Relay] enqueueFbGroupPublish error:', e));
+      enqueueFbGroupComment(updatedPet.rows[0], newsType).catch(e => console.error('[FB Relay] enqueueFbGroupComment error:', e));
     }
     // Auto-badge: reunited_hero (first reunion)
     if (isReunited && pet.created_by) {

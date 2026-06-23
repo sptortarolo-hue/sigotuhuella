@@ -29,8 +29,8 @@ router.get('/fb/pending', relayAuth, async (req, res) => {
 
 router.post('/fb/completed', relayAuth, async (req, res) => {
   try {
-    const { task_ids } = req.body;
-    await markCompleted(task_ids || []);
+    const { task_updates } = req.body;
+    await markCompleted(task_updates || []);
     res.json({ success: true });
   } catch (err) {
     console.error('[FB Relay] markCompleted error:', err.message);

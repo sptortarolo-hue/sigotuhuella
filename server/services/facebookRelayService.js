@@ -14,17 +14,27 @@ export async function enqueuePublishTask(petId, groupId, fbGroupId, message, ima
 
 export async function getPendingTasks(limit = 5) {
   const result = await pool.query(
-    "SELECT id, pet_id, group_id, fb_group_id, message, image_urls, marker, created_at FROM fb_relay_tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT $1",
+    "SELECT id, pet_id, group_id, fb_group_id, message, image_urls, marker, action, target_url, comment_text, created_at FROM fb_relay_tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT $1",
     [limit]
   );
   return result.rows;
 }
 
-export async function markCompleted(taskIds) {
-  if (taskIds.length === 0) return;
+export async function markCompleted(taskUpdates) {
+  if (taskUpdates.length === 0) return;
+  const ids = [];
+  for (const u of taskUpdates) {
+    ids.push(u.task_id);
+    if (u.fb_post_url) {
+      await pool.query(
+        "UPDATE fb_relay_tasks SET fb_post_url = $2 WHERE id = $1",
+        [u.task_id, u.fb_post_url]
+      );
+    }
+  }
   await pool.query(
     "UPDATE fb_relay_tasks SET status = 'completed', completed_at = NOW() WHERE id = ANY($1::uuid[]) AND status = 'pending'",
-    [taskIds]
+    [ids]
   );
 }
 

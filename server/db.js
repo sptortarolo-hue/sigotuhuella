@@ -849,6 +849,16 @@ export async function initDb() {
     `, 'fb_relay_comment_text');
 
     await migrate(client, `
+      ALTER TABLE fb_relay_tasks ADD COLUMN IF NOT EXISTS fb_post_url TEXT DEFAULT ''
+    `, 'fb_relay_tasks fb_post_url');
+    await migrate(client, `
+      ALTER TABLE fb_relay_tasks ADD COLUMN IF NOT EXISTS action VARCHAR(20) DEFAULT 'post'
+    `, 'fb_relay_tasks action');
+    await migrate(client, `
+      ALTER TABLE fb_relay_tasks ADD COLUMN IF NOT EXISTS target_url TEXT DEFAULT ''
+    `, 'fb_relay_tasks target_url');
+
+    await migrate(client, `
       DROP TABLE IF EXISTS family_members
     `, 'drop family_members');
     await migrate(client, `

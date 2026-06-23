@@ -589,3 +589,12 @@ export async function publishPetToGroups(petId) {
 
   return results;
 }
+
+export async function commentOnPagePost(pagePostId, message) {
+  const token = await getPageToken();
+  if (!token) throw new Error('Facebook Page no conectada');
+  const { data } = await axios.post(`${GRAPH_API}/${pagePostId}/comments`, null, {
+    params: { message, access_token: token },
+  });
+  return data;
+}

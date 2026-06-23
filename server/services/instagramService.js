@@ -343,6 +343,14 @@ export async function replyToComment(commentId, message) {
   return data;
 }
 
+export async function commentOnMedia(mediaId, message) {
+  const accessToken = await getStoredToken();
+  const { data } = await axios.post(`${GRAPH_API}/${mediaId}/comments`, null, {
+    params: { message, access_token: accessToken },
+  });
+  return data;
+}
+
 export async function sendPrivateReply(commentId, message) {
   const accessToken = await getStoredToken();
   const igUserId = await getInstagramUserId();

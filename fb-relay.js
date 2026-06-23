@@ -259,9 +259,61 @@ async function postToGroup(b, fbGroupId, message, imageUrls, marker) {
     }
 
     console.log(`[FB Relay] Publicado en grupo ${fbGroupId}`);
+    await sleep(3000);
+    const currentUrl = page.url();
+    console.log(`[FB Relay] URL actual: ${currentUrl}`);
 
+    return { success: true, fb_post_url: currentUrl };
+  } finally {
+    await page.close();
+  }
+}
 
+async function commentOnPost(b, targetUrl, text) {
+  const cookies = ensureValidCookies(JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8')));
+  const page = await b.newPage();
 
+  try {
+    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
+    await page.setViewport({ width: 1440, height: 900 });
+
+    await page.goto('about:blank');
+    await page.setCookie(...cookies);
+    await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
+    await sleep(2000);
+
+    if (!(await checkSession(page))) {
+      throw new Error('session expired');
+    }
+
+    console.log(`[FB Relay] Navegando a post: ${targetUrl}`);
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await sleep(3000);
+
+    if (!(await checkSession(page))) {
+      throw new Error('session expired');
+    }
+
+    const commentBtn = await page.waitForSelector('[aria-label="Comentar"]', { visible: true, timeout: 15000 }).catch(() => null);
+    if (!commentBtn) {
+      console.log('[FB Relay] Botón Comentar no encontrado, intentando scroll...');
+      await page.evaluate(() => window.scrollBy(0, 500));
+      await sleep(2000);
+    }
+    if (commentBtn) await commentBtn.click();
+    await sleep(1000);
+
+    const editor = await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { visible: true, timeout: 15000 });
+    await editor.click();
+    await sleep(500);
+    await editor.type(text, { delay: 3 });
+    await sleep(1500);
+
+    console.log('[FB Relay] Presionando Enter para comentar...');
+    await page.keyboard.press('Enter');
+    await sleep(3000);
+
+    console.log('[FB Relay] Comentario publicado');
     return true;
   } finally {
     await page.close();
@@ -272,9 +324,17 @@ async function executeTask(task) {
   await downloadCookies();
   if (!loadCookies()) throw new Error('No hay cookies disponibles');
   const b = await getBrowser();
-  await postToGroup(b, task.fb_group_id, task.message, task.image_urls || [], task.marker || '');
-  await api.post('/fb/completed', { task_ids: [task.id] });
-  console.log(`[FB Relay] Tarea ${task.id} completada`);
+
+  if (task.action === 'comment' && task.target_url) {
+    await commentOnPost(b, task.target_url, task.message);
+    await api.post('/fb/completed', { task_updates: [{ task_id: task.id }] });
+    console.log(`[FB Relay] Comentario tarea ${task.id} completada`);
+  } else {
+    const result = await postToGroup(b, task.fb_group_id, task.message, task.image_urls || [], task.marker || '');
+    const fbPostUrl = result?.fb_post_url || '';
+    await api.post('/fb/completed', { task_updates: [{ task_id: task.id, fb_post_url: fbPostUrl }] });
+    console.log(`[FB Relay] Tarea ${task.id} completada (post)`);
+  }
 }
 
 async function main() {
