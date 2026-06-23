@@ -428,7 +428,7 @@ export async function broadcastNextAdoptionPet() {
       ? `${frontendUrl}/api/images/pet/${pet.id}/cover`
       : null;
 
-    for (const group of groups.rows) {
+    for (const group of groups) {
       try {
         await enqueue(group.group_id, caption, coverUrl);
       } catch (relayErr) {
@@ -446,7 +446,7 @@ export async function broadcastNextAdoptionPet() {
     }
 
     await pool.query('UPDATE pets SET adoption_broadcasted_at = NOW() WHERE id = $1', [pet.id]);
-    console.log(`[AdoptionBroadcast] Broadcast "${pet.name}" (${pet.id}) to ${groups.rows.length} groups`);
+    console.log(`[AdoptionBroadcast] Broadcast "${pet.name}" (${pet.id}) to ${groups.length} groups`);
   } catch (err) {
     console.error('[AdoptionBroadcast] Error:', err.message);
   }
