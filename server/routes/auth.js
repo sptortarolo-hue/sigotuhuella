@@ -303,7 +303,7 @@ router.post('/complete-registration', async (req, res) => {
 
     const passwordHash = await hashPassword(password);
     await pool.query(
-      'UPDATE users SET password_hash = $1, registration_pending = FALSE, registration_token = NULL WHERE id = $2',
+      'UPDATE users SET password_hash = $1, registration_pending = FALSE, registration_token = NULL, email_verified = TRUE WHERE id = $2',
       [passwordHash, user.id]
     );
 
