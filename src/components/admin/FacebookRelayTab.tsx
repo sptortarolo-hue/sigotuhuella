@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle, Bug } from 'lucide-react';
 import { api } from '@/src/lib/api';
 
 interface FbRelayStatus {
@@ -242,6 +242,70 @@ export default function FacebookRelayTab() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Debug dump */}
+      <DebugSection />
+    </div>
+  );
+}
+
+function DebugSection() {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const d = await api.facebookRelay.debugView();
+      setData(d);
+    } catch { setData(null) }
+    setLoading(false);
+  }
+
+  useEffect(() => { if (open) load(); }, [open]);
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-300 p-6">
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900">
+        <Bug className="w-4 h-4" /> Debug dump {open ? '▾' : '▸'}
+      </button>
+      {open && (
+        <div className="mt-4 space-y-4 text-sm">
+          {loading && <Loader2 className="w-5 h-5 animate-spin" />}
+          {!loading && !data && <p className="text-gray-500">No hay debug dump disponible. Corré fb-relay hasta que falle y volvé a cargar.</p>}
+          {data && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div><strong>URL:</strong> <span className="break-all">{data.url}</span></div>
+                <div><strong>Timestamp:</strong> {data.timestamp}</div>
+                <div><strong>Lexical:</strong> {data.lexicalInfo?.hasLexical ? '✓ sí' : '✗ no'} (count: {data.lexicalInfo?.count})</div>
+              </div>
+              {data.ariaLabels && (
+                <div>
+                  <strong>ARIA labels (primeros 50):</strong>
+                  <pre className="mt-1 p-2 bg-gray-100 rounded-lg text-xs max-h-60 overflow-y-auto whitespace-pre-wrap break-all">{data.ariaLabels.join('\n')}</pre>
+                </div>
+              )}
+              {data.html && (
+                <details>
+                  <summary className="cursor-pointer text-brand-primary font-medium">Ver HTML (20k chars)</summary>
+                  <pre className="mt-1 p-2 bg-gray-100 rounded-lg text-xs max-h-80 overflow-y-auto whitespace-pre-wrap break-all">{data.html}</pre>
+                </details>
+              )}
+              {data.screenshot && (
+                <div>
+                  <strong>Screenshot:</strong>
+                  <img src={`data:image/png;base64,${data.screenshot}`} alt="Debug screenshot" className="mt-1 max-w-full border rounded-lg" />
+                </div>
+              )}
+              <button onClick={load} className="px-3 py-1 text-xs bg-gray-100 rounded-lg hover:bg-gray-200">
+                Recargar
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

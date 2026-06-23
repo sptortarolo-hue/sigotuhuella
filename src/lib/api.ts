@@ -251,6 +251,7 @@ export const api = {
     clearSession: () => request('/relay/fb/clear-session', { method: 'POST' }),
     stats: () => request('/relay/fb/stats'),
     failedTasks: () => request('/relay/fb/failed-tasks'),
+    debugView: () => request('/relay/fb-debug-view'),
   },
 
   myPets: {

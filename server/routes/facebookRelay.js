@@ -144,4 +144,48 @@ router.post('/fb/add-test-task', requireAdmin, async (req, res) => {
   }
 });
 
+// Debug dump storage
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DEBUG_DIR = path.join(__dirname, '..', '.fb_debug');
+
+function saveDebug(key, data) {
+  if (!existsSync(DEBUG_DIR)) mkdirSync(DEBUG_DIR, { recursive: true });
+  writeFileSync(path.join(DEBUG_DIR, `${key}.json`), JSON.stringify(data, null, 2));
+}
+
+router.post('/fb-debug', relayAuth, async (req, res) => {
+  try {
+    const { screenshot, ariaLabels, lexicalInfo, url, html } = req.body;
+    saveDebug('last', { ariaLabels, lexicalInfo, url, html, timestamp: new Date().toISOString() });
+    if (screenshot) {
+      const buf = Buffer.from(screenshot, 'base64');
+      writeFileSync(path.join(DEBUG_DIR, 'last_screenshot.png'), buf);
+    }
+    console.log('[FB Relay] Debug dump saved from relay');
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[FB Relay] fb-debug error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/fb-debug-view', requireAdmin, async (req, res) => {
+  try {
+    const debugPath = path.join(DEBUG_DIR, 'last.json');
+    if (!existsSync(debugPath)) return res.status(404).json({ error: 'No debug dump available' });
+    const data = JSON.parse(readFileSync(debugPath, 'utf-8'));
+    const screenshotPath = path.join(DEBUG_DIR, 'last_screenshot.png');
+    if (existsSync(screenshotPath)) {
+      data.screenshot = readFileSync(screenshotPath).toString('base64');
+    }
+    res.json(data);
+  } catch (err) {
+    console.error('[FB Relay] fb-debug-view error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
