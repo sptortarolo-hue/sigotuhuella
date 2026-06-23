@@ -150,7 +150,11 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
     });
     await sleep(3000);
 
-    if (page.url().includes('login') || page.url().includes('checkpoint')) {
+    // Detectar sesión expirada en URL o en DOM (login overlay sin redirect)
+    const hasLoginDom = await page.evaluate(() => {
+      return !!document.querySelector('input[name="email"], input[name="pass"], [aria-label="Correo electrónico"], [aria-label="Contraseña"]');
+    });
+    if (page.url().includes('login') || page.url().includes('checkpoint') || hasLoginDom) {
       throw new Error('session expired');
     }
 
