@@ -615,7 +615,7 @@ async function start() {
   async function checkAdoptionBroadcast() {
     try {
       const hour = new Date().getHours();
-      if (hour === 10 || hour === 18) {
+      if ([0, 4, 8, 12, 16, 20].includes(hour)) {
         await broadcastNextAdoptionPet();
         await broadcastFbAdoptionPets();
       }
