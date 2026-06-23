@@ -65,10 +65,16 @@ export default function FacebookRelayTab() {
   async function handleUpload(file: File) {
     setUploading(true);
     try {
-      await api.facebookRelay.uploadSession(file);
+      const result = await api.facebookRelay.uploadSession(file);
       await loadData();
+      if (result?.cookieCount) {
+        alert(`✅ ${result.cookieCount} cookies detectadas en el archivo. El relay las tomará en su próximo ciclo.`);
+      } else {
+        alert('⚠️ No se detectaron cookies en el archivo. Asegurate de subir un storage_state.json válido.');
+      }
     } catch (err) {
       console.error('Upload error:', err);
+      alert('Error al subir la sesión: ' + (err as any)?.message);
     } finally {
       setUploading(false);
     }

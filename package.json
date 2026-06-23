@@ -37,6 +37,8 @@
     "nodemailer": "^6.9.16",
     "pdfkit": "^0.15.0",
     "pg": "^8.13.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "qrcode": "^1.5.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",

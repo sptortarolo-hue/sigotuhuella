@@ -1,8 +1,11 @@
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+puppeteer.use(StealthPlugin());
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api/relay';
@@ -41,6 +44,9 @@ async function getBrowser() {
       '--disable-dev-shm-usage',
       '--disable-gpu',
       '--disable-blink-features=AutomationControlled',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-features=IsolateOrigins,site-per-process',
     ],
   });
   return browser;
@@ -82,10 +88,10 @@ async function downloadCookies() {
       } catch {
         cookies = raw;
       }
-      if (Array.isArray(cookies)) {
+      if (Array.isArray(cookies) && cookies.length > 0) {
         fs.writeFileSync(COOKIES_PATH, JSON.stringify(cookies));
-        console.log('[FB Relay] Cookies descargadas');
-        return true;
+        console.log(`[FB Relay] ${cookies.length} cookies descargadas`);
+        return cookies.length;
       }
     }
   } catch (err) {
@@ -93,7 +99,7 @@ async function downloadCookies() {
       console.error('[FB Relay] Error descargando cookies:', err.message);
     }
   }
-  return false;
+  return 0;
 }
 
 function loadCookies() {
@@ -125,22 +131,35 @@ function ensureValidCookies(cookies) {
   });
 }
 
+async function checkSession(page) {
+  const hasLogin = await page.evaluate(() => {
+    return !!document.querySelector(
+      'input[name="email"], input[name="pass"], ' +
+      '[aria-label="Correo electrónico"], [aria-label="Contraseña"], ' +
+      'input[type="email"], input[type="password"]'
+    );
+  });
+  return !(page.url().includes('login') || page.url().includes('checkpoint') || hasLogin);
+}
+
 async function postToGroup(b, fbGroupId, message, imageUrls, commentText, marker) {
   const cookies = ensureValidCookies(JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8')));
   const page = await b.newPage();
 
   try {
-    await page.evaluateOnNewDocument(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    });
     await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1440, height: 900 });
 
-    // Sesión (como fb-group-auto-post)
-    await page.goto('https://facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // Setear cookies ANTES de navegar a Facebook
+    await page.goto('about:blank');
     await page.setCookie(...cookies);
-    await page.goto('https://facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
     await sleep(2000);
+
+    // Verificar sesión activa
+    if (!(await checkSession(page))) {
+      throw new Error('session expired');
+    }
 
     // Ir al grupo
     console.log(`[FB Relay] Grupo ${fbGroupId}...`);
@@ -149,11 +168,8 @@ async function postToGroup(b, fbGroupId, message, imageUrls, commentText, marker
     });
     await sleep(3000);
 
-    // Detectar sesión expirada en URL o en DOM
-    const hasLoginDom = await page.evaluate(() => {
-      return !!document.querySelector('input[name="email"], input[name="pass"], [aria-label="Correo electrónico"], [aria-label="Contraseña"]');
-    });
-    if (page.url().includes('login') || page.url().includes('checkpoint') || hasLoginDom) {
+    // Verificar sesión de nuevo (Facebook podría redirigir al login)
+    if (!(await checkSession(page))) {
       throw new Error('session expired');
     }
 
@@ -311,6 +327,7 @@ async function postToGroup(b, fbGroupId, message, imageUrls, commentText, marker
 }
 
 async function executeTask(task) {
+  await downloadCookies();
   if (!loadCookies()) throw new Error('No hay cookies disponibles');
   const b = await getBrowser();
   await postToGroup(b, task.fb_group_id, task.message, task.image_urls || [], task.comment_text || '', task.marker || '');
@@ -326,21 +343,15 @@ async function main() {
     process.exit(1);
   }
 
-  let sessionReady = false;
-
   while (true) {
     try {
-      if (!sessionReady) {
-        if (!loadCookies()) {
-          console.log('[FB Relay] Sin cookies, descargando...');
-          if (!(await downloadCookies())) {
-            console.log('[FB Relay] No hay cookies en el servidor. Esperando...');
-            await sleep(POLL_INTERVAL);
-            continue;
-          }
-        }
-        sessionReady = true;
-        console.log('[FB Relay] Sesión lista. Esperando tareas...');
+      // Siempre descargar cookies frescas del servidor
+      await downloadCookies();
+
+      if (!loadCookies()) {
+        console.log('[FB Relay] Sin cookies. Esperando administrador...');
+        await sleep(POLL_INTERVAL);
+        continue;
       }
 
       const { data } = await api.get('/fb/pending?limit=5');
@@ -361,7 +372,6 @@ async function main() {
             await api.post('/fb/failed', { task_id: task.id, error: err.message });
             clearCookies();
             await api.post('/fb/clear-session');
-            sessionReady = false;
             console.log('[FB Relay] Sesión expirada. Esperando cookies nuevas del admin.');
             break;
           }

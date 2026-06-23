@@ -88,9 +88,13 @@ router.post('/fb/upload-session', requireAdmin, upload.single('session'), async 
     if (!req.file) {
       return res.status(400).json({ error: 'No session file provided' });
     }
-    const base64 = req.file.buffer.toString('base64');
+    const raw = req.file.buffer.toString('utf-8');
+    const parsed = JSON.parse(raw);
+    const cookies = parsed.cookies || parsed;
+    const count = Array.isArray(cookies) ? cookies.length : 0;
+    const base64 = Buffer.from(raw).toString('base64');
     await saveSessionFile(base64);
-    res.json({ success: true });
+    res.json({ success: true, cookieCount: count });
   } catch (err) {
     console.error('[FB Relay] upload-session error:', err.message);
     res.status(500).json({ error: err.message });
