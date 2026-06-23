@@ -400,8 +400,7 @@ export async function broadcastNextAdoptionPet() {
       return;
     }
 
-    const groups = await pool.query("SELECT * FROM whatsapp_groups WHERE is_active = TRUE AND auto_broadcast = TRUE");
-    if (groups.rows.length === 0) return;
+    const groups = [{ group_id: '5492214377512-1455053885@q.us', name: 'Adopción Diaria' }];
 
     const speciesLabel = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : (pet.species || 'mascota');
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
