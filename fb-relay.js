@@ -172,7 +172,27 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
       });
       if (!triggerClicked) await sleep(1000);
     }
-    if (!triggerClicked) throw new Error('Composer trigger not found');
+    if (!triggerClicked) {
+      // Debug dump
+      try {
+        await page.screenshot({ path: '/tmp/fb_debug_trigger.png', fullPage: false });
+        const html = await page.evaluate(() => document.body.innerHTML.substring(0, 50000));
+        fs.writeFileSync('/tmp/fb_debug_body.html', html);
+        const ariaLabels = await page.evaluate(() =>
+          [...document.querySelectorAll('[aria-label]')].map(el => el.tagName + ' ' + el.getAttribute('aria-label')).slice(0, 50)
+        );
+        console.log('[FB Relay DEBUG] ARIA labels encontrados:', JSON.stringify(ariaLabels, null, 2));
+        const lexical = await page.evaluate(() => {
+          return { hasLexical: !!document.querySelector('[data-lexical-editor]'), count: document.querySelectorAll('[data-lexical-editor]').length };
+        });
+        console.log('[FB Relay DEBUG] data-lexical-editor:', JSON.stringify(lexical));
+        console.log('[FB Relay DEBUG] Screenshot: /tmp/fb_debug_trigger.png');
+        console.log('[FB Relay DEBUG] HTML: /tmp/fb_debug_body.html');
+      } catch (e) {
+        console.error('[FB Relay DEBUG] Error capturando debug:', e.message);
+      }
+      throw new Error('Composer trigger not found');
+    }
     console.log('[FB Relay] Composer activated');
 
     // Esperar editor visible (inline o legacy dialog)
