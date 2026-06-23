@@ -2,9 +2,12 @@ import pool from '../db.js';
 import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups, sendListMessage } from './whatsappService.js';
 import { matchWhatsAppToPets, processImageCaption } from './geminiMatching.js';
 import { classifyPost } from './geminiClassifier.js';
+import { sendWhatsAppRegistrationEmail } from '../auth.js';
 import { fetchFbPost } from './vpsSyncService.js';
 import { geocodeAddress } from './geocoding.js';
 import axios from 'axios';
+import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
 const BOT_NAMES = ['Tute', 'Lilo', 'Toto'];
 
@@ -276,6 +279,7 @@ async function routeFlow(conv, parsed) {
     case 'chapita.confirm': return chapitaConfirm(conv, parsed, intent);
     case 'adopt.species': return adoptSpecies(conv, parsed);
     case 'register.name': return registerName(conv, parsed);
+    case 'register.email': return registerEmail(conv, parsed);
     case 'register.confirm': return registerConfirm(conv, parsed, intent);
     case 'adopt_post.species': return apSpecies(conv, parsed);
     case 'adopt_post.photo': return apPhoto(conv, parsed);
@@ -335,6 +339,7 @@ const stepNames = {
   'chapita.confirm': 'confirmar los datos',
   'adopt.species': 'decir qué especie querés adoptar',
   'register.name': 'decir tu nombre',
+  'register.email': 'decir tu email',
   'register.confirm': 'confirmar el registro',
   'adopt_post.species': 'decir la especie',
   'adopt_post.photo': 'enviar una foto',
@@ -2097,17 +2102,26 @@ async function fbConfirm(conv, parsed, intent) {
 async function startAdoptPost(conv) {
   const waFrom = conv.wa_from;
   const user = (await pool.query(
-    `SELECT id, display_name FROM users WHERE phone LIKE $1 OR phone LIKE $2 LIMIT 1`,
+    `SELECT id, display_name, email, registration_pending
+     FROM users WHERE phone LIKE $1 OR phone LIKE $2 LIMIT 1`,
     [`%${waFrom.slice(-8)}`, `%${waFrom.slice(-10)}`]
   )).rows[0];
 
-  if (user) {
+  if (user && !user.registration_pending) {
     conv.context = { ...conv.context, user_id: user.id, user_name: user.display_name };
+    await sendMessage(conv.wa_from, `¡Hola ${user.display_name}! Vamos a publicar la adopción.`);
     return apAskSpecies(conv);
   }
 
+  if (user && user.registration_pending) {
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: Ya iniciaste el registro con ${user.email}. Completalo desde tu mail para publicar otra adopción.`
+    );
+    return endFlow(conv);
+  }
+
   await sendMessage(conv.wa_from,
-    `${conv.bot_name}: Para publicar una mascota en adopción necesitás registrarte primero. ¿Cómo te llamás?`
+    `${conv.bot_name}: Para publicar una mascota en adopción necesitás registrarte. ¿Cómo te llamás?`
   );
   await setFlow(conv, 'register.name', { _redirect: 'adopt_post.species' });
 }
@@ -2118,9 +2132,33 @@ async function registerName(conv, parsed) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor decime tu nombre para registrarte.`);
     return;
   }
-  await sendMessage(conv.wa_from, `✅ Gracias, ${name}. Ahora te registramos con tu número de WhatsApp.`);
-  await setFlow(conv, 'register.confirm', { ...conv.context, reg_name: name });
-  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Confirmás tu registro?`, [
+  await sendMessage(conv.wa_from, `✅ Gracias, ${name}. ¿Cuál es tu *email*?`);
+  await setFlow(conv, 'register.email', { ...conv.context, reg_name: name });
+}
+
+async function registerEmail(conv, parsed) {
+  const email = (parsed.textBody || '').trim().toLowerCase();
+  if (!email.includes('@') || !email.includes('.')) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Ese no parece un email válido. Escribí tu correo electrónico.`);
+    return;
+  }
+
+  const existing = (await pool.query(
+    `SELECT id, email_verified FROM users WHERE email = $1 LIMIT 1`, [email]
+  )).rows[0];
+
+  if (existing && existing.email_verified) {
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: Ese email ya está registrado. Probá con otro.`
+    );
+    return;
+  }
+
+  await setFlow(conv, 'register.confirm', { ...conv.context, reg_email: email });
+  await sendMessage(conv.wa_from,
+    `${conv.bot_name}: Te registramos con *${email}*. ¿Confirmás?`
+  );
+  await sendInteractiveButtons(conv.wa_from, 'Confirmar registro:', [
     { id: 'confirm_yes', title: '✅ Sí, registrarme' },
     { id: 'confirm_no', title: '❌ Cancelar' },
   ]);
@@ -2131,27 +2169,55 @@ async function registerConfirm(conv, parsed, intent) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
     return endFlow(conv);
   }
+
   const name = conv.context.reg_name;
+  const email = conv.context.reg_email;
   const waFrom = conv.wa_from;
-  const syntheticEmail = `wa_${waFrom}@placeholder.sigotuhuella`;
-  const randomPass = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  const token = uuidv4().replace(/-/g, '') + crypto.randomBytes(16).toString('hex');
 
-  const userResult = await pool.query(
-    `INSERT INTO users (email, password_hash, display_name, phone, email_verified)
-     VALUES ($1, $2, $3, $4, TRUE)
-     ON CONFLICT (phone) DO UPDATE SET display_name = EXCLUDED.display_name
-     RETURNING id`,
-    [syntheticEmail, randomPass, name, waFrom]
-  );
-  const userId = userResult.rows[0].id;
-  conv.context = { ...conv.context, user_id: userId, user_name: name };
+  try {
+    const existingUser = (await pool.query(
+      `SELECT id FROM users WHERE email = $1`, [email]
+    )).rows[0];
 
-  await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Registro completado! Ahora vamos a publicar la adopción.`);
+    let userId;
+    if (existingUser) {
+      await pool.query(
+        `UPDATE users SET phone = $1, display_name = $2, registration_pending = TRUE,
+         registration_token = $3, email_verified = FALSE, password_hash = ''
+         WHERE id = $4`,
+        [waFrom, name, token, existingUser.id]
+      );
+      userId = existingUser.id;
+    } else {
+      const r = await pool.query(
+        `INSERT INTO users (email, password_hash, display_name, phone, registration_pending, registration_token, email_verified)
+         VALUES ($1, '', $2, $3, TRUE, $4, FALSE)
+         RETURNING id`,
+        [email, name, waFrom, token]
+      );
+      userId = r.rows[0].id;
+    }
 
-  const redirect = conv.context._redirect || 'adopt_post.species';
-  await setFlow(conv, redirect, { ...conv.context });
-  if (redirect === 'adopt_post.species') {
-    await apAskSpecies(conv);
+    conv.context = { ...conv.context, user_id: userId, user_name: name };
+
+    await sendWhatsAppRegistrationEmail(email, name, token);
+
+    await sendMessage(conv.wa_from,
+      `✅ *${conv.bot_name}:* Registro creado. Te enviamos un mail a *${email}* para activar tu cuenta. Ahora vamos a publicar la adopción.`
+    );
+
+    const redirect = conv.context._redirect || 'adopt_post.species';
+    await setFlow(conv, redirect, { ...conv.context });
+    if (redirect === 'adopt_post.species') {
+      await apAskSpecies(conv);
+    }
+  } catch (err) {
+    console.error('Register confirm error:', err);
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: Hubo un error al registrarte. Probá de nuevo más tarde.`
+    );
+    return endFlow(conv);
   }
 }
 
