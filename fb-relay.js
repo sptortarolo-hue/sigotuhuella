@@ -157,7 +157,7 @@ async function postToGroup(b, fbGroupId, message, imageUrls) {
     let triggerClicked = false;
     for (let attempt = 0; attempt < 8 && !triggerClicked; attempt++) {
       triggerClicked = await page.evaluate(() => {
-        const xpath = '//span[contains(text(), "Write something") or contains(text(), "Escribe algo") or contains(text(), "Qué estás pensando")]';
+        const xpath = '//span[contains(., "Write something") or contains(., "Escribe algo") or contains(., "Qué estás pensando")]';
         const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
         const el = result.singleNodeValue;
         if (el && el.offsetParent !== null) { el.click(); return true; }
