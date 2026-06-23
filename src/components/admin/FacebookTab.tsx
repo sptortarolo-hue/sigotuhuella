@@ -1542,7 +1542,7 @@ sigotuhuella.online
                 <th className="px-4 py-3">FB Group ID</th>
                 <th className="px-4 py-3 text-center">Page miembro</th>
                 <th className="px-4 py-3 text-center">Publicar</th>
-                <th className="px-4 py-3 text-center">Sin links</th>
+
                 <th className="px-4 py-3">Acción</th>
               </tr>
             </thead>
@@ -1672,13 +1672,10 @@ function GroupConfigRow({ group, onSave, saving }: { group: any; onSave: (id: st
   const [fbGroupId, setFbGroupId] = useState(group.fb_group_id || '');
   const [pageIsMember, setPageIsMember] = useState(group.page_is_member || false);
   const [publishOnCreate, setPublishOnCreate] = useState(group.publish_on_create || false);
-  const [stripLinks, setStripLinks] = useState(group.strip_links || false);
-
   const handleSave = () => onSave(group.id, {
     fb_group_id: fbGroupId || null,
     page_is_member: pageIsMember,
     publish_on_create: publishOnCreate,
-    strip_links: stripLinks,
   });
 
   return (
@@ -1698,11 +1695,6 @@ function GroupConfigRow({ group, onSave, saving }: { group: any; onSave: (id: st
       <td className="px-4 py-3 text-center">
         <input type="checkbox" checked={publishOnCreate}
           onChange={e => setPublishOnCreate(e.target.checked)}
-          className="w-5 h-5 rounded accent-brand-primary" />
-      </td>
-      <td className="px-4 py-3 text-center">
-        <input type="checkbox" checked={stripLinks}
-          onChange={e => setStripLinks(e.target.checked)}
           className="w-5 h-5 rounded accent-brand-primary" />
       </td>
       <td className="px-4 py-3">

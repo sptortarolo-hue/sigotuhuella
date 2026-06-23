@@ -271,7 +271,7 @@ export async function verifyAllGroupMemberships() {
   return { updated, results };
 }
 
-export async function publishToGroupsViaScraper(groups, message, imageUrls, petId, commentText) {
+export async function publishToGroupsViaScraper(groups, message, imageUrls, petId) {
   try {
     const fbRelayEnabled = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_enabled'");
     if (fbRelayEnabled.rows[0]?.value === 'true') {
@@ -279,11 +279,7 @@ export async function publishToGroupsViaScraper(groups, message, imageUrls, petI
       const results = [];
       for (const group of groups) {
         try {
-          let groupMessage = message;
-          if (group.strip_links) {
-            groupMessage = message.replace(/https?:\/\/\S+/g, '').replace(/#\w+/g, '').replace(/\n{4,}/g, '\n\n\n').trim();
-          }
-          const task = await enqueuePublishTask(petId, group.id, group.fb_group_id, groupMessage, imageUrls, commentText);
+          const task = await enqueuePublishTask(petId, group.id, group.fb_group_id, message, imageUrls);
           results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: true, marker: task.marker });
         } catch (err) {
           results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: false, error: err.message });
@@ -547,20 +543,18 @@ export async function publishPetToGroups(petId) {
   results.page = pageResult;
 
   const groupsResult = await pool.query(
-    `SELECT id, name, fb_group_id, strip_links FROM facebook_groups
+    `SELECT id, name, fb_group_id FROM facebook_groups
      WHERE is_active = true AND publish_on_create = true AND page_is_member = true
        AND fb_group_id IS NOT NULL AND fb_group_id != ''
      ORDER BY name`
   );
 
   if (groupsResult.rows.length > 0) {
-    const commentResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_comment_text'");
-    const commentText = commentResult.rows[0]?.value || '';
     const eligibleGroups = groupsResult.rows.map(g => ({
-      id: g.id, fb_group_id: g.fb_group_id, name: g.name, strip_links: g.strip_links,
+      id: g.id, fb_group_id: g.fb_group_id, name: g.name,
     }));
 
-    const scraperResult = await publishToGroupsViaScraper(eligibleGroups, message, imageUrls, petId, commentText);
+    const scraperResult = await publishToGroupsViaScraper(eligibleGroups, message, imageUrls, petId);
     if (scraperResult.success) {
       for (const r of scraperResult.results) {
         results.groups.push({

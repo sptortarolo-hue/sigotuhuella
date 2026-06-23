@@ -507,12 +507,9 @@ export async function broadcastFbAdoptionPets() {
       ? [`${frontendUrl}/api/images/pet/${pet.id}/cover`, ...imagesResult.rows.slice(1).map((_, i) => `${frontendUrl}/api/images/pet/${pet.id}/${i + 1}`)]
       : [`${frontendUrl}/api/images/pet/${pet.id}/cover`];
 
-    const commentResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_comment_text'");
-    const commentText = commentResult.rows[0]?.value || '';
-
     for (const group of groups.rows) {
       try {
-        await enqueuePublishTask(pet.id, group.id, group.fb_group_id, message, imageUrls, commentText);
+        await enqueuePublishTask(pet.id, group.id, group.fb_group_id, message, imageUrls);
       } catch (err) {
         console.error(`[FbAdoptionBroadcast] Error enqueuing to ${group.name}:`, err.message);
       }

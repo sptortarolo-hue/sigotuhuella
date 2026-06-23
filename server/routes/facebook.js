@@ -816,16 +816,15 @@ router.get('/page-posts', requireAdmin, async (req, res) => {
 
 router.put('/groups/:id/page-member', requireAdmin, async (req, res) => {
   try {
-    const { page_is_member, fb_group_id, publish_on_create, strip_links } = req.body;
+    const { page_is_member, fb_group_id, publish_on_create } = req.body;
     const result = await pool.query(
       `UPDATE facebook_groups SET
         page_is_member = COALESCE($1, page_is_member),
         fb_group_id = COALESCE($2, fb_group_id),
         publish_on_create = COALESCE($3, publish_on_create),
-        strip_links = COALESCE($4, strip_links),
         updated_at = NOW()
-       WHERE id = $5 RETURNING *`,
-      [page_is_member, fb_group_id, publish_on_create, strip_links, req.params.id]
+       WHERE id = $4 RETURNING *`,
+      [page_is_member, fb_group_id, publish_on_create, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Grupo no encontrado' });
     res.json(result.rows[0]);
