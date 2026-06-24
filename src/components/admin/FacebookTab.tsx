@@ -19,6 +19,7 @@ interface FacebookGroup {
   name: string;
   url: string;
   is_active: boolean;
+  scrape_enabled: boolean;
   last_scraped_at: string | null;
   created_at: string;
 }
@@ -160,6 +161,13 @@ function GroupsSection() {
     } catch (e: any) { alert(e.message); }
   };
 
+  const toggleScrape = async (group: FacebookGroup) => {
+    try {
+      await api.facebook.groups.update(group.id, { scrape_enabled: !group.scrape_enabled });
+      await fetchGroups();
+    } catch (e: any) { alert(e.message); }
+  };
+
   if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
 
   return (
@@ -179,6 +187,7 @@ function GroupsSection() {
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">URL</th>
               <th className="px-4 py-3">Activo</th>
+              <th className="px-4 py-3">Scrapear</th>
               <th className="px-4 py-3">Última actualización</th>
               <th className="px-4 py-3">Acciones</th>
             </tr>
@@ -198,6 +207,12 @@ function GroupsSection() {
                     "px-3 py-1 rounded-full text-[10px] font-bold",
                     g.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"
                   )}>{g.is_active ? 'Activo' : 'Inactivo'}</button>
+                </td>
+                <td className="px-4 py-3">
+                  <button onClick={() => toggleScrape(g)} className={cn(
+                    "px-3 py-1 rounded-full text-[10px] font-bold",
+                    g.scrape_enabled ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400"
+                  )}>{g.scrape_enabled ? 'Sí' : 'No'}</button>
                 </td>
                 <td className="px-4 py-3 text-gray-500 text-xs">
                   {g.last_scraped_at ? new Date(g.last_scraped_at).toLocaleString('es-AR') : '—'}

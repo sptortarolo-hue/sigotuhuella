@@ -51,15 +51,16 @@ router.post('/groups', requireAdmin, async (req, res) => {
 router.put('/groups/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, url, is_active } = req.body;
+    const { name, url, is_active, scrape_enabled } = req.body;
     const result = await pool.query(
       `UPDATE facebook_groups SET
         name = COALESCE($1, name),
         url = COALESCE($2, url),
         is_active = COALESCE($3, is_active),
+        scrape_enabled = COALESCE($4, scrape_enabled),
         updated_at = NOW()
-       WHERE id = $4 RETURNING *`,
-      [name, url, is_active, id]
+       WHERE id = $5 RETURNING *`,
+      [name, url, is_active, scrape_enabled, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Grupo no encontrado' });
     res.json(result.rows[0]);
@@ -343,7 +344,7 @@ router.get('/scraper-groups', async (req, res) => {
   }
   try {
     const result = await pool.query(
-      "SELECT id, name, url, fb_group_id FROM facebook_groups WHERE is_active = true ORDER BY name ASC"
+      "SELECT id, name, url, fb_group_id FROM facebook_groups WHERE is_active = true AND scrape_enabled = true ORDER BY name ASC"
     );
     res.json(result.rows);
   } catch (err) {

@@ -859,6 +859,10 @@ export async function initDb() {
     `, 'fb_relay_tasks target_url');
 
     await migrate(client, `
+      ALTER TABLE facebook_groups ADD COLUMN IF NOT EXISTS scrape_enabled BOOLEAN DEFAULT TRUE
+    `, 'facebook_groups scrape_enabled');
+
+    await migrate(client, `
       DROP TABLE IF EXISTS family_members
     `, 'drop family_members');
     await migrate(client, `
