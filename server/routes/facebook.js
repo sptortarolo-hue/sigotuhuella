@@ -322,6 +322,29 @@ router.post('/webhook', async (req, res) => {
   }
 });
 
+// ==================== SCRAPER GROUPS (para el scraper del VPS) ====================
+
+router.get('/scraper-groups', async (req, res) => {
+  const token = await getScraperToken();
+  const qToken = req.query.token;
+  if (!qToken || qToken !== token) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+  const enabled = await isScrapingEnabled();
+  if (!enabled) {
+    return res.status(403).json({ error: 'Scraping deshabilitado' });
+  }
+  try {
+    const result = await pool.query(
+      "SELECT id, name, url, fb_group_id FROM facebook_groups WHERE is_active = true ORDER BY name ASC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching scraper groups:', err);
+    res.status(500).json({ error: 'Error al obtener grupos' });
+  }
+});
+
 // ==================== MATCHING ====================
 
 router.post('/run-matching', requireAdmin, async (req, res) => {
