@@ -12,7 +12,7 @@ import {
   LayoutGrid, List, ImageIcon,
 } from 'lucide-react';
 
-type SubTab = 'groups' | 'posts' | 'matches' | 'publisher';
+type SubTab = 'groups' | 'posts' | 'matches' | 'publisher' | 'settings';
 
 interface FacebookGroup {
   id: string;
@@ -77,6 +77,7 @@ export default function FacebookTab() {
     { id: 'posts', label: 'Publicaciones', icon: MessageSquare },
     { id: 'matches', label: 'Matches', icon: FlaskConical },
     { id: 'publisher', label: 'Publicar en FB', icon: Upload },
+    { id: 'settings', label: 'Configuración', icon: Sliders },
   ];
 
   return (
@@ -104,6 +105,7 @@ export default function FacebookTab() {
       {activeSubTab === 'posts' && <PostsSection />}
       {activeSubTab === 'matches' && <MatchesSection />}
       {activeSubTab === 'publisher' && <PublisherSection />}
+      {activeSubTab === 'settings' && <SettingsSection />}
     </div>
   );
 }
@@ -813,32 +815,45 @@ ${m.reasons?.length ? `📋 Razones: ${m.reasons.join(', ')}` : ''}
   );
 }
 
-function MatchingSettingsSection() {
+function SettingsSection() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savedScraper, setSavedScraper] = useState(false);
+  const [savedMatching, setSavedMatching] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const keys = ['fb_matching_enabled', 'fb_image_matching_enabled', 'fb_matching_min_score', 'fb_image_matching_weight'];
-        const data = await api.settings.getMultiple(keys);
-        setSettings(data);
+        const data = await api.settings.list();
+        const map: Record<string, string> = {};
+        data.forEach((s: any) => { map[s.key] = s.value; });
+        setSettings(map);
       } catch (e) { console.error(e); }
       setLoading(false);
     })();
   }, []);
 
-  const handleSave = async () => {
+  const handleSaveScraper = async () => {
+    setSaving(true);
+    try {
+      await api.settings.update('fb_scraping_enabled', settings.fb_scraping_enabled || 'false');
+      await api.settings.update('fb_scraper_token', settings.fb_scraper_token || '');
+      setSavedScraper(true);
+      setTimeout(() => setSavedScraper(false), 2000);
+    } catch (e: any) { alert(e.message); }
+    setSaving(false);
+  };
+
+  const handleSaveMatching = async () => {
     setSaving(true);
     try {
       const keys = ['fb_matching_enabled', 'fb_image_matching_enabled', 'fb_matching_min_score', 'fb_image_matching_weight'];
       for (const key of keys) {
-        await api.settings.set(key, settings[key] || '');
+        await api.settings.update(key, settings[key] || '');
       }
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      setSavedMatching(true);
+      setTimeout(() => setSavedMatching(false), 2000);
     } catch (e: any) { alert(e.message); }
     setSaving(false);
   };
@@ -846,48 +861,79 @@ function MatchingSettingsSection() {
   if (loading) return <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-brand-primary" /></div>;
 
   return (
-    <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-      <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
-        <FlaskConical className="w-6 h-6" /> Configuración de Matching
-      </h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
-          <input type="checkbox" id="fb_matching_enabled"
-            checked={settings.fb_matching_enabled === 'true'}
-            onChange={(e) => setSettings(p => ({ ...p, fb_matching_enabled: e.target.checked ? 'true' : 'false' }))}
-            className="w-5 h-5 rounded accent-brand-primary" />
-          <label htmlFor="fb_matching_enabled" className="font-bold text-brand-primary">Activar matching automático</label>
-        </div>
-
-        <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
-          <input type="checkbox" id="fb_image_matching_enabled"
-            checked={settings.fb_image_matching_enabled === 'true'}
-            onChange={(e) => setSettings(p => ({ ...p, fb_image_matching_enabled: e.target.checked ? 'true' : 'false' }))}
-            className="w-5 h-5 rounded accent-brand-primary" />
-          <label htmlFor="fb_image_matching_enabled" className="font-bold text-brand-primary">Activar matching por imágenes</label>
-        </div>
-
-        <div>
-          <label className="block text-sm font-bold text-gray-600 mb-1">Score mínimo (%)</label>
-          <input type="number" value={settings.fb_matching_min_score || '50'}
-            onChange={(e) => setSettings(p => ({ ...p, fb_matching_min_score: e.target.value }))}
-            className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
-            min="0" max="100" />
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-gray-600 mb-1">Peso de imagen (%)</label>
-          <input type="number" value={settings.fb_image_matching_weight || '20'}
-            onChange={(e) => setSettings(p => ({ ...p, fb_image_matching_weight: e.target.value }))}
-            className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
-            min="0" max="100" />
+    <div className="space-y-6">
+      {/* Scraper settings */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
+          <Globe className="w-6 h-6" /> Scraper de Facebook
+        </h2>
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl">
+            <input type="checkbox" id="fb_scraping_enabled"
+              checked={settings.fb_scraping_enabled === 'true'}
+              onChange={(e) => setSettings(p => ({ ...p, fb_scraping_enabled: e.target.checked ? 'true' : 'false' }))}
+              className="w-5 h-5 rounded accent-brand-primary" />
+            <label htmlFor="fb_scraping_enabled" className="font-bold text-brand-primary">Activar scraping automático</label>
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Token del scraper</label>
+            <input type="text" value={settings.fb_scraper_token || ''}
+              onChange={(e) => setSettings(p => ({ ...p, fb_scraper_token: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm font-mono" />
+            <p className="text-xs text-gray-400 mt-1">Debe coincidir con el token en el script del VPS.</p>
+          </div>
+          <button onClick={handleSaveScraper} disabled={saving}
+            className="px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            {saving ? 'Guardando...' : savedScraper ? '✅ Guardado' : 'Guardar'}
+          </button>
         </div>
       </div>
 
-      <button onClick={handleSave} disabled={saving}
-        className="mt-6 px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
-        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-        {saving ? 'Guardando...' : saved ? '✅ Guardado' : 'Guardar Configuración de Matching'}
-      </button>
+      {/* Matching settings */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
+          <FlaskConical className="w-6 h-6" /> Configuración de Matching
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
+            <input type="checkbox" id="fb_matching_enabled"
+              checked={settings.fb_matching_enabled === 'true'}
+              onChange={(e) => setSettings(p => ({ ...p, fb_matching_enabled: e.target.checked ? 'true' : 'false' }))}
+              className="w-5 h-5 rounded accent-brand-primary" />
+            <label htmlFor="fb_matching_enabled" className="font-bold text-brand-primary">Activar matching automático</label>
+          </div>
+
+          <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
+            <input type="checkbox" id="fb_image_matching_enabled"
+              checked={settings.fb_image_matching_enabled === 'true'}
+              onChange={(e) => setSettings(p => ({ ...p, fb_image_matching_enabled: e.target.checked ? 'true' : 'false' }))}
+              className="w-5 h-5 rounded accent-brand-primary" />
+            <label htmlFor="fb_image_matching_enabled" className="font-bold text-brand-primary">Activar matching por imágenes</label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Score mínimo (%)</label>
+            <input type="number" value={settings.fb_matching_min_score || '50'}
+              onChange={(e) => setSettings(p => ({ ...p, fb_matching_min_score: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
+              min="0" max="100" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Peso de imagen (%)</label>
+            <input type="number" value={settings.fb_image_matching_weight || '20'}
+              onChange={(e) => setSettings(p => ({ ...p, fb_image_matching_weight: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
+              min="0" max="100" />
+          </div>
+        </div>
+
+        <button onClick={handleSaveMatching} disabled={saving}
+          className="mt-6 px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
+          {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+          {saving ? 'Guardando...' : savedMatching ? '✅ Guardado' : 'Guardar Configuración de Matching'}
+        </button>
+      </div>
     </div>
   );
 }
