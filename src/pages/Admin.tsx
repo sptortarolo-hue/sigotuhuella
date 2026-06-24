@@ -163,6 +163,10 @@ export default function Admin() {
   const [qrUnassigned, setQrUnassigned] = useState<any[]>([]);
   const [qrRequests, setQrRequests] = useState<any[]>([]);
   const [qrAssigned, setQrAssigned] = useState<any[]>([]);
+  const [qrAssignedPage, setQrAssignedPage] = useState(1);
+  const [qrAssignedPages, setQrAssignedPages] = useState(1);
+  const [qrAssignedTotal, setQrAssignedTotal] = useState(0);
+  const [qrNotifyingId, setQrNotifyingId] = useState<string | null>(null);
   const [qrBatchCount, setQrBatchCount] = useState(12);
   const [qrBatchLoading, setQrBatchLoading] = useState(false);
   const [qrAssignLoading, setQrAssignLoading] = useState<string | null>(null);
@@ -224,17 +228,21 @@ export default function Admin() {
     } catch (e) { console.error(e); }
   };
 
-  const fetchQrData = async () => {
+  const fetchQrData = async (page?: number) => {
     try {
+      const p = page || qrAssignedPage;
       const [unassigned, requests, assigned, waChapita] = await Promise.all([
         api.qr.unassigned(),
         api.qr.requests(),
-        api.qr.assigned(),
+        api.qr.assigned(p, 50),
         api.whatsapp.chapitaRequests().catch(() => []),
       ]);
       setQrUnassigned(unassigned.identifiers || []);
       setQrRequests(requests.requests || []);
       setQrAssigned(assigned.assigned || []);
+      setQrAssignedTotal(assigned.total || 0);
+      setQrAssignedPages(assigned.pages || 1);
+      setQrAssignedPage(assigned.page || 1);
       setWhatsappChapitaRequests(waChapita || []);
     } catch (e) { console.error(e); }
   };
@@ -275,6 +283,18 @@ export default function Admin() {
       });
     } catch (e: any) {
       alert(e.message || 'Error al descargar PDF');
+    }
+  };
+
+  const handleNotifyAssigned = async (qrId: string) => {
+    try {
+      setQrNotifyingId(qrId);
+      await api.qr.notifyAssigned(qrId);
+      await fetchQrData(qrAssignedPage);
+    } catch (e: any) {
+      alert(e.message || 'Error al notificar');
+    } finally {
+      setQrNotifyingId(null);
     }
   };
 
@@ -2219,7 +2239,7 @@ export default function Admin() {
 
     {qrAssigned.length > 0 && (
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-        <h3 className="text-lg font-bold text-brand-primary mb-4">QRs asignados ({qrAssigned.length})</h3>
+        <h3 className="text-lg font-bold text-brand-primary mb-4">QRs asignados ({qrAssignedTotal})</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm min-w-max">
             <thead>
@@ -2228,10 +2248,11 @@ export default function Admin() {
                 <th className="pb-2 font-bold text-gray-500 text-xs uppercase tracking-widest">Mascota</th>
                 <th className="pb-2 font-bold text-gray-500 text-xs uppercase tracking-widest">Dueño</th>
                 <th className="pb-2 font-bold text-gray-500 text-xs uppercase tracking-widest hidden sm:table-cell">Asignado</th>
+                <th className="pb-2 font-bold text-gray-500 text-xs uppercase tracking-widest">Notificación</th>
               </tr>
             </thead>
             <tbody>
-              {qrAssigned.slice(0, 50).map((item: any) => (
+              {qrAssigned.map((item: any) => (
                 <tr key={item.code} className="border-b border-brand-accent/50 hover:bg-brand-bg/50 transition-colors">
                   <td className="py-3 pr-4 font-mono text-brand-primary font-bold text-xs">
                     <a href={`/mascota/${item.share_token}?silent=1`} target="_blank" rel="noopener noreferrer"
@@ -2254,14 +2275,59 @@ export default function Admin() {
                   <td className="py-3 text-xs text-gray-400 hidden sm:table-cell">
                     {item.assigned_at ? new Date(item.assigned_at).toLocaleDateString('es-AR') : '-'}
                   </td>
+                  <td className="py-3">
+                    <div className="flex items-center gap-2">
+                      {item.notification_status === 'sent' ? (
+                        <span className="text-xs text-green-600 font-medium whitespace-nowrap">
+                          ✅ {item.notified_at ? new Date(item.notified_at).toLocaleString('es-AR') : ''}
+                        </span>
+                      ) : item.notification_status === 'failed' ? (
+                        <span className="text-xs text-red-500 font-medium">❌ Fallida</span>
+                      ) : !item.owner_phone ? (
+                        <span className="text-xs text-gray-400 font-medium">— Sin teléfono</span>
+                      ) : (
+                        <span className="text-xs text-amber-500 font-medium">⏳ Pendiente</span>
+                      )}
+                      <button
+                        onClick={() => handleNotifyAssigned(item.id)}
+                        disabled={qrNotifyingId === item.id || !item.owner_phone}
+                        className="px-3 py-1 text-xs font-bold rounded-full border border-brand-accent hover:bg-brand-primary hover:text-white transition-all disabled:opacity-40"
+                        title={!item.owner_phone ? 'El dueño no tiene teléfono cargado' : 'Reenviar notificación'}
+                      >
+                        {qrNotifyingId === item.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          'Notificar'
+                        )}
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {qrAssigned.length > 50 && (
-            <p className="text-xs text-gray-400 mt-3 text-center">Mostrando las últimas 50 asignaciones</p>
-          )}
         </div>
+        {qrAssignedPages > 1 && (
+          <div className="flex items-center justify-center gap-3 mt-4">
+            <button
+              onClick={() => fetchQrData(qrAssignedPage - 1)}
+              disabled={qrAssignedPage <= 1}
+              className="px-4 py-2 text-sm font-bold rounded-lg border border-brand-accent hover:bg-brand-bg transition-all disabled:opacity-30"
+            >
+              ← Anterior
+            </button>
+            <span className="text-sm text-gray-500">
+              Página {qrAssignedPage} de {qrAssignedPages}
+            </span>
+            <button
+              onClick={() => fetchQrData(qrAssignedPage + 1)}
+              disabled={qrAssignedPage >= qrAssignedPages}
+              className="px-4 py-2 text-sm font-bold rounded-lg border border-brand-accent hover:bg-brand-bg transition-all disabled:opacity-30"
+            >
+              Siguiente →
+            </button>
+          </div>
+        )}
       </div>
     )}
 

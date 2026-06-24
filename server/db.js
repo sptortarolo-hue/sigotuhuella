@@ -232,6 +232,8 @@ CREATE TABLE IF NOT EXISTS qr_identifiers (
   my_pet_id UUID REFERENCES my_pets(id),
   batch_id VARCHAR(50),
   assigned_at TIMESTAMP,
+  notified_at TIMESTAMP,
+  notification_status VARCHAR(20) DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -803,6 +805,14 @@ export async function initDb() {
     await migrate(client, `
       ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS broadcast_adoptions BOOLEAN DEFAULT FALSE
     `, 'whatsapp_groups broadcast_adoptions');
+
+    await migrate(client, `
+      ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS notified_at TIMESTAMP
+    `, 'qr_identifiers notified_at');
+
+    await migrate(client, `
+      ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS notification_status VARCHAR(20) DEFAULT 'pending'
+    `, 'qr_identifiers notification_status');
 
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('relay_admin_phone', '') ON CONFLICT (key) DO NOTHING

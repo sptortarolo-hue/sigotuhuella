@@ -46,6 +46,91 @@ async function getNextCodes(count) {
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
 
+async function notifyChapitaReady(qrId, myPetId, code, petName, user) {
+  const userName = user.display_name || user.email.split('@')[0];
+  const petProfileUrl = `${FRONTEND_URL}/mascota/${myPetId}`;
+
+  const subject = 'Tu chapita QR está lista — Sigo Tu Huella';
+
+  const textMessage = `🐾 ¡Tu chapita QR está lista!
+
+Hola ${userName}, la chapita QR de *${petName}* ya fue asignada.
+
+📋 Número de chapita: *${code}*
+
+📍 Retirala en *Forrajería Lina*
+   Revisa días y horarios de atención:
+   https://maps.app.goo.gl/fAdBkJwTiqy3Ncos9
+
+🔧 Estamos probando distintos materiales, diseños y costos para mejorar las chapitas. ¡Tu opinión cuenta! Si tenés alguna sugerencia, escribila respondiendo a este mensaje o a info@sigotuhuella.online
+
+Ver perfil de ${petName}:
+${petProfileUrl}
+
+Sigo Tu Huella 🐾`;
+
+  const sendEmailFn = async () => {
+    const { default: nm } = await import('nodemailer');
+    const t = nm.createTransport({
+      host: process.env.SMTP_HOST || 'l0061596.ferozo.com',
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: false,
+      tls: { rejectUnauthorized: false },
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+    await t.sendMail({
+      from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+      to: user.email,
+      subject,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <img src="https://sigotuhuella.online/favicon.svg" alt="Sigo Tu Huella" width="64" height="64" style="border-radius:16px;"/>
+        </div>
+        <h2 style="color:#5A5A40;text-align:center;">¡Chapita QR lista para retiro! 🐾</h2>
+        <p style="font-size:16px;color:#334155;">Hola <strong>${userName}</strong>,</p>
+        <p style="font-size:16px;color:#334155;">¡Buenas noticias! La chapita QR de <strong>${petName}</strong> ya está lista para ser retirada.</p>
+        <div style="background:#f8fafc;border-radius:12px;padding:20px;margin:24px 0;">
+          <p style="margin:0;font-size:16px;color:#334155;"><strong>📋 Detalle de tu chapita:</strong></p>
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0;"/>
+          <p style="margin:0;font-size:16px;color:#334155;">Mascota: <strong>${petName}</strong></p>
+          <p style="margin:0;font-size:16px;color:#334155;">Número: <strong style="color:#5A5A40;font-size:18px;">${code}</strong></p>
+        </div>
+        <div style="background:#fffbeb;border-radius:12px;padding:20px;margin:24px 0;">
+          <p style="margin:0;font-size:16px;color:#334155;"><strong>📍 Retirala en:</strong></p>
+          <p style="margin:8px 0 0;font-size:16px;color:#334155;">Forrajería Lina</p>
+          <p style="margin:4px 0 12px;font-size:14px;color:#64748b;">Días y horarios de atención de la tienda</p>
+          <a href="https://maps.app.goo.gl/fAdBkJwTiqy3Ncos9" style="display:inline-block;background:#5A5A40;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:bold;">Ver ubicación en Google Maps</a>
+        </div>
+        <div style="background:#f0fdf4;border-radius:12px;padding:20px;margin:24px 0;">
+          <p style="margin:0;font-size:16px;color:#334155;">🔧 <strong>Estamos mejorando las chapitas</strong></p>
+          <p style="margin:8px 0 0;font-size:15px;color:#334155;">Estamos probando distintos materiales, diseños y costos. ¡Tu opinión es valiosa! Si tenés alguna sugerencia, respondé este email o escribinos a <a href="mailto:info@sigotuhuella.online" style="color:#5A5A40;">info@sigotuhuella.online</a></p>
+        </div>
+        <div style="text-align:center;margin:28px 0;">
+          <a href="${petProfileUrl}" style="background:#5A5A40;color:#fff;padding:12px 28px;border-radius:12px;text-decoration:none;font-weight:bold;display:inline-block;">Ver perfil de ${petName}</a>
+        </div>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"/>
+        <p style="color:#94a3b8;font-size:12px;text-align:center;">Sigo Tu Huella — Identificación Digital para Mascotas</p>
+      </div>`,
+    });
+  };
+
+  try {
+    await notifyUser(user, { subject, textMessage, sendEmailFn });
+    await pool.query(
+      'UPDATE qr_identifiers SET notification_status = $1, notified_at = NOW() WHERE id = $2',
+      ['sent', qrId]
+    );
+    return { success: true, status: 'sent' };
+  } catch (err) {
+    console.error('notifyChapitaReady error:', err);
+    await pool.query(
+      'UPDATE qr_identifiers SET notification_status = $1, notified_at = NOW() WHERE id = $2',
+      ['failed', qrId]
+    ).catch(() => {});
+    return { success: false, status: 'failed', error: err.message };
+  }
+}
+
 router.post('/batch', requireAdmin, async (req, res) => {
   try {
     const { count = 12 } = req.body;
@@ -133,8 +218,7 @@ router.post('/assign', requireAdmin, async (req, res) => {
       const user = userResult.rows[0];
       const petName = petResult.rows[0].name;
       const code = qrResult.rows[0].code;
-      const userName = user.display_name || user.email.split('@')[0];
-      const petProfileUrl = `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/mascota/${petResult.rows[0].id}`;
+      const qrId = qrResult.rows[0].id;
 
       sendPushToUser(user.id, {
         title: `Identificación para ${petName}`,
@@ -142,71 +226,7 @@ router.post('/assign', requireAdmin, async (req, res) => {
         tag: `qr-assigned-${my_pet_id}`,
       }).catch(() => {});
 
-      const subject = 'Tu chapita QR está lista — Sigo Tu Huella';
-
-      const textMessage = `🐾 ¡Tu chapita QR está lista!
-
-Hola ${userName}, la chapita QR de *${petName}* ya fue asignada.
-
-📋 Número de chapita: *${code}*
-
-📍 Retirala en *Forrajería Lina*
-   Revisa días y horarios de atención:
-   https://maps.app.goo.gl/fAdBkJwTiqy3Ncos9
-
-🔧 Estamos probando distintos materiales, diseños y costos para mejorar las chapitas. ¡Tu opinión cuenta! Si tenés alguna sugerencia, escribila respondiendo a este mensaje o a info@sigotuhuella.online
-
-Ver perfil de ${petName}:
-${petProfileUrl}
-
-Sigo Tu Huella 🐾`;
-
-      const sendEmailFn = async () => {
-        const { default: nm } = await import('nodemailer');
-        const t = nm.createTransport({
-          host: process.env.SMTP_HOST || 'l0061596.ferozo.com',
-          port: parseInt(process.env.SMTP_PORT) || 587,
-          secure: false,
-          tls: { rejectUnauthorized: false },
-          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-        });
-        await t.sendMail({
-          from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
-          to: user.email,
-          subject,
-          html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
-            <div style="text-align:center;margin-bottom:24px;">
-              <img src="https://sigotuhuella.online/favicon.svg" alt="Sigo Tu Huella" width="64" height="64" style="border-radius:16px;"/>
-            </div>
-            <h2 style="color:#5A5A40;text-align:center;">¡Chapita QR lista para retiro! 🐾</h2>
-            <p style="font-size:16px;color:#334155;">Hola <strong>${userName}</strong>,</p>
-            <p style="font-size:16px;color:#334155;">¡Buenas noticias! La chapita QR de <strong>${petName}</strong> ya está lista para ser retirada.</p>
-            <div style="background:#f8fafc;border-radius:12px;padding:20px;margin:24px 0;">
-              <p style="margin:0;font-size:16px;color:#334155;"><strong>📋 Detalle de tu chapita:</strong></p>
-              <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0;"/>
-              <p style="margin:0;font-size:16px;color:#334155;">Mascota: <strong>${petName}</strong></p>
-              <p style="margin:0;font-size:16px;color:#334155;">Número: <strong style="color:#5A5A40;font-size:18px;">${code}</strong></p>
-            </div>
-            <div style="background:#fffbeb;border-radius:12px;padding:20px;margin:24px 0;">
-              <p style="margin:0;font-size:16px;color:#334155;"><strong>📍 Retirala en:</strong></p>
-              <p style="margin:8px 0 0;font-size:16px;color:#334155;">Forrajería Lina</p>
-              <p style="margin:4px 0 12px;font-size:14px;color:#64748b;">Días y horarios de atención de la tienda</p>
-              <a href="https://maps.app.goo.gl/fAdBkJwTiqy3Ncos9" style="display:inline-block;background:#5A5A40;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:bold;">Ver ubicación en Google Maps</a>
-            </div>
-            <div style="background:#f0fdf4;border-radius:12px;padding:20px;margin:24px 0;">
-              <p style="margin:0;font-size:16px;color:#334155;">🔧 <strong>Estamos mejorando las chapitas</strong></p>
-              <p style="margin:8px 0 0;font-size:15px;color:#334155;">Estamos probando distintos materiales, diseños y costos. ¡Tu opinión es valiosa! Si tenés alguna sugerencia, respondé este email o escribinos a <a href="mailto:info@sigotuhuella.online" style="color:#5A5A40;">info@sigotuhuella.online</a></p>
-            </div>
-            <div style="text-align:center;margin:28px 0;">
-              <a href="${petProfileUrl}" style="background:#5A5A40;color:#fff;padding:12px 28px;border-radius:12px;text-decoration:none;font-weight:bold;display:inline-block;">Ver perfil de ${petName}</a>
-            </div>
-            <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"/>
-            <p style="color:#94a3b8;font-size:12px;text-align:center;">Sigo Tu Huella — Identificación Digital para Mascotas</p>
-          </div>`,
-        });
-      };
-
-      notifyUser(user, { subject, textMessage, sendEmailFn }).catch(() => {});
+      notifyChapitaReady(qrId, my_pet_id, code, petName, user).catch(() => {});
     }
 
     res.json({ success: true, code: qrResult.rows[0].code });
@@ -510,19 +530,64 @@ router.post('/public/:shareToken/found', async (req, res) => {
 
 router.get('/assigned', requireAdmin, async (req, res) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query(
+      'SELECT COUNT(*) FROM qr_identifiers WHERE my_pet_id IS NOT NULL'
+    );
+    const total = parseInt(countResult.rows[0].count);
+    const pages = Math.ceil(total / limit);
+
     const result = await pool.query(
-      `SELECT qi.code, qi.share_token, qi.assigned_at, mp.id as pet_id, mp.name as pet_name, mp.species, mp.breed,
+      `SELECT qi.id, qi.code, qi.share_token, qi.assigned_at, qi.notified_at, qi.notification_status,
+              mp.id as pet_id, mp.name as pet_name, mp.species, mp.breed,
               u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone
        FROM qr_identifiers qi
        JOIN my_pets mp ON mp.id = qi.my_pet_id
        JOIN users u ON u.id = mp.user_id
        WHERE qi.my_pet_id IS NOT NULL
-       ORDER BY qi.assigned_at DESC`
+       ORDER BY qi.assigned_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
     );
-    res.json({ assigned: result.rows });
+    res.json({ assigned: result.rows, total, page, pages });
   } catch (err) {
     console.error('qr assigned error:', err);
     res.status(500).json({ error: 'Error al obtener QRs asignados' });
+  }
+});
+
+router.post('/assigned/:id/notify', requireAdmin, async (req, res) => {
+  try {
+    const qrResult = await pool.query(
+      `SELECT qi.id, qi.code, mp.id as pet_id, mp.name as pet_name,
+              u.id as user_id, u.email, u.phone, u.display_name, u.notification_preference
+       FROM qr_identifiers qi
+       JOIN my_pets mp ON mp.id = qi.my_pet_id
+       JOIN users u ON u.id = mp.user_id
+       WHERE qi.id = $1 AND qi.my_pet_id IS NOT NULL`,
+      [req.params.id]
+    );
+    if (qrResult.rows.length === 0) {
+      return res.status(404).json({ error: 'QR asignado no encontrado' });
+    }
+
+    const row = qrResult.rows[0];
+    const user = {
+      id: row.user_id,
+      email: row.email,
+      phone: row.phone,
+      display_name: row.display_name,
+      notification_preference: row.notification_preference,
+    };
+
+    const result = await notifyChapitaReady(row.id, row.pet_id, row.code, row.pet_name, user);
+    res.json(result);
+  } catch (err) {
+    console.error('qr notify error:', err);
+    res.status(500).json({ error: 'Error al notificar' });
   }
 });
 

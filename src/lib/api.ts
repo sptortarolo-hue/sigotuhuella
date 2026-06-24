@@ -301,7 +301,14 @@ export const api = {
     found: (token: string, data: any) => request(`/qr/public/${token}/found`, { method: 'POST', body: JSON.stringify(data) }),
     cleanup: () => request('/qr/cleanup', { method: 'DELETE' }),
     reactivate: (shareToken: string, code?: string) => request('/qr/reactivate', { method: 'POST', body: JSON.stringify({ share_token: shareToken, ...(code ? { code } : {}) }) }),
-    assigned: () => request('/qr/assigned'),
+    assigned: (page?: number, limit?: number) => {
+      const params = new URLSearchParams();
+      if (page) params.set('page', String(page));
+      if (limit) params.set('limit', String(limit));
+      const qs = params.toString();
+      return request(`/qr/assigned${qs ? `?${qs}` : ''}`);
+    },
+    notifyAssigned: (id: string) => request(`/qr/assigned/${id}/notify`, { method: 'POST' }),
     lastCode: () => request('/qr/last-code'),
     layout: (page_w: string, page_h: string) => request(`/qr/layout?page_w=${page_w}&page_h=${page_h}`),
     batchPdf: (batchId: string, opts?: { from?: string; to?: string; page_w?: string; page_h?: string }) => {
