@@ -12,6 +12,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api/relay';
 const TOKEN = process.env.RELAY_TOKEN || process.env.FB_RELAY_TOKEN;
 const POLL_INTERVAL = parseInt(process.env.FB_POLL_INTERVAL || '60000');
+const SCRAPE_MIN_INTERVAL = parseInt(process.env.FB_SCRAPE_MIN_INTERVAL || '7200000'); // 2h
+const SCRAPE_MAX_INTERVAL = parseInt(process.env.FB_SCRAPE_MAX_INTERVAL || '21600000'); // 6h
+const SCRAPE_START_HOUR = parseInt(process.env.FB_SCRAPE_START_HOUR || '8');
+const SCRAPE_END_HOUR = parseInt(process.env.FB_SCRAPE_END_HOUR || '23');
 
 const COOKIES_PATH = process.env.FB_COOKIES_PATH || path.join(__dirname, 'fb_cookies.json');
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
@@ -24,7 +28,26 @@ const api = axios.create({
 });
 
 let browser = null;
+let lastScrapeTime = 0;
+let nextScrapeDelay = randomInterval(SCRAPE_MIN_INTERVAL, SCRAPE_MAX_INTERVAL);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function randomInterval(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function isWithinScrapeHours() {
+  const h = new Date().getHours();
+  return h >= SCRAPE_START_HOUR && h < SCRAPE_END_HOUR;
+}
+
+function msUntilNextWindow() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(SCRAPE_START_HOUR, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  return next - now;
+}
 
 async function getBrowser() {
   if (browser) {
@@ -322,6 +345,98 @@ async function commentOnPost(b, targetUrl, text) {
   }
 }
 
+async function scrapeGroup(b, groupId, slug) {
+  const cookies = ensureValidCookies(JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8')));
+  const page = await b.newPage();
+  try {
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
+    await page.setViewport({ width: 1440, height: 900 });
+    await page.goto('about:blank');
+    await page.setCookie(...cookies);
+    await page.goto(`https://www.facebook.com/groups/${slug}/`, { waitUntil: 'networkidle2', timeout: 60000 });
+    await sleep(4000);
+    if (!(await checkSession(page))) {
+      console.log(`[FB Relay] Scrape ${slug}: sesión expirada`);
+      return [];
+    }
+    try { await page.waitForSelector('div[role="article"]', { timeout: 15000 }); } catch { return []; }
+
+    const posts = await page.evaluate((groupId, slug) => {
+      const results = [];
+      const seen = new Set();
+      document.querySelectorAll('div[role="article"]').forEach(article => {
+        const link = article.querySelector('a[href*="/posts/"]');
+        if (!link) return;
+        const m = link.href.match(/\/posts\/(\d+)/);
+        if (!m || seen.has(m[1])) return;
+        seen.add(m[1]);
+        const pid = m[1];
+        const msgEl = article.querySelector('[data-ad-comet-preview="message"]');
+        let content = '';
+        if (msgEl) {
+          content = msgEl.textContent.trim();
+        } else {
+          const parts = [];
+          article.querySelectorAll('[dir="auto"]').forEach(d => {
+            const t = d.textContent.trim();
+            if (t.length > 15) parts.push(t);
+          });
+          content = parts.join('\n');
+        }
+        content = content.replace(/\d+\s*[hm]\s*·\s*/g, '').replace(/See more|Ver más|Mostrar más/gi, '').trim().substring(0, 10000);
+        const authorEl = article.querySelector('h2 a, h3 a, strong a, a[href*="/user/"]');
+        const author = authorEl ? authorEl.textContent.trim() : '';
+        const images = [];
+        article.querySelectorAll('img[src*="scontent"], img[src*="fbcdn"]').forEach(img => {
+          if (img.src) images.push(img.src);
+        });
+        results.push({
+          fb_post_id: pid,
+          group_id: groupId,
+          author_name: author,
+          content,
+          image_urls: images.slice(0, 5),
+          fb_post_url: `https://www.facebook.com/groups/${slug}/posts/${pid}/`,
+        });
+      });
+      return results;
+    }, groupId, slug);
+
+    console.log(`[FB Relay] Scrape ${slug}: ${posts.length} posts`);
+    return posts;
+  } finally {
+    await page.close();
+  }
+}
+
+async function scrapeAllGroups(b) {
+  try {
+    const { data } = await api.get('/fb/groups');
+    const groups = data?.groups || [];
+    console.log(`[FB Relay] Scrapeando ${groups.length} grupo(s)...`);
+    const baseUrl = (process.env.API_BASE_URL || 'https://sigotuhuella.online/api/relay').replace('/api/relay', '');
+    for (const grupo of groups) {
+      const gid = grupo.id;
+      const slug = grupo.url?.split('/').filter(Boolean).pop() || gid;
+      const posts = await scrapeGroup(b, gid, slug);
+      if (posts.length > 0) {
+        try {
+          await axios.post(`${baseUrl}/api/facebook/webhook`, { posts }, {
+            headers: { Authorization: `Bearer ${TOKEN}` },
+            timeout: 60000,
+          });
+          console.log(`[FB Relay] ${posts.length} posts enviados al webhook`);
+        } catch (err) {
+          console.error(`[FB Relay] Error enviando posts de grupo ${gid}:`, err.response?.status, err.message);
+        }
+      }
+      await sleep(3000);
+    }
+  } catch (err) {
+    console.error('[FB Relay] Error en scrapeAllGroups:', err.message);
+  }
+}
+
 async function executeTask(task) {
   await downloadCookies();
   if (!loadCookies()) throw new Error('No hay cookies disponibles');
@@ -361,6 +476,19 @@ async function main() {
       const tasks = data?.tasks || [];
 
       if (tasks.length === 0) {
+        if (!isWithinScrapeHours()) {
+          const until = msUntilNextWindow();
+          await sleep(Math.min(until, POLL_INTERVAL));
+          continue;
+        }
+        if (Date.now() - lastScrapeTime >= nextScrapeDelay) {
+          console.log('[FB Relay] Scrapeando grupos...');
+          const b = await getBrowser();
+          await scrapeAllGroups(b);
+          lastScrapeTime = Date.now();
+          nextScrapeDelay = randomInterval(SCRAPE_MIN_INTERVAL, SCRAPE_MAX_INTERVAL);
+          console.log(`[FB Relay] Próximo scrape en ~${Math.round(nextScrapeDelay / 60000)}min`);
+        }
         await sleep(POLL_INTERVAL);
         continue;
       }
