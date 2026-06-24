@@ -235,14 +235,20 @@ router.post('/posts/bulk-delete', requireAdmin, async (req, res) => {
 
 router.post('/webhook', async (req, res) => {
   const auth = req.headers.authorization;
-  const token = await getScraperToken();
-  if (!auth || auth !== `Bearer ${token}`) {
+  const scraperToken = await getScraperToken();
+  const relayToken = process.env.RELAY_TOKEN;
+  const validTokens = [scraperToken, relayToken].filter(Boolean);
+  const isValid = auth && validTokens.some(t => auth === `Bearer ${t}`);
+  if (!isValid) {
     return res.status(401).json({ error: 'Token inválido' });
   }
 
-  const enabled = await isScrapingEnabled();
-  if (!enabled) {
-    return res.status(403).json({ error: 'Scraping deshabilitado' });
+  const isRelay = auth === `Bearer ${process.env.RELAY_TOKEN}`;
+  if (!isRelay) {
+    const enabled = await isScrapingEnabled();
+    if (!enabled) {
+      return res.status(403).json({ error: 'Scraping deshabilitado' });
+    }
   }
 
   try {

@@ -11,6 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api/relay';
 const TOKEN = process.env.RELAY_TOKEN || process.env.FB_RELAY_TOKEN;
 const POLL_INTERVAL = parseInt(process.env.FB_POLL_INTERVAL || '60000');
+const SCRAPE_INTERVAL = parseInt(process.env.FB_SCRAPE_INTERVAL || '21600000'); // 6h
 const COOKIES_PATH = process.env.FB_COOKIES_PATH || path.join(__dirname, 'fb_cookies.json');
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const TMP_DIR = path.join(__dirname, '.fb_img_tmp');
@@ -22,6 +23,7 @@ const api = axios.create({
 });
 
 let browser = null;
+let lastScrapeTime = 0;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function getBrowser() {
@@ -320,6 +322,96 @@ async function commentOnPost(b, targetUrl, text) {
   }
 }
 
+async function scrapeGroup(b, groupId, groupUrl) {
+  const cookies = ensureValidCookies(JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8')));
+  const page = await b.newPage();
+  try {
+    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
+    await page.setViewport({ width: 1440, height: 900 });
+    await page.goto('about:blank');
+    await page.setCookie(...cookies);
+    await page.goto(groupUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+    await sleep(3000);
+    if (!(await checkSession(page))) {
+      console.log(`[FB Relay] Scrape ${groupId}: sesión expirada`);
+      return [];
+    }
+    for (let i = 0; i < 3; i++) {
+      await page.evaluate(() => window.scrollBy(0, 800));
+      await sleep(2000);
+    }
+    const posts = await page.evaluate((gid) => {
+      const results = [];
+      const articles = document.querySelectorAll('div[role="article"]');
+      for (const art of articles) {
+        try {
+          const links = [...art.querySelectorAll('a')].map(a => a.href).filter(h => h.includes('/posts/'));
+          if (links.length === 0) continue;
+          const postIdMatch = links[0].match(/\/posts\/(\d+)/);
+          if (!postIdMatch) continue;
+          const fb_post_id = postIdMatch[1];
+          const textEls = art.querySelectorAll('[dir="auto"], p, span, div[data-ad-comet-preview="message"]');
+          let content = '';
+          for (const el of textEls) {
+            const t = el.textContent?.trim();
+            if (t && t.length > 10) content += t + '\n';
+          }
+          content = content.trim().substring(0, 10000);
+          const authorEl = art.querySelector('a[href*="/user/"], a[href*="/profile.php"], h2 a, strong a');
+          const author = authorEl?.textContent?.trim() || '';
+          const imgs = [...art.querySelectorAll('img')]
+            .map(img => img.src)
+            .filter(s => s && !s.includes('emoji') && !s.startsWith('data:') && !s.includes('static.xx'))
+            .slice(0, 5);
+          results.push({
+            fb_post_id,
+            author_name: author,
+            content,
+            image_urls: imgs,
+            group_id: gid,
+            post_url: `https://www.facebook.com/groups/${gid}/posts/${fb_post_id}/`,
+          });
+        } catch (e) { /* skip */ }
+      }
+      return results;
+    }, groupId);
+    console.log(`[FB Relay] Scrape ${groupId}: ${posts.length} posts`);
+    return posts;
+  } catch (err) {
+    console.error(`[FB Relay] Error scrapeando grupo ${groupId}:`, err.message);
+    return [];
+  } finally {
+    await page.close();
+  }
+}
+
+async function scrapeAllGroups(b) {
+  try {
+    const { data } = await api.get('/fb/groups');
+    const groups = data?.groups || [];
+    console.log(`[FB Relay] Scrapeando ${groups.length} grupo(s)...`);
+    for (const grupo of groups) {
+      const groupId = grupo.id;
+      const groupUrl = grupo.url;
+      const posts = await scrapeGroup(b, groupId, groupUrl);
+      if (posts.length > 0) {
+        try {
+          await api.post('/facebook/webhook', { posts }, {
+            headers: { Authorization: `Bearer ${TOKEN}` }
+          });
+          console.log(`[FB Relay] ${posts.length} posts enviados al webhook`);
+        } catch (err) {
+          console.error(`[FB Relay] Error enviando posts de grupo ${groupId}:`, err.message);
+        }
+      }
+      await sleep(3000);
+    }
+    lastScrapeTime = Date.now();
+  } catch (err) {
+    console.error('[FB Relay] Error en scrapeAllGroups:', err.message);
+  }
+}
+
 async function executeTask(task) {
   await downloadCookies();
   if (!loadCookies()) throw new Error('No hay cookies disponibles');
@@ -360,6 +452,19 @@ async function main() {
       const tasks = data?.tasks || [];
 
       if (tasks.length === 0) {
+        // Sin tareas pendientes → ver si es hora de scrapear grupos
+        if (Date.now() - lastScrapeTime > SCRAPE_INTERVAL) {
+          console.log('[FB Relay] Hora de scrapear grupos...');
+          await downloadCookies();
+          if (loadCookies()) {
+            const b = await getBrowser();
+            try {
+              await scrapeAllGroups(b);
+            } finally {
+              /* keep browser alive for tasks */
+            }
+          }
+        }
         await sleep(POLL_INTERVAL);
         continue;
       }

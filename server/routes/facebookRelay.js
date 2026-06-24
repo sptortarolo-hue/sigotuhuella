@@ -131,6 +131,18 @@ router.get('/fb/failed-tasks', requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/fb/groups', relayAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, name, url, fb_group_id FROM facebook_groups WHERE is_active = true ORDER BY name ASC"
+    );
+    res.json({ groups: result.rows });
+  } catch (err) {
+    console.error('[FB Relay] groups error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/fb/add-test-task', requireAdmin, async (req, res) => {
   try {
     const { fb_group_id, message } = req.body;
