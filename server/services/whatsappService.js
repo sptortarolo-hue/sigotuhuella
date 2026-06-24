@@ -308,10 +308,16 @@ export async function sendGroupImage(groupId, imageUrl, caption) {
 export async function broadcastPetToGroups(petId) {
   try {
     const enabled = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_broadcast_enabled'");
-    if (enabled.rows[0]?.value !== 'true') return;
+    if (enabled.rows[0]?.value !== 'true') {
+      console.log('[Broadcast] whatsapp_broadcast_enabled no está activado, salteando broadcast a WhatsApp');
+      return;
+    }
 
     const groups = await pool.query("SELECT * FROM whatsapp_groups WHERE is_active = TRUE AND auto_broadcast = TRUE");
-    if (groups.rows.length === 0) return;
+    if (groups.rows.length === 0) {
+      console.log('[Broadcast] No hay grupos de WhatsApp con auto_broadcast activado');
+      return;
+    }
 
     const pet = (await pool.query(`
       SELECT p.*,
@@ -469,13 +475,22 @@ export async function broadcastFbAdoptionPets() {
       return;
     }
 
+    const fbRelay = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_enabled'");
+    if (fbRelay.rows[0]?.value !== 'true') {
+      console.log('[FbAdoptionBroadcast] fb_relay_enabled no está activado, salteando broadcast a Facebook');
+      return;
+    }
+
     const groups = await pool.query(
       `SELECT id, name, fb_group_id FROM facebook_groups
        WHERE is_active = true AND publish_on_create = true
        AND fb_group_id IS NOT NULL AND fb_group_id != ''
        ORDER BY name`
     );
-    if (groups.rows.length === 0) return;
+    if (groups.rows.length === 0) {
+      console.log('[FbAdoptionBroadcast] No hay grupos de Facebook con publish_on_create activado');
+      return;
+    }
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
     const hashtags = '#SigoTuHuella #AdoptaNoCompres';
