@@ -144,6 +144,10 @@ export const api = {
   },
   settings: {
     list: () => request('/settings'),
+    get: async (key: string) => {
+      const res = await request('/settings/batch', { method: 'POST', body: JSON.stringify({ keys: [key] }) });
+      return res[key];
+    },
     update: (key: string, value: string) => request(`/settings/${key}`, { method: 'PUT', body: JSON.stringify({ value }) }),
     getPublic: () => request('/settings/public'),
   },
