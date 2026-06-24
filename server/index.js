@@ -30,7 +30,7 @@ import imageRoutes from './routes/images.js';
 import phoneRelayRoutes from './routes/phoneRelay.js';
 import facebookRelayRoutes from './routes/facebookRelay.js';
 import invitesRoutes from './routes/invites.js';
-import { startSyncTimer } from './services/vpsSyncService.js';
+// import { startSyncTimer } from './services/vpsSyncService.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
 import { publishStory, isConnected } from './services/instagramService.js';
@@ -190,8 +190,8 @@ app.use('/api/images', imageRoutes);
 app.use('/api/relay', phoneRelayRoutes);
 app.use('/api/relay', facebookRelayRoutes);
 
-// Sync with VPS scraper every 5 minutes
-startSyncTimer(5);
+// Sync with VPS scraper every 5 minutes — removed (scraper deprecated)
+// startSyncTimer(5);
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

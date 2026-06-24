@@ -3,7 +3,6 @@ import pool from '../db.js';
 
 const GRAPH_API = 'https://graph.facebook.com/v22.0';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
-const VPS_HOST = process.env.VPS_HOST || 'http://138.36.236.69:3001';
 
 const statusLabels = {
   lost: '🐾 PERDIDO',

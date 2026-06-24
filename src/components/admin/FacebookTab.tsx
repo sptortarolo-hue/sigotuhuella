@@ -2,18 +2,17 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/src/lib/api';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
-import PolygonEditor from '@/src/components/admin/PolygonEditor';
 import FacebookPostCard from '@/src/components/admin/FacebookPostCard';
 import FacebookMatchReview from '@/src/components/admin/FacebookMatchReview';
 import ImageLightbox from '@/src/components/admin/ImageLightbox';
 import {
   Save, Loader2, Plus, X, Trash2, Edit2, ExternalLink,
   Search, RefreshCw, Check, XCircle, MessageSquare, Map,
-  Globe, Users, Sliders, FlaskConical, GripVertical, MapPin, Upload,
+  Globe, Users, Sliders, FlaskConical, Upload,
   LayoutGrid, List, ImageIcon,
 } from 'lucide-react';
 
-type SubTab = 'groups' | 'posts' | 'matches' | 'scrape-match' | 'publisher';
+type SubTab = 'groups' | 'posts' | 'matches' | 'publisher';
 
 interface FacebookGroup {
   id: string;
@@ -77,7 +76,6 @@ export default function FacebookTab() {
     { id: 'groups', label: 'Grupos', icon: Globe },
     { id: 'posts', label: 'Publicaciones', icon: MessageSquare },
     { id: 'matches', label: 'Matches', icon: FlaskConical },
-    { id: 'scrape-match', label: 'Scrape & Match', icon: Search },
     { id: 'publisher', label: 'Publicar en FB', icon: Upload },
   ];
 
@@ -105,7 +103,6 @@ export default function FacebookTab() {
       {activeSubTab === 'groups' && <GroupsSection />}
       {activeSubTab === 'posts' && <PostsSection />}
       {activeSubTab === 'matches' && <MatchesSection />}
-      {activeSubTab === 'scrape-match' && <ScrapeMatchSection />}
       {activeSubTab === 'publisher' && <PublisherSection />}
     </div>
   );
@@ -180,7 +177,7 @@ function GroupsSection() {
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">URL</th>
               <th className="px-4 py-3">Activo</th>
-              <th className="px-4 py-3">Último scrape</th>
+              <th className="px-4 py-3">Última actualización</th>
               <th className="px-4 py-3">Acciones</th>
             </tr>
           </thead>
@@ -816,426 +813,80 @@ ${m.reasons?.length ? `📋 Razones: ${m.reasons.join(', ')}` : ''}
   );
 }
 
-function ScrapeMatchSection() {
+function MatchingSettingsSection() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [suggestions, setSuggestions] = useState<Record<number, { name: string; lat: number; lng: number }[]>>({});
-  const [activeSuggestion, setActiveSuggestion] = useState<number | null>(null);
-  const debounceTimers = React.useRef<Record<number, ReturnType<typeof setTimeout>>>({});
-  const [cookieStatus, setCookieStatus] = useState<{ exists: boolean; count: number; expires: string | null } | null>(null);
-  const [storageStateStatus, setStorageStateStatus] = useState<{ exists: boolean; count: number; origins: number } | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadingState, setUploadingState] = useState(false);
-
-  const searchNominatim = React.useCallback(async (query: string, index: number) => {
-    if (query.length < 3) {
-      setSuggestions(prev => ({ ...prev, [index]: [] }));
-      return;
-    }
-    try {
-      const resp = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=ar`,
-        { headers: { 'User-Agent': 'SigoTuHuella/1.0' } }
-      );
-      const data = await resp.json();
-      setSuggestions(prev => ({
-        ...prev,
-        [index]: data.map((r: any) => ({
-          name: r.display_name.split(',')[0],
-          lat: parseFloat(r.lat),
-          lng: parseFloat(r.lon),
-        })),
-      }));
-    } catch {
-      setSuggestions(prev => ({ ...prev, [index]: [] }));
-    }
-  }, []);
-
-  const handleNameChange = (value: string, i: number) => {
-    const neighborhoods: any[] = [];
-    try { if (settings.fb_neighborhoods) neighborhoods.push(...JSON.parse(settings.fb_neighborhoods)); } catch {}
-    const copy = [...neighborhoods];
-    copy[i] = { ...copy[i], name: value };
-    setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
-    if (debounceTimers.current[i]) clearTimeout(debounceTimers.current[i]);
-    debounceTimers.current[i] = setTimeout(() => searchNominatim(value, i), 400);
-  };
 
   useEffect(() => {
-    const load = async () => {
+    (async () => {
       try {
-        const data = await api.settings.list();
-        const map: Record<string, string> = {};
-        data.forEach((s: any) => { map[s.key] = s.value; });
-        setSettings(map);
-        const cook = await fetch('/api/facebook/cookies-status', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
-        if (cook.ok) {
-          const data = await cook.json();
-          setCookieStatus(data.cookies || null);
-          setStorageStateStatus(data.storage_state || null);
-        }
+        const keys = ['fb_matching_enabled', 'fb_image_matching_enabled', 'fb_matching_min_score', 'fb_image_matching_weight'];
+        const data = await api.settings.getMultiple(keys);
+        setSettings(data);
       } catch (e) { console.error(e); }
       setLoading(false);
-    };
-    load();
+    })();
   }, []);
-
-  const handlePolygonChange = async (vertices: { lat: number; lng: number }[], amplitude: number) => {
-    setSettings(p => ({
-      ...p,
-      fb_polygon_vertices: JSON.stringify(vertices),
-      fb_polygon_amplitude: String(amplitude),
-    }));
-  };
 
   const handleSave = async () => {
     setSaving(true);
-    setSaved(false);
     try {
-      const fbKeys = Object.keys(settings).filter(k => k.startsWith('fb_'));
-      await Promise.all(fbKeys.map(key => api.settings.update(key, settings[key])));
+      const keys = ['fb_matching_enabled', 'fb_image_matching_enabled', 'fb_matching_min_score', 'fb_image_matching_weight'];
+      for (const key of keys) {
+        await api.settings.set(key, settings[key] || '');
+      }
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (e) {
-      console.error(e);
-      alert('Error al guardar configuración');
-    }
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) { alert(e.message); }
     setSaving(false);
   };
 
-  const handleCookiesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      const resp = await fetch('/api/facebook/upload-cookies', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-        body: form,
-      });
-      if (!resp.ok) {
-        const err = await resp.json();
-        alert(err.error || 'Error al subir');
-        return;
-      }
-      const data = await resp.json();
-      if (data.type === 'storage_state') {
-        setStorageStateStatus({ exists: true, count: data.count, origins: data.origins });
-        alert(`✅ ${data.count} cookies + ${data.origins} origenes con localStorage`);
-      } else {
-        setCookieStatus({ exists: true, count: data.count, expires: data.expires });
-        alert(`✅ ${data.count} cookies guardadas${data.expires ? ` (expiran ${new Date(data.expires).toLocaleDateString()})` : ''}`);
-      }
-    } catch (err) {
-      alert('Error al conectar con el servidor');
-    }
-    setUploading(false);
-    e.target.value = '';
-  };
-
-  const handleStorageStateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingState(true);
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      const resp = await fetch('/api/facebook/upload-session', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-        body: form,
-      });
-      if (!resp.ok) {
-        const err = await resp.json();
-        alert(err.error || 'Error al subir sesion');
-        return;
-      }
-      const data = await resp.json();
-      setStorageStateStatus({ exists: true, count: data.count, origins: data.origins });
-      alert(`✅ ${data.count} cookies + ${data.origins} origenes con localStorage`);
-    } catch (err) {
-      alert('Error al conectar con el servidor');
-    }
-    setUploadingState(false);
-    e.target.value = '';
-  };
-
-  if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
-
-  let vertices: { lat: number; lng: number }[] = [];
-  try {
-    if (settings.fb_polygon_vertices) vertices = JSON.parse(settings.fb_polygon_vertices);
-  } catch {}
-  const amplitude = parseInt(settings.fb_polygon_amplitude || '100', 10);
-
-  let neighborhoods: { name: string; lat: number; lng: number; enabled?: boolean }[] = [];
-  try {
-    if (settings.fb_neighborhoods) neighborhoods = JSON.parse(settings.fb_neighborhoods);
-  } catch {}
-  const enabledNeighborhoods = neighborhoods.filter(n => n.lat && n.lng && n.enabled !== false);
+  if (loading) return <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-brand-primary" /></div>;
 
   return (
-    <div className="space-y-8">
-      {/* Polygon Editor */}
-      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-        <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
-          <Map className="w-6 h-6" /> Área Geográfica
-        </h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Definí el polígono de cobertura. Los posts fuera de esta área se marcarán como "fuera de zona".
-          Los puntos azules son los barrios configurados en "Barrios y Zonas".
-          Doble click en el mapa para agregar vértices. Arrastrá los marcadores para ajustar.
-        </p>
-        <PolygonEditor
-          vertices={vertices}
-          amplitude={amplitude}
-          neighborhoods={enabledNeighborhoods}
-          onChange={handlePolygonChange}
-        />
-      </div>
+    <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+      <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
+        <FlaskConical className="w-6 h-6" /> Configuración de Matching
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
+          <input type="checkbox" id="fb_matching_enabled"
+            checked={settings.fb_matching_enabled === 'true'}
+            onChange={(e) => setSettings(p => ({ ...p, fb_matching_enabled: e.target.checked ? 'true' : 'false' }))}
+            className="w-5 h-5 rounded accent-brand-primary" />
+          <label htmlFor="fb_matching_enabled" className="font-bold text-brand-primary">Activar matching automático</label>
+        </div>
 
-      {/* Matching Settings */}
-      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-        <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
-          <FlaskConical className="w-6 h-6" /> Configuración de Matching
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
-            <input type="checkbox" id="fb_matching_enabled"
-              checked={settings.fb_matching_enabled === 'true'}
-              onChange={(e) => setSettings(p => ({ ...p, fb_matching_enabled: e.target.checked ? 'true' : 'false' }))}
-              className="w-5 h-5 rounded accent-brand-primary" />
-            <label htmlFor="fb_matching_enabled" className="font-bold text-brand-primary">Activar matching automático</label>
-          </div>
+        <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
+          <input type="checkbox" id="fb_image_matching_enabled"
+            checked={settings.fb_image_matching_enabled === 'true'}
+            onChange={(e) => setSettings(p => ({ ...p, fb_image_matching_enabled: e.target.checked ? 'true' : 'false' }))}
+            className="w-5 h-5 rounded accent-brand-primary" />
+          <label htmlFor="fb_image_matching_enabled" className="font-bold text-brand-primary">Activar matching por imágenes</label>
+        </div>
 
-          <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
-            <input type="checkbox" id="fb_image_matching_enabled"
-              checked={settings.fb_image_matching_enabled === 'true'}
-              onChange={(e) => setSettings(p => ({ ...p, fb_image_matching_enabled: e.target.checked ? 'true' : 'false' }))}
-              className="w-5 h-5 rounded accent-brand-primary" />
-            <label htmlFor="fb_image_matching_enabled" className="font-bold text-brand-primary">Activar matching por imágenes</label>
-          </div>
-
-          <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
-            <input type="checkbox" id="fb_scraping_enabled"
-              checked={settings.fb_scraping_enabled === 'true'}
-              onChange={(e) => setSettings(p => ({ ...p, fb_scraping_enabled: e.target.checked ? 'true' : 'false' }))}
-              className="w-5 h-5 rounded accent-brand-primary" />
-            <label htmlFor="fb_scraping_enabled" className="font-bold text-brand-primary">Activar scraping automático</label>
-          </div>
-
-          <div className="col-span-full">
-            <label className="block text-sm font-bold text-gray-600 mb-1">Token del scraper</label>
-            <input type="text" value={settings.fb_scraper_token || ''}
-              onChange={(e) => setSettings(p => ({ ...p, fb_scraper_token: e.target.value }))}
-              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm font-mono"
-              placeholder="sihuella-scraper-2024" />
-            <p className="text-xs text-gray-400 mt-1">Token que el scraper Python usa para autenticarse en el webhook.</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-1">Intervalo de scrape (hs)</label>
-            <input type="number" value={settings.fb_scraper_interval_hours || '6'}
-              onChange={(e) => setSettings(p => ({ ...p, fb_scraper_interval_hours: e.target.value }))}
-              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
-              min="1" max="72" />
-            <p className="text-xs text-gray-400 mt-1">Cada cuántas horas el scraper revisa los grupos.</p>
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-1">Posts máximos por grupo</label>
-            <input type="number" value={settings.fb_scraper_max_posts || '50'}
-              onChange={(e) => setSettings(p => ({ ...p, fb_scraper_max_posts: e.target.value }))}
-              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
-              min="5" max="200" />
-            <p className="text-xs text-gray-400 mt-1">Cantidad máxima de posts a scrapear por grupo por ciclo.</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-1">Score mínimo (%)</label>
-            <input type="number" value={settings.fb_matching_min_score || '50'}
-              onChange={(e) => setSettings(p => ({ ...p, fb_matching_min_score: e.target.value }))}
-              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
-              min="0" max="100" />
-            <p className="text-xs text-gray-400 mt-1">Puntaje mínimo para crear un match.</p>
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-1">Peso de imagen (%)</label>
-            <input type="number" value={settings.fb_image_matching_weight || '20'}
-              onChange={(e) => setSettings(p => ({ ...p, fb_image_matching_weight: e.target.value }))}
-              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
-              min="0" max="100" />
-            <p className="text-xs text-gray-400 mt-1">Porcentaje del score total basado en imágenes.</p>
-          </div>
+        <div>
+          <label className="block text-sm font-bold text-gray-600 mb-1">Score mínimo (%)</label>
+          <input type="number" value={settings.fb_matching_min_score || '50'}
+            onChange={(e) => setSettings(p => ({ ...p, fb_matching_min_score: e.target.value }))}
+            className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
+            min="0" max="100" />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-gray-600 mb-1">Peso de imagen (%)</label>
+          <input type="number" value={settings.fb_image_matching_weight || '20'}
+            onChange={(e) => setSettings(p => ({ ...p, fb_image_matching_weight: e.target.value }))}
+            className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm"
+            min="0" max="100" />
         </div>
       </div>
 
-      {/* Barrios */}
-      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-        <h2 className="text-xl font-serif font-bold text-brand-primary mb-2 flex items-center gap-3">
-          <Map className="w-6 h-6" /> Barrios y Zonas
-        </h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Definí los barrios con coordenadas. Solo los habilitados (☑) se muestran en el mapa y se usan para clasificación geográfica.
-        </p>
-
-        {(() => {
-          let neighborhoods: { name: string; lat: number; lng: number; enabled?: boolean }[] = [];
-          try { if (settings.fb_neighborhoods) neighborhoods = JSON.parse(settings.fb_neighborhoods); } catch {}
-          if (!Array.isArray(neighborhoods)) neighborhoods = [];
-
-          return (
-            <div className="space-y-3">
-              {neighborhoods.length === 0 && (
-                <p className="text-sm text-gray-400 italic py-4 text-center">No hay barrios configurados. Agregá uno abajo.</p>
-              )}
-              {neighborhoods.map((n, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                  <input type="checkbox"
-                    checked={n.enabled !== false}
-                    onChange={() => {
-                      const copy = [...neighborhoods];
-                      copy[i] = { ...copy[i], enabled: copy[i].enabled === false ? true : false };
-                      setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
-                    }}
-                    className="w-4 h-4 rounded accent-brand-primary shrink-0"
-                  />
-                  <div className="flex-1 min-w-0 relative">
-                    <input type="text" value={n.name}
-                      onChange={(e) => handleNameChange(e.target.value, i)}
-                      onFocus={() => setActiveSuggestion(i)}
-                      onBlur={() => setTimeout(() => setActiveSuggestion(null), 200)}
-                      className="w-full px-3 py-1.5 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-sm font-medium"
-                      placeholder="Ej: Parque Sicardi"
-                      autoComplete="off"
-                    />
-                    {activeSuggestion === i && (suggestions[i] || []).length > 0 && (
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl border border-brand-accent shadow-xl z-50 max-h-48 overflow-y-auto">
-                        {suggestions[i].map((s, si) => (
-                          <button key={si} type="button"
-                            onMouseDown={() => {
-                              const copy = [...neighborhoods];
-                              copy[i] = { ...copy[i], name: s.name, lat: s.lat, lng: s.lng };
-                              setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
-                              setSuggestions(prev => ({ ...prev, [i]: [] }));
-                              setActiveSuggestion(null);
-                            }}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-100 last:border-0 flex items-center gap-2"
-                          >
-                            <MapPin className="w-3 h-3 shrink-0 text-gray-400" />
-                            <span className="flex-1 truncate">{s.name}</span>
-                            <span className="text-[10px] text-gray-400 shrink-0">{s.lat.toFixed(3)}, {s.lng.toFixed(3)}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <input type="number" step="0.001" value={n.lat}
-                    onChange={(e) => {
-                      const copy = [...neighborhoods];
-                      copy[i] = { ...copy[i], lat: parseFloat(e.target.value) || 0 };
-                      setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
-                    }}
-                    className="w-28 px-2 py-1.5 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-xs font-mono text-right"
-                    placeholder="lat"
-                  />
-                  <input type="number" step="0.001" value={n.lng}
-                    onChange={(e) => {
-                      const copy = [...neighborhoods];
-                      copy[i] = { ...copy[i], lng: parseFloat(e.target.value) || 0 };
-                      setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
-                    }}
-                    className="w-28 px-2 py-1.5 bg-white rounded-lg border border-brand-accent outline-none focus:border-brand-primary text-xs font-mono text-right"
-                    placeholder="lng"
-                  />
-                  <button onClick={() => {
-                    const copy = neighborhoods.filter((_, j) => j !== i);
-                    setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
-                  }}
-                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-              <button onClick={() => {
-                const copy = [...neighborhoods, { name: '', lat: 0, lng: 0, enabled: true }];
-                setSettings(p => ({ ...p, fb_neighborhoods: JSON.stringify(copy) }));
-              }}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-brand-primary border-2 border-dashed border-brand-accent rounded-xl hover:border-brand-primary hover:bg-brand-bg transition-all w-full justify-center">
-                <Plus className="w-4 h-4" /> Agregar barrio
-              </button>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* Sesion de Facebook (Storage State) */}
-      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-        <h2 className="text-xl font-serif font-bold text-brand-primary mb-2 flex items-center gap-3">
-          <Globe className="w-6 h-6" /> Sesion de Facebook
-        </h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Subi el archivo <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">storage_state.json</code> generado con <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">generate_session.py</code>
-          para que el scraper publique en grupos.
-        </p>
-
-        <div className="p-4 bg-brand-bg rounded-2xl mb-4 flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${storageStateStatus?.exists ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
-            <div className={`w-3 h-3 rounded-full ${storageStateStatus?.exists ? 'bg-green-500' : 'bg-red-400'}`} />
-          </div>
-          <div className="flex-1 text-sm">
-            {storageStateStatus === null && cookieStatus === null ? (
-              <span className="text-gray-400">Verificando...</span>
-            ) : storageStateStatus?.exists ? (
-              <><span className="font-bold text-green-700">{storageStateStatus.count} cookies + {storageStateStatus.origins} origenes</span>
-                <span className="text-gray-500"> — storage state activo</span></>
-            ) : cookieStatus?.exists ? (
-              <><span className="font-bold text-amber-700">{cookieStatus.count} cookies (legacy)</span>
-                <span className="text-gray-500"> — migra a storage_state.json</span></>
-            ) : (
-              <><span className="font-bold text-red-600">Sin sesion</span>
-                <span className="text-gray-500"> — genera storage_state.json con generate_session.py</span></>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <label className={`flex flex-col items-center justify-center w-full p-5 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${uploadingState ? 'opacity-50 pointer-events-none' : 'border-brand-accent hover:border-brand-primary hover:bg-brand-bg'}`}>
-            <input type="file" accept=".json" onChange={handleStorageStateUpload} className="hidden" disabled={uploadingState} />
-            {uploadingState ? (
-              <><Loader2 className="w-8 h-8 animate-spin text-brand-primary mb-2" /><span className="text-sm text-gray-500">Subiendo...</span></>
-            ) : (
-              <><Upload className="w-8 h-8 text-gray-400 mb-2" />
-                <span className="text-sm font-bold text-brand-primary">Subir storage_state.json</span>
-                <span className="text-xs text-gray-400 mt-1">Generado con generate_session.py en tu PC</span></>
-            )}
-          </label>
-
-          <details className="text-xs text-gray-400">
-            <summary className="cursor-pointer hover:text-brand-primary">Subir cookies.txt (legacy)</summary>
-            <label className={`flex flex-col items-center justify-center w-full p-4 mt-2 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${uploading ? 'opacity-50 pointer-events-none' : 'border-gray-200 hover:border-brand-accent'}`}>
-              <input type="file" accept=".txt,.cookies.txt" onChange={handleCookiesUpload} className="hidden" disabled={uploading} />
-              {uploading ? (
-                <><Loader2 className="w-5 h-5 animate-spin text-brand-primary mb-1" /><span className="text-xs text-gray-500">Subiendo...</span></>
-              ) : (
-                <><Upload className="w-5 h-5 text-gray-400 mb-1" />
-                  <span className="text-xs font-bold text-brand-primary">Subir cookies.txt</span></>
-              )}
-            </label>
-          </details>
-        </div>
-      </div>
-
-      {/* Save button */}
       <button onClick={handleSave} disabled={saving}
-        className="px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
+        className="mt-6 px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
         {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-        {saving ? 'Guardando...' : saved ? '✅ Guardado' : 'Guardar Configuración'}
+        {saving ? 'Guardando...' : saved ? '✅ Guardado' : 'Guardar Configuración de Matching'}
       </button>
     </div>
   );

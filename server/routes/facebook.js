@@ -1,20 +1,7 @@
 import { Router } from 'express';
-import multer from 'multer';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
 import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { classifyPost } from '../services/geminiClassifier.js';
-import { matchPostToPet, matchPetToPosts, runFullMatching, detectReunion } from '../services/geminiMatching.js';
-import { pushConfig } from '../services/vpsSyncService.js';
-import { publishToPage, replicateInstagramToFacebook, replicateLatestInstagramPosts, retryFailedFacebookPosts, publishPetToGroups } from '../services/facebookPublisher.js';
-import { createJob, startJob, getJob } from '../services/publishJobManager.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const COOKIES_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'cookies.txt');
-const STORAGE_STATE_PATH = join(__dirname, '..', '..', 'external', 'scraper', 'storage_state.json');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max (storage_state can be larger)
 
 const router = Router();
 
@@ -92,44 +79,6 @@ router.delete('/groups/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error deleting group:', err);
     res.status(500).json({ error: 'Error al eliminar grupo' });
-  }
-});
-
-// ==================== SCRAPER CONFIG ====================
-
-router.get('/scraper-config', async (req, res) => {
-  const auth = req.headers.authorization;
-  const token = await getScraperToken();
-  if (!auth || auth !== `Bearer ${token}`) {
-    return res.status(401).json({ error: 'Token inválido' });
-  }
-
-  const enabled = await isScrapingEnabled();
-  if (!enabled) {
-    return res.status(403).json({ error: 'Scraping deshabilitado' });
-  }
-
-  try {
-    const groupsRes = await pool.query(
-      "SELECT name, url FROM facebook_groups WHERE is_active = true ORDER BY name"
-    );
-
-    const settingsRes = await pool.query(
-      "SELECT key, value FROM settings WHERE key IN ('fb_scraper_token', 'fb_scraper_interval_hours', 'fb_scraper_max_posts')"
-    );
-    const s = {};
-    settingsRes.rows.forEach(r => (s[r.key] = r.value));
-
-    res.json({
-      webhook_url: `${req.protocol}://${req.get('host')}/api/facebook/webhook`,
-      webhook_token: s.fb_scraper_token || token,
-      groups: groupsRes.rows,
-      scrape_interval_hours: parseInt(s.fb_scraper_interval_hours, 10) || 6,
-      max_posts_per_group: parseInt(s.fb_scraper_max_posts, 10) || 50,
-    });
-  } catch (err) {
-    console.error('Error fetching scraper config:', err);
-    res.status(500).json({ error: 'Error al obtener configuración' });
   }
 });
 
@@ -539,123 +488,6 @@ router.post('/classify/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error classifying post:', err);
     res.status(500).json({ error: 'Error al clasificar publicación' });
-  }
-});
-
-// ==================== SESSION (Cookies / Storage State) ====================
-
-function parseCookiesInfo(filepath) {
-  if (!existsSync(filepath)) return { exists: false, count: 0, expires: null };
-  const content = readFileSync(filepath, 'utf-8');
-  const lines = content.split('\n').filter(l => {
-    const trimmed = l.trim();
-    if (!trimmed) return false;
-    if (trimmed.startsWith('#') && !trimmed.startsWith('#HttpOnly_')) return false;
-    return true;
-  });
-  const parsed = lines.map(l => l.replace(/^#HttpOnly_/, '').split('\t')).filter(p => p.length >= 7);
-  const expires = parsed
-    .map(p => parseInt(p[4], 10))
-    .filter(e => e > 0)
-    .sort((a, b) => a - b);
-  return {
-    exists: true,
-    count: parsed.length,
-    expires: expires.length > 0 ? new Date(expires[0] * 1000).toISOString() : null,
-  };
-}
-
-function parseStorageStateInfo(filepath) {
-  if (!existsSync(filepath)) return { exists: false, count: 0, origins: 0 };
-  try {
-    const state = JSON.parse(readFileSync(filepath, 'utf-8'));
-    return {
-      exists: true,
-      count: (state.cookies || []).length,
-      origins: (state.origins || []).length,
-    };
-  } catch {
-    return { exists: false, count: 0, origins: 0, error: 'corrupt' };
-  }
-}
-
-router.get('/cookies-status', requireAdmin, (_req, res) => {
-  try {
-    const cookies = parseCookiesInfo(COOKIES_PATH);
-    const storage = parseStorageStateInfo(STORAGE_STATE_PATH);
-    res.json({ cookies, storage_state: storage });
-  } catch (err) {
-    console.error('Error reading session status:', err);
-    res.status(500).json({ error: 'Error al leer estado de sesion' });
-  }
-});
-
-router.post('/upload-cookies', requireAdmin, upload.single('file'), (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No se envio ningun archivo' });
-    const content = req.file.buffer.toString('utf-8');
-    const dir = dirname(COOKIES_PATH);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-
-    // Detect format: JSON = storage_state, else = Netscape cookies
-    let isStorageState = false;
-    try {
-      const parsed = JSON.parse(content);
-      if (parsed && typeof parsed === 'object' && 'cookies' in parsed && 'origins' in parsed) {
-        isStorageState = true;
-      }
-    } catch {}
-
-    if (isStorageState) {
-      writeFileSync(STORAGE_STATE_PATH, content, 'utf-8');
-      const info = parseStorageStateInfo(STORAGE_STATE_PATH);
-      pushConfig().catch(() => {});
-      return res.json({ ok: true, type: 'storage_state', count: info.count, origins: info.origins });
-    }
-
-    // Legacy Netscape format
-    if (!content.includes('.facebook.com') && !content.includes('facebook.com')) {
-      return res.status(400).json({ error: 'Formato invalido: no se encontraron cookies de facebook.com' });
-    }
-    writeFileSync(COOKIES_PATH, content, 'utf-8');
-    pushConfig().catch(() => {});
-    const info = parseCookiesInfo(COOKIES_PATH);
-    res.json({ ok: true, type: 'cookies', count: info.count, expires: info.expires });
-  } catch (err) {
-    console.error('Error uploading session:', err);
-    res.status(500).json({ error: 'Error al guardar sesion' });
-  }
-});
-
-router.post('/upload-session', requireAdmin, upload.single('file'), (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No se envio ningun archivo' });
-    const content = req.file.buffer.toString('utf-8');
-
-    // Validate JSON format with cookies array
-    let parsed;
-    try {
-      parsed = JSON.parse(content);
-    } catch {
-      return res.status(400).json({ error: 'Formato invalido: se espera JSON de Playwright storage_state' });
-    }
-    if (!parsed.cookies || !Array.isArray(parsed.cookies)) {
-      return res.status(400).json({ error: 'Formato invalido: falta el array de cookies' });
-    }
-
-    const dir = dirname(STORAGE_STATE_PATH);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(STORAGE_STATE_PATH, JSON.stringify(parsed, null, 2), 'utf-8');
-    pushConfig().catch(() => {});
-    res.json({
-      ok: true,
-      type: 'storage_state',
-      count: parsed.cookies.length,
-      origins: (parsed.origins || []).length,
-    });
-  } catch (err) {
-    console.error('Error uploading session:', err);
-    res.status(500).json({ error: 'Error al guardar sesion' });
   }
 });
 

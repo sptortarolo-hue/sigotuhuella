@@ -3,7 +3,7 @@ import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMe
 import { matchWhatsAppToPets, processImageCaption } from './geminiMatching.js';
 import { classifyPost } from './geminiClassifier.js';
 import { sendWhatsAppRegistrationEmail } from '../auth.js';
-import { fetchFbPost } from './vpsSyncService.js';
+import { fetchFbPost } from './fbPostFetcher.js';
 import { geocodeAddress } from './geocoding.js';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
