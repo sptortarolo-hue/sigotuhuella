@@ -29,10 +29,10 @@ def main():
         raw = r.json()["data"]
         try:
             parsed = json.loads(raw)
-            cookies = parsed.get("cookies") or (parsed if isinstance(parsed, list) else [])
+            cookies = parsed if isinstance(parsed, list) else (parsed.get("cookies") or [])
         except json.JSONDecodeError:
             decoded = json.loads(base64.b64decode(raw).decode("utf-8"))
-            cookies = decoded.get("cookies") or (decoded if isinstance(decoded, list) else [])
+            cookies = decoded if isinstance(decoded, list) else (decoded.get("cookies") or [])
         with open(COOKIES_FILE, "w") as f:
             json.dump(cookies, f)
         print(f"[scraper] {len(cookies)} cookies guardadas en {COOKIES_FILE}")
