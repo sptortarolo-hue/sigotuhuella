@@ -20,7 +20,7 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
-  const [notifyWhatsApp, setNotifyWhatsApp] = useState(false);
+  const [notifyWhatsApp, setNotifyWhatsApp] = useState(true);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [resending, setResending] = useState(false);
   const [resentMessage, setResentMessage] = useState('');
@@ -88,7 +88,7 @@ export default function Login() {
           setAuthLoading(false);
           return;
         }
-        await api.auth.register(email, password, displayName, phone, notifyWhatsApp ? 'whatsapp' : 'email');
+        await api.auth.register(email, password, displayName, phone, notifyWhatsApp ? 'both' : 'email');
         setMode('verify-email');
         setRegistrationSuccess(false);
         setAuthLoading(false);
