@@ -13,11 +13,11 @@ grupos = resp.json()
 print(f"Grupos activos: {len(grupos)}")
 
 for grupo in grupos:
-    name = grupo["name"]
+    group_url = grupo["url"]
     group_id = grupo["id"]
-    print(f"Scrapeando grupo: {name}")
+    print(f"Scrapeando grupo: {grupo['name']} ({group_url})")
     try:
-        for post in get_posts(name, pages=2, options={"comments": False}):
+        for post in get_posts(group_url, pages=5, options={"comments": False}):
             payload = {
                 "token": TOKEN,
                 "group_id": group_id,
