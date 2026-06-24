@@ -878,6 +878,15 @@ export async function initDb() {
       ALTER TABLE facebook_groups ADD COLUMN IF NOT EXISTS scrape_enabled BOOLEAN DEFAULT TRUE
     `, 'facebook_groups scrape_enabled');
 
+    // Eliminar duplicados de facebook_posts antes de agregar UNIQUE
+    await client.query(`
+      DELETE FROM facebook_posts a USING facebook_posts b
+      WHERE a.id < b.id AND a.fb_post_id = b.fb_post_id
+    `);
+    await client.query(`
+      ALTER TABLE facebook_posts ADD CONSTRAINT facebook_posts_fb_post_id_key UNIQUE (fb_post_id)
+    `).catch(() => {}); // ignore if already exists
+
     await migrate(client, `
       DROP TABLE IF EXISTS family_members
     `, 'drop family_members');
