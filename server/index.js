@@ -628,7 +628,7 @@ async function start() {
     }
   }
   setTimeout(checkAdoptionBroadcast, 10_000);
-  setInterval(checkAdoptionBroadcast, 60 * 60 * 1000);
+  setInterval(checkAdoptionBroadcast, 5 * 60 * 1000);
 }
 
 start().catch(err => {
