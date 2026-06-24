@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { classifyPost } from '../services/geminiClassifier.js';
+import { getSessionFile } from '../services/facebookRelayService.js';
 
 const router = Router();
 
@@ -348,6 +349,24 @@ router.get('/scraper-groups', async (req, res) => {
   } catch (err) {
     console.error('Error fetching scraper groups:', err);
     res.status(500).json({ error: 'Error al obtener grupos' });
+  }
+});
+
+// ==================== SESSION FILE (para el scraper Python) ====================
+
+router.get('/session-file', async (req, res) => {
+  const token = await getScraperToken();
+  const qToken = req.query.token;
+  if (!qToken || qToken !== token) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+  try {
+    const data = await getSessionFile();
+    if (!data) return res.status(404).json({ error: 'No hay sesión guardada' });
+    res.json({ data });
+  } catch (err) {
+    console.error('Error obteniendo session file:', err);
+    res.status(500).json({ error: 'Error al obtener sesión' });
   }
 });
 
