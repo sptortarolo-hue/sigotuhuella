@@ -1,4 +1,4 @@
-import os, requests, sys
+import os, requests, sys, time
 from urllib.parse import urlparse
 from facebook_scraper import get_posts
 
@@ -18,13 +18,18 @@ cookies_path = COOKIES_FILE if os.path.exists(COOKIES_FILE) else None
 if cookies_path:
     print(f"Usando cookies: {cookies_path}")
 
+opts = {
+    "comments": False,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+}
+
 for grupo in grupos:
     group_name = grupo["name"]
     group_id = grupo["id"]
     group_slug = urlparse(grupo["url"]).path.rstrip("/").split("/")[-1]
     print(f"Scrapeando grupo: {group_name} ({group_slug})")
     try:
-        for post in get_posts(group_slug, pages=5, cookies=cookies_path, options={"comments": False}):
+        for post in get_posts(group_slug, pages=5, cookies=cookies_path, options=opts):
             payload = {
                 "token": TOKEN,
                 "group_id": group_id,
@@ -41,6 +46,7 @@ for grupo in grupos:
                 print(f"  OK {post.get('post_id')}")
             else:
                 print(f"  FAIL {post.get('post_id')}: {r.status_code} {r.text}", file=sys.stderr)
+        time.sleep(2)
     except Exception as e:
         print(f"  Error en grupo {group_name}: {e}", file=sys.stderr)
 
@@ -50,4 +56,3 @@ if not cookies_path:
     print("  1. Instalá 'Get cookies.txt' (Chrome) o 'cookies.txt' (Firefox)")
     print("  2. Andá a facebook.com, iniciá sesión")
     print("  3. Exportá cookies → subilas al VPS como /opt/sihuella/cookies.txt")
-    print("  4. También podés setear FB_COOKIES_FILE env para otra ruta")
