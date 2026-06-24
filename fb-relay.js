@@ -323,39 +323,36 @@ async function commentOnPost(b, targetUrl, text) {
   }
 }
 
-async function httpScrapeGroup(groupId, groupUrl) {
-  const cookiesArray = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8'));
-  const jar = {};
-  for (const c of cookiesArray) {
-    if (c.name && c.value) jar[c.name] = c.value;
-  }
-  const cookieStr = Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ');
-  const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
-  const headers = {
-    'User-Agent': ua,
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8',
-    'Cookie': cookieStr,
-  };
+async function scrapeGroup(b, groupId, groupUrl) {
+  const cookies = ensureValidCookies(JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8')));
+  const page = await b.newPage();
   try {
-    const resp = await axios.get(`https://www.facebook.com/groups/${groupId}/`, {
-      headers,
-      timeout: 30000,
-      maxRedirects: 5,
-    });
-
-    const $ = cheerio.load(resp.data);
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
+    await page.setViewport({ width: 1440, height: 900 });
+    await page.goto('about:blank');
+    await page.setCookie(...cookies);
+    await page.goto(groupUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+    await sleep(4000);
+    if (!(await checkSession(page))) {
+      console.log(`[FB Relay] Scrape ${groupId}: sesión expirada`);
+      return [];
+    }
+    const html = await page.content();
+    const $ = cheerio.load(html);
     const posts = [];
     const seen = new Set();
-
     $('div[role="article"]').each((_, el) => {
       const $el = $(el);
-      const link = $el.find('a[href*="/posts/"]').first().attr('href');
-      if (!link) return;
-      const m = link.match(/\/posts\/(\d+)/);
-      if (!m || seen.has(m[1])) return;
-      seen.add(m[1]);
-      const fb_post_id = m[1];
+      const links = [];
+      $el.find('a[href*="/posts/"]').each((_, a) => {
+        const h = $(a).attr('href') || '';
+        const m = h.match(/\/posts\/(\d+)/);
+        if (m) links.push(m[1]);
+      });
+      if (links.length === 0) return;
+      const fb_post_id = links[0];
+      if (seen.has(fb_post_id)) return;
+      seen.add(fb_post_id);
       let content = '';
       const msgEl = $el.find('[data-ad-comet-preview="message"]').first();
       if (msgEl.length) {
@@ -370,7 +367,7 @@ async function httpScrapeGroup(groupId, groupUrl) {
       content = content.replace(/(\d+)\s*[hm]\s*·\s*/g, '').replace(/See more|Ver más|Mostrar más/gi, '').trim().substring(0, 10000);
       const author = $el.find('h2 a, h3 a, strong a, a[href*="/user/"]').first().text().trim();
       const images = [];
-      $el.find('img[src*="scontent"], img[src*="cdn"], img[src*="fbcdn"]').each((_, img) => {
+      $el.find('img[src*="scontent"], img[src*="fbcdn"]').each((_, img) => {
         const src = $(img).attr('src');
         if (src) images.push(src);
       });
@@ -385,17 +382,19 @@ async function httpScrapeGroup(groupId, groupUrl) {
     });
     console.log(`[FB Relay] Scrape ${groupId}: ${posts.length} posts`);
     if (posts.length === 0) {
-      const snippet = resp.data.substring(0, 500);
-      console.log(`[FB Relay]  HTML snippet: ${snippet.replace(/\n/g, ' ').substring(0, 200)}`);
+      const snippet = html.substring(0, 1000).replace(/\n/g, ' ').substring(0, 300);
+      console.log(`[FB Relay]  HTML: ${snippet}`);
     }
     return posts;
   } catch (err) {
-    console.error(`[FB Relay] Error scrapeando grupo ${groupId}:`, err.response?.status, err.message);
+    console.error(`[FB Relay] Error scrapeando grupo ${groupId}:`, err.message);
     return [];
+  } finally {
+    await page.close();
   }
 }
 
-async function scrapeAllGroups() {
+async function scrapeAllGroups(b) {
   try {
     const { data } = await api.get('/fb/groups');
     const groups = data?.groups || [];
@@ -404,7 +403,7 @@ async function scrapeAllGroups() {
     for (const grupo of groups) {
       const groupId = grupo.id;
       const groupUrl = grupo.url;
-      const posts = await httpScrapeGroup(groupId, groupUrl);
+      const posts = await scrapeGroup(b, groupId, groupUrl);
       if (posts.length > 0) {
         try {
           await axios.post(`${baseUrl}/api/facebook/webhook`, { posts }, {
@@ -424,10 +423,9 @@ async function scrapeAllGroups() {
   }
 }
 
-async function executeTask(task) {
+async function executeTask(task, b) {
   await downloadCookies();
   if (!loadCookies()) throw new Error('No hay cookies disponibles');
-  const b = await getBrowser();
 
   if (task.action === 'comment' && task.target_url) {
     await commentOnPost(b, task.target_url, task.message);
@@ -449,6 +447,8 @@ async function main() {
     process.exit(1);
   }
 
+  const b = await getBrowser();
+
   while (true) {
     try {
       // Siempre descargar cookies frescas del servidor
@@ -469,7 +469,7 @@ async function main() {
           console.log('[FB Relay] Hora de scrapear grupos...');
           await downloadCookies();
           if (loadCookies()) {
-            await scrapeAllGroups();
+            await scrapeAllGroups(b);
           }
         }
         await sleep(POLL_INTERVAL);
@@ -479,7 +479,7 @@ async function main() {
       console.log(`[FB Relay] Procesando ${tasks.length} tarea(s)...`);
       for (const task of tasks) {
         try {
-          await executeTask(task);
+          await executeTask(task, b);
         } catch (err) {
           console.error(`[FB Relay] Tarea ${task.id} falló:`, err.message);
           if (err.message === 'session expired') {
