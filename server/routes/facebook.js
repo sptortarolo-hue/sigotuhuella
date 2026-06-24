@@ -269,6 +269,7 @@ router.post('/webhook', async (req, res) => {
         const classification = await classifyPost(content || '', image_urls || [], comments || []);
         const cmtClassified = classification.comments || [];
 
+        const existing = await pool.query('SELECT id FROM facebook_posts WHERE fb_post_id = $1', [fb_post_id]);
         const postResult = await pool.query(
           `INSERT INTO facebook_posts (group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, classification, species, color, location_hint, phone, latitude, longitude)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
@@ -286,6 +287,7 @@ router.post('/webhook', async (req, res) => {
             classification.location_lat, classification.location_lng,
           ]
         );
+        if (existing.rows.length > 0) results.updated++; else results.inserted++;
 
         const postId = postResult.rows[0]?.id;
 

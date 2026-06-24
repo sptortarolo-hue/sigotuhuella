@@ -272,48 +272,19 @@ export async function verifyAllGroupMemberships() {
 
 export async function publishToGroupsViaScraper(groups, message, imageUrls, petId) {
   try {
-    const fbRelayEnabled = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_enabled'");
-    if (fbRelayEnabled.rows[0]?.value === 'true') {
-      const { enqueuePublishTask } = await import('./facebookRelayService.js');
-      const results = [];
-      for (const group of groups) {
-        try {
-          const task = await enqueuePublishTask(petId, group.id, group.fb_group_id, message, imageUrls);
-          results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: true, marker: task.marker });
-        } catch (err) {
-          results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: false, error: err.message });
-        }
-      }
-      return { success: true, results };
-    }
-
-    const { data } = await axios.post(`${VPS_HOST}/publish-to-groups`, {
-      groups,
-      message,
-      image_urls: imageUrls,
-    }, { timeout: 900000 });
-
-    const results = data.results || [];
-
-    for (const r of results) {
-      if (!r.success && r.error && r.error !== 'session expired') {
-        const groupResult = await pool.query(
-          'SELECT id FROM facebook_groups WHERE fb_group_id = $1 OR id = $2',
-          [r.group_id, r.group_id]
-        );
-        if (groupResult.rows.length > 0 && groupResult.rows[0].page_is_member) {
-          await pool.query(
-            'UPDATE facebook_groups SET page_is_member = false, updated_at = NOW() WHERE id = $1',
-            [groupResult.rows[0].id]
-          );
-        }
+    const { enqueuePublishTask } = await import('./facebookRelayService.js');
+    const results = [];
+    for (const group of groups) {
+      try {
+        const task = await enqueuePublishTask(petId, group.id, group.fb_group_id, message, imageUrls);
+        results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: true, marker: task.marker });
+      } catch (err) {
+        results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: false, error: err.message });
       }
     }
-
     return { success: true, results };
   } catch (err) {
-    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-    return { error: `Error llamando al scraper VPS: ${detail}`, results: [] };
+    return { error: `Error publicando via relay: ${err.message}`, results: [] };
   }
 }
 

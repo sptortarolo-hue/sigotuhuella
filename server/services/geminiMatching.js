@@ -68,14 +68,19 @@ async function callGemini(prompt, systemPrompt) {
     throw new Error(`Gemini en cooldown hasta ${retryAt}`);
   }
 
-  const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-lite',
-    contents: systemPrompt + '\n\n' + prompt,
-    config: { responseMimeType: 'application/json' },
-  });
+  try {
+    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-lite',
+      contents: systemPrompt + '\n\n' + prompt,
+      config: { responseMimeType: 'application/json' },
+    });
 
-  return JSON.parse(response.text);
+    return JSON.parse(response.text);
+  } catch (err) {
+    handleGeminiError(err);
+    throw err;
+  }
 }
 
 export async function matchPostToPet(postId) {

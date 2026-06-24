@@ -39,6 +39,22 @@ Reglas:
 - confidence: 0-100 que tan seguro estás
 - No incluyas la URL del post ni metadatos de Facebook en el summary`;
 
+async function groqCreateWithRetry(params, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await groq.chat.completions.create(params);
+    } catch (err) {
+      if (attempt < retries && (err.status === 429 || err.message?.includes('rate_limit') || err.message?.includes('quota'))) {
+        const wait = Math.pow(2, attempt) * 1000;
+        console.warn(`Groq rate limited (attempt ${attempt + 1}), retrying in ${wait}ms`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 export async function classifyPost(text, imageUrls, comments = [], imageBuffers = []) {
   if (!groq) return fallbackClassification(text);
 
@@ -64,7 +80,10 @@ export async function classifyPost(text, imageUrls, comments = [], imageBuffers 
       } else if (imageUrls && imageUrls.length > 0) {
         for (const url of imageUrls.filter(u => u && u.startsWith('http')).slice(0, 3)) {
           try {
-            const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } });
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10000);
+            const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }, signal: controller.signal });
+            clearTimeout(timeout);
             if (resp.ok) {
               const buf = Buffer.from(await resp.arrayBuffer());
               userContent.push({
@@ -78,7 +97,7 @@ export async function classifyPost(text, imageUrls, comments = [], imageBuffers 
         }
       }
 
-      const result = await groq.chat.completions.create({
+      const result = await groqCreateWithRetry({
         model: 'meta-llama/llama-4-scout-17b-16e-instruct',
         messages: [{ role: 'user', content: userContent }],
         temperature: 0,
@@ -89,7 +108,7 @@ export async function classifyPost(text, imageUrls, comments = [], imageBuffers 
       return parseResponse(raw);
     }
 
-    const result = await groq.chat.completions.create({
+    const result = await groqCreateWithRetry({
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: `${CLASSIFICATION_PROMPT}\n\nPost:\n${text || '(sin texto)'}\n\nComentarios:\n${commentsText || '(sin comentarios)'}` }],
       temperature: 0,
