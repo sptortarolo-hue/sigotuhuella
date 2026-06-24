@@ -365,11 +365,11 @@ async function scrapeGroup(b, groupId, groupUrl) {
             .slice(0, 5);
           results.push({
             fb_post_id,
+            fb_post_url: `https://www.facebook.com/groups/${gid}/posts/${fb_post_id}/`,
             author_name: author,
             content,
             image_urls: imgs,
             group_id: gid,
-            post_url: `https://www.facebook.com/groups/${gid}/posts/${fb_post_id}/`,
           });
         } catch (e) { /* skip */ }
       }
@@ -390,18 +390,20 @@ async function scrapeAllGroups(b) {
     const { data } = await api.get('/fb/groups');
     const groups = data?.groups || [];
     console.log(`[FB Relay] Scrapeando ${groups.length} grupo(s)...`);
+    const baseUrl = (process.env.API_BASE_URL || 'https://sigotuhuella.online/api/relay').replace('/api/relay', '');
     for (const grupo of groups) {
       const groupId = grupo.id;
       const groupUrl = grupo.url;
       const posts = await scrapeGroup(b, groupId, groupUrl);
       if (posts.length > 0) {
         try {
-          await api.post('/facebook/webhook', { posts }, {
-            headers: { Authorization: `Bearer ${TOKEN}` }
+          await axios.post(`${baseUrl}/api/facebook/webhook`, { posts }, {
+            headers: { Authorization: `Bearer ${TOKEN}` },
+            timeout: 60000,
           });
           console.log(`[FB Relay] ${posts.length} posts enviados al webhook`);
         } catch (err) {
-          console.error(`[FB Relay] Error enviando posts de grupo ${groupId}:`, err.message);
+          console.error(`[FB Relay] Error enviando posts de grupo ${groupId}:`, err.response?.status, err.message);
         }
       }
       await sleep(3000);
