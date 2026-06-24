@@ -7,7 +7,16 @@ Sin dependencias extra — solo requests (stdlib).
 
 import os, sys, re, json, time, argparse, base64
 from urllib.parse import urlparse
-import requests
+
+try:
+    from curl_cffi import requests as http
+    HAS_CURL = True
+except ImportError:
+    import requests as http
+    HAS_CURL = False
+
+import requests as api_req
+from requests.cookies import RequestsCookieJar
 
 API_BASE = "https://sigotuhuella.online"
 COOKIES_FILE = "fb_cookies.json"
@@ -24,7 +33,7 @@ def main():
 
     # 1. Descargar cookies del servidor
     print("[scraper] Descargando cookies...")
-    r = requests.get(f"{api}/api/facebook/session-file", params={"token": token})
+    r = api_req.get(f"{api}/api/facebook/session-file", params={"token": token})
     if r.status_code == 200:
         raw = r.json()["data"]
         try:
@@ -45,7 +54,7 @@ def main():
 
     # 2. Obtener grupos activos
     print("[scraper] Obteniendo grupos...")
-    r = requests.get(f"{api}/api/facebook/scraper-groups", params={"token": token})
+    r = api_req.get(f"{api}/api/facebook/scraper-groups", params={"token": token})
     if r.status_code != 200:
         print(f"[scraper] Error obteniendo grupos: HTTP {r.status_code} — {r.text}")
         sys.exit(1)
@@ -63,14 +72,13 @@ def main():
         "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
     }
 
-    s = requests.Session()
-    s.headers.update(headers)
+    jar = RequestsCookieJar()
     if cookies:
         for c in cookies:
             if isinstance(c, dict) and "name" in c and "value" in c:
-                s.cookies.set(c["name"], c["value"],
-                              domain=c.get("domain", ".facebook.com"),
-                              path=c.get("path", "/"))
+                jar.set(c["name"], c["value"],
+                        domain=c.get("domain", ".facebook.com"),
+                        path=c.get("path", "/"))
 
     for grupo in grupos:
         gid = grupo["id"]
@@ -81,7 +89,10 @@ def main():
         print(f"[scraper] Scrapeando {name} ({slug})...")
 
         try:
-            resp = s.get(url, timeout=30)
+            kwargs = {"headers": headers, "cookies": jar, "timeout": 30}
+            if HAS_CURL:
+                kwargs["impersonate"] = "chrome"
+            resp = http.get(url, **kwargs)
             if resp.status_code != 200:
                 print(f"  HTTP {resp.status_code} — bloqueado")
                 continue
@@ -148,7 +159,7 @@ def main():
 
             # 4. Enviar al webhook
             for post in posts:
-                r = requests.post(f"{api}/api/facebook/webhook",
+                r = api_req.post(f"{api}/api/facebook/webhook",
                                   json={"posts": [post]},
                                   headers={"Authorization": f"Bearer {token}"})
                 if r.status_code == 200:
