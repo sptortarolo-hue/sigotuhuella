@@ -1,4 +1,5 @@
-import json, os, requests, sys
+import os, requests, sys
+from urllib.parse import urlparse
 from facebook_scraper import get_posts
 
 API_BASE = os.environ.get("API_BASE_URL", "https://sigotuhuella.online")
@@ -13,11 +14,13 @@ grupos = resp.json()
 print(f"Grupos activos: {len(grupos)}")
 
 for grupo in grupos:
-    group_url = grupo["url"]
+    group_name = grupo["name"]
     group_id = grupo["id"]
-    print(f"Scrapeando grupo: {grupo['name']} ({group_url})")
+    url = grupo["url"]
+    group_slug = urlparse(url).path.rstrip("/").split("/")[-1]
+    print(f"Scrapeando grupo: {group_name} ({group_slug})")
     try:
-        for post in get_posts(group_url, pages=5, options={"comments": False}):
+        for post in get_posts(group_slug, pages=5, options={"comments": False}):
             payload = {
                 "token": TOKEN,
                 "group_id": group_id,
@@ -35,4 +38,4 @@ for grupo in grupos:
             else:
                 print(f"  FAIL {post.get('post_id')}: {r.status_code} {r.text}", file=sys.stderr)
     except Exception as e:
-        print(f"  Error en grupo {name}: {e}", file=sys.stderr)
+        print(f"  Error en grupo {group_name}: {e}", file=sys.stderr)
