@@ -29,7 +29,7 @@ for grupo in grupos:
     group_slug = urlparse(grupo["url"]).path.rstrip("/").split("/")[-1]
     print(f"Scrapeando grupo: {group_name} ({group_slug})")
     try:
-        for post in get_posts(group_slug, pages=5, cookies=cookies_path, options=opts):
+        for post in get_posts(group_slug, pages=5, cookies=cookies_path, options=opts, no_http=True):
             payload = {
                 "token": TOKEN,
                 "group_id": group_id,
