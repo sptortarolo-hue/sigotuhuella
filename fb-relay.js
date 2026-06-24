@@ -1,7 +1,7 @@
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import axios from 'axios';
-import * as cheerio from 'cheerio';
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api/relay';
 const TOKEN = process.env.RELAY_TOKEN || process.env.FB_RELAY_TOKEN;
 const POLL_INTERVAL = parseInt(process.env.FB_POLL_INTERVAL || '60000');
-const SCRAPE_INTERVAL = parseInt(process.env.FB_SCRAPE_INTERVAL || '21600000'); // 6h
+
 const COOKIES_PATH = process.env.FB_COOKIES_PATH || path.join(__dirname, 'fb_cookies.json');
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const TMP_DIR = path.join(__dirname, '.fb_img_tmp');
@@ -24,7 +24,6 @@ const api = axios.create({
 });
 
 let browser = null;
-let lastScrapeTime = 0;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function getBrowser() {
@@ -323,109 +322,10 @@ async function commentOnPost(b, targetUrl, text) {
   }
 }
 
-async function scrapeGroup(b, groupId, groupUrl) {
-  const cookies = ensureValidCookies(JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8')));
-  const page = await b.newPage();
-  try {
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
-    await page.setViewport({ width: 1440, height: 900 });
-    await page.goto('about:blank');
-    await page.setCookie(...cookies);
-    await page.goto(groupUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-    await sleep(4000);
-    if (!(await checkSession(page))) {
-      console.log(`[FB Relay] Scrape ${groupId}: sesión expirada`);
-      return [];
-    }
-    const html = await page.content();
-    const $ = cheerio.load(html);
-    const posts = [];
-    const seen = new Set();
-    $('div[role="article"]').each((_, el) => {
-      const $el = $(el);
-      const links = [];
-      $el.find('a[href*="/posts/"]').each((_, a) => {
-        const h = $(a).attr('href') || '';
-        const m = h.match(/\/posts\/(\d+)/);
-        if (m) links.push(m[1]);
-      });
-      if (links.length === 0) return;
-      const fb_post_id = links[0];
-      if (seen.has(fb_post_id)) return;
-      seen.add(fb_post_id);
-      let content = '';
-      const msgEl = $el.find('[data-ad-comet-preview="message"]').first();
-      if (msgEl.length) {
-        content = msgEl.text().trim();
-      } else {
-        $el.find('[dir="auto"]').each((_, d) => {
-          const t = $(d).text().trim();
-          if (t.length > 15) content += t + '\n';
-        });
-        content = content.trim();
-      }
-      content = content.replace(/(\d+)\s*[hm]\s*·\s*/g, '').replace(/See more|Ver más|Mostrar más/gi, '').trim().substring(0, 10000);
-      const author = $el.find('h2 a, h3 a, strong a, a[href*="/user/"]').first().text().trim();
-      const images = [];
-      $el.find('img[src*="scontent"], img[src*="fbcdn"]').each((_, img) => {
-        const src = $(img).attr('src');
-        if (src) images.push(src);
-      });
-      posts.push({
-        fb_post_id,
-        group_id: groupId,
-        author_name: author,
-        content,
-        image_urls: images.slice(0, 5),
-        fb_post_url: `https://www.facebook.com/groups/${groupId}/posts/${fb_post_id}/`,
-      });
-    });
-    console.log(`[FB Relay] Scrape ${groupId}: ${posts.length} posts`);
-    if (posts.length === 0) {
-      const snippet = html.substring(0, 1000).replace(/\n/g, ' ').substring(0, 300);
-      console.log(`[FB Relay]  HTML: ${snippet}`);
-    }
-    return posts;
-  } catch (err) {
-    console.error(`[FB Relay] Error scrapeando grupo ${groupId}:`, err.message);
-    return [];
-  } finally {
-    await page.close();
-  }
-}
-
-async function scrapeAllGroups(b) {
-  try {
-    const { data } = await api.get('/fb/groups');
-    const groups = data?.groups || [];
-    console.log(`[FB Relay] Scrapeando ${groups.length} grupo(s)...`);
-    const baseUrl = (process.env.API_BASE_URL || 'https://sigotuhuella.online/api/relay').replace('/api/relay', '');
-    for (const grupo of groups) {
-      const groupId = grupo.id;
-      const groupUrl = grupo.url;
-      const posts = await scrapeGroup(b, groupId, groupUrl);
-      if (posts.length > 0) {
-        try {
-          await axios.post(`${baseUrl}/api/facebook/webhook`, { posts }, {
-            headers: { Authorization: `Bearer ${TOKEN}` },
-            timeout: 60000,
-          });
-          console.log(`[FB Relay] ${posts.length} posts enviados al webhook`);
-        } catch (err) {
-          console.error(`[FB Relay] Error enviando posts de grupo ${groupId}:`, err.response?.status, err.message);
-        }
-      }
-      await sleep(3000);
-    }
-    lastScrapeTime = Date.now();
-  } catch (err) {
-    console.error('[FB Relay] Error en scrapeAllGroups:', err.message);
-  }
-}
-
-async function executeTask(task, b) {
+async function executeTask(task) {
   await downloadCookies();
   if (!loadCookies()) throw new Error('No hay cookies disponibles');
+  const b = await getBrowser();
 
   if (task.action === 'comment' && task.target_url) {
     await commentOnPost(b, task.target_url, task.message);
@@ -447,11 +347,8 @@ async function main() {
     process.exit(1);
   }
 
-  const b = await getBrowser();
-
   while (true) {
     try {
-      // Siempre descargar cookies frescas del servidor
       await downloadCookies();
 
       if (!loadCookies()) {
@@ -464,14 +361,6 @@ async function main() {
       const tasks = data?.tasks || [];
 
       if (tasks.length === 0) {
-        // Sin tareas pendientes → ver si es hora de scrapear grupos
-        if (Date.now() - lastScrapeTime > SCRAPE_INTERVAL) {
-          console.log('[FB Relay] Hora de scrapear grupos...');
-          await downloadCookies();
-          if (loadCookies()) {
-            await scrapeAllGroups(b);
-          }
-        }
         await sleep(POLL_INTERVAL);
         continue;
       }
@@ -479,7 +368,7 @@ async function main() {
       console.log(`[FB Relay] Procesando ${tasks.length} tarea(s)...`);
       for (const task of tasks) {
         try {
-          await executeTask(task, b);
+          await executeTask(task);
         } catch (err) {
           console.error(`[FB Relay] Tarea ${task.id} falló:`, err.message);
           if (err.message === 'session expired') {
