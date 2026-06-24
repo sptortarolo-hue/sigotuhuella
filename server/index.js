@@ -31,6 +31,7 @@ import phoneRelayRoutes from './routes/phoneRelay.js';
 import facebookRelayRoutes from './routes/facebookRelay.js';
 import invitesRoutes from './routes/invites.js';
 // import { startSyncTimer } from './services/vpsSyncService.js';
+import { startApifyScraper } from './services/apifyScraper.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
 import { publishStory, isConnected } from './services/instagramService.js';
@@ -540,6 +541,9 @@ async function start() {
       console.error('[Instagram Publisher Startup] Error:', err.message);
     }
   }, 5000);
+
+  // Apify scraper: scrape Facebook groups via Apify actor
+  startApifyScraper();
 
   // Facebook publisher: replicate new Instagram posts to Page + Groups every 2 minutes
   setInterval(async () => {
