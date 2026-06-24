@@ -324,54 +324,56 @@ async function commentOnPost(b, targetUrl, text) {
 }
 
 async function httpScrapeGroup(groupId, groupUrl) {
-  const cookies = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8'));
-  const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+  const cookiesArray = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8'));
+  const jar = {};
+  for (const c of cookiesArray) {
+    if (c.name && c.value) jar[c.name] = c.value;
+  }
+  const cookieStr = Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ');
+  const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+  const headers = {
+    'User-Agent': ua,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8',
+    'Cookie': cookieStr,
+  };
   try {
-    const resp = await axios.get(`https://m.facebook.com/groups/${groupId}/`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'es-AR,es;q=0.9',
-        'Cookie': cookieStr,
-      },
+    const resp = await axios.get(`https://www.facebook.com/groups/${groupId}/`, {
+      headers,
       timeout: 30000,
+      maxRedirects: 5,
     });
 
     const $ = cheerio.load(resp.data);
     const posts = [];
     const seen = new Set();
 
-    $('article, div[role="article"]').each((_, el) => {
+    $('div[role="article"]').each((_, el) => {
       const $el = $(el);
-      const html = $el.html() || '';
       const link = $el.find('a[href*="/posts/"]').first().attr('href');
       if (!link) return;
       const m = link.match(/\/posts\/(\d+)/);
       if (!m || seen.has(m[1])) return;
       seen.add(m[1]);
-
       const fb_post_id = m[1];
       let content = '';
-      const msgEl = $el.find('[data-ad-comet-preview="message"], [data-ad-preview="message"]').first();
+      const msgEl = $el.find('[data-ad-comet-preview="message"]').first();
       if (msgEl.length) {
         content = msgEl.text().trim();
       } else {
-        const dirTexts = [];
         $el.find('[dir="auto"]').each((_, d) => {
           const t = $(d).text().trim();
-          if (t.length > 15) dirTexts.push(t);
+          if (t.length > 15) content += t + '\n';
         });
-        content = dirTexts.join('\n');
+        content = content.trim();
       }
       content = content.replace(/(\d+)\s*[hm]\s*·\s*/g, '').replace(/See more|Ver más|Mostrar más/gi, '').trim().substring(0, 10000);
-
       const author = $el.find('h2 a, h3 a, strong a, a[href*="/user/"]').first().text().trim();
       const images = [];
       $el.find('img[src*="scontent"], img[src*="cdn"], img[src*="fbcdn"]').each((_, img) => {
         const src = $(img).attr('src');
         if (src) images.push(src);
       });
-
       posts.push({
         fb_post_id,
         group_id: groupId,
@@ -381,8 +383,11 @@ async function httpScrapeGroup(groupId, groupUrl) {
         fb_post_url: `https://www.facebook.com/groups/${groupId}/posts/${fb_post_id}/`,
       });
     });
-
     console.log(`[FB Relay] Scrape ${groupId}: ${posts.length} posts`);
+    if (posts.length === 0) {
+      const snippet = resp.data.substring(0, 500);
+      console.log(`[FB Relay]  HTML snippet: ${snippet.replace(/\n/g, ' ').substring(0, 200)}`);
+    }
     return posts;
   } catch (err) {
     console.error(`[FB Relay] Error scrapeando grupo ${groupId}:`, err.response?.status, err.message);
