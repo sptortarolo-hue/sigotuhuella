@@ -323,6 +323,7 @@ router.post('/webhook', async (req, res) => {
       }
     }
 
+    console.log(`[Webhook] ${results.inserted} inserted, ${results.updated} updated, ${results.errors} errors`);
     res.json({ ok: true, ...results });
   } catch (err) {
     console.error('Webhook error:', err);
