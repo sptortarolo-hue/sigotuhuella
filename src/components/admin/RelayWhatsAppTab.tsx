@@ -28,6 +28,7 @@ interface GroupInfo {
   group_id: string;
   is_active: boolean;
   auto_broadcast: boolean;
+  broadcast_adoptions: boolean;
 }
 
 const STATUS_BADGES: Record<string, { label: string; color: string }> = {
@@ -108,6 +109,13 @@ export default function RelayWhatsAppTab() {
   const toggleAutoBroadcast = async (id: string, auto_broadcast: boolean) => {
     try {
       await api.whatsapp.updateGroup(id, { auto_broadcast: !auto_broadcast });
+      await fetchGroups();
+    } catch (e) { console.error(e); }
+  };
+
+  const toggleAdoptions = async (id: string, broadcast_adoptions: boolean) => {
+    try {
+      await api.whatsapp.updateGroup(id, { broadcast_adoptions: !broadcast_adoptions });
       await fetchGroups();
     } catch (e) { console.error(e); }
   };
@@ -436,13 +444,14 @@ export default function RelayWhatsAppTab() {
           <div className="overflow-x-auto rounded-2xl border border-brand-accent">
             <table className="w-full text-left min-w-max">
               <thead>
-                <tr className="bg-brand-bg text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  <th className="px-4 py-3">Nombre</th>
-                  <th className="px-4 py-3">Group ID</th>
-                  <th className="px-4 py-3">Activo</th>
-                  <th className="px-4 py-3">Auto</th>
-                  <th className="px-4 py-3">Acciones</th>
-                </tr>
+                  <tr className="bg-brand-bg text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3">Nombre</th>
+                    <th className="px-4 py-3">Group ID</th>
+                    <th className="px-4 py-3">Activo</th>
+                    <th className="px-4 py-3">Auto</th>
+                    <th className="px-4 py-3">Adopciones</th>
+                    <th className="px-4 py-3">Acciones</th>
+                  </tr>
               </thead>
               <tbody className="divide-y divide-brand-accent">
                 {groups.map((g) => (
@@ -469,6 +478,17 @@ export default function RelayWhatsAppTab() {
                         )}
                       >
                         {g.auto_broadcast ? 'Auto' : 'Manual'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleAdoptions(g.id, g.broadcast_adoptions)}
+                        className={cn(
+                          "px-3 py-1 rounded-full text-xs font-bold transition-all",
+                          g.broadcast_adoptions ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-400"
+                        )}
+                      >
+                        {g.broadcast_adoptions ? 'Sí' : 'No'}
                       </button>
                     </td>
                     <td className="px-4 py-3">

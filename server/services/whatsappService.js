@@ -407,7 +407,11 @@ export async function broadcastNextAdoptionPet() {
       return;
     }
 
-    const groups = [{ group_id: '5492214377512-1455053885@g.us', name: 'Adopción Diaria' }];
+    const groups = (await pool.query("SELECT * FROM whatsapp_groups WHERE is_active = TRUE AND broadcast_adoptions = TRUE")).rows;
+    if (groups.length === 0) {
+      console.log('[AdoptionBroadcast] No hay grupos con broadcast_adoptions activado');
+      return;
+    }
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
 
     for (const pet of pets) {

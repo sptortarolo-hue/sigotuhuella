@@ -523,6 +523,8 @@ CREATE TABLE IF NOT EXISTS whatsapp_groups (
   name VARCHAR(255) NOT NULL,
   group_id VARCHAR(255) NOT NULL UNIQUE,
   is_active BOOLEAN DEFAULT TRUE,
+  auto_broadcast BOOLEAN DEFAULT TRUE,
+  broadcast_adoptions BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -797,6 +799,10 @@ export async function initDb() {
     await migrate(client, `
       ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS auto_broadcast BOOLEAN DEFAULT TRUE
     `, 'whatsapp_groups auto_broadcast');
+
+    await migrate(client, `
+      ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS broadcast_adoptions BOOLEAN DEFAULT FALSE
+    `, 'whatsapp_groups broadcast_adoptions');
 
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('relay_admin_phone', '') ON CONFLICT (key) DO NOTHING
