@@ -325,10 +325,10 @@ router.post('/webhook', async (req, res) => {
       }
     }
 
-    console.log(`[Webhook] ${results.inserted} inserted, ${results.updated} updated, ${results.errors} errors`);
+    process.stdout.write(`[Webhook] ${results.inserted} inserted, ${results.updated} updated, ${results.errors} errors\n`);
     res.json({ ok: true, ...results });
   } catch (err) {
-    console.error('Webhook error:', err);
+    process.stderr.write(`Webhook error: ${err.message}\n`);
     res.status(500).json({ error: 'Error al procesar webhook' });
   }
 });
