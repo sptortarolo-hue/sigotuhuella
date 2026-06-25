@@ -927,6 +927,13 @@ export async function initDb() {
       if (count > 0) console.log(`[MIGRATION] Normalized ${count} phones in ${table}.${col}`);
     }
 
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('fb_scraper_hour_1', '8') ON CONFLICT (key) DO NOTHING
+    `, 'fb_scraper_hour_1');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('fb_scraper_hour_2', '20') ON CONFLICT (key) DO NOTHING
+    `, 'fb_scraper_hour_2');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

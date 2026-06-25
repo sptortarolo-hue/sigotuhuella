@@ -41,14 +41,20 @@ export async function scrapeWithApify() {
   console.log(`[Apify Scraper] ${groups.length} grupo(s)...`);
 
   const input = {
-    startUrls: groups.map(g => ({ url: g.url })),
-    resultsLimit: 30,
+    startUrls: groups.map(g => g.url),
+    maxItems: 30,
     viewOption: 'CHRONOLOGICAL',
-    onlyPostsNewerThan: '2 days',
+    onlyPostsNewerThan: '48 hours',
+    includeComments: true,
+    maxConcurrency: 1,
+    proxy: {
+      useApifyProxy: true,
+      apifyProxyGroups: ['RESIDENTIAL'],
+    },
   };
 
   try {
-    const run = await c.actor('apify/facebook-groups-scraper').call(input);
+    const run = await c.actor('memo23/facebook-public-group-posts-scraper').call(input);
     const { items } = await c.dataset(run.defaultDatasetId).listItems();
 
     if (items.length === 0) {
@@ -71,17 +77,17 @@ export async function scrapeWithApify() {
       const images = [];
       if (item.attachments) {
         for (const att of item.attachments) {
-          const src = att?.media?.imageUrl || att?.media?.src || att?.imageUrl || '';
+          const src = att?.photo_image?.uri || att?.thumbnail || att?.media?.imageUrl || att?.media?.src || att?.imageUrl || '';
           if (src) images.push(src);
         }
       }
       if (item.media?.imageUrl) images.push(item.media.imageUrl);
 
       const comments = (item.topComments || []).map(c => ({
-        id: c.id || '',
+        id: c.commentId || c.id || '',
         author: c.profileName || '',
         text: c.text || '',
-        timestamp: c.date || null,
+        timestamp: null,
       }));
 
       const post = {
@@ -130,23 +136,51 @@ export async function scrapeWithApify() {
   }
 }
 
+async function tryScrapeIfScheduled() {
+  try {
+    const hoursRes = await pool.query(
+      "SELECT key, value FROM settings WHERE key IN ('fb_scraper_hour_1', 'fb_scraper_hour_2')"
+    );
+    const map = {};
+    for (const row of hoursRes.rows) {
+      const v = parseInt(row.value);
+      if (!isNaN(v)) map[row.key] = v;
+    }
+    const hour1 = map.fb_scraper_hour_1 ?? 8;
+    const hour2 = map.fb_scraper_hour_2 ?? 20;
+
+    const now = new Intl.DateTimeFormat('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      hour: 'numeric', hour12: false,
+    }).format(new Date());
+    const currentHour = parseInt(now);
+
+    if (currentHour !== hour1 && currentHour !== hour2) return;
+
+    const lastRun = await pool.query("SELECT value FROM settings WHERE key = 'apify_last_scrape_at'");
+    if (lastRun.rows[0]?.value) {
+      const lastDate = new Date(lastRun.rows[0].value);
+      if (!isNaN(lastDate.getTime())) {
+        const lastHour = lastDate.getHours();
+        const today = new Date().toDateString();
+        if (lastHour === currentHour && lastDate.toDateString() === today) return;
+      }
+    }
+
+    await scrapeWithApify();
+  } catch (err) {
+    console.error('[Apify Scraper] Error en scheduler:', err.message);
+  }
+}
+
 export function startApifyScraper() {
-  const interval = parseInt(process.env.APIFY_SCRAPE_INTERVAL || '240') * 60 * 1000;
-  console.log(`[Apify Scraper] Timer cada ${Math.round(interval / 60000)}min`);
+  console.log('[Apify Scraper] Scheduler cada 60s (horas configurables desde Admin)');
 
   setTimeout(async () => {
-    try {
-      await scrapeWithApify();
-    } catch (err) {
-      console.error('[Apify Scraper] Error inicial:', err.message);
-    }
+    await tryScrapeIfScheduled();
   }, 10000);
 
   setInterval(async () => {
-    try {
-      await scrapeWithApify();
-    } catch (err) {
-      console.error('[Apify Scraper] Error en timer:', err.message);
-    }
-  }, interval);
+    await tryScrapeIfScheduled();
+  }, 60000);
 }

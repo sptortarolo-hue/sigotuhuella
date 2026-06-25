@@ -8,7 +8,7 @@ import ImageLightbox from '@/src/components/admin/ImageLightbox';
 import {
   Save, Loader2, Plus, X, Trash2, Edit2, ExternalLink,
   Search, RefreshCw, Check, XCircle, MessageSquare, Map,
-  Globe, Users, Sliders, FlaskConical, Upload,
+  Globe, Users, Sliders, FlaskConical, Upload, Clock,
   LayoutGrid, List, ImageIcon,
 } from 'lucide-react';
 
@@ -854,6 +854,8 @@ function SettingsSection() {
     try {
       await api.settings.update('fb_scraping_enabled', settings.fb_scraping_enabled || 'false');
       await api.settings.update('fb_scraper_token', settings.fb_scraper_token || '');
+      await api.settings.update('fb_scraper_hour_1', settings.fb_scraper_hour_1 || '8');
+      await api.settings.update('fb_scraper_hour_2', settings.fb_scraper_hour_2 || '20');
       setSavedScraper(true);
       setTimeout(() => setSavedScraper(false), 2000);
     } catch (e: any) { alert(e.message); }
@@ -897,6 +899,42 @@ function SettingsSection() {
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm font-mono" />
             <p className="text-xs text-gray-400 mt-1">Debe coincidir con el token en el script del VPS.</p>
           </div>
+
+          {/* Horarios de scraping */}
+          <div className="bg-brand-bg rounded-2xl p-4 space-y-3">
+            <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+              <Clock className="w-4 h-4" /> Horarios de scraping
+            </h4>
+            <p className="text-xs text-gray-500">El scraper corre 2 veces al día en estas horas (Argentina)</p>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 block mb-1">Hora 1</label>
+                <select value={settings.fb_scraper_hour_1 || '8'}
+                  onChange={e => setSettings(p => ({ ...p, fb_scraper_hour_1: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary">
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 block mb-1">Hora 2</label>
+                <select value={settings.fb_scraper_hour_2 || '20'}
+                  onChange={e => setSettings(p => ({ ...p, fb_scraper_hour_2: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary">
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {settings.apify_last_scrape_at && (
+              <p className="text-xs text-gray-400">
+                Último scrape: {new Date(settings.apify_last_scrape_at).toLocaleString('es-AR')}
+              </p>
+            )}
+          </div>
+
           <button onClick={handleSaveScraper} disabled={saving}
             className="px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
             {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
