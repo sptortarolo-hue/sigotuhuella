@@ -130,7 +130,9 @@ export async function scrapeWithApify() {
     );
   } catch (err) {
     console.error('[Apify Scraper] Error:', err.message);
-    console.error('[Apify Scraper] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err)).slice(0, 1000));
+    const errObj = {};
+    try { for (const k of Object.getOwnPropertyNames(err)) errObj[k] = err[k]; } catch(_) {}
+    try { console.error('[Apify Scraper] StatusCode:', err.statusCode, 'Type:', err.type, 'Data:', JSON.stringify(errObj).slice(0, 600)); } catch(_) {}
   }
 }
 
