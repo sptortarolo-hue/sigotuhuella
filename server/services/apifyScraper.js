@@ -36,6 +36,7 @@ export async function scrapeWithApify() {
     includeComments: true,
     proxy: {
       useApifyProxy: true,
+      apifyProxyGroups: ['RESIDENTIAL'],
     },
   };
 
