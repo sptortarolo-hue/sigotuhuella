@@ -45,10 +45,8 @@ export async function scrapeWithApify() {
     maxItems: 30,
     viewOption: 'CHRONOLOGICAL',
     includeComments: true,
-    maxConcurrency: 1,
     proxy: {
       useApifyProxy: true,
-      apifyProxyGroups: ['RESIDENTIAL'],
     },
   };
 
