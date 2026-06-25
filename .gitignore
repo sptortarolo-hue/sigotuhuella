@@ -19,3 +19,6 @@ scripts/tutorial-slides/
 cookies.txt
 storage_state.json
 external/scraper/debug/
+fb-scraper-config.json
+mbasic_debug.html
+fb_scraper_cookies.json
