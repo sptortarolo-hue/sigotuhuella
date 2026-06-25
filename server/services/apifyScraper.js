@@ -41,10 +41,9 @@ export async function scrapeWithApify() {
   console.log(`[Apify Scraper] ${groups.length} grupo(s)...`);
 
   const input = {
-    startUrls: groups.map(g => ({ url: g.url })),
+    startUrls: groups.map(g => g.url),
     maxItems: 30,
     viewOption: 'CHRONOLOGICAL',
-    onlyPostsNewerThan: '48 hours',
     includeComments: true,
     maxConcurrency: 1,
     proxy: {
