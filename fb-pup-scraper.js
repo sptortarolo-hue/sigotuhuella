@@ -391,8 +391,10 @@ async function main() {
     const page = await b.newPage();
 
     try {
+      console.log('[FB Scraper] Step 1: setupSession...');
       await setupSession(page);
 
+      console.log('[FB Scraper] Step 2: navegando al grupo...');
       await page.goto(`https://mbasic.facebook.com/groups/${testGroup}`, {
         waitUntil: 'networkidle2', timeout: 60000,
       });
@@ -403,9 +405,8 @@ async function main() {
       console.log(`[FB Scraper] URL: ${currentUrl}`);
       console.log(`[FB Scraper] Title: ${title}`);
 
-      const ssPath = path.join(__dirname, 'mbasic_debug.png');
-      await page.screenshot({ path: ssPath, fullPage: false });
-      console.log(`[FB Scraper] Screenshot guardado en ${ssPath}`);
+      const isValid = await checkSession(page);
+      console.log(`[FB Scraper] Sesión válida: ${isValid}`);
 
       const html = await page.evaluate(() => document.documentElement.outerHTML);
       const debugPath = path.join(__dirname, 'mbasic_debug.html');
@@ -413,10 +414,20 @@ async function main() {
       const permalinkCount = (html.match(/permalink/g) || []).length;
       console.log(`[FB Scraper] HTML guardado en ${debugPath} (${html.length} chars, ${permalinkCount} menciones 'permalink')`);
 
-      if (!currentUrl.includes('/groups/')) {
-        console.log(`[FB Scraper] ADVERTENCIA: No estamos en una página de grupo. URL: ${currentUrl}`);
+      // Log primeros 2000 chars del HTML
+      console.log('[FB Scraper] HTML preview (primeros 2000 chars):');
+      console.log(html.substring(0, 2000));
+
+      if (permalinkCount < 5) {
+        // Log último segmento con permalink si hay pocos
+        const lastPermalink = html.lastIndexOf('permalink');
+        if (lastPermalink > 0) {
+          console.log('[FB Scraper] Contexto alrededor de "permalink":');
+          console.log(html.substring(Math.max(0, lastPermalink - 300), lastPermalink + 300));
+        }
       }
 
+      console.log('[FB Scraper] Step 3: scrapeGroup...');
       const posts = await scrapeGroup(page, testGroup);
       if (posts.length > 0) {
         console.log(`[FB Scraper] ${posts.length} post(s) encontrados. Enviando...`);
