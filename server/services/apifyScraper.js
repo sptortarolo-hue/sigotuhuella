@@ -23,10 +23,11 @@ export async function scrapeWithApify() {
   const groups = groupsResult.rows;
   const urlToGroupId = {};
   for (const g of groups) {
-    urlToGroupId[g.url.replace(/\/+$/, '')] = g.id;
+    const fbId = g.url.match(/\/groups\/(\d+)/)?.[1];
+    if (fbId) urlToGroupId[fbId] = g.id;
   }
 
-  console.log(`[Apify Scraper] ${groups.length} grupo(s)...`);
+  console.log(`[Apify Scraper] ${groups.length} grupo(s)...`, Object.keys(urlToGroupId));
 
   const input = {
     startUrls: groups.map(g => g.url),
@@ -74,9 +75,8 @@ export async function scrapeWithApify() {
 
     const postsByGroup = {};
     for (const item of items) {
-      const inputUrl = (item.inputUrl || item.facebookUrl || '').replace(/\/+$/, '');
-      const groupId = urlToGroupId[inputUrl] || null;
-      if (!groupId) continue;
+      const groupId = urlToGroupId[item.facebookId] || null;
+      if (!groupId) { console.log('[Apify Scraper] Saltado (sin grupo):', item.facebookId, (item.text||'').slice(0,40)); continue; }
 
       const pidMatch = item.url?.match(/\/posts\/(\d+)/) || item.url?.match(/\/permalink\/(\d+)/);
       const fb_post_id = pidMatch ? pidMatch[1] : item.legacyId || '';
