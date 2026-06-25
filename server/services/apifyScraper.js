@@ -42,9 +42,9 @@ export async function scrapeWithApify() {
 
   const input = {
     startUrls: groups.map(g => ({ url: g.url })),
-    resultsLimit: 15,
+    resultsLimit: 30,
     viewOption: 'CHRONOLOGICAL',
-    onlyPostsNewerThan: '1 day',
+    onlyPostsNewerThan: '2 days',
   };
 
   try {
@@ -121,13 +121,17 @@ export async function scrapeWithApify() {
         [gids]
       );
     }
+
+    await pool.query(
+      "INSERT INTO settings (key, value) VALUES ('apify_last_scrape_at', NOW()::text) ON CONFLICT (key) DO UPDATE SET value = NOW()::text"
+    );
   } catch (err) {
     console.error('[Apify Scraper] Error:', err.message);
   }
 }
 
 export function startApifyScraper() {
-  const interval = parseInt(process.env.APIFY_SCRAPE_INTERVAL || '30') * 60 * 1000;
+  const interval = parseInt(process.env.APIFY_SCRAPE_INTERVAL || '240') * 60 * 1000;
   console.log(`[Apify Scraper] Timer cada ${Math.round(interval / 60000)}min`);
 
   setTimeout(async () => {
