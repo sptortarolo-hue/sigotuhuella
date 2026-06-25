@@ -130,9 +130,13 @@ export async function scrapeWithApify() {
     );
   } catch (err) {
     console.error('[Apify Scraper] Error:', err.message);
-    const errObj = {};
-    try { for (const k of Object.getOwnPropertyNames(err)) errObj[k] = err[k]; } catch(_) {}
-    try { console.error('[Apify Scraper] StatusCode:', err.statusCode, 'Type:', err.type, 'Data:', JSON.stringify(errObj).slice(0, 600)); } catch(_) {}
+    let dataStr = '';
+    try {
+      const errObj = {};
+      for (const k of Object.getOwnPropertyNames(err)) errObj[k] = err[k];
+      dataStr = JSON.stringify(errObj).slice(0, 600);
+    } catch(e) { dataStr = 'circular/error'; }
+    console.error('[Apify Scraper] StatusCode:', err.statusCode, 'Type:', err.type, 'Data:', dataStr);
   }
 }
 
