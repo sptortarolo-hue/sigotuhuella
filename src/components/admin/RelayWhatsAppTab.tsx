@@ -611,7 +611,11 @@ export default function RelayWhatsAppTab() {
             return (
               <button key={pet.id} onClick={() => selectPet(pet.id)} className={cn("text-left p-3 rounded-xl border-2 transition-all", selected ? 'border-brand-primary bg-brand-primary/5' : 'border-brand-accent hover:border-brand-primary/50')}>
                 <div className="flex items-center gap-3">
-                  <span className="text-xl shrink-0">{speciesIcon(pet.species)}</span>
+                  {pet.has_image ? (
+                    <img src={`/api/images/pet/${pet.id}/cover`} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : (
+                    <span className="text-xl shrink-0">{speciesIcon(pet.species)}</span>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="font-bold text-sm truncate">{pet.name || 'Sin nombre'}</p>
                     <p className="text-xs text-gray-500 truncate">{pet.breed || speciesIcon(pet.species)}</p>

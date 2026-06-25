@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle, Bug, Heart } from 'lucide-react';
+import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle, Bug, Heart, Globe, Search, CheckSquare, Square, Send } from 'lucide-react';
+import { cn } from '@/src/lib/utils';
 import { api } from '@/src/lib/api';
 
 interface FbRelayStatus {
@@ -26,6 +27,34 @@ interface FailedTask {
   group_name?: string;
 }
 
+interface PetBrief {
+  id: string;
+  name: string;
+  species: string;
+  breed: string;
+  status: string;
+  location: string;
+  created_at: string;
+  has_image: boolean;
+}
+
+interface FbGroupInfo {
+  id: string;
+  name: string;
+  fb_group_id: string;
+}
+
+const STATUS_BADGES: Record<string, { label: string; color: string }> = {
+  lost: { label: 'Perdido', color: 'bg-red-100 text-red-700' },
+  for_adoption: { label: 'Adopción', color: 'bg-green-100 text-green-700' },
+  sighted: { label: 'Avistado', color: 'bg-yellow-100 text-yellow-700' },
+  retained: { label: 'Retenido', color: 'bg-orange-100 text-orange-700' },
+  accidented: { label: 'Accidentado', color: 'bg-purple-100 text-purple-700' },
+  needs_attention: { label: 'Atención', color: 'bg-pink-100 text-pink-700' },
+  adopted: { label: 'Adoptado', color: 'bg-blue-100 text-blue-700' },
+  reunited: { label: 'Reencuentro', color: 'bg-teal-100 text-teal-700' },
+};
+
 export default function FacebookRelayTab() {
   const [status, setStatus] = useState<FbRelayStatus | null>(null);
   const [failedTasks, setFailedTasks] = useState<FailedTask[]>([]);
@@ -34,6 +63,19 @@ export default function FacebookRelayTab() {
   const [fbAdoptionToggling, setFbAdoptionToggling] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Broadcast pet state
+  const [petCategory, setPetCategory] = useState<'reportados' | 'adopcion'>('reportados');
+  const [petSearch, setPetSearch] = useState('');
+  const [pets, setPets] = useState<PetBrief[]>([]);
+  const [petsLoading, setPetsLoading] = useState(false);
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
+  const [fbGroups, setFbGroups] = useState<FbGroupInfo[]>([]);
+  const [fbGroupsLoading, setFbGroupsLoading] = useState(false);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [broadcastPetLoading, setBroadcastPetLoading] = useState(false);
+  const [broadcastPetResults, setBroadcastPetResults] = useState<any[] | null>(null);
+  const [broadcastPetPreview, setBroadcastPetPreview] = useState('');
 
   async function loadData() {
     try {
@@ -103,6 +145,72 @@ export default function FacebookRelayTab() {
       setFbAdoptionToggling(false);
     }
   }
+
+  const speciesIcon = (species: string) => species === 'cat' ? '🐱' : '🐶';
+
+  async function fetchPets() {
+    setPetsLoading(true);
+    setSelectedPetId(null);
+    setSelectedGroupIds(new Set());
+    setBroadcastPetResults(null);
+    setBroadcastPetPreview('');
+    try {
+      const data = await api.facebookRelay.pets(petCategory, petSearch);
+      setPets(data.pets || []);
+    } catch (e) { /* ignore */ }
+    setPetsLoading(false);
+  }
+
+  async function fetchFbGroups() {
+    setFbGroupsLoading(true);
+    try {
+      const data = await api.facebookRelay.groups();
+      setFbGroups(data.groups || []);
+    } catch (e) { /* ignore */ }
+    setFbGroupsLoading(false);
+  }
+
+  function selectPet(petId: string) {
+    if (selectedPetId === petId) {
+      setSelectedPetId(null);
+      setSelectedGroupIds(new Set());
+      setBroadcastPetResults(null);
+      setBroadcastPetPreview('');
+      return;
+    }
+    setSelectedPetId(petId);
+    setSelectedGroupIds(new Set());
+    setBroadcastPetResults(null);
+    setBroadcastPetPreview('');
+  }
+
+  function toggleGroupSelection(groupId: string) {
+    setSelectedGroupIds(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }
+
+  async function handleBroadcastPet() {
+    if (!selectedPetId || selectedGroupIds.size === 0) return;
+    setBroadcastPetLoading(true);
+    setBroadcastPetResults(null);
+    try {
+      const selected = fbGroups.filter(g => selectedGroupIds.has(g.fb_group_id));
+      const res = await api.facebookRelay.broadcastPet(selectedPetId, selected);
+      setBroadcastPetResults(res.results);
+      setBroadcastPetPreview(res.caption);
+    } catch (err: any) {
+      setBroadcastPetResults([{ groupId: 'Error', status: 'error', error: err.message }]);
+    } finally {
+      setBroadcastPetLoading(false);
+    }
+  }
+
+  useEffect(() => { fetchPets(); }, [petCategory]);
+  useEffect(() => { fetchFbGroups(); }, []);
 
   if (loading) {
     return (
@@ -220,6 +328,121 @@ export default function FacebookRelayTab() {
             <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${status?.adoptionBroadcastEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
+      </div>
+
+      {/* Publicar mascota en grupos de Facebook */}
+      <div className="bg-white rounded-2xl border border-brand-accent p-6 space-y-6">
+        <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+          <Globe className="w-6 h-6" /> Publicar mascota en grupos de Facebook
+        </h2>
+
+        {/* Category + Search */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex rounded-xl border border-brand-accent overflow-hidden">
+            <button onClick={() => setPetCategory('reportados')} className={cn("px-4 py-2.5 text-sm font-bold transition-all", petCategory === 'reportados' ? 'bg-brand-primary text-white' : 'bg-white text-gray-500 hover:bg-brand-bg')}>Reportados</button>
+            <button onClick={() => setPetCategory('adopcion')} className={cn("px-4 py-2.5 text-sm font-bold transition-all", petCategory === 'adopcion' ? 'bg-brand-primary text-white' : 'bg-white text-gray-500 hover:bg-brand-bg')}>En adopción</button>
+          </div>
+          <div className="flex-1 flex gap-2">
+            <input value={petSearch} onChange={e => setPetSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetchPets()} placeholder="Buscar por nombre o raza..." className="flex-1 px-4 py-2.5 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-sm" />
+            <button onClick={fetchPets} className="px-4 py-2.5 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all"><Search className="w-4 h-4" /></button>
+          </div>
+        </div>
+
+        {/* Pet list */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
+          {petsLoading ? (
+            <div className="col-span-full flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-brand-primary" /></div>
+          ) : pets.length === 0 ? (
+            <p className="col-span-full text-center text-gray-400 py-8 text-sm">No hay mascotas en esta categoría</p>
+          ) : pets.map(pet => {
+            const badge = STATUS_BADGES[pet.status] || { label: pet.status, color: 'bg-gray-100 text-gray-600' };
+            const selected = selectedPetId === pet.id;
+            return (
+              <button key={pet.id} onClick={() => selectPet(pet.id)} className={cn("text-left p-3 rounded-xl border-2 transition-all", selected ? 'border-brand-primary bg-brand-primary/5' : 'border-brand-accent hover:border-brand-primary/50')}>
+                <div className="flex items-center gap-3">
+                  {pet.has_image ? (
+                    <img src={`/api/images/pet/${pet.id}/cover`} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : (
+                    <span className="text-xl shrink-0">{speciesIcon(pet.species)}</span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm truncate">{pet.name || 'Sin nombre'}</p>
+                    <p className="text-xs text-gray-500 truncate">{pet.breed || speciesIcon(pet.species)}</p>
+                    <p className="text-xs text-gray-400 truncate">📍 {pet.location?.substring(0, 40) || 'Sin ubicación'}</p>
+                  </div>
+                  <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0", badge.color)}>{badge.label}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Groups list */}
+        {selectedPetId && (
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Seleccionar grupos de Facebook</p>
+            {fbGroupsLoading ? (
+              <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-brand-primary" /></div>
+            ) : fbGroups.length === 0 ? (
+              <p className="text-sm text-gray-400">No hay grupos de Facebook activos. Activá grupos en la sección Grupos de Facebook.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {fbGroups.map(g => {
+                  const checked = selectedGroupIds.has(g.fb_group_id);
+                  return (
+                    <button key={g.id} onClick={() => toggleGroupSelection(g.fb_group_id)} className="flex items-center gap-3 p-3 rounded-xl border border-brand-accent hover:bg-brand-bg/50 transition-all text-left">
+                      {checked ? <CheckSquare className="w-5 h-5 text-brand-primary shrink-0" /> : <Square className="w-5 h-5 text-gray-300 shrink-0" />}
+                      <span className="text-sm font-medium truncate">{g.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Broadcast button */}
+            <div className="flex items-center gap-4 pt-2">
+              <button onClick={handleBroadcastPet} disabled={broadcastPetLoading || selectedGroupIds.size === 0} className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
+                {broadcastPetLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                {broadcastPetLoading ? 'Publicando...' : `Publicar en ${selectedGroupIds.size} grupo${selectedGroupIds.size !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Preview */}
+        {broadcastPetPreview && (
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Preview del mensaje:</p>
+            <pre className="whitespace-pre-wrap text-sm bg-brand-bg rounded-xl p-4 border border-brand-accent font-sans">{broadcastPetPreview}</pre>
+          </div>
+        )}
+
+        {/* Results */}
+        {broadcastPetResults && (
+          <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+            <table className="w-full text-left min-w-max">
+              <thead>
+                <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                  <th className="px-4 py-3">Grupo</th>
+                  <th className="px-4 py-3">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-accent">
+                {broadcastPetResults.map((r, i) => {
+                  const group = fbGroups.find(g => g.fb_group_id === r.groupId);
+                  return (
+                    <tr key={i} className="text-sm">
+                      <td className="px-4 py-3 font-medium">{group?.name || r.groupName || r.groupId}</td>
+                      <td className="px-4 py-3">
+                        {r.status === 'queued' ? <span className="text-green-600 font-bold">Encolado</span> : <span className="text-red-500 font-bold" title={r.error}>Error</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Recent Stats */}

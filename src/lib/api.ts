@@ -256,6 +256,11 @@ export const api = {
     stats: () => request('/relay/fb/stats'),
     failedTasks: () => request('/relay/fb/failed-tasks'),
     debugView: () => request('/relay/fb-debug-view'),
+    pets: (category: string, search?: string) =>
+      request(`/relay/fb/pets?category=${category}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
+    broadcastPet: (petId: string, groups: { id: string; fb_group_id: string; name?: string }[]) =>
+      request('/relay/fb/broadcast-pet', { method: 'POST', body: JSON.stringify({ petId, groups }) }),
+    groups: () => request('/relay/fb/groups-ui'),
   },
 
   myPets: {
