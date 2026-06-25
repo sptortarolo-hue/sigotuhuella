@@ -1,28 +1,16 @@
-import { ApifyClient } from 'apify-client';
 import axios from 'axios';
 import pool from '../db.js';
 
 const APIFY_TOKEN = process.env.APIFY_TOKEN || '';
 const BASE_URL = process.env.BASE_URL || 'https://sigotuhuella.online';
 const WEBHOOK_URL = `${BASE_URL}/api/facebook/webhook`;
-
-let client = null;
-
-function getClient() {
-  if (!client && APIFY_TOKEN) {
-    client = new ApifyClient({ token: APIFY_TOKEN });
-  }
-  return client;
-}
+const APIFY_BASE = 'https://api.apify.com/v2';
 
 export async function scrapeWithApify() {
   if (!APIFY_TOKEN) {
     console.log('[Apify Scraper] APIFY_TOKEN no configurado');
     return;
   }
-
-  const c = getClient();
-  if (!c) return;
 
   const enabled = await pool.query("SELECT value FROM settings WHERE key = 'fb_scraping_enabled'");
   if (enabled.rows[0]?.value !== 'true') return;
@@ -51,8 +39,31 @@ export async function scrapeWithApify() {
   };
 
   try {
-    const run = await c.actor('memo23/facebook-public-group-posts-scraper').call(input);
-    const { items } = await c.dataset(run.defaultDatasetId).listItems();
+    const { data: runData } = await axios.post(`${APIFY_BASE}/acts/memo23~facebook-public-group-posts-scraper/runs`, input, {
+      params: { token: APIFY_TOKEN },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const run = runData.data;
+    const runId = run.id;
+
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      const { data: statusData } = await axios.get(`${APIFY_BASE}/actor-runs/${runId}`, {
+        params: { token: APIFY_TOKEN },
+      });
+      const status = statusData.data.status;
+      if (status === 'SUCCEEDED') { console.log(`[Apify Scraper] Run SUCCEEDED (${i*5}s)`); break; }
+      if (i > 0 && i % 12 === 0) console.log(`[Apify Scraper] Waiting... ${status}`);
+      if (status === 'FAILED' || status === 'ABORTED' || status === 'TIMED-OUT') {
+        console.error(`[Apify Scraper] Run ${status}`);
+        return;
+      }
+    }
+
+    const { data: listData } = await axios.get(`${APIFY_BASE}/datasets/${run.defaultDatasetId}/items`, {
+      params: { token: APIFY_TOKEN, format: 'json' },
+    });
+    const items = Array.isArray(listData) ? listData : (listData.data || []);
 
     if (items.length === 0) {
       console.log('[Apify Scraper] 0 posts nuevos');
