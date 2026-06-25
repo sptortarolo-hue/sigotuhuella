@@ -1,13 +1,10 @@
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
 puppeteer.use(StealthPlugin());
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = process.env.RELAY_TOKEN;
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
@@ -23,7 +20,6 @@ let config = {
   max_posts: 50,
 };
 
-let browser = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function randomJitter() {
@@ -43,18 +39,14 @@ function nextScheduleDelay() {
   return next.getTime() - now.getTime();
 }
 
-async function getBrowser() {
-  if (browser) {
-    try { await browser.version(); return browser; }
-    catch (e) { browser = null; }
-  }
+async function launchBrowser() {
   console.log('[FB Scraper] Lanzando Chromium...');
   if (!fs.existsSync(CHROMIUM_PATH)) {
     console.error(`[FB Scraper] Chromium no encontrado en ${CHROMIUM_PATH}`);
     console.error('[FB Scraper] Ejecutá: pkg install x11-repo && pkg install chromium');
     process.exit(1);
   }
-  browser = await puppeteer.launch({
+  const b = await puppeteer.launch({
     executablePath: CHROMIUM_PATH,
     headless: true,
     args: [
@@ -62,13 +54,20 @@ async function getBrowser() {
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
+      '--single-process',
       '--disable-blink-features=AutomationControlled',
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-features=IsolateOrigins,site-per-process',
     ],
   });
-  return browser;
+  return b;
+}
+
+async function closeBrowser(b) {
+  if (b) {
+    try { await b.close(); } catch {}
+  }
 }
 
 async function downloadCookies() {
@@ -302,10 +301,11 @@ async function scrapeAllGroups(groups) {
     }
   }
 
-  const b = await getBrowser();
-  const page = await b.newPage();
+  const b = await launchBrowser();
+  let page = null;
 
   try {
+    page = await b.newPage();
     await setupSession(page);
     for (const group of groups) {
       try {
@@ -327,7 +327,8 @@ async function scrapeAllGroups(groups) {
       }
     }
   } finally {
-    await page.close();
+    if (page) await page.close().catch(() => {});
+    await closeBrowser(b);
   }
 }
 
@@ -368,83 +369,72 @@ async function main() {
   }
 }
 
-// Modo test: node fb-pup-scraper.js --test <groupId>
-if (process.argv.includes('--test')) {
-  const idx = process.argv.indexOf('--test');
-  const testGroup = process.argv[idx + 1];
-  if (!testGroup) {
-    console.error('Uso: node fb-pup-scraper.js --test <groupId>');
-    process.exit(1);
-  }
-
-  if (!TOKEN) { console.error('FATAL: RELAY_TOKEN no configurado'); process.exit(1); }
-  if (!loadCookies()) {
-    console.log('[FB Scraper] Sin cookies locales, descargando...');
-    if (!(await downloadCookies())) {
-      console.error('[FB Scraper] No hay cookies en el servidor');
+(async () => {
+  if (process.argv.includes('--test')) {
+    const idx = process.argv.indexOf('--test');
+    const testGroup = process.argv[idx + 1];
+    if (!testGroup) {
+      console.error('Uso: node fb-pup-scraper.js --test <groupId>');
       process.exit(1);
     }
-  }
 
-  const b = await getBrowser();
-  const page = await b.newPage();
+    if (!TOKEN) { console.error('FATAL: RELAY_TOKEN no configurado'); process.exit(1); }
+    if (!loadCookies()) {
+      console.log('[FB Scraper] Sin cookies locales, descargando...');
+      if (!(await downloadCookies())) {
+        console.error('[FB Scraper] No hay cookies en el servidor');
+        process.exit(1);
+      }
+    }
 
-  try {
-    await setupSession(page);
+    const b = await launchBrowser();
+    const page = await b.newPage();
 
-    await page.goto(`https://mbasic.facebook.com/groups/${testGroup}`, {
-      waitUntil: 'networkidle2', timeout: 60000,
+    try {
+      await setupSession(page);
+
+      await page.goto(`https://mbasic.facebook.com/groups/${testGroup}`, {
+        waitUntil: 'networkidle2', timeout: 60000,
+      });
+      await sleep(5000);
+
+      const currentUrl = page.url();
+      const title = await page.title();
+      console.log(`[FB Scraper] URL: ${currentUrl}`);
+      console.log(`[FB Scraper] Title: ${title}`);
+
+      const ssPath = path.join(__dirname, 'mbasic_debug.png');
+      await page.screenshot({ path: ssPath, fullPage: false });
+      console.log(`[FB Scraper] Screenshot guardado en ${ssPath}`);
+
+      const html = await page.evaluate(() => document.documentElement.outerHTML);
+      const debugPath = path.join(__dirname, 'mbasic_debug.html');
+      fs.writeFileSync(debugPath, html);
+      const permalinkCount = (html.match(/permalink/g) || []).length;
+      console.log(`[FB Scraper] HTML guardado en ${debugPath} (${html.length} chars, ${permalinkCount} menciones 'permalink')`);
+
+      if (!currentUrl.includes('/groups/')) {
+        console.log(`[FB Scraper] ADVERTENCIA: No estamos en una página de grupo. URL: ${currentUrl}`);
+      }
+
+      const posts = await scrapeGroup(page, testGroup);
+      if (posts.length > 0) {
+        console.log(`[FB Scraper] ${posts.length} post(s) encontrados. Enviando...`);
+        await sendPosts(posts);
+      } else {
+        console.log('[FB Scraper] No se encontraron posts');
+      }
+    } catch (err) {
+      console.error('[FB Scraper] Test falló:', err.message);
+      process.exit(1);
+    } finally {
+      await page.close().catch(() => {});
+      await closeBrowser(b);
+    }
+  } else {
+    main().catch(err => {
+      console.error('[FB Scraper] Error fatal:', err);
+      process.exit(1);
     });
-    await sleep(5000);
-
-    const currentUrl = page.url();
-    const title = await page.title();
-    console.log(`[FB Scraper] URL: ${currentUrl}`);
-    console.log(`[FB Scraper] Title: ${title}`);
-
-    // Capturar screenshot para debug visual
-    const ssPath = path.join(__dirname, 'mbasic_debug.png');
-    await page.screenshot({ path: ssPath, fullPage: false });
-    console.log(`[FB Scraper] Screenshot guardado en ${ssPath}`);
-
-    // Guardar HTML de mbasic para debug
-    const html = await page.evaluate(() => document.documentElement.outerHTML);
-    const debugPath = path.join(__dirname, 'mbasic_debug.html');
-    fs.writeFileSync(debugPath, html);
-    const permalinkCount = (html.match(/permalink/g) || []).length;
-    console.log(`[FB Scraper] HTML guardado en ${debugPath} (${html.length} chars, ${permalinkCount} menciones 'permalink')`);
-
-    if (!currentUrl.includes('/groups/')) {
-      console.log(`[FB Scraper] ADVERTENCIA: No estamos en una página de grupo. URL: ${currentUrl}`);
-    }
-
-    const posts = await scrapeGroup(page, testGroup);
-    if (posts.length > 0) {
-      console.log(`[FB Scraper] ${posts.length} post(s) encontrados. Enviando...`);
-      await sendPosts(posts);
-    } else {
-      console.log('[FB Scraper] No se encontraron posts');
-    }
-  } catch (err) {
-    console.error('[FB Scraper] Test falló:', err.message);
-    if (browser) {
-      try {
-        const pages = await browser.pages();
-        for (const p of pages) {
-          try {
-            console.log(`[FB Scraper] Page: ${await p.title()} | ${p.url()}`);
-          } catch {}
-        }
-      } catch {}
-    }
-    process.exit(1);
-  } finally {
-    await page.close();
-    if (browser) await browser.close();
   }
-} else {
-  main().catch(err => {
-    console.error('[FB Scraper] Error fatal:', err);
-    process.exit(1);
-  });
-}
+})();
