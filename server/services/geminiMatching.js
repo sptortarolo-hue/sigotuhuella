@@ -1,36 +1,12 @@
-import { GoogleGenAI } from '@google/genai';
 import Groq from 'groq-sdk';
 import sharp from 'sharp';
 import pool from '../db.js';
 import { sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from './pushService.js';
+import { matchingAI, imageCaptionAI, textIntentAI, faceCropAI } from './aiProvider.js';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
-
-// Shared rate limiter for all Gemini calls
-let geminiCooldownUntil = 0;
-const COOLDOWN_429 = 5 * 60 * 1000;
-const COOLDOWN_QUOTA = 60 * 60 * 1000;
-
-function isGeminiAvailable() {
-  return Date.now() > geminiCooldownUntil;
-}
-
-function handleGeminiError(error) {
-  const msg = (error?.message || '').toLowerCase();
-  if (msg.includes('429') || msg.includes('rate') || msg.includes('too many')) {
-    geminiCooldownUntil = Date.now() + COOLDOWN_429;
-    console.log(`[gemini] 429 rate limited, cooling down 5 min until ${new Date(geminiCooldownUntil).toISOString()}`);
-  } else if (msg.includes('403') || msg.includes('quota') || msg.includes('exhausted')) {
-    geminiCooldownUntil = Date.now() + COOLDOWN_QUOTA;
-    console.log(`[gemini] Quota exhausted, cooling down 60 min until ${new Date(geminiCooldownUntil).toISOString()}`);
-  }
-}
-
-// ─── Batch matching prompt (1 call instead of 20) ───
 
 const BATCH_MATCH_PROMPT = `Sos un sistema de matching para mascotas perdidas de la app "Sigo Tu Huella".
 Te voy a dar 1 nuevo reporte y una lista de CANDIDATOS numerados.
@@ -59,30 +35,6 @@ Reglas:
 - Incluí SOLO los que tengan match true con score >= 50
 - Si ningún candidato coincide, devolvé matches: []`;
 
-let _callGemini = null;
-
-async function callGemini(prompt, systemPrompt) {
-  if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY no configurada');
-  if (!isGeminiAvailable()) {
-    const retryAt = new Date(geminiCooldownUntil).toISOString();
-    throw new Error(`Gemini en cooldown hasta ${retryAt}`);
-  }
-
-  try {
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-lite',
-      contents: systemPrompt + '\n\n' + prompt,
-      config: { responseMimeType: 'application/json' },
-    });
-
-    return JSON.parse(response.text);
-  } catch (err) {
-    handleGeminiError(err);
-    throw err;
-  }
-}
-
 export async function matchPostToPet(postId) {
   try {
     const postRes = await pool.query('SELECT * FROM facebook_posts WHERE id = $1', [postId]);
@@ -106,10 +58,12 @@ export async function matchPostToPet(postId) {
       `[${i}] ${c.name ? 'Nombre: ' + c.name + ', ' : ''}Especie: ${c.species}, Color: ${c.color || 'no especificado'}, Ubicación: ${c.location || 'no especificada'}, Estado: ${c.status}, Descripción: ${c.description || 'N/A'}`
     ).join('\n');
 
-    const result = await callGemini(
-      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`,
-      BATCH_MATCH_PROMPT
+    const { text: raw, provider } = await matchingAI(
+      BATCH_MATCH_PROMPT,
+      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
     );
+    console.log(`[matching] matchPostToPet usó ${provider}`);
+    const result = JSON.parse(raw);
 
     const matches = [];
     if (result.matches) {
@@ -159,10 +113,12 @@ export async function matchPetToPosts(pet) {
       `[${i}] Publicación FB: ${p.content ? p.content.substring(0, 200) : '(sin texto)'}`
     ).join('\n');
 
-    const result = await callGemini(
-      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`,
-      BATCH_MATCH_PROMPT
+    const { text: raw, provider } = await matchingAI(
+      BATCH_MATCH_PROMPT,
+      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
     );
+    console.log(`[matching] matchPetToPosts usó ${provider}`);
+    const result = JSON.parse(raw);
 
     const matches = [];
     if (result.matches) {
@@ -311,10 +267,12 @@ export async function matchWhatsAppToPets(newPetId) {
       `[${i}] ${c.status === 'lost' ? 'Perdido' : c.status === 'retained' ? 'Encontrado' : 'Avistaje'}: Especie: ${c.species}, Color: ${c.color || 'no especificado'}, Ubicación: ${c.location || 'no especificada'}, Descripción: ${c.description || 'N/A'}`
     ).join('\n');
 
-    const result = await callGemini(
-      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`,
-      BATCH_MATCH_PROMPT
+    const { text: raw, provider } = await matchingAI(
+      BATCH_MATCH_PROMPT,
+      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
     );
+    console.log(`[matching] matchWhatsAppToPets usó ${provider}`);
+    const result = JSON.parse(raw);
 
     const matches = [];
     if (result.matches) {
@@ -378,9 +336,6 @@ Respondé SOLO un JSON:
 }`;
 
 export async function processImageCaption(caption, imageData, imageMime) {
-  if (!groq) {
-    return { intent: 'unclear', location: null, phone: null, phone2: null, description: null };
-  }
   if (!caption && !imageData) {
     return { intent: 'unclear', location: null, phone: null, phone2: null, description: null };
   }
@@ -396,17 +351,13 @@ export async function processImageCaption(caption, imageData, imageMime) {
       userContent.push({ type: 'text', text: caption });
     }
 
-    const result = await groq.chat.completions.create({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-      messages: [
-        { role: 'system', content: PROCESS_IMAGE_CAPTION_PROMPT },
-        { role: 'user', content: userContent },
-      ],
-      temperature: 0,
-    });
-    let raw = result.choices[0]?.message?.content || '{}';
-    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    const parsed = JSON.parse(raw);
+    const { text: raw, provider } = await imageCaptionAI([
+      { role: 'system', content: PROCESS_IMAGE_CAPTION_PROMPT },
+      { role: 'user', content: userContent },
+    ]);
+    console.log(`[processImageCaption] Usó ${provider}`);
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const parsed = JSON.parse(cleaned);
     return {
       intent: parsed.intent || 'unclear',
       species: parsed.species || null,
@@ -472,45 +423,34 @@ const CLASSIFY_PROMPT = `Classify this message from a pet rescue app user. Retur
 Message:`;
 
 export async function classifyTextIntent(text) {
-  if (!groq) return null;
   try {
-    const result = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: CLASSIFY_PROMPT },
-        { role: 'user', content: text },
-      ],
-      max_tokens: 10,
-      temperature: 0,
-    });
-    let raw = (result.choices[0]?.message?.content || '').trim();
-    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim().toLowerCase();
+    const { text: raw, provider } = await textIntentAI([
+      { role: 'system', content: CLASSIFY_PROMPT },
+      { role: 'user', content: text },
+    ]);
+    console.log(`[classifyTextIntent] Usó ${provider}`);
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim().toLowerCase();
     const valid = ['lost', 'found', 'sighted', 'adopt', 'volunteer', 'donate', 'info_qr', 'report_from_fb', 'human', 'greeting', 'other'];
-    return valid.includes(raw) ? raw : null;
+    return valid.includes(cleaned) ? cleaned : null;
   } catch (err) {
-    console.error('Groq classifyTextIntent error:', err);
+    console.error('classifyTextIntent error:', err);
     return null;
   }
 }
 
 export async function detectAndCropPetFace(imageBase64, mimeType) {
-  if (!groq || !imageBase64) return null;
+  if (!imageBase64) return null;
   try {
-    const result = await groq.chat.completions.create({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: 'You are a pet photo cropper. This image contains a pet (dog or cat). Find the animal\'s face/head and return its bounding box as normalized coordinates (0-1) where (x,y) is the top-left corner and (width,height) extends right and down. Return ONLY a JSON object with this exact format: {"x":0.35,"y":0.3,"width":0.3,"height":0.3}. If no animal face is visible, return {"error":"no_face"}.' },
-          { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` } },
-        ],
-      }],
-      temperature: 0,
-      max_tokens: 200,
-    });
-    let raw = result.choices[0]?.message?.content || '{}';
-    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    const faceData = JSON.parse(raw);
+    const { text: raw, provider } = await faceCropAI([{
+      role: 'user',
+      content: [
+        { type: 'text', text: 'You are a pet photo cropper. This image contains a pet (dog or cat). Find the animal\'s face/head and return its bounding box as normalized coordinates (0-1) where (x,y) is the top-left corner and (width,height) extends right and down. Return ONLY a JSON object with this exact format: {"x":0.35,"y":0.3,"width":0.3,"height":0.3}. If no animal face is visible, return {"error":"no_face"}.' },
+        { type: 'image_url', image_url: { url: `data:${mimeType || 'image/jpeg'};base64,${imageBase64}` } },
+      ],
+    }]);
+    console.log(`[detectAndCropPetFace] Usó ${provider}`);
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const faceData = JSON.parse(cleaned);
     if (faceData.error === 'no_face') return null;
     if (typeof faceData.x !== 'number' || typeof faceData.y !== 'number' || typeof faceData.width !== 'number' || typeof faceData.height !== 'number') return null;
 

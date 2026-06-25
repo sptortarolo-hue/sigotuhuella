@@ -1,7 +1,4 @@
-import Groq from 'groq-sdk';
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
+import { classificationAI } from './aiProvider.js';
 
 const CLASSIFICATION_PROMPT = `Eres un clasificador de publicaciones de Facebook sobre mascotas perdidas y encontradas para la app "Sigo Tu Huella".
 Analizá el post, las imágenes y los comentarios asociados. Devolvé SOLO un JSON válido sin markdown:
@@ -39,25 +36,7 @@ Reglas:
 - confidence: 0-100 que tan seguro estás
 - No incluyas la URL del post ni metadatos de Facebook en el summary`;
 
-async function groqCreateWithRetry(params, retries = 2) {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await groq.chat.completions.create(params);
-    } catch (err) {
-      if (attempt < retries && (err.status === 429 || err.message?.includes('rate_limit') || err.message?.includes('quota'))) {
-        const wait = Math.pow(2, attempt) * 1000;
-        console.warn(`Groq rate limited (attempt ${attempt + 1}), retrying in ${wait}ms`);
-        await new Promise(r => setTimeout(r, wait));
-        continue;
-      }
-      throw err;
-    }
-  }
-}
-
 export async function classifyPost(text, imageUrls, comments = [], imageBuffers = []) {
-  if (!groq) return fallbackClassification(text);
-
   const commentsText = comments.map(c => `- ${c.author}: "${c.text}"`).join('\n');
 
   try {
@@ -97,28 +76,21 @@ export async function classifyPost(text, imageUrls, comments = [], imageBuffers 
         }
       }
 
-      const result = await groqCreateWithRetry({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-        messages: [{ role: 'user', content: userContent }],
-        temperature: 0,
-        max_tokens: 1000,
-      });
-      let raw = result.choices[0]?.message?.content || '{}';
-      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-      return parseResponse(raw);
+      const { text: raw, provider } = await classificationAI([{ role: 'user', content: userContent }], true);
+      console.log(`[classifyPost] Usó ${provider}`);
+      const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      return parseResponse(cleaned);
     }
 
-    const result = await groqCreateWithRetry({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: `${CLASSIFICATION_PROMPT}\n\nPost:\n${text || '(sin texto)'}\n\nComentarios:\n${commentsText || '(sin comentarios)'}` }],
-      temperature: 0,
-      max_tokens: 1000,
-    });
-    let raw = result.choices[0]?.message?.content || '{}';
-    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    return parseResponse(raw);
+    const { text: raw, provider } = await classificationAI(
+      [{ role: 'user', content: `${CLASSIFICATION_PROMPT}\n\nPost:\n${text || '(sin texto)'}\n\nComentarios:\n${commentsText || '(sin comentarios)'}` }],
+      false
+    );
+    console.log(`[classifyPost] Usó ${provider}`);
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    return parseResponse(cleaned);
   } catch (err) {
-    console.error('Groq classifyPost error:', err.message);
+    console.error('classifyPost error:', err.message);
     return fallbackClassification(text);
   }
 }
