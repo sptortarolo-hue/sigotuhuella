@@ -219,7 +219,6 @@ export default function Admin() {
       const data = await api.settings.list();
       const map: Record<string, string> = {};
       data.forEach((s: any) => { map[s.key] = s.value; });
-      setWhatsappSettings(map);
       if (map.banner_chapita_visible !== undefined) setBannerChapitaVisible(map.banner_chapita_visible !== 'false');
       if (map.banner_chapita_price !== undefined) setBannerChapitaPrice(map.banner_chapita_price);
       if (map.banner_chapita_is_free !== undefined) setBannerChapitaIsFree(map.banner_chapita_is_free === 'true');

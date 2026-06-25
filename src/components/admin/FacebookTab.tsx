@@ -836,6 +836,8 @@ function SettingsSection() {
   const [savedScraper, setSavedScraper] = useState(false);
   const [savedMatching, setSavedMatching] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [scrapingNow, setScrapingNow] = useState(false);
+  const [scrapeResult, setScrapeResult] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -848,6 +850,19 @@ function SettingsSection() {
       setLoading(false);
     })();
   }, []);
+
+  const handleTriggerScrape = async () => {
+    setScrapingNow(true);
+    setScrapeResult(null);
+    try {
+      const res = await api.facebook.triggerScrape() as any;
+      setScrapeResult(res.success ? `✅ Scrape completado (${res.lastScrape ? new Date(res.lastScrape).toLocaleString('es-AR') : 'ok'})` : '❌ Error');
+      setSettings(p => ({ ...p, apify_last_scrape_at: res.lastScrape || p.apify_last_scrape_at }));
+    } catch (e: any) {
+      setScrapeResult('❌ ' + (e.message || 'Error'));
+    }
+    setScrapingNow(false);
+  };
 
   const handleSaveScraper = async () => {
     setSaving(true);
@@ -932,6 +947,14 @@ function SettingsSection() {
               <p className="text-xs text-gray-400">
                 Último scrape: {new Date(settings.apify_last_scrape_at).toLocaleString('es-AR')}
               </p>
+            )}
+            <button onClick={handleTriggerScrape} disabled={scrapingNow}
+              className="w-full sm:w-auto px-4 py-2.5 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+              {scrapingNow ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              {scrapingNow ? 'Scrapeando...' : 'Scrapear ahora'}
+            </button>
+            {scrapeResult && (
+              <p className="text-xs font-bold" style={{ color: scrapeResult.startsWith('✅') ? '#16a34a' : '#dc2626' }}>{scrapeResult}</p>
             )}
           </div>
 

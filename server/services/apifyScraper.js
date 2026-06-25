@@ -2,15 +2,21 @@ import axios from 'axios';
 import pool from '../db.js';
 
 const APIFY_TOKEN = process.env.APIFY_TOKEN || '';
+let scrapingInProgress = false;
 const BASE_URL = process.env.BASE_URL || 'https://sigotuhuella.online';
 const WEBHOOK_URL = `${BASE_URL}/api/facebook/webhook`;
 const APIFY_BASE = 'https://api.apify.com/v2';
 
 export async function scrapeWithApify() {
+  if (scrapingInProgress) {
+    console.log('[Apify Scraper] Ya hay un scrape en curso, saltando');
+    return;
+  }
   if (!APIFY_TOKEN) {
     console.log('[Apify Scraper] APIFY_TOKEN no configurado');
     return;
   }
+  scrapingInProgress = true;
 
   const enabled = await pool.query("SELECT value FROM settings WHERE key = 'fb_scraping_enabled'");
   if (enabled.rows[0]?.value !== 'true') return;
@@ -149,6 +155,8 @@ export async function scrapeWithApify() {
       dataStr = JSON.stringify(errObj).slice(0, 600);
     } catch(e) { dataStr = 'circular/error'; }
     console.error('[Apify Scraper] StatusCode:', err.statusCode, 'Type:', err.type, 'Data:', dataStr);
+  } finally {
+    scrapingInProgress = false;
   }
 }
 

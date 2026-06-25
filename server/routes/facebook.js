@@ -3,6 +3,7 @@ import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { classifyPost } from '../services/geminiClassifier.js';
 import { getSessionFile } from '../services/facebookRelayService.js';
+import { scrapeWithApify } from '../services/apifyScraper.js';
 
 const router = Router();
 
@@ -266,7 +267,12 @@ router.post('/webhook', async (req, res) => {
         const { group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, comments } = post;
         if (!fb_post_id) { results.errors++; continue; }
 
-        const classification = await classifyPost(content || '', image_urls || [], comments || []);
+        let classification;
+        try {
+          classification = await classifyPost(content || '', image_urls || [], comments || []);
+        } catch (e) {
+          classification = { classification: 'unclassified', species: null, color: null, location_hint: null, phone: null, location_lat: null, location_lng: null, comments: [] };
+        }
         const cmtClassified = classification.comments || [];
 
         const existing = await pool.query('SELECT id FROM facebook_posts WHERE fb_post_id = $1', [fb_post_id]);
@@ -295,7 +301,7 @@ router.post('/webhook', async (req, res) => {
           const rawComments = comments.slice(0, 20);
           for (let i = 0; i < rawComments.length; i++) {
             const cmt = rawComments[i];
-            const cmtClass = cmtClassified[i]?.classification || 'info';
+            const cmtClass = (cmtClassified && cmtClassified[i]?.classification) || 'info';
             await pool.query(
               `INSERT INTO facebook_comments (post_id, fb_comment_id, author_name, text, posted_at, classification)
                VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -318,9 +324,8 @@ router.post('/webhook', async (req, res) => {
           }
         }
 
-        results.inserted++;
       } catch (err) {
-        console.error('Error processing webhook post:', err);
+        console.error('Error processing webhook post:', err.message);
         results.errors++;
       }
     }
@@ -818,6 +823,19 @@ router.get('/publish-status', requireAdmin, async (_req, res) => {
   } catch (err) {
     console.error('Error fetching publish status:', err);
     res.status(500).json({ error: 'Error al obtener estado del publisher' });
+  }
+});
+
+// ==================== TRIGGER SCRAPE ====================
+
+router.post('/trigger-scrape', requireAdmin, async (req, res) => {
+  try {
+    await scrapeWithApify();
+    const lastRun = await pool.query("SELECT value FROM settings WHERE key = 'apify_last_scrape_at'");
+    res.json({ success: true, lastScrape: lastRun.rows[0]?.value || null });
+  } catch (err) {
+    console.error('[Trigger Scrape] Error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
