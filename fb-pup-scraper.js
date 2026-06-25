@@ -65,7 +65,7 @@ async function getBrowser() {
       '--disable-blink-features=AutomationControlled',
       '--no-first-run',
       '--no-default-browser-check',
-      '--disable-features=IsolateOrigins,site-process',
+      '--disable-features=IsolateOrigins,site-per-process',
     ],
   });
   return browser;
@@ -181,9 +181,9 @@ async function setupSession(page) {
 async function scrapeGroup(page, groupId) {
   console.log(`[FB Scraper] Scrapeando grupo ${groupId}...`);
   await page.goto(`https://mbasic.facebook.com/groups/${groupId}`, {
-    waitUntil: 'domcontentloaded', timeout: 45000,
+    waitUntil: 'networkidle2', timeout: 60000,
   });
-  await sleep(3000);
+  await sleep(5000);
 
   if (!(await checkSession(page))) {
     throw new Error('session expired');
@@ -379,15 +379,31 @@ if (process.argv.includes('--test')) {
   try {
     await setupSession(page);
 
-    // Guardar HTML de mbasic para debug
     await page.goto(`https://mbasic.facebook.com/groups/${testGroup}`, {
-      waitUntil: 'domcontentloaded', timeout: 45000,
+      waitUntil: 'networkidle2', timeout: 60000,
     });
-    await sleep(3000);
+    await sleep(5000);
+
+    const currentUrl = page.url();
+    const title = await page.title();
+    console.log(`[FB Scraper] URL: ${currentUrl}`);
+    console.log(`[FB Scraper] Title: ${title}`);
+
+    // Capturar screenshot para debug visual
+    const ssPath = path.join(__dirname, 'mbasic_debug.png');
+    await page.screenshot({ path: ssPath, fullPage: false });
+    console.log(`[FB Scraper] Screenshot guardado en ${ssPath}`);
+
+    // Guardar HTML de mbasic para debug
     const html = await page.evaluate(() => document.documentElement.outerHTML);
     const debugPath = path.join(__dirname, 'mbasic_debug.html');
     fs.writeFileSync(debugPath, html);
-    console.log(`[FB Scraper] HTML guardado en ${debugPath}`);
+    const permalinkCount = (html.match(/permalink/g) || []).length;
+    console.log(`[FB Scraper] HTML guardado en ${debugPath} (${html.length} chars, ${permalinkCount} menciones 'permalink')`);
+
+    if (!currentUrl.includes('/groups/')) {
+      console.log(`[FB Scraper] ADVERTENCIA: No estamos en una página de grupo. URL: ${currentUrl}`);
+    }
 
     const posts = await scrapeGroup(page, testGroup);
     if (posts.length > 0) {
@@ -398,6 +414,16 @@ if (process.argv.includes('--test')) {
     }
   } catch (err) {
     console.error('[FB Scraper] Test falló:', err.message);
+    if (browser) {
+      try {
+        const pages = await browser.pages();
+        for (const p of pages) {
+          try {
+            console.log(`[FB Scraper] Page: ${await p.title()} | ${p.url()}`);
+          } catch {}
+        }
+      } catch {}
+    }
     process.exit(1);
   } finally {
     await page.close();
