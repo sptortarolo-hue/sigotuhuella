@@ -394,6 +394,12 @@ export async function broadcastPetToGroups(petId) {
 
 export async function broadcastNextAdoptionPet() {
   try {
+    const waAdoption = await pool.query("SELECT value FROM settings WHERE key = 'wa_adoption_broadcast_enabled'");
+    if (waAdoption.rows[0]?.value !== 'true') {
+      console.log('[AdoptionBroadcast] wa_adoption_broadcast_enabled desactivado, salteando');
+      return;
+    }
+
     const pets = (await pool.query(`
       SELECT p.*,
         (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
@@ -479,9 +485,9 @@ export async function broadcastFbAdoptionPets() {
       return;
     }
 
-    const fbRelay = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_enabled'");
-    if (fbRelay.rows[0]?.value !== 'true') {
-      console.log('[FbAdoptionBroadcast] fb_relay_enabled no está activado, salteando broadcast a Facebook');
+    const fbAdoption = await pool.query("SELECT value FROM settings WHERE key = 'fb_adoption_broadcast_enabled'");
+    if (fbAdoption.rows[0]?.value !== 'true') {
+      console.log('[FbAdoptionBroadcast] fb_adoption_broadcast_enabled desactivado, salteando');
       return;
     }
 

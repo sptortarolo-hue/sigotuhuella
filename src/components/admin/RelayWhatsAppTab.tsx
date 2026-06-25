@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode, Search, CheckSquare, Square, Plus, Trash2, Bell, Check, Save } from 'lucide-react';
+import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode, Search, CheckSquare, Square, Plus, Trash2, Bell, Check, Save, Heart } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { cn } from '@/src/lib/utils';
 
@@ -60,6 +60,8 @@ export default function RelayWhatsAppTab() {
   const [broadcastResults, setBroadcastResults] = useState<any[] | null>(null);
 
   const [toggling, setToggling] = useState(false);
+  const [waAdoptionEnabled, setWaAdoptionEnabled] = useState(false);
+  const [waAdoptionToggling, setWaAdoptionToggling] = useState(false);
 
   // Broadcast UI state
   const [petCategory, setPetCategory] = useState<'reportados' | 'adopcion'>('reportados');
@@ -184,6 +186,12 @@ export default function RelayWhatsAppTab() {
   }, []);
 
   useEffect(() => {
+    api.settings.get('wa_adoption_broadcast_enabled').then(v => {
+      if (v === 'true') setWaAdoptionEnabled(true);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     fetchFailedMessages();
     const interval = setInterval(fetchFailedMessages, 30000);
     return () => clearInterval(interval);
@@ -266,6 +274,19 @@ export default function RelayWhatsAppTab() {
       setError(err.message);
     } finally {
       setToggling(false);
+    }
+  };
+
+  const handleWaAdoptionToggle = async () => {
+    setWaAdoptionToggling(true);
+    try {
+      const newValue = waAdoptionEnabled ? 'false' : 'true';
+      await api.settings.update('wa_adoption_broadcast_enabled', newValue);
+      setWaAdoptionEnabled(!waAdoptionEnabled);
+    } catch (e) {
+      console.error('Error toggling WA adoption broadcast:', e);
+    } finally {
+      setWaAdoptionToggling(false);
     }
   };
 
@@ -400,6 +421,29 @@ export default function RelayWhatsAppTab() {
           >
             {adminPhoneSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
             {adminPhoneSaved ? 'Guardado' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+
+      {/* Adopción Broadcast Toggle */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Heart className="w-5 h-5 text-red-500" />
+            <div>
+              <h3 className="text-lg font-bold">Difusión automática de adopciones</h3>
+              <p className="text-sm text-gray-500">
+                Publicar nuevas mascotas en adopción en los grupos con columna "Adopciones" activada
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleWaAdoptionToggle}
+            disabled={waAdoptionToggling}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors shrink-0 ${waAdoptionEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+          >
+            {waAdoptionToggling && <Loader2 className="absolute left-1 w-5 h-5 animate-spin text-white" />}
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${waAdoptionEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
       </div>

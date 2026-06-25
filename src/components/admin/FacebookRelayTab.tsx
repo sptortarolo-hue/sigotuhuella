@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle, Bug } from 'lucide-react';
+import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle, Bug, Heart } from 'lucide-react';
 import { api } from '@/src/lib/api';
 
 interface FbRelayStatus {
   enabled: boolean;
   hasSession: boolean;
+  adoptionBroadcastEnabled: boolean;
   stats: {
     pending: number;
     completed: number;
@@ -30,6 +31,7 @@ export default function FacebookRelayTab() {
   const [failedTasks, setFailedTasks] = useState<FailedTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
+  const [fbAdoptionToggling, setFbAdoptionToggling] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,6 +88,19 @@ export default function FacebookRelayTab() {
       await loadData();
     } catch (err) {
       console.error('Clear session error:', err);
+    }
+  }
+
+  async function handleFbAdoptionToggle() {
+    setFbAdoptionToggling(true);
+    try {
+      const newValue = status?.adoptionBroadcastEnabled ? 'false' : 'true';
+      await api.settings.update('fb_adoption_broadcast_enabled', newValue);
+      setStatus(prev => prev ? { ...prev, adoptionBroadcastEnabled: !prev.adoptionBroadcastEnabled } : null);
+    } catch (err) {
+      console.error('Error toggling FB adoption broadcast:', err);
+    } finally {
+      setFbAdoptionToggling(false);
     }
   }
 
@@ -181,6 +196,29 @@ export default function FacebookRelayTab() {
               <CheckCircle className="w-4 h-4" /> Sesión activa
             </span>
           )}
+        </div>
+      </div>
+
+      {/* Adoption Broadcast Toggle */}
+      <div className="bg-white rounded-2xl border border-brand-accent p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Heart className="w-5 h-5 text-red-500" />
+            <div>
+              <h3 className="text-lg font-bold">Difusión de adopciones</h3>
+              <p className="text-sm text-gray-500">
+                Publicar automáticamente mascotas en adopción en grupos de Facebook
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleFbAdoptionToggle}
+            disabled={fbAdoptionToggling}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors shrink-0 ${status?.adoptionBroadcastEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+          >
+            {fbAdoptionToggling && <Loader2 className="absolute left-1 w-5 h-5 animate-spin text-white" />}
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${status?.adoptionBroadcastEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
         </div>
       </div>
 

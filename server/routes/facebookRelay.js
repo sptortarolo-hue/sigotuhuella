@@ -65,7 +65,9 @@ router.get('/fb/status', requireAdmin, async (req, res) => {
     const enabled = await isEnabled();
     const stats = await getStats();
     const hasSession = !!(await getSessionFile());
-    res.json({ enabled, hasSession, stats });
+    const adoptionSetting = await pool.query("SELECT value FROM settings WHERE key = 'fb_adoption_broadcast_enabled'");
+    const adoptionBroadcastEnabled = adoptionSetting.rows[0]?.value === 'true';
+    res.json({ enabled, hasSession, stats, adoptionBroadcastEnabled });
   } catch (err) {
     console.error('[FB Relay] status error:', err.message);
     res.status(500).json({ error: err.message });
