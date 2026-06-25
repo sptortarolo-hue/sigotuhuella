@@ -12,30 +12,34 @@ const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = process.env.RELAY_TOKEN;
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const COOKIES_PATH = path.join(__dirname, 'fb_scraper_cookies.json');
-const CONFIG_PATH = path.join(__dirname, 'fb-scraper-config.json');
-const POLL_MS = 3 * 60 * 60 * 1000;
-const JITTER_MS = 15 * 60 * 1000;
-const OPEN_HOUR = 8;
-const CLOSE_HOUR = 22;
 const BATCH_SIZE = 10;
+
+// Defaults (overridden by API config)
+let config = {
+  hour_start: 8,
+  hour_end: 22,
+  interval_hours: 3,
+  jitter_minutes: 15,
+  max_posts: 50,
+};
 
 let browser = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function randomJitter() {
-  return Math.floor(Math.random() * JITTER_MS * 2 - JITTER_MS);
+  return Math.floor(Math.random() * config.jitter_minutes * 60 * 1000 * 2 - config.jitter_minutes * 60 * 1000);
 }
 
 function isWithinSchedule() {
   const hour = new Date().getHours();
-  return hour >= OPEN_HOUR && hour < CLOSE_HOUR;
+  return hour >= config.hour_start && hour < config.hour_end;
 }
 
 function nextScheduleDelay() {
   const now = new Date();
   const next = new Date(now);
-  next.setHours(OPEN_HOUR, 0, 0, 0);
-  if (now.getHours() >= CLOSE_HOUR) next.setDate(next.getDate() + 1);
+  next.setHours(config.hour_start, 0, 0, 0);
+  if (now.getHours() >= config.hour_end) next.setDate(next.getDate() + 1);
   return next.getTime() - now.getTime();
 }
 
@@ -127,19 +131,36 @@ async function checkSession(page) {
   return !(page.url().includes('login') || page.url().includes('checkpoint') || hasLogin);
 }
 
-async function loadConfig() {
-  if (!fs.existsSync(CONFIG_PATH)) {
-    console.error(`[FB Scraper] Config no encontrado: ${CONFIG_PATH}`);
-    console.error('[FB Scraper] Creá fb-scraper-config.json con: { "groups": ["id1", "id2"] }');
-    process.exit(1);
+async function fetchConfig() {
+  try {
+    const { data } = await axios.get(`${VPS_URL}/api/facebook/scraper-config`, {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      timeout: 10000,
+    });
+    if (data) {
+      config.hour_start = parseInt(data.hour_start) || 8;
+      config.hour_end = parseInt(data.hour_end) || 22;
+      config.interval_hours = parseInt(data.interval_hours) || 3;
+      config.jitter_minutes = parseInt(data.jitter_minutes) || 15;
+      config.max_posts = parseInt(data.max_posts) || 50;
+    }
+  } catch (e) {
+    console.error('[FB Scraper] Error fetching config, usando defaults:', e.message);
   }
-  const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
-  const config = JSON.parse(raw);
-  if (!config.groups || !Array.isArray(config.groups) || config.groups.length === 0) {
-    console.error('[FB Scraper] Config inválido: se requiere groups[] no vacío');
-    process.exit(1);
+}
+
+async function fetchGroups() {
+  const { data } = await axios.get(`${VPS_URL}/api/facebook/scraper-groups`, {
+    headers: { Authorization: `Bearer ${TOKEN}` },
+    timeout: 15000,
+  });
+  if (!Array.isArray(data) || data.length === 0) {
+    console.log('[FB Scraper] No hay grupos activos con scrape habilitado');
+    return [];
   }
-  return config.groups;
+  const groups = data.map(g => ({ id: g.fb_group_id, name: g.name }));
+  console.log(`[FB Scraper] ${groups.length} grupo(s) desde el admin: ${groups.map(g => g.name).join(', ')}`);
+  return groups;
 }
 
 async function setupSession(page) {
@@ -259,7 +280,7 @@ async function sendPosts(posts) {
   }
 }
 
-async function scrapeAllGroups(groupIds) {
+async function scrapeAllGroups(groups) {
   if (!loadCookies()) {
     console.log('[FB Scraper] Sin cookies locales, descargando...');
     if (!(await downloadCookies())) {
@@ -273,9 +294,13 @@ async function scrapeAllGroups(groupIds) {
 
   try {
     await setupSession(page);
-    for (const groupId of groupIds) {
+    for (const group of groups) {
       try {
-        const posts = await scrapeGroup(page, groupId);
+        let posts = await scrapeGroup(page, group.id);
+        if (posts.length > config.max_posts) {
+          console.log(`[FB Scraper] Limitando a ${config.max_posts} posts (encontrados ${posts.length})`);
+          posts = posts.slice(0, config.max_posts);
+        }
         if (posts.length > 0) {
           await sendPosts(posts);
         }
@@ -285,7 +310,7 @@ async function scrapeAllGroups(groupIds) {
           await downloadCookies();
           throw err;
         }
-        console.error(`[FB Scraper] Error en grupo ${groupId}:`, err.message);
+        console.error(`[FB Scraper] Error en grupo ${group.id} (${group.name}):`, err.message);
       }
     }
   } finally {
@@ -299,25 +324,31 @@ async function main() {
     process.exit(1);
   }
 
-  const groupIds = await loadConfig();
-  console.log(`[FB Scraper] Iniciando con ${groupIds.length} grupo(s): ${groupIds.join(', ')}`);
-
   while (true) {
+    await fetchConfig();
+    const groups = await fetchGroups();
+
     if (!isWithinSchedule()) {
       const delay = nextScheduleDelay();
-      console.log(`[FB Scraper] Fuera de horario (${OPEN_HOUR}:00-${CLOSE_HOUR}:00). Próximo ciclo en ${Math.round(delay / 60000)}min`);
+      console.log(`[FB Scraper] Fuera de horario (${config.hour_start}:00-${config.hour_end}:00). Próximo ciclo en ${Math.round(delay / 60000)}min`);
       await sleep(delay);
       continue;
     }
 
+    if (groups.length === 0) {
+      console.log('[FB Scraper] Sin grupos, esperando al próximo ciclo...');
+      await sleep(config.interval_hours * 60 * 60 * 1000);
+      continue;
+    }
+
     try {
-      await scrapeAllGroups(groupIds);
+      await scrapeAllGroups(groups);
     } catch (err) {
       console.error('[FB Scraper] Error en ciclo:', err.message);
     }
 
     const jitter = randomJitter();
-    const delay = POLL_MS + jitter;
+    const delay = config.interval_hours * 60 * 60 * 1000 + jitter;
     const next = new Date(Date.now() + delay);
     console.log(`[FB Scraper] Próximo scrape: ${next.toLocaleTimeString()} (en ${Math.round(delay / 60000)}min, jitter ${Math.round(jitter / 60000)}min)`);
     await sleep(delay);

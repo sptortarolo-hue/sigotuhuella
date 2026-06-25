@@ -342,8 +342,11 @@ router.post('/webhook', async (req, res) => {
 
 router.get('/scraper-groups', async (req, res) => {
   const token = await getScraperToken();
+  const relayToken = process.env.RELAY_TOKEN;
   const qToken = req.query.token;
-  if (!qToken || qToken !== token) {
+  const authHeader = req.headers.authorization;
+  const isRelay = relayToken && authHeader === `Bearer ${relayToken}`;
+  if (!isRelay && (!qToken || qToken !== token)) {
     return res.status(401).json({ error: 'Token inválido' });
   }
   const enabled = await isScrapingEnabled();
@@ -358,6 +361,34 @@ router.get('/scraper-groups', async (req, res) => {
   } catch (err) {
     console.error('Error fetching scraper groups:', err);
     res.status(500).json({ error: 'Error al obtener grupos' });
+  }
+});
+
+// ==================== SCRAPER CONFIG (para fb-pup-scraper) ====================
+
+router.get('/scraper-config', async (req, res) => {
+  const relayToken = process.env.RELAY_TOKEN;
+  const authHeader = req.headers.authorization;
+  if (!relayToken || authHeader !== `Bearer ${relayToken}`) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+  try {
+    const keys = ['fb_scraper_hour_1', 'fb_scraper_hour_2', 'fb_scraper_interval_hours', 'fb_scraper_jitter_minutes', 'fb_scraper_max_posts', 'fb_scraping_enabled'];
+    const placeholders = keys.map((_, i) => '$' + (i + 1)).join(',');
+    const result = await pool.query(`SELECT key, value FROM settings WHERE key IN (${placeholders})`, keys);
+    const data = { hour_start: '8', hour_end: '22', interval_hours: '3', jitter_minutes: '15', max_posts: '50', scraping_enabled: 'false' };
+    result.rows.forEach(r => {
+      if (r.key === 'fb_scraper_hour_1') data.hour_start = r.value;
+      else if (r.key === 'fb_scraper_hour_2') data.hour_end = r.value;
+      else if (r.key === 'fb_scraper_interval_hours') data.interval_hours = r.value;
+      else if (r.key === 'fb_scraper_jitter_minutes') data.jitter_minutes = r.value;
+      else if (r.key === 'fb_scraper_max_posts') data.max_posts = r.value;
+      else if (r.key === 'fb_scraping_enabled') data.scraping_enabled = r.value;
+    });
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching scraper config:', err);
+    res.status(500).json({ error: 'Error al obtener configuración' });
   }
 });
 

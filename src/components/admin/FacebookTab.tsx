@@ -871,6 +871,9 @@ function SettingsSection() {
       await api.settings.update('fb_scraper_token', settings.fb_scraper_token || '');
       await api.settings.update('fb_scraper_hour_1', settings.fb_scraper_hour_1 || '8');
       await api.settings.update('fb_scraper_hour_2', settings.fb_scraper_hour_2 || '20');
+      await api.settings.update('fb_scraper_interval_hours', settings.fb_scraper_interval_hours || '3');
+      await api.settings.update('fb_scraper_jitter_minutes', settings.fb_scraper_jitter_minutes || '15');
+      await api.settings.update('fb_scraper_max_posts', settings.fb_scraper_max_posts || '50');
       setSavedScraper(true);
       setTimeout(() => setSavedScraper(false), 2000);
     } catch (e: any) { alert(e.message); }
@@ -915,15 +918,15 @@ function SettingsSection() {
             <p className="text-xs text-gray-400 mt-1">Debe coincidir con el token en el script del VPS.</p>
           </div>
 
-          {/* Horarios de scraping */}
+          {/* Configuración del scraper Puppeteer */}
           <div className="bg-brand-bg rounded-2xl p-4 space-y-3">
             <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-              <Clock className="w-4 h-4" /> Horarios de scraping
+              <Clock className="w-4 h-4" /> Configuración del scraper (Puppeteer)
             </h4>
-            <p className="text-xs text-gray-500">El scraper corre 2 veces al día en estas horas (Argentina)</p>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="text-xs font-bold text-gray-500 block mb-1">Hora 1</label>
+            <p className="text-xs text-gray-500">El scraper corre en bucle cada N horas dentro de la banda horaria</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1">Inicio banda horaria</label>
                 <select value={settings.fb_scraper_hour_1 || '8'}
                   onChange={e => setSettings(p => ({ ...p, fb_scraper_hour_1: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary">
@@ -932,15 +935,36 @@ function SettingsSection() {
                   ))}
                 </select>
               </div>
-              <div className="flex-1">
-                <label className="text-xs font-bold text-gray-500 block mb-1">Hora 2</label>
-                <select value={settings.fb_scraper_hour_2 || '20'}
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1">Fin banda horaria</label>
+                <select value={settings.fb_scraper_hour_2 || '22'}
                   onChange={e => setSettings(p => ({ ...p, fb_scraper_hour_2: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary">
                   {Array.from({ length: 24 }, (_, i) => (
                     <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1">Intervalo (horas)</label>
+                <input type="number" value={settings.fb_scraper_interval_hours || '3'}
+                  onChange={e => setSettings(p => ({ ...p, fb_scraper_interval_hours: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary"
+                  min="1" max="24" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1">Jitter aleatorio (min)</label>
+                <input type="number" value={settings.fb_scraper_jitter_minutes || '15'}
+                  onChange={e => setSettings(p => ({ ...p, fb_scraper_jitter_minutes: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary"
+                  min="0" max="120" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1">Máx. posts por ciclo</label>
+                <input type="number" value={settings.fb_scraper_max_posts || '50'}
+                  onChange={e => setSettings(p => ({ ...p, fb_scraper_max_posts: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary"
+                  min="1" max="200" />
               </div>
             </div>
             {settings.apify_last_scrape_at && (
