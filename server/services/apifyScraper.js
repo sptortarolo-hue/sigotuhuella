@@ -129,11 +129,8 @@ export async function scrapeWithApify() {
       "INSERT INTO settings (key, value) VALUES ('apify_last_scrape_at', NOW()::text) ON CONFLICT (key) DO UPDATE SET value = NOW()::text"
     );
   } catch (err) {
-    const body = err.response?.data || err.response?.body || '';
-    if (body) {
-      console.error('[Apify Scraper] Error 400 body:', typeof body === 'string' ? body.slice(0, 500) : JSON.stringify(body).slice(0, 500));
-    }
     console.error('[Apify Scraper] Error:', err.message);
+    console.error('[Apify Scraper] Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err)).slice(0, 1000));
   }
 }
 
