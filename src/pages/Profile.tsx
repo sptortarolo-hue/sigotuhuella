@@ -327,7 +327,8 @@ export default function Profile() {
                         )}
                       </div>
                       <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 block">Notificaciones por WhatsApp</label>
+                        <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1 block">Canal de notificaciones</label>
+                        <p className="text-xs text-gray-400 mb-3">Elegí cómo querés recibir las alertas de reportes, reencuentros y novedades</p>
                         <div className="space-y-2">
                           {[
                             { value: 'both', label: 'WhatsApp + Email' },

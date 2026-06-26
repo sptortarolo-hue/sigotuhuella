@@ -499,7 +499,7 @@ export default function Login() {
                     onChange={e => setNotifyWhatsApp(e.target.checked)}
                     className="w-4 h-4 accent-brand-primary"
                   />
-                  <span className="text-xs text-gray-600 font-medium">Recibir notificaciones por WhatsApp</span>
+                  <span className="text-xs text-gray-600 font-medium">Recibir notificaciones por WhatsApp y email</span>
                 </label>
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
