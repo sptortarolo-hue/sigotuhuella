@@ -75,6 +75,45 @@ router.get('/relay-failed', requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/pending-list', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, wa_to, text, image_url, created_at FROM relay_messages WHERE status = 'pending' ORDER BY created_at ASC LIMIT 50"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[Relay] pending-list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/recent-sent', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, wa_to, text, image_url, sent_at FROM relay_messages WHERE status = 'sent' ORDER BY sent_at DESC LIMIT 10"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[Relay] recent-sent error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/message/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      "DELETE FROM relay_messages WHERE id = $1 AND status = 'pending' RETURNING id",
+      [id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Mensaje no encontrado o ya no está pendiente' });
+    res.json({ success: true, deleted: id });
+  } catch (err) {
+    console.error('[Relay] delete message error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/qr', relayAuth, async (req, res) => {
   try {
     const { image } = req.body;
