@@ -1,10 +1,8 @@
-import https from 'https';
-import http from 'http';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const https = require('https');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VPS_URL = 'sigotuhuella.online';
 const TOKEN = process.env.RELAY_TOKEN;
 const COOKIES_PATH = path.join(__dirname, 'fb_scraper_cookies.json');
@@ -168,9 +166,8 @@ async function sendPosts(posts) {
   for (let i = 0; i < posts.length; i += BATCH_SIZE) {
     const batch = posts.slice(i, i + BATCH_SIZE);
     try {
-      const r = await httpsPost('/api/facebook/webhook', { posts: batch }, { Authorization: `Bearer ${TOKEN}` });
-      const d = JSON.parse(r.body);
-      console.log(`[FB Scraper] Batch ${i / BATCH_SIZE + 1}: ${r.status}`);
+      await httpsPost('/api/facebook/webhook', { posts: batch }, { Authorization: `Bearer ${TOKEN}` });
+      console.log(`[FB Scraper] Batch ${i / BATCH_SIZE + 1} enviado`);
     } catch (e) { console.error('[FB Scraper] Error:', e.message); }
   }
 }
