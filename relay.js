@@ -1,4 +1,6 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
+const { readdirSync, existsSync } = require('fs');
+const path = require('path');
 const axios = require('axios');
 const QR = require('qrcode-terminal');
 const QRCode = require('qrcode');
@@ -7,13 +9,23 @@ const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
 const POLL_INTERVAL = 30000;
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 3;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const PREWARM_DELAY = 2000;
+const TIMELOCK_CHECK_MS = 60000;
 
 const replyCooldowns = new Map();
+const knownContacts = new Set();
+const recent463Jids = new Map();
 let sock = null;
 let pollTimer = null;
 let reconnectCount = 0;
+
+const timelock = {
+  active: false,
+  expiresAt: 0,
+  checkTimer: null,
+};
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
@@ -33,6 +45,75 @@ function getReconnectDelay() {
   const delays = [10, 30, 60, 120];
   const idx = Math.min(reconnectCount, delays.length - 1);
   return delays[idx] * 1000;
+}
+
+function loadKnownContacts() {
+  const authDir = path.join(__dirname, 'auth_info');
+  if (!existsSync(authDir)) return;
+  try {
+    const files = readdirSync(authDir);
+    for (const f of files) {
+      if (f.startsWith('tctoken-') && f.endsWith('.json')) {
+        knownContacts.add(f.replace('tctoken-', '').replace('.json', ''));
+      }
+    }
+    console.log(`[TC] ${knownContacts.size} contactos con TC token cargados`);
+  } catch (e) {
+    console.log('[TC] No se pudieron cargar TC tokens:', e.message);
+  }
+}
+
+function isContactKnown(jid) {
+  if (knownContacts.has(jid)) return true;
+  const bare = jid.split('@')[0];
+  for (const k of knownContacts) {
+    if (k.includes(bare) || bare.includes(k.split('@')[0])) return true;
+  }
+  return false;
+}
+
+function scheduleTimelockCheck() {
+  if (timelock.checkTimer) clearTimeout(timelock.checkTimer);
+  timelock.checkTimer = setTimeout(() => {
+    if (Date.now() >= timelock.expiresAt) {
+      timelock.active = false;
+      timelock.expiresAt = 0;
+      console.log('[Timelock] Expirado, reanudando envíos a todos los contactos');
+      knownContacts.clear(); // force re-evaluation
+      return;
+    }
+    scheduleTimelockCheck();
+  }, TIMELOCK_CHECK_MS);
+}
+
+async function checkServerTimelock() {
+  try {
+    if (typeof sock.fetchAccountReachoutTimelock === 'function') {
+      const result = await sock.fetchAccountReachoutTimelock();
+      if (result?.isActive) {
+        timelock.active = true;
+        timelock.expiresAt = (result.timeEnforcementEnds || (Date.now() / 1000 + 86400)) * 1000;
+        console.log(`[Timelock] Servidor: activo hasta ${new Date(timelock.expiresAt).toLocaleString('es-AR')}`);
+        scheduleTimelockCheck();
+        return true;
+      }
+      if (timelock.active) {
+        timelock.active = false;
+        timelock.expiresAt = 0;
+        console.log('[Timelock] Servidor: ya no está activo');
+      }
+      return false;
+    }
+  } catch (e) {
+    console.log('[Timelock] Error consultando servidor:', e.message);
+  }
+  return timelock.active;
+}
+
+function handle463Detected(fromJid) {
+  recent463Jids.set(fromJid, Date.now());
+  if (timelock.active) return;
+  checkServerTimelock();
 }
 
 async function sendQR(qrData) {
@@ -55,23 +136,31 @@ async function clearQR() {
   } catch (e) { /* ignore */ }
 }
 
-async function sendWithRetry(jid, content, retries = MAX_RETRIES) {
-  for (let i = 0; i < retries; i++) {
+async function sendWithRetry(jid, content) {
+  for (let i = 0; i < MAX_RETRIES; i++) {
     try {
       if (i > 0) {
         await sock.sendPresenceUpdate('composing', jid).catch(() => {});
         await sleep(2000);
       }
       await sock.sendMessage(jid, content);
+      knownContacts.add(jid);
+      recent463Jids.delete(jid);
       return true;
     } catch (e) {
-      if (e.message?.includes('463') && i < retries - 1) {
-        const delay = 10000;
-        console.log(`463 a ${jid}, reintento ${i + 2}/${retries} en ${delay/1000}s...`);
-        await sleep(delay);
-        continue;
-      }
       if (e.message?.includes('463')) {
+        handle463Detected(jid);
+
+        if (timelock.active && !isContactKnown(jid) && i === 0) {
+          throw new Send463Error(jid, `463 - timelock activo, contacto no conocido`);
+        }
+
+        if (i < MAX_RETRIES - 1) {
+          const delay = 5000;
+          console.log(`463 a ${jid}, reintento ${i + 2}/${MAX_RETRIES} en ${delay/1000}s...`);
+          await sleep(delay);
+          continue;
+        }
         throw new Send463Error(jid, `463 persistente a ${jid}`);
       }
       throw e;
@@ -88,6 +177,8 @@ class Send463Error extends Error {
 }
 
 async function start() {
+  loadKnownContacts();
+
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
 
   if (pollTimer) clearInterval(pollTimer);
@@ -102,7 +193,7 @@ async function start() {
 
   sock.ev.on('creds.update', saveCreds);
 
-  sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+  sock.ev.on('connection.update', ({ connection, lastDisconnect, qr, reachoutTimeLock }) => {
     if (qr) {
       console.log('\n=== ESCANEÁ ESTE QR CON WHATSAPP ===');
       QR.generate(qr, { small: true });
@@ -129,6 +220,40 @@ async function start() {
         }
       }
     }
+
+    if (reachoutTimeLock) {
+      timelock.active = reachoutTimeLock.isActive;
+      timelock.expiresAt = reachoutTimeLock.timeEnforcementEnds
+        ? reachoutTimeLock.timeEnforcementEnds * 1000 : 0;
+      if (reachoutTimeLock.isActive) {
+        console.log(`[Timelock] Server push: activo hasta ${timelock.expiresAt ? new Date(timelock.expiresAt).toLocaleString('es-AR') : '?'}`);
+        scheduleTimelockCheck();
+      } else {
+        console.log('[Timelock] Server push: inactivo');
+      }
+    }
+  });
+
+  sock.ev.on('messages.update', (updates) => {
+    for (const { key, update } of updates) {
+      if (key.remoteJid === 'status@broadcast' || key.remoteJid?.endsWith('@g.us')) continue;
+      if (!key.remoteJid) continue;
+      const params = update.messageStubParameters;
+      if (params && (params.includes(463) || params.includes('463'))) {
+        console.log(`[463] ACK error en messages.update para ${key.remoteJid}`);
+        handle463Detected(key.remoteJid);
+      }
+    }
+  });
+
+  sock.ev.on('message-capping.update', (cap) => {
+    console.log(`[Cap] Budget nuevos contactos: ${cap.remaining}/${cap.total}`);
+    if (cap.remaining <= 0 && !timelock.active) {
+      timelock.active = true;
+      timelock.expiresAt = Date.now() + 86400000;
+      console.log('[Cap] Budget agotado, activando timelock por 24h');
+      scheduleTimelockCheck();
+    }
   });
 
   sock.ev.on('messages.upsert', async ({ messages }) => {
@@ -138,17 +263,18 @@ async function start() {
 
       const from = msg.key.remoteJid;
 
-      // Admin respondió → cooldown 24h para ese número
+      if (!msg.key.fromMe) {
+        knownContacts.add(from);
+      }
+
       if (msg.key.fromMe) {
         replyCooldowns.set(from, Date.now());
         console.log(`[Cooldown] Admin respondió a ${from}, 24h sin auto-reply`);
         continue;
       }
 
-      // Usuario escribe, pero está en cooldown → silencio
       if (replyCooldowns.has(from)) continue;
 
-      // Usuario escribe, sin cooldown → auto-reply + activar cooldown
       const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
       console.log(`[Entrante] ${from}: ${text.substring(0, 80)}`);
 
@@ -161,7 +287,6 @@ async function start() {
     }
   });
 
-  // Limpiar cooldowns expirados cada hora
   setInterval(() => {
     const now = Date.now();
     for (const [jid, ts] of replyCooldowns) {
@@ -171,6 +296,15 @@ async function start() {
 
   pollTimer = setInterval(async () => {
     try {
+      if (timelock.active) {
+        const expiredTimelock = recent463Jids.size > 0 && Date.now() >= timelock.expiresAt;
+        if (expiredTimelock) {
+          timelock.active = false;
+          timelock.expiresAt = 0;
+          console.log('[Timelock] Expirado, reanudando envíos');
+        }
+      }
+
       const { data } = await axios.get(`${VPS_URL}/api/relay/pending`, {
         headers: { Authorization: `Bearer ${TOKEN}` },
         timeout: 20000,
@@ -192,9 +326,10 @@ async function start() {
               console.error(`Número no registrado en WhatsApp: ${normalized}`);
               continue;
             }
-            // Pre-warm: presence establece handshake para tctoken
-            await sock.sendPresenceUpdate('available', jid).catch(() => {});
-            await sleep(2000);
+            if (!isContactKnown(jid)) {
+              await sock.sendPresenceUpdate('available', jid).catch(() => {});
+              await sleep(PREWARM_DELAY);
+            }
           }
 
           if (msg.image_url) {
@@ -207,9 +342,11 @@ async function start() {
             await sendWithRetry(jid, { text: msg.text });
           }
           sentIds.push(msg.id);
+          knownContacts.add(jid);
         } catch (e) {
           if (e.code === 463) {
-            console.error(`463 persistente a ${msg.wa_to}, marcando como failed`);
+            const isUnknownContact = e.message?.includes('no conocido');
+            console.error(`463 a ${msg.wa_to}: ${isUnknownContact ? 'timelock + contacto desconocido' : 'persistente'}`);
             await axios.post(`${VPS_URL}/api/relay/failed`, { ids: [msg.id] }, {
               headers: { Authorization: `Bearer ${TOKEN}` },
               timeout: 10000,
