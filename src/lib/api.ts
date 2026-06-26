@@ -35,6 +35,7 @@ export const api = {
     pets: (category: string, search?: string) => request(`/relay/pets?category=${category}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
     broadcastPet: (petId: string, groupIds: string[]) => request('/relay/broadcast-pet', { method: 'POST', body: JSON.stringify({ petId, groupIds }) }),
     failedMessages: () => request('/relay/relay-failed'),
+    broadcastAdoptions: () => request('/relay/broadcast-adoptions', { method: 'POST' }),
   },
   get: (path: string) => request(path),
   post: (path: string, body?: any) => request(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),

@@ -76,6 +76,8 @@ export default function RelayWhatsAppTab() {
   const [broadcastPetLoading, setBroadcastPetLoading] = useState(false);
   const [broadcastPetResults, setBroadcastPetResults] = useState<any[] | null>(null);
   const [broadcastPetPreview, setBroadcastPetPreview] = useState('');
+  const [forceAdoptionsLoading, setForceAdoptionsLoading] = useState(false);
+  const [forceAdoptionsResult, setForceAdoptionsResult] = useState('');
 
   // Groups management state
   const [newGroupName, setNewGroupName] = useState('');
@@ -287,6 +289,19 @@ export default function RelayWhatsAppTab() {
       console.error('Error toggling WA adoption broadcast:', e);
     } finally {
       setWaAdoptionToggling(false);
+    }
+  };
+
+  const handleForceAdoptions = async () => {
+    setForceAdoptionsLoading(true);
+    setForceAdoptionsResult('');
+    try {
+      const res = await api.whatsappRelay.broadcastAdoptions();
+      setForceAdoptionsResult(res.message || '✅ Broadcast ejecutado');
+    } catch (err: any) {
+      setForceAdoptionsResult(`❌ Error: ${err.message}`);
+    } finally {
+      setForceAdoptionsLoading(false);
     }
   };
 
@@ -694,6 +709,30 @@ export default function RelayWhatsAppTab() {
             </table>
           </div>
         )}
+      </div>
+
+      {/* Forzar adopciones */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
+        <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+          <Send className="w-6 h-6" /> Forzar publicación de adopciones
+        </h2>
+        <p className="text-sm text-gray-500">
+          Publica las mascotas en adopción pendientes en los grupos con la columna "Adopciones" activada.
+          El scheduler automático corre a las 8, 12, 16 y 20hs.
+        </p>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleForceAdoptions}
+            disabled={forceAdoptionsLoading}
+            className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl transition-all disabled:opacity-50 flex items-center gap-2"
+          >
+            {forceAdoptionsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+            {forceAdoptionsLoading ? 'Publicando...' : 'Forzar adopciones ahora'}
+          </button>
+          {forceAdoptionsResult && (
+            <p className="text-sm font-medium">{forceAdoptionsResult}</p>
+          )}
+        </div>
       </div>
 
       {/* Publicar texto en grupos */}
