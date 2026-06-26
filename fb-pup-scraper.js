@@ -271,13 +271,43 @@ async function extractPostsFromPage(page, groupId) {
 
 async function scrapeGroup(page, groupId) {
   console.log(`[FB Scraper] Scrapeando grupo ${groupId}...`);
-  await page.goto(`https://www.facebook.com/groups/${groupId}`, {
+  const navResult = await page.goto(`https://www.facebook.com/groups/${groupId}`, {
     waitUntil: 'networkidle2', timeout: 60000,
   });
   await sleep(5000);
 
+  const currentUrl = page.url();
+  const title = await page.title();
+  console.log(`[FB Scraper] URL: ${currentUrl}`);
+  console.log(`[FB Scraper] Title: ${title}`);
+  console.log(`[FB Scraper] HTTP status: ${navResult?.status()}`);
+
   if (!(await checkSession(page))) {
+    console.log('[FB Scraper] Sesión expirada');
     throw new Error('session expired');
+  }
+
+  // Diagnóstico: contar elementos
+  const diag = await page.evaluate(() => {
+    const allLinks = document.querySelectorAll('a').length;
+    const permalinkLinks = document.querySelectorAll('a[href*="/permalink/"], a[href*="permalink"]').length;
+    const groupLinks = document.querySelectorAll('a[href*="/groups/"]').length;
+    const bodyText = (document.body?.innerText || '').substring(0, 1000);
+    const storyEls = document.querySelectorAll('[role="article"], [data-pagelet], .x1yztbdb').length;
+    return { allLinks, permalinkLinks, groupLinks, bodyText, storyEls };
+  });
+  console.log(`[FB Scraper] Links totales: ${diag.allLinks}, permalink: ${diag.permalinkLinks}, groups: ${diag.groupLinks}, story containers: ${diag.storyEls}`);
+  console.log(`[FB Scraper] Texto visible (primeros 1000 chars):`);
+  console.log(diag.bodyText);
+
+  if (diag.permalinkLinks === 0) {
+    console.log('[FB Scraper] Sin links de permalink. La página no contiene posts visibles.');
+    // Guardar HTML para debug offline
+    const html = await page.evaluate(() => document.documentElement.outerHTML);
+    const debugPath = path.join(__dirname, `fb_debug_${groupId}.html`);
+    fs.writeFileSync(debugPath, html);
+    console.log(`[FB Scraper] HTML guardado en ${debugPath}`);
+    return [];
   }
 
   // Hacer scroll para cargar más posts
