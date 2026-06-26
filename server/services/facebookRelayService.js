@@ -108,3 +108,35 @@ export async function getSessionFile() {
 export async function clearSessionFile() {
   await pool.query("DELETE FROM settings WHERE key = $1", [SESSION_KEY]);
 }
+
+const PROFILE_KEY = 'fb_relay_profile_data';
+
+export async function saveProfile(base64Data) {
+  await pool.query(
+    "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2",
+    [PROFILE_KEY, base64Data]
+  );
+}
+
+export async function getProfile() {
+  const result = await pool.query("SELECT value FROM settings WHERE key = $1", [PROFILE_KEY]);
+  return result.rows[0]?.value || null;
+}
+
+export async function clearProfile() {
+  await pool.query("DELETE FROM settings WHERE key = $1", [PROFILE_KEY]);
+}
+
+const SESSION_DATA_KEY = 'fb_relay_session_data';
+
+export async function saveSessionData(jsonData) {
+  await pool.query(
+    "INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2",
+    [SESSION_DATA_KEY, jsonData]
+  );
+}
+
+export async function getSessionData() {
+  const result = await pool.query("SELECT value FROM settings WHERE key = $1", [SESSION_DATA_KEY]);
+  return result.rows[0]?.value || null;
+}

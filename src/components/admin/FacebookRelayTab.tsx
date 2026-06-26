@@ -6,6 +6,8 @@ import { api } from '@/src/lib/api';
 interface FbRelayStatus {
   enabled: boolean;
   hasSession: boolean;
+  hasProfile: boolean;
+  hasSessionData: boolean;
   adoptionBroadcastEnabled: boolean;
   stats: {
     pending: number;
@@ -322,12 +324,12 @@ export default function FacebookRelayTab() {
       </div>
 
       {/* Session Management */}
-      <div className="bg-white rounded-2xl border border-brand-accent p-6">
-        <h3 className="text-lg font-bold mb-4">Sesión de Facebook</h3>
-        <p className="text-sm text-gray-500 mb-4">
+      <div className="bg-white rounded-2xl border border-brand-accent p-6 space-y-4">
+        <h3 className="text-lg font-bold">Sesión de Facebook</h3>
+        <p className="text-sm text-gray-500">
           Subí el archivo <code>storage_state.json</code> exportado desde Playwright (login manual en desktop).
         </p>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -359,6 +361,30 @@ export default function FacebookRelayTab() {
               <CheckCircle className="w-4 h-4" /> Sesión activa
             </span>
           )}
+        </div>
+
+        {/* Perfil completo */}
+        <div className="border-t border-brand-accent pt-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h4 className="text-sm font-bold">Perfil persistente del navegador</h4>
+              <p className="text-xs text-gray-400">Incluye cookies + localStorage + IndexedDB. El relay lo usa automáticamente para mantener la sesión activa.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={cn("flex items-center gap-1 text-xs font-medium", status?.hasProfile ? 'text-green-600' : 'text-gray-400')}>
+                {status?.hasProfile ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                Perfil
+              </span>
+              <span className={cn("flex items-center gap-1 text-xs font-medium", status?.hasSessionData ? 'text-green-600' : 'text-gray-400')}>
+                {status?.hasSessionData ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                SessionData
+              </span>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mb-3">
+            Iniciá sesión manualmente en Facebook con <code>--headed</code>, esperá a que cargue el feed, y luego subí el perfil completo como backup.
+          </p>
+          <ProfileUpload />
         </div>
       </div>
 
@@ -661,6 +687,47 @@ function DebugSection() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ProfileUpload() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleUpload(file: File) {
+    const formData = new FormData();
+    formData.append('profile', file);
+    try {
+      const res = await fetch('/api/relay/fb/upload-profile', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: formData,
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      alert(`✅ Perfil subido (${(file.size / 1024 / 1024).toFixed(1)} MB) — el relay lo usará en su próximo ciclo`);
+    } catch (err: any) {
+      alert(`❌ Error: ${err.message}`);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-brand-primary bg-brand-primary/10 rounded-lg hover:bg-brand-primary/20 transition-colors"
+      >
+        <Upload className="w-3.5 h-3.5" /> Subir perfil completo
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".tar.gz,.tgz"
+        className="hidden"
+        onChange={e => {
+          if (e.target.files?.[0]) handleUpload(e.target.files[0]);
+          e.target.value = '';
+        }}
+      />
     </div>
   );
 }

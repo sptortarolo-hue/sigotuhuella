@@ -4,6 +4,7 @@ import pool from '../db.js';
 import {
   getPendingTasks, markCompleted, markFailed, isEnabled, setEnabled,
   getStats, getFailedTasks, saveSessionFile, getSessionFile, clearSessionFile,
+  saveProfile, getProfile, clearProfile, saveSessionData, getSessionData,
 } from '../services/facebookRelayService.js';
 import { requireAdmin } from '../auth.js';
 import { searchPets } from '../services/phoneRelayService.js';
@@ -68,9 +69,11 @@ router.get('/fb/status', requireAdmin, async (req, res) => {
     const enabled = await isEnabled();
     const stats = await getStats();
     const hasSession = !!(await getSessionFile());
+    const hasProfile = !!(await getProfile());
+    const hasSessionData = !!(await getSessionData());
     const adoptionSetting = await pool.query("SELECT value FROM settings WHERE key = 'fb_adoption_broadcast_enabled'");
     const adoptionBroadcastEnabled = adoptionSetting.rows[0]?.value === 'true';
-    res.json({ enabled, hasSession, stats, adoptionBroadcastEnabled });
+    res.json({ enabled, hasSession, hasProfile, hasSessionData, stats, adoptionBroadcastEnabled });
   } catch (err) {
     console.error('[FB Relay] status error:', err.message);
     res.status(500).json({ error: err.message });
@@ -112,6 +115,68 @@ router.post('/fb/clear-session', requireAdmin, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('[FB Relay] clear-session error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/fb/upload-profile', upload.single('profile'), async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization']?.replace('Bearer ', '');
+    const isRelay = authHeader === process.env.RELAY_TOKEN;
+    const isAdmin = req.user?.role === 'admin';
+    if (!isRelay && !isAdmin) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    let base64;
+    let size;
+    if (req.file) {
+      base64 = req.file.buffer.toString('base64');
+      size = req.file.size;
+    } else if (req.body?.data) {
+      base64 = req.body.data;
+      size = Math.round(Buffer.from(base64, 'base64').length);
+    } else {
+      return res.status(400).json({ error: 'No profile data provided' });
+    }
+    await saveProfile(base64);
+    console.log(`[FB Relay] Profile uploaded: ${size} bytes`);
+    res.json({ success: true, size });
+  } catch (err) {
+    console.error('[FB Relay] upload-profile error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/fb/download-profile', relayAuth, async (req, res) => {
+  try {
+    const data = await getProfile();
+    if (!data) return res.status(404).json({ error: 'No profile backup' });
+    res.json({ data });
+  } catch (err) {
+    console.error('[FB Relay] download-profile error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/fb/session-data', relayAuth, async (req, res) => {
+  try {
+    const { data } = req.body;
+    if (!data) return res.status(400).json({ error: 'No session data provided' });
+    await saveSessionData(JSON.stringify(data));
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[FB Relay] session-data error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/fb/session-data', relayAuth, async (req, res) => {
+  try {
+    const data = await getSessionData();
+    if (!data) return res.status(404).json({ error: 'No session data' });
+    res.json({ data: JSON.parse(data) });
+  } catch (err) {
+    console.error('[FB Relay] session-data error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
