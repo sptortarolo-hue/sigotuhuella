@@ -263,6 +263,7 @@ export const api = {
     broadcastPet: (petId: string, groups: { id: string; fb_group_id: string; name?: string }[]) =>
       request('/relay/fb/broadcast-pet', { method: 'POST', body: JSON.stringify({ petId, groups }) }),
     groups: () => request('/relay/fb/groups-ui'),
+    broadcastAdoptions: () => request('/relay/fb/broadcast-adoptions', { method: 'POST' }),
   },
 
   myPets: {

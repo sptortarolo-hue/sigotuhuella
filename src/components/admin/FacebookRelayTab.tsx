@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle, Bug, Heart, Globe, Search, CheckSquare, Square, Send } from 'lucide-react';
+import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle, Bug, Heart, Globe, Search, CheckSquare, Square, Send, Megaphone } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { api } from '@/src/lib/api';
 
@@ -76,6 +76,8 @@ export default function FacebookRelayTab() {
   const [broadcastPetLoading, setBroadcastPetLoading] = useState(false);
   const [broadcastPetResults, setBroadcastPetResults] = useState<any[] | null>(null);
   const [broadcastPetPreview, setBroadcastPetPreview] = useState('');
+  const [forceAdoptionsLoading, setForceAdoptionsLoading] = useState(false);
+  const [forceAdoptionsResult, setForceAdoptionsResult] = useState('');
 
   async function loadData() {
     try {
@@ -143,6 +145,19 @@ export default function FacebookRelayTab() {
       console.error('Error toggling FB adoption broadcast:', err);
     } finally {
       setFbAdoptionToggling(false);
+    }
+  }
+
+  const handleForceAdoptions = async () => {
+    setForceAdoptionsLoading(true);
+    setForceAdoptionsResult('');
+    try {
+      const res = await api.facebookRelay.broadcastAdoptions();
+      setForceAdoptionsResult(res.message || '✅ Broadcast ejecutado');
+    } catch (err: any) {
+      setForceAdoptionsResult(`❌ Error: ${err.message}`);
+    } finally {
+      setForceAdoptionsLoading(false);
     }
   }
 
@@ -327,6 +342,20 @@ export default function FacebookRelayTab() {
             {fbAdoptionToggling && <Loader2 className="absolute left-1 w-5 h-5 animate-spin text-white" />}
             <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${status?.adoptionBroadcastEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            onClick={handleForceAdoptions}
+            disabled={forceAdoptionsLoading}
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-red-500 rounded-xl hover:bg-red-600 transition-colors disabled:opacity-50"
+          >
+            {forceAdoptionsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Megaphone className="w-4 h-4" />}
+            {forceAdoptionsLoading ? 'Publicando...' : 'Forzar adopciones ahora'}
+          </button>
+          {forceAdoptionsResult && (
+            <span className="text-sm font-medium">{forceAdoptionsResult}</span>
+          )}
         </div>
       </div>
 

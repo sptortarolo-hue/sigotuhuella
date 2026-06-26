@@ -8,6 +8,7 @@ import {
 import { requireAdmin } from '../auth.js';
 import { searchPets } from '../services/phoneRelayService.js';
 import { enqueuePublishTask } from '../services/facebookRelayService.js';
+import { broadcastFbAdoptionPets } from '../services/whatsappService.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -250,6 +251,16 @@ router.post('/fb/broadcast-pet', requireAdmin, async (req, res) => {
     res.json({ results, caption });
   } catch (err) {
     console.error('[FB Relay] broadcast-pet error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/fb/broadcast-adoptions', requireAdmin, async (req, res) => {
+  try {
+    await broadcastFbAdoptionPets();
+    res.json({ success: true, message: 'Broadcast Facebook de adopciones ejecutado' });
+  } catch (err) {
+    console.error('[FB Relay] broadcast-adoptions error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
