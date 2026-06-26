@@ -405,11 +405,12 @@ export async function broadcastNextAdoptionPet() {
         (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
         (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
       FROM pets p
-      WHERE p.status = 'for_adoption' AND p.adoption_broadcasted_at IS NULL
-      ORDER BY p.created_at ASC
+      WHERE p.status = 'for_adoption'
+      ORDER BY p.adoption_broadcasted_at ASC NULLS FIRST, p.created_at ASC
+      LIMIT 1
     `)).rows;
     if (pets.length === 0) {
-      console.log('[AdoptionBroadcast] No pending adoption pets to broadcast');
+      console.log('[AdoptionBroadcast] No adoption pets to broadcast');
       return;
     }
 
@@ -472,22 +473,23 @@ export async function broadcastNextAdoptionPet() {
 
 export async function broadcastFbAdoptionPets() {
   try {
+    const fbAdoption = await pool.query("SELECT value FROM settings WHERE key = 'fb_adoption_broadcast_enabled'");
+    if (fbAdoption.rows[0]?.value !== 'true') {
+      console.log('[FbAdoptionBroadcast] fb_adoption_broadcast_enabled desactivado, salteando');
+      return;
+    }
+
     const pets = (await pool.query(`
       SELECT p.*,
         (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
         (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
       FROM pets p
-      WHERE p.status = 'for_adoption' AND p.adoption_broadcasted_at IS NULL
-      ORDER BY p.created_at ASC
+      WHERE p.status = 'for_adoption'
+      ORDER BY p.adoption_broadcasted_at ASC NULLS FIRST, p.created_at ASC
+      LIMIT 1
     `)).rows;
     if (pets.length === 0) {
-      console.log('[FbAdoptionBroadcast] No pending adoption pets to broadcast');
-      return;
-    }
-
-    const fbAdoption = await pool.query("SELECT value FROM settings WHERE key = 'fb_adoption_broadcast_enabled'");
-    if (fbAdoption.rows[0]?.value !== 'true') {
-      console.log('[FbAdoptionBroadcast] fb_adoption_broadcast_enabled desactivado, salteando');
+      console.log('[FbAdoptionBroadcast] No adoption pets to broadcast');
       return;
     }
 
