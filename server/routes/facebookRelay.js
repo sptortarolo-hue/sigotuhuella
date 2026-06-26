@@ -265,6 +265,16 @@ router.post('/fb/broadcast-adoptions', requireAdmin, async (req, res) => {
   }
 });
 
+router.post('/fb/clear-queue', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query("DELETE FROM fb_relay_tasks WHERE status = 'pending'");
+    res.json({ deleted: result.rowCount });
+  } catch (err) {
+    console.error('[FB Relay] clear-queue error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Debug dump storage
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'path';

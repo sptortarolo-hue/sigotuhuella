@@ -36,6 +36,7 @@ export const api = {
     broadcastPet: (petId: string, groupIds: string[]) => request('/relay/broadcast-pet', { method: 'POST', body: JSON.stringify({ petId, groupIds }) }),
     failedMessages: () => request('/relay/relay-failed'),
     broadcastAdoptions: () => request('/relay/broadcast-adoptions', { method: 'POST' }),
+    clearQueue: () => request('/relay/clear-queue', { method: 'POST' }),
   },
   get: (path: string) => request(path),
   post: (path: string, body?: any) => request(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
@@ -264,6 +265,7 @@ export const api = {
       request('/relay/fb/broadcast-pet', { method: 'POST', body: JSON.stringify({ petId, groups }) }),
     groups: () => request('/relay/fb/groups-ui'),
     broadcastAdoptions: () => request('/relay/fb/broadcast-adoptions', { method: 'POST' }),
+    clearQueue: () => request('/relay/fb/clear-queue', { method: 'POST' }),
   },
 
   myPets: {

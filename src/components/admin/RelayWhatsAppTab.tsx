@@ -80,6 +80,7 @@ export default function RelayWhatsAppTab() {
   const [broadcastPetPreview, setBroadcastPetPreview] = useState('');
   const [forceAdoptionsLoading, setForceAdoptionsLoading] = useState(false);
   const [forceAdoptionsResult, setForceAdoptionsResult] = useState('');
+  const [clearingQueue, setClearingQueue] = useState(false);
 
   // Groups management state
   const [newGroupName, setNewGroupName] = useState('');
@@ -321,6 +322,20 @@ export default function RelayWhatsAppTab() {
     }
   };
 
+  const handleClearQueue = async () => {
+    if (!confirm('¿Estás seguro? Se eliminarán todos los mensajes pendientes de la cola del relay WhatsApp.')) return;
+    setClearingQueue(true);
+    try {
+      const res = await api.whatsappRelay.clearQueue();
+      alert(`✅ Cola limpiada: ${res.deleted} mensajes eliminados`);
+      loadStatus();
+    } catch (err: any) {
+      alert(`❌ Error: ${err.message}`);
+    } finally {
+      setClearingQueue(false);
+    }
+  };
+
   const handleSendTest = async () => {
     if (!testTo || (!testText && !testImageUrl)) return;
     setSending(true);
@@ -401,6 +416,16 @@ export default function RelayWhatsAppTab() {
               <p className="text-[10px] uppercase tracking-widest font-bold text-gray-500">Último poll</p>
               <p className="text-sm font-medium truncate">{status.lastPollAt ? new Date(status.lastPollAt).toLocaleTimeString() : '—'}</p>
             </div>
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={handleClearQueue}
+              disabled={clearingQueue}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition-colors disabled:opacity-50"
+            >
+              {clearingQueue ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Limpiar cola
+            </button>
           </div>
 
           {qrDataUrl && (

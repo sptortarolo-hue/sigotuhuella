@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle, Bug, Heart, Globe, Search, CheckSquare, Square, Send, Megaphone, Save } from 'lucide-react';
+import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle, Bug, Heart, Globe, Search, CheckSquare, Square, Send, Megaphone, Save, Trash2 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { api } from '@/src/lib/api';
 
@@ -80,6 +80,7 @@ export default function FacebookRelayTab() {
   const [forceAdoptionsResult, setForceAdoptionsResult] = useState('');
   const [fbAdoptionHours, setFbAdoptionHours] = useState('');
   const [fbAdoptionHoursSaving, setFbAdoptionHoursSaving] = useState(false);
+  const [clearingQueue, setClearingQueue] = useState(false);
 
   async function loadData() {
     try {
@@ -173,6 +174,20 @@ export default function FacebookRelayTab() {
       console.error('Error saving FB adoption hours:', e);
     } finally {
       setFbAdoptionHoursSaving(false);
+    }
+  }
+
+  const handleClearQueue = async () => {
+    if (!confirm('¿Estás seguro? Se eliminarán todas las tareas pendientes de la cola de FB relay.')) return;
+    setClearingQueue(true);
+    try {
+      const res = await api.facebookRelay.clearQueue();
+      alert(`✅ Cola limpiada: ${res.deleted} tareas eliminadas`);
+      loadData();
+    } catch (err: any) {
+      alert(`❌ Error: ${err.message}`);
+    } finally {
+      setClearingQueue(false);
     }
   }
 
@@ -293,6 +308,16 @@ export default function FacebookRelayTab() {
             <div className="text-2xl font-bold">{status?.hasSession ? '✓' : '✗'}</div>
             <div className="text-xs text-gray-500">Sesión FB</div>
           </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={handleClearQueue}
+            disabled={clearingQueue}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition-colors disabled:opacity-50"
+          >
+            {clearingQueue ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            Limpiar cola
+          </button>
         </div>
       </div>
 

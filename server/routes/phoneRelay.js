@@ -235,4 +235,14 @@ router.post('/broadcast-adoptions', requireAdmin, async (req, res) => {
   }
 });
 
+router.post('/clear-queue', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query("DELETE FROM relay_messages WHERE status = 'pending'");
+    res.json({ deleted: result.rowCount });
+  } catch (err) {
+    console.error('[Relay] clear-queue error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
