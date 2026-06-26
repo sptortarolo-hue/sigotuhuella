@@ -169,7 +169,7 @@ async function setupSession(page) {
   const cookies = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8'));
   await page.goto('about:blank');
   await page.setCookie(...ensureValidCookies(cookies));
-  await page.goto('https://mbasic.facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
+  await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
   await sleep(2000);
 
   if (!(await checkSession(page))) {
@@ -177,14 +177,101 @@ async function setupSession(page) {
   }
 }
 
-function extractFromBlock(block, regex) {
-  const m = block.match(regex);
-  return m ? m[1].trim() : '';
+async function extractPostsFromPage(page, groupId) {
+  return await page.evaluate((groupId) => {
+    const posts = [];
+    // Buscar todos los links que contengan permalink
+    const permalinkLinks = document.querySelectorAll('a[href*="/permalink/"]');
+    const seen = new Set();
+
+    permalinkLinks.forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      const match = href.match(/\/permalink\/(\d+)\//);
+      if (!match) return;
+      const fbPostId = match[1];
+      if (seen.has(fbPostId)) return;
+      seen.add(fbPostId);
+
+      // Subir hasta el contenedor del post
+      let container = link;
+      for (let i = 0; i < 6; i++) {
+        if (container?.parentElement) container = container.parentElement;
+      }
+
+      // Autor: buscar link con perfil dentro del contenedor
+      let authorName = '';
+      const profileLink = container?.querySelector('a[href*="/user/"], a[href*="/profile.php"]');
+      if (profileLink) {
+        const strong = profileLink.querySelector('strong');
+        authorName = strong ? strong.textContent.trim() : profileLink.textContent.trim();
+      } else {
+        // Buscar cualquier strong con texto
+        const strongs = container?.querySelectorAll('strong');
+        if (strongs) {
+          for (const s of strongs) {
+            const t = s.textContent.trim();
+            if (t.length > 2 && t.length < 50) { authorName = t; break; }
+          }
+        }
+      }
+
+      // Contenido: texto del contenedor excluyendo enlaces de permalink
+      let content = '';
+      if (container) {
+        // Clonar para manipular sin afectar la página real
+        const clone = container.cloneNode(true);
+        // Remover elementos que no son contenido
+        clone.querySelectorAll('a[href*="/permalink/"], a[href*="/groups/"], script, style').forEach(el => el.remove());
+        content = (clone.textContent || '').trim().substring(0, 10000);
+      }
+
+      // Imágenes
+      const imageUrls = [];
+      const imgs = container?.querySelectorAll('img[src*="fbcdn"]');
+      if (imgs) {
+        imgs.forEach((img) => {
+          let src = img.getAttribute('src') || '';
+          if (src.startsWith('//')) src = 'https:' + src;
+          if (src && imageUrls.length < 5) imageUrls.push(src);
+        });
+      }
+
+      // Fecha: <abbr title="..."> o <span> con timestamp
+      let postedAt = '';
+      const abbr = container?.querySelector('abbr');
+      if (abbr) {
+        postedAt = abbr.getAttribute('title') || '';
+      } else {
+        // Buscar spans con texto de fecha
+        const spans = container?.querySelectorAll('span');
+        if (spans) {
+          const dateRegex = /(?:ayer|hoy|hace|\d{1,2}\s+(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic))/i;
+          for (const s of spans) {
+            if (dateRegex.test(s.textContent)) {
+              postedAt = s.textContent.trim();
+              break;
+            }
+          }
+        }
+      }
+
+      posts.push({
+        fb_post_id: fbPostId,
+        fb_post_url: `https://www.facebook.com/groups/${groupId}/permalink/${fbPostId}/`,
+        author_name: authorName,
+        content,
+        image_urls: imageUrls,
+        posted_at: postedAt || null,
+      });
+    });
+
+    return posts;
+  }, groupId);
 }
 
 async function scrapeGroup(page, groupId) {
   console.log(`[FB Scraper] Scrapeando grupo ${groupId}...`);
-  await page.goto(`https://mbasic.facebook.com/groups/${groupId}`, {
+  await page.goto(`https://www.facebook.com/groups/${groupId}`, {
     waitUntil: 'networkidle2', timeout: 60000,
   });
   await sleep(5000);
@@ -193,84 +280,14 @@ async function scrapeGroup(page, groupId) {
     throw new Error('session expired');
   }
 
-  const html = await page.evaluate(() => document.documentElement.outerHTML);
-
-  // Encontrar todos los IDs de posts por permalink en el HTML
-  const permalinkPattern = /\/groups\/[^/]+\/permalink\/(\d+)\//g;
-  const seenIds = new Set();
-  const postIds = [];
-  let match;
-  while ((match = permalinkPattern.exec(html)) !== null) {
-    if (!seenIds.has(match[1])) {
-      seenIds.add(match[1]);
-      postIds.push(match[1]);
-    }
+  // Hacer scroll para cargar más posts
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => window.scrollBy(0, 800));
+    await sleep(2000);
   }
 
-  console.log(`[FB Scraper] ${postIds.length} post ID(s) únicos encontrados en HTML`);
-
-  const posts = [];
-  for (const fbPostId of postIds) {
-    // Extraer un bloque alrededor del primer permalink de este post
-    const searchStr = `/groups/${groupId}/permalink/${fbPostId}/`;
-    const idx = html.indexOf(searchStr);
-    if (idx === -1) continue;
-
-    const blockStart = Math.max(0, idx - 3000);
-    const blockEnd = Math.min(html.length, idx + 3000);
-    const block = html.slice(blockStart, blockEnd);
-
-    // Autor: <strong>Text</strong> o dentro de <a><strong>Nombre</strong></a>
-    let authorName = extractFromBlock(block, /<strong>([^<]{2,50})<\/strong>/);
-    if (!authorName) {
-      authorName = extractFromBlock(block, /<a[^>]*href="[^"]*profile[^"]*"[^>]*>([^<]{2,50})<\/a>/);
-    }
-    // Si el author capturado tiene HTML, limpiarlo
-    authorName = authorName.replace(/<[^>]+>/g, '').trim();
-
-    // Contenido: todo el texto plano en un div que contiene texto, antes del próximo story/permalink
-    const contentMatch = block.match(/(?:story_body|msg)|<div[^>]*>[\s\S]{0,2000}?<\/div>/);
-    let content = '';
-    if (contentMatch) {
-      const afterPermalink = block.slice(block.indexOf(searchStr) + searchStr.length);
-      // Tomar texto de los primeros divs/p después del permalink
-      const textParts = [];
-      const textRegex = /<div[^>]*>([^<]{10,500})<\/div>|<p>([^<]{10,500})<\/p>/g;
-      let tm;
-      while ((tm = textRegex.exec(afterPermalink)) !== null) {
-        const t = (tm[1] || tm[2] || '').replace(/<[^>]+>/g, '').trim();
-        if (t && !t.includes('permalink') && !t.includes('Full Story') && !t.includes('Ver más')) {
-          textParts.push(t);
-        }
-      }
-      content = textParts.join(' ').substring(0, 10000);
-    }
-
-    // Imágenes: buscar src con fbcdn o safe_image
-    const imageUrls = [];
-    const imgRegex = /<img[^>]+src="([^"]+)"[^>]*>/g;
-    let im;
-    while ((im = imgRegex.exec(block)) !== null) {
-      const src = im[1];
-      if (src.includes('fbcdn') || src.includes('safe_image')) {
-        imageUrls.push(src);
-      }
-    }
-
-    // Fecha: <abbr title="...">
-    let postedAt = extractFromBlock(block, /<abbr[^>]*title="([^"]+)"[^>]*>/);
-
-    posts.push({
-      fb_post_id: fbPostId,
-      fb_post_url: `https://facebook.com/groups/${groupId}/permalink/${fbPostId}/`,
-      author_name: authorName,
-      content,
-      image_urls: imageUrls.slice(0, 5),
-      posted_at: postedAt || null,
-    });
-  }
-
-  console.log(`[FB Scraper] Grupo ${groupId}: ${posts.length} posts con datos extraídos`);
+  const posts = await extractPostsFromPage(page, groupId);
+  console.log(`[FB Scraper] Grupo ${groupId}: ${posts.length} posts extraídos`);
   return posts;
 }
 
@@ -395,7 +412,7 @@ async function main() {
       await setupSession(page);
 
       console.log('[FB Scraper] Step 2: navegando al grupo...');
-      await page.goto(`https://mbasic.facebook.com/groups/${testGroup}`, {
+      await page.goto(`https://www.facebook.com/groups/${testGroup}`, {
         waitUntil: 'networkidle2', timeout: 60000,
       });
       await sleep(5000);
@@ -408,24 +425,20 @@ async function main() {
       const isValid = await checkSession(page);
       console.log(`[FB Scraper] Sesión válida: ${isValid}`);
 
-      const html = await page.evaluate(() => document.documentElement.outerHTML);
-      const debugPath = path.join(__dirname, 'mbasic_debug.html');
-      fs.writeFileSync(debugPath, html);
-      const permalinkCount = (html.match(/permalink/g) || []).length;
-      console.log(`[FB Scraper] HTML guardado en ${debugPath} (${html.length} chars, ${permalinkCount} menciones 'permalink')`);
-
-      // Log primeros 2000 chars del HTML
-      console.log('[FB Scraper] HTML preview (primeros 2000 chars):');
-      console.log(html.substring(0, 2000));
-
-      if (permalinkCount < 5) {
-        // Log último segmento con permalink si hay pocos
-        const lastPermalink = html.lastIndexOf('permalink');
-        if (lastPermalink > 0) {
-          console.log('[FB Scraper] Contexto alrededor de "permalink":');
-          console.log(html.substring(Math.max(0, lastPermalink - 300), lastPermalink + 300));
-        }
+      // Scroll para cargar posts
+      for (let i = 0; i < 3; i++) {
+        await page.evaluate(() => window.scrollBy(0, 800));
+        await sleep(2000);
       }
+
+      const bodyText = await page.evaluate(() => document.body.innerText.substring(0, 3000));
+      console.log('[FB Scraper] Texto visible (primeros 3000 chars):');
+      console.log(bodyText);
+
+      const linkCount = await page.evaluate(() => {
+        return document.querySelectorAll('a[href*="/permalink/"]').length;
+      });
+      console.log(`[FB Scraper] Links con permalink encontrados: ${linkCount}`);
 
       console.log('[FB Scraper] Step 3: scrapeGroup...');
       const posts = await scrapeGroup(page, testGroup);
