@@ -37,7 +37,6 @@ function normalizeNumber(num) {
   if (/^549\d{7,}$/.test(n)) return n;
   if (/^54\d{7,}$/.test(n)) n = '549' + n.slice(2);
   if (n.startsWith('0')) n = n.slice(1);
-  n = n.replace(/^(\d{2,4})15(\d{4,})$/, '$1$2');
   return '549' + n;
 }
 
