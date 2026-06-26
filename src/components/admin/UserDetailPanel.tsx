@@ -243,6 +243,10 @@ export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMo
               <Activity className="w-4 h-4 shrink-0" />
               <span>Nivel: {user.points || 0} pts</span>
             </div>
+            <div className="flex items-center gap-2 text-gray-500">
+              <MessageSquare className="w-4 h-4 shrink-0" />
+              <span>Notif: {user.notification_preference === 'both' ? 'WA+Email' : user.notification_preference === 'whatsapp' ? 'Solo WA' : user.notification_preference === 'email' ? 'Solo Email' : user.notification_preference || '-'}</span>
+            </div>
           </div>
 
           {/* Stats cards */}

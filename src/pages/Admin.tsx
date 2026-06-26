@@ -1320,6 +1320,11 @@ export default function Admin() {
                           </div>
                           <div className="flex items-center gap-2 mt-1">
                             {u.member_number && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700">{u.member_number}</span>}
+                            {u.notification_preference && u.notification_preference !== 'email' && (
+                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold", u.notification_preference === 'both' ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500")}>
+                                {u.notification_preference === 'both' ? 'WA+Email' : u.notification_preference === 'whatsapp' ? 'Solo WA' : u.notification_preference}
+                              </span>
+                            )}
                             <span className="text-[10px] text-gray-400">{new Date(u.created_at).toLocaleDateString()}</span>
                           </div>
                         </div>
@@ -1426,6 +1431,11 @@ export default function Admin() {
                             </div>
                             <div className="flex flex-wrap gap-2 mt-2">
                               <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase", u.role === 'admin' ? "bg-brand-primary/10 text-brand-primary" : "bg-gray-100 text-gray-500")}>{u.role}</span>
+                              {u.notification_preference && u.notification_preference !== 'email' && (
+                                <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold", u.notification_preference === 'both' ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500")}>
+                                  {u.notification_preference === 'both' ? 'WA+Email' : u.notification_preference === 'whatsapp' ? 'Solo WA' : u.notification_preference}
+                                </span>
+                              )}
                               {u.member_number && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700">{u.member_number}</span>}
                               {u.phone && <span className="text-[10px] text-gray-400">{u.phone}</span>}
                             </div>
