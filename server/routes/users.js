@@ -20,7 +20,7 @@ router.get('/', requireAdmin, async (req, res) => {
 });
 
 router.put('/:id', requireAuth, async (req, res) => {
-  const { displayName, phone, role, badges } = req.body;
+  const { displayName, phone, role, badges, notificationPreference } = req.body;
   const isSelf = req.user.id === req.params.id;
   const isAdmin = req.user.role === 'admin';
   if (!isSelf && !isAdmin) {
@@ -41,6 +41,14 @@ router.put('/:id', requireAuth, async (req, res) => {
       fields.push(`phone = $${idx++}`);
       values.push(phone || null);
     }
+    if (notificationPreference !== undefined) {
+      const valid = ['email', 'whatsapp', 'both'];
+      if (!valid.includes(notificationPreference)) {
+        return res.status(400).json({ error: 'notification_preference debe ser email, whatsapp o both' });
+      }
+      fields.push(`notification_preference = $${idx++}`);
+      values.push(notificationPreference);
+    }
     if (role !== undefined && isAdmin) {
       fields.push(`role = $${idx++}`);
       values.push(role);
@@ -55,7 +63,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     fields.push(`updated_at = NOW()`);
     values.push(req.params.id);
     const result = await pool.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, phone, role, created_at, avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges`,
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, phone, role, created_at, avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges, notification_preference`,
       values
     );
     if (result.rows.length === 0) {

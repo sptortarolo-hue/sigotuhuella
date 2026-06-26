@@ -580,7 +580,7 @@ router.post('/assigned/:id/notify', requireAdmin, async (req, res) => {
       email: row.email,
       phone: row.phone,
       display_name: row.display_name,
-      notification_preference: row.notification_preference,
+      notification_preference: 'both',
     };
 
     const result = await notifyChapitaReady(row.id, row.pet_id, row.code, row.pet_name, user);

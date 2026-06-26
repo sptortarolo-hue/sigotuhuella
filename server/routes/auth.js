@@ -18,7 +18,7 @@ router.post('/register', async (req, res) => {
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Este email ya está registrado. Iniciá sesión o usá otro email.' });
     }
-    const notificationPreference = (req.body.notification_preference === 'whatsapp') ? 'whatsapp' : 'email';
+    const notificationPreference = ['both', 'whatsapp'].includes(req.body.notification_preference) ? req.body.notification_preference : 'email';
     const passwordHash = await hashPassword(password);
     const verificationToken = generateVerificationToken();
     const verificationExpires = new Date(Date.now() + 48 * 60 * 60 * 1000);

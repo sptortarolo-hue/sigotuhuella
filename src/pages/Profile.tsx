@@ -22,6 +22,7 @@ export default function Profile() {
 
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [phone, setPhone] = useState(user?.phone || '');
+  const [notificationPreference, setNotificationPreference] = useState(user?.notification_preference || 'both');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
@@ -95,8 +96,8 @@ export default function Profile() {
     setProfileMsg('');
     setProfileError('');
     try {
-      const data = await api.users.update(user.id, { displayName, phone });
-      updateUser({ display_name: data.user.display_name, phone: data.user.phone });
+      const data = await api.users.update(user.id, { displayName, phone, notificationPreference });
+      updateUser({ display_name: data.user.display_name, phone: data.user.phone, notification_preference: data.user.notification_preference });
       setProfileMsg('Datos actualizados');
     } catch (err: any) {
       setProfileError(err.message || 'Error al actualizar');
@@ -324,6 +325,24 @@ export default function Profile() {
                         {phoneError && (
                           <p className="text-xs text-red-500 mt-1">{phoneError}</p>
                         )}
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 block">Notificaciones por WhatsApp</label>
+                        <div className="space-y-2">
+                          {[
+                            { value: 'both', label: 'WhatsApp + Email' },
+                            { value: 'whatsapp', label: 'Solo WhatsApp' },
+                            { value: 'email', label: 'Solo Email' },
+                          ].map(opt => (
+                            <label key={opt.value} className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-brand-accent cursor-pointer text-sm">
+                              <input type="radio" name="notifPref" value={opt.value}
+                                checked={notificationPreference === opt.value}
+                                onChange={e => setNotificationPreference(e.target.value)}
+                                className="accent-brand-primary" />
+                              {opt.label}
+                            </label>
+                          ))}
+                        </div>
                       </div>
                       {profileMsg && <div className="p-3 bg-green-50 text-green-600 rounded-xl text-sm flex gap-2 items-center"><CheckCircle2 className="w-4 h-4" />{profileMsg}</div>}
                       {profileError && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm flex gap-2 items-center"><AlertCircle className="w-4 h-4" />{profileError}</div>}

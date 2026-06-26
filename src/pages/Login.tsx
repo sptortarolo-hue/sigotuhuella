@@ -492,17 +492,15 @@ export default function Login() {
                     <p className="text-xs text-red-500 mt-1">{phoneError}</p>
                   )}
                 </div>
-                {phone && !phoneError && (
-                  <label className="flex items-center gap-2 p-3 bg-brand-bg rounded-xl cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={notifyWhatsApp}
-                      onChange={e => setNotifyWhatsApp(e.target.checked)}
-                      className="w-4 h-4 accent-brand-primary"
-                    />
-                    <span className="text-xs text-gray-600 font-medium">Recibir notificaciones por WhatsApp</span>
-                  </label>
-                )}
+                <label className="flex items-center gap-2 p-3 bg-brand-bg rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notifyWhatsApp}
+                    onChange={e => setNotifyWhatsApp(e.target.checked)}
+                    className="w-4 h-4 accent-brand-primary"
+                  />
+                  <span className="text-xs text-gray-600 font-medium">Recibir notificaciones por WhatsApp</span>
+                </label>
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
                     <Lock className="w-3 h-3" /> Contraseña
