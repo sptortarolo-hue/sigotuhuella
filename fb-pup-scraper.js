@@ -1,23 +1,14 @@
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
-puppeteer.use(StealthPlugin());
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = process.env.RELAY_TOKEN;
-const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const COOKIES_PATH = path.join(__dirname, 'fb_scraper_cookies.json');
 const BATCH_SIZE = 10;
 
-// Defaults (overridden by API config)
 let config = {
-  hour_start: 8,
-  hour_end: 22,
-  interval_hours: 3,
-  jitter_minutes: 15,
-  max_posts: 50,
+  hour_start: 8, hour_end: 22, interval_hours: 3, jitter_minutes: 15, max_posts: 50,
 };
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -39,39 +30,9 @@ function nextScheduleDelay() {
   return next.getTime() - now.getTime();
 }
 
-async function launchBrowser() {
-  console.log('[FB Scraper] Lanzando Chromium...');
-  if (!fs.existsSync(CHROMIUM_PATH)) {
-    console.error(`[FB Scraper] Chromium no encontrado en ${CHROMIUM_PATH}`);
-    console.error('[FB Scraper] Ejecutá: pkg install x11-repo && pkg install chromium');
-    process.exit(1);
-  }
-  const b = await puppeteer.launch({
-    executablePath: CHROMIUM_PATH,
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--single-process',
-      '--disable-blink-features=AutomationControlled',
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-features=IsolateOrigins,site-per-process',
-    ],
-  });
-  return b;
-}
-
-async function closeBrowser(b) {
-  if (b) {
-    try { await b.close(); } catch {}
-  }
-}
-
 async function downloadCookies() {
   try {
+    console.log('[FB Scraper] Descargando cookies del servidor...');
     const { data } = await axios.get(`${VPS_URL}/api/relay/fb/session-file`, {
       headers: { Authorization: `Bearer ${TOKEN}` },
       timeout: 15000,
@@ -111,32 +72,30 @@ function loadCookies() {
   return false;
 }
 
-function ensureValidCookies(cookies) {
-  return cookies.map(c => {
-    if (!c.domain) c.domain = '.facebook.com';
-    if (!c.path) c.path = '/';
-    return c;
+function cookiesToHeader(cookies) {
+  const valid = cookies.filter(c => {
+    const domain = (c.domain || '').toLowerCase();
+    return domain.includes('facebook.com') || domain.includes('.fbcdn.net');
   });
+  return valid.map(c => `${c.name}=${c.value}`).join('; ');
 }
 
-async function checkSession(page) {
-  const currentUrl = page.url();
-  // Si ya estamos en mbasic y no hay redirect a login, asumimos sesión
-  if (currentUrl.includes('mbasic')) {
-    const hasLogin = await page.evaluate(() => {
-      return document.querySelector('input[name="email"], input[type="email"]') !== null;
-    });
-    return !hasLogin;
-  }
-  // Fallback para www
-  const hasLoginForm = await page.evaluate(() => {
-    return document.querySelectorAll(
-      'input[name="email"], input[name="pass"], ' +
-      '[aria-label="Correo electrónico"], [aria-label="Contraseña"], ' +
-      'input[type="email"], input[type="password"]'
-    ).length > 0;
+async function fetchWithCookies(url) {
+  const cookies = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8'));
+  const cookieStr = cookiesToHeader(cookies);
+  console.log(`[FB Scraper] Cookies en header: ${cookieStr.split(';').length} pares`);
+  const { data, status, headers } = await axios.get(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+      'Cookie': cookieStr,
+    },
+    maxRedirects: 5,
+    timeout: 30000,
+    responseType: 'text',
   });
-  return !hasLoginForm;
+  return { html: data, status, finalUrl: url, redirected: false };
 }
 
 async function fetchConfig() {
@@ -171,47 +130,7 @@ async function fetchGroups() {
   return groups;
 }
 
-async function setupSession(page) {
-  await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
-  await page.setViewport({ width: 1440, height: 900 });
-
-  const cookies = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf-8'));
-  console.log(`[FB Scraper] ${cookies.length} cookies cargadas de archivo`);
-  await page.goto('about:blank');
-  await page.setCookie(...ensureValidCookies(cookies));
-  await page.goto('https://mbasic.facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
-  await sleep(2000);
-
-  if (!(await checkSession(page))) {
-    throw new Error('session expired');
-  }
-  console.log('[FB Scraper] Sesión OK');
-}
-
-async function scrapeGroup(page, groupId) {
-  console.log(`[FB Scraper] Scrapeando grupo ${groupId}...`);
-  await page.goto(`https://mbasic.facebook.com/groups/${groupId}`, {
-    waitUntil: 'networkidle2', timeout: 60000,
-  });
-  await sleep(5000);
-
-  const currentUrl = page.url();
-  const title = await page.title();
-  console.log(`[FB Scraper] URL: ${currentUrl}`);
-  console.log(`[FB Scraper] Title: ${title}`);
-
-  if (!(await checkSession(page))) {
-    console.log('[FB Scraper] Sesión expirada');
-    throw new Error('session expired');
-  }
-
-  // Obtener HTML completo (mbasic es HTML puro sin JS)
-  const html = await page.evaluate(() => document.documentElement.outerHTML);
-  const debugPath = path.join(__dirname, `mbasic_debug.html`);
-  fs.writeFileSync(debugPath, html);
-  console.log(`[FB Scraper] HTML guardado (${html.length} chars)`);
-
-  // Buscar permalinks en el HTML
+function extractPosts(html, groupId) {
   const permalinkRegex = /\/groups\/[^/]+\/permalink\/(\d+)\//g;
   const seen = new Set();
   const posts = [];
@@ -222,18 +141,15 @@ async function scrapeGroup(page, groupId) {
     if (seen.has(fbPostId)) continue;
     seen.add(fbPostId);
 
-    // Extraer bloque alrededor del post
     const searchStr = `/groups/${groupId}/permalink/${fbPostId}/`;
     const idx = html.indexOf(searchStr);
     if (idx === -1) continue;
     const block = html.substring(Math.max(0, idx - 2000), Math.min(html.length, idx + 3000));
 
-    // Autor: buscar <strong> dentro de <a profile>
     let author = '';
     const authorMatch = block.match(/<a[^>]*href="[^"]*profile[^"]*"[^>]*>(?:<strong>)?([^<]{2,40})(?:<\/strong>)?<\/a>/);
     if (authorMatch) author = authorMatch[1].replace(/<[^>]+>/g, '').trim();
 
-    // Contenido: texto plano entre divs cercanos
     const content = block
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -241,13 +157,10 @@ async function scrapeGroup(page, groupId) {
       .replace(/\s+/g, ' ')
       .replace(new RegExp(`permalink/${fbPostId}[^\\s]*`, 'g'), '')
       .substring(0, 10000)
-      .trim();
-    // Quitar texto genérico de mbasic
-    const cleanContent = content
+      .trim()
       .replace(/Full Story|See more|Ver más|Comment|Comentar|Like|Me gusta|Share|Compartir|Send|Enviar|ago[\s\S]{0,20}$/gi, '')
       .trim();
 
-    // Imágenes
     const imgs = [];
     const imgRegex = /<img[^>]+src="([^"]+)"[^>]*>/g;
     let im;
@@ -260,22 +173,42 @@ async function scrapeGroup(page, groupId) {
       fb_post_id: fbPostId,
       fb_post_url: `https://www.facebook.com/groups/${groupId}/permalink/${fbPostId}/`,
       author_name: author || '',
-      content: cleanContent,
+      content,
       image_urls: imgs.slice(0, 5),
       posted_at: null,
     });
   }
 
-  console.log(`[FB Scraper] ${seen.size} post ID(s) únicos, ${posts.length} con datos extraídos`);
+  return posts;
+}
 
-  if (posts.length === 0) {
-    console.log('[FB Scraper] Primeros 500 chars del HTML:');
-    console.log(html.substring(0, 500));
-    const permCount = (html.match(/permalink/g) || []).length;
-    console.log(`[FB Scraper] 'permalink' aparece ${permCount} veces en el HTML`);
+async function scrapeGroup(groupId) {
+  console.log(`[FB Scraper] Scrapeando grupo ${groupId}...`);
+  const url = `https://mbasic.facebook.com/groups/${groupId}`;
+  const { html, status } = await fetchWithCookies(url);
+  console.log(`[FB Scraper] HTTP ${status}, HTML ${html.length} chars`);
+
+  const debugPath = path.join(__dirname, `mbasic_debug.html`);
+  fs.writeFileSync(debugPath, html);
+  console.log(`[FB Scraper] HTML guardado en ${debugPath}`);
+
+  // Detectar login
+  const isLogin = /<input[^>]*(name="email"|type="email")[^>]*>/i.test(html);
+  if (isLogin) {
+    console.log('[FB Scraper] Página de login detectada — cookies inválidas');
+    return { posts: [], expired: true };
   }
 
-  return posts;
+  // Detectar grupo privado / join page
+  const isJoinPage = /solicitar|join|unirte|request|private group|grupo privado/i.test(html.substring(0, 3000));
+  if (isJoinPage) {
+    console.log('[FB Scraper] Página de grupo privado / solicitud detectada');
+  }
+
+  const posts = extractPosts(html, groupId);
+  console.log(`[FB Scraper] ${posts.length} post(s) extraídos`);
+
+  return { posts, expired: false };
 }
 
 async function sendPosts(posts) {
@@ -284,7 +217,6 @@ async function sendPosts(posts) {
     headers: { Authorization: `Bearer ${TOKEN}` },
     timeout: 60000,
   });
-
   for (let i = 0; i < posts.length; i += BATCH_SIZE) {
     const batch = posts.slice(i, i + BATCH_SIZE);
     try {
@@ -305,34 +237,21 @@ async function scrapeAllGroups(groups) {
     }
   }
 
-  const b = await launchBrowser();
-  let page = null;
-
-  try {
-    page = await b.newPage();
-    await setupSession(page);
-    for (const group of groups) {
-      try {
-        let posts = await scrapeGroup(page, group.id);
-        if (posts.length > config.max_posts) {
-          console.log(`[FB Scraper] Limitando a ${config.max_posts} posts (encontrados ${posts.length})`);
-          posts = posts.slice(0, config.max_posts);
-        }
-        if (posts.length > 0) {
-          await sendPosts(posts);
-        }
-      } catch (err) {
-        if (err.message === 'session expired') {
-          console.error('[FB Scraper] Sesión expirada, descargando cookies nuevas...');
-          await downloadCookies();
-          throw err;
-        }
-        console.error(`[FB Scraper] Error en grupo ${group.id} (${group.name}):`, err.message);
+  for (const group of groups) {
+    try {
+      const { posts, expired } = await scrapeGroup(group.id);
+      if (expired) {
+        console.log('[FB Scraper] Cookies expiradas, descargando nuevas...');
+        await downloadCookies();
+        continue;
       }
+      if (posts.length > config.max_posts) {
+        posts.length = config.max_posts;
+      }
+      if (posts.length > 0) await sendPosts(posts);
+    } catch (err) {
+      console.error(`[FB Scraper] Error en grupo ${group.id} (${group.name}):`, err.message);
     }
-  } finally {
-    if (page) await page.close().catch(() => {});
-    await closeBrowser(b);
   }
 }
 
@@ -359,11 +278,8 @@ async function main() {
       continue;
     }
 
-    try {
-      await scrapeAllGroups(groups);
-    } catch (err) {
-      console.error('[FB Scraper] Error en ciclo:', err.message);
-    }
+    try { await scrapeAllGroups(groups); }
+    catch (err) { console.error('[FB Scraper] Error en ciclo:', err.message); }
 
     const jitter = randomJitter();
     const delay = config.interval_hours * 60 * 60 * 1000 + jitter;
@@ -391,27 +307,18 @@ async function main() {
       }
     }
 
-    const b = await launchBrowser();
-    const page = await b.newPage();
-
-    try {
-      console.log('[FB Scraper] Step 1: setupSession...');
-      await setupSession(page);
-
-      console.log('[FB Scraper] Step 2: scrapeGroup...');
-      const posts = await scrapeGroup(page, testGroup);
-      if (posts.length > 0) {
-        console.log(`[FB Scraper] ${posts.length} post(s) encontrados. Enviando...`);
-        await sendPosts(posts);
-      } else {
-        console.log('[FB Scraper] No se encontraron posts');
-      }
-    } catch (err) {
-      console.error('[FB Scraper] Test falló:', err.message);
-      process.exit(1);
-    } finally {
-      await page.close().catch(() => {});
-      await closeBrowser(b);
+    console.log('[FB Scraper] --- TEST MODE ---');
+    const { posts, expired } = await scrapeGroup(testGroup);
+    if (expired) {
+      console.log('[FB Scraper] Cookies expiradas, reintentando con cookies nuevas...');
+      await downloadCookies();
+      const r2 = await scrapeGroup(testGroup);
+      if (r2.posts.length > 0) await sendPosts(r2.posts);
+    } else if (posts.length > 0) {
+      console.log(`[FB Scraper] ${posts.length} post(s) encontrados. Enviando...`);
+      await sendPosts(posts);
+    } else {
+      console.log('[FB Scraper] No se encontraron posts');
     }
   } else {
     main().catch(err => {
