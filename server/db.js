@@ -831,6 +831,14 @@ export async function initDb() {
     `, 'wa_adoption_broadcast_enabled');
 
     await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('wa_adoption_broadcast_hours', '8,12,16,20') ON CONFLICT (key) DO NOTHING
+    `, 'wa_adoption_broadcast_hours');
+
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('fb_adoption_broadcast_hours', '8,12,16,20') ON CONFLICT (key) DO NOTHING
+    `, 'fb_adoption_broadcast_hours');
+
+    await migrate(client, `
       CREATE TABLE IF NOT EXISTS share_invites (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,

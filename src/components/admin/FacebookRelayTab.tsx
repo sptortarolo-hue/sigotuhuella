@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle, Bug, Heart, Globe, Search, CheckSquare, Square, Send, Megaphone } from 'lucide-react';
+import { Smartphone, Loader2, RefreshCw, Upload, X, CheckCircle, XCircle, Clock, AlertCircle, Bug, Heart, Globe, Search, CheckSquare, Square, Send, Megaphone, Save } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { api } from '@/src/lib/api';
 
@@ -78,15 +78,19 @@ export default function FacebookRelayTab() {
   const [broadcastPetPreview, setBroadcastPetPreview] = useState('');
   const [forceAdoptionsLoading, setForceAdoptionsLoading] = useState(false);
   const [forceAdoptionsResult, setForceAdoptionsResult] = useState('');
+  const [fbAdoptionHours, setFbAdoptionHours] = useState('');
+  const [fbAdoptionHoursSaving, setFbAdoptionHoursSaving] = useState(false);
 
   async function loadData() {
     try {
-      const [statusData, failedData] = await Promise.all([
+      const [statusData, failedData, hoursVal] = await Promise.all([
         api.facebookRelay.status(),
         api.facebookRelay.failedTasks(),
+        api.settings.get('fb_adoption_broadcast_hours'),
       ]);
       setStatus(statusData);
       setFailedTasks(failedData.tasks || []);
+      setFbAdoptionHours(hoursVal || '8,12,16,20');
     } catch (err) {
       console.error('Error loading FB relay data:', err);
     } finally {
@@ -158,6 +162,17 @@ export default function FacebookRelayTab() {
       setForceAdoptionsResult(`❌ Error: ${err.message}`);
     } finally {
       setForceAdoptionsLoading(false);
+    }
+  }
+
+  const handleSaveFbHours = async () => {
+    setFbAdoptionHoursSaving(true);
+    try {
+      await api.settings.update('fb_adoption_broadcast_hours', fbAdoptionHours);
+    } catch (e) {
+      console.error('Error saving FB adoption hours:', e);
+    } finally {
+      setFbAdoptionHoursSaving(false);
     }
   }
 
@@ -356,6 +371,23 @@ export default function FacebookRelayTab() {
           {forceAdoptionsResult && (
             <span className="text-sm font-medium">{forceAdoptionsResult}</span>
           )}
+        </div>
+        <div className="border-t border-brand-accent pt-4 flex items-center gap-3">
+          <span className="text-sm font-medium text-gray-600 whitespace-nowrap">Horarios (ej: 8,12,16,20):</span>
+          <input
+            value={fbAdoptionHours}
+            onChange={e => setFbAdoptionHours(e.target.value)}
+            placeholder="8,12,16,20"
+            className="flex-1 max-w-xs px-4 py-2.5 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-sm"
+          />
+          <button
+            onClick={handleSaveFbHours}
+            disabled={fbAdoptionHoursSaving}
+            className="px-4 py-2.5 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all flex items-center gap-2 text-sm shrink-0"
+          >
+            {fbAdoptionHoursSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Guardar
+          </button>
         </div>
       </div>
 

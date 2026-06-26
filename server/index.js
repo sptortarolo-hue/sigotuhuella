@@ -36,7 +36,7 @@ import { autoQueueForAdoption, processQueue } from './services/instagramPublishe
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
 import { publishStory, isConnected } from './services/instagramService.js';
 import { checkWhatsAppTimeouts } from './services/whatsappScheduler.js';
-import { broadcastNextAdoptionPet, broadcastFbAdoptionPets } from './services/whatsappService.js';
+import { broadcastNextAdoptionPet, broadcastFbAdoptionPets, broadcastAdoptionPet } from './services/whatsappService.js';
 import { processInviteReminders } from './services/reminderService.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
@@ -615,7 +615,7 @@ async function start() {
 
   checkWhatsAppTimeouts();
 
-  // Adoption broadcast: every hour, publish at 08, 12, 16, 20 Argentina time
+  // Adoption broadcast: every 60 min, publish only at configured hours
   async function checkAdoptionBroadcast() {
     try {
       const hour = parseInt(new Intl.DateTimeFormat('es-AR', {
@@ -623,8 +623,14 @@ async function start() {
         hour: 'numeric',
         hour12: false,
       }).format(new Date()));
-      if ([8, 12, 16, 20].includes(hour)) {
+
+      const waHours = (await pool.query("SELECT value FROM settings WHERE key = 'wa_adoption_broadcast_hours'")).rows[0]?.value || '8,12,16,20';
+      const fbHours = (await pool.query("SELECT value FROM settings WHERE key = 'fb_adoption_broadcast_hours'")).rows[0]?.value || '8,12,16,20';
+
+      if (waHours.split(',').map(s => parseInt(s.trim())).includes(hour)) {
         await broadcastNextAdoptionPet();
+      }
+      if (fbHours.split(',').map(s => parseInt(s.trim())).includes(hour)) {
         await broadcastFbAdoptionPets();
       }
     } catch (err) {
@@ -632,7 +638,7 @@ async function start() {
     }
   }
   setTimeout(checkAdoptionBroadcast, 10_000);
-  setInterval(checkAdoptionBroadcast, 5 * 60 * 1000);
+  setInterval(checkAdoptionBroadcast, 60 * 60 * 1000);
 }
 
 start().catch(err => {

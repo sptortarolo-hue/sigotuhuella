@@ -62,6 +62,8 @@ export default function RelayWhatsAppTab() {
   const [toggling, setToggling] = useState(false);
   const [waAdoptionEnabled, setWaAdoptionEnabled] = useState(false);
   const [waAdoptionToggling, setWaAdoptionToggling] = useState(false);
+  const [waAdoptionHours, setWaAdoptionHours] = useState('');
+  const [waAdoptionHoursSaving, setWaAdoptionHoursSaving] = useState(false);
 
   // Broadcast UI state
   const [petCategory, setPetCategory] = useState<'reportados' | 'adopcion'>('reportados');
@@ -191,6 +193,9 @@ export default function RelayWhatsAppTab() {
     api.settings.get('wa_adoption_broadcast_enabled').then(v => {
       if (v === 'true') setWaAdoptionEnabled(true);
     }).catch(() => {});
+    api.settings.get('wa_adoption_broadcast_hours').then(v => {
+      setWaAdoptionHours(v || '8,12,16,20');
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -302,6 +307,17 @@ export default function RelayWhatsAppTab() {
       setForceAdoptionsResult(`❌ Error: ${err.message}`);
     } finally {
       setForceAdoptionsLoading(false);
+    }
+  };
+
+  const handleSaveWaHours = async () => {
+    setWaAdoptionHoursSaving(true);
+    try {
+      await api.settings.update('wa_adoption_broadcast_hours', waAdoptionHours);
+    } catch (e) {
+      console.error('Error saving WA adoption hours:', e);
+    } finally {
+      setWaAdoptionHoursSaving(false);
     }
   };
 
@@ -460,6 +476,38 @@ export default function RelayWhatsAppTab() {
             {waAdoptionToggling && <Loader2 className="absolute left-1 w-5 h-5 animate-spin text-white" />}
             <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${waAdoptionEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
+        </div>
+        <div className="mt-4 border-t border-brand-accent pt-4 space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-600 whitespace-nowrap">Horarios (ej: 8,12,16,20):</span>
+            <input
+              value={waAdoptionHours}
+              onChange={e => setWaAdoptionHours(e.target.value)}
+              placeholder="8,12,16,20"
+              className="flex-1 max-w-xs px-4 py-2.5 rounded-xl border border-brand-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-sm"
+            />
+            <button
+              onClick={handleSaveWaHours}
+              disabled={waAdoptionHoursSaving}
+              className="px-4 py-2.5 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all flex items-center gap-2 text-sm shrink-0"
+            >
+              {waAdoptionHoursSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Guardar
+            </button>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleForceAdoptions}
+              disabled={forceAdoptionsLoading}
+              className="px-6 py-2.5 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-all disabled:opacity-50 flex items-center gap-2"
+            >
+              {forceAdoptionsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {forceAdoptionsLoading ? 'Publicando...' : 'Forzar adopciones ahora'}
+            </button>
+            {forceAdoptionsResult && (
+              <span className="text-sm font-medium">{forceAdoptionsResult}</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -709,30 +757,6 @@ export default function RelayWhatsAppTab() {
             </table>
           </div>
         )}
-      </div>
-
-      {/* Forzar adopciones */}
-      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
-        <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
-          <Send className="w-6 h-6" /> Forzar publicación de adopciones
-        </h2>
-        <p className="text-sm text-gray-500">
-          Publica las mascotas en adopción pendientes en los grupos con la columna "Adopciones" activada.
-          El scheduler automático corre a las 8, 12, 16 y 20hs.
-        </p>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={handleForceAdoptions}
-            disabled={forceAdoptionsLoading}
-            className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl transition-all disabled:opacity-50 flex items-center gap-2"
-          >
-            {forceAdoptionsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-            {forceAdoptionsLoading ? 'Publicando...' : 'Forzar adopciones ahora'}
-          </button>
-          {forceAdoptionsResult && (
-            <p className="text-sm font-medium">{forceAdoptionsResult}</p>
-          )}
-        </div>
       </div>
 
       {/* Publicar texto en grupos */}

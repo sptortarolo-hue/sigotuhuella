@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAllGroups, saveQR, clearQR, getQR, getPetForBroadcast, getLatestPet, generateBroadcastCaption, searchPets } from '../services/phoneRelayService.js';
-import { broadcastNextAdoptionPet } from '../services/whatsappService.js';
+import { broadcastAdoptionPet } from '../services/whatsappService.js';
 import { requireAdmin } from '../auth.js';
 
 const router = Router();
@@ -227,8 +227,8 @@ router.post('/broadcast-pet', requireAdmin, async (req, res) => {
 
 router.post('/broadcast-adoptions', requireAdmin, async (req, res) => {
   try {
-    await broadcastNextAdoptionPet();
-    res.json({ success: true, message: 'Broadcast WhatsApp de adopciones ejecutado' });
+    await broadcastAdoptionPet();
+    res.json({ success: true, message: 'Broadcast de adopciones ejecutado (WA + FB)' });
   } catch (err) {
     console.error('[Relay] broadcast-adoptions error:', err.message);
     res.status(500).json({ error: err.message });
