@@ -465,10 +465,9 @@ async function postToGroup(b, fbGroupId, message, imageUrls, marker) {
     const currentUrl = page.url();
     console.log(`[FB Relay] URL actual: ${currentUrl}`);
 
-    // Guardar cookies + session data + perfil después de post exitoso
+    // Guardar cookies + session data después de post exitoso
     await saveCookies(page);
     await uploadSessionData(page);
-    uploadProfileBackup(); // no await — no bloquear el ciclo
 
     return { success: true, fb_post_url: currentUrl };
   } finally {
@@ -517,7 +516,6 @@ async function commentOnPost(b, targetUrl, text) {
 
     console.log('[FB Relay] Comentario publicado');
     await saveCookies(page);
-    uploadProfileBackup(); // no await — no bloquear el ciclo
     return true;
   } finally {
     await page.close();
