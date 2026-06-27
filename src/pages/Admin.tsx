@@ -970,7 +970,7 @@ export default function Admin() {
                             <div className="flex items-center gap-1 mt-2" onClick={e => e.stopPropagation()}>
                               <button onClick={() => setSharePet(pet)} className="p-1.5 rounded-lg bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-md transition-all" title="Redes Sociales"><Share2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => editPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
-                              <button onClick={() => setConfirmDialog({ isOpen: true, title: 'Eliminar mascota', message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`, actionLabel: 'CONFIRMAR', variant: 'danger', onConfirm: async () => { await deletePet(pet.id); fetchPets(); setConfirmDialog(prev => ({ ...prev, isOpen: false })); } })} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setConfirmDialog({ isOpen: true, title: 'Eliminar mascota', message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`, actionLabel: 'CONFIRMAR', variant: 'danger', onConfirm: async () => { try { await deletePet(pet.id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } setConfirmDialog(prev => ({ ...prev, isOpen: false })); } })} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => handleTrackPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Seguimiento"><Activity className="w-3.5 h-3.5" /></button>
                               {pet.status === PetStatus.FOR_ADOPTION ? (
                                 <button onClick={async () => { if (confirm('¿Marcar como adoptada?')) { await updatePet(pet.id, { status: PetStatus.ADOPTED }); fetchPets(); } }} className="ml-auto p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Marcar adoptado"><Heart className="w-3.5 h-3.5" /></button>
@@ -1070,7 +1070,7 @@ export default function Admin() {
                             message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`,
                             actionLabel: 'CONFIRMAR',
                             variant: 'danger',
-                            onConfirm: async () => { await deletePet(id); fetchPets(); setConfirmDialog(prev => ({ ...prev, isOpen: false })); },
+                            onConfirm: async () => { try { await deletePet(id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } setConfirmDialog(prev => ({ ...prev, isOpen: false })); },
                           });
                         }}
                       />
@@ -1120,7 +1120,7 @@ export default function Admin() {
                       pet={pet}
                       showAdminActions
                       onEdit={editPet}
-                      onDelete={async (id) => { if (confirm('Eliminar?')) { await deletePet(id); fetchPets(); } }}
+                      onDelete={async (id) => { if (confirm('¿Eliminar esta publicación definitivamente?')) { try { await deletePet(id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } } }}
                     />
                     {pet.status === PetStatus.FOR_ADOPTION && (
                       <button

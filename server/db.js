@@ -951,6 +951,27 @@ export async function initDb() {
       INSERT INTO settings (key, value) VALUES ('fb_scraper_max_posts', '50') ON CONFLICT (key) DO NOTHING
     `, 'fb_scraper_max_posts');
 
+    await migrate(client, `
+      ALTER TABLE fb_relay_tasks
+      DROP CONSTRAINT IF EXISTS fb_relay_tasks_pet_id_fkey,
+      ADD CONSTRAINT fb_relay_tasks_pet_id_fkey
+      FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
+    `, 'fb_relay_tasks cascade');
+
+    await migrate(client, `
+      ALTER TABLE pet_records
+      DROP CONSTRAINT IF EXISTS pet_records_pet_id_fkey,
+      ADD CONSTRAINT pet_records_pet_id_fkey
+      FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
+    `, 'pet_records cascade');
+
+    await migrate(client, `
+      ALTER TABLE whatsapp_adoption_interests
+      DROP CONSTRAINT IF EXISTS whatsapp_adoption_interests_pet_id_fkey,
+      ADD CONSTRAINT whatsapp_adoption_interests_pet_id_fkey
+      FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
+    `, 'whatsapp_adoption_interests cascade');
+
     console.log('Database migrations complete');
   } finally {
     client.release();
