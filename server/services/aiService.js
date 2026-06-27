@@ -1,9 +1,14 @@
 import { GoogleGenAI } from '@google/genai';
+import Groq from 'groq-sdk';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
 const CF_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
 const CF_MODEL = process.env.CLOUDFLARE_IMAGE_MODEL || '@cf/black-forest-labs/flux-1-schnell';
+const VIDEO_GROQ_MODEL = process.env.VIDEO_GROQ_MODEL || 'mixtral-8x7b-32768';
+
+const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
 const PROMPT_TEMPLATES = {
   consejo_cuidado: `Generá un artículo sobre cuidado de mascotas en español argentino.
@@ -107,7 +112,7 @@ export function getImagePromptForType(type) {
 }
 
 export async function generateVideoContent(topic, style, numScenes, sceneDescriptions = null) {
-  if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY requerida');
+  if (!groq) throw new Error('GROQ_API_KEY requerida para generación de video');
 
   const styleInstructions = {
     emotive: 'Tono emotivo y conmovedor. Frases cortas que toquen el corazón.',
@@ -145,15 +150,14 @@ Reglas:
 - overlayTexts: exactamente ${numScenes} textos cortos (máx 8 palabras cada uno) que aparecen en pantalla, uno por escena de foto
 ${hasSceneDescriptions ? '- imagePrompts: array vacío [] porque las imágenes son fotos reales' : '- imagePrompts: exactamente ' + numScenes + ' prompts en INGLÉS para generar imágenes con IA (Flux). Cada prompt debe describir una escena visual concreta, fotorrealista, con iluminación cinematográfica. NO incluir texto en las imágenes. Estilo: fotografía profesional, colores cálidos, 4K quality.'}`;
 
-  const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
-    contents: prompt,
-    config: { responseMimeType: 'application/json' },
+  const response = await groq.chat.completions.create({
+    model: VIDEO_GROQ_MODEL,
+    messages: [{ role: 'user', content: prompt }],
+    response_format: { type: 'json_object' },
   });
 
-  const text = response.text;
-  if (!text) throw new Error('Respuesta vacía de Gemini');
+  const text = response.choices?.[0]?.message?.content;
+  if (!text) throw new Error('Respuesta vacía de Groq');
 
   try {
     const parsed = JSON.parse(text);
@@ -183,21 +187,11 @@ export async function generateVideoImages(imagePrompts) {
   const images = [];
   for (const prompt of imagePrompts) {
     let imageData = null;
-    if (CF_ACCOUNT_ID && CF_API_TOKEN) {
-      try {
-        const result = await generateImage(prompt);
-        imageData = result.imageData;
-      } catch (err) {
-        console.warn('Cloudflare image gen failed, trying Pollinations:', err.message);
-      }
-    }
-    if (!imageData) {
-      try {
-        const result = await generateImagePollinations(prompt);
-        imageData = result.imageData;
-      } catch (err) {
-        console.warn('Pollinations image gen failed:', err.message);
-      }
+    try {
+      const result = await generateImagePollinations(prompt);
+      imageData = result.imageData;
+    } catch (err) {
+      console.warn('Pollinations image gen failed:', err.message);
     }
     images.push(imageData);
   }
