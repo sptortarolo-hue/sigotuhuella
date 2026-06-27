@@ -1,6 +1,13 @@
 import pool from '../db.js';
 import crypto from 'crypto';
 
+export function applySpintax(text) {
+  return text.replace(/\{([^}]+)\}/g, (_, variants) => {
+    const opts = variants.split('|').map(v => v.trim());
+    return opts[Math.floor(Math.random() * opts.length)];
+  });
+}
+
 export async function enqueuePublishTask(petId, groupId, fbGroupId, message, imageUrls) {
   const marker = crypto.randomUUID().substring(0, 5);
   const messageWithMarker = message + '\n\n[MKR-' + marker + ']';

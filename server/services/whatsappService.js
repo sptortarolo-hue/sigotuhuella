@@ -2,7 +2,7 @@ import axios from 'axios';
 import pool from '../db.js';
 import { enqueue } from './phoneRelayService.js';
 import { generateCelebrationText } from './textTemplates.js';
-import { enqueuePublishTask } from './facebookRelayService.js';
+import { enqueuePublishTask, applySpintax } from './facebookRelayService.js';
 
 const GRAPH_API = 'https://graph.facebook.com/v22.0';
 
@@ -514,23 +514,23 @@ export async function broadcastFbAdoptionPets(existingPet = null) {
     const desc = pet.description ? pet.description.substring(0, 200) : '';
     const edadInfo = pet.age ? ` de ${pet.age}` : '';
 
-    const message = [
-      `🏡 *Buscamos hogar para ${pet.name}*`,
+    const message = applySpintax([
+      `{🏡 Buscamos hogar|🌟 En adopción|❤️ Busca familia} para ${pet.name}`,
       '',
       'En Sigo Tu Huella conectamos mascotas con familias.',
       '',
-      `Hoy te presentamos a *${pet.name}*, ${speciesLabel}${edadInfo} que está buscando un hogar.`,
+      `Hoy te {presentamos|compartimos|mostramos} a *${pet.name}*, ${speciesLabel}${edadInfo} que {busca un hogar|necesita familia|está en adopción}.`,
       desc ? `\n${desc}` : '',
       '',
-      `📍 ${pet.location || 'Sin ubicación'}`,
-      pet.contact_info ? `📞 ${pet.contact_info}` : '',
+      `{📍 Ubicación|📍 Zona|📍 Se encuentra en}: ${pet.location || 'Sin ubicación'}`,
+      pet.contact_info ? `{📞 Contacto|📞 Teléfono|📞 WhatsApp}: ${pet.contact_info}` : '',
       '',
       `👉 ${frontendUrl}/pet/${pet.id}`,
       '',
-      'Si no podés adoptar, compartir también ayuda 🐾',
+      '{Si no podés adoptar, compartir también ayuda 🐾|Compartí y ayudanos a encontrarle hogar 🙏|Ayudanos a difundir 🐶}',
       '',
       hashtags,
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\n'));
 
     const imagesResult = await pool.query(
       'SELECT image_data FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 5',

@@ -19,6 +19,13 @@ const COOKIES_PATH = path.join(PROFILE_DIR, 'cookies.json');
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const TMP_DIR = path.join(__dirname, '.fb_img_tmp');
 
+const USER_AGENTS = [
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+];
+
 const api = axios.create({
   baseURL: API_BASE,
   headers: { Authorization: `Bearer ${TOKEN}` },
@@ -28,6 +35,53 @@ const api = axios.create({
 let browser = null;
 let keepAliveActive = false;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomItem(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function pickUA() {
+  return randomItem(USER_AGENTS);
+}
+
+async function humanType(page, editor, text) {
+  await editor.click();
+  await sleep(300 + Math.random() * 500);
+  for (const char of text) {
+    await page.keyboard.type(char, { delay: randomInt(70, 130) });
+  }
+}
+
+// Bezier curve mouse movement
+async function bezierMove(page, fromX, fromY, toX, toY) {
+  const cp1x = fromX + (toX - fromX) * 0.2 + Math.random() * 60 - 30;
+  const cp1y = fromY + (toY - fromY) * 0.1 + Math.random() * 40 - 20;
+  const cp2x = fromX + (toX - fromX) * 0.8 + Math.random() * 60 - 30;
+  const cp2y = fromY + (toY - fromY) * 0.9 + Math.random() * 40 - 20;
+  const steps = randomInt(25, 40);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = Math.pow(1 - t, 3) * fromX + 3 * Math.pow(1 - t, 2) * t * cp1x + 3 * (1 - t) * Math.pow(t, 2) * cp2x + Math.pow(t, 3) * toX;
+    const y = Math.pow(1 - t, 3) * fromY + 3 * Math.pow(1 - t, 2) * t * cp1y + 3 * (1 - t) * Math.pow(t, 2) * cp2y + Math.pow(t, 3) * toY;
+    await page.mouse.move(Math.round(x), Math.round(y));
+    await sleep(10 + Math.random() * 15);
+  }
+}
+
+// Simulate human scrolling + waiting before posting
+async function prePostBehavior(page) {
+  await page.evaluate(() => window.scrollBy(0, randomInt(100, 400)));
+  await sleep(randomInt(3000, 8000));
+  const vp = page.viewport();
+  await bezierMove(page, randomInt(100, vp.width - 100), randomInt(100, vp.height - 100), vp.width / 2, vp.height / 3);
+  await sleep(randomInt(1000, 3000));
+  const loginFields = await page.$('input[name="email"], input[name="pass"]');
+  if (loginFields) throw new Error('session expired');
+}
 
 function ensureProfileDir() {
   if (!fs.existsSync(PROFILE_DIR)) {
@@ -58,14 +112,17 @@ async function getBrowser() {
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-gpu',
       '--disable-blink-features=AutomationControlled',
       '--no-first-run',
       '--no-default-browser-check',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--disable-features=ChromeWhatsNewUI',
+      '--disable-features=IsolateOrigins,site-per-process,ChromeWhatsNewUI,OptimizationGuideModelDownloading,Translate',
       '--disable-sync',
       '--disable-field-trial-config',
+      '--window-size=1366,768',
+      '--lang=es-AR',
+      '--no-pings',
+      '--disable-crash-reporter',
+      '--disable-background-networking',
     ],
   });
   return browser;
@@ -307,8 +364,8 @@ async function postToGroup(b, fbGroupId, message, imageUrls, marker) {
   const page = await b.newPage();
 
   try {
-    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
-    await page.setViewport({ width: 1440, height: 900 });
+    await page.setUserAgent(pickUA());
+    await page.setViewport({ width: 1366, height: 768 });
 
     // Verificar sesión (usa profile persistente → cookies + localStorage ya están)
     if (!(await ensureFacebookSession(page))) {
@@ -325,6 +382,9 @@ async function postToGroup(b, fbGroupId, message, imageUrls, marker) {
     if (!(await checkSession(page))) {
       throw new Error('session expired');
     }
+
+    // Comportamiento humano previo al post
+    await prePostBehavior(page);
 
     let triggerClicked = false;
     for (let attempt = 0; attempt < 8 && !triggerClicked; attempt++) {
@@ -383,9 +443,8 @@ async function postToGroup(b, fbGroupId, message, imageUrls, marker) {
       cleanupImages();
     }
 
-    await editor.click();
-    await sleep(500);
-    await editor.type(message, { delay: 3 });
+    // Escribir mensaje con tipeo humano
+    await humanType(page, editor, message);
     await sleep(2000);
 
     const postBtn = await page.waitForSelector('div[role="dialog"] [aria-label="Publicar"], div[role="dialog"] [aria-label="Post"]', { visible: true, timeout: 10000 });
@@ -421,8 +480,8 @@ async function commentOnPost(b, targetUrl, text) {
   const page = await b.newPage();
 
   try {
-    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
-    await page.setViewport({ width: 1440, height: 900 });
+    await page.setUserAgent(pickUA());
+    await page.setViewport({ width: 1366, height: 768 });
 
     if (!(await ensureFacebookSession(page))) {
       throw new Error('session expired');
@@ -436,6 +495,9 @@ async function commentOnPost(b, targetUrl, text) {
       throw new Error('session expired');
     }
 
+    // Comportamiento humano previo
+    await prePostBehavior(page);
+
     const commentBtn = await page.waitForSelector('[aria-label="Comentar"]', { visible: true, timeout: 15000 }).catch(() => null);
     if (!commentBtn) {
       console.log('[FB Relay] Botón Comentar no encontrado, intentando scroll...');
@@ -446,9 +508,7 @@ async function commentOnPost(b, targetUrl, text) {
     await sleep(1000);
 
     const editor = await page.waitForSelector('div[role="textbox"][contenteditable="true"]', { visible: true, timeout: 15000 });
-    await editor.click();
-    await sleep(500);
-    await editor.type(text, { delay: 3 });
+    await humanType(page, editor, text);
     await sleep(1500);
 
     console.log('[FB Relay] Presionando Enter para comentar...');
@@ -477,6 +537,11 @@ async function executeTask(task) {
     await api.post('/fb/completed', { task_updates: [{ task_id: task.id, fb_post_url: fbPostUrl }] });
     console.log(`[FB Relay] Tarea ${task.id} completada (post)`);
   }
+
+  // Delay humano entre tareas: 90-180s aleatorio
+  const delay = 90000 + Math.floor(Math.random() * 90000);
+  console.log(`[FB Relay] Esperando ${Math.round(delay / 1000)}s antes de siguiente tarea...`);
+  await sleep(delay);
 }
 
 async function startKeepAlive(b) {
@@ -493,8 +558,8 @@ async function startKeepAlive(b) {
           try { await browser.version(); } catch { continue; }
         }
         const page = await b.newPage();
-        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
-        await page.setViewport({ width: 1440, height: 900 });
+        await page.setUserAgent(pickUA());
+        await page.setViewport({ width: 1366, height: 768 });
         await page.goto('https://facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
         await sleep(2000);
         await page.evaluate(() => window.scrollBy(0, Math.floor(Math.random() * 500 + 100)));
@@ -602,8 +667,8 @@ async function main() {
               const b4 = await getBrowser();
               const testPage = await b4.newPage();
               try {
-                await testPage.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
-                await testPage.setViewport({ width: 1440, height: 900 });
+                await testPage.setUserAgent(pickUA());
+                await testPage.setViewport({ width: 1366, height: 768 });
                 if (await setCookiesAndCheck(testPage, cookies)) {
                   console.log('[FB Relay] Sesión restaurada desde cookies del servidor');
                   await testPage.close();

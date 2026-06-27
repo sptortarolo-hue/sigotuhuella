@@ -8,7 +8,7 @@ import {
 } from '../services/facebookRelayService.js';
 import { requireAdmin } from '../auth.js';
 import { searchPets } from '../services/phoneRelayService.js';
-import { enqueuePublishTask } from '../services/facebookRelayService.js';
+import { enqueuePublishTask, applySpintax } from '../services/facebookRelayService.js';
 import { broadcastAdoptionPet } from '../services/whatsappService.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -279,21 +279,21 @@ router.post('/fb/broadcast-pet', requireAdmin, async (req, res) => {
     const ageGender = [gender, pet.age].filter(Boolean).join(' · ');
     const hashtags = '#SigoTuHuella #MascotasPerdidas #AdoptaNoCompres';
 
-    const caption = [
+    const caption = applySpintax([
       tag,
-      pet.name ? `Nombre: ${pet.name}` : '',
+      pet.name ? `{Nombre|Se llama|Responde a}: ${pet.name}` : '',
       `${species}${pet.breed ? ' · ' + pet.breed : ''}`,
       ageGender || '',
       pet.color ? `🎨 ${pet.color}` : '',
-      pet.location ? `📍 ${pet.location}` : '',
-      pet.contact_info ? `📞 ${pet.contact_info}` : '',
+      pet.location ? `{📍 Ubicación|📍 Zona|📍 Se vio en}: ${pet.location}` : '',
+      pet.contact_info ? `{📞 Contacto|📞 Teléfono|📞 WhatsApp}: ${pet.contact_info}` : '',
       '',
       pet.description ? pet.description.substring(0, 500) : '',
       '',
       `🔗 ${frontendUrl}/pet/${pet.id}`,
       '',
       hashtags,
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\n'));
 
     const imagesResult = await pool.query(
       'SELECT image_data FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 5',
