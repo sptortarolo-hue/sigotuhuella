@@ -208,13 +208,14 @@ function buildAutoScript(style, stats) {
     script += `Más de ${reunited} mascotas ya volvieron a casa.\n\n`;
     script += '¿Vos ya descargaste la app? Unite a la red que devuelve sonrisas. ';
   }
-  script += 'Descargá Sigo Tu Huella gratis en sigotuhuella.online y sé parte del cambio.';
+  script += 'Sé parte de esta comunidad que ya reúne familias. ';
   return script;
 }
 
 async function generateTTS(config, voiceScript, workDir) {
   const stats = await getGlobalStats();
-  const script = voiceScript || buildAutoScript(config.style, stats);
+  const baseScript = voiceScript || buildAutoScript(config.style, stats);
+  const script = baseScript + '\n\nIngresá en triple doble b punto sigotuhuella punto online y sé parte de nuestra comunidad.';
   const voiceKeys = normalizeVoiceKeys(config.voices || [config.voice || 'elena']);
   console.log('[TTS] generateTTS start — includeVoice:', config.includeVoice, 'voices:', voiceKeys, 'script length:', script?.length);
 
@@ -310,11 +311,6 @@ async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
 
 async function generateMultiVoice(script, voiceKeys, workDir, ttsPath, style = 'emotive') {
   const blocks = splitByParagraphs(script, voiceKeys, style);
-  blocks.push({
-    text: 'sigotuhuella.online',
-    voice: VOICE_OPTIONS[voiceKeys[0]] || VOICE_OPTIONS.elena,
-    params: getVoiceParams(voiceKeys[0], style),
-  });
   console.log('[TTS-multi] Generating', blocks.length, 'voice clips with voices:', voiceKeys);
 
   const clipPaths = [];
@@ -653,7 +649,7 @@ async function generateClosingClip(dims, style, workDir) {
 
   const titleText = escDrawText('SIGO TU HUELLA');
   const urlText = escDrawText('sigotuhuella.online');
-  const ctaText = escDrawText('Visita nuestra web - Descarga la app gratis ↓');
+  const ctaText = escDrawText('Ingresá en www.sigotuhuella.online y sé parte de nuestra comunidad');
 
   const titleFontSize = isVertical ? 78 : 60;
   const urlFontSize = isVertical ? 60 : 44;
@@ -1136,7 +1132,7 @@ const outPath = path.join(workDir, 'branded.mp4');
 
   const filterParts = [];
   const cr = Math.round(wmSize * 0.25) || 1;
-  filterParts.push(`[1:v]scale=${wmSize}:-1,format=rgba,colorkey=0xFFFFFF:0.15:0.0,geq=lum='lum(X,Y)':a='if(between(abs(X-W/2),0,W/2-${cr})*between(abs(Y-H/2),0,H/2-${cr})+between(abs(X-W/2),W/2-${cr},W/2)*between(abs(Y-H/2),H/2-${cr},H/2)*lte(pow(abs(X-W/2)-(W/2-${cr}),2)+pow(abs(Y-H/2)-(H/2-${cr}),2),${cr*cr}),alpha(X,Y),0)',colorchannelmixer=aa=0.75[wm]`);
+  filterParts.push(`[1:v]scale=${wmSize}:-1,format=rgba,geq=lum='lum(X,Y)':a='if(between(abs(X-W/2),0,W/2-${cr})*between(abs(Y-H/2),0,H/2-${cr})+between(abs(X-W/2),W/2-${cr},W/2)*between(abs(Y-H/2),H/2-${cr},H/2)*lte(pow(abs(X-W/2)-(W/2-${cr}),2)+pow(abs(Y-H/2)-(H/2-${cr}),2),${cr*cr}),alpha(X,Y),0)',colorchannelmixer=aa=0.75[wm]`);
   filterParts.push(`[0:v][wm]overlay=W-w-${pad}:${pad}:format=auto[wmed]`);
 
   filterParts.push(`color=c=0xF5F5F0:s=${w}x${botBarH}:d=5:rate=${FPS},format=rgba,colorchannelmixer=aa=0.85[botbar]`);
