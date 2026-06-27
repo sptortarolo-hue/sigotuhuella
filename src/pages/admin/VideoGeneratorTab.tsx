@@ -55,6 +55,14 @@ interface AIContent {
   imagePrompts: string[];
 }
 
+function stripEmojis(text: string): string {
+  return text.replace(/[\u{1F000}-\u{1FFFF}]|[\u2600-\u27BF]|\u{FE0F}/gu, '').trim();
+}
+
+function expandLocationSlash(text: string): string {
+  return text.replace(/([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)\/([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)/g, '$1, $2 y alrededores');
+}
+
 const FORMAT_OPTIONS = [
   { value: 'vertical', label: 'Vertical 9:16', icon: Smartphone, desc: 'Stories / Reels / TikTok' },
   { value: 'square', label: 'Cuadrado 1:1', icon: Square, desc: 'Feed Instagram / Facebook' },
@@ -230,7 +238,7 @@ export default function VideoGeneratorTab() {
       const exists = prev.find(s => s.source === 'pet' && s.petId === pet.id);
       if (exists) return prev.filter(s => s !== exists);
       const parts = [pet.name, pet.species, pet.breed, pet.status, pet.description].filter(Boolean);
-      const petText = parts.join(' - ');
+      const petText = expandLocationSlash(stripEmojis(parts.join(' - ')));
       if (petText) {
         setVoiceScript(v => v || petText);
       }
@@ -248,7 +256,7 @@ export default function VideoGeneratorTab() {
     setSelectedScenes(prev => {
       const exists = prev.find(s => s.source === 'news' && s.newsId === news.id);
       if (exists) return prev.filter(s => s !== exists);
-      const newsText = [news.title, news.content].filter(Boolean).join('\n');
+      const newsText = expandLocationSlash(stripEmojis([news.title, news.content].filter(Boolean).join('\n')));
       if (newsText) {
         setVoiceScript(v => v || newsText);
       }
