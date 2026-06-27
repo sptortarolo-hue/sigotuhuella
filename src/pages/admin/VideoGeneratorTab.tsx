@@ -37,6 +37,7 @@ interface AvailableNews {
   type: string;
   image_data: string | null;
   mime_type: string | null;
+  content?: string;
 }
 
 interface SceneItem {
@@ -228,8 +229,10 @@ export default function VideoGeneratorTab() {
     setSelectedScenes(prev => {
       const exists = prev.find(s => s.source === 'pet' && s.petId === pet.id);
       if (exists) return prev.filter(s => s !== exists);
-      if (pet.description) {
-        setVoiceScript(v => v || pet.description || '');
+      const parts = [pet.name, pet.species, pet.breed, pet.status, pet.description].filter(Boolean);
+      const petText = parts.join(' - ');
+      if (petText) {
+        setVoiceScript(v => v || petText);
       }
       return [...prev, {
         source: 'pet' as const,
@@ -245,6 +248,10 @@ export default function VideoGeneratorTab() {
     setSelectedScenes(prev => {
       const exists = prev.find(s => s.source === 'news' && s.newsId === news.id);
       if (exists) return prev.filter(s => s !== exists);
+      const newsText = [news.title, news.content].filter(Boolean).join('\n');
+      if (newsText) {
+        setVoiceScript(v => v || newsText);
+      }
       return [...prev, {
         source: 'news' as const,
         newsId: news.id,

@@ -51,7 +51,7 @@ router.get('/available-pets', requireAuth, requireAdmin, async (req, res) => {
 router.get('/available-news', requireAuth, requireAdmin, async (req, res) => {
   try {
     const { type, limit = 100 } = req.query;
-    let query = `SELECT id, title, type, image_data, mime_type FROM news`;
+    let query = `SELECT id, title, type, image_data, mime_type, content FROM news`;
     const params = [];
     if (type) {
       query += ` WHERE type = $1`;
