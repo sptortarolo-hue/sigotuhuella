@@ -89,8 +89,8 @@ const STYLE_ZOOMPAN = {
 };
 
 const TRANSITION_DUR = 0.5;
-const OPENING_DUR = 3;
-const CLOSING_DUR = 5;
+const OPENING_DUR = 4;
+const CLOSING_DUR = 7;
 const FPS = 25;
 const FF_PRESET = 'ultrafast';
 const FF_CRF = 23;
@@ -599,11 +599,11 @@ async function generateOpeningClip(dims, style, workDir) {
   const terracotta = '0xD48C70';
 
   const titleText = escDrawText('SIGO TU HUELLA');
-  const titleFontSize = h > w ? 64 : 48;
+  const titleFontSize = h > w ? 84 : 64;
   const topMargin = Math.round(h * 0.08);
   const titleY = topMargin;
 
-  const logoW = Math.round(Math.min(w, h) * 0.14);
+  const logoW = Math.round(Math.min(w, h) * 0.28);
   const logoY = Math.round(h * 0.30);
 
   const titleEnable = `between(t\\,0.2\\,${dur})`;
@@ -655,15 +655,15 @@ async function generateClosingClip(dims, style, workDir) {
   const urlText = escDrawText('sigotuhuella.online');
   const ctaText = escDrawText('Visita nuestra web - Descarga la app gratis ↓');
 
-  const titleFontSize = isVertical ? 52 : 40;
-  const urlFontSize = isVertical ? 40 : 30;
-  const ctaFontSize = isVertical ? 24 : 18;
+  const titleFontSize = isVertical ? 78 : 60;
+  const urlFontSize = isVertical ? 60 : 44;
+  const ctaFontSize = isVertical ? 40 : 30;
 
-  const logoW = Math.round(Math.min(w, h) * 0.18);
+  const logoW = Math.round(Math.min(w, h) * 0.36);
 
   const titleY = Math.round(h * 0.42);
   const lineY = titleY + Math.round(titleFontSize * 0.8);
-  const urlY = lineY + 20;
+  const urlY = lineY + 30;
   const ctaY = urlY + Math.round(urlFontSize * 1.8);
 
   const lineW = Math.round(w * 0.30);
@@ -1131,7 +1131,7 @@ const outPath = path.join(workDir, 'branded.mp4');
   const hasLogo = fs.existsSync(LOGO_PATH);
   if (!hasLogo) return videoPath;
 
-  const wmSize = Math.round(Math.min(w, h) * 0.08);
+  const wmSize = Math.round(Math.min(w, h) * 0.16);
   const botBarH = isVertical ? 40 : 30;
 
   const filterParts = [];
