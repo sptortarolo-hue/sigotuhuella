@@ -42,12 +42,23 @@ jobs:
         echo "WHATSAPP_AI_PRIMARY=${{ secrets.WHATSAPP_AI_PRIMARY }}" >> server/.env
         echo "RELAY_TOKEN=${{ secrets.RELAY_TOKEN }}" >> server/.env
 
+    - name: Check disk space on VPS
+      continue-on-error: true
+      uses: appleboy/ssh-action@v1.2.5
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        port: ${{ secrets.SSH_PORT }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        script: df -h /var/www/sigotuhuella
+
     - name: Transfer files to VPS
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        tar czf - dist/ server/ package.json | ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf -"
+        ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /var/www/sigotuhuella && rm -rf /var/www/sigotuhuella/dist"
+        tar czf - dist/ server/ package.json | ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf -"
       shell: bash
 
     - name: Restart server
