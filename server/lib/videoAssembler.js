@@ -1135,7 +1135,8 @@ const outPath = path.join(workDir, 'branded.mp4');
   const botBarH = isVertical ? 40 : 30;
 
   const filterParts = [];
-  filterParts.push(`[1:v]scale=${wmSize}:-1,format=rgba,colorchannelmixer=aa=0.75[wm]`);
+  const cr = Math.round(wmSize * 0.25) || 1;
+  filterParts.push(`[1:v]scale=${wmSize}:-1,format=rgba,colorkey=0xFFFFFF:0.15:0.0,geq=lum='lum(X,Y)':a='if(between(abs(X-W/2),0,W/2-${cr})*between(abs(Y-H/2),0,H/2-${cr})+between(abs(X-W/2),W/2-${cr},W/2)*between(abs(Y-H/2),H/2-${cr},H/2)*lte(pow(abs(X-W/2)-(W/2-${cr}),2)+pow(abs(Y-H/2)-(H/2-${cr}),2),${cr*cr}),alpha(X,Y),0)',colorchannelmixer=aa=0.75[wm]`);
   filterParts.push(`[0:v][wm]overlay=W-w-${pad}:${pad}:format=auto[wmed]`);
 
   filterParts.push(`color=c=0xF5F5F0:s=${w}x${botBarH}:d=5:rate=${FPS},format=rgba,colorchannelmixer=aa=0.85[botbar]`);
