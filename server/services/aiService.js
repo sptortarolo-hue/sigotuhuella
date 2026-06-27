@@ -6,7 +6,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || '';
 const CF_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
 const CF_MODEL = process.env.CLOUDFLARE_IMAGE_MODEL || '@cf/black-forest-labs/flux-1-schnell';
-const VIDEO_GROQ_MODEL = process.env.VIDEO_GROQ_MODEL || 'mixtral-8x7b-32768';
+const VIDEO_GROQ_MODEL = process.env.VIDEO_GROQ_MODEL || 'openai/gpt-oss-20b';
 
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
