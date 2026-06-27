@@ -234,14 +234,55 @@ async function checkSession(page) {
   return !(page.url().includes('login') || page.url().includes('checkpoint') || hasLogin);
 }
 
+async function downloadCookiesFromServer() {
+  try {
+    const { data } = await api.get('/fb/session-file');
+    if (data?.data) {
+      const raw = Buffer.from(data.data, 'base64').toString('utf-8');
+      let cookies;
+      try {
+        const parsed = JSON.parse(raw);
+        cookies = parsed.cookies || parsed;
+      } catch {
+        cookies = raw;
+      }
+      if (Array.isArray(cookies) && cookies.length > 0) {
+        cookies = cookies.map(c => {
+          if (!c.domain) c.domain = '.facebook.com';
+          if (!c.path) c.path = '/';
+          return c;
+        });
+        console.log(`[FB Relay] ${cookies.length} cookies descargadas del servidor`);
+        return cookies;
+      }
+    }
+  } catch (err) {
+    if (err.response?.status !== 404) {
+      console.error('[FB Relay] Error descargando cookies del servidor:', err.message);
+    }
+  }
+  return [];
+}
+
+async function setCookiesAndCheck(page, cookies) {
+  await page.goto('about:blank');
+  await page.setCookie(...cookies);
+  await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
+  await sleep(3000);
+  if (await checkSession(page)) {
+    await saveCookies(page);
+    return true;
+  }
+  return false;
+}
+
 async function ensureFacebookSession(page) {
   await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
   await sleep(3000);
 
   if (await checkSession(page)) return true;
 
-  // Fallback: session data podría no haberse restaurado bien
-  // intentar restaurar localStorage/sessionStorage desde backup
+  // Fallback 1: restaurar localStorage/sessionStorage desde backup
   const sessionData = await downloadSessionData();
   if (sessionData) {
     await restoreSessionData(page, sessionData);
@@ -251,6 +292,12 @@ async function ensureFacebookSession(page) {
       await saveCookies(page);
       return true;
     }
+  }
+
+  // Fallback 2: descargar cookies del servidor (subidas por admin)
+  const cookies = await downloadCookiesFromServer();
+  if (cookies.length > 0) {
+    if (await setCookiesAndCheck(page, cookies)) return true;
   }
 
   return false;
@@ -544,6 +591,24 @@ async function main() {
               startKeepAlive(b3);
               console.log('[FB Relay] Perfil restaurado, reintentando...');
               continue;
+            }
+
+            // Tercer intento: cookies del servidor (subidas por admin)
+            console.log('[FB Relay] Perfil no disponible. Intentando cookies del servidor...');
+            const cookies = await downloadCookiesFromServer();
+            if (cookies.length > 0) {
+              const b4 = await getBrowser();
+              const testPage = await b4.newPage();
+              try {
+                await testPage.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
+                await testPage.setViewport({ width: 1440, height: 900 });
+                if (await setCookiesAndCheck(testPage, cookies)) {
+                  console.log('[FB Relay] Sesión restaurada desde cookies del servidor');
+                  await testPage.close();
+                  continue;
+                }
+                await testPage.close();
+              } catch { await testPage.close().catch(() => {}); }
             }
 
             // Fallback final: esperar admin
