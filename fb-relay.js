@@ -74,7 +74,8 @@ async function bezierMove(page, fromX, fromY, toX, toY) {
 
 // Simulate human scrolling + waiting before posting
 async function prePostBehavior(page) {
-  await page.evaluate(() => window.scrollBy(0, randomInt(100, 400)));
+  const scrollY = randomInt(100, 400);
+  await page.evaluate((y) => window.scrollBy(0, y), scrollY);
   await sleep(randomInt(3000, 8000));
   const vp = page.viewport();
   await bezierMove(page, randomInt(100, vp.width - 100), randomInt(100, vp.height - 100), vp.width / 2, vp.height / 3);
