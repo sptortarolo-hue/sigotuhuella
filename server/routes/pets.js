@@ -1306,47 +1306,6 @@ router.get('/:id/shares', requireAuth, async (req, res) => {
   }
 });
 
-// POST /:id/follow - follow a pet (follower role)
-router.post('/:id/follow', requireAuth, async (req, res) => {
-  const petId = req.params.id;
-
-  try {
-    const pet = await pool.query('SELECT id FROM pets WHERE id = $1', [petId]);
-    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
-
-    await pool.query(
-      `INSERT INTO pet_shares (pet_id, user_id, role) VALUES ($1, $2, 'follower') ON CONFLICT (pet_id, user_id) DO NOTHING`,
-      [petId, req.user.id]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Follow pet error:', err);
-    res.status(500).json({ error: 'Error al seguir' });
-  }
-});
-
-// POST /:id/claim - upgrade follower to editor
-router.post('/:id/claim', requireAuth, async (req, res) => {
-  const petId = req.params.id;
-
-  try {
-    const pet = await pool.query('SELECT id FROM pets WHERE id = $1', [petId]);
-    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
-
-    const result = await pool.query(
-      `UPDATE pet_shares SET role = 'editor' WHERE pet_id = $1 AND user_id = $2 AND role = 'follower' RETURNING *`,
-      [petId, req.user.id]
-    );
-    if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'No hay solicitud de seguimiento pendiente' });
-    }
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Claim pet error:', err);
-    res.status(500).json({ error: 'Error al reclamar' });
-  }
-});
-
 // GET /shared/with-me — pets compartidas conmigo
 router.get('/shared/with-me', requireAuth, async (req, res) => {
   try {

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { getPets, Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Heart, Loader2, X } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
@@ -29,8 +29,6 @@ export default function PetDetail() {
   const [currentImageIdx, setCurrentImageIdx] = useState(0);
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [followLoading, setFollowLoading] = useState(false);
-  const [following, setFollowing] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareEmail, setShareEmail] = useState('');
   const [sharePhone, setSharePhone] = useState('');
@@ -363,27 +361,6 @@ Me gustaría obtener más información.`;
                 >
                   <Share2 className="w-5 h-5" />
                   Compartir acceso
-                </button>
-              )}
-              {user && user.id !== pet.created_by && (
-                <button
-                  onClick={async () => {
-                    setFollowLoading(true);
-                    try {
-                      await fetch(`/api/pets/${id}/follow`, { method: 'POST', credentials: 'include' });
-                      setFollowing(true);
-                    } catch (e) { console.error(e); }
-                    finally { setFollowLoading(false); }
-                  }}
-                  disabled={followLoading || following}
-                  className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md ${
-                    following
-                      ? 'bg-pink-100 text-pink-500 border border-pink-200'
-                      : 'bg-gradient-to-r from-pink-500 to-rose-600 text-white hover:shadow-lg hover:from-pink-600 hover:to-rose-700'
-                  }`}
-                >
-                  {followLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Heart className="w-5 h-5" />}
-                  {following ? 'Siguiendo' : 'Seguir mascota'}
                 </button>
               )}
             </div>
