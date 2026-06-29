@@ -2487,7 +2487,7 @@ export default function Admin() {
                   <label className="text-xs font-bold uppercase text-gray-500">Descripción</label>
                   <textarea required rows={3} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
                 </div>
-                {formData.status === PetStatus.FOR_ADOPTION && (
+                {(formData.status === PetStatus.FOR_ADOPTION || formData.status === PetStatus.FOR_ADOPTION_SIMPLE) && (
                   <>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
