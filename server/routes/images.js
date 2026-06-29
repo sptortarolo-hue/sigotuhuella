@@ -142,7 +142,7 @@ router.get('/pet/:petId/:index/insta', async (req, res) => {
     if (img.image_data) {
       const buffer = Buffer.from(img.image_data, 'base64');
       const resized = await sharp(buffer)
-        .resize(1080, 1350, { fit: 'contain', background: { r: 255, g: 255, b: 255 } })
+        .resize(1080, 1350, { fit: 'cover' })
         .jpeg({ quality: 85 })
         .toBuffer();
       res.set('Content-Type', 'image/jpeg');
