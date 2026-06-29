@@ -8,11 +8,11 @@ const router = Router();
 router.get('/', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, email, display_name, phone, role, created_at,
-                avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges, notification_preference
-       FROM users ORDER BY created_at DESC`
+    `SELECT id, email, display_name, phone, role, created_at,
+                avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges, notification_preference, contribution_areas, points, level, email_verified, registration_pending
+     FROM users ORDER BY created_at DESC`
     );
-    res.json({ users: result.rows.map(u => ({ ...u, badges: u.badges || [] })) });
+        res.json({ users: result.rows.map(u => ({ ...u, badges: u.badges || [], contribution_areas: u.contribution_areas || [] })) });
   } catch (err) {
     console.error('Get users error:', err);
     res.status(500).json({ error: 'Failed to fetch users' });
@@ -20,7 +20,9 @@ router.get('/', requireAdmin, async (req, res) => {
 });
 
 router.put('/:id', requireAuth, async (req, res) => {
-  const { displayName, phone, role, badges, notificationPreference } = req.body;
+  const { displayName, phone, role, badges, notificationPreference,
+          email, memberNumber, volunteerStatus, contributionAreas,
+          points, level, emailVerified, registrationPending, avatarType } = req.body;
   const isSelf = req.user.id === req.params.id;
   const isAdmin = req.user.role === 'admin';
   if (!isSelf && !isAdmin) {
@@ -49,6 +51,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       fields.push(`notification_preference = $${idx++}`);
       values.push(notificationPreference);
     }
+    // ── Admin-only fields ────────────────────────────────────────────────
     if (role !== undefined && isAdmin) {
       fields.push(`role = $${idx++}`);
       values.push(role);
@@ -57,19 +60,66 @@ router.put('/:id', requireAuth, async (req, res) => {
       fields.push(`badges = $${idx++}::jsonb`);
       values.push(typeof badges === 'string' ? badges : JSON.stringify(badges));
     }
+    if (email !== undefined && isAdmin) {
+      // Check uniqueness
+      const dup = await pool.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, req.params.id]);
+      if (dup.rows.length > 0) {
+        return res.status(400).json({ error: 'El email ya está en uso por otro usuario' });
+      }
+      fields.push(`email = $${idx++}`);
+      values.push(email);
+    }
+    if (memberNumber !== undefined && isAdmin) {
+      if (memberNumber) {
+        const dup = await pool.query('SELECT id FROM users WHERE member_number = $1 AND id != $2', [memberNumber, req.params.id]);
+        if (dup.rows.length > 0) {
+          return res.status(400).json({ error: 'El número de socio ya está en uso' });
+        }
+      }
+      fields.push(`member_number = $${idx++}`);
+      values.push(memberNumber || null);
+    }
+    if (volunteerStatus !== undefined && isAdmin) {
+      fields.push(`volunteer_status = $${idx++}`);
+      values.push(volunteerStatus);
+    }
+    if (contributionAreas !== undefined && isAdmin) {
+      fields.push(`contribution_areas = $${idx++}::jsonb`);
+      values.push(typeof contributionAreas === 'string' ? contributionAreas : JSON.stringify(contributionAreas));
+    }
+    if (points !== undefined && isAdmin) {
+      fields.push(`points = $${idx++}`);
+      values.push(points);
+    }
+    if (level !== undefined && isAdmin) {
+      fields.push(`level = $${idx++}`);
+      values.push(level);
+    }
+    if (emailVerified !== undefined && isAdmin) {
+      fields.push(`email_verified = $${idx++}`);
+      values.push(emailVerified);
+    }
+    if (registrationPending !== undefined && isAdmin) {
+      fields.push(`registration_pending = $${idx++}`);
+      values.push(registrationPending);
+    }
+    if (avatarType !== undefined && isAdmin) {
+      fields.push(`avatar_type = $${idx++}`);
+      values.push(avatarType);
+    }
     if (fields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
     fields.push(`updated_at = NOW()`);
     values.push(req.params.id);
     const result = await pool.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, phone, role, created_at, avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges, notification_preference`,
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, phone, role, created_at, avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges, notification_preference, contribution_areas, points, level, email_verified, registration_pending`,
       values
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json({ user: { ...result.rows[0], badges: result.rows[0].badges || [] } });
+    res.json({ user: { ...result.rows[0], badges: result.rows[0].badges || [], contribution_areas: result.rows[0].contribution_areas || [] } });
   } catch (err) {
     console.error('Update user error:', err);
     res.status(500).json({ error: 'Failed to update user' });
@@ -182,7 +232,7 @@ router.get('/search', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, email, display_name, phone, role, created_at,
-              avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges
+              avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges, notification_preference, contribution_areas, points, level, email_verified, registration_pending
        FROM users
        WHERE email ILIKE $1 OR display_name ILIKE $1 OR phone ILIKE $1
        ORDER BY
@@ -191,7 +241,7 @@ router.get('/search', requireAdmin, async (req, res) => {
        LIMIT 50`,
       [`%${q}%`]
     );
-    res.json({ users: result.rows.map(u => ({ ...u, badges: u.badges || [] })) });
+        res.json({ users: result.rows.map(u => ({ ...u, badges: u.badges || [], contribution_areas: u.contribution_areas || [] })) });
   } catch (err) {
     console.error('Search users error:', err);
     res.status(500).json({ error: 'Failed to search users' });
@@ -212,7 +262,7 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
       [userId]
     );
     if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    const user = { ...userRes.rows[0], badges: userRes.rows[0].badges || [] };
+    const user = { ...userRes.rows[0], badges: userRes.rows[0].badges || [], contribution_areas: userRes.rows[0].contribution_areas || [] };
 
     const volRes = await pool.query(
       'SELECT * FROM volunteer_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',

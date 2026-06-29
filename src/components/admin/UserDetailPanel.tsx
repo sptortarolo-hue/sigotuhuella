@@ -241,12 +241,19 @@ export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMo
             </div>
             <div className="flex items-center gap-2 text-gray-500">
               <Activity className="w-4 h-4 shrink-0" />
-              <span>Nivel: {user.points || 0} pts</span>
+              <span>Nivel: {user.level || 1} · {user.points || 0} pts</span>
             </div>
             <div className="flex items-center gap-2 text-gray-500">
               <MessageSquare className="w-4 h-4 shrink-0" />
               <span>Notif: {user.notification_preference === 'both' ? 'WA+Email' : user.notification_preference === 'whatsapp' ? 'Solo WA' : user.notification_preference === 'email' ? 'Solo Email' : user.notification_preference || '-'}</span>
             </div>
+            {user.contribution_areas && user.contribution_areas.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 col-span-full">
+                {user.contribution_areas.map((area: string, i: number) => (
+                  <span key={i} className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-700">{area}</span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Stats cards */}

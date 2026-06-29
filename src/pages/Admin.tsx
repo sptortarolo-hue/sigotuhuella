@@ -34,6 +34,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import AdminConfirmDialog from '@/src/components/admin/AdminConfirmDialog';
+import AdminEditUserModal from '@/src/components/admin/AdminEditUserModal';
 import UserDetailPanel from '@/src/components/admin/UserDetailPanel';
 import AdminMyPetDetail from '@/src/components/admin/AdminMyPetDetail';
 import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
@@ -123,6 +124,8 @@ export default function Admin() {
   const [userRelationsLoading, setUserRelationsLoading] = useState(false);
   const [petRelationsLoading, setPetRelationsLoading] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'user' | 'pet'>('list');
+
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
 
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -1350,6 +1353,7 @@ export default function Admin() {
                       <div className="px-6 pb-6 flex gap-2">
                         {selectedUserData.user.email !== 'sptortarolo@gmail.com' && (
                           <>
+                            <button onClick={() => setShowEditUserModal(true)} className="flex-1 px-4 py-2.5 border border-brand-accent rounded-xl text-sm font-bold text-brand-primary hover:bg-brand-bg/50 transition-colors flex items-center justify-center gap-2"><UserCog className="w-4 h-4" /> Editar</button>
                             <button onClick={() => handleToggleRole(selectedUserData.user.id, selectedUserData.user.role)} className="flex-1 px-4 py-2.5 border border-brand-accent rounded-xl text-sm font-bold text-brand-primary hover:bg-brand-bg/50 transition-colors flex items-center justify-center gap-2"><UserCog className="w-4 h-4" /> Cambiar rol</button>
                             <button onClick={() => handleDeleteUser(selectedUserData.user.id)} className="flex-1 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> Eliminar</button>
                           </>
@@ -1507,6 +1511,18 @@ export default function Admin() {
                 actionLabel={confirmDialog.actionLabel}
                 variant={confirmDialog.variant}
               />
+
+              {selectedUserData && (
+                <AdminEditUserModal
+                  user={selectedUserData.user}
+                  isOpen={showEditUserModal}
+                  onClose={() => setShowEditUserModal(false)}
+                  onSaved={(updatedUser) => {
+                    handleUserUpdate(updatedUser);
+                    fetchUsers();
+                  }}
+                />
+              )}
             </>
           )}
 
