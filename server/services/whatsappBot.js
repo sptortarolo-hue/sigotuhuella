@@ -623,7 +623,7 @@ async function hMessage(conv, parsed) {
 async function hConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
-    const { sendPushToAdmins } = await import('./notificationService.js');
+    const { sendPushToAdmins } = await import('./pushService.js');
     sendPushToAdmins({
       title: '🗣 Nuevo mensaje desde WhatsApp',
       body: `${ctx.full_name} · ${ctx.motive}: ${(ctx.message || '').substring(0, 100)}`,
@@ -1379,7 +1379,7 @@ async function chapitaConfirm(conv, parsed, intent) {
     );
     const myPetId = petResult.rows[0].id;
 
-    const { sendPushToAdmins } = await import('./notificationService.js');
+    const { sendPushToAdmins } = await import('./pushService.js');
     sendPushToAdmins({
       title: 'Solicitud de chapita QR',
       body: `${ctx.user_name || 'Usuario'} solicita QR para ${ctx.pet_name}`,

@@ -61,6 +61,8 @@ export default function FacebookRelayTab() {
   const [status, setStatus] = useState<FbRelayStatus | null>(null);
   const [failedTasks, setFailedTasks] = useState<FailedTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
   const [toggling, setToggling] = useState(false);
   const [fbAdoptionToggling, setFbAdoptionToggling] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -85,23 +87,43 @@ export default function FacebookRelayTab() {
   const [clearingQueue, setClearingQueue] = useState(false);
 
   async function loadData() {
+    let errMsg: string | null = null;
+
     try {
-      const [statusData, failedData, hoursVal] = await Promise.all([
-        api.facebookRelay.status(),
-        api.facebookRelay.failedTasks(),
-        api.settings.get('fb_adoption_broadcast_hours'),
-      ]);
+      const statusData = await api.facebookRelay.status();
       setStatus(statusData);
-      setFailedTasks(failedData.tasks || []);
-      setFbAdoptionHours(hoursVal || '8,12,16,20');
-    } catch (err) {
-      console.error('Error loading FB relay data:', err);
-    } finally {
-      setLoading(false);
+    } catch (err: any) {
+      errMsg = 'Error al cargar estado del relay';
+      console.error('Error loading FB relay status:', err);
     }
+
+    try {
+      const failedData = await api.facebookRelay.failedTasks();
+      setFailedTasks(failedData.tasks || []);
+    } catch (err: any) {
+      errMsg = errMsg || 'Error al cargar tareas fallidas';
+      console.error('Error loading FB relay failed tasks:', err);
+    }
+
+    try {
+      const hoursVal = await api.settings.get('fb_adoption_broadcast_hours');
+      setFbAdoptionHours(hoursVal || '8,12,16,20');
+    } catch (err: any) {
+      console.error('Error loading FB adoption hours:', err);
+    }
+
+    setError(errMsg);
+    setLastUpdated(new Date().toLocaleTimeString());
+    setLoading(false);
   }
 
   useEffect(() => { loadData(); }, []);
+
+  // Auto-refresh cada 15s
+  useEffect(() => {
+    const interval = setInterval(loadData, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function handleToggle() {
     setToggling(true);
@@ -161,6 +183,7 @@ export default function FacebookRelayTab() {
     try {
       const res = await api.facebookRelay.broadcastAdoptions();
       setForceAdoptionsResult(res.message || '✅ Broadcast ejecutado');
+      loadData();
     } catch (err: any) {
       setForceAdoptionsResult(`❌ Error: ${err.message}`);
     } finally {
@@ -249,6 +272,7 @@ export default function FacebookRelayTab() {
       const res = await api.facebookRelay.broadcastPet(selectedPetId, selected);
       setBroadcastPetResults(res.results);
       setBroadcastPetPreview(res.caption);
+      loadData();
     } catch (err: any) {
       setBroadcastPetResults([{ groupId: 'Error', status: 'error', error: err.message }]);
     } finally {
@@ -275,9 +299,19 @@ export default function FacebookRelayTab() {
           <h2 className="text-2xl font-bold text-brand-primary">Facebook Phone Relay</h2>
           <p className="text-sm text-gray-500">Publicación a grupos de Facebook vía teléfono (Playwright)</p>
         </div>
-        <button onClick={loadData} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">
-          <RefreshCw className="w-4 h-4" /> Actualizar
-        </button>
+        <div className="flex items-center gap-3">
+          {error && (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 text-xs font-bold rounded-lg">
+              <AlertCircle className="w-3.5 h-3.5" /> {error}
+            </span>
+          )}
+          <span className="text-xs text-gray-400">
+            {lastUpdated ? `Última act.: ${lastUpdated}` : ''}
+          </span>
+          <button onClick={loadData} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">
+            <RefreshCw className="w-4 h-4" /> Actualizar
+          </button>
+        </div>
       </div>
 
       {/* Status Card */}
@@ -578,7 +612,14 @@ export default function FacebookRelayTab() {
                       {r.status === 'completed' ? (
                         <CheckCircle className="w-5 h-5 text-green-500" />
                       ) : r.status === 'failed' ? (
-                        <XCircle className="w-5 h-5 text-red-500" />
+                        <span className="relative group">
+                          <XCircle className="w-5 h-5 text-red-500 cursor-help" />
+                          {r.error_message && (
+                            <span className="absolute left-0 bottom-full mb-1 hidden group-hover:block bg-red-700 text-white text-[10px] rounded-lg px-2 py-1 whitespace-nowrap max-w-[250px] truncate z-10 shadow-lg">
+                              {r.error_message}
+                            </span>
+                          )}
+                        </span>
                       ) : (
                         <Clock className="w-5 h-5 text-yellow-500" />
                       )}
