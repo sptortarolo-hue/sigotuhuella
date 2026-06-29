@@ -208,7 +208,8 @@ async function awardBadgeIfMissing(userId, code) {
 
 const statusLabels = {
   lost: '🐾 PERDIDO', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
-  for_adoption: '❤️ EN ADOPCIÓN', adopted: '✅ ADOPTADO',
+  for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
+  adopted: '✅ ADOPTADO',
   reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
   needs_attention: '⚠️ NECESITA ATENCIÓN',
 };
@@ -1105,7 +1106,7 @@ router.post('/lost-report', async (req, res) => {
         matchPetToPosts(pet).catch(err => console.error('Matching error:', err));
 
         // Auto-broadcast to WhatsApp groups for active statuses
-        const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention'];
+        const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention'];
         if (broadcastStatuses.includes(pet.status)) {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
         }

@@ -39,6 +39,7 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
      [PetStatus.ACCIDENTED]: 'bg-purple-100 text-purple-700',
      [PetStatus.NEEDS_ATTENTION]: 'bg-amber-100 text-amber-700',
      [PetStatus.FOR_ADOPTION]: 'bg-pink-100 text-pink-800 border border-pink-200',
+     [PetStatus.FOR_ADOPTION_SIMPLE]: 'bg-orange-100 text-orange-700 border border-orange-200',
      [PetStatus.ADOPTED]: 'bg-green-100 text-green-700',
      [PetStatus.REUNITED]: 'bg-amber-100 text-amber-700',
    };
@@ -49,8 +50,9 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
      [PetStatus.SIGHTED]: 'Avistado',
      [PetStatus.ACCIDENTED]: 'Accidentado',
      [PetStatus.NEEDS_ATTENTION]: 'Necesita Atención',
-     [PetStatus.FOR_ADOPTION]: 'En Adopción',
-     [PetStatus.ADOPTED]: 'Adoptado',
+    [PetStatus.FOR_ADOPTION]: 'En Adopción',
+    [PetStatus.FOR_ADOPTION_SIMPLE]: 'Adopción (Difusión)',
+    [PetStatus.ADOPTED]: 'Adoptado',
      [PetStatus.REUNITED]: 'Reencuentro',
    };
 

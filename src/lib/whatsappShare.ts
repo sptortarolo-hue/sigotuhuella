@@ -32,6 +32,9 @@ function getWhatsAppShareText(pet: Pet): string {
     case PetStatus.FOR_ADOPTION:
       body = `🐾 ${name} busca un hogar amoroso en ${location}. Dale una chance 🙏`;
       break;
+    case PetStatus.FOR_ADOPTION_SIMPLE:
+      body = `🐾 ${name} busca un hogar amoroso en ${location}. Sólo difusión 🙏`;
+      break;
     case PetStatus.ADOPTED:
       body = `🐾 ${name} encontró familia. Gracias a todos los que difundieron 💚`;
       break;

@@ -393,6 +393,7 @@ export default function MyPets() {
                     <option value={PetStatus.ACCIDENTED}>Accidentado</option>
                     <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
                     <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
+                    <option value={PetStatus.FOR_ADOPTION_SIMPLE}>Adopción (Difusión)</option>
                   </select>
                 </div>
                 <div className="space-y-4">

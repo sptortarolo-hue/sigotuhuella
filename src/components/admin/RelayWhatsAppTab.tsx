@@ -34,6 +34,7 @@ interface GroupInfo {
 const STATUS_BADGES: Record<string, { label: string; color: string }> = {
   lost: { label: 'Perdido', color: 'bg-red-100 text-red-700' },
   for_adoption: { label: 'Adopción', color: 'bg-green-100 text-green-700' },
+  for_adoption_simple: { label: 'Difusión', color: 'bg-orange-100 text-orange-700' },
   sighted: { label: 'Avistado', color: 'bg-yellow-100 text-yellow-700' },
   retained: { label: 'Retenido', color: 'bg-orange-100 text-orange-700' },
   accidented: { label: 'Accidentado', color: 'bg-purple-100 text-purple-700' },

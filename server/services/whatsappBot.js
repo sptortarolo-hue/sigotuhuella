@@ -2449,7 +2449,7 @@ async function apConfirm(conv, parsed, intent) {
     const ctx = conv.context;
     const petResult = await pool.query(
       `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, description, source_type, created_by)
-       VALUES ($1, $2, 'for_adoption', $3, $4, $5, $6, $7, 'whatsapp_owner', $8)
+       VALUES ($1, $2, 'for_adoption_simple', $3, $4, $5, $6, $7, 'whatsapp_owner', $8)
        RETURNING id`,
       [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.description || 'En adopción — difusión particular', ctx.user_id || null]
     );

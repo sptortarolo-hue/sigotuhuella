@@ -139,6 +139,7 @@ Me gustaría obtener más información.`;
     [PetStatus.ACCIDENTED]: 'bg-purple-100 text-purple-700',
     [PetStatus.NEEDS_ATTENTION]: 'bg-amber-100 text-amber-700',
     [PetStatus.FOR_ADOPTION]: 'bg-brand-primary/20 text-brand-primary',
+    [PetStatus.FOR_ADOPTION_SIMPLE]: 'bg-orange-100 text-orange-700',
     [PetStatus.REUNITED]: 'bg-green-100 text-green-700',
   };
 
@@ -149,6 +150,7 @@ Me gustaría obtener más información.`;
     [PetStatus.ACCIDENTED]: 'Accidentado',
     [PetStatus.NEEDS_ATTENTION]: 'Necesita Atención',
     [PetStatus.FOR_ADOPTION]: 'En Adopción',
+    [PetStatus.FOR_ADOPTION_SIMPLE]: 'Adopción (Difusión)',
     [PetStatus.REUNITED]: 'Reencuentro',
   };
 

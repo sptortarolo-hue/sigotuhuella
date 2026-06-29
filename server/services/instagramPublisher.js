@@ -12,7 +12,8 @@ async function getSetting(key) {
 
 const statusLabels = {
   lost: '🐾 PERDIDO', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
-  for_adoption: '❤️ EN ADOPCIÓN', adopted: '✅ ADOPTADO',
+  for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
+  adopted: '✅ ADOPTADO',
   reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
   needs_attention: '⚠️ NECESITA ATENCIÓN',
 };

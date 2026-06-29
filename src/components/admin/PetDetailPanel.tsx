@@ -50,12 +50,12 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
   const statusLabels: Record<string, string> = {
     lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado',
     accidented: 'Accidentado', needs_attention: 'Necesita Atención',
-    for_adoption: 'En Adopción', adopted: 'Adoptado', reunited: 'Reencontrado',
+    for_adoption: 'En Adopción', for_adoption_simple: 'Adopción (Difusión)', adopted: 'Adoptado', reunited: 'Reencontrado',
   };
   const statusColors: Record<string, string> = {
     lost: 'bg-red-100 text-red-700', retained: 'bg-amber-100 text-amber-700',
     sighted: 'bg-blue-100 text-blue-700', accidented: 'bg-orange-100 text-orange-700',
-    needs_attention: 'bg-yellow-100 text-yellow-700', for_adoption: 'bg-purple-100 text-purple-700',
+    needs_attention: 'bg-yellow-100 text-yellow-700', for_adoption: 'bg-purple-100 text-purple-700', for_adoption_simple: 'bg-orange-100 text-orange-700',
     adopted: 'bg-emerald-100 text-emerald-700', reunited: 'bg-emerald-100 text-emerald-700',
   };
   const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species;

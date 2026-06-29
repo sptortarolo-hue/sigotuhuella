@@ -329,7 +329,8 @@ export async function broadcastPetToGroups(petId) {
 
     const statusLabels = {
       lost: '🐾 SE PERDIÓ', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
-      for_adoption: '❤️ EN ADOPCIÓN', adopted: '✅ ADOPTADO',
+      for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
+      adopted: '✅ ADOPTADO',
       reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
       needs_attention: '⚠️ NECESITA ATENCIÓN',
     };
@@ -398,7 +399,7 @@ export async function getNextAdoptionPet() {
       (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
       (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
     FROM pets p
-    WHERE p.status = 'for_adoption'
+    WHERE p.status IN ('for_adoption', 'for_adoption_simple')
     ORDER BY p.adoption_broadcasted_at ASC NULLS FIRST, p.created_at ASC
     LIMIT 1
   `)).rows;

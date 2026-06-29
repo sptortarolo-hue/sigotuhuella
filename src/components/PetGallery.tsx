@@ -42,7 +42,7 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
               p.status === PetStatus.NEEDS_ATTENTION
             );
           } else {
-            return p.status === PetStatus.FOR_ADOPTION;
+            return p.status === PetStatus.FOR_ADOPTION || p.status === PetStatus.FOR_ADOPTION_SIMPLE;
           }
         });
         setPets(filtered);

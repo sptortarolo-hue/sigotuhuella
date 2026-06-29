@@ -6,6 +6,7 @@ function getFBShareUrl(pet) {
   const quote = [
     pet.status === 'lost' ? '🐾 PERDIDO' :
     pet.status === 'for_adoption' ? '❤️ EN ADOPCIÓN' :
+    pet.status === 'for_adoption_simple' ? '📢 EN ADOPCIÓN (DIFUSIÓN)' :
     pet.status === 'sighted' ? '👀 AVISTADO' :
     pet.status === 'reunited' ? '🎉 REENCUENTRO' : '🐾 MASCOTA',
     `${pet.name || (pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Mascota')}`,
@@ -27,6 +28,7 @@ export function getFacebookShareText(pet) {
     retained: '🔄 RETENIDO',
     sighted: '👀 AVISTADO',
     for_adoption: '❤️ EN ADOPCIÓN',
+    for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
     adopted: '✅ ADOPTADO',
     reunited: '🎉 REENCUENTRO',
     accidented: '🚑 ACCIDENTADO',

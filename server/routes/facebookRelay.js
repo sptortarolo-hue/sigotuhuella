@@ -255,7 +255,8 @@ router.get('/fb/groups-ui', requireAdmin, async (req, res) => {
 
 const fbStatusLabels = {
   lost: '🐾 SE PERDIÓ', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
-  for_adoption: '❤️ EN ADOPCIÓN', adopted: '✅ ADOPTADO',
+  for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
+  adopted: '✅ ADOPTADO',
   reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
   needs_attention: '⚠️ NECESITA ATENCIÓN',
 };

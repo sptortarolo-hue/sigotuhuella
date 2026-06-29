@@ -924,8 +924,9 @@ export default function Admin() {
                       <option value={PetStatus.SIGHTED}>Avistado</option>
                       <option value={PetStatus.ACCIDENTED}>Accidentado</option>
                       <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
-                      <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
-                      <option value={PetStatus.ADOPTED}>Adoptado</option>
+                       <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
+                       <option value={PetStatus.FOR_ADOPTION_SIMPLE}>Adopción (Difusión)</option>
+                       <option value={PetStatus.ADOPTED}>Adoptado</option>
                       <option value={PetStatus.REUNITED}>Reencuentro</option>
                     </select>
                     <button onClick={() => { resetPetForm(); setShowForm(true); }} className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">
@@ -967,6 +968,7 @@ export default function Admin() {
                               pet.status === 'reunited' ? 'bg-emerald-100 text-emerald-700' :
                               pet.status === 'adopted' ? 'bg-purple-100 text-purple-700' :
                               pet.status === 'for_adoption' ? 'bg-blue-100 text-blue-700' :
+                              pet.status === 'for_adoption_simple' ? 'bg-orange-100 text-orange-700' :
                               pet.status === 'lost' ? 'bg-red-100 text-red-700' :
                               'bg-amber-100 text-amber-700'
                             )}>{pet.status}</span>
@@ -975,7 +977,7 @@ export default function Admin() {
                               <button onClick={() => editPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => setConfirmDialog({ isOpen: true, title: 'Eliminar mascota', message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`, actionLabel: 'CONFIRMAR', variant: 'danger', onConfirm: async () => { try { await deletePet(pet.id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } setConfirmDialog(prev => ({ ...prev, isOpen: false })); } })} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => handleTrackPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Seguimiento"><Activity className="w-3.5 h-3.5" /></button>
-                              {pet.status === PetStatus.FOR_ADOPTION ? (
+                              {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.FOR_ADOPTION_SIMPLE) ? (
                                 <button onClick={async () => { if (confirm('¿Marcar como adoptada?')) { await updatePet(pet.id, { status: PetStatus.ADOPTED }); fetchPets(); } }} className="ml-auto p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Marcar adoptado"><Heart className="w-3.5 h-3.5" /></button>
                               ) : pet.status === PetStatus.REUNITED ? (
                                 <span className="ml-auto text-[10px] px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 font-bold">Reencontrado</span>
@@ -1047,6 +1049,7 @@ export default function Admin() {
                     <option value={PetStatus.ACCIDENTED}>Accidentado</option>
                     <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
                     <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
+                    <option value={PetStatus.FOR_ADOPTION_SIMPLE}>Adopción (Difusión)</option>
                     <option value={PetStatus.ADOPTED}>Adoptado</option>
                     <option value={PetStatus.REUNITED}>Reencuentro</option>
                   </select>
@@ -1077,7 +1080,7 @@ export default function Admin() {
                           });
                         }}
                       />
-                      {pet.status === PetStatus.FOR_ADOPTION ? (
+                      {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.FOR_ADOPTION_SIMPLE) ? (
                         <button onClick={async () => { if (confirm('¿Marcar como adoptada?')) { await updatePet(pet.id, { status: PetStatus.ADOPTED }); fetchPets(); } }} className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"><Heart className="w-4 h-4" /> Marcar como Adoptado</button>
                       ) : pet.status === PetStatus.ADOPTED ? (
                         <div className="mt-3 w-full py-2.5 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border border-gray-200"><Heart className="w-4 h-4 text-emerald-500" /> Adoptado</div>
@@ -1117,7 +1120,7 @@ export default function Admin() {
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {pets.filter(p => p.status === PetStatus.FOR_ADOPTION || p.status === PetStatus.ADOPTED).map(pet => (
+                {pets.filter(p => p.status === PetStatus.FOR_ADOPTION || p.status === PetStatus.FOR_ADOPTION_SIMPLE || p.status === PetStatus.ADOPTED).map(pet => (
                   <div key={pet.id} className="relative">
                     <PetCard
                       pet={pet}
@@ -1125,7 +1128,7 @@ export default function Admin() {
                       onEdit={editPet}
                       onDelete={async (id) => { if (confirm('¿Eliminar esta publicación definitivamente?')) { try { await deletePet(id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } } }}
                     />
-                    {pet.status === PetStatus.FOR_ADOPTION && (
+                    {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.FOR_ADOPTION_SIMPLE) && (
                       <button
                         onClick={async () => {
                           if (confirm('¿Marcar como adoptado?')) {
@@ -2467,6 +2470,7 @@ export default function Admin() {
                     <option value={PetStatus.ACCIDENTED}>Accidentado</option>
                     <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
                     <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
+                    <option value={PetStatus.FOR_ADOPTION_SIMPLE}>Adopción (Difusión)</option>
                   </select>
                 </div>
                 <div className="space-y-4">

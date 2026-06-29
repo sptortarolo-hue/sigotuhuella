@@ -94,7 +94,7 @@ export async function getAllGroups() {
 
 export async function searchPets(category, search) {
   const reportados = ['lost', 'sighted', 'accidented', 'needs_attention', 'retained'];
-  const statuses = category === 'adopcion' ? ['for_adoption'] : reportados;
+  const statuses = category === 'adopcion' ? ['for_adoption', 'for_adoption_simple'] : reportados;
   const params = [statuses];
   let sql = `
     SELECT p.id, p.name, p.species, p.breed, p.status, p.location, p.created_at,
@@ -132,7 +132,8 @@ export async function getLatestPet() {
 export function generateBroadcastCaption(pet) {
   const statusLabels = {
     lost: '🐾 SE PERDIÓ', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
-    for_adoption: '❤️ EN ADOPCIÓN', adopted: '✅ ADOPTADO',
+    for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
+    adopted: '✅ ADOPTADO',
     reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
     needs_attention: '⚠️ NECESITA ATENCIÓN',
   };

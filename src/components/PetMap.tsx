@@ -68,6 +68,7 @@ const statusLabel = (s: string) => {
     case 'sighted': return 'Avistado';
     case 'accidented': return 'Accidentado';
     case 'needs_attention': return 'Necesita Atención';
+    case 'for_adoption_simple': return 'Adopción (Difusión)';
     default: return 'En Adopción';
   }
 };

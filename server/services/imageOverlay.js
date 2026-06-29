@@ -14,6 +14,7 @@ const STATUS_STYLES = {
   accidented: { label: 'ACCIDENTADO', color: '#EA580C' },
   needs_attention: { label: 'NECESITA ATENCIÓN', color: '#D97706' },
   for_adoption: { label: 'EN ADOPCIÓN', color: '#8B5CF6' },
+  for_adoption_simple: { label: 'EN ADOPCIÓN', color: '#F97316' },
   adopted: { label: 'ADOPTADO', color: '#10B981' },
   reunited: { label: 'REENCUENTRO', color: '#10B981' },
 };

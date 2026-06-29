@@ -87,6 +87,7 @@ const PET_STATUS_OPTIONS = [
   { value: 'lost', label: 'Perdidos' },
   { value: 'adopted', label: 'Adoptados' },
   { value: 'for_adoption', label: 'En adopción' },
+  { value: 'for_adoption_simple', label: 'Adopción (Difusión)' },
   { value: 'sighted', label: 'Avistados' },
   { value: 'retained', label: 'Retenidos' },
   { value: 'accidented', label: 'Accidentados' },
