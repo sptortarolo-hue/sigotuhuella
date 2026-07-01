@@ -428,7 +428,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (req.user.role !== 'admin' && !(await canEditPet(req.user.id, petId))) {
       return res.status(403).json({ error: 'Not authorized' });
     }
-    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info'];
+    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info', 'is_hidden'];
     const updates = [];
     const values = [];
     let idx = 1;
