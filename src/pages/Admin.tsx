@@ -13,7 +13,7 @@ import {
   CollaborationAccount,
   VolunteerRequest
 } from '@/src/lib/collaborationService';
-import { getNews, createNews, updateNews, deleteNews, News, getNewsImageUrl } from '@/src/lib/newsService';
+import { getNews, createNews, updateNews, deleteNews, News, getNewsImageUrl, publishNews, getNewsPublications, NewsPublication } from '@/src/lib/newsService';
 import { useAuth } from '@/src/hooks/useAuth';
 import { Badge } from '@/src/hooks/AuthProvider';
 import { api } from '@/src/lib/api';
@@ -26,10 +26,11 @@ import InstagramTab from '@/src/components/admin/InstagramTab';
 import WhatsAppTab from '@/src/components/admin/WhatsAppTab';
 import RelayWhatsAppTab from '@/src/components/admin/RelayWhatsAppTab';
 import FacebookRelayTab from '@/src/components/admin/FacebookRelayTab';
+import BrandSettingsTab from '@/src/components/admin/BrandSettingsTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, Palette
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -41,7 +42,7 @@ import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'brand' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -155,6 +156,8 @@ export default function Admin() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiType, setAiType] = useState('consejo_cuidado');
   const [aiTopic, setAiTopic] = useState('');
+  const [newsPublications, setNewsPublications] = useState<Record<string, NewsPublication[]>>({});
+  const [publishingNews, setPublishingNews] = useState<string | null>(null);
 
   // Banner state
   const [bannerChapitaVisible, setBannerChapitaVisible] = useState(true);
@@ -373,6 +376,7 @@ export default function Admin() {
     try {
       const data = await getNews();
       setNewsList(data);
+      fetchNewsPublications(data);
     } catch (e) { console.error(e); }
   };
 
@@ -468,6 +472,36 @@ export default function Admin() {
       await deleteNews(id);
       fetchNews();
     } catch (e) { console.error(e); alert('Error al eliminar'); }
+  };
+
+  const fetchNewsPublications = async (newsItems: News[]) => {
+    const results: Record<string, NewsPublication[]> = {};
+    await Promise.all(newsItems.map(async (item) => {
+      try {
+        results[item.id] = await getNewsPublications(item.id);
+      } catch { results[item.id] = []; }
+    }));
+    setNewsPublications(results);
+  };
+
+  const handlePublishNews = async (id: string) => {
+    setPublishingNews(id);
+    try {
+      await publishNews(id);
+      await fetchNewsPublications(newsList);
+    } catch (e: any) {
+      alert(e.message || 'Error al publicar');
+    } finally {
+      setPublishingNews(null);
+    }
+  };
+
+  const platformIcons: Record<string, { icon: string; label: string }> = {
+    instagram: { icon: '📷', label: 'Instagram' },
+    facebook_page: { icon: '📘', label: 'Facebook' },
+    facebook_groups: { icon: '👥', label: 'Grupos FB' },
+    whatsapp: { icon: '💬', label: 'WhatsApp' },
+    status: { icon: '📢', label: 'Estado WA' },
   };
 
   const loadPetRecords = async (petId: string) => {
@@ -863,6 +897,7 @@ export default function Admin() {
           { id: 'users', label: 'Usuarios', icon: UserCog },
           { id: 'highlights', label: 'Noticias Destacadas', icon: HeartHandshake },
           { id: 'news', label: 'Novedades', icon: Sparkles },
+          { id: 'brand', label: 'Identidad', icon: Palette },
           { id: 'public', label: 'Reportes Públicos', icon: FileText },
           { id: 'whatsapp', label: 'WhatsApp (Meta)', icon: MessageSquare },
           { id: 'relay-whatsapp', label: 'WhatsApp Relay', icon: Smartphone },
@@ -1208,12 +1243,15 @@ export default function Admin() {
                     <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
                       <th className="px-6 py-4">Título</th>
                       <th className="px-6 py-4">Tipo</th>
+                      <th className="px-6 py-4">Publicación</th>
                       <th className="px-6 py-4">Fecha</th>
                       <th className="px-6 py-4 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-brand-accent">
-                    {newsList.map(item => (
+                    {newsList.map(item => {
+                      const pubs = newsPublications[item.id] || [];
+                      return (
                       <tr key={item.id} className="hover:bg-brand-bg/50 transition-colors">
                         <td className="px-6 py-4 font-bold text-brand-primary max-w-[200px] min-w-[120px]">{item.title}</td>
                         <td className="px-6 py-4">
@@ -1225,6 +1263,28 @@ export default function Admin() {
                             {item.type === 'manual' ? 'Manual' : item.type === 'reunited' ? 'Reencuentro' : 'Adopción'}
                           </span>
                         </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-1.5">
+                            {Object.entries(platformIcons).map(([key, { icon, label }]) => {
+                              const pub = pubs.find(p => p.platform === key);
+                              let color = 'text-gray-300';
+                              let title = `${label}: Pendiente`;
+                              if (pub?.status === 'published') { color = 'text-emerald-500'; title = `${label}: Publicado`; }
+                              else if (pub?.status === 'failed') { color = 'text-red-400'; title = `${label}: Error - ${pub.error_message || 'desconocido'}`; }
+                              return (
+                                <span key={key} className={`text-xs ${color} cursor-help`} title={title}>{icon}</span>
+                              );
+                            })}
+                            <button
+                              onClick={() => handlePublishNews(item.id)}
+                              disabled={publishingNews === item.id}
+                              className={`p-1 rounded-lg transition-colors ${publishingNews === item.id ? 'text-gray-300 animate-pulse' : 'text-brand-primary hover:bg-brand-accent'}`}
+                              title="Publicar ahora"
+                            >
+                              {publishingNews === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </td>
                         <td className="px-6 py-4 text-xs text-gray-400">{new Date(item.created_at).toLocaleDateString()}</td>
                         <td className="px-6 py-4 text-right space-x-2">
                           {item.type === 'manual' && (
@@ -1233,7 +1293,8 @@ export default function Admin() {
                           <button onClick={() => handleDeleteNews(item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
                 {newsList.length === 0 && (
@@ -1243,6 +1304,11 @@ export default function Admin() {
                 )}
               </div>
             </>
+          )}
+
+          {/* ====== IDENTIDAD DE MARCA ====== */}
+          {activeTab === 'brand' && (
+            <BrandSettingsTab />
           )}
 
           {/* ====== CUENTAS DE AYUDA ====== */}

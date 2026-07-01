@@ -10,6 +10,7 @@ import sharp from 'sharp';
 import { isConnected, replyToComment, commentOnMedia } from '../services/instagramService.js';
 import { commentOnPagePost } from '../services/facebookPublisher.js';
 import { generateCelebrationText } from '../services/textTemplates.js';
+import { publishNewsToAll } from '../services/newsPublisherService.js';
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
@@ -114,19 +115,25 @@ async function autoCreateNews(pet, newsType) {
       [pet.id]
     );
     const { data: imageData, mimeType } = await createCollage(imagesResult.rows);
+    let newsId;
     if (imageData && mimeType) {
-      await pool.query(
+      const res = await pool.query(
         `INSERT INTO news (title, content, image_data, mime_type, type, related_pet_id, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
         [title, content, imageData, mimeType, newsType, pet.id, pet.created_by]
       );
+      newsId = res.rows[0].id;
     } else {
-      await pool.query(
+      const res = await pool.query(
         `INSERT INTO news (title, content, type, related_pet_id, created_by)
-         VALUES ($1, $2, $3, $4, $5)`,
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
         [title, content, newsType, pet.id, pet.created_by]
       );
+      newsId = res.rows[0].id;
     }
+    publishNewsToAll(newsId).catch(err =>
+      console.error('Auto-publish news error:', err)
+    );
   } catch (err) {
     console.error('Auto-create news error:', err);
   }

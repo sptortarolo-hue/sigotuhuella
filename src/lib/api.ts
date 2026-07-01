@@ -147,6 +147,11 @@ export const api = {
     create: (data: any) => request('/news', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => request(`/news/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/news/${id}`, { method: 'DELETE' }),
+    publish: (id: string) => request(`/news/${id}/publish`, { method: 'POST' }),
+    publications: (id: string) => request(`/news/${id}/publications`),
+    getBrandSettings: () => request('/news/brand-settings'),
+    saveBrandSettings: (data: any) => request('/news/brand-settings', { method: 'PUT', body: JSON.stringify(data) }),
+    getPublishImageUrl: (id: string) => `/api/news/${id}/publish-image`,
   },
   settings: {
     list: () => request('/settings'),

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAdmin, requireAuth } from '../auth.js';
 import { sendPushToAll } from '../services/pushService.js';
+import { publishNewsToAll, getNewsPublications } from '../services/newsPublisherService.js';
+import { getBrandSettings, saveBrandSettings } from '../services/brandIdentityService.js';
 
 const router = Router();
 
@@ -17,6 +19,26 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('Get news error:', err);
     res.status(500).json({ error: 'Failed to fetch news' });
+  }
+});
+
+router.get('/brand-settings', requireAdmin, async (req, res) => {
+  try {
+    const settings = await getBrandSettings();
+    res.json({ settings });
+  } catch (err) {
+    console.error('Get brand settings error:', err);
+    res.status(500).json({ error: 'Failed to fetch brand settings' });
+  }
+});
+
+router.put('/brand-settings', requireAdmin, async (req, res) => {
+  try {
+    await saveBrandSettings(req.body);
+    res.json({ message: 'Brand settings updated' });
+  } catch (err) {
+    console.error('Save brand settings error:', err);
+    res.status(500).json({ error: 'Failed to save brand settings' });
   }
 });
 
@@ -61,10 +83,38 @@ router.post('/', requireAdmin, async (req, res) => {
       url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/novedad/${newsItem.id}`,
     }).catch(err => console.error('Push error:', err));
 
+    publishNewsToAll(newsItem.id).catch(err =>
+      console.error('Auto-publish news error:', err)
+    );
+
     res.status(201).json({ news: newsItem });
   } catch (err) {
     console.error('Create news error:', err);
     res.status(500).json({ error: 'Failed to create news' });
+  }
+});
+
+router.post('/:id/publish', requireAdmin, async (req, res) => {
+  try {
+    const existing = await pool.query('SELECT id FROM news WHERE id = $1', [req.params.id]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'News not found' });
+    }
+    const results = await publishNewsToAll(req.params.id);
+    res.json({ results });
+  } catch (err) {
+    console.error('Publish news error:', err);
+    res.status(500).json({ error: 'Failed to publish news' });
+  }
+});
+
+router.get('/:id/publications', async (req, res) => {
+  try {
+    const publications = await getNewsPublications(req.params.id);
+    res.json({ publications });
+  } catch (err) {
+    console.error('Get publications error:', err);
+    res.status(500).json({ error: 'Failed to fetch publications' });
   }
 });
 
@@ -104,6 +154,23 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Delete news error:', err);
     res.status(500).json({ error: 'Failed to delete news' });
+  }
+});
+
+router.get('/:id/publish-image', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM news WHERE id = $1', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'News not found' });
+    const news = rows[0];
+    const { applyBrandOverlay } = await import('../services/brandIdentityService.js');
+    const imageBuffer = news.image_data ? Buffer.from(news.image_data, 'base64') : null;
+    const branded = await applyBrandOverlay(imageBuffer, news);
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(branded);
+  } catch (err) {
+    console.error('Get publish image error:', err);
+    res.status(500).end();
   }
 });
 

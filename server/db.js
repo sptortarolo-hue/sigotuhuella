@@ -992,6 +992,45 @@ export async function initDb() {
       FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE CASCADE
     `, 'whatsapp_adoption_interests cascade');
 
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS news_publications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        news_id UUID NOT NULL REFERENCES news(id) ON DELETE CASCADE,
+        platform VARCHAR(20) NOT NULL CHECK (platform IN ('instagram', 'facebook_page', 'facebook_groups', 'whatsapp', 'status')),
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'published', 'failed')),
+        platform_post_id TEXT,
+        error_message TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        published_at TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `, 'news_publications');
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_news_publications_news_id ON news_publications(news_id)
+    `, 'news_publications index');
+    await migrate(client, `
+      ALTER TABLE news_publications ADD CONSTRAINT news_publications_news_id_platform_key UNIQUE (news_id, platform)
+    `, 'news_publications unique').catch(() => {});
+
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('brand_primary_color', '#7C3AED') ON CONFLICT (key) DO NOTHING
+    `, 'brand_primary_color');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('brand_secondary_color', '#F59E0B') ON CONFLICT (key) DO NOTHING
+    `, 'brand_secondary_color');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('brand_logo', '') ON CONFLICT (key) DO NOTHING
+    `, 'brand_logo');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('brand_default_hashtags', '#SigoTuHuella') ON CONFLICT (key) DO NOTHING
+    `, 'brand_default_hashtags');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('brand_signature', 'Sigo tu Huella') ON CONFLICT (key) DO NOTHING
+    `, 'brand_signature');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('brand_cta_text', 'Conocé más en') ON CONFLICT (key) DO NOTHING
+    `, 'brand_cta_text');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

@@ -569,3 +569,58 @@ export async function commentOnPagePost(pagePostId, message) {
   });
   return data;
 }
+
+export async function publishNewsToPage(message, imageBase64) {
+  const token = await getPageToken();
+  if (!token) return { error: 'Facebook Page no conectada' };
+
+  const pageId = await getPageId();
+  if (!pageId) return { error: 'No se encontró la Page ID' };
+
+  const imageUrl = imageBase64
+    ? `data:image/jpeg;base64,${imageBase64}`
+    : null;
+
+  try {
+    if (imageUrl) {
+      const { data } = await axios.post(`${GRAPH_API}/${pageId}/photos`, null, {
+        params: {
+          url: imageUrl,
+          message,
+          access_token: token,
+        },
+        timeout: 30000,
+      });
+      return { success: true, pagePostId: data.id, type: 'photo' };
+    }
+
+    const { data } = await axios.post(`${GRAPH_API}/${pageId}/feed`, {
+      message,
+      access_token: token,
+    }, {
+      params: { access_token: token },
+      timeout: 30000,
+    });
+    return { success: true, pagePostId: data.id, type: 'feed' };
+  } catch (err) {
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    return { error: `Error al publicar en Page: ${detail}` };
+  }
+}
+
+export async function publishNewsToGroups(groups, message, imageBase64) {
+  const imageUrls = imageBase64
+    ? [`data:image/jpeg;base64,${imageBase64}`]
+    : [];
+
+  if (imageUrls.length === 0) {
+    return { error: 'Se requiere una imagen para publicar en grupos' };
+  }
+
+  return publishToGroupsViaScraper(
+    groups.map(g => ({ id: g.id, fb_group_id: g.fb_group_id, name: g.name })),
+    message,
+    imageUrls,
+    null
+  );
+}
