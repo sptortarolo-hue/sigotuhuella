@@ -50,18 +50,20 @@ router.get('/brand-preview', async (req, res) => {
   try {
     const { applyBrandOverlay } = await import('../services/brandIdentityService.js');
     const dummyNews = {
+      id: 'preview',
       title: 'Vista previa del overlay',
+      content: 'Contenido de ejemplo para visualizar el diseño del overlay con la identidad de marca configurada.',
       type: 'manual',
       created_at: new Date().toISOString(),
       image_data: null,
     };
     const branded = await applyBrandOverlay(null, dummyNews);
     res.set('Content-Type', 'image/jpeg');
-    res.set('Cache-Control', 'no-cache');
+    res.set('Cache-Control', 'public, max-age=86400');
     res.send(branded);
   } catch (err) {
-    console.error('Brand preview error:', err);
-    res.status(500).end();
+    console.error('Brand preview error:', err.message, err.stack);
+    res.status(500).send(err.message);
   }
 });
 
