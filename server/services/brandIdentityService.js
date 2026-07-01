@@ -107,11 +107,11 @@ export async function applyBrandOverlay(imageBuffer, news) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // Seccion imagen 70% (80→878, 798px)
-  const imgTop = 80;
-  const imgH = 798;
-  // Seccion contenido 30% (878→1220, 342px)
-  const contentTop = 878;
+  // 70% imagen (0→896), 30% contenido (896→1280)
+  const imgSectionH = Math.round(height * 0.7); // 896
+  const contentTop = imgSectionH; // 896
+  // Area disponible para la imagen dentro de la seccion (debajo del header)
+  const imgAvailH = imgSectionH - 80; // 816
 
   if (imageBuffer && imageBuffer.length > 0) {
     const blurred = await sharp(imageBuffer)
@@ -123,19 +123,16 @@ export async function applyBrandOverlay(imageBuffer, news) {
 
     // Imagen escalada sin recortar (fit:inside)
     const mainResized = await sharp(imageBuffer)
-      .resize({ width, height: imgH, fit: 'inside' })
+      .resize({ width, height: imgAvailH, fit: 'inside' })
       .toBuffer();
     const mainImg = await loadImage(mainResized);
 
-    // Relleno blurreado en toda la seccion imagen
-    ctx.drawImage(bgImg, 0, imgTop, width, imgH, 0, imgTop, width, imgH);
-
-    // Imagen real centrada vertical y horizontalmente
+    // Imagen centrada en la seccion 70% (debajo del header)
     const imgOffX = (width - mainImg.width) / 2;
-    const imgOffY = imgTop + (imgH - mainImg.height) / 2;
+    const imgOffY = 80 + (imgAvailH - mainImg.height) / 2;
     ctx.drawImage(mainImg, imgOffX, imgOffY, mainImg.width, mainImg.height);
 
-    // Gradiente de transicion en los ultimos 80px de la imagen
+    // Gradiente de transicion al final de la seccion imagen (816→896)
     const gradTop = contentTop - 80;
     const overlapGrad = ctx.createLinearGradient(0, gradTop, 0, contentTop);
     overlapGrad.addColorStop(0, 'rgba(0,0,0,0)');
@@ -186,7 +183,7 @@ export async function applyBrandOverlay(imageBuffer, news) {
   const sigX = brand.logo ? 85 : 40;
   ctx.fillText(brand.signature, sigX, 40);
 
-  // ── Content section 30% (878→1220) ──
+  // ── Content section 30% (896→1280, 384px) ──
 
   ctx.textAlign = 'center';
 
@@ -196,7 +193,7 @@ export async function applyBrandOverlay(imageBuffer, news) {
   const badgeW = 140;
   const badgeH = 32;
   const badgeX = (width - badgeW) / 2;
-  const badgeY = contentTop + 30;
+  const badgeY = contentTop + 36;
   roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 16);
   ctx.fill();
   ctx.font = 'bold 13px sans-serif';
@@ -214,7 +211,7 @@ export async function applyBrandOverlay(imageBuffer, news) {
   }
   ctx.font = `bold ${fontSize}px sans-serif`;
   ctx.fillStyle = '#FFFFFF';
-  const titleY = contentTop + 130;
+  const titleY = contentTop + 140;
   if (ctx.measureText(titleText).width <= maxTitleW) {
     ctx.fillText(titleText, width / 2, titleY);
   } else {
@@ -226,13 +223,13 @@ export async function applyBrandOverlay(imageBuffer, news) {
   ctx.fillStyle = '#D1D5DB';
   ctx.fillText(
     new Date(news.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }),
-    width / 2, contentTop + 182
+    width / 2, contentTop + 200
   );
 
   // CTA
   ctx.font = '13px sans-serif';
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(brand.ctaText + ' ' + FRONTEND_URL, width / 2, contentTop + 212);
+  ctx.fillText(brand.ctaText + ' ' + FRONTEND_URL, width / 2, contentTop + 230);
 
   return canvas.toBuffer('image/jpeg', { quality: 85 });
 }
