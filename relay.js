@@ -383,12 +383,15 @@ async function start() {
         try {
           if (msg.image_url) {
             const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });
-            await sock.sendMessage('status@broadcast', {
-              image: Buffer.from(imgResp.data),
-              caption: msg.text || '',
-            });
+            await sock.sendMessage('status@broadcast',
+              { image: Buffer.from(imgResp.data), caption: msg.text || '' },
+              { backgroundColor: '#5A5A40', font: 2, statusJidList: [], broadcast: true }
+            );
           } else {
-            await sock.sendMessage('status@broadcast', { text: msg.text });
+            await sock.sendMessage('status@broadcast',
+              { text: msg.text },
+              { backgroundColor: '#5A5A40', font: 2, statusJidList: [], broadcast: true }
+            );
           }
           sentIds.push(msg.id);
           console.log(`[Status] Publicado: ${(msg.text || '').slice(0, 60)}`);
