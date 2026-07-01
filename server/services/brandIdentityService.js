@@ -3,6 +3,26 @@ import pool from '../db.js';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
 
+let _canvasModule = null;
+async function getCanvas() {
+  if (!_canvasModule) {
+    try {
+      _canvasModule = await import('canvas');
+    } catch (e) {
+      throw new Error('canvas (node-canvas) no disponible: ' + e.message);
+    }
+  }
+  return _canvasModule;
+}
+
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export async function getBrandSettings() {
   const keys = ['brand_primary_color', 'brand_secondary_color', 'brand_logo',
     'brand_default_hashtags', 'brand_signature', 'brand_cta_text'];
@@ -82,84 +102,106 @@ export async function applyBrandOverlay(imageBuffer, news) {
   const width = 1200;
   const height = 630;
   const badge = typeBadge[news.type] || typeBadge.manual;
+  const { createCanvas, loadImage } = await getCanvas();
 
-  const svgOverlay = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="${brand.primaryColor}" stop-opacity="0.95"/>
-        <stop offset="100%" stop-color="${brand.secondaryColor}" stop-opacity="0.85"/>
-      </linearGradient>
-      <linearGradient id="footerGrad" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="${brand.primaryColor}" stop-opacity="0.95"/>
-        <stop offset="100%" stop-color="${brand.secondaryColor}" stop-opacity="0.85"/>
-      </linearGradient>
-    </defs>
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
 
-    <!-- Header bar -->
-    <rect x="0" y="0" width="${width}" height="80" fill="url(#headerGrad)"/>
-    <!-- Footer bar -->
-    <rect x="0" y="${height - 60}" width="${width}" height="60" fill="url(#footerGrad)"/>
-
-    <!-- Brand name in header -->
-    <text x="100" y="48" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="white">${escapeXml(brand.signature)}</text>
-
-    <!-- Type badge -->
-    <rect x="${width - 180}" y="18" width="160" height="44" rx="22" fill="${badge.bg}" opacity="0.9"/>
-    <text x="${width - 100}" y="48" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white" text-anchor="middle">${badge.label}</text>
-
-    <!-- Title -->
-    <text x="60" y="${height / 2 - 20}" font-family="Arial, sans-serif" font-size="36" font-weight="bold" fill="#1F2937">
-      <tspan x="60" dy="0">${escapeXml(truncateText(news.title, 40))}</tspan>
-    </text>
-
-    <!-- Date -->
-    <text x="60" y="${height / 2 + 30}" font-family="Arial, sans-serif" font-size="18" fill="#6B7280">
-      ${new Date(news.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
-    </text>
-
-    <!-- Footer text -->
-    <text x="${width / 2}" y="${height - 26}" font-family="Arial, sans-serif" font-size="16" fill="white" text-anchor="middle">
-      ${escapeXml(brand.ctaText)} ${FRONTEND_URL}
-    </text>
-  </svg>`;
-
-  let base;
+  // Background
   if (imageBuffer && imageBuffer.length > 0) {
+    const contentH = height - 140;
     const resized = await sharp(imageBuffer)
-      .resize(width, height - 140, { fit: 'cover', position: 'attention' })
+      .resize(width, contentH, { fit: 'cover', position: 'attention' })
       .toBuffer();
-    const blank = await sharp({
-      create: { width, height, channels: 3, background: { r: 255, g: 255, b: 255 } }
-    }).toBuffer();
-    base = await sharp(blank)
-      .composite([{ input: resized, top: 80, left: 0 }])
-      .toBuffer();
+    const img = await loadImage(resized);
+    ctx.drawImage(img, 0, 80, width, contentH);
   } else {
-    const gradientSvg = `<svg width="${width}" height="${height - 140}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="${brand.primaryColor}" stop-opacity="0.05"/>
-          <stop offset="100%" stop-color="${brand.secondaryColor}" stop-opacity="0.1"/>
-        </linearGradient>
-      </defs>
-      <rect width="${width}" height="${height - 140}" fill="url(#bg)"/>
-    </svg>`;
-    const svgBuf = Buffer.from(gradientSvg);
-    const blank = await sharp({
-      create: { width, height, channels: 3, background: { r: 248, g: 250, b: 252 } }
-    }).toBuffer();
-    base = await sharp(blank)
-      .composite([{ input: svgBuf, top: 80, left: 0 }])
-      .toBuffer();
+    ctx.fillStyle = '#F8FAFC';
+    ctx.fillRect(0, 80, width, height - 140);
   }
 
-  const svgBuf = Buffer.from(svgOverlay);
-  const result = await sharp(base)
-    .composite([{ input: svgBuf, top: 0, left: 0 }])
-    .jpeg({ quality: 85 })
-    .toBuffer();
+  // Header bar
+  const headerGrad = ctx.createLinearGradient(0, 0, width, 0);
+  headerGrad.addColorStop(0, hexToRgba(brand.primaryColor, 0.95));
+  headerGrad.addColorStop(1, hexToRgba(brand.secondaryColor, 0.85));
+  ctx.fillStyle = headerGrad;
+  ctx.fillRect(0, 0, width, 80);
 
-  return result;
+  // Footer bar
+  ctx.fillStyle = headerGrad;
+  ctx.fillRect(0, height - 60, width, 60);
+
+  // Logo
+  if (brand.logo) {
+    try {
+      const logoBuf = Buffer.from(brand.logo, 'base64');
+      const logoImg = await loadImage(logoBuf);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(48, 40, 28, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(logoImg, 20, 12, 56, 56);
+      ctx.restore();
+    } catch (e) {
+      console.error('Brand logo draw error:', e.message);
+    }
+  }
+
+  // Brand signature
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textBaseline = 'middle';
+  const sigX = brand.logo ? 100 : 60;
+  ctx.fillText(brand.signature, sigX, 40);
+
+  // Badge
+  ctx.fillStyle = hexToRgba(badge.bg, 0.9);
+  roundRect(ctx, width - 180, 18, 160, 44, 22);
+  ctx.fill();
+  ctx.font = 'bold 16px sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textAlign = 'center';
+  ctx.fillText(badge.label, width - 100, 40);
+
+  // Title
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillStyle = '#1F2937';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const titleText = truncateText(news.title, 40);
+  ctx.fillText(titleText, 60, height / 2 - 5);
+
+  // Date
+  ctx.font = '18px sans-serif';
+  ctx.fillStyle = '#6B7280';
+  ctx.fillText(
+    new Date(news.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }),
+    60, height / 2 + 40
+  );
+
+  // Footer text
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '16px sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(brand.ctaText + ' ' + FRONTEND_URL, width / 2, height - 30);
+
+  return canvas.toBuffer('image/jpeg', { quality: 85 });
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 export function generatePlatformContent(news, platform) {
@@ -188,10 +230,6 @@ export function generatePlatformContent(news, platform) {
     default:
       return base;
   }
-}
-
-function escapeXml(str) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
 function truncateText(str, maxLen) {
