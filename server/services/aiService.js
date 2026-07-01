@@ -111,13 +111,37 @@ export function getImagePromptForType(type) {
   return IMAGE_PROMPTS[type] || 'Fotografía de mascotas, estilo realista, colores cálidos';
 }
 
-export async function generateVideoContent(topic, style, numScenes, sceneDescriptions = null) {
+const APP_FEATURES = [
+  { id: 'qr_chapita', name: 'Chapita QR', desc: 'Identificacion QR para mascotas. Quien la encuentra escanea y contacta al dueno al instante.' },
+  { id: 'reporte_rapido', name: 'Reporte Rapido', desc: 'Reportar mascota perdida o encontrada en 30 segundos, sin registro, con foto y ubicacion.' },
+  { id: 'match_ia', name: 'Match Automatico IA', desc: 'Inteligencia artificial que cruza publicaciones de Facebook con mascotas perdidas para encontrar coincidencias.' },
+  { id: 'flyer', name: 'Generador de Flyers', desc: 'Crea flyers para redes sociales al instante. Comparti en Instagram, Facebook y WhatsApp.' },
+  { id: 'adopcion', name: 'Adopcion Responsable', desc: 'Galería de mascotas en adopcion. Encontra a tu proximo companero.' },
+  { id: 'voluntarios', name: 'Voluntariado', desc: 'Sumate como voluntario. Elegi como ayudar: traslados, transito, difusion, veterinaria y mas.' },
+  { id: 'carnet', name: 'Carnet Digital', desc: 'Membresia con niveles y badges. Convertite en socio de la comunidad.' },
+  { id: 'difusion', name: 'Difusion Vecinal', desc: 'Descarga el QR o imprime carteles para tu barrio. Ayuda a difundir.' },
+  { id: 'notificaciones', name: 'Alertas y Notificaciones', desc: 'Activá alertas. Te avisamos cuando aparece una mascota similar a la tuya.' },
+  { id: 'feed', name: 'Feed Comunitario', desc: 'Red social de mascotas. Comparti hitos, dale like y comenta.' },
+  { id: 'concursos', name: 'Mascota del Mes', desc: 'Concursos mensuales. Vota y nomina a tu mascota.' },
+  { id: 'colabora', name: 'Colabora', desc: 'Dona con Mercado Pago o transferencia. Tu ayuda transforma vidas.' },
+];
+
+function getDefaultTopic(mode) {
+  const day = new Date().getDay();
+  if (mode === 'auto') {
+    const topics = ['Adopcion responsable y como darle un hogar a una mascota', 'Tips para cuidar a tu mascota', 'Historias de reencuentros emocionantes', 'Como funciona la chapita QR', 'Mascotas perdidas: como actuar', 'Concursos y comunidad', 'Voluntariado y donaciones'];
+    return topics[day] || 'La comunidad de mascotas mas grande del barrio';
+  }
+  return 'Mascotas perdidas que vuelven a casa gracias a la comunidad';
+}
+
+export async function generateVideoContent(topic, style, numScenes, sceneDescriptions = null, mode = 'real') {
   if (!groq) throw new Error('GROQ_API_KEY requerida para generación de video');
 
   const styleInstructions = {
     emotive: 'Tono emotivo y conmovedor. Frases cortas que toquen el corazón.',
     informative: 'Tono informativo y claro. Datos concretos y útiles.',
-    viral: 'Tono enérgico y llamativo. Frases de impacto, urgencia, con emojis.',
+    viral: 'Tono enérgico y llamativo. Frases de impacto, urgencia.',
   };
 
   const hasSceneDescriptions = sceneDescriptions && sceneDescriptions.length > 0;
@@ -128,12 +152,67 @@ export async function generateVideoContent(topic, style, numScenes, sceneDescrip
     sceneDescriptions.forEach((desc, i) => {
       sceneContext += `Escena ${i + 1}: ${desc}\n`;
     });
-    sceneContext += `\n- overlayTexts: exactamente ${sceneDescriptions.length} textos cortos contextualizados para cada escena real. Relacioná cada texto con la escena correspondiente.\n- imagePrompts: NO generes imagePrompts (dejá el array vacío []). Las imágenes son fotos reales.`;
+    sceneContext += `\n- overlayTexts: exactamente ${sceneDescriptions.length} textos cortos contextualizados para cada escena real.\n- imagePrompts: NO generes imagePrompts (dejá el array vacío []).`;
   }
 
-  const prompt = `Sos un creativo publicitario argentino que hace reels promocionales modernos para una app de mascotas llamada "Sigo Tu Huella".
+  const resolvedTopic = topic || getDefaultTopic(mode);
 
-Tema del video: ${topic || 'Mascotas perdidas que vuelven a casa gracias a la comunidad'}
+  let prompt;
+  let returnStyle = false;
+  let returnMusic = false;
+
+  if (mode === 'promo') {
+    returnStyle = false;
+    const featuresList = APP_FEATURES.map(f => `- ${f.name}: ${f.desc}`).join('\n');
+    prompt = `Sos un creativo publicitario argentino que hace reels promocionales para la app "Sigo Tu Huella", una comunidad vecinal de mascotas.
+
+Tema: ${resolvedTopic}
+Estilo: ${style} — ${styleInstructions[style] || styleInstructions.emotive}
+Cantidad de escenas: ${numScenes}
+
+Funcionalidades de la app disponibles:
+${featuresList}
+
+Respondé ÚNICAMENTE con JSON:
+{
+  "voiceScript": "Guion promocional. Máximo 20s hablados. Mostra los beneficios de las funciones elegidas. Terminar con 'Descargá Sigo Tu Huella gratis en sigotuhuella.online'",
+  "overlayTexts": ["Texto hook escena 1", "Texto hook escena 2", ...],
+  "imagePrompts": ["prompt en ingles imagen 1", "prompt imagen 2", ...]
+}
+
+Reglas:
+- Elegí 3-5 funcionalidades según el tema. Mezclá imágenes conceptuales (personas ayudando mascotas) con UI mockups (interfaces de app).
+- voiceScript: sin emojis, natural. Párrafos separados con doble salto de línea.
+- overlayTexts: ${numScenes} textos cortos (máx 6 palabras), el primero es el hook principal.
+- imagePrompts: ${numScenes} prompts en INGLÉS para Flux. Alterná entre escenas conceptuales y mockups de UI. Estilo: fotografía profesional, colores cálidos, 4K.`;
+  } else if (mode === 'auto') {
+    returnStyle = true;
+    returnMusic = true;
+    prompt = `Sos un creativo publicitario argentino que hace reels para "Sigo Tu Huella", una app comunitaria de mascotas.
+
+Tema: ${resolvedTopic}
+Cantidad de escenas: ${numScenes}
+
+Respondé ÚNICAMENTE con JSON:
+{
+  "voiceScript": "Guion para reel. Máximo 20s. En español argentino natural. Terminar con 'Descargá Sigo Tu Huella gratis en sigotuhuella.online'",
+  "overlayTexts": ["Texto hook 1", "Texto hook 2", ...],
+  "imagePrompts": ["prompt imagen 1", "prompt imagen 2", ...],
+  "style": "emotive o informative o viral",
+  "music": "emotional o latin o calm o energetic"
+}
+
+Reglas:
+- Elegí automaticamente el tema según mascotas, comunidad y la app.
+- voiceScript: natural, sin emojis. Párrafos separados con doble salto de línea.
+- overlayTexts: ${numScenes} textos hook (máx 6 palabras).
+- imagePrompts: ${numScenes} prompts en INGLÉS para Flux. Fotorrealista, cálido, 4K.
+- style: elegí el tono según el tema. emotive para historias, informative para tips, viral para energia.
+- music: elegí la música que mejor acompañe al tono elegido.`;
+  } else {
+    prompt = `Sos un creativo publicitario argentino que hace reels promocionales modernos para una app de mascotas llamada "Sigo Tu Huella".
+
+Tema del video: ${resolvedTopic}
 Estilo: ${style} — ${styleInstructions[style] || styleInstructions.emotive}
 Cantidad de escenas con foto: ${numScenes}
 ${sceneContext}
@@ -149,6 +228,7 @@ Reglas:
 - voiceScript: texto natural para voz en off, sin emojis, sin comillas, sin formato markdown. Máximo 20 segundos hablados. Separá los párrafos con doble salto de línea (\\n\\n) para alternar entre voces cuando se usan dos voces. Cada párrafo es un bloque con sentido completo.
 - overlayTexts: exactamente ${numScenes} textos cortos (máx 6 palabras cada uno) que aparecen en pantalla como hook principal, uno por escena de foto. El primer texto es el hook más importante.
 ${hasSceneDescriptions ? '- imagePrompts: array vacío [] porque las imágenes son fotos reales' : '- imagePrompts: exactamente ' + numScenes + ' prompts en INGLÉS para generar imágenes con IA (Flux). Cada prompt debe describir una escena visual concreta, fotorrealista, con iluminación cinematográfica. NO incluir texto en las imágenes. Estilo: fotografía profesional, colores cálidos, 4K quality.'}`;
+  }
 
   const response = await groq.chat.completions.create({
     model: VIDEO_GROQ_MODEL,
@@ -161,11 +241,14 @@ ${hasSceneDescriptions ? '- imagePrompts: array vacío [] porque las imágenes s
 
   try {
     const parsed = JSON.parse(text);
-    return {
+    const result = {
       voiceScript: parsed.voiceScript || '',
       overlayTexts: Array.isArray(parsed.overlayTexts) ? parsed.overlayTexts : [],
       imagePrompts: Array.isArray(parsed.imagePrompts) ? parsed.imagePrompts : [],
     };
+    if (returnStyle && parsed.style) result.style = parsed.style;
+    if (returnMusic && parsed.music) result.music = parsed.music;
+    return result;
   } catch {
     return { voiceScript: text, overlayTexts: [], imagePrompts: [] };
   }

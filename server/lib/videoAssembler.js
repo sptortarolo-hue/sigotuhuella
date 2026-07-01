@@ -76,9 +76,9 @@ function getVoiceParams(voiceKey, style) {
 }
 
 const STYLE_TRANSITIONS = {
-  emotive: 'fade',
-  informative: 'slideleft',
-  viral: 'circlecrop',
+  emotive: ['fade', 'dissolve', 'fadeblack', 'fadewhite', 'smoothright'],
+  informative: ['slideleft', 'slideright', 'zipleft', 'smoothleft', 'zipright'],
+  viral: ['circlecrop', 'pixelize', 'rectclose', 'circleopen', 'radial'],
 };
 
 const STYLE_ZOOMPAN = {
@@ -91,7 +91,7 @@ const TRANSITION_DUR = 0.5;
 const OPENING_DUR = 2;
 const CLOSING_DUR = 4;
 const FPS = 25;
-const FF_PRESET = 'slow';
+const FF_PRESET = 'veryfast';
 const FF_CRF = 17;
 
 let speechSdkPromise = null;
@@ -605,7 +605,8 @@ async function addDrawTextToClip(clipPath, overlayText, clipDur, dims, workDir, 
   const fontSize = isVertical ? 70 : 52;
   const lineSpacing = 8;
   const maxChars = isVertical ? 22 : 32;
-  const enableExpr = `between(t\\,0.3\\,${clipDur})`;
+  const animDur = 0.3;
+  const enableExpr = `between(t\\,${animDur}\\,${clipDur})`;
 
   const lines = wrapText(overlayText, maxChars);
 
@@ -625,11 +626,12 @@ async function addDrawTextToClip(clipPath, overlayText, clipDur, dims, workDir, 
 
   for (let li = 0; li < lines.length; li++) {
     const escaped = escDrawText(lines[li]);
-    const y = textY + boxPad + li * (fontSize + lineSpacing);
+    const yPos = textY + boxPad + li * (fontSize + lineSpacing);
+    const yExpr = `if(lt(t,${animDur}),${yPos+40}-t/${animDur}*40,${yPos})`;
     if (fontPath) {
-      filt.push(`drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${y}:shadowcolor=black:shadowx=3:shadowy=3:enable='${enableExpr}'`);
+      filt.push(`drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y='${yExpr}':shadowcolor=black:shadowx=3:shadowy=3:enable='${enableExpr}'`);
     } else {
-      filt.push(`drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${y}:shadowcolor=black:shadowx=3:shadowy=3:enable='${enableExpr}'`);
+      filt.push(`drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y='${yExpr}':shadowcolor=black:shadowx=3:shadowy=3:enable='${enableExpr}'`);
     }
   }
 
@@ -686,16 +688,16 @@ async function generateOpeningClip(dims, style, workDir, firstPhotoPath, hookTex
   return clipPath;
 }
 
-async function generateClosingClip(dims, style, workDir) {
+async function generateClosingClip(dims, style, workDir, lastPhotoPath) {
   const clipPath = path.join(workDir, 'clip_closing.mp4');
   const { w, h } = dims;
   const fontPath = getFontPath();
   const dur = CLOSING_DUR;
   const isVertical = h > w;
 
-  const cream = '0xF5F5F0';
   const olive = '0x5A5A40';
   const terracotta = '0xD48C70';
+  const cream = '0xF5F5F0';
 
   const titleText = escDrawText('SIGO TU HUELLA');
   const urlText = escDrawText('sigotuhuella.online');
@@ -704,33 +706,45 @@ async function generateClosingClip(dims, style, workDir) {
   const urlFontSize = isVertical ? 44 : 32;
 
   const logoW = Math.round(Math.min(w, h) * 0.28);
-
   const logoAreaH = Math.round(h * 0.35);
   const logoY = Math.round((logoAreaH - logoW) / 2);
   const titleY = Math.round(logoAreaH + 20);
   const urlY = Math.round(titleY + titleFontSize + 24);
 
-  const titleEnable = `between(t\\,0.4\\,${dur})`;
-  const urlEnable = `between(t\\,0.7\\,${dur})`;
-
   let textFilters = '';
   if (fontPath) {
-    textFilters = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=${olive}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${terracotta}@0.4:shadowx=2:shadowy=2:enable='${titleEnable}'`;
-    textFilters += `,drawtext=text='${urlText}':fontfile='${fontPath}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.3:shadowx=1:shadowy=1:enable='${urlEnable}'`;
+    textFilters = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${olive}@0.6:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
+    textFilters += `,drawtext=text='${urlText}':fontfile='${fontPath}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.5:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
   } else {
-    textFilters = `drawtext=text='${titleText}':fontcolor=${olive}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${terracotta}@0.4:shadowx=2:shadowy=2:enable='${titleEnable}'`;
-    textFilters += `,drawtext=text='${urlText}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.3:shadowx=1:shadowy=1:enable='${urlEnable}'`;
+    textFilters = `drawtext=text='${titleText}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${olive}@0.6:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
+    textFilters += `,drawtext=text='${urlText}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.5:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
   }
 
   const args = ['-y'];
-  args.push('-f', 'lavfi', '-i', `color=c=${cream}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
-  if (fs.existsSync(LOGO_PATH)) {
-    args.push('-i', LOGO_PATH);
-    args.push('-filter_complex', `[1:v]scale=${logoW}:-1[logo];[0:v][logo]overlay=(W-w)/2:${logoY}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]fade=in:st=0:d=0.4,${textFilters},fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
+  const hasPhoto = lastPhotoPath && fs.existsSync(lastPhotoPath);
+
+  if (hasPhoto) {
+    args.push('-i', lastPhotoPath);
+    if (fs.existsSync(LOGO_PATH)) {
+      args.push('-i', LOGO_PATH);
+      args.push('-filter_complex', `[0:v]scale=${w}:${h}:force_original_aspect_ratio=2,crop=${w}:${h},gblur=sigma=20[bg];[2:v]scale=${logoW}:-1[logo];[bg][logo]overlay=(W-w)/2:${logoY}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]fade=in:st=0:d=0.4,${textFilters},fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
+      args.push('-map', '[v]');
+    } else {
+      args.push('-filter_complex', `[0:v]scale=${w}:${h}:force_original_aspect_ratio=2,crop=${w}:${h},gblur=sigma=20[bg];[bg]fade=in:st=0:d=0.4,${textFilters},fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
+      args.push('-map', '[v]');
+    }
   } else {
-    args.push('-filter_complex', `[0:v]fade=in:st=0:d=0.4,${textFilters},fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
+    args.push('-f', 'lavfi', '-i', `color=c=${cream}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
+    if (fs.existsSync(LOGO_PATH)) {
+      args.push('-i', LOGO_PATH);
+      args.push('-filter_complex', `[1:v]scale=${logoW}:-1[logo];[0:v][logo]overlay=(W-w)/2:${logoY}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]fade=in:st=0:d=0.4,${textFilters},fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
+      args.push('-map', '[v]');
+    } else {
+      args.push('-filter_complex', `[0:v]fade=in:st=0:d=0.4,${textFilters},fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
+      args.push('-map', '[v]');
+    }
   }
-  args.push('-map', '[v]');
+
   args.push('-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF));
   args.push('-pix_fmt', 'yuv420p', '-t', String(dur), '-an');
   args.push(clipPath);
@@ -798,8 +812,13 @@ async function generateAudio(config, voiceScript, workDir, videoDuration, ttsPat
   return audioPath;
 }
 
-async function concatenateClipsWithTransitions(clipPaths, transition, workDir) {
+async function concatenateClipsWithTransitions(clipPaths, transitionsArr, workDir) {
   if (clipPaths.length === 1) return clipPaths[0];
+
+  const getT = (i) => {
+    if (!Array.isArray(transitionsArr)) return transitionsArr;
+    return transitionsArr[i % transitionsArr.length];
+  };
 
   if (clipPaths.length === 2) {
     const outPath = path.join(workDir, 'concat.mp4');
@@ -808,7 +827,7 @@ async function concatenateClipsWithTransitions(clipPaths, transition, workDir) {
 
     await runFfmpeg([
       '-y', '-i', clipPaths[0], '-i', clipPaths[1],
-      '-filter_complex', `[0:v][1:v]xfade=transition=${transition}:duration=${TRANSITION_DUR}:offset=${offset}[v]`,
+      '-filter_complex', `[0:v][1:v]xfade=transition=${getT(0)}:duration=${TRANSITION_DUR}:offset=${offset}[v]`,
       '-map', '[v]',
       '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
       '-pix_fmt', 'yuv420p', '-an',
@@ -827,7 +846,7 @@ async function concatenateClipsWithTransitions(clipPaths, transition, workDir) {
 
     await runFfmpeg([
       '-y', '-i', currentPath, '-i', clipPaths[i],
-      '-filter_complex', `[0:v][1:v]xfade=transition=${transition}:duration=${TRANSITION_DUR}:offset=${offset}[v]`,
+      '-filter_complex', `[0:v][1:v]xfade=transition=${getT(i - 1)}:duration=${TRANSITION_DUR}:offset=${offset}[v]`,
       '-map', '[v]',
       '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
       '-pix_fmt', 'yuv420p', '-an',
@@ -1240,7 +1259,7 @@ async function generateVideo(config) {
   const dims = FORMAT_DIMS[format] || FORMAT_DIMS.vertical;
   const { w, h } = dims;
   const zoompan = STYLE_ZOOMPAN[style] || STYLE_ZOOMPAN.emotive;
-  const transition = STYLE_TRANSITIONS[style] || STYLE_TRANSITIONS.emotive;
+  const transitions = STYLE_TRANSITIONS[style] || STYLE_TRANSITIONS.emotive;
 
   const jobId = uuidv4();
   const workDir = path.join(os.tmpdir(), `video-${jobId}`);
@@ -1287,9 +1306,10 @@ async function generateVideo(config) {
     const photoClipDur = photoClipsCount > 0 ? availableDur / photoClipsCount : 2;
 
     const hookText = photoScenes[0]?.overlayText || '';
+    const lastPhotoPath = photoPaths[numPhotoScenes - 1];
     const [openingClip, closingClip, audioPath] = await Promise.all([
       generateOpeningClip(dims, style, workDir, photoPaths[0], hookText),
-      generateClosingClip(dims, style, workDir),
+      generateClosingClip(dims, style, workDir, lastPhotoPath),
       generateAudio(config, voiceScript, workDir, videoDuration, ttsPath),
     ]);
     logStep('opening+closing+audio parallel');
@@ -1313,7 +1333,7 @@ async function generateVideo(config) {
 
     let mainVideoPath;
     try {
-      mainVideoPath = await concatenateClipsWithTransitions(mainClips, transition, workDir);
+      mainVideoPath = await concatenateClipsWithTransitions(mainClips, transitions, workDir);
       logStep('concat+xfade');
     } catch (xfadeErr) {
       console.warn('xfade failed, falling back to simple concat:', xfadeErr.message);

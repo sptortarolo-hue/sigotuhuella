@@ -121,7 +121,8 @@ export default function VideoGeneratorTab() {
     return fetch(url, { ...options, headers });
   }
 
-  const [mode, setMode] = useState<'real' | 'ai'>('real');
+  const [activeTab, setActiveTab] = useState<'auto' | 'advanced'>('auto');
+  const [mode, setMode] = useState<'real' | 'ai' | 'promo' | 'auto'>('auto');
   const [config, setConfig] = useState({
     style: 'emotive',
     duration: 20,
@@ -491,43 +492,73 @@ export default function VideoGeneratorTab() {
           <Film className="w-6 h-6" /> Generador de Reel
         </h2>
 
-        <div className="mb-6">
-          <label className="block text-sm font-bold text-gray-600 mb-3">Modo</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button
-              onClick={() => setMode('real')}
-              className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left",
-                mode === 'real'
-                  ? "border-brand-primary bg-brand-primary/5"
-                  : "border-brand-accent bg-brand-bg hover:border-brand-primary/40"
-              )}
-            >
-              <Image className={cn("w-5 h-5 shrink-0", mode === 'real' ? "text-brand-primary" : "text-gray-400")} />
-              <div>
-                <div className={cn("text-sm font-bold", mode === 'real' ? "text-brand-primary" : "text-gray-700")}>Contenido Real</div>
-                <div className="text-xs text-gray-400">Fotos de mascotas y noticias</div>
-              </div>
-            </button>
-            <button
-              onClick={() => setMode('ai')}
-              className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left",
-                mode === 'ai'
-                  ? "border-brand-secondary bg-brand-secondary/5"
-                  : "border-brand-accent bg-brand-bg hover:border-brand-secondary/40"
-              )}
-            >
-              <Sparkles className={cn("w-5 h-5 shrink-0", mode === 'ai' ? "text-brand-secondary" : "text-gray-400")} />
-              <div>
-                <div className={cn("text-sm font-bold", mode === 'ai' ? "text-brand-secondary" : "text-gray-700")}>Generado con IA</div>
-                <div className="text-xs text-gray-400">Gemini guion + imagenes IA</div>
-              </div>
-            </button>
-          </div>
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => { setActiveTab('auto'); setMode('auto'); }}
+            className={cn(
+              "flex items-center gap-2 px-5 py-3 rounded-xl border-2 transition-all font-bold text-sm",
+              activeTab === 'auto'
+                ? "border-brand-primary bg-brand-primary/5 text-brand-primary"
+                : "border-brand-accent bg-brand-bg text-gray-700 hover:border-brand-primary/40"
+            )}
+          >
+            <Sparkles className="w-5 h-5" /> Automático
+          </button>
+          <button
+            onClick={() => setActiveTab('advanced')}
+            className={cn(
+              "flex items-center gap-2 px-5 py-3 rounded-xl border-2 transition-all font-bold text-sm",
+              activeTab === 'advanced'
+                ? "border-brand-primary bg-brand-primary/5 text-brand-primary"
+                : "border-brand-accent bg-brand-bg text-gray-700 hover:border-brand-primary/40"
+            )}
+          >
+            <Film className="w-5 h-5" /> Avanzado
+          </button>
         </div>
 
-        {mode === 'ai' && (
+        {activeTab === 'auto' && (
+          <div className="mb-6 p-6 bg-brand-primary/3 rounded-2xl border border-brand-accent">
+            <p className="text-sm text-gray-600 mb-4">
+              La IA genera todo automáticamente: tema, estilo, música, imágenes y guion. Solo escribí un tema o dejalo vacío.
+            </p>
+            <input
+              type="text"
+              value={topic}
+              onChange={e => setTopic(e.target.value)}
+              placeholder="Ej: Cómo funciona la chapita QR / Adopta un amigo / Mascotas perdidas"
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+            />
+            <p className="text-xs text-gray-400 mt-2">Dejalo vacío para que la IA elija según el día de la semana.</p>
+            <button
+              onClick={generate}
+              disabled={generating}
+              className={cn(
+                "mt-4 w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 text-white transition-all",
+                generating
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-brand-primary to-brand-secondary hover:shadow-xl"
+              )}
+            >
+              {generating ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Generando reel automático... {generatingElapsed > 0 && `${generatingElapsed}s`}</>
+              ) : (
+                <><Sparkles className="w-5 h-5" /> Generar Reel Automático</>
+              )}
+            </button>
+            {aiContent && (
+              <div className="mt-4 space-y-3 p-4 bg-white rounded-xl border border-brand-accent">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Guion de voz</label>
+                  <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{aiContent.voiceScript}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'advanced' && (
+        <>{mode === 'ai' && (
           <div className="mb-6 p-4 bg-brand-secondary/5 rounded-2xl border border-brand-secondary/20">
             <label className="block text-sm font-bold text-gray-600 mb-2">
               Tema del video <span className="text-gray-400 font-normal">(opcional)</span>
@@ -950,6 +981,7 @@ export default function VideoGeneratorTab() {
         <p className="text-xs text-gray-400 mt-3 text-center">
           La generacion toma unos segundos. Cuando termine, aparece en la lista de abajo.
         </p>
+      </>)}
       </div>
 
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">

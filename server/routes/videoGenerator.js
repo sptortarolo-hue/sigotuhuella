@@ -163,6 +163,29 @@ if (mode === 'ai') {
   }
 
   var finalVoiceScript = aiContent.voiceScript || voiceScript;
+    } else if (mode === 'promo' || mode === 'auto') {
+      const numScenes = 5;
+      const content = await generateVideoContent(topic, style, numScenes, null, mode);
+      const aiImages = await generateVideoImages(content.imagePrompts || []);
+      for (let i = 0; i < numScenes; i++) {
+        const img = aiImages[i] || null;
+        if (img) {
+          resolvedScenes.push({
+            type: 'photo',
+            imageBase64: img,
+            overlayText: content.overlayTexts[i] || '',
+          });
+        }
+      }
+      if (resolvedScenes.length < 3) {
+        const webPhotos = await fetchRandomPetPhotos(5);
+        for (const photo of webPhotos) {
+          resolvedScenes.push({ type: 'photo', imageBase64: photo, overlayText: '' });
+        }
+      }
+      var finalVoiceScript = content.voiceScript || voiceScript;
+      if (content.style) var finalStyle = content.style;
+      if (content.music) var finalMusic = content.music;
     } else {
       for (const scene of scenes) {
         if (scene.source === 'pet' && scene.petId) {
@@ -236,14 +259,16 @@ if (mode === 'ai') {
       return res.status(400).json({ error: 'No hay imágenes para generar el video. Seleccioná al menos una.' });
     }
 
-const title = mode === 'ai'
-    ? `Video IA ${style} ${includeVoice ? 'TTS' : `${duration}s`} ${format}`
-    : `Video ${style} ${includeVoice ? 'TTS' : `${duration}s`} ${format}`;
+const usedStyle = finalStyle || style;
+const usedMusic = finalMusic || music;
+const title = mode === 'ai' || mode === 'promo' || mode === 'auto'
+    ? `Video ${mode} ${usedStyle} ${includeVoice ? 'TTS' : `${duration}s`} ${format}`
+    : `Video ${usedStyle} ${includeVoice ? 'TTS' : `${duration}s`} ${format}`;
     const insertResult = await pool.query(
       `INSERT INTO promotional_videos (title, video_data, style, duration, music_track, voice_enabled, format, status, created_by)
        VALUES ($1, '', $2, $3, $4, $5, $6, 'generating', $7)
        RETURNING id`,
-      [title, style, duration, music, includeVoice, format, req.user.id]
+      [title, usedStyle, duration, usedMusic, includeVoice, format, req.user.id]
     );
     const videoId = insertResult.rows[0].id;
 
@@ -251,9 +276,9 @@ const title = mode === 'ai'
     try {
       const result = await Promise.race([
         generateVideo({
-          style,
+          style: usedStyle,
           duration,
-          music,
+          music: usedMusic,
           includeVoice,
           format,
           voiceScript: finalVoiceScript,
@@ -263,7 +288,7 @@ const title = mode === 'ai'
           confetti,
           scenes: resolvedScenes,
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Video generation timeout (5 minutes)')), 300_000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Video generation timeout (8 minutes)')), 480_000)),
       ]);
       await pool.query(
         `UPDATE promotional_videos SET video_data = $1, thumbnail_data = $2, status = 'ready' WHERE id = $3`,
