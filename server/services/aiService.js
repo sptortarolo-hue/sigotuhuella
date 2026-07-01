@@ -135,7 +135,7 @@ function getDefaultTopic(mode) {
   return 'Mascotas perdidas que vuelven a casa gracias a la comunidad';
 }
 
-export async function generateVideoContent(topic, style, numScenes, sceneDescriptions = null, mode = 'real') {
+export async function generateVideoContent(topic, style, numScenes, sceneDescriptions = null, mode = 'real', selectedFeatures = []) {
   if (!groq) throw new Error('GROQ_API_KEY requerida para generación de video');
 
   const styleInstructions = {
@@ -163,14 +163,17 @@ export async function generateVideoContent(topic, style, numScenes, sceneDescrip
 
   if (mode === 'promo') {
     returnStyle = false;
-    const featuresList = APP_FEATURES.map(f => `- ${f.name}: ${f.desc}`).join('\n');
+    const featuresToShow = selectedFeatures.length > 0
+      ? APP_FEATURES.filter(f => selectedFeatures.includes(f.id))
+      : APP_FEATURES;
+    const featuresList = featuresToShow.map(f => `- ${f.name}: ${f.desc}`).join('\n');
     prompt = `Sos un creativo publicitario argentino que hace reels promocionales para la app "Sigo Tu Huella", una comunidad vecinal de mascotas.
 
 Tema: ${resolvedTopic}
 Estilo: ${style} — ${styleInstructions[style] || styleInstructions.emotive}
 Cantidad de escenas: ${numScenes}
 
-Funcionalidades de la app disponibles:
+Funcionalidades de la app disponibles (elegí SOLO de esta lista):
 ${featuresList}
 
 Respondé ÚNICAMENTE con JSON:
@@ -181,16 +184,19 @@ Respondé ÚNICAMENTE con JSON:
 }
 
 Reglas:
-- Elegí 3-5 funcionalidades según el tema. Mezclá imágenes conceptuales (personas ayudando mascotas) con UI mockups (interfaces de app).
+- Elegí 3-5 funcionalidades de las listadas arriba según el tema. Mezclá imágenes conceptuales (personas ayudando mascotas) con UI mockups (interfaces de app).
 - voiceScript: sin emojis, natural. Párrafos separados con doble salto de línea.
 - overlayTexts: ${numScenes} textos cortos (máx 6 palabras), el primero es el hook principal.
 - imagePrompts: ${numScenes} prompts en INGLÉS para Flux. Alterná entre escenas conceptuales y mockups de UI. Estilo: fotografía profesional, colores cálidos, 4K.`;
   } else if (mode === 'auto') {
     returnStyle = true;
     returnMusic = true;
+    const featuresContext = selectedFeatures.length > 0
+      ? '\nFuncionalidades de la app a promocionar:\n' + APP_FEATURES.filter(f => selectedFeatures.includes(f.id)).map(f => `- ${f.name}: ${f.desc}`).join('\n')
+      : '';
     prompt = `Sos un creativo publicitario argentino que hace reels para "Sigo Tu Huella", una app comunitaria de mascotas.
 
-Tema: ${resolvedTopic}
+Tema: ${resolvedTopic}${featuresContext}
 Cantidad de escenas: ${numScenes}
 
 Respondé ÚNICAMENTE con JSON:
@@ -203,7 +209,7 @@ Respondé ÚNICAMENTE con JSON:
 }
 
 Reglas:
-- Elegí automaticamente el tema según mascotas, comunidad y la app.
+- Elegí automaticamente el tema según mascotas, comunidad y la app.${selectedFeatures.length > 0 ? '\n- Promocioná SOLO las funcionalidades seleccionadas arriba.' : ''}
 - voiceScript: natural, sin emojis. Párrafos separados con doble salto de línea.
 - overlayTexts: ${numScenes} textos hook (máx 6 palabras).
 - imagePrompts: ${numScenes} prompts en INGLÉS para Flux. Fotorrealista, cálido, 4K.

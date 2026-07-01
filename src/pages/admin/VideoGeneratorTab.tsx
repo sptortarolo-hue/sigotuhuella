@@ -139,6 +139,7 @@ export default function VideoGeneratorTab() {
   const [activeTab, setActiveTab] = useState<'auto' | 'advanced'>('auto');
   const [mode, setMode] = useState<'real' | 'ai' | 'promo' | 'auto'>('auto');
   const [showFeatures, setShowFeatures] = useState(false);
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [config, setConfig] = useState({
     style: 'emotive',
     duration: 20,
@@ -398,6 +399,9 @@ export default function VideoGeneratorTab() {
         }));
         body.voiceScript = voiceScript || undefined;
       }
+      if (mode === 'auto' || mode === 'promo') {
+        body.selectedFeatures = selectedFeatures;
+      }
 
       const res = await authFetch('/api/admin/videos/generate', {
         method: 'POST',
@@ -544,17 +548,31 @@ export default function VideoGeneratorTab() {
               className="flex items-center gap-2 text-xs font-bold text-brand-primary/70 hover:text-brand-primary transition-colors mb-3"
             >
               <ChevronDown className={cn("w-4 h-4 transition-transform", showFeatures && "rotate-180")} />
-              Funcionalidades de la app ({APP_FEATURES.length})
+              Funcionalidades de la app ({APP_FEATURES.length}) <span className="text-gray-400 font-normal">— seleccioná las que quieras promocionar</span>
             </button>
 
             {showFeatures && (
               <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {APP_FEATURES.map(f => (
-                  <div key={f.id} className="p-3 bg-white rounded-xl border border-brand-accent">
-                    <div className="text-sm font-bold text-brand-primary">{f.name}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{f.desc}</div>
-                  </div>
-                ))}
+                {APP_FEATURES.map(f => {
+                  const active = selectedFeatures.includes(f.id);
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => setSelectedFeatures(prev =>
+                        prev.includes(f.id) ? prev.filter(id => id !== f.id) : [...prev, f.id]
+                      )}
+                      className={cn(
+                        "p-3 rounded-xl border-2 text-left transition-all",
+                        active
+                          ? "border-brand-primary bg-brand-primary/5"
+                          : "border-brand-accent bg-white hover:border-brand-primary/40"
+                      )}
+                    >
+                      <div className={cn("text-sm font-bold", active ? "text-brand-primary" : "text-gray-700")}>{f.name}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{f.desc}</div>
+                    </button>
+                  );
+                })}
               </div>
             )}
 

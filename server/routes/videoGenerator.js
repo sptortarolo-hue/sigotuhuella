@@ -96,6 +96,7 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
     frame = 'none',
     confetti = false,
     topic,
+    selectedFeatures = [],
   } = req.body;
 
   try {
@@ -165,7 +166,7 @@ if (mode === 'ai') {
   var finalVoiceScript = aiContent.voiceScript || voiceScript;
     } else if (mode === 'promo' || mode === 'auto') {
       const numScenes = 5;
-      const content = await generateVideoContent(topic, style, numScenes, null, mode);
+      const content = await generateVideoContent(topic, style, numScenes, null, mode, selectedFeatures);
       const aiImages = await generateVideoImages(content.imagePrompts || []);
       for (let i = 0; i < numScenes; i++) {
         const img = aiImages[i] || null;
