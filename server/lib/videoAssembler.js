@@ -713,11 +713,11 @@ async function generateClosingClip(dims, style, workDir, lastPhotoPath) {
 
   let textFilters = '';
   if (fontPath) {
-    textFilters = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${olive}@0.6:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
-    textFilters += `,drawtext=text='${urlText}':fontfile='${fontPath}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.5:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
+    textFilters = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=black:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
+    textFilters += `,drawtext=text='${urlText}':fontfile='${fontPath}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
   } else {
-    textFilters = `drawtext=text='${titleText}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${olive}@0.6:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
-    textFilters += `,drawtext=text='${urlText}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.5:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
+    textFilters = `drawtext=text='${titleText}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=black:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
+    textFilters += `,drawtext=text='${urlText}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
   }
 
   const args = ['-y'];
@@ -727,7 +727,7 @@ async function generateClosingClip(dims, style, workDir, lastPhotoPath) {
     args.push('-i', lastPhotoPath);
     if (fs.existsSync(LOGO_PATH)) {
       args.push('-i', LOGO_PATH);
-      args.push('-filter_complex', `[0:v]scale=${w}:${h}:force_original_aspect_ratio=2,crop=${w}:${h},gblur=sigma=20[bg];[2:v]scale=${logoW}:-1[logo];[bg][logo]overlay=(W-w)/2:${logoY}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]fade=in:st=0:d=0.4,${textFilters},fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
+      args.push('-filter_complex', `[0:v]scale=${w}:${h}:force_original_aspect_ratio=2,crop=${w}:${h},gblur=sigma=20[bg];[1:v]scale=${logoW}:-1[logo];[bg][logo]overlay=(W-w)/2:${logoY}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]fade=in:st=0:d=0.4,${textFilters},fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
       args.push('-map', '[v]');
     } else {
       args.push('-filter_complex', `[0:v]scale=${w}:${h}:force_original_aspect_ratio=2,crop=${w}:${h},gblur=sigma=20[bg];[bg]fade=in:st=0:d=0.4,${textFilters},fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
