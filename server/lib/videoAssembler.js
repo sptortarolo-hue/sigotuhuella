@@ -93,6 +93,7 @@ const CLOSING_DUR = 4;
 const FPS = 25;
 const FF_PRESET = 'veryfast';
 const FF_CRF = 17;
+const CONFETTI_DUR = 4;
 
 let speechSdkPromise = null;
 async function getSpeechSdk() {
@@ -603,15 +604,16 @@ async function addDrawTextToClip(clipPath, overlayText, clipDur, dims, workDir, 
   const { w, h } = dims;
   const fontPath = getFontPath();
   const isVertical = h > w;
-  const fontSize = isVertical ? 70 : 52;
+  const fontSize = isVertical ? 80 : 60;
   const lineSpacing = 8;
-  const maxChars = isVertical ? 22 : 32;
-  const animDur = 0.3;
+  const maxChars = isVertical ? 20 : 30;
+  const animDur = 0.4;
   const enableExpr = `between(t\\,${animDur}\\,${clipDur})`;
+  const slideOffset = 60;
 
   const lines = wrapText(overlayText, maxChars);
 
-  const safeZoneBottom = isVertical ? Math.round(h * 0.74) : Math.round(h * 0.70);
+  const safeZoneBottom = isVertical ? Math.round(h * 0.76) : Math.round(h * 0.72);
   const textBlockH = fontSize * lines.length + lineSpacing * (lines.length - 1) + 20;
   const boxPad = 20;
   const boxTotalH = textBlockH + boxPad * 2;
@@ -628,12 +630,9 @@ async function addDrawTextToClip(clipPath, overlayText, clipDur, dims, workDir, 
   for (let li = 0; li < lines.length; li++) {
     const escaped = escDrawText(lines[li]);
     const yPos = textY + boxPad + li * (fontSize + lineSpacing);
-    const yExpr = `if(lt(t,${animDur}),${yPos+40}-t/${animDur}*40,${yPos})`;
-    if (fontPath) {
-      filt.push(`drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y='${yExpr}':shadowcolor=black:shadowx=3:shadowy=3:enable='${enableExpr}'`);
-    } else {
-      filt.push(`drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y='${yExpr}':shadowcolor=black:shadowx=3:shadowy=3:enable='${enableExpr}'`);
-    }
+    const yExpr = `if(lt(t,${animDur}),${yPos+slideOffset}-t/${animDur}*${slideOffset},${yPos})`;
+    const ft = fontPath ? `:fontfile='${fontPath}'` : '';
+    filt.push(`drawtext=text='${escaped}'${ft}:fontcolor=white:fontsize=${fontSize}:bordercolor=black:borderw=2:x=(w-tw)/2:y='${yExpr}':shadowcolor=black:shadowx=2:shadowy=2:enable='${enableExpr}'`);
   }
 
   await runFfmpeg([
@@ -763,81 +762,151 @@ function formatSrtTime(seconds) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(Math.floor(s)).padStart(2, '0')},${String(cs).padStart(3, '0')}`;
 }
 
-function generateKaraokeSubtitles(voiceScript, ttsStartTime, ttsDuration, workDir) {
-  if (!voiceScript || !voiceScript.trim()) return null;
+async function applyPostProcessing(mainVideoPath, dims, style, workDir, config) {
+  const { w, h } = dims;
+  const {
+    frame = 'none',
+    confetti = false,
+    includeVoice = true,
+    voiceScript = '',
+    ttsDur = 0,
+    videoDuration,
+  } = config;
 
-  const stripped = voiceScript.replace(/[^\w\sáéíóúñüÁÉÍÓÚÑÜ,.;:!?¡¿'-]/g, '').trim();
-  const words = stripped.split(/\s+/).filter(Boolean);
-  if (words.length < 2) return null;
+  const outPath = path.join(workDir, 'processed.mp4');
 
-  const groups = [];
-  let i = 0;
-  while (i < words.length) {
-    const remaining = words.length - i;
-    const chunkSize = remaining <= 4 ? remaining : (remaining <= 8 ? 3 : 2);
-    let groupText = words.slice(i, i + chunkSize).join(' ');
+  const hasLogo = fs.existsSync(LOGO_PATH);
+  const fontPath = getFontPath();
 
-    if (groupText.length > 35) {
-      const mid = Math.floor(groupText.length / 2);
-      const spaceBefore = groupText.lastIndexOf(' ', mid);
-      const spaceAfter = groupText.indexOf(' ', mid + 1);
-      let splitPos = -1;
-      if (spaceBefore > 0 && (spaceAfter === -1 || (mid - spaceBefore) <= (spaceAfter - mid))) {
-        splitPos = spaceBefore;
-      } else if (spaceAfter > 0) {
-        splitPos = spaceAfter;
-      }
-      if (splitPos > 0) {
-        groupText = groupText.substring(0, splitPos) + '\n' + groupText.substring(splitPos + 1);
-      }
+  const inputs = ['-i', mainVideoPath];
+  let inputIdx = 1;
+  const chains = [];
+
+  // 1. Watermark
+  if (hasLogo) {
+    const pad = Math.round(Math.min(w, h) * 0.03);
+    const wmSize = Math.round(Math.min(w, h) * 0.10);
+    inputs.push('-i', LOGO_PATH);
+    chains.push(`[${inputIdx}:v]scale=${wmSize}:-1,format=rgba,colorchannelmixer=aa=0.60[wm]`);
+    const prev = chains.length > 1 ? `[wm${inputIdx-1}o]` : '[0:v]';
+    chains.push(`${prev}[wm]overlay=W-w-${pad}:${pad}:format=auto[wm${inputIdx}o]`);
+    inputIdx++;
+  }
+
+  // 2. Frame overlay
+  if (frame && frame !== 'none') {
+    const formatName = h > w ? 'vertical' : (w === h ? 'square' : 'landscape');
+    const framePath = path.join(FRAMES_DIR, `${frame}-${formatName}.png`);
+    if (fs.existsSync(framePath)) {
+      inputs.push('-i', framePath);
+      chains.push(`[${inputIdx}:v]format=rgba[frm]`);
+      const prev = lastStreamLabel(chains);
+      chains.push(`[${prev}][frm]overlay=0:0:format=auto:eval=frame:eof_action=repeat[frm${inputIdx}o]`);
+      inputIdx++;
     }
-
-    groups.push(groupText);
-    i += chunkSize;
   }
 
-  const totalChars = groups.reduce((sum, g) => sum + g.replace(/\n/g, '').length, 0);
-  const srtPath = path.join(workDir, 'subtitles.srt');
-  let srtContent = '';
-  let cumulativeTime = 0;
+  // 3. Voice overlay (static text block synced with TTS)
+  const voiceText = voiceScript?.trim();
+  if (includeVoice && voiceText && ttsDur > 0) {
+    const maxCharsLine = 30;
+    const lines = wrapText(voiceText, maxCharsLine);
+    if (lines.length > 0) {
+      const fontSize = 44;
+      const lineSpacing = 6;
+      const ttsStart = 2.0;
+      const enableExpr = `between(t\\,${ttsStart}\\,${ttsStart + ttsDur})`;
+      const safeY = Math.round(h * 0.85);
+      const boxPad = 14;
+      const textBlockH = fontSize * lines.length + lineSpacing * (lines.length - 1) + boxPad * 2;
+      const textY = safeY - textBlockH;
+      const boxW = Math.round(w * 0.78);
+      const boxX = Math.round((w - boxW) / 2);
 
-  for (let g = 0; g < groups.length; g++) {
-    const chars = groups[g].replace(/\n/g, '').length;
-    const groupDur = (chars / totalChars) * ttsDuration;
-    const start = ttsStartTime + cumulativeTime;
-    const end = ttsStartTime + cumulativeTime + groupDur;
-    srtContent += `${g + 1}\n`;
-    srtContent += `${formatSrtTime(start)} --> ${formatSrtTime(end)}\n`;
-    srtContent += `${groups[g]}\n\n`;
-    cumulativeTime += groupDur;
+      const textFilters = [];
+      textFilters.push(`drawbox=x=${boxX}:y=${textY}:w=${boxW}:h=${textBlockH}:color=black@0.50:t=fill:enable='${enableExpr}'`);
+      for (let li = 0; li < lines.length; li++) {
+        const escaped = escDrawText(lines[li]);
+        const yPos = textY + boxPad + li * (fontSize + lineSpacing);
+        const ft = fontPath ? `:fontfile='${fontPath}'` : '';
+        textFilters.push(`drawtext=text='${escaped}'${ft}:fontcolor=white:fontsize=${fontSize}:bordercolor=black:borderw=1:x=(w-tw)/2:y=${yPos}:shadowcolor=black:shadowx=2:shadowy=2:enable='${enableExpr}'`);
+      }
+      const prev = lastStreamLabel(chains);
+      chains.push(`[${prev}]${textFilters.join(',')}[voiceo]`);
+    }
   }
 
-  fs.writeFileSync(srtPath, srtContent);
-  console.log(`[Karaoke] Generated ${groups.length} groups for ${words.length} words (${ttsDuration.toFixed(1)}s)`);
-  return srtPath;
-}
+  // 4. Color grading
+  const gradeFilter = STYLE_COLOR_GRADING[style];
+  if (gradeFilter) {
+    const prev = lastStreamLabel(chains);
+    chains.push(`[${prev}]${gradeFilter},format=yuv420p[gradeo]`);
+  }
 
-async function burnSubtitles(videoPath, subtitlePath, workDir) {
-  if (!subtitlePath || !fs.existsSync(subtitlePath)) return videoPath;
+  // 5. Vignette (emotive only)
+  if (style === 'emotive') {
+    const prev = lastStreamLabel(chains);
+    chains.push(`[${prev}]vignette=angle=0.3:mode=forward,format=yuv420p[vigo]`);
+  }
 
-  const outPath = path.join(workDir, 'subbed.mp4');
+  // 6. Confetti
+  if (confetti) {
+    const closingStartTime = videoDuration - CLOSING_DUR;
+    const confettiVidPath = await generateConfettiVideo(dims, workDir);
+    if (confettiVidPath && fs.existsSync(confettiVidPath)) {
+      inputs.push('-i', confettiVidPath);
+      try {
+        const probe = await runFfmpegProbe(confettiVidPath);
+        const hasAlpha = probe.includes('yuva') || probe.includes('argb') || probe.includes('ya');
+        if (hasAlpha) {
+          chains.push(`[${inputIdx}:v]format=rgba,colorchannelmixer=aa=0.8,fade=in:st=0:d=0.5:alpha=1,fade=out:st=${CONFETTI_DUR-1}:d=1:alpha=1[conf]`);
+        } else {
+          chains.push(`[${inputIdx}:v]colorkey=0x000000:0.01:0.1,fade=in:st=0:d=0.5:alpha=1,fade=out:st=${CONFETTI_DUR-1}:d=1:alpha=1[conf]`);
+        }
+      } catch {
+        chains.push(`[${inputIdx}:v]colorkey=0x000000:0.01:0.1[conf]`);
+      }
+      const prev = lastStreamLabel(chains);
+      chains.push(`[${prev}][conf]overlay=0:0:enable='between(t,${closingStartTime},${closingStartTime+CONFETTI_DUR})':format=auto:eval=frame:eof_action=repeat,format=yuv420p[confo]`);
+      inputIdx++;
+    }
+  }
+
+  // Nothing to do? Just trim
+  if (chains.length === 0) {
+    if (mainVideoPath !== outPath) {
+      try { fs.copyFileSync(mainVideoPath, outPath); } catch { return mainVideoPath; }
+    }
+    return outPath;
+  }
+
+  // Final: trim to exact duration
+  const lastStream = lastStreamLabel(chains);
+  const filterComplex = chains.join(';') + `;[${lastStream}]trim=duration=${videoDuration},format=yuv420p[v]`;
+
+  const args = [
+    '-y', ...inputs,
+    '-filter_complex', filterComplex,
+    '-map', '[v]',
+    '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+    '-pix_fmt', 'yuv420p', '-an',
+    outPath,
+  ];
 
   try {
-    await runFfmpeg([
-      '-y', '-i', videoPath,
-      '-vf', `subtitles='${subtitlePath.replace(/\\/g, '/')}':force_style='FontName=DejaVu Sans Bold,FontSize=30,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,MarginV=80,Alignment=2'`,
-      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
-      '-pix_fmt', 'yuv420p', '-an',
-      outPath,
-    ], 'subtitles');
+    await runFfmpeg(args, 'postprocess');
+    try { fs.unlinkSync(mainVideoPath); } catch {}
+    return outPath;
   } catch (err) {
-    console.warn('[Karaoke] subtitles filter failed, falling back to drawtext:', err.message);
-    try { fs.unlinkSync(outPath); } catch {}
-    return videoPath;
+    console.warn('[PostProcess] Failed, returning original:', err.message);
+    return mainVideoPath;
   }
+}
 
-  try { fs.unlinkSync(videoPath); } catch {}
-  return outPath;
+function lastStreamLabel(chains) {
+  if (chains.length === 0) return '0:v';
+  const labelMatch = chains[chains.length - 1].match(/\[(\w+)\]$/);
+  return labelMatch ? labelMatch[1] : '0:v';
 }
 
 async function generateAudio(config, voiceScript, workDir, videoDuration, ttsPath) {
@@ -1427,38 +1496,15 @@ async function generateVideo(config) {
       logStep('concat-simple fallback');
     }
 
-    if (includeVoice && voiceScript && ttsDur > 0) {
-      const subtitlePath = generateKaraokeSubtitles(voiceScript, 2.0, ttsDur, workDir);
-      if (subtitlePath) {
-        mainVideoPath = await burnSubtitles(mainVideoPath, subtitlePath, workDir);
-        logStep('karaoke subtitles');
-      }
-    }
-
-  mainVideoPath = await addWatermarkAndFrame(mainVideoPath, dims, workDir);
-  logStep('watermark+frame');
-
-  if (frame && frame !== 'none') {
-    mainVideoPath = await addFrameOverlay(mainVideoPath, frame, dims, workDir);
-    logStep('frame-overlay');
-  }
-
-  mainVideoPath = await addColorGrading(mainVideoPath, style, workDir);
-  logStep('color-grading');
-
-  if (style === 'emotive') {
-    mainVideoPath = await addVignette(mainVideoPath, workDir);
-    logStep('vignette');
-  }
-
-  if (confetti) {
-    const closingStartTime = videoDuration - CLOSING_DUR;
-    mainVideoPath = await addConfetti(mainVideoPath, closingStartTime, dims, workDir);
-    logStep('confetti');
-  }
-
-  mainVideoPath = await trimVideo(mainVideoPath, videoDuration, workDir);
-    logStep('trim to videoDuration');
+    mainVideoPath = await applyPostProcessing(mainVideoPath, dims, style, workDir, {
+      frame,
+      confetti,
+      includeVoice,
+      voiceScript,
+      ttsDur,
+      videoDuration,
+    });
+    logStep('post-process (merged)');
 
     const videoFilename = `promo-${style}-${Math.round(videoDuration)}s-${format}-${Date.now()}.mp4`;
     const finalVideoPath = path.join(VIDEO_OUTPUT_DIR, videoFilename);
