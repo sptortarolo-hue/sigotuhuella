@@ -400,7 +400,7 @@ export async function showMenu(conv) {
   try {
     const rows = [
       { id: 'report_lost', title: '📷 Perdí mi mascota' },
-      { id: 'report_sighted', title: '👁️ Vi una mascota' },
+      { id: 'report_sighted', title: '🔍 Vi una mascota' },
       { id: 'report_found', title: '✅ Encontré una mascota' },
       { id: 'adopt', title: '🙋 Quiero adoptar' },
       { id: 'adopt_post', title: '🐾 Publicar en adopción' },
@@ -517,7 +517,7 @@ async function handleImageFromMenu(conv, parsed) {
       if (result.intent === 'found') {
         await sendInteractiveButtons(conv.wa_from, '¿La retuviste?', [
           { id: 'confirm_retained', title: '🐾 La retuve' },
-          { id: 'confirm_sighted', title: '👀 Solo la vi' },
+          { id: 'confirm_sighted', title: '🔍 Solo la vi' },
         ]);
       } else {
         await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
@@ -542,7 +542,7 @@ async function showImageTypeChoice(conv, parsed) {
   await sendInteractiveButtons(conv.wa_from, 'Tipo:', [
     { id: 'report_found', title: '🐾 La encontré' },
     { id: 'report_lost', title: '🐾 Se perdió' },
-    { id: 'report_sighted', title: '👀 La vi' },
+    { id: 'report_sighted', title: '🔍 La vi' },
   ]);
 }
 
