@@ -113,7 +113,7 @@ export async function applyBrandOverlay(imageBuffer, content) {
   const brand = await getBrandSettings();
   const width = 720;
   const height = 1280;
-  const badge = petBadges[content.type] || typeBadge[content.type] || typeBadge.manual;
+  const badge = (content.type === 'pet' ? petBadges[content.pet_status] : null) || typeBadge[content.type] || typeBadge.manual;
   const { createCanvas, loadImage } = await getCanvas();
 
   const canvas = createCanvas(width, height);
