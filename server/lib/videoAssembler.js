@@ -702,28 +702,23 @@ async function generateClosingClip(dims, style, workDir, lastPhotoPath) {
 
   const titleText = escDrawText('SIGO TU HUELLA');
   const urlText = escDrawText('sigotuhuella.online');
-  const ctaText = escDrawText('Descargá la app');
 
   const titleFontSize = isVertical ? 60 : 48;
   const urlFontSize = isVertical ? 44 : 32;
-  const ctaFontSize = isVertical ? 32 : 24;
 
   const logoW = Math.round(Math.min(w, h) * 0.28);
   const logoAreaH = Math.round(h * 0.35);
   const logoY = Math.round((logoAreaH - logoW) / 2);
   const titleY = Math.round(logoAreaH + 20);
   const urlY = Math.round(titleY + titleFontSize + 24);
-  const ctaY = Math.round(urlY + urlFontSize + 20);
 
   let textFilters = '';
   if (fontPath) {
-    textFilters = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=black:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
-    textFilters += `,drawtext=text='${urlText}':fontfile='${fontPath}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
-    textFilters += `,drawtext=text='${ctaText}':fontfile='${fontPath}':fontcolor=${cream}:fontsize=${ctaFontSize}:x=(w-tw)/2:y=${ctaY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,1.0\\,${dur})'`;
+    textFilters = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${olive}@0.6:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
+    textFilters += `,drawtext=text='${urlText}':fontfile='${fontPath}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.5:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
   } else {
-    textFilters = `drawtext=text='${titleText}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=black:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
-    textFilters += `,drawtext=text='${urlText}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
-    textFilters += `,drawtext=text='${ctaText}':fontcolor=${cream}:fontsize=${ctaFontSize}:x=(w-tw)/2:y=${ctaY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,1.0\\,${dur})'`;
+    textFilters = `drawtext=text='${titleText}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${olive}@0.6:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
+    textFilters += `,drawtext=text='${urlText}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.5:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
   }
 
   const args = ['-y'];
@@ -780,24 +775,45 @@ function generateKaraokeSubtitles(voiceScript, ttsStartTime, ttsDuration, workDi
   while (i < words.length) {
     const remaining = words.length - i;
     const chunkSize = remaining <= 4 ? remaining : (remaining <= 8 ? 3 : 2);
-    groups.push(words.slice(i, i + chunkSize).join(' '));
+    let groupText = words.slice(i, i + chunkSize).join(' ');
+
+    if (groupText.length > 35) {
+      const mid = Math.floor(groupText.length / 2);
+      const spaceBefore = groupText.lastIndexOf(' ', mid);
+      const spaceAfter = groupText.indexOf(' ', mid + 1);
+      let splitPos = -1;
+      if (spaceBefore > 0 && (spaceAfter === -1 || (mid - spaceBefore) <= (spaceAfter - mid))) {
+        splitPos = spaceBefore;
+      } else if (spaceAfter > 0) {
+        splitPos = spaceAfter;
+      }
+      if (splitPos > 0) {
+        groupText = groupText.substring(0, splitPos) + '\n' + groupText.substring(splitPos + 1);
+      }
+    }
+
+    groups.push(groupText);
     i += chunkSize;
   }
 
-  const groupDur = ttsDuration / groups.length;
+  const totalChars = groups.reduce((sum, g) => sum + g.replace(/\n/g, '').length, 0);
   const srtPath = path.join(workDir, 'subtitles.srt');
   let srtContent = '';
+  let cumulativeTime = 0;
 
   for (let g = 0; g < groups.length; g++) {
-    const start = ttsStartTime + g * groupDur;
-    const end = ttsStartTime + (g + 1) * groupDur;
+    const chars = groups[g].replace(/\n/g, '').length;
+    const groupDur = (chars / totalChars) * ttsDuration;
+    const start = ttsStartTime + cumulativeTime;
+    const end = ttsStartTime + cumulativeTime + groupDur;
     srtContent += `${g + 1}\n`;
     srtContent += `${formatSrtTime(start)} --> ${formatSrtTime(end)}\n`;
     srtContent += `${groups[g]}\n\n`;
+    cumulativeTime += groupDur;
   }
 
   fs.writeFileSync(srtPath, srtContent);
-  console.log(`[Karaoke] Generated ${groups.length} subtitle groups for ${words.length} words (${ttsDuration.toFixed(1)}s)`);
+  console.log(`[Karaoke] Generated ${groups.length} groups for ${words.length} words (${ttsDuration.toFixed(1)}s)`);
   return srtPath;
 }
 
