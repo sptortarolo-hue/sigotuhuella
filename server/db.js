@@ -1009,8 +1009,8 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_news_publications_news_id ON news_publications(news_id)
     `, 'news_publications index');
     await migrate(client, `
-      ALTER TABLE news_publications ADD CONSTRAINT news_publications_news_id_platform_key UNIQUE (news_id, platform)
-    `, 'news_publications unique').catch(() => {});
+      ALTER TABLE news_publications ADD CONSTRAINT IF NOT EXISTS news_publications_news_id_platform_key UNIQUE (news_id, platform)
+    `, 'news_publications unique');
 
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('brand_primary_color', '#7C3AED') ON CONFLICT (key) DO NOTHING

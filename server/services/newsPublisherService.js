@@ -8,25 +8,39 @@ import { enqueueStatus } from './whatsappStatusService.js';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
 
 async function upsertPublication(newsId, platform, status, platformPostId, errorMessage) {
-  await pool.query(
-    `INSERT INTO news_publications (news_id, platform, status, platform_post_id, error_message, published_at)
-     VALUES ($1, $2, $3, $4, $5, CASE WHEN $3 = 'published' THEN NOW() ELSE NULL END)
-     ON CONFLICT (news_id, platform) DO UPDATE SET
-       status = EXCLUDED.status,
-       platform_post_id = COALESCE(EXCLUDED.platform_post_id, news_publications.platform_post_id),
-       error_message = EXCLUDED.error_message,
-       published_at = CASE WHEN EXCLUDED.status = 'published' THEN NOW() ELSE news_publications.published_at END,
-       updated_at = NOW()`,
-    [newsId, platform, status, platformPostId || null, errorMessage || null]
+  const existing = await pool.query(
+    `SELECT id FROM news_publications WHERE news_id = $1 AND platform = $2`,
+    [newsId, platform]
   );
+  if (existing.rows.length > 0) {
+    await pool.query(
+      `UPDATE news_publications
+       SET status = $3, platform_post_id = COALESCE($4, platform_post_id),
+           error_message = $5,
+           published_at = CASE WHEN $3 = 'published' THEN NOW() ELSE published_at END,
+           updated_at = NOW()
+       WHERE news_id = $1 AND platform = $2`,
+      [newsId, platform, status, platformPostId || null, errorMessage || null]
+    );
+  } else {
+    await pool.query(
+      `INSERT INTO news_publications (news_id, platform, status, platform_post_id, error_message, published_at)
+       VALUES ($1, $2, $3, $4, $5, CASE WHEN $3 = 'published' THEN NOW() ELSE NULL END)`,
+      [newsId, platform, status, platformPostId || null, errorMessage || null]
+    );
+  }
 }
 
 async function getExistingPublication(newsId, platform) {
-  const { rows } = await pool.query(
-    `SELECT status FROM news_publications WHERE news_id = $1 AND platform = $2`,
-    [newsId, platform]
-  );
-  return rows[0] || null;
+  try {
+    const { rows } = await pool.query(
+      `SELECT status FROM news_publications WHERE news_id = $1 AND platform = $2`,
+      [newsId, platform]
+    );
+    return rows[0] || null;
+  } catch {
+    return null;
+  }
 }
 
 async function shouldPublish(newsId, platform) {
@@ -142,47 +156,55 @@ async function publishToStatus(news) {
 }
 
 export async function publishNewsToAll(newsId) {
-  const { rows } = await pool.query('SELECT * FROM news WHERE id = $1', [newsId]);
-  if (rows.length === 0) return { error: 'News not found' };
-  const news = rows[0];
+  try {
+    const { rows } = await pool.query('SELECT * FROM news WHERE id = $1', [newsId]);
+    if (rows.length === 0) return { error: 'News not found' };
+    const news = rows[0];
 
-  const platforms = [
-    { name: 'instagram', fn: publishToInstagram },
-    { name: 'facebook_page', fn: publishToFacebook },
-    { name: 'whatsapp', fn: publishToWhatsApp },
-    { name: 'status', fn: publishToStatus },
-  ];
+    const platforms = [
+      { name: 'instagram', fn: publishToInstagram },
+      { name: 'facebook_page', fn: publishToFacebook },
+      { name: 'whatsapp', fn: publishToWhatsApp },
+      { name: 'status', fn: publishToStatus },
+    ];
 
-  const results = {};
+    const results = {};
 
-  for (const { name, fn } of platforms) {
-    if (!(await shouldPublish(newsId, name))) {
-      results[name] = { success: true, skipped: true };
-      continue;
-    }
+    for (const { name, fn } of platforms) {
+      try {
+        if (!(await shouldPublish(newsId, name))) {
+          results[name] = { success: true, skipped: true };
+          continue;
+        }
 
-    try {
-      const result = await fn(news);
-      if (result.success) {
-        await upsertPublication(newsId, name, 'published', result.platformPostId || result.pagePostId || null, null);
-      } else {
-        await upsertPublication(newsId, name, 'failed', null, result.error || 'Error desconocido');
+        const result = await fn(news);
+        if (result.success) {
+          await upsertPublication(newsId, name, 'published', result.platformPostId || result.pagePostId || null, null);
+        } else {
+          await upsertPublication(newsId, name, 'failed', null, result.error || 'Error desconocido');
+        }
+        results[name] = result;
+      } catch (err) {
+        try { await upsertPublication(newsId, name, 'failed', null, err.message); } catch {}
+        results[name] = { success: false, error: err.message };
       }
-      results[name] = result;
-    } catch (err) {
-      await upsertPublication(newsId, name, 'failed', null, err.message);
-      results[name] = { success: false, error: err.message };
     }
-  }
 
-  return results;
+    return results;
+  } catch (err) {
+    return { error: err.message };
+  }
 }
 
 export async function getNewsPublications(newsId) {
-  const { rows } = await pool.query(
-    `SELECT platform, status, platform_post_id, error_message, created_at, published_at
-     FROM news_publications WHERE news_id = $1 ORDER BY platform`,
-    [newsId]
-  );
-  return rows;
+  try {
+    const { rows } = await pool.query(
+      `SELECT platform, status, platform_post_id, error_message, created_at, published_at
+       FROM news_publications WHERE news_id = $1 ORDER BY platform`,
+      [newsId]
+    );
+    return rows;
+  } catch {
+    return [];
+  }
 }
