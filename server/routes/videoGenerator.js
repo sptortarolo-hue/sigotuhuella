@@ -3,6 +3,7 @@ import { requireAuth, requireAdmin } from '../auth.js';
 import pool from '../db.js';
 import { generateVideo, getRandomReunionPhotos, getGlobalStats, getPetImages, getPetInfo, getNewsImage, getNewsData, fetchRandomPetPhotos } from '../lib/videoAssembler.js';
 import { generateVideoContent, generateVideoImages } from '../services/aiService.js';
+import { getTemplates, resolveTemplate } from '../lib/videoTemplates.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -23,6 +24,15 @@ router.get('/', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Get videos error:', err);
     res.status(500).json({ error: 'Failed to fetch videos' });
+  }
+});
+
+router.get('/templates', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ templates: getTemplates() });
+  } catch (err) {
+    console.error('Get templates error:', err);
+    res.status(500).json({ error: 'Failed to list templates' });
   }
 });
 
@@ -306,6 +316,83 @@ const title = mode === 'ai' || mode === 'promo' || mode === 'auto'
   } catch (err) {
     console.error('Generate video init error:', err);
     res.status(500).json({ error: 'Failed to start video generation' });
+  }
+});
+
+router.post('/generate-from-template', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { templateId, style, music, voices } = req.body;
+    if (!templateId) return res.status(400).json({ error: 'templateId es requerido' });
+
+    const generating = await pool.query(
+      "SELECT id, created_at FROM promotional_videos WHERE status = 'generating' LIMIT 1"
+    );
+    if (generating.rows.length > 0) {
+      const elapsed = Date.now() - new Date(generating.rows[0].created_at).getTime();
+      if (elapsed < 300_000) {
+        return res.status(429).json({ error: 'Ya hay un video generándose. Esperá a que termine.' });
+      }
+      await pool.query(
+        "UPDATE promotional_videos SET status = 'failed', error_msg = 'Timeout: generación anterior no completó' WHERE id = $1",
+        [generating.rows[0].id]
+      );
+    }
+
+    const recent = await pool.query(
+      "SELECT created_at FROM promotional_videos WHERE created_by = $1 AND created_at > NOW() - INTERVAL '30 seconds' LIMIT 1",
+      [req.user.id]
+    );
+    if (recent.rows.length > 0) {
+      return res.status(429).json({ error: 'Esperá 30 segundos entre generaciones.' });
+    }
+
+    const templateConfig = await resolveTemplate(templateId, { style, music, voices });
+    if (templateConfig.scenes.length < 2) {
+      return res.status(400).json({ error: 'No hay suficientes imágenes (screenshots o Pexels) para el template.' });
+    }
+
+    const title = `Template ${templateId} ${templateConfig.style}`;
+    const insertResult = await pool.query(
+      `INSERT INTO promotional_videos (title, video_data, style, duration, music_track, voice_enabled, format, status, created_by)
+       VALUES ($1, '', $2, 20, $3, true, 'vertical', 'generating', $4)
+       RETURNING id`,
+      [title, templateConfig.style, templateConfig.music, req.user.id]
+    );
+    const videoId = insertResult.rows[0].id;
+
+    setImmediate(async () => {
+      try {
+        const result = await Promise.race([
+          generateVideo({
+            style: templateConfig.style,
+            duration: 20,
+            music: templateConfig.music,
+            includeVoice: true,
+            format: 'vertical',
+            voiceScript: templateConfig.voiceScript,
+            voices: templateConfig.voices,
+            frame: 'none',
+            scenes: templateConfig.scenes,
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Video generation timeout (8 minutes)')), 480_000)),
+        ]);
+        await pool.query(
+          `UPDATE promotional_videos SET video_data = $1, thumbnail_data = $2, status = 'ready' WHERE id = $3`,
+          [result.filename, result.thumbnail, videoId]
+        );
+      } catch (err) {
+        console.error('Template video generation failed:', err);
+        await pool.query(
+          `UPDATE promotional_videos SET status = 'failed', error_msg = $1 WHERE id = $2`,
+          [err.message || 'Unknown error', videoId]
+        );
+      }
+    });
+
+    res.json({ status: 'generating', videoId, templateId, message: `Generando video desde template '${templateId}'.` });
+  } catch (err) {
+    console.error('Generate from template error:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate from template' });
   }
 });
 
