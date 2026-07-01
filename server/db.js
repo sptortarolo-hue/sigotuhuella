@@ -582,6 +582,13 @@ CREATE TABLE IF NOT EXISTS share_invites (
   last_reminder_at TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS tts_usage (
+  id SERIAL PRIMARY KEY,
+  month VARCHAR(7) NOT NULL,
+  chars_used INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(month)
+);
+
 CREATE TABLE IF NOT EXISTS my_pet_shares (
   pet_id UUID NOT NULL REFERENCES my_pets(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

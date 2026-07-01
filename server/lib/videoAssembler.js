@@ -127,7 +127,7 @@ async function synthesizeREST(ssml, outputPath, keyOverride) {
     headers: {
       'Ocp-Apim-Subscription-Key': key,
       'Content-Type': 'application/ssml+xml',
-      'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
+      'X-Microsoft-OutputFormat': 'audio-48khz-192kbitrate-mono-mp3',
     },
     body: ssml,
     signal: AbortSignal.timeout(10000),
@@ -212,6 +212,43 @@ function buildAutoScript(style, stats) {
   return script;
 }
 
+const TTS_MONTHLY_LIMIT = 450000;
+
+async function checkTtsQuota(charsNeeded) {
+  const month = new Date().toISOString().slice(0, 7);
+  let used = 0;
+  try {
+    const result = await pool.query(
+      `INSERT INTO tts_usage (month, chars_used) VALUES ($1, 0)
+       ON CONFLICT (month) DO UPDATE SET chars_used = tts_usage.chars_used
+       RETURNING chars_used`,
+      [month]
+    );
+    used = result.rows[0]?.chars_used || 0;
+  } catch (err) {
+    console.warn('[TTS] quota check DB error (allowing):', err.message);
+    return true;
+  }
+  if (used + charsNeeded > TTS_MONTHLY_LIMIT) {
+    console.warn(`[TTS] Quota exceeded: ${used}/${TTS_MONTHLY_LIMIT} chars used, needed ${charsNeeded}`);
+    return false;
+  }
+  return true;
+}
+
+async function incrementTtsUsage(chars) {
+  const month = new Date().toISOString().slice(0, 7);
+  try {
+    await pool.query(
+      `INSERT INTO tts_usage (month, chars_used) VALUES ($1, $2)
+       ON CONFLICT (month) DO UPDATE SET chars_used = tts_usage.chars_used + $2`,
+      [month, chars]
+    );
+  } catch (err) {
+    console.warn('[TTS] increment usage DB error:', err.message);
+  }
+}
+
 async function generateTTS(config, voiceScript, workDir) {
   const stats = await getGlobalStats();
   const baseScript = voiceScript || buildAutoScript(config.style, stats);
@@ -222,17 +259,29 @@ async function generateTTS(config, voiceScript, workDir) {
   const ttsPath = path.join(workDir, 'tts.mp3');
   if (!config.includeVoice || !script) return null;
 
+  const charCount = script.length;
+  const quotaOk = await checkTtsQuota(charCount);
+  if (!quotaOk) {
+    console.warn('[TTS] Monthly quota reached, skipping TTS');
+    return null;
+  }
+
   if (voiceKeys.length === 1) {
     const voice = VOICE_OPTIONS[voiceKeys[0]] || VOICE_OPTIONS.elena;
     const params = getVoiceParams(voiceKeys[0], config.style);
     const ssml = buildSSML(script, voice, params);
     const ok = await synthesizeWithRetry(ssml, voice, ttsPath);
-    if (ok) return ttsPath;
+    if (ok) {
+      await incrementTtsUsage(charCount);
+      return ttsPath;
+    }
     console.warn('[TTS] All TTS methods failed');
     return null;
   }
 
-  return await generateMultiVoice(script, voiceKeys, workDir, ttsPath, config.style);
+  const result = await generateMultiVoice(script, voiceKeys, workDir, ttsPath, config.style);
+  if (result) await incrementTtsUsage(charCount);
+  return result;
 }
 
 async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
@@ -246,7 +295,7 @@ async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
         console.log('[TTS] Trying SDK speakSsmlAsync with key', key.slice(0, 8) + '...');
         const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
         speechConfig.speechSynthesisVoiceName = voice;
-        speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+        speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio48Khz192KBitRateMonoMp3;
 
         const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
         const result = await new Promise((resolve, reject) => {
@@ -275,7 +324,7 @@ async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
         console.log('[TTS] Trying SDK speakTextAsync with key', key.slice(0, 8) + '...');
         const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
         speechConfig.speechSynthesisVoiceName = voice;
-        speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+        speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio48Khz192KBitRateMonoMp3;
 
         const text = ssml.replace(/<[^>]+>/g, '').trim();
         const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
@@ -340,8 +389,8 @@ async function generateMultiVoice(script, voiceKeys, workDir, ttsPath, style = '
   const breakPath = path.join(workDir, 'silence_400ms.mp3');
   await new Promise((resolve, reject) => {
     const cmd = spawn('ffmpeg', [
-      '-f', 'lavfi', '-i', 'anullsrc=r=16000:cl=mono',
-      '-t', '0.4', '-acodec', 'libmp3lame', '-b:a', '32k', '-y', breakPath,
+      '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo',
+      '-t', '0.4', '-acodec', 'libmp3lame', '-b:a', '192k', '-y', breakPath,
     ], { stdio: ['pipe', 'pipe', 'pipe'] });
     cmd.on('close', code => code === 0 ? resolve() : reject(new Error(`silence exit ${code}`)));
   });
@@ -359,7 +408,7 @@ async function generateMultiVoice(script, voiceKeys, workDir, ttsPath, style = '
   await new Promise((resolve, reject) => {
     const cmd = spawn('ffmpeg', [
       '-f', 'concat', '-safe', '0', '-i', concatListPath,
-      '-acodec', 'libmp3lame', '-b:a', '32k', '-y', ttsPath,
+      '-acodec', 'libmp3lame', '-b:a', '192k', '-y', ttsPath,
     ], { stdio: ['pipe', 'pipe', 'pipe'] });
     cmd.on('close', code => code === 0 ? resolve() : reject(new Error(`concat exit ${code}`)));
   });
@@ -385,7 +434,7 @@ async function synthesizeClipFast(ssml, voice, outputPath) {
       try {
         const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
         speechConfig.speechSynthesisVoiceName = voice;
-        speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+        speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio48Khz192KBitRateMonoMp3;
         synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
 
         const result = await Promise.race([

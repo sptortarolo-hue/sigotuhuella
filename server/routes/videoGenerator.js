@@ -306,7 +306,7 @@ router.get('/debug-tts', requireAuth, requireAdmin, async (req, res) => {
         headers: {
           'Ocp-Apim-Subscription-Key': process.env.AZURE_TTS_KEY,
           'Content-Type': 'application/ssml+xml',
-          'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
+          'X-Microsoft-OutputFormat': 'audio-48khz-192kbitrate-mono-mp3',
         },
         body: ssml,
       });
@@ -325,7 +325,7 @@ router.get('/debug-tts', requireAuth, requireAdmin, async (req, res) => {
         headers: {
           'Ocp-Apim-Subscription-Key': process.env.AZURE_TTS_KEY2,
           'Content-Type': 'application/ssml+xml',
-          'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
+          'X-Microsoft-OutputFormat': 'audio-48khz-192kbitrate-mono-mp3',
         },
         body: ssml,
       });
