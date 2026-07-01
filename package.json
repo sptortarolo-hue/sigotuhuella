@@ -38,6 +38,7 @@
     "nodemailer": "^6.9.16",
     "pdfkit": "^0.15.0",
     "pg": "^8.13.1",
+    "proxy-agent": "^8.0.2",
     "puppeteer": "^25.3.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
