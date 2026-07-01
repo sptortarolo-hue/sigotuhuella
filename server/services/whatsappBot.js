@@ -400,10 +400,10 @@ export async function showMenu(conv) {
   try {
     const rows = [
       { id: 'report_lost', title: '📷 Perdí mi mascota' },
-      { id: 'report_sighted', title: '👀 Vi una mascota' },
-      { id: 'report_found', title: '✅ Encontré mascota' },
+      { id: 'report_sighted', title: 'Vi una mascota' },
+      { id: 'report_found', title: '✅ Encontré una mascota' },
       { id: 'adopt', title: '🙋 Quiero adoptar' },
-      { id: 'adopt_post', title: '🐾 Dar en adopción' },
+      { id: 'adopt_post', title: '🐾 Publicar en adopción' },
       { id: 'info_qr', title: 'ℹ️ Chapita QR' },
       { id: 'donate', title: '💰 Donar' },
       { id: 'volunteer', title: '🙌 Ser voluntario' },

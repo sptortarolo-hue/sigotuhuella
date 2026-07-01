@@ -52,7 +52,7 @@ export async function sendInteractiveButtons(to, bodyText, buttons) {
         action: {
           buttons: buttons.map((b, i) => ({
             type: 'reply',
-            reply: { id: String(b.id || i), title: b.title },
+            reply: { id: String(b.id || i), title: b.title.slice(0, 20) },
           })),
         },
       },
