@@ -675,10 +675,9 @@ async function generateOpeningClip(dims, style, workDir, firstPhotoPath, hookTex
     }
   }
 
-  filterParts.push(`fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
+  filterParts.push(`fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p`);
 
-  args.push('-filter_complex', filterParts.join(';'));
-  args.push('-map', '[v]');
+  args.push('-vf', filterParts.join(','));
   args.push('-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF));
   args.push('-pix_fmt', 'yuv420p', '-t', String(dur), '-an');
   args.push(clipPath);
