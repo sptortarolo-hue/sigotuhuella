@@ -107,12 +107,7 @@ export async function applyBrandOverlay(imageBuffer, news) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // 70% imagen (0→896), 30% contenido (896→1280)
-  const imgSectionH = Math.round(height * 0.7); // 896
-  const contentTop = imgSectionH; // 896
-  // Area disponible para la imagen dentro de la seccion (debajo del header)
-  const imgAvailH = imgSectionH - 80; // 816
-
+  // Background
   if (imageBuffer && imageBuffer.length > 0) {
     const blurred = await sharp(imageBuffer)
       .resize(width, height, { fit: 'cover', position: 'attention' })
@@ -121,24 +116,26 @@ export async function applyBrandOverlay(imageBuffer, news) {
     const bgImg = await loadImage(blurred);
     ctx.drawImage(bgImg, 0, 0, width, height);
 
-    // Imagen escalada sin recortar (fit:inside)
-    const mainResized = await sharp(imageBuffer)
-      .resize({ width, height: imgAvailH, fit: 'inside' })
+    const cardW = 640;
+    const cardH = 360;
+    const cardX = (width - cardW) / 2;
+    const cardY = 110;
+    const resized = await sharp(imageBuffer)
+      .resize(cardW, cardH, { fit: 'cover', position: 'attention' })
       .toBuffer();
-    const mainImg = await loadImage(mainResized);
+    const cardImg = await loadImage(resized);
+    ctx.save();
+    roundRect(ctx, cardX, cardY, cardW, cardH, 20);
+    ctx.clip();
+    ctx.drawImage(cardImg, cardX, cardY, cardW, cardH);
+    ctx.restore();
 
-    // Imagen centrada en la seccion 70% (debajo del header)
-    const imgOffX = (width - mainImg.width) / 2;
-    const imgOffY = 80 + (imgAvailH - mainImg.height) / 2;
-    ctx.drawImage(mainImg, imgOffX, imgOffY, mainImg.width, mainImg.height);
-
-    // Gradiente de transicion al final de la seccion imagen (816→896)
-    const gradTop = contentTop - 80;
-    const overlapGrad = ctx.createLinearGradient(0, gradTop, 0, contentTop);
-    overlapGrad.addColorStop(0, 'rgba(0,0,0,0)');
-    overlapGrad.addColorStop(1, 'rgba(0,0,0,0.5)');
-    ctx.fillStyle = overlapGrad;
-    ctx.fillRect(0, gradTop, width, 80);
+    const darkGrad = ctx.createLinearGradient(0, 400, 0, height);
+    darkGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    darkGrad.addColorStop(0.6, 'rgba(0,0,0,0.25)');
+    darkGrad.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = darkGrad;
+    ctx.fillRect(0, 400, width, height - 400);
   } else {
     const bgGrad = ctx.createLinearGradient(0, 0, width, height);
     bgGrad.addColorStop(0, hexToRgba(brand.primaryColor, 0.08));
@@ -179,57 +176,46 @@ export async function applyBrandOverlay(imageBuffer, news) {
   ctx.font = 'bold 20px sans-serif';
   ctx.fillStyle = '#FFFFFF';
   ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
   const sigX = brand.logo ? 85 : 40;
   ctx.fillText(brand.signature, sigX, 40);
 
-  // ── Content section 30% (896→1280, 384px) ──
-
-  ctx.textAlign = 'center';
-
-  // Badge centrado
-  ctx.textBaseline = 'middle';
+  // Badge
   ctx.fillStyle = hexToRgba(badge.bg, 0.9);
-  const badgeW = 140;
-  const badgeH = 32;
-  const badgeX = (width - badgeW) / 2;
-  const badgeY = contentTop + 36;
-  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 16);
+  roundRect(ctx, width - 160, 20, 140, 40, 20);
   ctx.fill();
-  ctx.font = 'bold 13px sans-serif';
+  ctx.font = 'bold 15px sans-serif';
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(badge.label, width / 2, badgeY + badgeH / 2);
+  ctx.textAlign = 'center';
+  ctx.fillText(badge.label, width - 90, 40);
 
-  // Titulo auto-escalable (28px→16px segun ancho)
-  const titleText = news.title || '';
-  const maxTitleW = 620;
-  let fontSize = 28;
-  while (fontSize > 16) {
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    if (ctx.measureText(titleText).width <= maxTitleW) break;
-    fontSize--;
-  }
-  ctx.font = `bold ${fontSize}px sans-serif`;
+  // Title
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 28px sans-serif';
   ctx.fillStyle = '#FFFFFF';
-  const titleY = contentTop + 140;
-  if (ctx.measureText(titleText).width <= maxTitleW) {
-    ctx.fillText(titleText, width / 2, titleY);
+  const titleY = 530;
+  const maxTitleW = 600;
+  const titleText = truncateText(news.title, 35);
+  if (ctx.measureText(titleText).width > maxTitleW) {
+    wrapText(ctx, titleText, width / 2, titleY, maxTitleW, 36, 2);
   } else {
-    wrapText(ctx, titleText, width / 2, titleY - fontSize / 2, maxTitleW, fontSize + 6, 2);
+    ctx.fillText(titleText, width / 2, titleY);
   }
 
-  // Fecha
-  ctx.font = '14px sans-serif';
+  // Date
+  ctx.font = '16px sans-serif';
   ctx.fillStyle = '#D1D5DB';
   ctx.fillText(
     new Date(news.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }),
-    width / 2, contentTop + 200
+    width / 2, titleY + 50
   );
 
-  // CTA
-  ctx.font = '13px sans-serif';
+  // Footer text
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '15px sans-serif';
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(brand.ctaText + ' ' + FRONTEND_URL, width / 2, contentTop + 230);
+  ctx.fillText(brand.ctaText + ' ' + FRONTEND_URL, width / 2, height - 30);
 
   return canvas.toBuffer('image/jpeg', { quality: 85 });
 }
@@ -298,4 +284,7 @@ export function generatePlatformContent(news, platform) {
   }
 }
 
-
+function truncateText(str, maxLen) {
+  if (str.length <= maxLen) return str;
+  return str.substring(0, maxLen) + '…';
+}
