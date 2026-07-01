@@ -48,7 +48,12 @@ router.put('/brand-settings', requireAdmin, async (req, res) => {
 
 router.get('/brand-preview', async (req, res) => {
   try {
-    const { applyBrandOverlay } = await import('../services/brandIdentityService.js');
+    let sharp;
+    try {
+      sharp = (await import('sharp')).default;
+    } catch (e) {
+      return res.status(500).json({ error: 'sharp not available: ' + e.message });
+    }
     const dummyNews = {
       id: 'preview',
       title: 'Vista previa del overlay',
@@ -57,13 +62,16 @@ router.get('/brand-preview', async (req, res) => {
       created_at: new Date().toISOString(),
       image_data: null,
     };
+    const testBuf = await sharp({ create: { width: 100, height: 100, channels: 3, background: { r: 255, g: 0, b: 0 } } }).jpeg().toBuffer();
+    console.log('sharp test OK, size:', testBuf.length);
+    const { applyBrandOverlay } = await import('../services/brandIdentityService.js');
     const branded = await applyBrandOverlay(null, dummyNews);
     res.set('Content-Type', 'image/jpeg');
     res.set('Cache-Control', 'public, max-age=86400');
     res.send(branded);
   } catch (err) {
     console.error('Brand preview error:', err.message, err.stack);
-    res.status(500).send(err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
