@@ -95,6 +95,7 @@ ALTER TABLE pets ADD COLUMN IF NOT EXISTS case_number VARCHAR(20);
 CREATE INDEX IF NOT EXISTS idx_pets_case_number ON pets(case_number);
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS instagram VARCHAR(255);
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS adoption_broadcasted_at TIMESTAMP;
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS collaboration_accounts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

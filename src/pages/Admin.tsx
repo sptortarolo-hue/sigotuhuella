@@ -29,7 +29,7 @@ import FacebookRelayTab from '@/src/components/admin/FacebookRelayTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -977,6 +977,7 @@ export default function Admin() {
                               <button onClick={() => editPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => setConfirmDialog({ isOpen: true, title: 'Eliminar mascota', message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`, actionLabel: 'CONFIRMAR', variant: 'danger', onConfirm: async () => { try { await deletePet(pet.id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } setConfirmDialog(prev => ({ ...prev, isOpen: false })); } })} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => handleTrackPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Seguimiento"><Activity className="w-3.5 h-3.5" /></button>
+                              <button onClick={async () => { await updatePet(pet.id, { is_hidden: !pet.is_hidden }); fetchPets(); }} className={`p-1.5 rounded-lg transition-colors ${pet.is_hidden ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-brand-bg text-gray-400 hover:text-brand-primary hover:bg-brand-accent'}`} title={pet.is_hidden ? 'Mostrar' : 'Ocultar'}>{pet.is_hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</button>
                               {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.FOR_ADOPTION_SIMPLE) ? (
                                 <button onClick={async () => { if (confirm('¿Marcar como adoptada?')) { await updatePet(pet.id, { status: PetStatus.ADOPTED }); fetchPets(); } }} className="ml-auto p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Marcar adoptado"><Heart className="w-3.5 h-3.5" /></button>
                               ) : pet.status === PetStatus.REUNITED ? (

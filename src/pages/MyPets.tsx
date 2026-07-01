@@ -9,7 +9,7 @@ import PetMap from '@/src/components/PetMap';
 import MapLoader from '@/src/components/MapLoader';
 import PetRecordsModal from '@/src/components/PetRecordsModal';
 import ImageCropper from '@/src/components/ImageCropper';
-import { Search, Loader2, Grid, Map as MapIcon, PawPrint, X, Save, HeartHandshake, Activity, Heart, ChevronRight, ChevronLeft, Check, Calendar, Weight } from 'lucide-react';
+import { Search, Loader2, Grid, Map as MapIcon, PawPrint, X, Save, HeartHandshake, Activity, Heart, ChevronRight, ChevronLeft, Check, Calendar, Weight, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { ALL_TAGS, formatTag } from '@/src/lib/personalityTags';
@@ -275,6 +275,17 @@ export default function MyPets() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {displayedPets.map(pet => (
               <div key={pet.id} className="relative">
+                <button
+                  onClick={async () => {
+                    await updatePet(pet.id, { is_hidden: !pet.is_hidden });
+                    const data = await api.users.myPets(user!.id);
+                    setPets(data.pets || data);
+                  }}
+                  className={`absolute top-3 right-3 z-10 p-1.5 rounded-lg transition-colors ${pet.is_hidden ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-white/80 text-gray-400 hover:text-brand-primary hover:bg-white'}`}
+                  title={pet.is_hidden ? 'Mostrar en app' : 'Ocultar de la app'}
+                >
+                  {pet.is_hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
                 <PetCard
                   pet={pet}
                   showAdminActions

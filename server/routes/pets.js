@@ -319,6 +319,7 @@ router.get('/', async (req, res) => {
       params.push(status);
       conditions.push(`p.status = $${params.length}`);
     }
+    conditions.push(`(p.is_hidden = FALSE OR p.is_hidden IS NULL)`);
     if (isPublic === 'true') {
       conditions.push(`p.created_by IS NULL`);
     }
@@ -1131,8 +1132,8 @@ router.put('/link-case', requireAuth, async (req, res) => {
       'UPDATE pets SET created_by = $1 WHERE case_number = $2 AND created_by IS NULL RETURNING id, case_number',
       [req.user.id, caseNumber]
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Case not found or already linked' });
+    if (result.rows.length === 0 || result.rows[0].is_hidden) {
+      return res.status(404).json({ error: 'Pet not found' });
     }
     res.json({ pet: result.rows[0] });
   } catch (err) {

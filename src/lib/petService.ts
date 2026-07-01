@@ -47,6 +47,7 @@ export interface Pet {
   is_admin_verified: boolean;
   created_at: string;
   updated_at: string;
+  is_hidden?: boolean;
 }
 
 export function getPetImageUrl(pet: Pet): string | undefined {
