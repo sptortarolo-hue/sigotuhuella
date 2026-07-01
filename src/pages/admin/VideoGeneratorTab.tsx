@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Film, Download, Trash2, Loader2, RefreshCw, Share2, Copy, AlertCircle, CheckCircle, Monitor, Smartphone, Square, Sparkles, Image, Search, Check, X } from 'lucide-react';
+import { Film, Download, Trash2, Loader2, RefreshCw, Share2, Copy, AlertCircle, CheckCircle, Monitor, Smartphone, Square, Sparkles, Image, Search, Check, X, ChevronDown } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 
@@ -107,6 +107,21 @@ export default function VideoGeneratorTab() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollStartRef = useRef<number>(0);
 
+  const APP_FEATURES = [
+    { id: 'qr_chapita', name: 'Chapita QR', desc: 'Identificacion QR para mascotas. Quien la encuentra escanea y contacta al dueno al instante.' },
+    { id: 'reporte_rapido', name: 'Reporte Rapido', desc: 'Reportar mascota perdida o encontrada en 30 segundos, sin registro, con foto y ubicacion.' },
+    { id: 'match_ia', name: 'Match Automatico IA', desc: 'Inteligencia artificial que cruza publicaciones de Facebook con mascotas perdidas para encontrar coincidencias.' },
+    { id: 'flyer', name: 'Generador de Flyers', desc: 'Crea flyers para redes sociales al instante. Comparti en Instagram, Facebook y WhatsApp.' },
+    { id: 'adopcion', name: 'Adopcion Responsable', desc: 'Galeria de mascotas en adopcion. Encontra a tu proximo companero.' },
+    { id: 'voluntarios', name: 'Voluntariado', desc: 'Sumate como voluntario. Elegi como ayudar: traslados, transito, difusion, veterinaria y mas.' },
+    { id: 'carnet', name: 'Carnet Digital', desc: 'Membresia con niveles y badges. Convertite en socio de la comunidad.' },
+    { id: 'difusion', name: 'Difusion Vecinal', desc: 'Descarga el QR o imprime carteles para tu barrio. Ayuda a difundir.' },
+    { id: 'notificaciones', name: 'Alertas y Notificaciones', desc: 'Activa alertas. Te avisamos cuando aparece una mascota similar a la tuya.' },
+    { id: 'feed', name: 'Feed Comunitario', desc: 'Red social de mascotas. Comparti hitos, dale like y comenta.' },
+    { id: 'concursos', name: 'Mascota del Mes', desc: 'Concursos mensuales. Vota y nomina a tu mascota.' },
+    { id: 'colabora', name: 'Colabora', desc: 'Dona con Mercado Pago o transferencia. Tu ayuda transforma vidas.' },
+  ];
+
   function getAuthToken() {
     try { return localStorage.getItem('token'); } catch { return null; }
   }
@@ -123,6 +138,7 @@ export default function VideoGeneratorTab() {
 
   const [activeTab, setActiveTab] = useState<'auto' | 'advanced'>('auto');
   const [mode, setMode] = useState<'real' | 'ai' | 'promo' | 'auto'>('auto');
+  const [showFeatures, setShowFeatures] = useState(false);
   const [config, setConfig] = useState({
     style: 'emotive',
     duration: 20,
@@ -522,6 +538,26 @@ export default function VideoGeneratorTab() {
             <p className="text-sm text-gray-600 mb-4">
               La IA genera todo automáticamente: tema, estilo, música, imágenes y guion. Solo escribí un tema o dejalo vacío.
             </p>
+
+            <button
+              onClick={() => setShowFeatures(!showFeatures)}
+              className="flex items-center gap-2 text-xs font-bold text-brand-primary/70 hover:text-brand-primary transition-colors mb-3"
+            >
+              <ChevronDown className={cn("w-4 h-4 transition-transform", showFeatures && "rotate-180")} />
+              Funcionalidades de la app ({APP_FEATURES.length})
+            </button>
+
+            {showFeatures && (
+              <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {APP_FEATURES.map(f => (
+                  <div key={f.id} className="p-3 bg-white rounded-xl border border-brand-accent">
+                    <div className="text-sm font-bold text-brand-primary">{f.name}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{f.desc}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <input
               type="text"
               value={topic}
