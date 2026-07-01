@@ -84,7 +84,7 @@ router.post('/generate-ai-content', requireAuth, requireAdmin, async (req, res) 
 router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
   const {
     style = 'emotive',
-    duration = 30,
+    duration = 20,
     music = 'emotional',
     includeVoice = true,
     format = 'vertical',
@@ -94,7 +94,6 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
     voice = 'elena',
     voices,
     frame = 'none',
-    stickers = true,
     confetti = false,
     topic,
   } = req.body;
@@ -261,7 +260,6 @@ const title = mode === 'ai'
           voice,
           voices: Array.isArray(voices) && voices.length > 0 ? voices : [voice || 'elena'],
           frame,
-          stickers,
           confetti,
           scenes: resolvedScenes,
         }),

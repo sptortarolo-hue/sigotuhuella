@@ -131,7 +131,7 @@ export async function generateVideoContent(topic, style, numScenes, sceneDescrip
     sceneContext += `\n- overlayTexts: exactamente ${sceneDescriptions.length} textos cortos contextualizados para cada escena real. Relacioná cada texto con la escena correspondiente.\n- imagePrompts: NO generes imagePrompts (dejá el array vacío []). Las imágenes son fotos reales.`;
   }
 
-  const prompt = `Sos un creativo publicitario argentino que hace reels promocionales para una app de mascotas llamada "Sigo Tu Huella".
+  const prompt = `Sos un creativo publicitario argentino que hace reels promocionales modernos para una app de mascotas llamada "Sigo Tu Huella".
 
 Tema del video: ${topic || 'Mascotas perdidas que vuelven a casa gracias a la comunidad'}
 Estilo: ${style} — ${styleInstructions[style] || styleInstructions.emotive}
@@ -140,14 +140,14 @@ ${sceneContext}
 
 Respondé ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
 {
-  "voiceScript": "Texto completo para la voz en off. Máximo 25 segundos hablados. En español argentino, natural y fluido. Terminar con 'Descargá Sigo Tu Huella gratis en sigotuhuella.online'",
+  "voiceScript": "Texto completo para la voz en off. Máximo 15-20 segundos hablados. En español argentino, natural y fluido. Terminar con 'Descargá Sigo Tu Huella gratis en sigotuhuella.online'",
   "overlayTexts": ["Texto corto para escena 1", "Texto para escena 2", ...],
   "imagePrompts": ${hasSceneDescriptions ? '[]' : `["prompt en inglés para generar imagen de escena 1", "prompt para escena 2", ...]`}
 }
 
 Reglas:
-- voiceScript: texto natural para voz en off, sin emojis, sin comillas, sin formato markdown. Separá los párrafos con doble salto de línea (\\n\\n) para alternar entre voces cuando se usan dos voces. Cada párrafo es un bloque con sentido completo.
-- overlayTexts: exactamente ${numScenes} textos cortos (máx 8 palabras cada uno) que aparecen en pantalla, uno por escena de foto
+- voiceScript: texto natural para voz en off, sin emojis, sin comillas, sin formato markdown. Máximo 20 segundos hablados. Separá los párrafos con doble salto de línea (\\n\\n) para alternar entre voces cuando se usan dos voces. Cada párrafo es un bloque con sentido completo.
+- overlayTexts: exactamente ${numScenes} textos cortos (máx 6 palabras cada uno) que aparecen en pantalla como hook principal, uno por escena de foto. El primer texto es el hook más importante.
 ${hasSceneDescriptions ? '- imagePrompts: array vacío [] porque las imágenes son fotos reales' : '- imagePrompts: exactamente ' + numScenes + ' prompts en INGLÉS para generar imágenes con IA (Flux). Cada prompt debe describir una escena visual concreta, fotorrealista, con iluminación cinematográfica. NO incluir texto en las imágenes. Estilo: fotografía profesional, colores cálidos, 4K quality.'}`;
 
   const response = await groq.chat.completions.create({

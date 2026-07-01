@@ -16,7 +16,6 @@ const VIDEO_OUTPUT_DIR = path.join(PROJECT_ROOT, PUBLIC_DIR, 'generated', 'video
 const MUSIC_DIR = path.join(PROJECT_ROOT, PUBLIC_DIR, 'generated', 'music');
 const LOGO_PATH = path.join(PROJECT_ROOT, PUBLIC_DIR, 'sigotuhuella.jpg');
 const OVERLAYS_DIR = path.join(PROJECT_ROOT, PUBLIC_DIR, 'overlays');
-const STICKERS_DIR = path.join(OVERLAYS_DIR, 'stickers');
 const FRAMES_DIR = path.join(OVERLAYS_DIR, 'frames');
 if (!fs.existsSync(VIDEO_OUTPUT_DIR)) fs.mkdirSync(VIDEO_OUTPUT_DIR, { recursive: true });
 
@@ -89,11 +88,11 @@ const STYLE_ZOOMPAN = {
 };
 
 const TRANSITION_DUR = 0.5;
-const OPENING_DUR = 4;
-const CLOSING_DUR = 7;
+const OPENING_DUR = 2;
+const CLOSING_DUR = 4;
 const FPS = 25;
-const FF_PRESET = 'ultrafast';
-const FF_CRF = 23;
+const FF_PRESET = 'slow';
+const FF_CRF = 17;
 
 let speechSdkPromise = null;
 async function getSpeechSdk() {
@@ -478,8 +477,12 @@ async function synthesizeClipFast(ssml, voice, outputPath) {
   return false;
 }
 
+const FONT_MONTSERRAT = path.join(PROJECT_ROOT, PUBLIC_DIR, 'fonts', 'Montserrat-Bold.ttf');
+
 function getFontPath() {
   const candidates = [
+    FONT_MONTSERRAT,
+    '/usr/share/fonts/truetype/montserrat/Montserrat-Bold.ttf',
     '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
     '/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf',
     '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
@@ -599,31 +602,40 @@ async function addDrawTextToClip(clipPath, overlayText, clipDur, dims, workDir, 
   const { w, h } = dims;
   const fontPath = getFontPath();
   const isVertical = h > w;
-  const fontSize = isVertical ? 56 : 44;
-  const lineSpacing = 10;
-  const maxChars = isVertical ? 28 : 40;
-  const textY = isVertical ? Math.round(h * 0.68) : Math.round(h * 0.72);
+  const fontSize = isVertical ? 70 : 52;
+  const lineSpacing = 8;
+  const maxChars = isVertical ? 22 : 32;
   const enableExpr = `between(t\\,0.3\\,${clipDur})`;
 
   const lines = wrapText(overlayText, maxChars);
-  const boxH = fontSize * lines.length + lineSpacing * (lines.length - 1) + 24;
 
-  const filterParts = [];
-  filterParts.push(`drawbox=x=0:y=${textY - 12}:w=iw:h=${boxH}:color=0x5A5A40@0.6:t=fill:enable='${enableExpr}'`);
+  const safeZoneBottom = isVertical ? Math.round(h * 0.74) : Math.round(h * 0.70);
+  const textBlockH = fontSize * lines.length + lineSpacing * (lines.length - 1) + 20;
+  const boxPad = 20;
+  const boxTotalH = textBlockH + boxPad * 2;
+  const textY = safeZoneBottom - boxTotalH;
+
+  const filt = [];
+  const longLine = lines.reduce((a, b) => a.length > b.length ? a : b, '');
+  const estTextW = longLine.length * fontSize * 0.6;
+  const boxW = Math.min(Math.round(estTextW + boxPad * 2 + 20), Math.round(w * 0.88));
+  const boxX = Math.round((w - boxW) / 2);
+
+  filt.push(`drawbox=x=${boxX}:y=${textY}:w=${boxW}:h=${boxTotalH}:color=black@0.65:t=fill:enable='${enableExpr}'`);
 
   for (let li = 0; li < lines.length; li++) {
     const escaped = escDrawText(lines[li]);
-    const y = textY + li * (fontSize + lineSpacing);
+    const y = textY + boxPad + li * (fontSize + lineSpacing);
     if (fontPath) {
-      filterParts.push(`drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${y}:shadowcolor=black:shadowx=2:shadowy=2:enable='${enableExpr}'`);
+      filt.push(`drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${y}:shadowcolor=black:shadowx=3:shadowy=3:enable='${enableExpr}'`);
     } else {
-      filterParts.push(`drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${y}:shadowcolor=black:shadowx=2:shadowy=2:enable='${enableExpr}'`);
+      filt.push(`drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${y}:shadowcolor=black:shadowx=3:shadowy=3:enable='${enableExpr}'`);
     }
   }
 
   await runFfmpeg([
     '-y', '-i', clipPath,
-    '-vf', filterParts.join(','),
+    '-vf', filt.join(','),
     '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
     '-pix_fmt', 'yuv420p', '-an',
     outPath,
@@ -633,49 +645,39 @@ async function addDrawTextToClip(clipPath, overlayText, clipDur, dims, workDir, 
   return outPath;
 }
 
-async function generateOpeningClip(dims, style, workDir) {
+async function generateOpeningClip(dims, style, workDir, firstPhotoPath, hookText) {
   const clipPath = path.join(workDir, 'clip_opening.mp4');
   const { w, h } = dims;
   const fontPath = getFontPath();
   const dur = OPENING_DUR;
 
-  const cream = '0xF5F5F0';
-  const olive = '0x5A5A40';
-  const terracotta = '0xD48C70';
+  const text = escDrawText(hookText || '');
+  const fontSize = h > w ? 90 : 68;
+  const maxChars = h > w ? 25 : 35;
+  const lines = text ? wrapText(text, maxChars) : [];
+  const lineH = fontSize + 6;
 
-  const titleText = escDrawText('SIGO TU HUELLA');
-  const titleFontSize = h > w ? 84 : 64;
-  const topMargin = Math.round(h * 0.08);
-  const titleY = topMargin;
+  const args = ['-y', '-i', firstPhotoPath];
 
-  const logoW = Math.round(Math.min(w, h) * 0.28);
-  const logoY = Math.round(h * 0.30);
+  const filterParts = [];
 
-  const titleEnable = `between(t\\,0.2\\,${dur})`;
-  const lineEnable = `between(t\\,0.4\\,${dur})`;
-  const lineW = Math.round(w * 0.3);
-  const lineY = titleY + titleFontSize + 8;
+  filterParts.push(`scale=${w}:${h}:force_original_aspect_ratio=1.333,crop=${w}:${h},setsar=1`);
 
-  let textFilter;
-  if (fontPath) {
-    textFilter = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=${olive}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${terracotta}@0.4:shadowx=2:shadowy=2:enable='${titleEnable}'`;
-  } else {
-    textFilter = `drawtext=text='${titleText}':fontcolor=${olive}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${terracotta}@0.4:shadowx=2:shadowy=2:enable='${titleEnable}'`;
+  filterParts.push(`drawbox=x=0:y=0:w=${w}:h=${h}:color=black@0.30:t=fill`);
+
+  for (let li = 0; li < lines.length; li++) {
+    const escaped = escDrawText(lines[li]);
+    const y = Math.round(h / 2 - (lines.length * lineH) / 2 + li * lineH);
+    if (fontPath) {
+      filterParts.push(`drawtext=text='${escaped}':fontfile='${fontPath}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${y}:shadowcolor=black:shadowx=4:shadowy=4:enable='between(t\\,0.15\\,${dur})'`);
+    } else {
+      filterParts.push(`drawtext=text='${escaped}':fontcolor=white:fontsize=${fontSize}:x=(w-tw)/2:y=${y}:shadowcolor=black:shadowx=4:shadowy=4:enable='between(t\\,0.15\\,${dur})'`);
+    }
   }
 
-  const lineFilter = `drawbox=x=(iw-${lineW})/2:y=${lineY}:w=${lineW}:h=3:color=${terracotta}:t=fill:enable='${lineEnable}'`;
+  filterParts.push(`fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
 
-  const args = ['-y'];
-  args.push('-f', 'lavfi', '-i', `color=c=${cream}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
-  args.push('-f', 'lavfi', '-i', `color=c=${olive}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
-
-  if (fs.existsSync(LOGO_PATH)) {
-    args.push('-i', LOGO_PATH);
-    args.push('-filter_complex', `[1:v]format=rgba,colorchannelmixer=aa=0.6[tint];[0:v][tint]overlay=0:H-h:format=auto:eval=frame:eof_action=repeat[grad];[grad][2:v]overlay=(W-w)/2:${logoY}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
-  } else {
-    args.push('-filter_complex', `[1:v]format=rgba,colorchannelmixer=aa=0.6[tint];[0:v][tint]overlay=0:H-h:format=auto:eval=frame:eof_action=repeat[grad];[grad]${textFilter},${lineFilter},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
-  }
-
+  args.push('-filter_complex', filterParts.join(';'));
   args.push('-map', '[v]');
   args.push('-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF));
   args.push('-pix_fmt', 'yuv420p', '-t', String(dur), '-an');
@@ -698,46 +700,36 @@ async function generateClosingClip(dims, style, workDir) {
 
   const titleText = escDrawText('SIGO TU HUELLA');
   const urlText = escDrawText('sigotuhuella.online');
-  const ctaText = escDrawText('Ingresá en www.sigotuhuella.online y sé parte de nuestra comunidad');
 
-  const titleFontSize = isVertical ? 78 : 60;
-  const urlFontSize = isVertical ? 60 : 44;
-  const ctaFontSize = isVertical ? 40 : 30;
+  const titleFontSize = isVertical ? 60 : 48;
+  const urlFontSize = isVertical ? 44 : 32;
 
-  const logoW = Math.round(Math.min(w, h) * 0.36);
+  const logoW = Math.round(Math.min(w, h) * 0.28);
 
-  const titleY = Math.round(h * 0.42);
-  const lineY = titleY + Math.round(titleFontSize * 0.8);
-  const urlY = lineY + 30;
-  const ctaY = urlY + Math.round(urlFontSize * 1.8);
-
-  const lineW = Math.round(w * 0.30);
+  const logoAreaH = Math.round(h * 0.35);
+  const logoY = Math.round((logoAreaH - logoW) / 2);
+  const titleY = Math.round(logoAreaH + 20);
+  const urlY = Math.round(titleY + titleFontSize + 24);
 
   const titleEnable = `between(t\\,0.4\\,${dur})`;
-  const lineEnable = `between(t\\,0.5\\,${dur})`;
   const urlEnable = `between(t\\,0.7\\,${dur})`;
-  const ctaEnable = `between(t\\,0.85\\,${dur})`;
 
   let textFilters = '';
   if (fontPath) {
     textFilters = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=${olive}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${terracotta}@0.4:shadowx=2:shadowy=2:enable='${titleEnable}'`;
-    textFilters += `,drawbox=x=(iw-${lineW})/2:y=${lineY}:w=${lineW}:h=3:color=${terracotta}:t=fill:enable='${lineEnable}'`;
     textFilters += `,drawtext=text='${urlText}':fontfile='${fontPath}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.3:shadowx=1:shadowy=1:enable='${urlEnable}'`;
-    textFilters += `,drawtext=text='${ctaText}':fontfile='${fontPath}':fontcolor=${olive}:fontsize=${ctaFontSize}:x=(w-tw)/2:y=${ctaY}:shadowcolor=0xF5F5F0@0.3:shadowx=1:shadowy=1:enable='${ctaEnable}'`;
   } else {
     textFilters = `drawtext=text='${titleText}':fontcolor=${olive}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=${terracotta}@0.4:shadowx=2:shadowy=2:enable='${titleEnable}'`;
-    textFilters += `,drawbox=x=(iw-${lineW})/2:y=${lineY}:w=${lineW}:h=3:color=${terracotta}:t=fill:enable='${lineEnable}'`;
     textFilters += `,drawtext=text='${urlText}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=${olive}@0.3:shadowx=1:shadowy=1:enable='${urlEnable}'`;
-    textFilters += `,drawtext=text='${ctaText}':fontcolor=${olive}:fontsize=${ctaFontSize}:x=(w-tw)/2:y=${ctaY}:shadowcolor=0xF5F5F0@0.3:shadowx=1:shadowy=1:enable='${ctaEnable}'`;
   }
 
   const args = ['-y'];
   args.push('-f', 'lavfi', '-i', `color=c=${cream}:s=${w}x${h}:d=${dur}:rate=${FPS}`);
   if (fs.existsSync(LOGO_PATH)) {
     args.push('-i', LOGO_PATH);
-    args.push('-filter_complex', `[1:v]scale=${logoW}:-1[logo];[0:v][logo]overlay=(W-w)/2:${Math.round(h * 0.30 - logoW / 2)}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]fade=in:st=0:d=0.5,${textFilters},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
+    args.push('-filter_complex', `[1:v]scale=${logoW}:-1[logo];[0:v][logo]overlay=(W-w)/2:${logoY}:format=auto:eval=frame:eof_action=repeat[withlogo];[withlogo]fade=in:st=0:d=0.4,${textFilters},fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
   } else {
-    args.push('-filter_complex', `[0:v]fade=in:st=0:d=0.5,${textFilters},fade=out:st=${dur - 0.5}:d=0.5,format=yuv420p[v]`);
+    args.push('-filter_complex', `[0:v]fade=in:st=0:d=0.4,${textFilters},fade=out:st=${dur - 0.4}:d=0.4,format=yuv420p[v]`);
   }
   args.push('-map', '[v]');
   args.push('-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF));
@@ -876,32 +868,6 @@ const STYLE_COLOR_GRADING = {
   viral: 'eq=saturation=1.2:contrast=1.15:gamma=0.95',
 };
 
-const STICKER_LAYOUTS = {
-  emotive: [
-    { file: 'paw-terracotta.png', pos: 'bottom-left', delay: 0.5, dur: 3 },
-    { file: 'heart-paw.png', pos: 'top-right', delay: 1.5, dur: 3 },
-  ],
-  informative: [
-    { file: 'paw-olive.png', pos: 'bottom-right', delay: 0.3, dur: 2.5 },
-  ],
-  viral: [
-    { file: 'star.png', pos: 'top-left', delay: 0.2, dur: 2 },
-    { file: 'paw-terracotta.png', pos: 'bottom-left', delay: 0.8, dur: 3 },
-    { file: 'heart.png', pos: 'bottom-right', delay: 1.5, dur: 2.5 },
-  ],
-};
-
-function stickerPosition(pos, w, h, stickerSize) {
-  const pad = Math.round(Math.min(w, h) * 0.05);
-  const positions = {
-    'top-left': `${pad}:${pad}`,
-    'top-right': `W-w-${pad}:${pad}`,
-    'bottom-left': `${pad}:H-h-${pad}`,
-    'bottom-right': `W-w-${pad}:H-h-${pad}`,
-  };
-  return positions[pos] || positions['bottom-left'];
-}
-
 async function addColorGrading(videoPath, style, workDir) {
   const filter = STYLE_COLOR_GRADING[style];
   if (!filter) return videoPath;
@@ -936,68 +902,6 @@ async function addVignette(videoPath, workDir) {
     return outPath;
   } catch (err) {
     console.warn('[Vignette] Failed, skipping:', err.message);
-    return videoPath;
-  }
-}
-
-async function addStickers(videoPath, style, clipDur, dims, workDir, clipIndex) {
-  const layout = STICKER_LAYOUTS[style];
-  if (!layout || !fs.existsSync(STICKERS_DIR)) return videoPath;
-  const { w, h } = dims;
-  const stickerSize = Math.round(Math.min(w, h) * 0.12);
-  const outPath = path.join(workDir, `stickered_${clipIndex}.mp4`);
-
-  const offset = (clipIndex * 2) % layout.length;
-  const stickers = layout.slice(offset, offset + 2);
-  if (stickers.length === 0) return videoPath;
-
-  const inputs = ['-y', '-i', videoPath];
-  const filterParts = [];
-  const overlayLabels = [];
-  let inputIdx = 1;
-
-  for (const sticker of stickers) {
-    const stickerPath = path.join(STICKERS_DIR, sticker.file);
-    if (!fs.existsSync(stickerPath)) continue;
-
-    inputs.push('-i', stickerPath);
-    const label = `s${inputIdx}`;
-    const pos = stickerPosition(sticker.pos, w, h, stickerSize);
-    const delay = Math.min(sticker.delay, clipDur * 0.3);
-    const dur = Math.min(sticker.dur, clipDur - delay);
-    if (dur <= 0) continue;
-    const enable = `enable='between(t,${delay},${delay + dur})'`;
-
-    filterParts.push(`[${inputIdx}:v]scale=${stickerSize}:-1,format=rgba,fade=in:st=${delay}:d=0.4:alpha=1,fade=out:st=${delay + dur - 0.3}:d=0.3:alpha=1[${label}]`);
-
-    if (overlayLabels.length === 0) {
-      overlayLabels.push(`[0:v][${label}]overlay=${pos}:${enable}:format=auto[o1]`);
-    } else {
-      const prev = overlayLabels.length;
-      overlayLabels.push(`[o${prev}][${label}]overlay=${pos}:${enable}:format=auto[o${prev + 1}]`);
-    }
-    inputIdx++;
-  }
-
-  if (filterParts.length === 0) return videoPath;
-
-  const allFilters = [...filterParts, ...overlayLabels];
-  const lastLabel = `o${overlayLabels.length}`;
-  allFilters.push(`[${lastLabel}]format=yuv420p[v]`);
-
-  try {
-    await runFfmpeg([
-      ...inputs,
-      '-filter_complex', allFilters.join(';'),
-      '-map', '[v]',
-      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
-      '-pix_fmt', 'yuv420p', '-an',
-      outPath,
-    ], `stickers-clip${clipIndex}`);
-    try { fs.unlinkSync(videoPath); } catch {}
-    return outPath;
-  } catch (err) {
-    console.warn('[Stickers] Failed, skipping:', err.message);
     return videoPath;
   }
 }
@@ -1168,24 +1072,18 @@ async function runFfmpegProbe(filePath) {
 }
 
 async function addWatermarkAndFrame(videoPath, dims, workDir) {
-const outPath = path.join(workDir, 'branded.mp4');
+  const outPath = path.join(workDir, 'branded.mp4');
   const { w, h } = dims;
-  const isVertical = h > w;
   const pad = Math.round(Math.min(w, h) * 0.03);
 
   const hasLogo = fs.existsSync(LOGO_PATH);
   if (!hasLogo) return videoPath;
 
-  const wmSize = Math.round(Math.min(w, h) * 0.16);
-  const botBarH = isVertical ? 40 : 30;
+  const wmSize = Math.round(Math.min(w, h) * 0.10);
 
   const filterParts = [];
-  const cr = Math.round(wmSize * 0.25) || 1;
-  filterParts.push(`[1:v]scale=${wmSize}:-1,format=rgba,geq=lum='lum(X,Y)':a='if(between(abs(X-W/2),0,W/2-${cr})*between(abs(Y-H/2),0,H/2-${cr})+between(abs(X-W/2),W/2-${cr},W/2)*between(abs(Y-H/2),H/2-${cr},H/2)*lte(pow(abs(X-W/2)-(W/2-${cr}),2)+pow(abs(Y-H/2)-(H/2-${cr}),2),${cr*cr}),alpha(X,Y),0)',colorchannelmixer=aa=0.75[wm]`);
-  filterParts.push(`[0:v][wm]overlay=W-w-${pad}:${pad}:format=auto[wmed]`);
-
-  filterParts.push(`color=c=0xF5F5F0:s=${w}x${botBarH}:d=5:rate=${FPS},format=rgba,colorchannelmixer=aa=0.85[botbar]`);
-  filterParts.push(`[wmed][botbar]overlay=0:H-${botBarH}:format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`);
+  filterParts.push(`[1:v]scale=${wmSize}:-1,format=rgba,colorchannelmixer=aa=0.60[wm]`);
+  filterParts.push(`[0:v][wm]overlay=W-w-${pad}:${pad}:format=auto,format=yuv420p[v]`);
 
   await runFfmpeg([
     '-y', '-i', videoPath,
@@ -1195,7 +1093,7 @@ const outPath = path.join(workDir, 'branded.mp4');
     '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
     '-pix_fmt', 'yuv420p', '-an',
     outPath,
-  ], 'watermark+frame');
+  ], 'watermark');
 
   try { fs.unlinkSync(videoPath); } catch {}
   return outPath;
@@ -1329,7 +1227,7 @@ async function fetchRandomPetPhotos(count) {
 async function generateVideo(config) {
   const {
     style = 'emotive',
-    duration = 30,
+    duration = 20,
     music = 'emotional',
     includeVoice = true,
     format = 'vertical',
@@ -1337,7 +1235,6 @@ async function generateVideo(config) {
     scenes = [],
     voices = ['elena'],
     frame = 'none',
-    stickers = true,
     confetti = false,
   } = config;
 
@@ -1384,13 +1281,15 @@ async function generateVideo(config) {
     const videoDuration = ttsDur > 0 ? ttsDur + 4 : duration;
     console.log('[VideoGen] videoDuration:', videoDuration.toFixed(1), 's', ttsDur > 0 ? `(tts ${ttsDur.toFixed(1)}s + 4s)` : `(config ${duration}s)`);
 
+    const photoClipsCount = numPhotoScenes - 1;
     const fixedDur = OPENING_DUR + CLOSING_DUR;
-    const totalTransitionDur = (numPhotoScenes + 1) * TRANSITION_DUR;
-    const availableDur = Math.max(videoDuration - fixedDur + totalTransitionDur, numPhotoScenes * 2);
-    const photoClipDur = availableDur / numPhotoScenes;
+    const totalTransitionDur = (photoClipsCount + 1) * TRANSITION_DUR;
+    const availableDur = Math.max(videoDuration - fixedDur + totalTransitionDur, photoClipsCount * 2);
+    const photoClipDur = photoClipsCount > 0 ? availableDur / photoClipsCount : 2;
 
+    const hookText = photoScenes[0]?.overlayText || '';
     const [openingClip, closingClip, audioPath] = await Promise.all([
-      generateOpeningClip(dims, style, workDir),
+      generateOpeningClip(dims, style, workDir, photoPaths[0], hookText),
       generateClosingClip(dims, style, workDir),
       generateAudio(config, voiceScript, workDir, videoDuration, ttsPath),
     ]);
@@ -1399,7 +1298,7 @@ async function generateVideo(config) {
     const mainClips = [];
     mainClips.push(openingClip);
 
-  for (let i = 0; i < numPhotoScenes; i++) {
+  for (let i = 1; i < numPhotoScenes; i++) {
     const scene = photoScenes[i];
     let clipPath = await generatePhotoClip(photoPaths[i], photoClipDur, zoompan, dims, workDir, i);
     logStep(`photo clip ${i} zoompan`);
@@ -1407,11 +1306,6 @@ async function generateVideo(config) {
     const overlayText = scene.overlayText || '';
     clipPath = await addDrawTextToClip(clipPath, overlayText, photoClipDur, dims, workDir, i);
     logStep(`photo clip ${i} drawtext`);
-
-    if (stickers) {
-      clipPath = await addStickers(clipPath, style, photoClipDur, dims, workDir, i);
-      logStep(`photo clip ${i} stickers`);
-    }
 
     mainClips.push(clipPath);
   }
