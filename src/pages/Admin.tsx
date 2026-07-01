@@ -1070,8 +1070,7 @@ export default function Admin() {
                               'bg-amber-100 text-amber-700'
                             )}>{pet.status}</span>
                             <div className="flex items-center gap-1 mt-2" onClick={e => e.stopPropagation()}>
-                              <button onClick={() => setSharePet(pet)} className="p-1.5 rounded-lg bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-md transition-all" title="Redes Sociales"><Share2 className="w-3.5 h-3.5" /></button>
-                              <button onClick={() => handlePetPublishWithPicker(pet.id)} disabled={publishingPet === pet.id} className={`p-1.5 rounded-lg transition-colors ${publishingPet === pet.id ? 'text-gray-300 animate-pulse' : 'text-brand-primary hover:bg-brand-accent'}`} title="Publicar en plataformas">{publishingPet === pet.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}</button>
+                              <button onClick={() => handlePetPublishWithPicker(pet.id)} disabled={publishingPet === pet.id} className="p-1.5 rounded-lg bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-md transition-all" title="Publicar en redes sociales">{publishingPet === pet.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}</button>
                               {(petPublications[pet.id] || []).map(pub => {
                                 const meta = platformIcons[pub.platform];
                                 if (!meta) return null;
@@ -1198,7 +1197,21 @@ export default function Admin() {
                       ) : (
                         <button onClick={() => handleReencuentro(pet.id)} className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"><HeartHandshake className="w-4 h-4" /> Hubo reencuentro</button>
                       )}
-                      <button onClick={() => setSharePet(pet)} className="mt-2 w-full py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"><Share2 className="w-4 h-4" /> Redes Sociales</button>
+                      <button onClick={() => handlePetPublishWithPicker(pet.id)} disabled={publishingPet === pet.id} className="mt-2 w-full py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">{publishingPet === pet.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Publicar en redes sociales</button>
+                      {petPublications[pet.id] && petPublications[pet.id].length > 0 && (
+                        <div className="flex items-center justify-center gap-2 mt-2">
+                          {petPublications[pet.id].map(pub => {
+                            const meta = platformIcons[pub.platform];
+                            if (!meta) return null;
+                            let color = 'text-gray-300';
+                            if (pub.status === 'published') color = 'text-emerald-500';
+                            else if (pub.status === 'failed') color = 'text-red-400';
+                            return (
+                              <span key={pub.platform} className={`text-xs ${color} cursor-help`} title={`${meta.label}: ${pub.status === 'published' ? 'Publicado' : pub.status === 'failed' ? 'Error' : 'Pendiente'}`}>{meta.icon}</span>
+                            );
+                          })}
+                        </div>
+                      )}
                       <button onClick={() => handleTrackPet(pet)} className="mt-2 w-full py-2.5 bg-brand-bg text-brand-primary border border-brand-accent rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary hover:text-white hover:border-brand-primary transition-all"><Activity className="w-4 h-4" /> Seguimiento</button>
                     </div>
                   ))}
@@ -1379,24 +1392,6 @@ export default function Admin() {
                 )}
               </div>
 
-              {/* ====== IDENTIDAD DE MARCA (COLLAPSABLE) ====== */}
-              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden mt-6">
-                <button
-                  onClick={() => setShowBrandPanel(!showBrandPanel)}
-                  className="w-full flex items-center justify-between px-6 py-4 hover:bg-brand-bg/50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Palette className="w-5 h-5 text-brand-primary" />
-                    <span className="font-bold text-brand-primary">Identidad de Marca</span>
-                  </div>
-                  <ChevronDown className={cn("w-5 h-5 text-gray-400 transition-transform", showBrandPanel && "rotate-180")} />
-                </button>
-                {showBrandPanel && (
-                  <div className="p-6 border-t border-brand-accent">
-                    <BrandSettingsTab />
-                  </div>
-                )}
-              </div>
             </>
           )}
 
@@ -2589,6 +2584,26 @@ export default function Admin() {
   </div>
   </>
 )}
+
+          {/* ====== IDENTIDAD DE MARCA (GLOBAL) ====== */}
+          <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden mt-6">
+            <button
+              onClick={() => setShowBrandPanel(!showBrandPanel)}
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-brand-bg/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Palette className="w-5 h-5 text-brand-primary" />
+                <span className="font-bold text-brand-primary">Identidad de Marca</span>
+              </div>
+              <ChevronDown className={cn("w-5 h-5 text-gray-400 transition-transform", showBrandPanel && "rotate-180")} />
+            </button>
+            {showBrandPanel && (
+              <div className="p-6 border-t border-brand-accent">
+                <BrandSettingsTab />
+              </div>
+            )}
+          </div>
+
           </div>
         )}
 
