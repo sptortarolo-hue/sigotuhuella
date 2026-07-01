@@ -490,6 +490,7 @@ function getFontPath() {
   for (const f of candidates) {
     if (fs.existsSync(f)) return f;
   }
+  console.warn('[Font] No font found on system. Text overlays will use fallback font (may be invisible)');
   return null;
 }
 
@@ -515,7 +516,7 @@ function wrapText(text, maxCharsPerLine) {
 
 function escDrawText(text) {
   return text
-    .replace(/\\/g, '\\\\\\')
+    .replace(/\\/g, '\\\\')
     .replace(/'/g, "'\\''")
     .replace(/:/g, '\\:')
     .replace(/%/g, '%%')
@@ -701,23 +702,28 @@ async function generateClosingClip(dims, style, workDir, lastPhotoPath) {
 
   const titleText = escDrawText('SIGO TU HUELLA');
   const urlText = escDrawText('sigotuhuella.online');
+  const ctaText = escDrawText('Descargá la app');
 
   const titleFontSize = isVertical ? 60 : 48;
   const urlFontSize = isVertical ? 44 : 32;
+  const ctaFontSize = isVertical ? 32 : 24;
 
   const logoW = Math.round(Math.min(w, h) * 0.28);
   const logoAreaH = Math.round(h * 0.35);
   const logoY = Math.round((logoAreaH - logoW) / 2);
   const titleY = Math.round(logoAreaH + 20);
   const urlY = Math.round(titleY + titleFontSize + 24);
+  const ctaY = Math.round(urlY + urlFontSize + 20);
 
   let textFilters = '';
   if (fontPath) {
     textFilters = `drawtext=text='${titleText}':fontfile='${fontPath}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=black:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
     textFilters += `,drawtext=text='${urlText}':fontfile='${fontPath}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
+    textFilters += `,drawtext=text='${ctaText}':fontfile='${fontPath}':fontcolor=${cream}:fontsize=${ctaFontSize}:x=(w-tw)/2:y=${ctaY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,1.0\\,${dur})'`;
   } else {
     textFilters = `drawtext=text='${titleText}':fontcolor=${cream}:fontsize=${titleFontSize}:x=(w-tw)/2:y=${titleY}:shadowcolor=black:shadowx=3:shadowy=3:enable='between(t\\,0.5\\,${dur})'`;
     textFilters += `,drawtext=text='${urlText}':fontcolor=${terracotta}:fontsize=${urlFontSize}:x=(w-tw)/2:y=${urlY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,0.8\\,${dur})'`;
+    textFilters += `,drawtext=text='${ctaText}':fontcolor=${cream}:fontsize=${ctaFontSize}:x=(w-tw)/2:y=${ctaY}:shadowcolor=black:shadowx=2:shadowy=2:enable='between(t\\,1.0\\,${dur})'`;
   }
 
   const args = ['-y'];
@@ -752,6 +758,70 @@ async function generateClosingClip(dims, style, workDir, lastPhotoPath) {
   await runFfmpeg(args, 'closing');
 
   return clipPath;
+}
+
+function formatSrtTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const cs = Math.round((s - Math.floor(s)) * 1000);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(Math.floor(s)).padStart(2, '0')},${String(cs).padStart(3, '0')}`;
+}
+
+function generateKaraokeSubtitles(voiceScript, ttsStartTime, ttsDuration, workDir) {
+  if (!voiceScript || !voiceScript.trim()) return null;
+
+  const stripped = voiceScript.replace(/[^\w\sáéíóúñüÁÉÍÓÚÑÜ,.;:!?¡¿'-]/g, '').trim();
+  const words = stripped.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return null;
+
+  const groups = [];
+  let i = 0;
+  while (i < words.length) {
+    const remaining = words.length - i;
+    const chunkSize = remaining <= 4 ? remaining : (remaining <= 8 ? 3 : 2);
+    groups.push(words.slice(i, i + chunkSize).join(' '));
+    i += chunkSize;
+  }
+
+  const groupDur = ttsDuration / groups.length;
+  const srtPath = path.join(workDir, 'subtitles.srt');
+  let srtContent = '';
+
+  for (let g = 0; g < groups.length; g++) {
+    const start = ttsStartTime + g * groupDur;
+    const end = ttsStartTime + (g + 1) * groupDur;
+    srtContent += `${g + 1}\n`;
+    srtContent += `${formatSrtTime(start)} --> ${formatSrtTime(end)}\n`;
+    srtContent += `${groups[g]}\n\n`;
+  }
+
+  fs.writeFileSync(srtPath, srtContent);
+  console.log(`[Karaoke] Generated ${groups.length} subtitle groups for ${words.length} words (${ttsDuration.toFixed(1)}s)`);
+  return srtPath;
+}
+
+async function burnSubtitles(videoPath, subtitlePath, workDir) {
+  if (!subtitlePath || !fs.existsSync(subtitlePath)) return videoPath;
+
+  const outPath = path.join(workDir, 'subbed.mp4');
+
+  try {
+    await runFfmpeg([
+      '-y', '-i', videoPath,
+      '-vf', `subtitles='${subtitlePath.replace(/\\/g, '/')}':force_style='FontName=DejaVu Sans Bold,FontSize=30,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,MarginV=80,Alignment=2'`,
+      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+      '-pix_fmt', 'yuv420p', '-an',
+      outPath,
+    ], 'subtitles');
+  } catch (err) {
+    console.warn('[Karaoke] subtitles filter failed, falling back to drawtext:', err.message);
+    try { fs.unlinkSync(outPath); } catch {}
+    return videoPath;
+  }
+
+  try { fs.unlinkSync(videoPath); } catch {}
+  return outPath;
 }
 
 async function generateAudio(config, voiceScript, workDir, videoDuration, ttsPath) {
@@ -1339,6 +1409,14 @@ async function generateVideo(config) {
       console.warn('xfade failed, falling back to simple concat:', xfadeErr.message);
       mainVideoPath = await concatenateSimple(mainClips, workDir);
       logStep('concat-simple fallback');
+    }
+
+    if (includeVoice && voiceScript && ttsDur > 0) {
+      const subtitlePath = generateKaraokeSubtitles(voiceScript, 2.0, ttsDur, workDir);
+      if (subtitlePath) {
+        mainVideoPath = await burnSubtitles(mainVideoPath, subtitlePath, workDir);
+        logStep('karaoke subtitles');
+      }
     }
 
   mainVideoPath = await addWatermarkAndFrame(mainVideoPath, dims, workDir);
