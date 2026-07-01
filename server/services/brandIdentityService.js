@@ -99,8 +99,8 @@ const typeBadge = {
 
 export async function applyBrandOverlay(imageBuffer, news) {
   const brand = await getBrandSettings();
-  const width = 1200;
-  const height = 630;
+  const width = 720;
+  const height = 1280;
   const badge = typeBadge[news.type] || typeBadge.manual;
   const { createCanvas, loadImage } = await getCanvas();
 
@@ -109,20 +109,44 @@ export async function applyBrandOverlay(imageBuffer, news) {
 
   // Background
   if (imageBuffer && imageBuffer.length > 0) {
-    const contentH = height - 140;
-    const resized = await sharp(imageBuffer)
-      .resize(width, contentH, { fit: 'cover', position: 'attention' })
+    const blurred = await sharp(imageBuffer)
+      .resize(width, height, { fit: 'cover', position: 'attention' })
+      .blur(50)
       .toBuffer();
-    const img = await loadImage(resized);
-    ctx.drawImage(img, 0, 80, width, contentH);
+    const bgImg = await loadImage(blurred);
+    ctx.drawImage(bgImg, 0, 0, width, height);
+
+    const cardW = 640;
+    const cardH = 360;
+    const cardX = (width - cardW) / 2;
+    const cardY = 110;
+    const resized = await sharp(imageBuffer)
+      .resize(cardW, cardH, { fit: 'cover', position: 'attention' })
+      .toBuffer();
+    const cardImg = await loadImage(resized);
+    ctx.save();
+    roundRect(ctx, cardX, cardY, cardW, cardH, 20);
+    ctx.clip();
+    ctx.drawImage(cardImg, cardX, cardY, cardW, cardH);
+    ctx.restore();
+
+    const darkGrad = ctx.createLinearGradient(0, 400, 0, height);
+    darkGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    darkGrad.addColorStop(0.6, 'rgba(0,0,0,0.25)');
+    darkGrad.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = darkGrad;
+    ctx.fillRect(0, 400, width, height - 400);
   } else {
-    ctx.fillStyle = '#F8FAFC';
-    ctx.fillRect(0, 80, width, height - 140);
+    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+    bgGrad.addColorStop(0, hexToRgba(brand.primaryColor, 0.08));
+    bgGrad.addColorStop(1, hexToRgba(brand.secondaryColor, 0.12));
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
   }
 
   // Header bar
   const headerGrad = ctx.createLinearGradient(0, 0, width, 0);
-  headerGrad.addColorStop(0, hexToRgba(brand.primaryColor, 0.95));
+  headerGrad.addColorStop(0, hexToRgba(brand.primaryColor, 0.92));
   headerGrad.addColorStop(1, hexToRgba(brand.secondaryColor, 0.85));
   ctx.fillStyle = headerGrad;
   ctx.fillRect(0, 0, width, 80);
@@ -138,10 +162,10 @@ export async function applyBrandOverlay(imageBuffer, news) {
       const logoImg = await loadImage(logoBuf);
       ctx.save();
       ctx.beginPath();
-      ctx.arc(48, 40, 28, 0, Math.PI * 2);
+      ctx.arc(44, 40, 24, 0, Math.PI * 2);
       ctx.closePath();
       ctx.clip();
-      ctx.drawImage(logoImg, 20, 12, 56, 56);
+      ctx.drawImage(logoImg, 20, 16, 48, 48);
       ctx.restore();
     } catch (e) {
       console.error('Brand logo draw error:', e.message);
@@ -149,45 +173,73 @@ export async function applyBrandOverlay(imageBuffer, news) {
   }
 
   // Brand signature
-  ctx.font = 'bold 22px sans-serif';
+  ctx.font = 'bold 20px sans-serif';
   ctx.fillStyle = '#FFFFFF';
   ctx.textBaseline = 'middle';
-  const sigX = brand.logo ? 100 : 60;
+  const sigX = brand.logo ? 85 : 40;
   ctx.fillText(brand.signature, sigX, 40);
 
   // Badge
   ctx.fillStyle = hexToRgba(badge.bg, 0.9);
-  roundRect(ctx, width - 180, 18, 160, 44, 22);
+  roundRect(ctx, width - 160, 20, 140, 40, 20);
   ctx.fill();
-  ctx.font = 'bold 16px sans-serif';
+  ctx.font = 'bold 15px sans-serif';
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center';
-  ctx.fillText(badge.label, width - 100, 40);
+  ctx.fillText(badge.label, width - 90, 40);
 
   // Title
-  ctx.font = 'bold 36px sans-serif';
-  ctx.fillStyle = '#1F2937';
-  ctx.textAlign = 'left';
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const titleText = truncateText(news.title, 40);
-  ctx.fillText(titleText, 60, height / 2 - 5);
+  ctx.font = 'bold 28px sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  const titleY = 530;
+  const maxTitleW = 600;
+  const titleText = truncateText(news.title, 35);
+  if (ctx.measureText(titleText).width > maxTitleW) {
+    wrapText(ctx, titleText, width / 2, titleY, maxTitleW, 36, 2);
+  } else {
+    ctx.fillText(titleText, width / 2, titleY);
+  }
 
   // Date
-  ctx.font = '18px sans-serif';
-  ctx.fillStyle = '#6B7280';
+  ctx.font = '16px sans-serif';
+  ctx.fillStyle = '#D1D5DB';
   ctx.fillText(
     new Date(news.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }),
-    60, height / 2 + 40
+    width / 2, titleY + 50
   );
 
   // Footer text
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '16px sans-serif';
+  ctx.font = '15px sans-serif';
   ctx.fillStyle = '#FFFFFF';
   ctx.fillText(brand.ctaText + ' ' + FRONTEND_URL, width / 2, height - 30);
 
   return canvas.toBuffer('image/jpeg', { quality: 85 });
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+  const words = text.split(' ');
+  let line = '';
+  let lineCount = 0;
+  let curY = y;
+  for (const word of words) {
+    const testLine = line ? line + ' ' + word : word;
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      ctx.fillText(line, x, curY);
+      lineCount++;
+      if (lineCount >= maxLines) break;
+      curY += lineHeight;
+      line = word;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line && lineCount < maxLines) {
+    ctx.fillText(line, x, curY);
+  }
 }
 
 function roundRect(ctx, x, y, w, h, r) {
