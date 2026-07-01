@@ -533,6 +533,8 @@ router.put('/:id', requireAuth, async (req, res) => {
       [petId]
     );
     res.json({ pet: updated.rows[0] });
+
+    publishPetToAll(petId).catch(e => console.error('Auto-publish pet on update error:', e.message));
   } catch (err) {
     console.error('Update pet error:', err);
     res.status(500).json({ error: 'Failed to update pet' });
