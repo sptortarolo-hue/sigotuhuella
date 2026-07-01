@@ -178,7 +178,7 @@ ${featuresList}
 
 Respondé ÚNICAMENTE con JSON:
 {
-  "voiceScript": "Guion promocional. Máximo 20s hablados. Mostra los beneficios de las funciones elegidas. Terminar con 'Descargá Sigo Tu Huella gratis en sigotuhuella.online'",
+  "voiceScript": "Guion promocional. Máximo 20s hablados. Mostra los beneficios de las funciones elegidas.",
   "overlayTexts": ["Texto hook escena 1", "Texto hook escena 2", ...],
   "imagePrompts": ["prompt en ingles imagen 1", "prompt imagen 2", ...]
 }
@@ -186,7 +186,7 @@ Respondé ÚNICAMENTE con JSON:
 Reglas:
 - Elegí 3-5 funcionalidades de las listadas arriba según el tema. Mezclá imágenes conceptuales (personas ayudando mascotas) con UI mockups (interfaces de app).
 - voiceScript: sin emojis, natural. Párrafos separados con doble salto de línea.
-- overlayTexts: ${numScenes} textos cortos (máx 6 palabras), el primero es el hook principal.
+- overlayTexts: ${numScenes} textos cortos (máx 4 palabras), el primero es el hook principal.
 - imagePrompts: ${numScenes} prompts en INGLÉS para Flux. Alterná entre escenas conceptuales y mockups de UI. Estilo: fotografía profesional, colores cálidos, 4K.`;
   } else if (mode === 'auto') {
     returnStyle = true;
@@ -201,7 +201,7 @@ Cantidad de escenas: ${numScenes}
 
 Respondé ÚNICAMENTE con JSON:
 {
-  "voiceScript": "Guion para reel. Máximo 20s. En español argentino natural. Terminar con 'Descargá Sigo Tu Huella gratis en sigotuhuella.online'",
+  "voiceScript": "Guion para reel. Máximo 20s. En español argentino natural.",
   "overlayTexts": ["Texto hook 1", "Texto hook 2", ...],
   "imagePrompts": ["prompt imagen 1", "prompt imagen 2", ...],
   "style": "emotive o informative o viral",
@@ -211,7 +211,7 @@ Respondé ÚNICAMENTE con JSON:
 Reglas:
 - Elegí automaticamente el tema según mascotas, comunidad y la app.${selectedFeatures.length > 0 ? '\n- Promocioná SOLO las funcionalidades seleccionadas arriba.' : ''}
 - voiceScript: natural, sin emojis. Párrafos separados con doble salto de línea.
-- overlayTexts: ${numScenes} textos hook (máx 6 palabras).
+- overlayTexts: ${numScenes} textos hook (máx 4 palabras).
 - imagePrompts: ${numScenes} prompts en INGLÉS para Flux. Fotorrealista, cálido, 4K.
 - style: elegí el tono según el tema. emotive para historias, informative para tips, viral para energia.
 - music: elegí la música que mejor acompañe al tono elegido.`;
@@ -225,14 +225,14 @@ ${sceneContext}
 
 Respondé ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
 {
-  "voiceScript": "Texto completo para la voz en off. Máximo 15-20 segundos hablados. En español argentino, natural y fluido. Terminar con 'Descargá Sigo Tu Huella gratis en sigotuhuella.online'",
+  "voiceScript": "Texto completo para la voz en off. Máximo 15-20 segundos hablados. En español argentino, natural y fluido.",
   "overlayTexts": ["Texto corto para escena 1", "Texto para escena 2", ...],
   "imagePrompts": ${hasSceneDescriptions ? '[]' : `["prompt en inglés para generar imagen de escena 1", "prompt para escena 2", ...]`}
 }
 
 Reglas:
 - voiceScript: texto natural para voz en off, sin emojis, sin comillas, sin formato markdown. Máximo 20 segundos hablados. Separá los párrafos con doble salto de línea (\\n\\n) para alternar entre voces cuando se usan dos voces. Cada párrafo es un bloque con sentido completo.
-- overlayTexts: exactamente ${numScenes} textos cortos (máx 6 palabras cada uno) que aparecen en pantalla como hook principal, uno por escena de foto. El primer texto es el hook más importante.
+- overlayTexts: exactamente ${numScenes} textos cortos (máx 4 palabras cada uno) que aparecen en pantalla como hook principal, uno por escena de foto. El primer texto es el hook más importante.
 ${hasSceneDescriptions ? '- imagePrompts: array vacío [] porque las imágenes son fotos reales' : '- imagePrompts: exactamente ' + numScenes + ' prompts en INGLÉS para generar imágenes con IA (Flux). Cada prompt debe describir una escena visual concreta, fotorrealista, con iluminación cinematográfica. NO incluir texto en las imágenes. Estilo: fotografía profesional, colores cálidos, 4K quality.'}`;
   }
 
@@ -240,6 +240,7 @@ ${hasSceneDescriptions ? '- imagePrompts: array vacío [] porque las imágenes s
     model: VIDEO_GROQ_MODEL,
     messages: [{ role: 'user', content: prompt }],
     response_format: { type: 'json_object' },
+    temperature: 0.2,
   });
 
   const text = response.choices?.[0]?.message?.content;

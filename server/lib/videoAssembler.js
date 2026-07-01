@@ -76,9 +76,9 @@ function getVoiceParams(voiceKey, style) {
 }
 
 const STYLE_TRANSITIONS = {
-  emotive: ['fade', 'dissolve', 'fadeblack', 'fadewhite', 'smoothright'],
-  informative: ['slideleft', 'slideright', 'zipleft', 'smoothleft', 'zipright'],
-  viral: ['circlecrop', 'pixelize', 'rectclose', 'circleopen', 'radial'],
+  emotive: ['fade', 'dissolve', 'fadeblack', 'fadewhite', 'smoothright', 'smoothleft'],
+  informative: ['fade', 'dissolve', 'fadeblack', 'fadewhite', 'smoothright', 'smoothleft'],
+  viral: ['fade', 'dissolve', 'fadeblack', 'fadewhite', 'smoothright', 'smoothleft'],
 };
 
 const STYLE_ZOOMPAN = {
@@ -87,7 +87,7 @@ const STYLE_ZOOMPAN = {
   viral: { zoomDir: -1, zoomSpeed: 0.0018, panAmp: 0 },
 };
 
-const TRANSITION_DUR = 0.5;
+const TRANSITION_DUR = 0.6;
 const OPENING_DUR = 2;
 const CLOSING_DUR = 4;
 const FPS = 25;
@@ -154,16 +154,25 @@ function escapeXml(str) {
     .replace(/'/g, '&apos;');
 }
 
-function buildSSML(script, voice, params, { appendClosing = true } = {}) {
+const STYLE_EXPRESS_AS = {
+  emotive: 'empathetic',
+  informative: 'newscast',
+  viral: 'cheerful',
+};
+
+function buildSSML(script, voice, params, { appendClosing = true, style = 'emotive' } = {}) {
   const { rate, pitch, contour } = params;
   const cleaned = escapeXml(script.trim().replace(/\s+/g, ' '));
   const closing = appendClosing ? `\n<break time="600ms"/>\nsigotuhuella.online` : '';
   const contourAttr = contour ? ` contour="${contour}"` : '';
-  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR">
+  const expressStyle = STYLE_EXPRESS_AS[style] || 'empathetic';
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="es-AR">
 <voice name="${voice}">
+<mstts:express-as style="${expressStyle}">
 <prosody rate="${rate}" pitch="${pitch}"${contourAttr}>
 ${cleaned}${closing}
 </prosody>
+</mstts:express-as>
 </voice>
 </speak>`;
 }
@@ -269,7 +278,7 @@ async function generateTTS(config, voiceScript, workDir) {
   if (voiceKeys.length === 1) {
     const voice = VOICE_OPTIONS[voiceKeys[0]] || VOICE_OPTIONS.elena;
     const params = getVoiceParams(voiceKeys[0], config.style);
-    const ssml = buildSSML(script, voice, params);
+    const ssml = buildSSML(script, voice, params, { style: config.style });
     const ok = await synthesizeWithRetry(ssml, voice, ttsPath);
     if (ok) {
       await incrementTtsUsage(charCount);
@@ -366,7 +375,7 @@ async function generateMultiVoice(script, voiceKeys, workDir, ttsPath, style = '
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
     const clipPath = path.join(workDir, `tts_clip_${i}.mp3`);
-    const ssml = buildSSML(block.text, block.voice, block.params, { appendClosing: false });
+    const ssml = buildSSML(block.text, block.voice, block.params, { appendClosing: false, style });
     const ok = await synthesizeClipFast(ssml, block.voice, clipPath);
     if (ok && fs.existsSync(clipPath)) {
       clipPaths.push(clipPath);
@@ -767,16 +776,12 @@ async function applyPostProcessing(mainVideoPath, dims, style, workDir, config) 
   const {
     frame = 'none',
     confetti = false,
-    includeVoice = true,
-    voiceScript = '',
-    ttsDur = 0,
     videoDuration,
   } = config;
 
   const outPath = path.join(workDir, 'processed.mp4');
 
   const hasLogo = fs.existsSync(LOGO_PATH);
-  const fontPath = getFontPath();
 
   const inputs = ['-i', mainVideoPath];
   let inputIdx = 1;
@@ -806,50 +811,20 @@ async function applyPostProcessing(mainVideoPath, dims, style, workDir, config) 
     }
   }
 
-  // 3. Voice overlay (static text block synced with TTS)
-  const voiceText = voiceScript?.trim();
-  if (includeVoice && voiceText && ttsDur > 0) {
-    const maxCharsLine = 30;
-    const lines = wrapText(voiceText, maxCharsLine);
-    if (lines.length > 0) {
-      const fontSize = 44;
-      const lineSpacing = 6;
-      const ttsStart = 2.0;
-      const enableExpr = `between(t\\,${ttsStart}\\,${ttsStart + ttsDur})`;
-      const safeY = Math.round(h * 0.85);
-      const boxPad = 14;
-      const textBlockH = fontSize * lines.length + lineSpacing * (lines.length - 1) + boxPad * 2;
-      const textY = safeY - textBlockH;
-      const boxW = Math.round(w * 0.78);
-      const boxX = Math.round((w - boxW) / 2);
-
-      const textFilters = [];
-      textFilters.push(`drawbox=x=${boxX}:y=${textY}:w=${boxW}:h=${textBlockH}:color=black@0.50:t=fill:enable='${enableExpr}'`);
-      for (let li = 0; li < lines.length; li++) {
-        const escaped = escDrawText(lines[li]);
-        const yPos = textY + boxPad + li * (fontSize + lineSpacing);
-        const ft = fontPath ? `:fontfile='${fontPath}'` : '';
-        textFilters.push(`drawtext=text='${escaped}'${ft}:fontcolor=white:fontsize=${fontSize}:bordercolor=black:borderw=1:x=(w-tw)/2:y=${yPos}:shadowcolor=black:shadowx=2:shadowy=2:enable='${enableExpr}'`);
-      }
-      const prev = lastStreamLabel(chains);
-      chains.push(`[${prev}]${textFilters.join(',')}[voiceo]`);
-    }
-  }
-
-  // 4. Color grading
+  // 3. Color grading
   const gradeFilter = STYLE_COLOR_GRADING[style];
   if (gradeFilter) {
     const prev = lastStreamLabel(chains);
     chains.push(`[${prev}]${gradeFilter},format=yuv420p[gradeo]`);
   }
 
-  // 5. Vignette (emotive only)
+  // 4. Vignette (emotive only)
   if (style === 'emotive') {
     const prev = lastStreamLabel(chains);
     chains.push(`[${prev}]vignette=angle=0.3:mode=forward,format=yuv420p[vigo]`);
   }
 
-  // 6. Confetti
+  // 5. Confetti
   if (confetti) {
     const closingStartTime = videoDuration - CLOSING_DUR;
     const confettiVidPath = await generateConfettiVideo(dims, workDir);
@@ -1499,9 +1474,6 @@ async function generateVideo(config) {
     mainVideoPath = await applyPostProcessing(mainVideoPath, dims, style, workDir, {
       frame,
       confetti,
-      includeVoice,
-      voiceScript,
-      ttsDur,
       videoDuration,
     });
     logStep('post-process (merged)');
