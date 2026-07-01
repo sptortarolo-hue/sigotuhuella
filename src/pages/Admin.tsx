@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getPets, createPet, updatePet, deletePet, Pet, PetStatus, getPetImageUrl } from '@/src/lib/petService';
+import { getPets, createPet, updatePet, deletePet, Pet, PetStatus, getPetImageUrl, publishPet, getPetPublications, getPetPublishImageUrl, PetPublication } from '@/src/lib/petService';
 import { filesToBase64, fileToBase64, compressImage } from '@/src/lib/storageService';
 import ImageCropper from '@/src/components/ImageCropper';
 import {
@@ -163,6 +163,11 @@ export default function Admin() {
   const [showPlatformPicker, setShowPlatformPicker] = useState<string | null>(null);
   const [previewLoaded, setPreviewLoaded] = useState(false);
   const [previewError, setPreviewError] = useState(false);
+  const [petPublications, setPetPublications] = useState<Record<string, PetPublication[]>>({});
+  const [publishingPet, setPublishingPet] = useState<string | null>(null);
+  const [showPetPlatformPicker, setShowPetPlatformPicker] = useState<string | null>(null);
+  const [petPreviewLoaded, setPetPreviewLoaded] = useState(false);
+  const [petPreviewError, setPetPreviewError] = useState(false);
 
   // Banner state
   const [bannerChapitaVisible, setBannerChapitaVisible] = useState(true);
@@ -517,6 +522,42 @@ export default function Admin() {
     await handlePublishNews(id, publishPlatforms);
   };
 
+  const fetchPetPublications = async (pets: Pet[]) => {
+    const results: Record<string, PetPublication[]> = {};
+    await Promise.all(pets.map(async (item) => {
+      try {
+        results[item.id] = await getPetPublications(item.id);
+      } catch { results[item.id] = []; }
+    }));
+    setPetPublications(results);
+  };
+
+  const handlePublishPet = async (id: string, platforms?: string[]) => {
+    setPublishingPet(id);
+    try {
+      await publishPet(id, platforms);
+      await fetchPetPublications(petsList);
+    } catch (e: any) {
+      alert(e.message || 'Error al publicar');
+    } finally {
+      setPublishingPet(null);
+    }
+  };
+
+  const handlePetPublishWithPicker = (id: string) => {
+    setPublishPlatforms(['instagram', 'facebook_page', 'whatsapp', 'status']);
+    setPetPreviewLoaded(false);
+    setPetPreviewError(false);
+    setShowPetPlatformPicker(id);
+  };
+
+  const confirmPetPublish = async () => {
+    const id = showPetPlatformPicker;
+    if (!id) return;
+    setShowPetPlatformPicker(null);
+    await handlePublishPet(id, publishPlatforms);
+  };
+
   const platformIcons: Record<string, { icon: string; label: string }> = {
     instagram: { icon: '📷', label: 'Instagram' },
     facebook_page: { icon: '📘', label: 'Facebook' },
@@ -618,6 +659,7 @@ export default function Admin() {
     try {
       const data = await getPets(undefined, true);
       setPets(data);
+      fetchPetPublications(data).catch(() => {});
     } catch (e) { console.error(e); }
   };
 
@@ -1029,6 +1071,17 @@ export default function Admin() {
                             )}>{pet.status}</span>
                             <div className="flex items-center gap-1 mt-2" onClick={e => e.stopPropagation()}>
                               <button onClick={() => setSharePet(pet)} className="p-1.5 rounded-lg bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-md transition-all" title="Redes Sociales"><Share2 className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => handlePetPublishWithPicker(pet.id)} disabled={publishingPet === pet.id} className={`p-1.5 rounded-lg transition-colors ${publishingPet === pet.id ? 'text-gray-300 animate-pulse' : 'text-brand-primary hover:bg-brand-accent'}`} title="Publicar en plataformas">{publishingPet === pet.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}</button>
+                              {(petPublications[pet.id] || []).map(pub => {
+                                const meta = platformIcons[pub.platform];
+                                if (!meta) return null;
+                                let color = 'text-gray-300';
+                                if (pub.status === 'published') color = 'text-emerald-500';
+                                else if (pub.status === 'failed') color = 'text-red-400';
+                                return (
+                                  <span key={pub.platform} className={`text-[10px] ${color} cursor-help`} title={`${meta.label}: ${pub.status === 'published' ? 'Publicado' : pub.status === 'failed' ? 'Error' : 'Pendiente'}`}>{meta.icon}</span>
+                                );
+                              })}
                               <button onClick={() => editPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => setConfirmDialog({ isOpen: true, title: 'Eliminar mascota', message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`, actionLabel: 'CONFIRMAR', variant: 'danger', onConfirm: async () => { try { await deletePet(pet.id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } setConfirmDialog(prev => ({ ...prev, isOpen: false })); } })} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => handleTrackPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Seguimiento"><Activity className="w-3.5 h-3.5" /></button>
@@ -2807,6 +2860,60 @@ export default function Admin() {
                   <button onClick={() => setShowPlatformPicker(null)} className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-colors">Cancelar</button>
                   <button onClick={confirmPublish} disabled={publishPlatforms.length === 0} className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all disabled:opacity-50">
                     {publishingNews ? <Loader2 className="animate-spin mx-auto" /> : 'Publicar'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Platform picker for publishing existing pets */}
+        {showPetPlatformPicker && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPetPlatformPicker(null)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-lg bg-white rounded-2xl sm:rounded-[2.5rem] shadow-2xl max-h-[90vh] flex flex-col">
+              <div className="shrink-0 px-5 pt-5 sm:px-8 sm:pt-8">
+                <h3 className="text-lg sm:text-xl font-serif font-bold text-brand-primary">Publicar mascota</h3>
+              </div>
+              <div className="p-5 sm:p-8 pt-4 sm:pt-6 overflow-y-auto">
+                <div className="flex items-center justify-center mb-4 sm:mb-6 bg-gray-50 rounded-xl border border-brand-accent h-[35vh] sm:h-[45vh]">
+                  {!petPreviewLoaded && !petPreviewError && (
+                    <div className="flex flex-col items-center justify-center gap-2 py-8 sm:py-10">
+                      <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
+                      <span className="text-xs text-gray-400">Generando preview...</span>
+                    </div>
+                  )}
+                  {petPreviewError && (
+                    <div className="flex flex-col items-center justify-center gap-2 py-8 sm:py-10">
+                      <span className="text-xs text-red-400">No se pudo generar la vista previa</span>
+                    </div>
+                  )}
+                  <img
+                    src={`/api/pets/${showPetPlatformPicker}/publish-image?t=${Date.now()}`}
+                    onLoad={() => { setPetPreviewLoaded(true); setPetPreviewError(false); }}
+                    onError={() => { setPetPreviewLoaded(true); setPetPreviewError(true); }}
+                    className={`max-h-[35vh] sm:max-h-[50vh] w-auto max-w-full object-contain self-center ${petPreviewLoaded ? 'block' : 'hidden'}`}
+                    alt="Preview"
+                  />
+                </div>
+                <div className="space-y-2 sm:space-y-3 mb-5 sm:mb-6">
+                  {Object.entries(platformIcons).map(([key, { icon, label }]) => (
+                    <label key={key} className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-brand-accent hover:bg-brand-bg/50 transition-colors">
+                      <input type="checkbox" checked={publishPlatforms.includes(key)}
+                        onChange={() => {
+                          setPublishPlatforms(prev =>
+                            prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
+                          );
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
+                      <span className="text-sm">{icon} {label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex gap-2 sm:gap-3">
+                  <button onClick={() => setShowPetPlatformPicker(null)} className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-colors">Cancelar</button>
+                  <button onClick={confirmPetPublish} disabled={publishPlatforms.length === 0} className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all disabled:opacity-50">
+                    {publishingPet ? <Loader2 className="animate-spin mx-auto" /> : 'Publicar'}
                   </button>
                 </div>
               </div>

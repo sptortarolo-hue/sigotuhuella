@@ -1013,6 +1013,26 @@ export async function initDb() {
     `, 'news_publications unique');
 
     await migrate(client, `
+      CREATE TABLE IF NOT EXISTS pet_publications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        platform VARCHAR(20) NOT NULL CHECK (platform IN ('instagram', 'facebook_page', 'facebook_groups', 'whatsapp', 'status')),
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'published', 'failed')),
+        platform_post_id TEXT,
+        error_message TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        published_at TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `, 'pet_publications');
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_pet_publications_pet_id ON pet_publications(pet_id)
+    `, 'pet_publications index');
+    await migrate(client, `
+      ALTER TABLE pet_publications ADD CONSTRAINT IF NOT EXISTS pet_publications_pet_id_platform_key UNIQUE (pet_id, platform)
+    `, 'pet_publications unique');
+
+    await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('brand_primary_color', '#5A5A40') ON CONFLICT (key) DO NOTHING
     `, 'brand_primary_color');
     await migrate(client, `

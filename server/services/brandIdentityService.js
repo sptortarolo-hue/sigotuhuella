@@ -97,11 +97,23 @@ const typeBadge = {
   manual: { label: 'Novedad', bg: '#5A5A40' },
 };
 
-export async function applyBrandOverlay(imageBuffer, news) {
+export const petBadges = {
+  lost: { label: 'PERDIDO', bg: '#EF4444' },
+  retained: { label: 'RETENIDO', bg: '#2563EB' },
+  sighted: { label: 'AVISTADO', bg: '#2563EB' },
+  accidented: { label: 'ACCIDENTADO', bg: '#EA580C' },
+  needs_attention: { label: 'NECESITA ATENCIÓN', bg: '#D97706' },
+  for_adoption: { label: 'EN ADOPCIÓN', bg: '#8B5CF6' },
+  for_adoption_simple: { label: 'EN ADOPCIÓN', bg: '#F97316' },
+  adopted: { label: 'ADOPTADO', bg: '#10B981' },
+  reunited: { label: 'REENCUENTRO', bg: '#10B981' },
+};
+
+export async function applyBrandOverlay(imageBuffer, content) {
   const brand = await getBrandSettings();
   const width = 720;
   const height = 1280;
-  const badge = typeBadge[news.type] || typeBadge.manual;
+  const badge = petBadges[content.type] || typeBadge[content.type] || typeBadge.manual;
   const { createCanvas, loadImage } = await getCanvas();
 
   const canvas = createCanvas(width, height);
@@ -213,7 +225,7 @@ export async function applyBrandOverlay(imageBuffer, news) {
   ctx.fillText(badge.label, width / 2, badgeY + badgeH / 2);
 
   // Titulo auto-escalable (28px→16px segun ancho)
-  const titleText = news.title || '';
+  const titleText = content.title || '';
   const maxTitleW = 600;
   let fontSize = 28;
   while (fontSize > 16) {
@@ -234,14 +246,16 @@ export async function applyBrandOverlay(imageBuffer, news) {
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#D1D5DB';
   ctx.fillText(
-    new Date(news.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }),
+    new Date(content.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }),
     width / 2, contentSectionTop + 155
   );
 
   // CTA en footer
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(brand.ctaText + ' ' + FRONTEND_URL, width / 2, height - footerH / 2);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('❤️ ' + brand.signature, width / 2, height - footerH / 2);
 
   return canvas.toBuffer('image/jpeg', { quality: 85 });
 }
@@ -294,7 +308,7 @@ export function generatePlatformContent(news, platform) {
   switch (platform) {
     case 'instagram': {
       const body = news.content.substring(0, 400);
-      return `${base.substring(0, 400)}\n\n🔗 ${link}\n\n${brand.defaultHashtags}`;
+      return `${base.substring(0, 400)}\n\n🔗 Encontrá más info en nuestro perfil\n\n${brand.defaultHashtags}`;
     }
     case 'facebook': {
       return `${base}\n\n🔗 ${link}\n\n${brand.defaultHashtags}`;
@@ -303,7 +317,30 @@ export function generatePlatformContent(news, platform) {
       return `${base.substring(0, 200)}\n\n🔗 ${link}`;
     }
     case 'status': {
-      return `📰 ${typeLabel}\n${news.title}\n🔗 ${link}`;
+      return `${typeLabel}\n${news.title}\n🔗 ${link}`;
+    }
+    default:
+      return base;
+  }
+}
+
+export function generatePetCaption(pet, platform, petId) {
+  const frontendUrl = FRONTEND_URL;
+  const link = `${frontendUrl}/mascota/${petId}`;
+  const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Mascota';
+  const genderLabel = pet.gender === 'female' ? 'la' : 'el';
+  const locationText = pet.location ? ` en ${pet.location}` : '';
+  const base = `${speciesLabel} ${genderLabel} descripción: ${pet.description || 'Sin descripción'}${locationText}`;
+
+  switch (platform) {
+    case 'instagram': {
+      return `${pet.status_label || pet.status}\n\n${base}\n\n🔗 Encontrá más info en nuestro perfil`;
+    }
+    case 'facebook': {
+      return `${pet.status_label || pet.status}\n\n${base}\n\n🔗 ${link}`;
+    }
+    case 'whatsapp': {
+      return `${pet.status_label || pet.status}: ${pet.description || 'Sin descripción'}${locationText}\n🔗 ${link}`;
     }
     default:
       return base;

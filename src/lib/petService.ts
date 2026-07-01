@@ -97,3 +97,28 @@ export const updatePet = async (id: string, petData: Partial<Pet>): Promise<void
 export const deletePet = async (id: string): Promise<void> => {
   await api.pets.delete(id);
 };
+
+export interface PetPublication {
+  id: string;
+  pet_id: string;
+  platform: 'instagram' | 'facebook_page' | 'facebook_groups' | 'whatsapp' | 'status';
+  status: 'pending' | 'published' | 'failed';
+  platform_post_id: string | null;
+  error_message: string | null;
+  created_at: string;
+  published_at: string | null;
+  updated_at: string;
+}
+
+export const publishPet = async (id: string, platforms?: string[]): Promise<void> => {
+  await api.pets.publish(id, platforms);
+};
+
+export const getPetPublications = async (id: string): Promise<PetPublication[]> => {
+  const data = await api.pets.publications(id);
+  return data;
+};
+
+export const getPetPublishImageUrl = (id: string): string => {
+  return api.pets.getPublishImageUrl(id);
+};

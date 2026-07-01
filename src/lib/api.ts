@@ -105,6 +105,10 @@ export const api = {
         } catch (e) { alert('Error al descargar el PDF'); }
       },
     },
+    publish: (id: string, platforms?: string[]) =>
+      request(`/pets/${id}/publish`, { method: 'POST', body: JSON.stringify({ platforms }) }),
+    publications: (id: string) => request(`/pets/${id}/publications`),
+    getPublishImageUrl: (id: string) => `/api/pets/${id}/publish-image`,
   },
   collaboration: {
     list: () => request('/collaboration'),
