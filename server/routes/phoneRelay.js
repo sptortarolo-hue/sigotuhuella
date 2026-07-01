@@ -295,6 +295,19 @@ router.post('/broadcast-adoptions', requireAdmin, async (req, res) => {
   }
 });
 
+router.post('/test-status', requireAdmin, async (req, res) => {
+  try {
+    const { text } = req.body;
+    const statusText = text || '🔍 Test de estado desde Sigo Tu Huella';
+    const { enqueueStatus } = await import('../services/whatsappStatusService.js');
+    const id = await enqueueStatus(statusText, null);
+    res.json({ success: true, id, message: 'Estado encolado, el relay lo publicará en ~60s' });
+  } catch (err) {
+    console.error('[Relay] test-status error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/clear-queue', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query("DELETE FROM relay_messages WHERE status = 'pending'");

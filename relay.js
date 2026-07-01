@@ -6,7 +6,7 @@ const QR = require('qrcode-terminal');
 const QRCode = require('qrcode');
 
 const VPS_URL = 'https://sigotuhuella.online';
-const TOKEN = 'RELAY_TOKEN';
+const TOKEN = process.env.RELAY_TOKEN || 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
 const POLL_INTERVAL = 30000;
 const STATUS_POLL_INTERVAL = 60000;
@@ -183,6 +183,7 @@ async function start() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
 
   if (pollTimer) clearInterval(pollTimer);
+  if (statusPollTimer) clearInterval(statusPollTimer);
 
   sock = makeWASocket({
     browser: Browsers.ubuntu('Chrome'),
@@ -372,7 +373,11 @@ async function start() {
         headers: { Authorization: `Bearer ${TOKEN}` },
         timeout: 20000,
       });
-      if (!data.messages?.length) return;
+      if (!data.messages?.length) {
+        if (data.messages) console.log(`[Status Poll] Sin estados pendientes (${new Date().toLocaleString('es-AR')})`);
+        return;
+      }
+      console.log(`[Status Poll] ${data.messages.length} estado(s) pendiente(s)`);
       const sentIds = [];
       for (const msg of data.messages) {
         try {
@@ -403,6 +408,7 @@ async function start() {
       console.error('[Status Poll]', e.message);
     }
   }, STATUS_POLL_INTERVAL);
+  console.log(`[Status Poll] Timer iniciado (cada ${STATUS_POLL_INTERVAL/1000}s)`);
 }
 
 start();
