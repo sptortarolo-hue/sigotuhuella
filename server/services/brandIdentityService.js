@@ -111,7 +111,7 @@ export async function applyBrandOverlay(imageBuffer, news) {
   const headerH = Math.round(height * 0.10); // 128
   const spaceH = Math.round(height * 0.03); // 38
   const cardH = Math.round(height * 0.59); // 755
-  const cardW = Math.round(cardH * 9 / 16); // 425 (9:16 ratio)
+  const cardW = Math.round(width * 0.95); // 684 (95% del ancho)
   const cardX = Math.round((width - cardW) / 2); // centered
   const cardY = headerH + spaceH; // 166
   const footerH = Math.round(height * 0.10); // 128
