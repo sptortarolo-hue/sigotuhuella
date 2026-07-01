@@ -148,7 +148,7 @@ export default function VideoGeneratorTab() {
     format: 'vertical',
     voices: ['elena'] as string[],
     frame: 'none',
-    confetti: false,
+
   });
 
   const [petFilter, setPetFilter] = useState('');
@@ -379,7 +379,6 @@ export default function VideoGeneratorTab() {
       voice: config.voices.length === 1 ? config.voices[0] : 'both',
       voices: config.voices,
       frame: config.frame,
-      confetti: config.confetti,
       mode,
     };
 
@@ -974,22 +973,7 @@ export default function VideoGeneratorTab() {
         </div>
         </div>
 
-        <div className="mb-6">
-          <label className="block text-sm font-bold text-gray-600 mb-3">Extras</label>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              onClick={() => setConfig(c => ({ ...c, confetti: !c.confetti }))}
-              className={cn(
-                "flex-1 px-4 py-2.5 rounded-xl border-2 transition-all text-sm font-bold text-left",
-                config.confetti
-                  ? "border-brand-primary bg-brand-primary/5 text-brand-primary"
-                  : "border-brand-accent bg-brand-bg text-gray-700 hover:border-brand-primary/40"
-              )}
-            >
-              {config.confetti ? '🎉 Confetti ON' : '🎉 Confetti OFF'}
-            </button>
-          </div>
-        </div>
+
 
         <div className="mb-6">
           <label className="block text-sm font-bold text-gray-600 mb-2">

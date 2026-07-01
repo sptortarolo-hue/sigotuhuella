@@ -94,7 +94,6 @@ router.post('/generate', requireAuth, requireAdmin, async (req, res) => {
     voice = 'elena',
     voices,
     frame = 'none',
-    confetti = false,
     topic,
     selectedFeatures = [],
   } = req.body;
@@ -286,7 +285,6 @@ const title = mode === 'ai' || mode === 'promo' || mode === 'auto'
           voice,
           voices: Array.isArray(voices) && voices.length > 0 ? voices : [voice || 'elena'],
           frame,
-          confetti,
           scenes: resolvedScenes,
         }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Video generation timeout (8 minutes)')), 480_000)),

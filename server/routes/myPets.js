@@ -878,8 +878,6 @@ router.post('/:id/generate-video', requireAuth, async (req, res) => {
       format,
       scenes,
       frame: 'none',
-      stickers: true,
-      confetti: false,
     });
 
     const videoUrl = `/generated/videos/${result.filename}`;

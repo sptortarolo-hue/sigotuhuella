@@ -95,7 +95,6 @@ const CLOSING_DUR = 4;
 const FPS = 25;
 const FF_PRESET = 'veryfast';
 const FF_CRF = 17;
-const CONFETTI_DUR = 4;
 
 
 
@@ -310,7 +309,7 @@ function runFfmpeg(args, label) {
   });
 }
 
-async function generatePhotoClip(photoPath, clipDur, zoompan, dims, workDir, clipIndex) {
+async function generatePhotoClip(photoPath, clipDur, zoompan, dims, workDir, clipIndex, overlayText) {
   const clipPath = path.join(workDir, `clip_${clipIndex}.mp4`);
   const { w, h } = dims;
   const { zoomDir, zoomSpeed, panAmp } = zoompan;
@@ -332,7 +331,41 @@ async function generatePhotoClip(photoPath, clipDur, zoompan, dims, workDir, cli
 
   const totalFrames = Math.round(clipDur * FPS);
 
-  const filter = `zoompan=z='${zf}':x=${xf}:y=${yf}:d=${totalFrames}:s=${w}x${h}:fps=${FPS}`;
+  let filter = `zoompan=z='${zf}':x=${xf}:y=${yf}:d=${totalFrames}:s=${w}x${h}:fps=${FPS}`;
+
+  if (overlayText && overlayText.trim()) {
+    const fontPath = getFontPath();
+    const isVertical = h > w;
+    const fontSize = isVertical ? 80 : 60;
+    const lineSpacing = 8;
+    const maxChars = isVertical ? 20 : 30;
+    const animDur = 0.4;
+    const enableExpr = `between(t\\,${animDur}\\,${clipDur})`;
+    const slideOffset = 60;
+
+    const lines = wrapText(overlayText, maxChars);
+
+    const safeZoneBottom = isVertical ? Math.round(h * 0.76) : Math.round(h * 0.72);
+    const textBlockH = fontSize * lines.length + lineSpacing * (lines.length - 1) + 20;
+    const boxPad = 20;
+    const boxTotalH = textBlockH + boxPad * 2;
+    const textY = safeZoneBottom - boxTotalH;
+
+    const longLine = lines.reduce((a, b) => a.length > b.length ? a : b, '');
+    const estTextW = longLine.length * fontSize * 0.6;
+    const boxW = Math.min(Math.round(estTextW + boxPad * 2 + 20), Math.round(w * 0.88));
+    const boxX = Math.round((w - boxW) / 2);
+
+    filter += `,drawbox=x=${boxX}:y=${textY}:w=${boxW}:h=${boxTotalH}:color=black@0.65:t=fill:enable='${enableExpr}'`;
+
+    for (let li = 0; li < lines.length; li++) {
+      const escaped = escDrawText(lines[li]);
+      const yPos = textY + boxPad + li * (fontSize + lineSpacing);
+      const yExpr = `if(lt(t,${animDur}),${yPos+slideOffset}-t/${animDur}*${slideOffset},${yPos})`;
+      const ft = fontPath ? `:fontfile='${fontPath}'` : '';
+      filter += `,drawtext=text='${escaped}'${ft}:fontcolor=white:fontsize=${fontSize}:bordercolor=black:borderw=2:x=(w-tw)/2:y='${yExpr}':shadowcolor=black:shadowx=2:shadowy=2:enable='${enableExpr}'`;
+    }
+  }
 
   await runFfmpeg([
     '-y', '-i', photoPath,
@@ -344,56 +377,6 @@ async function generatePhotoClip(photoPath, clipDur, zoompan, dims, workDir, cli
   ], `zoompan-${clipIndex}`);
 
   return clipPath;
-}
-
-async function addDrawTextToClip(clipPath, overlayText, clipDur, dims, workDir, index) {
-  if (!overlayText || !overlayText.trim()) return clipPath;
-
-  const outPath = path.join(workDir, `text_${index}.mp4`);
-  const { w, h } = dims;
-  const fontPath = getFontPath();
-  const isVertical = h > w;
-  const fontSize = isVertical ? 80 : 60;
-  const lineSpacing = 8;
-  const maxChars = isVertical ? 20 : 30;
-  const animDur = 0.4;
-  const enableExpr = `between(t\\,${animDur}\\,${clipDur})`;
-  const slideOffset = 60;
-
-  const lines = wrapText(overlayText, maxChars);
-
-  const safeZoneBottom = isVertical ? Math.round(h * 0.76) : Math.round(h * 0.72);
-  const textBlockH = fontSize * lines.length + lineSpacing * (lines.length - 1) + 20;
-  const boxPad = 20;
-  const boxTotalH = textBlockH + boxPad * 2;
-  const textY = safeZoneBottom - boxTotalH;
-
-  const filt = [];
-  const longLine = lines.reduce((a, b) => a.length > b.length ? a : b, '');
-  const estTextW = longLine.length * fontSize * 0.6;
-  const boxW = Math.min(Math.round(estTextW + boxPad * 2 + 20), Math.round(w * 0.88));
-  const boxX = Math.round((w - boxW) / 2);
-
-  filt.push(`drawbox=x=${boxX}:y=${textY}:w=${boxW}:h=${boxTotalH}:color=black@0.65:t=fill:enable='${enableExpr}'`);
-
-  for (let li = 0; li < lines.length; li++) {
-    const escaped = escDrawText(lines[li]);
-    const yPos = textY + boxPad + li * (fontSize + lineSpacing);
-    const yExpr = `if(lt(t,${animDur}),${yPos+slideOffset}-t/${animDur}*${slideOffset},${yPos})`;
-    const ft = fontPath ? `:fontfile='${fontPath}'` : '';
-    filt.push(`drawtext=text='${escaped}'${ft}:fontcolor=white:fontsize=${fontSize}:bordercolor=black:borderw=2:x=(w-tw)/2:y='${yExpr}':shadowcolor=black:shadowx=2:shadowy=2:enable='${enableExpr}'`);
-  }
-
-  await runFfmpeg([
-    '-y', '-i', clipPath,
-    '-vf', filt.join(','),
-    '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
-    '-pix_fmt', 'yuv420p', '-an',
-    outPath,
-  ], `drawtext-${index}`);
-
-  try { fs.unlinkSync(clipPath); } catch {}
-  return outPath;
 }
 
 async function generateOpeningClip(dims, style, workDir, firstPhotoPath, hookText) {
@@ -515,7 +498,6 @@ async function applyPostProcessing(mainVideoPath, dims, style, workDir, config) 
   const { w, h } = dims;
   const {
     frame = 'none',
-    confetti = false,
     videoDuration,
   } = config;
 
@@ -562,29 +544,6 @@ async function applyPostProcessing(mainVideoPath, dims, style, workDir, config) 
   if (style === 'emotive') {
     const prev = lastStreamLabel(chains);
     chains.push(`[${prev}]vignette=angle=0.3:mode=forward,format=yuv420p[vigo]`);
-  }
-
-  // 5. Confetti
-  if (confetti) {
-    const closingStartTime = videoDuration - CLOSING_DUR;
-    const confettiVidPath = await generateConfettiVideo(dims, workDir);
-    if (confettiVidPath && fs.existsSync(confettiVidPath)) {
-      inputs.push('-i', confettiVidPath);
-      try {
-        const probe = await runFfmpegProbe(confettiVidPath);
-        const hasAlpha = probe.includes('yuva') || probe.includes('argb') || probe.includes('ya');
-        if (hasAlpha) {
-          chains.push(`[${inputIdx}:v]format=rgba,colorchannelmixer=aa=0.8,fade=in:st=0:d=0.5:alpha=1,fade=out:st=${CONFETTI_DUR-1}:d=1:alpha=1[conf]`);
-        } else {
-          chains.push(`[${inputIdx}:v]colorkey=0x000000:0.01:0.1,fade=in:st=0:d=0.5:alpha=1,fade=out:st=${CONFETTI_DUR-1}:d=1:alpha=1[conf]`);
-        }
-      } catch {
-        chains.push(`[${inputIdx}:v]colorkey=0x000000:0.01:0.1[conf]`);
-      }
-      const prev = lastStreamLabel(chains);
-      chains.push(`[${prev}][conf]overlay=0:0:enable='between(t,${closingStartTime},${closingStartTime+CONFETTI_DUR})':format=auto:eval=frame:eof_action=repeat,format=yuv420p[confo]`);
-      inputIdx++;
-    }
   }
 
   // Nothing to do? Just trim
@@ -756,236 +715,11 @@ const STYLE_COLOR_GRADING = {
   viral: 'eq=saturation=1.2:contrast=1.15:gamma=0.95',
 };
 
-async function addColorGrading(videoPath, style, workDir) {
-  const filter = STYLE_COLOR_GRADING[style];
-  if (!filter) return videoPath;
-  const outPath = path.join(workDir, 'graded.mp4');
-  try {
-    await runFfmpeg([
-      '-y', '-i', videoPath,
-      '-vf', `${filter},format=yuv420p`,
-      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
-      '-pix_fmt', 'yuv420p', '-an',
-      outPath,
-    ], 'color-grading');
-    try { fs.unlinkSync(videoPath); } catch {}
-    return outPath;
-  } catch (err) {
-    console.warn('[ColorGrading] Failed, skipping:', err.message);
-    return videoPath;
-  }
-}
 
-async function addVignette(videoPath, workDir) {
-  const outPath = path.join(workDir, 'vignette.mp4');
-  try {
-    await runFfmpeg([
-      '-y', '-i', videoPath,
-      '-vf', 'vignette=angle=0.3:mode=forward,format=yuv420p',
-      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
-      '-pix_fmt', 'yuv420p', '-an',
-      outPath,
-    ], 'vignette');
-    try { fs.unlinkSync(videoPath); } catch {}
-    return outPath;
-  } catch (err) {
-    console.warn('[Vignette] Failed, skipping:', err.message);
-    return videoPath;
-  }
-}
 
-async function addFrameOverlay(videoPath, frameType, dims, workDir) {
-  if (!frameType || frameType === 'none') return videoPath;
-  const { w, h } = dims;
-  const formatName = h > w ? 'vertical' : (w === h ? 'square' : 'landscape');
-  const framePath = path.join(FRAMES_DIR, `${frameType}-${formatName}.png`);
-  if (!fs.existsSync(framePath)) {
-    console.warn('[Frame] Frame file not found:', framePath);
-    return videoPath;
-  }
 
-  const outPath = path.join(workDir, 'framed.mp4');
-  const filterParts = [
-    `[1:v]format=rgba[frm]`,
-    `[0:v][frm]overlay=0:0:format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`,
-  ];
 
-  try {
-    await runFfmpeg([
-      '-y', '-i', videoPath, '-i', framePath,
-      '-filter_complex', filterParts.join(';'),
-      '-map', '[v]',
-      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
-      '-pix_fmt', 'yuv420p', '-an',
-      outPath,
-    ], 'frame-overlay');
-    try { fs.unlinkSync(videoPath); } catch {}
-    return outPath;
-  } catch (err) {
-    console.warn('[Frame] Failed, skipping:', err.message);
-    return videoPath;
-  }
-}
 
-let cachedConfettiPath = null;
-
-async function generateConfettiVideo(dims, workDir) {
-  if (cachedConfettiPath && fs.existsSync(cachedConfettiPath)) return cachedConfettiPath;
-  const { w, h } = dims;
-  const CONFETTI_DUR = 4;
-  const TOTAL_FRAMES = FPS * CONFETTI_DUR;
-  const NUM_PARTICLES = 50;
-  const COLORS_HEX = ['D48C70', '5A5A40', 'F5F5F0', 'E6E6DF', 'E8A598', '8B8B6E'];
-
-  const confettiCacheDir = path.join(OVERLAYS_DIR, 'confetti_cache');
-  fs.mkdirSync(confettiCacheDir, { recursive: true });
-  const cachedPath = path.join(confettiCacheDir, `confetti_${w}x${h}.mp4`);
-  if (fs.existsSync(cachedPath)) {
-    cachedConfettiPath = cachedPath;
-    return cachedPath;
-  }
-
-  const confettiFramesDir = path.join(workDir, 'confetti_frames');
-  fs.mkdirSync(confettiFramesDir, { recursive: true });
-
-  const particles = [];
-  for (let i = 0; i < NUM_PARTICLES; i++) {
-    particles.push({
-      x: Math.random() * w, y: Math.random() * h * -1,
-      size: 4 + Math.random() * 10,
-      color: COLORS_HEX[Math.floor(Math.random() * COLORS_HEX.length)],
-      vx: (Math.random() - 0.5) * 2, vy: 3 + Math.random() * 5,
-      rot: Math.random() * 360, rotV: (Math.random() - 0.5) * 8,
-      wobble: Math.random() * Math.PI * 2, shape: Math.floor(Math.random() * 3),
-    });
-  }
-  for (let i = 0; i < 20; i++) {
-    for (const p of particles) { p.y += p.vy; p.x += p.vx; p.rot += p.rotV; }
-  }
-
-  for (let f = 0; f < TOTAL_FRAMES; f++) {
-    const shapes = [];
-    for (const p of particles) {
-      p.y += p.vy; p.x += p.vx + Math.sin(p.wobble) * 1;
-      p.rot += p.rotV; p.wobble += 0.08; p.vy += 0.04;
-      if (p.y > h + 20) { p.y = -20 - Math.random() * 60; p.x = Math.random() * w; p.vy = 3 + Math.random() * 5; }
-      const s = p.size;
-      if (p.shape === 0) shapes.push(`<rect x="${p.x-s/2}" y="${p.y-s/2}" width="${s}" height="${s*0.6}" rx="1" fill="#${p.color}" transform="rotate(${p.rot},${p.x},${p.y})"/>`);
-      else if (p.shape === 1) shapes.push(`<circle cx="${p.x}" cy="${p.y}" r="${s/2}" fill="#${p.color}"/>`);
-      else shapes.push(`<polygon points="${p.x},${p.y-s/2} ${p.x+s*0.3},${p.y+s*0.2} ${p.x-s*0.3},${p.y+s*0.2}" fill="#${p.color}" transform="rotate(${p.rot},${p.x},${p.y})"/>`);
-    }
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${shapes.join('')}</svg>`;
-    await sharp(Buffer.from(svg)).png().toFile(path.join(confettiFramesDir, `f_${String(f).padStart(4,'0')}.png`));
-  }
-
-  const listPath = path.join(workDir, 'confetti_list.txt');
-  fs.writeFileSync(listPath, Array.from({ length: TOTAL_FRAMES }, (_, i) =>
-    `file '${path.join(confettiFramesDir, `f_${String(i).padStart(4,'0')}.png`).replace(/\\/g, '/')}'`
-  ).join('\n'));
-
-  await runFfmpeg([
-    '-y', '-f', 'concat', '-safe', '0', '-i', listPath,
-    '-c:v', 'qtrle', '-pix_fmt', 'argb', cachedPath,
-  ], 'confetti-cache-qtrle').catch(async () => {
-    console.log('[Confetti] qtrle not available, trying libprores_kar...');
-    await runFfmpeg([
-      '-y', '-f', 'concat', '-safe', '0', '-i', listPath,
-      '-c:v', 'prores_ks', '-profile:v', 4444, '-pix_fmt', 'yuva444p10le', cachedPath,
-    ], 'confetti-cache-prores').catch(async () => {
-      console.log('[Confetti] prores4444 not available, using yuv420p with colorkey');
-      await runFfmpeg([
-        '-y', '-f', 'concat', '-safe', '0', '-i', listPath,
-        '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
-        '-pix_fmt', 'yuv420p', '-an', cachedPath,
-      ], 'confetti-cache-h264');
-    });
-  });
-
-  try { rimraf.sync(confettiFramesDir); } catch {}
-  cachedConfettiPath = cachedPath;
-  return cachedPath;
-}
-
-async function addConfetti(videoPath, startTime, dims, workDir) {
-  const CONFETTI_DUR = 4;
-
-  try {
-    const confettiVidPath = await generateConfettiVideo(dims, workDir);
-    const outPath = path.join(workDir, 'with_confetti.mp4');
-
-    let filterParts;
-    try {
-      const probe = await runFfmpegProbe(confettiVidPath);
-      const hasAlpha = probe.includes('yuva') || probe.includes('argb') || probe.includes('ya');
-      if (hasAlpha) {
-        filterParts = [
-          `[1:v]format=rgba,colorchannelmixer=aa=0.8,fade=in:st=0:d=0.5:alpha=1,fade=out:st=${CONFETTI_DUR-1}:d=1:alpha=1[conf]`,
-          `[0:v][conf]overlay=0:0:enable='between(t,${startTime},${startTime+CONFETTI_DUR})':format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`,
-        ];
-      } else {
-        filterParts = [
-          `[1:v]colorkey=0x000000:0.01:0.1,fade=in:st=0:d=0.5:alpha=1,fade=out:st=${CONFETTI_DUR-1}:d=1:alpha=1[conf]`,
-          `[0:v][conf]overlay=0:0:enable='between(t,${startTime},${startTime+CONFETTI_DUR})':format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`,
-        ];
-      }
-    } catch {
-      filterParts = [
-        `[1:v]colorkey=0x000000:0.01:0.1[conf]`,
-        `[0:v][conf]overlay=0:0:enable='between(t,${startTime},${startTime+CONFETTI_DUR})':format=auto:eval=frame:eof_action=repeat,format=yuv420p[v]`,
-      ];
-    }
-
-    await runFfmpeg([
-      '-y', '-i', videoPath, '-i', confettiVidPath,
-      '-filter_complex', filterParts.join(';'),
-      '-map', '[v]',
-      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
-      '-pix_fmt', 'yuv420p', '-an', outPath,
-    ], 'confetti-overlay');
-    try { fs.unlinkSync(videoPath); } catch {}
-    return outPath;
-  } catch (err) {
-    console.warn('[Confetti] Failed, skipping:', err.message);
-    return videoPath;
-  }
-}
-
-async function runFfmpegProbe(filePath) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('ffprobe', ['-v', 'quiet', '-show_streams', filePath], { stdio: ['pipe', 'pipe', 'pipe'] });
-    let out = '';
-    proc.stdout.on('data', d => { out += d.toString(); });
-    proc.on('close', code => code === 0 ? resolve(out) : reject(new Error(`ffprobe exit ${code}`)));
-  });
-}
-
-async function addWatermarkAndFrame(videoPath, dims, workDir) {
-  const outPath = path.join(workDir, 'branded.mp4');
-  const { w, h } = dims;
-  const pad = Math.round(Math.min(w, h) * 0.03);
-
-  const hasLogo = fs.existsSync(LOGO_PATH);
-  if (!hasLogo) return videoPath;
-
-  const wmSize = Math.round(Math.min(w, h) * 0.10);
-
-  const filterParts = [];
-  filterParts.push(`[1:v]scale=${wmSize}:-1,format=rgba,colorchannelmixer=aa=0.60[wm]`);
-  filterParts.push(`[0:v][wm]overlay=W-w-${pad}:${pad}:format=auto,format=yuv420p[v]`);
-
-  await runFfmpeg([
-    '-y', '-i', videoPath,
-    '-i', LOGO_PATH,
-    '-filter_complex', filterParts.join(';'),
-    '-map', '[v]',
-    '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
-    '-pix_fmt', 'yuv420p', '-an',
-    outPath,
-  ], 'watermark');
-
-  try { fs.unlinkSync(videoPath); } catch {}
-  return outPath;
-}
 
 async function muxAudioVideo(videoPath, audioPath, outputPath, videoDuration) {
   console.log('[Mux] video:', videoPath, fs.existsSync(videoPath) ? fs.statSync(videoPath).size : 'missing');
@@ -1079,7 +813,6 @@ async function generateVideo(config) {
     scenes = [],
     voices = ['elena'],
     frame = 'none',
-    confetti = false,
   } = config;
 
   const dims = FORMAT_DIMS[format] || FORMAT_DIMS.vertical;
@@ -1145,13 +878,8 @@ async function generateVideo(config) {
 
   for (let i = 1; i < numPhotoScenes; i++) {
     const scene = photoScenes[i];
-    let clipPath = await generatePhotoClip(photoPaths[i], photoClipDur, zoompan, dims, workDir, i);
-    logStep(`photo clip ${i} zoompan`);
-
-    const overlayText = scene.overlayText || '';
-    clipPath = await addDrawTextToClip(clipPath, overlayText, photoClipDur, dims, workDir, i);
-    logStep(`photo clip ${i} drawtext`);
-
+    const clipPath = await generatePhotoClip(photoPaths[i], photoClipDur, zoompan, dims, workDir, i, scene.overlayText);
+    logStep(`photo clip ${i}`);
     mainClips.push(clipPath);
   }
 
@@ -1169,7 +897,6 @@ async function generateVideo(config) {
 
     mainVideoPath = await applyPostProcessing(mainVideoPath, dims, style, workDir, {
       frame,
-      confetti,
       videoDuration,
     });
     logStep('post-process (merged)');
