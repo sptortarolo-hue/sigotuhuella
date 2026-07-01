@@ -79,10 +79,11 @@ export async function sendListMessage(to, bodyText, rows, { buttonLabel = 'Ver o
         button: buttonLabel,
         sections: [{
           title: '🐾 Sigo Tu Huella',
-          rows: rows.map((r, i) => ({
-            id: String(r.id || i),
-            title: r.title.slice(0, 24),
-          })),
+          rows: rows.map((r, i) => {
+            const t = r.title.slice(0, 24);
+            console.log(`[sendListMessage] row#${i} id=${r.id} title=${JSON.stringify(t)} len=${t.length}`);
+            return { id: String(r.id || i), title: t };
+          }),
         }],
       },
     },

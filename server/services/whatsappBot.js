@@ -399,8 +399,8 @@ async function showWelcome(conv) {
 export async function showMenu(conv) {
   try {
     const rows = [
-      { id: 'report_lost', title: '📷 Perdí mi mascota' },
       { id: 'report_sighted', title: '🔍 Vi una mascota' },
+      { id: 'report_lost', title: '📷 Perdí mi mascota' },
       { id: 'report_found', title: '✅ Encontré una mascota' },
       { id: 'adopt', title: '🙋 Quiero adoptar' },
       { id: 'adopt_post', title: '🐾 Publicar en adopción' },
