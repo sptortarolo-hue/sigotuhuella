@@ -561,7 +561,7 @@ export default function Admin() {
 
   const fetchPets = async () => {
     try {
-      const data = await getPets();
+      const data = await getPets(undefined, true);
       setPets(data);
     } catch (e) { console.error(e); }
   };

@@ -80,8 +80,8 @@ export function formatPetDate(dateStr: string): Date {
   return new Date(dateStr);
 }
 
-export const getPets = async (status?: PetStatus): Promise<Pet[]> => {
-  const data = await api.pets.list(status);
+export const getPets = async (status?: PetStatus, includeHidden?: boolean): Promise<Pet[]> => {
+  const data = await api.pets.list(status, includeHidden);
   return data.pets || [];
 };
 

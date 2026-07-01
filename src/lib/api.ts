@@ -62,7 +62,7 @@ export const api = {
       request('/auth/link-google', { method: 'POST', body: JSON.stringify({ credential, password }) }),
   },
   pets: {
-    list: (status?: string) => request(`/pets${status ? `?status=${status}` : ''}`),
+    list: (status?: string, includeHidden?: boolean) => request(`/pets${status ? `?status=${status}` : ''}${includeHidden ? `${status ? '&' : '?'}include_hidden=true` : ''}`),
     listPublic: () => request('/pets?public=true'),
     get: (id: string) => request(`/pets/${id}`),
     create: (data: any) => request('/pets', { method: 'POST', body: JSON.stringify(data) }),

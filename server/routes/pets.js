@@ -306,7 +306,7 @@ const router = Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { status, isPublic, limit } = req.query;
+    const { status, isPublic, limit, include_hidden } = req.query;
     let query = `
       SELECT p.*, 
         COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
@@ -319,7 +319,9 @@ router.get('/', async (req, res) => {
       params.push(status);
       conditions.push(`p.status = $${params.length}`);
     }
-    conditions.push(`(p.is_hidden = FALSE OR p.is_hidden IS NULL)`);
+    if (include_hidden !== 'true') {
+      conditions.push(`(p.is_hidden = FALSE OR p.is_hidden IS NULL)`);
+    }
     if (isPublic === 'true') {
       conditions.push(`p.created_by IS NULL`);
     }
@@ -350,7 +352,7 @@ router.get('/:id', async (req, res) => {
       GROUP BY p.id`,
       [req.params.id]
     );
-    if (result.rows.length === 0) {
+    if (result.rows.length === 0 || result.rows[0].is_hidden) {
       return res.status(404).json({ error: 'Pet not found' });
     }
     res.json({ pet: result.rows[0] });
@@ -1132,7 +1134,7 @@ router.put('/link-case', requireAuth, async (req, res) => {
       'UPDATE pets SET created_by = $1 WHERE case_number = $2 AND created_by IS NULL RETURNING id, case_number',
       [req.user.id, caseNumber]
     );
-    if (result.rows.length === 0 || result.rows[0].is_hidden) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Pet not found' });
     }
     res.json({ pet: result.rows[0] });
