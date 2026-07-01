@@ -161,6 +161,8 @@ export default function Admin() {
   const [showBrandPanel, setShowBrandPanel] = useState(false);
   const [publishPlatforms, setPublishPlatforms] = useState<string[]>([]);
   const [showPlatformPicker, setShowPlatformPicker] = useState<string | null>(null);
+  const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
 
   // Banner state
   const [bannerChapitaVisible, setBannerChapitaVisible] = useState(true);
@@ -503,6 +505,8 @@ export default function Admin() {
 
   const handlePublishWithPicker = (id: string) => {
     setPublishPlatforms(['instagram', 'facebook_page', 'whatsapp', 'status']);
+    setPreviewLoaded(false);
+    setPreviewError(false);
     setShowPlatformPicker(id);
   };
 
@@ -2760,8 +2764,32 @@ export default function Admin() {
         {showPlatformPicker && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPlatformPicker(null)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-6 sm:p-8">
-              <h3 className="text-xl font-serif font-bold text-brand-primary mb-4">Publicar en</h3>
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl p-6 sm:p-8">
+              <h3 className="text-xl font-serif font-bold text-brand-primary mb-4">Publicar novedad</h3>
+
+              {/* Preview image */}
+              <div className="flex justify-center mb-6 bg-gray-50 rounded-xl border border-brand-accent overflow-hidden min-h-[200px]">
+                {!previewLoaded && !previewError && (
+                  <div className="flex flex-col items-center justify-center gap-2 py-10">
+                    <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
+                    <span className="text-xs text-gray-400">Generando preview...</span>
+                  </div>
+                )}
+                {previewError && (
+                  <div className="flex flex-col items-center justify-center gap-2 py-10">
+                    <span className="text-xs text-red-400">No se pudo generar la vista previa</span>
+                  </div>
+                )}
+                <img
+                  src={`/api/news/${showPlatformPicker}/publish-image`}
+                  onLoad={() => { setPreviewLoaded(true); setPreviewError(false); }}
+                  onError={() => { setPreviewLoaded(true); setPreviewError(true); }}
+                  className={`max-h-[50vh] w-auto max-w-full object-contain ${previewLoaded ? '' : 'hidden'}`}
+                  alt="Preview"
+                />
+              </div>
+
+              {/* Platform checkboxes */}
               <div className="space-y-3 mb-6">
                 {Object.entries(platformIcons).map(([key, { icon, label }]) => (
                   <label key={key} className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-brand-accent hover:bg-brand-bg/50 transition-colors">
@@ -2776,6 +2804,8 @@ export default function Admin() {
                   </label>
                 ))}
               </div>
+
+              {/* Buttons */}
               <div className="flex gap-3">
                 <button onClick={() => setShowPlatformPicker(null)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-colors">Cancelar</button>
                 <button onClick={confirmPublish} disabled={publishPlatforms.length === 0} className="flex-1 py-3 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all disabled:opacity-50">
