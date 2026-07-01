@@ -107,7 +107,17 @@ export async function applyBrandOverlay(imageBuffer, news) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // Background
+  // Layout: header 10%, card 59% (9:16), title 15%, footer 10%
+  const headerH = Math.round(height * 0.10); // 128
+  const spaceH = Math.round(height * 0.03); // 38
+  const cardH = Math.round(height * 0.59); // 755
+  const cardW = Math.round(cardH * 9 / 16); // 425 (9:16 ratio)
+  const cardX = Math.round((width - cardW) / 2); // centered
+  const cardY = headerH + spaceH; // 166
+  const footerH = Math.round(height * 0.10); // 128
+  const titleTop = height - footerH - Math.round(height * 0.15); // ~959
+  const contentSectionTop = titleTop; // 959
+
   if (imageBuffer && imageBuffer.length > 0) {
     const blurred = await sharp(imageBuffer)
       .resize(width, height, { fit: 'cover', position: 'attention' })
@@ -116,26 +126,31 @@ export async function applyBrandOverlay(imageBuffer, news) {
     const bgImg = await loadImage(blurred);
     ctx.drawImage(bgImg, 0, 0, width, height);
 
-    const cardW = 640;
-    const cardH = 360;
-    const cardX = (width - cardW) / 2;
-    const cardY = 110;
-    const resized = await sharp(imageBuffer)
-      .resize(cardW, cardH, { fit: 'cover', position: 'attention' })
+    // Card background: blur fill
+    ctx.drawImage(bgImg, cardX, cardY, cardW, cardH, cardX, cardY, cardW, cardH);
+
+    // Image centered within card (fit:inside = sin recortar)
+    const mainResized = await sharp(imageBuffer)
+      .resize({ width: cardW, height: cardH, fit: 'inside' })
       .toBuffer();
-    const cardImg = await loadImage(resized);
+    const mainImg = await loadImage(mainResized);
     ctx.save();
     roundRect(ctx, cardX, cardY, cardW, cardH, 20);
     ctx.clip();
-    ctx.drawImage(cardImg, cardX, cardY, cardW, cardH);
+    const imgOffX = cardX + (cardW - mainImg.width) / 2;
+    const imgOffY = cardY + (cardH - mainImg.height) / 2;
+    ctx.drawImage(mainImg, imgOffX, imgOffY, mainImg.width, mainImg.height);
     ctx.restore();
 
-    const darkGrad = ctx.createLinearGradient(0, 400, 0, height);
-    darkGrad.addColorStop(0, 'rgba(0,0,0,0)');
-    darkGrad.addColorStop(0.6, 'rgba(0,0,0,0.25)');
-    darkGrad.addColorStop(1, 'rgba(0,0,0,0.55)');
-    ctx.fillStyle = darkGrad;
-    ctx.fillRect(0, 400, width, height - 400);
+    // Gradiente transicion ultimos 60px del card + espacio
+    const gradTop = cardY + cardH - 60;
+    const gradBot = cardY + cardH + spaceH;
+    const gradH = gradBot - gradTop;
+    const overlapGrad = ctx.createLinearGradient(0, gradTop, 0, gradBot);
+    overlapGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    overlapGrad.addColorStop(1, 'rgba(0,0,0,0.5)');
+    ctx.fillStyle = overlapGrad;
+    ctx.fillRect(0, gradTop, width, gradH);
   } else {
     const bgGrad = ctx.createLinearGradient(0, 0, width, height);
     bgGrad.addColorStop(0, hexToRgba(brand.primaryColor, 0.08));
@@ -149,11 +164,11 @@ export async function applyBrandOverlay(imageBuffer, news) {
   headerGrad.addColorStop(0, hexToRgba(brand.primaryColor, 0.92));
   headerGrad.addColorStop(1, hexToRgba(brand.secondaryColor, 0.85));
   ctx.fillStyle = headerGrad;
-  ctx.fillRect(0, 0, width, 80);
+  ctx.fillRect(0, 0, width, headerH);
 
   // Footer bar
   ctx.fillStyle = headerGrad;
-  ctx.fillRect(0, height - 60, width, 60);
+  ctx.fillRect(0, height - footerH, width, footerH);
 
   // Logo
   if (brand.logo) {
@@ -162,10 +177,10 @@ export async function applyBrandOverlay(imageBuffer, news) {
       const logoImg = await loadImage(logoBuf);
       ctx.save();
       ctx.beginPath();
-      ctx.arc(44, 40, 24, 0, Math.PI * 2);
+      ctx.arc(44, headerH / 2, 24, 0, Math.PI * 2);
       ctx.closePath();
       ctx.clip();
-      ctx.drawImage(logoImg, 20, 16, 48, 48);
+      ctx.drawImage(logoImg, 20, headerH / 2 - 24, 48, 48);
       ctx.restore();
     } catch (e) {
       console.error('Brand logo draw error:', e.message);
@@ -176,46 +191,57 @@ export async function applyBrandOverlay(imageBuffer, news) {
   ctx.font = 'bold 20px sans-serif';
   ctx.fillStyle = '#FFFFFF';
   ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
   const sigX = brand.logo ? 85 : 40;
-  ctx.fillText(brand.signature, sigX, 40);
+  ctx.fillText(brand.signature, sigX, headerH / 2);
 
-  // Badge
-  ctx.fillStyle = hexToRgba(badge.bg, 0.9);
-  roundRect(ctx, width - 160, 20, 140, 40, 20);
-  ctx.fill();
-  ctx.font = 'bold 15px sans-serif';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.textAlign = 'center';
-  ctx.fillText(badge.label, width - 90, 40);
+  // ── Content section (titleTop → height - footerH) ──
 
-  // Title
   ctx.textAlign = 'center';
+
+  // Badge centrado
   ctx.textBaseline = 'middle';
-  ctx.font = 'bold 28px sans-serif';
+  ctx.fillStyle = hexToRgba(badge.bg, 0.9);
+  const badgeW = 140;
+  const badgeH = 32;
+  const badgeX = (width - badgeW) / 2;
+  const badgeY = contentSectionTop + 24;
+  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 16);
+  ctx.fill();
+  ctx.font = 'bold 13px sans-serif';
   ctx.fillStyle = '#FFFFFF';
-  const titleY = 530;
+  ctx.fillText(badge.label, width / 2, badgeY + badgeH / 2);
+
+  // Titulo auto-escalable (28px→16px segun ancho)
+  const titleText = news.title || '';
   const maxTitleW = 600;
-  const titleText = truncateText(news.title, 35);
-  if (ctx.measureText(titleText).width > maxTitleW) {
-    wrapText(ctx, titleText, width / 2, titleY, maxTitleW, 36, 2);
+  let fontSize = 28;
+  while (fontSize > 16) {
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    if (ctx.measureText(titleText).width <= maxTitleW) break;
+    fontSize--;
+  }
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  ctx.fillStyle = '#FFFFFF';
+  const titleCenterY = contentSectionTop + 110;
+  if (ctx.measureText(titleText).width <= maxTitleW) {
+    ctx.fillText(titleText, width / 2, titleCenterY);
   } else {
-    ctx.fillText(titleText, width / 2, titleY);
+    wrapText(ctx, titleText, width / 2, titleCenterY - fontSize / 2, maxTitleW, fontSize + 6, 2);
   }
 
-  // Date
-  ctx.font = '16px sans-serif';
+  // Fecha
+  ctx.font = '14px sans-serif';
   ctx.fillStyle = '#D1D5DB';
   ctx.fillText(
     new Date(news.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }),
-    width / 2, titleY + 50
+    width / 2, contentSectionTop + 155
   );
 
-  // Footer text
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = '15px sans-serif';
+  // CTA en footer
+  ctx.font = '14px sans-serif';
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(brand.ctaText + ' ' + FRONTEND_URL, width / 2, height - 30);
+  ctx.fillText(brand.ctaText + ' ' + FRONTEND_URL, width / 2, height - footerH / 2);
 
   return canvas.toBuffer('image/jpeg', { quality: 85 });
 }
