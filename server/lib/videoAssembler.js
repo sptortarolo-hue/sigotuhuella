@@ -661,7 +661,7 @@ async function generateOpeningClip(dims, style, workDir, firstPhotoPath, hookTex
 
   const filterParts = [];
 
-  filterParts.push(`scale=${w}:${h}:force_original_aspect_ratio=1.333,crop=${w}:${h},setsar=1`);
+  filterParts.push(`scale=${w}:${h}:force_original_aspect_ratio=2,crop=${w}:${h},setsar=1`);
 
   filterParts.push(`drawbox=x=0:y=0:w=${w}:h=${h}:color=black@0.30:t=fill`);
 
