@@ -1,6 +1,7 @@
 import axios from 'axios';
 import pool from '../db.js';
 import { enqueue } from './phoneRelayService.js';
+import { publishPetAsStatus } from './whatsappStatusService.js';
 import { generateCelebrationText } from './textTemplates.js';
 import { enqueuePublishTask, applySpintax } from './facebookRelayService.js';
 
@@ -388,6 +389,10 @@ export async function broadcastPetToGroups(petId) {
         }
       }
     }
+
+    publishPetAsStatus(pet, caption).catch(err =>
+      console.error('[Broadcast] Status publish error:', err.message)
+    );
   } catch (err) {
     console.error('[Broadcast] Error:', err.message);
   }
@@ -475,6 +480,10 @@ export async function broadcastNextAdoptionPet(existingPet = null) {
       await pool.query('UPDATE pets SET adoption_broadcasted_at = NOW() WHERE id = $1', [pet.id]);
     }
     console.log(`[AdoptionBroadcast] Broadcast "${pet.name}" (${pet.id}) to ${groups.length} groups`);
+
+    publishPetAsStatus(pet, caption).catch(err =>
+      console.error('[AdoptionBroadcast] Status publish error:', err.message)
+    );
   } catch (err) {
     console.error('[AdoptionBroadcast] Error:', err.message);
   }

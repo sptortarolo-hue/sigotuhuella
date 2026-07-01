@@ -9,6 +9,7 @@ const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
 const POLL_INTERVAL = 30000;
+const STATUS_POLL_INTERVAL = 60000;
 const MAX_RETRIES = 3;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const PREWARM_DELAY = 2000;
@@ -19,6 +20,7 @@ const knownContacts = new Set();
 const recent463Jids = new Map();
 let sock = null;
 let pollTimer = null;
+let statusPollTimer = null;
 let reconnectCount = 0;
 
 const timelock = {
@@ -363,6 +365,44 @@ async function start() {
       console.error('[Poll]', e.message);
     }
   }, POLL_INTERVAL);
+
+  statusPollTimer = setInterval(async () => {
+    try {
+      const { data } = await axios.get(`${VPS_URL}/api/relay/pending-status`, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+        timeout: 20000,
+      });
+      if (!data.messages?.length) return;
+      const sentIds = [];
+      for (const msg of data.messages) {
+        try {
+          if (msg.image_url) {
+            const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });
+            await sock.sendMessage('status@broadcast', {
+              image: Buffer.from(imgResp.data),
+              caption: msg.text || '',
+            });
+          } else {
+            await sock.sendMessage('status@broadcast', { text: msg.text });
+          }
+          sentIds.push(msg.id);
+          console.log(`[Status] Publicado: ${(msg.text || '').slice(0, 60)}`);
+        } catch (e) {
+          console.error(`[Status] Error publicando:`, e.message);
+          await axios.post(`${VPS_URL}/api/relay/failed`, { ids: [msg.id] }, {
+            headers: { Authorization: `Bearer ${TOKEN}` },
+            timeout: 10000,
+          }).catch(() => {});
+        }
+      }
+      if (sentIds.length) await axios.post(`${VPS_URL}/api/relay/sent`, { ids: sentIds }, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+        timeout: 10000,
+      });
+    } catch (e) {
+      console.error('[Status Poll]', e.message);
+    }
+  }, STATUS_POLL_INTERVAL);
 }
 
 start();

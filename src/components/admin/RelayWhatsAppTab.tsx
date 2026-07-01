@@ -81,6 +81,10 @@ export default function RelayWhatsAppTab() {
   const [broadcastPetPreview, setBroadcastPetPreview] = useState('');
   const [forceAdoptionsLoading, setForceAdoptionsLoading] = useState(false);
   const [forceAdoptionsResult, setForceAdoptionsResult] = useState('');
+  const [waStatusEnabled, setWaStatusEnabled] = useState(false);
+  const [waStatusToggling, setWaStatusToggling] = useState(false);
+  const [statusHistory, setStatusHistory] = useState<any[]>([]);
+  const [statusHistoryLoading, setStatusHistoryLoading] = useState(false);
   const [clearingQueue, setClearingQueue] = useState(false);
 
   // Groups management state
@@ -233,6 +237,9 @@ export default function RelayWhatsAppTab() {
     api.settings.get('wa_adoption_broadcast_hours').then(v => {
       setWaAdoptionHours(v || '8,12,16,20');
     }).catch(() => {});
+    api.settings.get('wa_status_enabled').then(v => {
+      if (v === 'true') setWaStatusEnabled(true);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -343,6 +350,34 @@ export default function RelayWhatsAppTab() {
       setWaAdoptionToggling(false);
     }
   };
+
+  const handleWaStatusToggle = async () => {
+    setWaStatusToggling(true);
+    try {
+      const newValue = waStatusEnabled ? 'false' : 'true';
+      await api.settings.update('wa_status_enabled', newValue);
+      setWaStatusEnabled(!waStatusEnabled);
+    } catch (e) {
+      console.error('Error toggling WA status:', e);
+    } finally {
+      setWaStatusToggling(false);
+    }
+  };
+
+  const fetchStatusHistory = async () => {
+    setStatusHistoryLoading(true);
+    try {
+      const data = await api.whatsappRelay.statusHistory();
+      setStatusHistory(data);
+    } catch (e) { /* ignore */ }
+    setStatusHistoryLoading(false);
+  };
+
+  useEffect(() => {
+    fetchStatusHistory();
+    const interval = setInterval(fetchStatusHistory, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleForceAdoptions = async () => {
     setForceAdoptionsLoading(true);
@@ -659,6 +694,55 @@ export default function RelayWhatsAppTab() {
               <span className="text-sm font-medium">{forceAdoptionsResult}</span>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* WhatsApp Status Toggle */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Globe className="w-5 h-5 text-blue-500" />
+            <div>
+              <h3 className="text-lg font-bold">Publicar como Estado de WhatsApp</h3>
+              <p className="text-sm text-gray-500">
+                Cada broadcast a grupos también se publica automáticamente como Estado (24h)
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleWaStatusToggle}
+            disabled={waStatusToggling}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors shrink-0 ${waStatusEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+          >
+            {waStatusToggling && <Loader2 className="absolute left-1 w-5 h-5 animate-spin text-white" />}
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${waStatusEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+
+        {/* Status History */}
+        <div className="mt-4 border-t border-brand-accent pt-4">
+          <h4 className="text-sm font-bold text-gray-600 mb-3">Últimos estados publicados</h4>
+          {statusHistoryLoading ? (
+            <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-brand-primary" /></div>
+          ) : statusHistory.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">No hay estados publicados aún</p>
+          ) : (
+            <div className="space-y-2">
+              {statusHistory.map((s: any) => (
+                <div key={s.id} className="flex items-start gap-3 p-3 bg-brand-bg rounded-xl text-sm">
+                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${s.status === 'sent' ? 'bg-green-500' : s.status === 'failed' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-gray-700 line-clamp-2">{(s.text || '').substring(0, 120)}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(s.created_at).toLocaleString('es-AR')}
+                      {s.sent_at && ` · Publicado ${new Date(s.sent_at).toLocaleString('es-AR')}`}
+                    </p>
+                  </div>
+                  {s.image_url && <Globe className="w-4 h-4 text-gray-400 shrink-0 mt-1" />}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

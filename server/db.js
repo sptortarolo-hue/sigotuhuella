@@ -807,6 +807,18 @@ export async function initDb() {
     `, 'relay_messages image_url');
 
     await migrate(client, `
+      ALTER TABLE relay_messages ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'message'
+    `, 'relay_messages type');
+
+    await migrate(client, `
+      ALTER TABLE relay_messages ALTER COLUMN wa_to DROP NOT NULL
+    `, 'relay_messages wa_to nullable');
+
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('wa_status_enabled', 'true') ON CONFLICT (key) DO NOTHING
+    `, 'wa_status_enabled');
+
+    await migrate(client, `
       ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS auto_broadcast BOOLEAN DEFAULT TRUE
     `, 'whatsapp_groups auto_broadcast');
 

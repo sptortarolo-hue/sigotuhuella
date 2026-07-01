@@ -40,6 +40,7 @@ export const api = {
     pendingMessages: () => request('/relay/pending-list'),
     recentSent: () => request('/relay/recent-sent'),
     deleteMessage: (id: string) => request(`/relay/message/${id}`, { method: 'DELETE' }),
+    statusHistory: () => request('/relay/status-history'),
   },
   get: (path: string) => request(path),
   post: (path: string, body?: any) => request(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
