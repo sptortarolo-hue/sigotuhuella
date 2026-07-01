@@ -11,14 +11,45 @@ export async function getBrandSettings() {
     [keys]
   );
   const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  const logoSetting = map.brand_logo || '';
+  let logo = null;
+  if (logoSetting) {
+    logo = logoSetting;
+  }
   return {
-    primaryColor: map.brand_primary_color || '#7C3AED',
-    secondaryColor: map.brand_secondary_color || '#F59E0B',
-    logo: map.brand_logo || null,
-    defaultHashtags: map.brand_default_hashtags || '#SigoTuHuella',
+    primaryColor: map.brand_primary_color || '#5A5A40',
+    secondaryColor: map.brand_secondary_color || '#D48C70',
+    logo,
+    defaultHashtags: map.brand_default_hashtags || '#AdoptaNoCompres #SigoTuHuella #MascotasPerdidas',
     signature: map.brand_signature || 'Sigo tu Huella',
     ctaText: map.brand_cta_text || 'Conocé más en',
   };
+}
+
+export async function getAutoPublishSettings() {
+  const keys = ['news_auto_publish_enabled', 'news_auto_publish_platforms'];
+  const { rows } = await pool.query(
+    `SELECT key, value FROM settings WHERE key = ANY($1::text[])`,
+    [keys]
+  );
+  const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  let platforms = ['instagram', 'facebook_page', 'whatsapp', 'status'];
+  try { platforms = JSON.parse(map.news_auto_publish_platforms || '[]'); } catch {}
+  return {
+    enabled: map.news_auto_publish_enabled !== 'false',
+    platforms,
+  };
+}
+
+export async function saveAutoPublishSettings(settings) {
+  await pool.query(
+    `INSERT INTO settings (key, value) VALUES ('news_auto_publish_enabled', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
+    [settings.enabled ? 'true' : 'false']
+  );
+  await pool.query(
+    `INSERT INTO settings (key, value) VALUES ('news_auto_publish_platforms', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
+    [JSON.stringify(settings.platforms || [])]
+  );
 }
 
 export async function saveBrandSettings(settings) {
@@ -43,7 +74,7 @@ export async function saveBrandSettings(settings) {
 const typeBadge = {
   reunited: { label: 'Reencuentro', bg: '#10B981' },
   adopted: { label: 'Adopción', bg: '#3B82F6' },
-  manual: { label: 'Novedad', bg: '#7C3AED' },
+  manual: { label: 'Novedad', bg: '#5A5A40' },
 };
 
 export async function applyBrandOverlay(imageBuffer, news) {

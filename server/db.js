@@ -1013,16 +1013,16 @@ export async function initDb() {
     `, 'news_publications unique');
 
     await migrate(client, `
-      INSERT INTO settings (key, value) VALUES ('brand_primary_color', '#7C3AED') ON CONFLICT (key) DO NOTHING
+      INSERT INTO settings (key, value) VALUES ('brand_primary_color', '#5A5A40') ON CONFLICT (key) DO NOTHING
     `, 'brand_primary_color');
     await migrate(client, `
-      INSERT INTO settings (key, value) VALUES ('brand_secondary_color', '#F59E0B') ON CONFLICT (key) DO NOTHING
+      INSERT INTO settings (key, value) VALUES ('brand_secondary_color', '#D48C70') ON CONFLICT (key) DO NOTHING
     `, 'brand_secondary_color');
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('brand_logo', '') ON CONFLICT (key) DO NOTHING
     `, 'brand_logo');
     await migrate(client, `
-      INSERT INTO settings (key, value) VALUES ('brand_default_hashtags', '#SigoTuHuella') ON CONFLICT (key) DO NOTHING
+      INSERT INTO settings (key, value) VALUES ('brand_default_hashtags', '#AdoptaNoCompres #SigoTuHuella #MascotasPerdidas') ON CONFLICT (key) DO NOTHING
     `, 'brand_default_hashtags');
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('brand_signature', 'Sigo tu Huella') ON CONFLICT (key) DO NOTHING
@@ -1030,6 +1030,12 @@ export async function initDb() {
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('brand_cta_text', 'Conocé más en') ON CONFLICT (key) DO NOTHING
     `, 'brand_cta_text');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('news_auto_publish_enabled', 'true') ON CONFLICT (key) DO NOTHING
+    `, 'news_auto_publish_enabled');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('news_auto_publish_platforms', '["instagram","facebook_page","whatsapp","status"]') ON CONFLICT (key) DO NOTHING
+    `, 'news_auto_publish_platforms');
 
     console.log('Database migrations complete');
   } finally {

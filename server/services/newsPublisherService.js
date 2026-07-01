@@ -1,5 +1,5 @@
 import pool from '../db.js';
-import { applyBrandOverlay, generatePlatformContent, getBrandSettings } from './brandIdentityService.js';
+import { applyBrandOverlay, generatePlatformContent, getBrandSettings, getAutoPublishSettings } from './brandIdentityService.js';
 import { getStoredToken, isConnected, createContainer, publishContainer, waitForContainer } from './instagramService.js';
 import { publishNewsToPage, publishNewsToGroups } from './facebookPublisher.js';
 import { enqueue } from './phoneRelayService.js';
@@ -155,13 +155,21 @@ async function publishToStatus(news) {
   }
 }
 
-export async function publishNewsToAll(newsId) {
+export async function publishNewsToAll(newsId, platforms) {
   try {
     const { rows } = await pool.query('SELECT * FROM news WHERE id = $1', [newsId]);
     if (rows.length === 0) return { error: 'News not found' };
     const news = rows[0];
 
-    const platforms = [
+    if (!platforms) {
+      const auto = await getAutoPublishSettings();
+      if (!auto.enabled) {
+        return { info: 'Auto-publish disabled' };
+      }
+      platforms = auto.platforms;
+    }
+
+    const platformFns = [
       { name: 'instagram', fn: publishToInstagram },
       { name: 'facebook_page', fn: publishToFacebook },
       { name: 'whatsapp', fn: publishToWhatsApp },
@@ -170,7 +178,11 @@ export async function publishNewsToAll(newsId) {
 
     const results = {};
 
-    for (const { name, fn } of platforms) {
+    for (const { name, fn } of platformFns) {
+      if (!platforms.includes(name)) {
+        results[name] = { success: true, skipped: true };
+        continue;
+      }
       try {
         if (!(await shouldPublish(newsId, name))) {
           results[name] = { success: true, skipped: true };

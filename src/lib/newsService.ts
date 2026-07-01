@@ -68,6 +68,8 @@ export interface BrandSettings {
   defaultHashtags: string;
   signature: string;
   ctaText: string;
+  enabled: boolean;
+  platforms: string[];
 }
 
 export const publishNews = async (id: string) => {

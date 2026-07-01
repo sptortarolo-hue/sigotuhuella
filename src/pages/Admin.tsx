@@ -30,7 +30,7 @@ import BrandSettingsTab from '@/src/components/admin/BrandSettingsTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, Palette
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, Palette, ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -42,7 +42,7 @@ import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'brand' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -158,6 +158,9 @@ export default function Admin() {
   const [aiTopic, setAiTopic] = useState('');
   const [newsPublications, setNewsPublications] = useState<Record<string, NewsPublication[]>>({});
   const [publishingNews, setPublishingNews] = useState<string | null>(null);
+  const [showBrandPanel, setShowBrandPanel] = useState(false);
+  const [publishPlatforms, setPublishPlatforms] = useState<string[]>([]);
+  const [showPlatformPicker, setShowPlatformPicker] = useState<string | null>(null);
 
   // Banner state
   const [bannerChapitaVisible, setBannerChapitaVisible] = useState(true);
@@ -389,6 +392,7 @@ export default function Admin() {
     setAiType('consejo_cuidado');
     setAiTopic('');
     setEditingNews(null);
+    setPublishPlatforms(['instagram', 'facebook_page', 'whatsapp', 'status']);
   };
 
   const editNews = (item: News) => {
@@ -451,6 +455,7 @@ export default function Admin() {
         title: newsFormData.title,
         content: newsFormData.content,
         videoUrl: newsFormData.videoUrl || null,
+        platforms: publishPlatforms,
       };
       if (newsImageData && newsMimeType) {
         payload.imageData = newsImageData;
@@ -484,16 +489,28 @@ export default function Admin() {
     setNewsPublications(results);
   };
 
-  const handlePublishNews = async (id: string) => {
+  const handlePublishNews = async (id: string, platforms?: string[]) => {
     setPublishingNews(id);
     try {
-      await publishNews(id);
+      await api.news.publish(id, platforms);
       await fetchNewsPublications(newsList);
     } catch (e: any) {
       alert(e.message || 'Error al publicar');
     } finally {
       setPublishingNews(null);
     }
+  };
+
+  const handlePublishWithPicker = (id: string) => {
+    setPublishPlatforms(['instagram', 'facebook_page', 'whatsapp', 'status']);
+    setShowPlatformPicker(id);
+  };
+
+  const confirmPublish = async () => {
+    const id = showPlatformPicker;
+    if (!id) return;
+    setShowPlatformPicker(null);
+    await handlePublishNews(id, publishPlatforms);
   };
 
   const platformIcons: Record<string, { icon: string; label: string }> = {
@@ -897,7 +914,6 @@ export default function Admin() {
           { id: 'users', label: 'Usuarios', icon: UserCog },
           { id: 'highlights', label: 'Noticias Destacadas', icon: HeartHandshake },
           { id: 'news', label: 'Novedades', icon: Sparkles },
-          { id: 'brand', label: 'Identidad', icon: Palette },
           { id: 'public', label: 'Reportes Públicos', icon: FileText },
           { id: 'whatsapp', label: 'WhatsApp (Meta)', icon: MessageSquare },
           { id: 'relay-whatsapp', label: 'WhatsApp Relay', icon: Smartphone },
@@ -1275,14 +1291,16 @@ export default function Admin() {
                                 <span key={key} className={`text-xs ${color} cursor-help`} title={title}>{icon}</span>
                               );
                             })}
-                            <button
-                              onClick={() => handlePublishNews(item.id)}
-                              disabled={publishingNews === item.id}
-                              className={`p-1 rounded-lg transition-colors ${publishingNews === item.id ? 'text-gray-300 animate-pulse' : 'text-brand-primary hover:bg-brand-accent'}`}
-                              title="Publicar ahora"
-                            >
-                              {publishingNews === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                            </button>
+                            <div className="relative">
+                              <button
+                                onClick={() => handlePublishWithPicker(item.id)}
+                                disabled={publishingNews === item.id}
+                                className={`p-1 rounded-lg transition-colors ${publishingNews === item.id ? 'text-gray-300 animate-pulse' : 'text-brand-primary hover:bg-brand-accent'}`}
+                                title="Publicar en plataformas"
+                              >
+                                {publishingNews === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-xs text-gray-400">{new Date(item.created_at).toLocaleDateString()}</td>
@@ -1303,12 +1321,26 @@ export default function Admin() {
                   </div>
                 )}
               </div>
-            </>
-          )}
 
-          {/* ====== IDENTIDAD DE MARCA ====== */}
-          {activeTab === 'brand' && (
-            <BrandSettingsTab />
+              {/* ====== IDENTIDAD DE MARCA (COLLAPSABLE) ====== */}
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden mt-6">
+                <button
+                  onClick={() => setShowBrandPanel(!showBrandPanel)}
+                  className="w-full flex items-center justify-between px-6 py-4 hover:bg-brand-bg/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Palette className="w-5 h-5 text-brand-primary" />
+                    <span className="font-bold text-brand-primary">Identidad de Marca</span>
+                  </div>
+                  <ChevronDown className={cn("w-5 h-5 text-gray-400 transition-transform", showBrandPanel && "rotate-180")} />
+                </button>
+                {showBrandPanel && (
+                  <div className="p-6 border-t border-brand-accent">
+                    <BrandSettingsTab />
+                  </div>
+                )}
+              </div>
+            </>
           )}
 
           {/* ====== CUENTAS DE AYUDA ====== */}
@@ -2699,10 +2731,57 @@ export default function Admin() {
                     <img src={newsPreview} className="mt-3 w-40 h-28 object-cover rounded-xl border border-brand-accent" />
                   )}
                 </div>
+                <div className="border-t border-brand-accent pt-4">
+                  <label className="text-xs font-bold uppercase text-gray-500 mb-3 block">Publicar en</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {Object.entries(platformIcons).map(([key, { icon, label }]) => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer p-3 rounded-xl border border-brand-accent hover:bg-brand-bg/50 transition-colors">
+                        <input type="checkbox" checked={publishPlatforms.includes(key)}
+                          onChange={() => {
+                            setPublishPlatforms(prev =>
+                              prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
+                            );
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
+                        <span className="text-sm">{icon} {label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
                 <button type="submit" disabled={newsFormLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">
                   {newsFormLoading ? <Loader2 className="animate-spin mx-auto" /> : <Save className="w-5 h-5 inline mr-2" />} Guardar
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Platform picker for publishing existing news */}
+        {showPlatformPicker && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPlatformPicker(null)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-6 sm:p-8">
+              <h3 className="text-xl font-serif font-bold text-brand-primary mb-4">Publicar en</h3>
+              <div className="space-y-3 mb-6">
+                {Object.entries(platformIcons).map(([key, { icon, label }]) => (
+                  <label key={key} className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-brand-accent hover:bg-brand-bg/50 transition-colors">
+                    <input type="checkbox" checked={publishPlatforms.includes(key)}
+                      onChange={() => {
+                        setPublishPlatforms(prev =>
+                          prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
+                        );
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
+                    <span className="text-sm">{icon} {label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setShowPlatformPicker(null)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-colors">Cancelar</button>
+                <button onClick={confirmPublish} disabled={publishPlatforms.length === 0} className="flex-1 py-3 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all disabled:opacity-50">
+                  {publishingNews ? <Loader2 className="animate-spin mx-auto" /> : 'Publicar'}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
