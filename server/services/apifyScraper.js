@@ -29,25 +29,27 @@ export async function scrapeWithApify() {
   const groups = groupsResult.rows;
   const urlToGroupId = {};
   for (const g of groups) {
-    const fbId = g.url.match(/\/groups\/(\d+)/)?.[1];
-    if (fbId) urlToGroupId[fbId] = g.id;
+    const normalized = g.url.replace(/\/+$/, '');
+    urlToGroupId[normalized] = g.id;
   }
 
-  console.log(`[Apify Scraper] ${groups.length} grupo(s)...`, Object.keys(urlToGroupId));
+  console.log(`[Apify Scraper] ${groups.length} grupo(s)...`);
 
   const input = {
-    startUrls: groups.map(g => g.url),
-    maxItems: 30,
-    viewOption: 'CHRONOLOGICAL',
-    includeComments: true,
-    proxy: {
+    startUrls: groups.map(g => ({ url: g.url })),
+    maxPosts: 30,
+    sortOrder: 'CHRONOLOGICAL',
+    includeTopComments: false,
+    enableDedup: true,
+    refreshWindowDays: 7,
+    proxyConfig: {
       useApifyProxy: true,
       apifyProxyGroups: ['RESIDENTIAL'],
     },
   };
 
   try {
-    const { data: runData } = await axios.post(`${APIFY_BASE}/acts/memo23~facebook-public-group-posts-scraper/runs`, input, {
+    const { data: runData } = await axios.post(`${APIFY_BASE}/acts/crowdpull~facebook-group-posts-scraper/runs`, input, {
       params: { token: APIFY_TOKEN },
       headers: { 'Content-Type': 'application/json' },
     });
@@ -82,38 +84,27 @@ export async function scrapeWithApify() {
 
     const postsByGroup = {};
     for (const item of items) {
-      const groupId = urlToGroupId[item.facebookId] || null;
-      if (!groupId) { console.log('[Apify Scraper] Saltado (sin grupo):', item.facebookId, (item.text||'').slice(0,40)); continue; }
+      const groupUrl = (item.groupUrl || '').replace(/\/+$/, '');
+      const groupId = urlToGroupId[groupUrl] || null;
+      if (!groupId) {
+        console.log('[Apify Scraper] Saltado (sin grupo):', groupUrl, (item.postText||'').slice(0, 40));
+        continue;
+      }
 
-      const pidMatch = item.url?.match(/\/posts\/(\d+)/) || item.url?.match(/\/permalink\/(\d+)/);
-      const fb_post_id = pidMatch ? pidMatch[1] : item.legacyId || '';
+      const fb_post_id = item.postId || '';
       if (!fb_post_id) continue;
 
-      const images = [];
-      if (item.attachments) {
-        for (const att of item.attachments) {
-          const src = att?.photo_image?.uri || att?.thumbnail || att?.media?.imageUrl || att?.media?.src || att?.imageUrl || '';
-          if (src) images.push(src);
-        }
-      }
-      if (item.media?.imageUrl) images.push(item.media.imageUrl);
-
-      const comments = (item.topComments || []).map(c => ({
-        id: c.commentId || c.id || '',
-        author: c.profileName || '',
-        text: c.text || '',
-        timestamp: null,
-      }));
+      const images = Array.isArray(item.imageUrls) ? item.imageUrls.slice(0, 5) : [];
 
       const post = {
         fb_post_id,
         group_id: groupId,
-        fb_post_url: item.url || '',
-        author_name: item.user?.name || '',
-        content: (item.text || '').trim().substring(0, 10000),
-        image_urls: [...new Set(images)].slice(0, 5),
-        posted_at: item.time || null,
-        comments,
+        fb_post_url: item.postUrl || '',
+        author_name: item.authorName || '',
+        content: (item.postText || '').trim().substring(0, 10000),
+        image_urls: images,
+        posted_at: item.timestamp || null,
+        comments: [],
       };
 
       if (!postsByGroup[groupId]) postsByGroup[groupId] = [];

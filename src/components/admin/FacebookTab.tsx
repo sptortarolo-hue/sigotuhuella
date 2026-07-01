@@ -918,12 +918,12 @@ function SettingsSection() {
             <p className="text-xs text-gray-400 mt-1">Debe coincidir con el token en el script del VPS.</p>
           </div>
 
-          {/* Configuración del scraper Puppeteer */}
+          {/* Configuración del scraper */}
           <div className="bg-brand-bg rounded-2xl p-4 space-y-3">
             <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-              <Clock className="w-4 h-4" /> Configuración del scraper (Puppeteer)
+              <Clock className="w-4 h-4" /> Configuración del scraper (Apify)
             </h4>
-            <p className="text-xs text-gray-500">El scraper corre en bucle cada N horas dentro de la banda horaria</p>
+            <p className="text-xs text-gray-500">Usa crowdpull/facebook-group-posts-scraper con Smart Scrape. Grupos públicos, sin cuenta Facebook.</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold text-gray-500 block mb-1">Inicio banda horaria</label>

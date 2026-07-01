@@ -172,54 +172,43 @@ className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-96"
 - NO poner `overflow-hidden` en contenedores del body (excepto scroll lock del menú mobile)
 - Textos con suficiente contraste, hover/active states en elementos interactivos
 
-## Scraper Facebook (VPS)
+## Scraper Facebook (Apify — server-side)
 
-El scraper Python está en `external/scraper/`. Usa Selenium + ChromeDriver (autogestionado por `webdriver-manager`). Se autoconfigura desde la API.
+El scraper principal corre en el mismo server Node.js usando **Apify**. Actor: `crowdpull/facebook-group-posts-scraper`.
 
-### Instalación inicial
+### Cómo funciona
 
-```bash
-# 1. Copiar la carpeta al VPS
-rsync -avz external/scraper/ user@vps:/opt/sihuella/scraper/
+- Se ejecuta vía scheduler automático en `server/services/apifyScraper.js`
+- Usa Smart Scrape (`enableDedup: true`) para saltar posts ya scrapeados (ahorra ~75% en costos recurrentes)
+- Scrapea SOLO grupos públicos — **no requiere cuenta de Facebook**
+- Los posts se envían al webhook interno (`POST /api/facebook/webhook`) para clasificación AI y matching
 
-# 2. Ejecutar setup (crea venv, instala deps, configura systemd)
-#    TOKEN = el mismo que está en Admin > Facebook > Configuración > Token del scraper
-cd /opt/sihuella/scraper
-bash setup.sh https://sigotuhuella.online TU_TOKEN
-```
+### Configuración desde Admin
 
-### Actualizar después de un pull
-
-Cuando se pusheen cambios al scraper, entrar al VPS y:
-
-```bash
-cd /opt/sihuella/scraper
-git pull
-source venv/bin/activate
-pip install -r requirements.txt  # actualiza dependencias (selenium, etc.)
-systemctl restart sihuella-scraper
-journalctl -u sihuella-scraper -f  # monitorear logs
-```
-
-### Referencia rápida
-
-| Comando | Descripción |
+| Setting | Descripción |
 |---------|-------------|
-| `systemctl status sihuella-scraper` | Estado del servicio |
-| `journalctl -u sihuella-scraper -f` | Logs en vivo |
-| `python scraper.py --api-base-url=URL` | Probar manual (una vez) |
-| `systemctl restart sihuella-scraper` | Reiniciar servicio |
+| `fb_scraping_enabled` | Activar/desactivar scraping |
+| `fb_scraper_hour_1` / `fb_scraper_hour_2` | Banda horaria (se scrapea 2x/día) |
+| `fb_scraper_token` | Token compartido scraper ↔ webhook |
 
-### Detalles técnicos
+### Costo (Apify free tier: $5/mes en créditos)
 
-- **Browser:** Chrome headless vía Selenium + webdriver-manager (no más pyppeteer)
-- **Sesión:** cookies.txt + verificación real navegando a facebook.com
-- **Clasificación:** Gemini 1.5 Flash (gratis, 1.500 req/día) — reemplaza keywords viejos
-- **Matching:** Gemini AI decide matches (FB↔pet, cross-group, detección de reencuentro)
-- **Comentarios:** Se extraen los últimos 20 por post y se clasifican
-- **RAM:** ~300-500MB (Chrome headless)
-- `webhook_token` debe coincidir con el setting `fb_scraper_token` del admin
-- Grupos, URL del webhook, intervalo etc se gestionan **desde el panel admin**
+- Nuevo post extraído: $0.004/post
+- Cache check (Smart Scrape skip): $0.001/post
+- Con ~4 grupos, 2x/día, ~20 posts nuevos/ciclo → ~$0.60-$0.90/mes
+
+### Referencia
+
+| Comando / Archivo | Descripción |
+|-------------------|-------------|
+| `server/services/apifyScraper.js` | Lógica del scraper + scheduler |
+| `server/index.js:546` | `startApifyScraper()` al iniciar |
+| `POST /api/facebook/trigger-scrape` | Endpoint para scrape manual desde admin |
+| `apify_last_scrape_at` (settings) | Última ejecución registrada |
+
+## Scraper Facebook (VPS — alternativo)
+
+El scraper self-hosted está en `external/scraper_v2/`. Usa **Playwright** (Chromium real). No se usa actualmente (primamos Apify).
 
 ## PostgreSQL (VPS)
 
