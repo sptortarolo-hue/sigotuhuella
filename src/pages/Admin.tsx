@@ -2769,7 +2769,7 @@ export default function Admin() {
                 <h3 className="text-lg sm:text-xl font-serif font-bold text-brand-primary">Publicar novedad</h3>
               </div>
               <div className="p-5 sm:p-8 pt-4 sm:pt-6 overflow-y-auto">
-                <div className="flex items-center justify-center mb-4 sm:mb-6 bg-gray-50 rounded-xl border border-brand-accent min-h-[160px] sm:min-h-[220px]">
+                <div className="flex items-center justify-center mb-4 sm:mb-6 bg-gray-50 rounded-xl border border-brand-accent h-[35vh] sm:h-[45vh]">
                   {!previewLoaded && !previewError && (
                     <div className="flex flex-col items-center justify-center gap-2 py-8 sm:py-10">
                       <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
