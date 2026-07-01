@@ -2782,7 +2782,7 @@ export default function Admin() {
                     </div>
                   )}
                   <img
-                    src={`/api/news/${showPlatformPicker}/publish-image`}
+                    src={`/api/news/${showPlatformPicker}/publish-image?t=${Date.now()}`}
                     onLoad={() => { setPreviewLoaded(true); setPreviewError(false); }}
                     onError={() => { setPreviewLoaded(true); setPreviewError(true); }}
                     className={`max-h-[35vh] sm:max-h-[50vh] w-auto max-w-full object-contain self-center ${previewLoaded ? 'block' : 'hidden'}`}
