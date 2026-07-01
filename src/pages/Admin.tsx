@@ -2769,7 +2769,7 @@ export default function Admin() {
                 <h3 className="text-lg sm:text-xl font-serif font-bold text-brand-primary">Publicar novedad</h3>
               </div>
               <div className="p-5 sm:p-8 pt-4 sm:pt-6 overflow-y-auto">
-                <div className="flex items-center justify-center mb-4 sm:mb-6 bg-gray-50 rounded-xl border border-brand-accent overflow-hidden min-h-[140px] sm:min-h-[200px]">
+                <div className="flex items-center justify-center mb-4 sm:mb-6 bg-gray-50 rounded-xl border border-brand-accent min-h-[160px] sm:min-h-[220px]">
                   {!previewLoaded && !previewError && (
                     <div className="flex flex-col items-center justify-center gap-2 py-8 sm:py-10">
                       <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
@@ -2785,7 +2785,7 @@ export default function Admin() {
                     src={`/api/news/${showPlatformPicker}/publish-image`}
                     onLoad={() => { setPreviewLoaded(true); setPreviewError(false); }}
                     onError={() => { setPreviewLoaded(true); setPreviewError(true); }}
-                    className={`max-h-[30vh] sm:max-h-[45vh] w-auto max-w-full object-contain ${previewLoaded ? '' : 'hidden'}`}
+                    className={`max-h-[35vh] sm:max-h-[50vh] w-auto max-w-full object-contain self-center ${previewLoaded ? 'block' : 'hidden'}`}
                     alt="Preview"
                   />
                 </div>
