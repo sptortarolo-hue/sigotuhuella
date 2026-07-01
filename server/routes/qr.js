@@ -219,14 +219,6 @@ router.post('/assign', requireAdmin, async (req, res) => {
       const petName = petResult.rows[0].name;
       const code = qrResult.rows[0].code;
       const qrId = qrResult.rows[0].id;
-
-      sendPushToUser(user.id, {
-        title: `Identificación para ${petName}`,
-        body: `Tu mascota ahora tiene el identificador ${code}`,
-        tag: `qr-assigned-${my_pet_id}`,
-      }).catch(() => {});
-
-      notifyChapitaReady(qrId, my_pet_id, code, petName, user).catch(() => {});
     }
 
     res.json({ success: true, code: qrResult.rows[0].code });
