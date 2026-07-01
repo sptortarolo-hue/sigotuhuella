@@ -1036,6 +1036,9 @@ export async function initDb() {
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('news_auto_publish_platforms', '["instagram","facebook_page","whatsapp","status"]') ON CONFLICT (key) DO NOTHING
     `, 'news_auto_publish_platforms');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('pexels_api_key', '') ON CONFLICT (key) DO NOTHING
+    `, 'pexels_api_key');
 
     console.log('Database migrations complete');
   } finally {

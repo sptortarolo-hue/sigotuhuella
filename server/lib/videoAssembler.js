@@ -8,6 +8,7 @@ import { promisify } from 'util';
 import { rimraf } from 'rimraf';
 import pool from '../db.js';
 import { synthesizeSpeech } from '../services/ttsService.js';
+import { getPetPhotos } from '../services/pexelsService.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -1063,52 +1064,8 @@ async function getPetInfo(petId) {
 }
 
 async function fetchRandomPetPhotos(count) {
-  const photos = [];
-  const dogCount = Math.ceil(count / 2);
-  const catCount = count - dogCount;
-
-  try {
-    const dogRes = await fetch(`https://dog.ceo/api/breeds/image/random/${dogCount}`, { signal: AbortSignal.timeout(15000) });
-    if (dogRes.ok) {
-      const dogData = await dogRes.json();
-      if (dogData.message && Array.isArray(dogData.message)) {
-        for (const url of dogData.message) {
-          try {
-            const imgRes = await fetch(url, { signal: AbortSignal.timeout(15000) });
-            if (imgRes.ok) {
-              const buf = Buffer.from(await imgRes.arrayBuffer());
-              photos.push(buf.toString('base64'));
-            }
-          } catch { /* skip failed dog image */ }
-        }
-      }
-    }
-  } catch (err) { console.warn('[fetchRandomPetPhotos] Dog CEO failed:', err.message); }
-
-  for (let i = 0; i < catCount; i++) {
-    try {
-      const catRes = await fetch('https://cataas.com/cat?json=true', { signal: AbortSignal.timeout(15000) });
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        if (catData.url) {
-          const imgUrl = catData.url.startsWith('http') ? catData.url : `https://cataas.com${catData.url}`;
-          const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(15000) });
-          if (imgRes.ok) {
-            const buf = Buffer.from(await imgRes.arrayBuffer());
-            photos.push(buf.toString('base64'));
-          }
-        }
-      }
-    } catch { /* skip failed cat image */ }
-  }
-
-  for (let i = photos.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [photos[i], photos[j]] = [photos[j], photos[i]];
-  }
-
-  console.log('[fetchRandomPetPhotos] fetched', photos.length, '/', count, 'photos from web');
-  return photos;
+  console.log('[fetchRandomPetPhotos] fetching from Pexels...');
+  return getPetPhotos(count);
 }
 
 async function generateVideo(config) {
