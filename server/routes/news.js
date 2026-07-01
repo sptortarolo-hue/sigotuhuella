@@ -46,7 +46,7 @@ router.put('/brand-settings', requireAdmin, async (req, res) => {
   }
 });
 
-router.get('/brand-preview', requireAdmin, async (req, res) => {
+router.get('/brand-preview', async (req, res) => {
   try {
     const { applyBrandOverlay } = await import('../services/brandIdentityService.js');
     const dummyNews = {
