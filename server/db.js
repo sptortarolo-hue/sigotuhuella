@@ -1039,6 +1039,9 @@ export async function initDb() {
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('pexels_api_key', '') ON CONFLICT (key) DO NOTHING
     `, 'pexels_api_key');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('screenshots_interval_hours', '6') ON CONFLICT (key) DO NOTHING
+    `, 'screenshots_interval_hours');
 
     console.log('Database migrations complete');
   } finally {

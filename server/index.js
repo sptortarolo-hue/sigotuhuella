@@ -32,6 +32,7 @@ import facebookRelayRoutes from './routes/facebookRelay.js';
 import invitesRoutes from './routes/invites.js';
 // import { startSyncTimer } from './services/vpsSyncService.js';
 import { startApifyScraper } from './services/apifyScraper.js';
+import { startScreenshotScheduler } from './services/autoScreenshots.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
 import { publishStory, isConnected } from './services/instagramService.js';
@@ -475,6 +476,40 @@ async function seedAdmin() {
   }
 }
 
+async function seedTestUser() {
+  const email = 'test@sigotuhuella.online';
+  const password = 'sihuella2024';
+  try {
+    const passwordHash = await hashPassword(password);
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length === 0) {
+      const seededPwd = password;
+      await pool.query(
+        `INSERT INTO users (email, password_hash, display_name, role, email_verified)
+         VALUES ($1, $2, $3, 'user', TRUE)`,
+        [email, passwordHash, 'Usuario Prueba']
+      );
+      await pool.query(
+        `INSERT INTO settings (key, value) VALUES ('screenshot_test_password', $1)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+        [seededPwd]
+      );
+      console.log(`Test user created: ${email} / ${seededPwd}`);
+    } else {
+      const stored = await pool.query("SELECT value FROM settings WHERE key = 'screenshot_test_password'");
+      if (!stored.rows[0]?.value) {
+        await pool.query(
+          `INSERT INTO settings (key, value) VALUES ('screenshot_test_password', $1)
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+          [password]
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Test user seed error:', err);
+  }
+}
+
 async function checkReminders() {
   try {
     const today = new Date().toISOString().slice(0, 10);
@@ -508,6 +543,7 @@ async function checkReminders() {
 async function start() {
   await initDb();
   await seedAdmin();
+  await seedTestUser();
   console.log(`GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? '✓ configurada' : '✗ NO configurada (fallback a keywords)'}`);
   console.log(`GROQ_API_KEY: ${process.env.GROQ_API_KEY ? '✓ configurada' : '✗ NO configurada'}`);
   console.log(`WHATSAPP_AI_PRIMARY: ${process.env.WHATSAPP_AI_PRIMARY === 'true' ? '✓ AI first' : 'keywords first'}`);
@@ -544,6 +580,9 @@ async function start() {
 
   // Apify scraper: scrape Facebook groups via Apify actor
   startApifyScraper();
+
+  // Auto screenshots: capture mobile screenshots of key pages periodically
+  startScreenshotScheduler();
 
   // Facebook publisher: replicate new Instagram posts to Page + Groups every 2 minutes
   setInterval(async () => {
