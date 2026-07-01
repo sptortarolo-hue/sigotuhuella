@@ -312,63 +312,29 @@ const title = mode === 'ai' || mode === 'promo' || mode === 'auto'
 });
 
 router.get('/debug-tts', requireAuth, requireAdmin, async (req, res) => {
-  const hasKey = !!process.env.AZURE_TTS_KEY;
-  const hasKey2 = !!process.env.AZURE_TTS_KEY2;
-  const hasRegion = !!process.env.AZURE_TTS_REGION;
-  const keyPreview = process.env.AZURE_TTS_KEY ? process.env.AZURE_TTS_KEY.slice(0, 8) + '...' : 'MISSING';
-  const key2Preview = process.env.AZURE_TTS_KEY2 ? process.env.AZURE_TTS_KEY2.slice(0, 8) + '...' : 'MISSING';
-  const region = process.env.AZURE_TTS_REGION || 'MISSING';
-  const resourceName = process.env.AZURE_TTS_RESOURCE || 'sigoth';
-  const url = `https://${resourceName}.cognitiveservices.azure.com/cognitiveservices/v1`;
-  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="es-AR"><voice name="es-AR-ElenaNeural">Prueba</voice></speak>`;
+  const results = { edgeTts: {} };
 
-  let restResult1 = 'not tested';
-  if (hasKey && hasRegion) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Ocp-Apim-Subscription-Key': process.env.AZURE_TTS_KEY,
-          'Content-Type': 'application/ssml+xml',
-          'X-Microsoft-OutputFormat': 'audio-48khz-192kbitrate-mono-mp3',
-        },
-        body: ssml,
-      });
-      const body = response.ok ? `OK (${response.headers.get('content-length') || '?'} bytes)` : `FAIL ${response.status}: ${(await response.text()).slice(0, 200)}`;
-      restResult1 = body;
-    } catch (e) {
-      restResult1 = `ERROR: ${e.message}`;
-    }
-  }
-
-  let restResult2 = 'not tested';
-  if (hasKey2 && hasRegion) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Ocp-Apim-Subscription-Key': process.env.AZURE_TTS_KEY2,
-          'Content-Type': 'application/ssml+xml',
-          'X-Microsoft-OutputFormat': 'audio-48khz-192kbitrate-mono-mp3',
-        },
-        body: ssml,
-      });
-      const body = response.ok ? `OK (${response.headers.get('content-length') || '?'} bytes)` : `FAIL ${response.status}: ${(await response.text()).slice(0, 200)}`;
-      restResult2 = body;
-    } catch (e) {
-      restResult2 = `ERROR: ${e.message}`;
-    }
-  }
-
-  let sdkResult = 'not tested';
   try {
-    const sdk = await import('microsoft-cognitiveservices-speech-sdk');
-    sdkResult = `loaded (keys: ${Object.keys(sdk).slice(0, 5).join(',')})`;
+    const { listVoices } = await import('@travisvn/edge-tts');
+    const voices = await listVoices();
+    const esVoices = voices.filter(v => v.Locale?.startsWith('es'));
+    results.edgeTts.voicesFound = voices.length;
+    results.edgeTts.spanishVoices = esVoices.map(v => ({ name: v.ShortName, locale: v.Locale, gender: v.Gender }));
   } catch (e) {
-    sdkResult = `IMPORT FAILED: ${e.message}`;
+    results.edgeTts.error = `List voices failed: ${e.message}`;
   }
 
-  res.json({ hasKey, hasKey2, hasRegion, keyPreview, key2Preview, region, restResult1, restResult2, sdkResult });
+  try {
+    const { synthesizeSpeech } = await import('../services/ttsService.js');
+    const buffer = await synthesizeSpeech('Hola, esto es una prueba de audio.', 'es-AR-ElenaNeural', { rate: '+0%', pitch: '+0Hz' });
+    results.edgeTts.synthesisOk = true;
+    results.edgeTts.bytes = buffer.length;
+  } catch (e) {
+    results.edgeTts.synthesisOk = false;
+    results.edgeTts.synthesisError = e.message;
+  }
+
+  res.json(results);
 });
 
 router.get('/file/:filename', requireAuth, (req, res) => {

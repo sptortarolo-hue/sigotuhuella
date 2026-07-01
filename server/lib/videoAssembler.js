@@ -7,6 +7,7 @@ import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { rimraf } from 'rimraf';
 import pool from '../db.js';
+import { synthesizeSpeech } from '../services/ttsService.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -46,26 +47,26 @@ const VOICE_OPTIONS = {
 };
 
 const VOICE_PARAMS = {
-  elena: { rate: '-10%', pitch: '-5%' },
-  tomas: { rate: '-15%', pitch: '-3%', contour: '(0%,-3%) (25%,-1%) (50%,+2%) (75%,-1%) (100%,-5%)' },
-  mateo: { rate: '-12%', pitch: '-2%', contour: '(0%,-2%) (30%,+1%) (60%,+3%) (100%,-2%)' },
+  elena: { rate: '-10%', pitch: '-5Hz' },
+  tomas: { rate: '-15%', pitch: '-3Hz' },
+  mateo: { rate: '-12%', pitch: '-2Hz' },
 };
 
 const STYLE_VOICE_PARAMS = {
   emotive: {
-    elena: { rate: '-10%', pitch: '-5%' },
-    tomas: { rate: '-15%', pitch: '-3%', contour: '(0%,-3%) (25%,-1%) (50%,+2%) (75%,-1%) (100%,-5%)' },
-    mateo: { rate: '-12%', pitch: '-2%', contour: '(0%,-2%) (30%,+1%) (60%,+3%) (100%,-2%)' },
+    elena: { rate: '-10%', pitch: '-5Hz' },
+    tomas: { rate: '-15%', pitch: '-3Hz' },
+    mateo: { rate: '-12%', pitch: '-2Hz' },
   },
   informative: {
-    elena: { rate: '+0%', pitch: '+0%' },
-    tomas: { rate: '-5%', pitch: '+0%', contour: '(0%,+0%) (50%,+1%) (100%,+0%)' },
-    mateo: { rate: '-3%', pitch: '+0%', contour: '(0%,+0%) (50%,+1%) (100%,+0%)' },
+    elena: { rate: '+0%', pitch: '+0Hz' },
+    tomas: { rate: '-5%', pitch: '+0Hz' },
+    mateo: { rate: '-3%', pitch: '+0Hz' },
   },
   viral: {
-    elena: { rate: '+5%', pitch: '+3%' },
-    tomas: { rate: '+0%', pitch: '+2%', contour: '(0%,+2%) (25%,+5%) (50%,+3%) (75%,+5%) (100%,+2%)' },
-    mateo: { rate: '+3%', pitch: '+3%', contour: '(0%,+2%) (30%,+4%) (60%,+5%) (100%,+2%)' },
+    elena: { rate: '+5%', pitch: '+3Hz' },
+    tomas: { rate: '+0%', pitch: '+2Hz' },
+    mateo: { rate: '+3%', pitch: '+3Hz' },
   },
 };
 
@@ -95,87 +96,7 @@ const FF_PRESET = 'veryfast';
 const FF_CRF = 17;
 const CONFETTI_DUR = 4;
 
-let speechSdkPromise = null;
-async function getSpeechSdk() {
-  if (!process.env.AZURE_TTS_KEY) return null;
-  if (!process.env.AZURE_TTS_REGION) {
-    console.warn('[TTS] AZURE_TTS_REGION not set, defaulting to eastus');
-    process.env.AZURE_TTS_REGION = 'eastus';
-  }
-  if (!speechSdkPromise) {
-    try {
-      const sdk = await import('microsoft-cognitiveservices-speech-sdk');
-      speechSdkPromise = sdk.default || sdk;
-    } catch (e) {
-      console.warn('Azure Speech SDK not loaded:', e.message);
-      speechSdkPromise = null;
-    }
-  }
-  return speechSdkPromise;
-}
 
-async function synthesizeREST(ssml, outputPath, keyOverride) {
-  const key = keyOverride || process.env.AZURE_TTS_KEY;
-  const region = process.env.AZURE_TTS_REGION || 'eastus';
-  const resourceName = process.env.AZURE_TTS_RESOURCE || 'sigoth';
-  const url = `https://${resourceName}.cognitiveservices.azure.com/cognitiveservices/v1`;
-
-  console.log('[TTS-REST] POST', url, 'SSML length:', ssml.length, 'key:', key.slice(0, 8) + '...');
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Ocp-Apim-Subscription-Key': key,
-      'Content-Type': 'application/ssml+xml',
-      'X-Microsoft-OutputFormat': 'audio-48khz-192kbitrate-mono-mp3',
-    },
-    body: ssml,
-    signal: AbortSignal.timeout(10000),
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`REST TTS ${response.status}: ${text.slice(0, 200)}`);
-  }
-
-  const buffer = Buffer.from(await response.arrayBuffer());
-  fs.writeFileSync(outputPath, buffer);
-  const size = fs.statSync(outputPath).size;
-  console.log('[TTS-REST] Wrote', outputPath, 'size:', size);
-  return size;
-}
-
-function escapeXml(str) {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-const STYLE_EXPRESS_AS = {
-  emotive: 'empathetic',
-  informative: 'newscast',
-  viral: 'cheerful',
-};
-
-function buildSSML(script, voice, params, { appendClosing = true, style = 'emotive' } = {}) {
-  const { rate, pitch, contour } = params;
-  const cleaned = escapeXml(script.trim().replace(/\s+/g, ' '));
-  const closing = appendClosing ? `\n<break time="600ms"/>\nsigotuhuella.online` : '';
-  const contourAttr = contour ? ` contour="${contour}"` : '';
-  const expressStyle = STYLE_EXPRESS_AS[style] || 'empathetic';
-  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="es-AR">
-<voice name="${voice}">
-<mstts:express-as style="${expressStyle}">
-<prosody rate="${rate}" pitch="${pitch}"${contourAttr}>
-${cleaned}${closing}
-</prosody>
-</mstts:express-as>
-</voice>
-</speak>`;
-}
 
 function normalizeVoiceKeys(input) {
   const valid = ['elena', 'tomas', 'mateo'];
@@ -221,175 +142,53 @@ function buildAutoScript(style, stats) {
   return script;
 }
 
-const TTS_MONTHLY_LIMIT = 450000;
-
-async function checkTtsQuota(charsNeeded) {
-  const month = new Date().toISOString().slice(0, 7);
-  let used = 0;
-  try {
-    const result = await pool.query(
-      `INSERT INTO tts_usage (month, chars_used) VALUES ($1, 0)
-       ON CONFLICT (month) DO UPDATE SET chars_used = tts_usage.chars_used
-       RETURNING chars_used`,
-      [month]
-    );
-    used = result.rows[0]?.chars_used || 0;
-  } catch (err) {
-    console.warn('[TTS] quota check DB error (allowing):', err.message);
-    return true;
-  }
-  if (used + charsNeeded > TTS_MONTHLY_LIMIT) {
-    console.warn(`[TTS] Quota exceeded: ${used}/${TTS_MONTHLY_LIMIT} chars used, needed ${charsNeeded}`);
-    return false;
-  }
-  return true;
-}
-
-async function incrementTtsUsage(chars) {
-  const month = new Date().toISOString().slice(0, 7);
-  try {
-    await pool.query(
-      `INSERT INTO tts_usage (month, chars_used) VALUES ($1, $2)
-       ON CONFLICT (month) DO UPDATE SET chars_used = tts_usage.chars_used + $2`,
-      [month, chars]
-    );
-  } catch (err) {
-    console.warn('[TTS] increment usage DB error:', err.message);
-  }
-}
-
 async function generateTTS(config, voiceScript, workDir) {
   const stats = await getGlobalStats();
   const baseScript = voiceScript || buildAutoScript(config.style, stats);
   const script = baseScript + '\n\nIngresá en triple doble b punto sigotuhuella punto online y sé parte de nuestra comunidad.';
   const voiceKeys = normalizeVoiceKeys(config.voices || [config.voice || 'elena']);
-  console.log('[TTS] generateTTS start — includeVoice:', config.includeVoice, 'voices:', voiceKeys, 'script length:', script?.length);
 
   const ttsPath = path.join(workDir, 'tts.mp3');
   if (!config.includeVoice || !script) return null;
 
-  const charCount = script.length;
-  const quotaOk = await checkTtsQuota(charCount);
-  if (!quotaOk) {
-    console.warn('[TTS] Monthly quota reached, skipping TTS');
-    return null;
-  }
-
   if (voiceKeys.length === 1) {
     const voice = VOICE_OPTIONS[voiceKeys[0]] || VOICE_OPTIONS.elena;
     const params = getVoiceParams(voiceKeys[0], config.style);
-    const ssml = buildSSML(script, voice, params, { style: config.style });
-    const ok = await synthesizeWithRetry(ssml, voice, ttsPath);
-    if (ok) {
-      await incrementTtsUsage(charCount);
-      return ttsPath;
-    }
-    console.warn('[TTS] All TTS methods failed');
+    const ok = await synthesizeToFile(script, voice, params, ttsPath);
+    if (ok) return ttsPath;
     return null;
   }
 
-  const result = await generateMultiVoice(script, voiceKeys, workDir, ttsPath, config.style);
-  if (result) await incrementTtsUsage(charCount);
-  return result;
+  return generateMultiVoice(script, voiceKeys, workDir, ttsPath, config.style);
 }
 
-async function synthesizeWithRetry(ssml, voice, outputPath, fastOnly = false) {
-  const keys = [process.env.AZURE_TTS_KEY, process.env.AZURE_TTS_KEY2].filter(Boolean);
-  const region = process.env.AZURE_TTS_REGION || 'eastus';
-  const sdk = await getSpeechSdk();
-
-  for (const key of keys) {
-    if (sdk) {
-      try {
-        console.log('[TTS] Trying SDK speakSsmlAsync with key', key.slice(0, 8) + '...');
-        const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
-        speechConfig.speechSynthesisVoiceName = voice;
-        speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio48Khz192KBitRateMonoMp3;
-
-        const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
-        const result = await new Promise((resolve, reject) => {
-          synthesizer.speakSsmlAsync(ssml, res => resolve(res), err => reject(err));
-        });
-        synthesizer.close();
-
-        if (result && result.audioData && result.audioData.byteLength > 0
-          && result.reason !== sdk.ResultReason.Canceled) {
-          fs.writeFileSync(outputPath, Buffer.from(result.audioData));
-          console.log('[TTS] SDK speakSsmlAsync success, byteLength:', result.audioData.byteLength);
-          return true;
-        } else if (result && result.reason === sdk.ResultReason.Canceled) {
-          const c = sdk.CancellationDetails.fromResult(result);
-          console.warn('[TTS] SDK speakSsmlAsync canceled:', c.reason, c.errorDetails);
-        }
-      } catch (err) {
-        console.warn('[TTS] SDK speakSsmlAsync failed:', err.message);
-      }
-    }
-
-    if (fastOnly) continue;
-
-    if (sdk) {
-      try {
-        console.log('[TTS] Trying SDK speakTextAsync with key', key.slice(0, 8) + '...');
-        const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
-        speechConfig.speechSynthesisVoiceName = voice;
-        speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio48Khz192KBitRateMonoMp3;
-
-        const text = ssml.replace(/<[^>]+>/g, '').trim();
-        const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
-        const result = await new Promise((resolve, reject) => {
-          synthesizer.speakTextAsync(text, res => resolve(res), err => reject(err));
-        });
-        synthesizer.close();
-
-        if (result && result.audioData && result.audioData.byteLength > 0) {
-          fs.writeFileSync(outputPath, Buffer.from(result.audioData));
-          console.log('[TTS] SDK speakTextAsync success, byteLength:', result.audioData.byteLength);
-          return true;
-        }
-      } catch (err2) {
-        console.warn('[TTS] SDK speakTextAsync also failed:', err2.message);
-      }
-    }
-
-    try {
-      console.log('[TTS] Trying REST API with key', key.slice(0, 8) + '...');
-      const size = await synthesizeREST(ssml, outputPath, key);
-      if (size > 0) {
-        console.log('[TTS] REST API success, size:', size);
-        return true;
-      }
-    } catch (err) {
-      console.warn('[TTS] REST API failed:', err.message);
-    }
+async function synthesizeToFile(text, voice, params, outputPath) {
+  try {
+    const buffer = await synthesizeSpeech(text, voice, params);
+    fs.writeFileSync(outputPath, buffer);
+    return true;
+  } catch (err) {
+    console.warn('[TTS] Edge-TTS failed:', err.message);
+    return false;
   }
-
-  return false;
 }
 
 async function generateMultiVoice(script, voiceKeys, workDir, ttsPath, style = 'emotive') {
   const blocks = splitByParagraphs(script, voiceKeys, style);
-  console.log('[TTS-multi] Generating', blocks.length, 'voice clips with voices:', voiceKeys);
 
   const clipPaths = [];
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
     const clipPath = path.join(workDir, `tts_clip_${i}.mp3`);
-    const ssml = buildSSML(block.text, block.voice, block.params, { appendClosing: false, style });
-    const ok = await synthesizeClipFast(ssml, block.voice, clipPath);
+    const ok = await synthesizeToFile(block.text, block.voice, block.params, clipPath);
     if (ok && fs.existsSync(clipPath)) {
       clipPaths.push(clipPath);
-      console.log('[TTS-multi] Clip', i, block.voice.slice(6, 20), 'ok');
     } else {
       console.warn('[TTS-multi] Clip', i, 'failed');
     }
   }
 
-  if (clipPaths.length === 0) {
-    console.warn('[TTS-multi] No clips generated');
-    return null;
-  }
-
+  if (clipPaths.length === 0) return null;
   if (clipPaths.length === 1) {
     fs.renameSync(clipPaths[0], ttsPath);
     return ttsPath;
@@ -422,69 +221,9 @@ async function generateMultiVoice(script, voiceKeys, workDir, ttsPath, style = '
     cmd.on('close', code => code === 0 ? resolve() : reject(new Error(`concat exit ${code}`)));
   });
 
-  if (fs.existsSync(ttsPath)) {
-    console.log('[TTS-multi] Final TTS ready:', ttsPath);
-    return ttsPath;
-  }
-
-  console.warn('[TTS-multi] Concat failed, using first clip as fallback');
+  if (fs.existsSync(ttsPath)) return ttsPath;
   fs.copyFileSync(clipPaths[0], ttsPath);
   return ttsPath;
-}
-
-async function synthesizeClipFast(ssml, voice, outputPath) {
-  const keys = [process.env.AZURE_TTS_KEY, process.env.AZURE_TTS_KEY2].filter(Boolean);
-  const region = process.env.AZURE_TTS_REGION || 'eastus';
-  const sdk = await getSpeechSdk();
-
-  for (const key of keys) {
-    if (sdk) {
-      let synthesizer = null;
-      try {
-        const speechConfig = sdk.SpeechConfig.fromSubscription(key, region);
-        speechConfig.speechSynthesisVoiceName = voice;
-        speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio48Khz192KBitRateMonoMp3;
-        synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
-
-        const result = await Promise.race([
-          new Promise((resolve, reject) => {
-            synthesizer.speakSsmlAsync(ssml, res => resolve(res), err => reject(err));
-          }),
-          new Promise(resolve => setTimeout(() => resolve('timeout'), 10000)),
-        ]);
-
-        if (result === 'timeout') {
-          console.warn('[TTS-clip] SDK timeout for', voice, '- closing synthesizer');
-          try { synthesizer.close(); } catch {}
-          continue;
-        }
-
-        try { synthesizer.close(); } catch {}
-
-        if (result && result.audioData && result.audioData.byteLength > 0
-          && result.reason !== sdk.ResultReason.Canceled) {
-          fs.writeFileSync(outputPath, Buffer.from(result.audioData));
-          console.log('[TTS-clip] SDK success for', voice, 'byteLength:', result.audioData.byteLength);
-          return true;
-        } else if (result && result.reason === sdk.ResultReason.Canceled) {
-          const c = sdk.CancellationDetails.fromResult(result);
-          console.warn('[TTS-clip] SDK canceled:', c.reason, c.errorDetails);
-        }
-      } catch (err) {
-        console.warn('[TTS-clip] SDK error for', voice, ':', err.message);
-        try { if (synthesizer) synthesizer.close(); } catch {}
-      }
-    }
-
-    try {
-      await synthesizeREST(ssml, outputPath, key);
-      console.log('[TTS-clip] REST success for', voice);
-      return true;
-    } catch (err) {
-      console.warn('[TTS-clip] REST failed for', voice, ':', err.message);
-    }
-  }
-  return false;
 }
 
 const FONT_MONTSERRAT = path.join(PROJECT_ROOT, PUBLIC_DIR, 'fonts', 'Montserrat-Bold.ttf');
