@@ -168,6 +168,8 @@ export default function Admin() {
   const [showPetPlatformPicker, setShowPetPlatformPicker] = useState<string | null>(null);
   const [petPreviewLoaded, setPetPreviewLoaded] = useState(false);
   const [petPreviewError, setPetPreviewError] = useState(false);
+  const [autoPublishEnabled, setAutoPublishEnabled] = useState(true);
+  const [autoPublishPlatforms, setAutoPublishPlatforms] = useState<string[]>(['instagram', 'facebook_page', 'facebook_groups', 'whatsapp', 'status']);
 
   // Banner state
   const [bannerChapitaVisible, setBannerChapitaVisible] = useState(true);
@@ -380,6 +382,16 @@ export default function Admin() {
 
   useEffect(() => {
     if (activeTab === 'volunteers') fetchVolunteers();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'news') {
+      api.news.getBrandSettings().then(data => {
+        const s = data.settings || data;
+        setAutoPublishEnabled(s.enabled !== false);
+        if (s.platforms?.length) setAutoPublishPlatforms(s.platforms);
+      }).catch(() => {});
+    }
   }, [activeTab]);
 
   const fetchNews = async () => {
@@ -1392,6 +1404,41 @@ export default function Admin() {
                 )}
               </div>
 
+              {/* ====== PUBLICACIÓN AUTOMÁTICA ====== */}
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-5 sm:p-8 mt-6">
+                <h3 className="text-lg font-bold text-brand-primary mb-4">Publicación Automática</h3>
+                <label className="flex items-center gap-3 cursor-pointer mb-4">
+                  <input type="checkbox" checked={autoPublishEnabled}
+                    onChange={e => setAutoPublishEnabled(e.target.checked)}
+                    className="w-5 h-5 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
+                  <span className="text-sm font-bold text-gray-700">Publicar novedades automáticamente</span>
+                </label>
+                {autoPublishEnabled && (
+                  <div className="space-y-2 mb-4">
+                    {Object.entries(platformIcons).map(([key, { icon, label }]) => (
+                      <label key={key} className="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-brand-bg/50 transition-colors">
+                        <input type="checkbox" checked={autoPublishPlatforms.includes(key)}
+                          onChange={() => {
+                            setAutoPublishPlatforms(prev =>
+                              prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
+                            );
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
+                        <span className="text-sm">{icon} {label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <button onClick={async () => {
+                  try {
+                    await api.news.saveBrandSettings({ enabled: autoPublishEnabled, platforms: autoPublishPlatforms });
+                  } catch (e: any) {
+                    alert(e.message || 'Error al guardar');
+                  }
+                }} className="px-6 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">
+                  Guardar
+                </button>
+              </div>
             </>
           )}
 
