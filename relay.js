@@ -385,12 +385,12 @@ async function start() {
             const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });
             await sock.sendMessage('status@broadcast',
               { image: Buffer.from(imgResp.data), caption: msg.text || '' },
-              { backgroundColor: '#5A5A40', font: 2, statusJidList: [], broadcast: true }
+              { backgroundColor: '#5A5A40', font: 2 }
             );
           } else {
             await sock.sendMessage('status@broadcast',
               { text: msg.text },
-              { backgroundColor: '#5A5A40', font: 2, statusJidList: [], broadcast: true }
+              { backgroundColor: '#5A5A40', font: 2 }
             );
           }
           sentIds.push(msg.id);
