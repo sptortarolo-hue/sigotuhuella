@@ -94,21 +94,21 @@ export async function saveBrandSettings(settings) {
 }
 
 const typeBadge = {
-  reunited: { label: 'Reencuentro', bg: '#10B981' },
-  adopted: { label: 'Adopción', bg: '#3B82F6' },
+  reunited: { label: 'Reencuentro', bg: '#10B981', primary: '#047857', secondary: '#10B981', overlayBg: '#064E3B' },
+  adopted: { label: 'Adopción', bg: '#3B82F6', primary: '#1D4ED8', secondary: '#3B82F6', overlayBg: '#1E3A5F' },
   manual: { label: 'Novedad', bg: '#5A5A40' },
 };
 
 export const petBadges = {
-  lost: { label: 'PERDIDO', bg: '#EF4444' },
-  retained: { label: 'RETENIDO', bg: '#2563EB' },
-  sighted: { label: 'AVISTADO', bg: '#2563EB' },
-  accidented: { label: 'ACCIDENTADO', bg: '#EA580C' },
-  needs_attention: { label: 'NECESITA ATENCIÓN', bg: '#D97706' },
-  for_adoption: { label: 'EN ADOPCIÓN', bg: '#8B5CF6' },
-  for_adoption_simple: { label: 'EN ADOPCIÓN', bg: '#F97316' },
-  adopted: { label: 'ADOPTADO', bg: '#10B981' },
-  reunited: { label: 'REENCUENTRO', bg: '#10B981' },
+  lost: { label: 'PERDIDO', bg: '#EF4444', primary: '#B91C1C', secondary: '#EF4444', overlayBg: '#7F1D1D' },
+  retained: { label: 'RETENIDO', bg: '#2563EB', primary: '#1D4ED8', secondary: '#3B82F6', overlayBg: '#1E3A5F' },
+  sighted: { label: 'AVISTADO', bg: '#2563EB', primary: '#1D4ED8', secondary: '#3B82F6', overlayBg: '#1E3A5F' },
+  accidented: { label: 'ACCIDENTADO', bg: '#EA580C', primary: '#C2410C', secondary: '#EA580C', overlayBg: '#7C2D12' },
+  needs_attention: { label: 'NECESITA ATENCIÓN', bg: '#D97706', primary: '#92400E', secondary: '#D97706', overlayBg: '#713F12' },
+  for_adoption: { label: 'EN ADOPCIÓN', bg: '#8B5CF6', primary: '#7C3AED', secondary: '#EC4899', overlayBg: '#4C1D95' },
+  for_adoption_simple: { label: 'EN ADOPCIÓN', bg: '#8B5CF6', primary: '#7C3AED', secondary: '#EC4899', overlayBg: '#4C1D95' },
+  adopted: { label: 'ADOPTADO', bg: '#10B981', primary: '#047857', secondary: '#10B981', overlayBg: '#064E3B' },
+  reunited: { label: 'REENCUENTRO', bg: '#10B981', primary: '#047857', secondary: '#10B981', overlayBg: '#064E3B' },
 };
 
 const ICON_SIZE = 38;
@@ -207,6 +207,10 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   const width = isFeed ? 1080 : 720;
   const height = isFeed ? 1350 : 1280;
   const badge = (content.type === 'pet' ? petBadges[content.pet_status] : null) || typeBadge[content.type] || typeBadge.manual;
+  const statusColors = badge?.primary ? badge : null;
+  const headerPrimary = statusColors?.primary || brand.primaryColor;
+  const headerSecondary = statusColors?.secondary || brand.secondaryColor;
+  const overlayBg = statusColors?.overlayBg || brand.backgroundColor;
   const { createCanvas, loadImage } = await getCanvas();
 
   const canvas = createCanvas(width, height);
@@ -223,8 +227,8 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   const titleTop = height - footerH - Math.round(height * 0.15); // ~959
   const contentSectionTop = titleTop; // 959
 
-  // Fondo sólido del color primario (entre header y footer)
-  ctx.fillStyle = hexToRgba(brand.backgroundColor, 1);
+  // Fondo sólido del overlay (por estado o brand)
+  ctx.fillStyle = hexToRgba(overlayBg, 1);
   ctx.fillRect(0, 0, width, height);
 
   if (imageBuffer && imageBuffer.length > 0) {
@@ -244,8 +248,8 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
 
   // Header bar
   const headerGrad = ctx.createLinearGradient(0, 0, width, 0);
-  headerGrad.addColorStop(0, hexToRgba(brand.primaryColor, 0.92));
-  headerGrad.addColorStop(1, hexToRgba(brand.secondaryColor, 0.85));
+  headerGrad.addColorStop(0, hexToRgba(headerPrimary, 0.92));
+  headerGrad.addColorStop(1, hexToRgba(headerSecondary, 0.85));
   ctx.fillStyle = headerGrad;
   ctx.fillRect(0, 0, width, headerH);
 

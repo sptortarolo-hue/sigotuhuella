@@ -27,8 +27,15 @@ export default function BrandSettingsTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewUrlStory, setPreviewUrlStory] = useState('');
+  const [previewUrlFeed, setPreviewUrlFeed] = useState('');
   const [previewKey, setPreviewKey] = useState(0);
+
+  const updatePreviewUrls = () => {
+    const t = Date.now();
+    setPreviewUrlStory(`/api/news/brand-preview?format=story&t=${t}`);
+    setPreviewUrlFeed(`/api/news/brand-preview?format=feed&t=${t}`);
+  };
 
   useEffect(() => {
     loadSettings();
@@ -39,7 +46,7 @@ export default function BrandSettingsTab() {
     try {
       const data = await getBrandSettings();
       setSettings({ ...DEFAULT_SETTINGS, ...data });
-      setPreviewUrl(`/api/news/brand-preview?t=${Date.now()}`);
+      updatePreviewUrls();
     } catch (e) {
       console.error('Error loading brand settings:', e);
     } finally {
@@ -91,14 +98,19 @@ export default function BrandSettingsTab() {
           <Eye className="w-5 h-5 text-brand-primary" />
           <h3 className="text-lg font-serif font-bold text-brand-primary">Preview del overlay</h3>
         </div>
-        <div className="px-6 pb-6">
-          <img
-            key={previewKey}
-            src={previewUrl}
-            alt="Preview"
-            className="w-full max-w-lg rounded-xl border border-brand-accent"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-6 pb-6">
+          <div>
+            <span className="text-xs font-bold uppercase text-gray-500 mb-2 block">Historia 9:16</span>
+            <img key={'story-' + previewKey} src={previewUrlStory} alt="Historia 9:16"
+              className="w-full rounded-xl border border-brand-accent"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          </div>
+          <div>
+            <span className="text-xs font-bold uppercase text-gray-500 mb-2 block">Feed 4:5</span>
+            <img key={'feed-' + previewKey} src={previewUrlFeed} alt="Feed 4:5"
+              className="w-full rounded-xl border border-brand-accent"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          </div>
         </div>
       </div>
 
