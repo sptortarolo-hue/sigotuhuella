@@ -344,7 +344,7 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   ctx.lineWidth = 1;
 
   // Contacto debajo del título
-  let infoY = titleCenterY + Math.max(fontSize, 44) + 6;
+  let infoY = titleCenterY + Math.max(fontSize, 44) + 20;
   if (content.contact_info) {
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
