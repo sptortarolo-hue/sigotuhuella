@@ -471,22 +471,38 @@ export function generatePetCaption(pet, platform, petId) {
   const frontendUrl = FRONTEND_URL;
   const link = `${frontendUrl}/mascota/${petId}`;
   const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Mascota';
-  const genderLabel = pet.gender === 'female' ? 'la' : 'el';
-  const locationText = pet.location ? ` en ${pet.location}` : '';
-  const base = `${speciesLabel} ${genderLabel} descripción: ${pet.description || 'Sin descripción'}${locationText}`;
+  const genderLabel = pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : null;
+  const statusLabels = {
+    lost: '🐾 PERDIDO', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
+    for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN',
+    adopted: '✅ ADOPTADO', reunited: '🎉 REENCUENTRO',
+    accidented: '🚑 ACCIDENTADO', needs_attention: '⚠️ NECESITA ATENCIÓN',
+  };
+  const label = statusLabels[pet.status] || petBadges[pet.status]?.label || pet.status;
+
+  const lines = [
+    label,
+    pet.name ? `Nombre: ${pet.name}` : '',
+    `${speciesLabel}${pet.breed ? ' · ' + pet.breed : ''}`,
+    [genderLabel, pet.age].filter(Boolean).join(' · '),
+    `📍 ${pet.location || 'Sin ubicación'}`,
+    pet.contact_info ? `📞 ${pet.contact_info}` : '',
+    '',
+    pet.description ? pet.description.substring(0, 300) : '',
+  ];
+  const body = lines.filter(Boolean).join('\n');
 
   switch (platform) {
-    case 'instagram': {
-      return `${pet.status_label || pet.status}\n\n${base}\n\n🔗 Encontrá más info en nuestro perfil`;
-    }
-    case 'facebook': {
-      return `${pet.status_label || pet.status}\n\n${base}\n\n🔗 ${link}`;
-    }
-    case 'whatsapp': {
-      return `${pet.status_label || pet.status}: ${pet.description || 'Sin descripción'}${locationText}\n🔗 ${link}`;
-    }
+    case 'instagram':
+      return `${body}\n\n🔗 Encontrá más info en nuestro perfil\n\n#SigoTuHuella`;
+    case 'facebook':
+      return `${body}\n\n🔗 ${link}\n\n#SigoTuHuella`;
+    case 'whatsapp':
+      return `${body}\n\n🔗 ${link}`;
+    case 'status':
+      return `${label}\n${pet.name || speciesLabel}\n🔗 ${link}`;
     default:
-      return base;
+      return body;
   }
 }
 
