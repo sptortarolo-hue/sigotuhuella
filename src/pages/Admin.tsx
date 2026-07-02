@@ -2908,8 +2908,7 @@ export default function Admin() {
                           );
                         }}
                         className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
-                      <span className="text-xl sm:text-2xl">{icon}</span>
-                      <span className="text-sm ml-2">{label}</span>
+                      <span className="text-sm">{icon} {label}</span>
                     </label>
                   ))}
                 </div>
@@ -2957,8 +2956,7 @@ export default function Admin() {
                           );
                         }}
                         className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
-                      <span className="text-xl sm:text-2xl">{icon}</span>
-                      <span className="text-sm ml-2">{label}</span>
+                      <span className="text-sm">{icon} {label}</span>
                     </label>
                   ))}
                 </div>

@@ -111,8 +111,8 @@ export const petBadges = {
   reunited: { label: 'REENCUENTRO', bg: '#10B981', primary: '#047857', secondary: '#10B981', overlayBg: '#064E3B' },
 };
 
-const ICON_SIZE = 38;
-const ICON_GAP = 10;
+const ICON_SIZE = 56;
+const ICON_GAP = 14;
 
 function drawPhoneIcon(ctx, cx, cy) {
   ctx.save();
