@@ -187,18 +187,32 @@ function drawHeartIcon(ctx, cx, cy) {
   ctx.restore();
 }
 
+function truncateToFit(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let lo = 1, hi = text.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (ctx.measureText(text.slice(0, mid) + '…').width <= maxWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  return text.slice(0, lo) + '…';
+}
+
 function iconTextWidth(ctx, text) {
   return ICON_SIZE + ICON_GAP + ctx.measureText(text).width;
 }
 
-function drawIconAndText(ctx, iconFn, text, cx, y) {
-  const totalW = iconTextWidth(ctx, text);
+function drawIconAndText(ctx, iconFn, text, cx, y, maxTotalWidth) {
+  const maxTextWidth = maxTotalWidth - ICON_SIZE - ICON_GAP;
+  const safeText = ctx.measureText(text).width <= maxTextWidth
+    ? text : truncateToFit(ctx, text, maxTextWidth);
+  const totalW = iconTextWidth(ctx, safeText);
   const startX = cx - totalW / 2;
   ctx.textAlign = 'left';
   const iconCenterX = startX + ICON_SIZE / 2;
   iconFn(ctx, iconCenterX, y);
-  ctx.strokeText(text, startX + ICON_SIZE + ICON_GAP, y);
-  ctx.fillText(text, startX + ICON_SIZE + ICON_GAP, y);
+  ctx.strokeText(safeText, startX + ICON_SIZE + ICON_GAP, y);
+  ctx.fillText(safeText, startX + ICON_SIZE + ICON_GAP, y);
 }
 
 export async function applyBrandOverlay(imageBuffer, content, format = 'story') {
@@ -230,6 +244,11 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   // Fondo sólido del overlay (por estado o brand)
   ctx.fillStyle = hexToRgba(overlayBg, 1);
   ctx.fillRect(0, 0, width, height);
+
+  // Esquinas redondeadas
+  ctx.save();
+  roundRect(ctx, 0, 0, width, height, 40);
+  ctx.clip();
 
   if (imageBuffer && imageBuffer.length > 0) {
     // Card con imagen centrada (fit:inside = sin recortar)
@@ -338,7 +357,7 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
     ctx.textBaseline = 'middle';
-    drawIconAndText(ctx, drawPhoneIcon, content.contact_info, width / 2, infoY);
+    drawIconAndText(ctx, drawPhoneIcon, content.contact_info, width / 2, infoY, Math.round(width * 0.92));
     ctx.lineWidth = 1;
     infoY += 46;
   }
@@ -349,7 +368,7 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
     ctx.textBaseline = 'middle';
-    drawIconAndText(ctx, drawPinIcon, content.location, width / 2, infoY);
+    drawIconAndText(ctx, drawPinIcon, content.location, width / 2, infoY, Math.round(width * 0.92));
     ctx.lineWidth = 1;
   }
 
@@ -361,8 +380,9 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   ctx.strokeStyle = 'rgba(0,0,0,0.5)';
   ctx.lineWidth = 5;
   ctx.textBaseline = 'middle';
-  drawIconAndText(ctx, drawHeartIcon, ctaText, width / 2, height - footerH / 2);
+  drawIconAndText(ctx, drawHeartIcon, ctaText, width / 2, height - footerH / 2, Math.round(width * 0.92));
   ctx.lineWidth = 1;
+  ctx.restore();
 
   return canvas.toBuffer('image/jpeg', { quality: 85 });
 }
@@ -375,10 +395,17 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
   for (const word of words) {
     const testLine = line ? line + ' ' + word : word;
     if (ctx.measureText(testLine).width > maxWidth && line) {
+      if (lineCount >= maxLines - 1) {
+        let truncated = line;
+        while (truncated.length > 0 && ctx.measureText(truncated + '…').width > maxWidth)
+          truncated = truncated.slice(0, -1);
+        ctx.strokeText(truncated + '…', x, curY);
+        ctx.fillText(truncated + '…', x, curY);
+        return;
+      }
       ctx.strokeText(line, x, curY);
       ctx.fillText(line, x, curY);
       lineCount++;
-      if (lineCount >= maxLines) break;
       curY += lineHeight;
       line = word;
     } else {
@@ -386,8 +413,16 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
     }
   }
   if (line && lineCount < maxLines) {
-    ctx.strokeText(line, x, curY);
-    ctx.fillText(line, x, curY);
+    if (ctx.measureText(line).width > maxWidth) {
+      let truncated = line;
+      while (truncated.length > 0 && ctx.measureText(truncated + '…').width > maxWidth)
+        truncated = truncated.slice(0, -1);
+      ctx.strokeText(truncated + '…', x, curY);
+      ctx.fillText(truncated + '…', x, curY);
+    } else {
+      ctx.strokeText(line, x, curY);
+      ctx.fillText(line, x, curY);
+    }
   }
 }
 

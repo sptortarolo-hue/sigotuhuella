@@ -30,6 +30,7 @@ export default function BrandSettingsTab() {
   const [previewUrlStory, setPreviewUrlStory] = useState('');
   const [previewUrlFeed, setPreviewUrlFeed] = useState('');
   const [previewKey, setPreviewKey] = useState(0);
+  const [imgErrors, setImgErrors] = useState({ story: false, feed: false });
 
   const updatePreviewUrls = () => {
     const t = Date.now();
@@ -46,6 +47,7 @@ export default function BrandSettingsTab() {
     try {
       const data = await getBrandSettings();
       setSettings({ ...DEFAULT_SETTINGS, ...data });
+      setImgErrors({ story: false, feed: false });
       updatePreviewUrls();
     } catch (e) {
       console.error('Error loading brand settings:', e);
@@ -64,7 +66,9 @@ export default function BrandSettingsTab() {
       }
       await saveBrandSettings(payload);
       setMessage('Configuración guardada');
+      setImgErrors({ story: false, feed: false });
       setPreviewKey(k => k + 1);
+      updatePreviewUrls();
       setTimeout(() => setMessage(''), 3000);
     } catch (e: any) {
       setMessage('Error: ' + (e.message || 'desconocido'));
@@ -101,15 +105,27 @@ export default function BrandSettingsTab() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-6 pb-6">
           <div>
             <span className="text-xs font-bold uppercase text-gray-500 mb-2 block">Historia 9:16</span>
-            <img key={'story-' + previewKey} src={previewUrlStory} alt="Historia 9:16"
-              className="w-full rounded-xl border border-brand-accent"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            {imgErrors.story ? (
+              <div className="w-full aspect-[9/16] bg-gray-100 rounded-xl border border-dashed border-red-300 flex items-center justify-center text-xs text-red-500 p-4 text-center">
+                Error al cargar<br />ver consola
+              </div>
+            ) : (
+              <img key={'story-' + previewKey} src={previewUrlStory} alt="Historia 9:16"
+                className="w-full rounded-xl border border-brand-accent"
+                onError={() => setImgErrors(prev => ({ ...prev, story: true }))} />
+            )}
           </div>
           <div>
             <span className="text-xs font-bold uppercase text-gray-500 mb-2 block">Feed 4:5</span>
-            <img key={'feed-' + previewKey} src={previewUrlFeed} alt="Feed 4:5"
-              className="w-full rounded-xl border border-brand-accent"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            {imgErrors.feed ? (
+              <div className="w-full aspect-[4/5] bg-gray-100 rounded-xl border border-dashed border-red-300 flex items-center justify-center text-xs text-red-500 p-4 text-center">
+                Error al cargar<br />ver consola
+              </div>
+            ) : (
+              <img key={'feed-' + previewKey} src={previewUrlFeed} alt="Feed 4:5"
+                className="w-full rounded-xl border border-brand-accent"
+                onError={() => setImgErrors(prev => ({ ...prev, feed: true }))} />
+            )}
           </div>
         </div>
       </div>
