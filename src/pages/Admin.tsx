@@ -2884,25 +2884,19 @@ export default function Admin() {
                 <h3 className="text-lg sm:text-xl font-serif font-bold text-brand-primary">Publicar novedad</h3>
               </div>
               <div className="p-5 sm:p-8 pt-4 sm:pt-6 overflow-y-auto">
-                <div className="flex items-center justify-center mb-4 sm:mb-6 bg-gray-50 rounded-xl border border-brand-accent h-[35vh] sm:h-[45vh]">
-                  {!previewLoaded && !previewError && (
-                    <div className="flex flex-col items-center justify-center gap-2 py-8 sm:py-10">
-                      <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
-                      <span className="text-xs text-gray-400">Generando preview...</span>
+                <div className="mb-4 sm:mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-gray-400 mb-1 block">Historia 9:16</span>
+                      <img src={`/api/news/${showPlatformPicker}/publish-image?format=story&t=${Date.now()}`}
+                        className="w-full rounded-lg border border-brand-accent" alt="Story" />
                     </div>
-                  )}
-                  {previewError && (
-                    <div className="flex flex-col items-center justify-center gap-2 py-8 sm:py-10">
-                      <span className="text-xs text-red-400">No se pudo generar la vista previa</span>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-gray-400 mb-1 block">Feed 4:5</span>
+                      <img src={`/api/news/${showPlatformPicker}/publish-image?format=feed&t=${Date.now()}`}
+                        className="w-full rounded-lg border border-brand-accent" alt="Feed" />
                     </div>
-                  )}
-                  <img
-                    src={`/api/news/${showPlatformPicker}/publish-image?t=${Date.now()}`}
-                    onLoad={() => { setPreviewLoaded(true); setPreviewError(false); }}
-                    onError={() => { setPreviewLoaded(true); setPreviewError(true); }}
-                    className={`max-h-[35vh] sm:max-h-[50vh] w-auto max-w-full object-contain self-center ${previewLoaded ? 'block' : 'hidden'}`}
-                    alt="Preview"
-                  />
+                  </div>
                 </div>
                 <div className="space-y-2 sm:space-y-3 mb-5 sm:mb-6">
                   {Object.entries(platformIcons).map(([key, { icon, label }]) => (
@@ -2914,7 +2908,8 @@ export default function Admin() {
                           );
                         }}
                         className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
-                      <span className="text-sm">{icon} {label}</span>
+                      <span className="text-xl sm:text-2xl">{icon}</span>
+                      <span className="text-sm ml-2">{label}</span>
                     </label>
                   ))}
                 </div>
@@ -2938,25 +2933,19 @@ export default function Admin() {
                 <h3 className="text-lg sm:text-xl font-serif font-bold text-brand-primary">Publicar mascota</h3>
               </div>
               <div className="p-5 sm:p-8 pt-4 sm:pt-6 overflow-y-auto">
-                <div className="flex items-center justify-center mb-4 sm:mb-6 bg-gray-50 rounded-xl border border-brand-accent h-[35vh] sm:h-[45vh]">
-                  {!petPreviewLoaded && !petPreviewError && (
-                    <div className="flex flex-col items-center justify-center gap-2 py-8 sm:py-10">
-                      <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
-                      <span className="text-xs text-gray-400">Generando preview...</span>
+                <div className="mb-4 sm:mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-gray-400 mb-1 block">Historia 9:16</span>
+                      <img src={`/api/pets/${showPetPlatformPicker}/publish-image?format=story&t=${Date.now()}`}
+                        className="w-full rounded-lg border border-brand-accent" alt="Story" />
                     </div>
-                  )}
-                  {petPreviewError && (
-                    <div className="flex flex-col items-center justify-center gap-2 py-8 sm:py-10">
-                      <span className="text-xs text-red-400">No se pudo generar la vista previa</span>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-gray-400 mb-1 block">Feed 4:5</span>
+                      <img src={`/api/pets/${showPetPlatformPicker}/publish-image?format=feed&t=${Date.now()}`}
+                        className="w-full rounded-lg border border-brand-accent" alt="Feed" />
                     </div>
-                  )}
-                  <img
-                    src={`/api/pets/${showPetPlatformPicker}/publish-image?t=${Date.now()}`}
-                    onLoad={() => { setPetPreviewLoaded(true); setPetPreviewError(false); }}
-                    onError={() => { setPetPreviewLoaded(true); setPetPreviewError(true); }}
-                    className={`max-h-[35vh] sm:max-h-[50vh] w-auto max-w-full object-contain self-center ${petPreviewLoaded ? 'block' : 'hidden'}`}
-                    alt="Preview"
-                  />
+                  </div>
                 </div>
                 <div className="space-y-2 sm:space-y-3 mb-5 sm:mb-6">
                   {Object.entries(platformIcons).map(([key, { icon, label }]) => (
@@ -2968,7 +2957,8 @@ export default function Admin() {
                           );
                         }}
                         className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
-                      <span className="text-sm">{icon} {label}</span>
+                      <span className="text-xl sm:text-2xl">{icon}</span>
+                      <span className="text-sm ml-2">{label}</span>
                     </label>
                   ))}
                 </div>
