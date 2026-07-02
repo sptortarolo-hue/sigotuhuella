@@ -306,16 +306,19 @@ export async function sendGroupImage(groupId, imageUrl, caption) {
 }
 
 export async function broadcastPetToGroups(petId) {
+  console.log('[Broadcast] >>> ENTRANDO petId:', petId);
   try {
     const enabled = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_broadcast_enabled'");
+    console.log('[Broadcast] whatsapp_broadcast_enabled:', enabled.rows[0]?.value);
     if (enabled.rows[0]?.value !== 'true') {
-      console.log('[Broadcast] whatsapp_broadcast_enabled no está activado, salteando broadcast a WhatsApp');
+      console.log('[Broadcast] >>> SALIENDO: whatsapp_broadcast_enabled no está activado');
       return;
     }
 
     const groups = await pool.query("SELECT * FROM whatsapp_groups WHERE is_active = TRUE AND auto_broadcast = TRUE");
+    console.log('[Broadcast] Grupos encontrados:', groups.rows.length);
     if (groups.rows.length === 0) {
-      console.log('[Broadcast] No hay grupos de WhatsApp con auto_broadcast activado');
+      console.log('[Broadcast] >>> SALIENDO: sin grupos con auto_broadcast');
       return;
     }
 
@@ -325,7 +328,11 @@ export async function broadcastPetToGroups(petId) {
         (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
       FROM pets p WHERE p.id = $1
     `, [petId])).rows[0];
-    if (!pet) return;
+    if (!pet) {
+      console.log('[Broadcast] >>> SALIENDO: pet no encontrado, petId:', petId);
+      return;
+    }
+    console.log('[Broadcast] Pet encontrado, status:', pet.status, 'species:', pet.species);
 
     const statusLabels = {
       lost: '🐾 SE PERDIÓ', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
@@ -372,9 +379,12 @@ export async function broadcastPetToGroups(petId) {
       ? `${frontendUrl}/api/images/pet/${petId}/cover`
       : null;
 
+    console.log('[Broadcast] >>> ENCOLANDO para', groups.rows.length, 'grupo(s)');
     for (const group of groups.rows) {
       try {
+        console.log('[Broadcast] Encolando a grupo:', group.name, 'group_id:', group.group_id);
         await enqueue(group.group_id, caption, coverUrl);
+        console.log('[Broadcast] Encolado OK:', group.name);
       } catch (relayErr) {
         console.warn(`[Broadcast] Relay error to ${group.name}, fallback to Meta:`, relayErr.message);
         try {
