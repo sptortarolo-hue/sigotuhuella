@@ -187,32 +187,23 @@ function drawHeartIcon(ctx, cx, cy) {
   ctx.restore();
 }
 
-function truncateToFit(ctx, text, maxWidth) {
-  if (ctx.measureText(text).width <= maxWidth) return text;
-  let lo = 1, hi = text.length;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (ctx.measureText(text.slice(0, mid) + '…').width <= maxWidth) lo = mid;
-    else hi = mid - 1;
-  }
-  return text.slice(0, lo) + '…';
-}
-
 function iconTextWidth(ctx, text) {
   return ICON_SIZE + ICON_GAP + ctx.measureText(text).width;
 }
 
-function drawIconAndText(ctx, iconFn, text, cx, y, maxTotalWidth) {
-  const maxTextWidth = maxTotalWidth - ICON_SIZE - ICON_GAP;
-  const safeText = ctx.measureText(text).width <= maxTextWidth
-    ? text : truncateToFit(ctx, text, maxTextWidth);
-  const totalW = iconTextWidth(ctx, safeText);
+function drawIconAndText(ctx, iconFn, text, cx, y, fontSize, maxTotalWidth) {
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  while (fontSize > 14 && iconTextWidth(ctx, text) > maxTotalWidth) {
+    fontSize--;
+    ctx.font = `bold ${fontSize}px sans-serif`;
+  }
+  const totalW = iconTextWidth(ctx, text);
   const startX = cx - totalW / 2;
   ctx.textAlign = 'left';
   const iconCenterX = startX + ICON_SIZE / 2;
   iconFn(ctx, iconCenterX, y);
-  ctx.strokeText(safeText, startX + ICON_SIZE + ICON_GAP, y);
-  ctx.fillText(safeText, startX + ICON_SIZE + ICON_GAP, y);
+  ctx.strokeText(text, startX + ICON_SIZE + ICON_GAP, y);
+  ctx.fillText(text, startX + ICON_SIZE + ICON_GAP, y);
 }
 
 export async function applyBrandOverlay(imageBuffer, content, format = 'story') {
@@ -352,35 +343,32 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   // Contacto debajo del título
   let infoY = titleCenterY + (fontSize > 40 ? fontSize + 10 : 90);
   if (content.contact_info) {
-    ctx.font = 'bold 30px sans-serif';
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
     ctx.textBaseline = 'middle';
-    drawIconAndText(ctx, drawPhoneIcon, content.contact_info, width / 2, infoY, Math.round(width * 0.92));
+    drawIconAndText(ctx, drawPhoneIcon, content.contact_info, width / 2, infoY, 30, Math.round(width * 0.92));
     ctx.lineWidth = 1;
     infoY += 46;
   }
   // Ubicación debajo del contacto
   if (content.location) {
-    ctx.font = 'bold 30px sans-serif';
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
     ctx.textBaseline = 'middle';
-    drawIconAndText(ctx, drawPinIcon, content.location, width / 2, infoY, Math.round(width * 0.92));
+    drawIconAndText(ctx, drawPinIcon, content.location, width / 2, infoY, 30, Math.round(width * 0.92));
     ctx.lineWidth = 1;
   }
 
   // CTA en footer
   const ctaUrl = FRONTEND_URL.replace(/^https?:\/\//, '');
   const ctaText = brand.ctaText + ' ' + ctaUrl;
-  ctx.font = 'bold 28px sans-serif';
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = 'rgba(0,0,0,0.5)';
   ctx.lineWidth = 5;
   ctx.textBaseline = 'middle';
-  drawIconAndText(ctx, drawHeartIcon, ctaText, width / 2, height - footerH / 2, Math.round(width * 0.92));
+  drawIconAndText(ctx, drawHeartIcon, ctaText, width / 2, height - footerH / 2, 28, Math.round(width * 0.92));
   ctx.lineWidth = 1;
   ctx.restore();
 
