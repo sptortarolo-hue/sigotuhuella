@@ -111,7 +111,7 @@ export const petBadges = {
   reunited: { label: 'REENCUENTRO', bg: '#10B981', primary: '#047857', secondary: '#10B981', overlayBg: '#064E3B' },
 };
 
-const PHONE_ICON_SIZE = 68;
+const PHONE_ICON_SIZE = 100;
 const ICON_SIZE = 56;
 const ICON_GAP = 14;
 
@@ -349,7 +349,7 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
     ctx.textBaseline = 'middle';
-    drawIconAndText(ctx, drawPhoneIcon, content.contact_info, width / 2, infoY, 30, Math.round(width * 0.92), PHONE_ICON_SIZE);
+    drawIconAndText(ctx, drawPhoneIcon, content.contact_info, width / 2, infoY, 42, Math.round(width * 0.92), PHONE_ICON_SIZE);
     ctx.lineWidth = 1;
     infoY += PHONE_ICON_SIZE + 12;
   }
