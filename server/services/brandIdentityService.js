@@ -233,7 +233,8 @@ export async function applyBrandOverlay(imageBuffer, content) {
   }
   ctx.lineWidth = 1;
 
-  // Contacto debajo del título (solo mascotas)
+  // Contacto debajo del título
+  let infoY = titleCenterY + (fontSize > 40 ? fontSize + 10 : 80);
   if (content.contact_info) {
     ctx.font = 'bold 26px sans-serif';
     ctx.fillStyle = '#FFFFFF';
@@ -241,9 +242,21 @@ export async function applyBrandOverlay(imageBuffer, content) {
     ctx.lineWidth = 4;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const contactY = contentSectionTop + 120;
-    ctx.strokeText('📞 ' + content.contact_info, width / 2, contactY);
-    ctx.fillText('📞 ' + content.contact_info, width / 2, contactY);
+    ctx.strokeText('📞 ' + content.contact_info, width / 2, infoY);
+    ctx.fillText('📞 ' + content.contact_info, width / 2, infoY);
+    ctx.lineWidth = 1;
+    infoY += 40;
+  }
+  // Ubicación debajo del contacto
+  if (content.location) {
+    ctx.font = 'bold 26px sans-serif';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 4;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeText('📍 ' + content.location, width / 2, infoY);
+    ctx.fillText('📍 ' + content.location, width / 2, infoY);
     ctx.lineWidth = 1;
   }
 
