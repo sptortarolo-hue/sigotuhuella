@@ -130,18 +130,12 @@ export async function applyBrandOverlay(imageBuffer, content) {
   const titleTop = height - footerH - Math.round(height * 0.15); // ~959
   const contentSectionTop = titleTop; // 959
 
+  // Fondo sólido del color primario (entre header y footer)
+  ctx.fillStyle = hexToRgba(brand.primaryColor, 1);
+  ctx.fillRect(0, 0, width, height);
+
   if (imageBuffer && imageBuffer.length > 0) {
-    const blurred = await sharp(imageBuffer)
-      .resize(width, height, { fit: 'cover', position: 'attention' })
-      .blur(50)
-      .toBuffer();
-    const bgImg = await loadImage(blurred);
-    ctx.drawImage(bgImg, 0, 0, width, height);
-
-    // Card background: blur fill
-    ctx.drawImage(bgImg, cardX, cardY, cardW, cardH, cardX, cardY, cardW, cardH);
-
-    // Image centered within card (fit:inside = sin recortar)
+    // Card con imagen centrada (fit:inside = sin recortar)
     const mainResized = await sharp(imageBuffer)
       .resize({ width: cardW, height: cardH, fit: 'inside' })
       .toBuffer();
@@ -153,22 +147,6 @@ export async function applyBrandOverlay(imageBuffer, content) {
     const imgOffY = cardY + (cardH - mainImg.height) / 2;
     ctx.drawImage(mainImg, imgOffX, imgOffY, mainImg.width, mainImg.height);
     ctx.restore();
-
-    // Gradiente transicion ultimos 60px del card + espacio
-    const gradTop = cardY + cardH - 60;
-    const gradBot = cardY + cardH + spaceH;
-    const gradH = gradBot - gradTop;
-    const overlapGrad = ctx.createLinearGradient(0, gradTop, 0, gradBot);
-    overlapGrad.addColorStop(0, 'rgba(0,0,0,0)');
-    overlapGrad.addColorStop(1, 'rgba(0,0,0,0.5)');
-    ctx.fillStyle = overlapGrad;
-    ctx.fillRect(0, gradTop, width, gradH);
-  } else {
-    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
-    bgGrad.addColorStop(0, hexToRgba(brand.primaryColor, 0.08));
-    bgGrad.addColorStop(1, hexToRgba(brand.secondaryColor, 0.12));
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, width, height);
   }
 
   // Header bar
@@ -230,13 +208,6 @@ export async function applyBrandOverlay(imageBuffer, content) {
   ctx.lineWidth = 1;
 
   // ── Content section (titleTop → height - footerH) ──
-  // Degradado semi-transparente detrás del título y contacto
-  const contentGrad = ctx.createLinearGradient(0, contentSectionTop - 20, 0, contentSectionTop + 160);
-  contentGrad.addColorStop(0, 'rgba(0,0,0,0)');
-  contentGrad.addColorStop(0.5, 'rgba(0,0,0,0.55)');
-  contentGrad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = contentGrad;
-  ctx.fillRect(0, contentSectionTop - 20, width, 180);
 
   ctx.textAlign = 'center';
 
