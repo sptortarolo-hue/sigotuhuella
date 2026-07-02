@@ -168,6 +168,8 @@ export default function Admin() {
   const [showPetPlatformPicker, setShowPetPlatformPicker] = useState<string | null>(null);
   const [petPreviewLoaded, setPetPreviewLoaded] = useState(false);
   const [petPreviewError, setPetPreviewError] = useState(false);
+  const [previewFormat, setPreviewFormat] = useState<'story' | 'feed'>('story');
+  const [petPreviewFormat, setPetPreviewFormat] = useState<'story' | 'feed'>('story');
   const [autoPublishEnabled, setAutoPublishEnabled] = useState(true);
   const [autoPublishPlatforms, setAutoPublishPlatforms] = useState<string[]>(['instagram', 'facebook_page', 'facebook_groups', 'whatsapp', 'status']);
 
@@ -524,6 +526,7 @@ export default function Admin() {
     setPublishPlatforms(['instagram', 'facebook_page', 'whatsapp', 'status']);
     setPreviewLoaded(false);
     setPreviewError(false);
+    setPreviewFormat('story');
     setShowPlatformPicker(id);
   };
 
@@ -560,6 +563,7 @@ export default function Admin() {
     setPublishPlatforms(['instagram', 'facebook_page', 'whatsapp', 'status']);
     setPetPreviewLoaded(false);
     setPetPreviewError(false);
+    setPetPreviewFormat('story');
     setShowPetPlatformPicker(id);
   };
 
@@ -2885,18 +2889,14 @@ export default function Admin() {
               </div>
               <div className="p-5 sm:p-8 pt-4 sm:pt-6 overflow-y-auto">
                 <div className="mb-4 sm:mb-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase text-gray-400 mb-1 block">Historia 9:16</span>
-                      <img src={`/api/news/${showPlatformPicker}/publish-image?format=story&t=${Date.now()}`}
-                        className="w-full rounded-lg border border-brand-accent" alt="Story" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold uppercase text-gray-400 mb-1 block">Feed 4:5</span>
-                      <img src={`/api/news/${showPlatformPicker}/publish-image?format=feed&t=${Date.now()}`}
-                        className="w-full rounded-lg border border-brand-accent" alt="Feed" />
-                    </div>
+                  <div className="flex gap-2 mb-3">
+                    <button onClick={() => setPreviewFormat('story')}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-xl transition-colors ${previewFormat === 'story' ? 'bg-brand-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Historia 9:16</button>
+                    <button onClick={() => setPreviewFormat('feed')}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-xl transition-colors ${previewFormat === 'feed' ? 'bg-brand-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Feed 4:5</button>
                   </div>
+                  <img src={`/api/news/${showPlatformPicker}/publish-image?format=${previewFormat}&t=${Date.now()}`}
+                    className="w-full rounded-lg border border-brand-accent" alt={previewFormat === 'story' ? 'Historia 9:16' : 'Feed 4:5'} />
                 </div>
                 <div className="space-y-2 sm:space-y-3 mb-5 sm:mb-6">
                   {Object.entries(platformIcons).map(([key, { icon, label }]) => (
@@ -2933,18 +2933,14 @@ export default function Admin() {
               </div>
               <div className="p-5 sm:p-8 pt-4 sm:pt-6 overflow-y-auto">
                 <div className="mb-4 sm:mb-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase text-gray-400 mb-1 block">Historia 9:16</span>
-                      <img src={`/api/pets/${showPetPlatformPicker}/publish-image?format=story&t=${Date.now()}`}
-                        className="w-full rounded-lg border border-brand-accent" alt="Story" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold uppercase text-gray-400 mb-1 block">Feed 4:5</span>
-                      <img src={`/api/pets/${showPetPlatformPicker}/publish-image?format=feed&t=${Date.now()}`}
-                        className="w-full rounded-lg border border-brand-accent" alt="Feed" />
-                    </div>
+                  <div className="flex gap-2 mb-3">
+                    <button onClick={() => setPetPreviewFormat('story')}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-xl transition-colors ${petPreviewFormat === 'story' ? 'bg-brand-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Historia 9:16</button>
+                    <button onClick={() => setPetPreviewFormat('feed')}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-xl transition-colors ${petPreviewFormat === 'feed' ? 'bg-brand-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Feed 4:5</button>
                   </div>
+                  <img src={`/api/pets/${showPetPlatformPicker}/publish-image?format=${petPreviewFormat}&t=${Date.now()}`}
+                    className="w-full rounded-lg border border-brand-accent" alt={petPreviewFormat === 'story' ? 'Historia 9:16' : 'Feed 4:5'} />
                 </div>
                 <div className="space-y-2 sm:space-y-3 mb-5 sm:mb-6">
                   {Object.entries(platformIcons).map(([key, { icon, label }]) => (
