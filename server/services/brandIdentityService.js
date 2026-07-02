@@ -232,14 +232,14 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   const titleTop = height - footerH - Math.round(height * 0.15); // ~959
   const contentSectionTop = titleTop; // 959
 
-  // Fondo sólido del overlay (por estado o brand)
-  ctx.fillStyle = hexToRgba(overlayBg, 1);
-  ctx.fillRect(0, 0, width, height);
-
-  // Esquinas redondeadas
+  // Esquinas redondeadas (clip antes de dibujar)
   ctx.save();
   roundRect(ctx, 0, 0, width, height, 40);
   ctx.clip();
+
+  // Fondo sólido del overlay (recortado a las esquinas redondeadas)
+  ctx.fillStyle = hexToRgba(overlayBg, 1);
+  ctx.fillRect(0, 0, width, height);
 
   if (imageBuffer && imageBuffer.length > 0) {
     // Card con imagen centrada (fit:inside = sin recortar)
