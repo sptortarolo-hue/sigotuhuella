@@ -202,10 +202,14 @@ export async function applyBrandOverlay(imageBuffer, content) {
   // Brand signature
   ctx.font = 'bold 40px sans-serif';
   ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = 5;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
   const sigX = brand.logo ? 110 : 40;
+  ctx.strokeText(brand.signature, sigX, headerH / 2);
   ctx.fillText(brand.signature, sigX, headerH / 2);
+  ctx.lineWidth = 1;
 
   // Badge en header (derecha)
   ctx.textBaseline = 'middle';
@@ -218,8 +222,12 @@ export async function applyBrandOverlay(imageBuffer, content) {
   ctx.fill();
   ctx.font = 'bold 30px sans-serif';
   ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.lineWidth = 4;
   ctx.textAlign = 'center';
+  ctx.strokeText(badge.label, badgeX + badgeW / 2, badgeY + badgeH / 2);
   ctx.fillText(badge.label, badgeX + badgeW / 2, badgeY + badgeH / 2);
+  ctx.lineWidth = 1;
 
   // ── Content section (titleTop → height - footerH) ──
 
@@ -236,30 +244,40 @@ export async function applyBrandOverlay(imageBuffer, content) {
   }
   ctx.font = `bold ${fontSize}px sans-serif`;
   ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = 5;
   const titleCenterY = contentSectionTop + 50;
   if (ctx.measureText(titleText).width <= maxTitleW) {
+    ctx.strokeText(titleText, width / 2, titleCenterY);
     ctx.fillText(titleText, width / 2, titleCenterY);
   } else {
     wrapText(ctx, titleText, width / 2, titleCenterY - fontSize / 2, maxTitleW, fontSize + 6, 2);
   }
+  ctx.lineWidth = 1;
 
   // CTA en footer
   ctx.font = 'bold 28px sans-serif';
   ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = 5;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const ctaUrl = FRONTEND_URL.replace(/^https?:\/\//, '');
+  ctx.strokeText('❤️ ' + brand.ctaText + ' ' + ctaUrl, width / 2, height - footerH / 2);
   ctx.fillText('❤️ ' + brand.ctaText + ' ' + ctaUrl, width / 2, height - footerH / 2);
+  ctx.lineWidth = 1;
 
   // Fecha abajo a la derecha (encima del footer)
   ctx.font = '24px sans-serif';
   ctx.fillStyle = '#D1D5DB';
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = 4;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
-  ctx.fillText(
-    new Date(content.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }),
-    width - 20, height - footerH - 12
-  );
+  const dateStr = new Date(content.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+  ctx.strokeText(dateStr, width - 20, height - footerH - 12);
+  ctx.fillText(dateStr, width - 20, height - footerH - 12);
+  ctx.lineWidth = 1;
 
   return canvas.toBuffer('image/jpeg', { quality: 85 });
 }
@@ -272,6 +290,7 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
   for (const word of words) {
     const testLine = line ? line + ' ' + word : word;
     if (ctx.measureText(testLine).width > maxWidth && line) {
+      ctx.strokeText(line, x, curY);
       ctx.fillText(line, x, curY);
       lineCount++;
       if (lineCount >= maxLines) break;
@@ -282,6 +301,7 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
     }
   }
   if (line && lineCount < maxLines) {
+    ctx.strokeText(line, x, curY);
     ctx.fillText(line, x, curY);
   }
 }
