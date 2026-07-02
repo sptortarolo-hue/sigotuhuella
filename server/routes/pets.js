@@ -1363,7 +1363,8 @@ router.get('/:id/publish-image', async (req, res) => {
       contact_info: pet.contact_info || null,
       location: pet.location || null,
     };
-    const branded = await applyBrandOverlay(imageBuffer, content);
+    const format = req.query.format === 'feed' ? 'feed' : 'story';
+    const branded = await applyBrandOverlay(imageBuffer, content, format);
     res.set('Content-Type', 'image/jpeg');
     res.set('Cache-Control', 'public, max-age=86400');
     res.send(branded);

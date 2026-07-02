@@ -201,10 +201,11 @@ function drawIconAndText(ctx, iconFn, text, cx, y) {
   ctx.fillText(text, startX + ICON_SIZE + ICON_GAP, y);
 }
 
-export async function applyBrandOverlay(imageBuffer, content) {
+export async function applyBrandOverlay(imageBuffer, content, format = 'story') {
   const brand = await getBrandSettings();
-  const width = 720;
-  const height = 1280;
+  const isFeed = format === 'feed';
+  const width = isFeed ? 1080 : 720;
+  const height = isFeed ? 1350 : 1280;
   const badge = (content.type === 'pet' ? petBadges[content.pet_status] : null) || typeBadge[content.type] || typeBadge.manual;
   const { createCanvas, loadImage } = await getCanvas();
 
@@ -306,7 +307,7 @@ export async function applyBrandOverlay(imageBuffer, content) {
   // Titulo auto-escalable (64px→32px segun ancho)
   const titleText = content.title || '';
   let fontSize = 64;
-  const maxTitleW = 640;
+  const maxTitleW = Math.round(width * 0.89);
   while (fontSize > 32) {
     ctx.font = `bold ${fontSize}px sans-serif`;
     if (ctx.measureText(titleText).width <= maxTitleW) break;

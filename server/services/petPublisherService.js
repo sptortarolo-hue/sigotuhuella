@@ -79,7 +79,7 @@ async function publishToInstagram(pet, title) {
   const token = await getStoredToken();
   if (!token) return { success: false, error: 'Instagram sin token' };
 
-  const imageUrl = `${FRONTEND_URL}/api/pets/${pet.id}/publish-image`;
+  const imageUrl = `${FRONTEND_URL}/api/pets/${pet.id}/publish-image?format=feed`;
 
   const caption = generatePetCaption(pet, 'instagram', pet.id);
 
@@ -105,7 +105,7 @@ async function publishToFacebook(pet, title) {
     created_at: pet.created_at,
     contact_info: pet.contact_info || null,
     location: pet.location || null,
-  }) : null;
+  }, 'feed') : null;
   const imageBase64 = brandedImage ? brandedImage.toString('base64') : null;
 
   const pageResult = await publishNewsToPage(message, imageBase64);
@@ -145,14 +145,14 @@ async function publishToWhatsApp(pet, title) {
   let imageUrl = null;
 
   if (imageBuffer) {
-    const brandedImage = await applyBrandOverlay(imageBuffer, {
+    await applyBrandOverlay(imageBuffer, {
       type: pet.status,
       title,
       created_at: pet.created_at,
       contact_info: pet.contact_info || null,
       location: pet.location || null,
-    });
-    imageUrl = `${FRONTEND_URL}/api/pets/${pet.id}/publish-image`;
+    }, 'feed');
+    imageUrl = `${FRONTEND_URL}/api/pets/${pet.id}/publish-image?format=feed`;
   }
 
   const groups = await pool.query(
@@ -183,22 +183,17 @@ async function publishToStatus(pet, title) {
   if (!imageBuffer) return { success: false, error: 'Sin imagen' };
 
   try {
-    const brandedImage = await applyBrandOverlay(imageBuffer, {
+    await applyBrandOverlay(imageBuffer, {
       type: pet.status,
       title,
       created_at: pet.created_at,
       contact_info: pet.contact_info || null,
       location: pet.location || null,
-    });
-    const imageBase64 = brandedImage.toString('base64');
+    }, 'story');
     const text = generatePetCaption(pet, 'status', pet.id);
+    const imageUrl = `${FRONTEND_URL}/api/pets/${pet.id}/publish-image?format=story`;
 
-    await enqueueStatus({
-      imageBuffer: imageBase64,
-      caption: text,
-      sourceType: 'pet',
-      sourceId: pet.id,
-    });
+    await enqueueStatus(text, imageUrl);
 
     return { success: true };
   } catch (err) {

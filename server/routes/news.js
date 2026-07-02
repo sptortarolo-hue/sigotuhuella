@@ -57,7 +57,8 @@ router.get('/brand-preview', async (req, res) => {
       image_data: null,
     };
     const { applyBrandOverlay } = await import('../services/brandIdentityService.js');
-    const branded = await applyBrandOverlay(null, dummyNews);
+    const format = req.query.format === 'feed' ? 'feed' : 'story';
+    const branded = await applyBrandOverlay(null, dummyNews, format);
     res.set('Content-Type', 'image/jpeg');
     res.set('Cache-Control', 'public, max-age=86400');
     res.send(branded);
@@ -189,7 +190,8 @@ router.get('/:id/publish-image', async (req, res) => {
     const news = rows[0];
     const { applyBrandOverlay } = await import('../services/brandIdentityService.js');
     const imageBuffer = news.image_data ? Buffer.from(news.image_data, 'base64') : null;
-    const branded = await applyBrandOverlay(imageBuffer, news);
+    const format = req.query.format === 'feed' ? 'feed' : 'story';
+    const branded = await applyBrandOverlay(imageBuffer, news, format);
     res.set('Content-Type', 'image/jpeg');
     res.set('Cache-Control', 'public, max-age=86400');
     res.send(branded);
