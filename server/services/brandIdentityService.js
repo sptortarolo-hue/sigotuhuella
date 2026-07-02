@@ -111,7 +111,8 @@ export const petBadges = {
   reunited: { label: 'REENCUENTRO', bg: '#10B981', primary: '#047857', secondary: '#10B981', overlayBg: '#064E3B' },
 };
 
-const PHONE_ICON_SIZE = 100;
+const PHONE_ICON_SIZE = 130;
+const LOCATION_ICON_SIZE = 80;
 const ICON_SIZE = 56;
 const ICON_GAP = 14;
 
@@ -230,7 +231,7 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   const cardW = Math.round(width * 0.95);
   const cardX = Math.round((width - cardW) / 2);
   const cardY = headerH + spaceH;
-  const footerH = Math.round(height * 0.10);
+  const footerH = Math.round(height * 0.07);
   const titleTop = height - footerH - Math.round(height * 0.19);
   const contentSectionTop = titleTop;
 
@@ -343,15 +344,15 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   ctx.lineWidth = 1;
 
   // Contacto debajo del título
-  let infoY = titleCenterY + (fontSize > 40 ? fontSize + 10 : 90);
+  let infoY = titleCenterY + Math.max(fontSize, 44) + 6;
   if (content.contact_info) {
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
     ctx.textBaseline = 'middle';
-    drawIconAndText(ctx, drawPhoneIcon, content.contact_info, width / 2, infoY, 42, Math.round(width * 0.92), PHONE_ICON_SIZE);
+    drawIconAndText(ctx, drawPhoneIcon, content.contact_info, width / 2, infoY, 52, Math.round(width * 0.92), PHONE_ICON_SIZE);
     ctx.lineWidth = 1;
-    infoY += PHONE_ICON_SIZE + 12;
+    infoY += PHONE_ICON_SIZE + 8;
   }
   // Ubicación debajo del contacto
   if (content.location) {
@@ -359,7 +360,7 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
     ctx.textBaseline = 'middle';
-    drawIconAndText(ctx, drawPinIcon, content.location, width / 2, infoY, 30, Math.round(width * 0.92));
+    drawIconAndText(ctx, drawPinIcon, content.location, width / 2, infoY, 38, Math.round(width * 0.92), LOCATION_ICON_SIZE);
     ctx.lineWidth = 1;
   }
 
