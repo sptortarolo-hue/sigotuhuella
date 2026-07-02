@@ -111,6 +111,96 @@ export const petBadges = {
   reunited: { label: 'REENCUENTRO', bg: '#10B981' },
 };
 
+const ICON_SIZE = 38;
+const ICON_GAP = 10;
+
+function drawPhoneIcon(ctx, cx, cy) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.PI / 4);
+  const w = Math.round(ICON_SIZE * 0.28);
+  const h = Math.round(ICON_SIZE * 0.6);
+  roundRect(ctx, -w / 2, -h / 2, w, h, w / 2);
+  const grad = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+  grad.addColorStop(0, '#64B5F6');
+  grad.addColorStop(1, '#1565C0');
+  ctx.fillStyle = grad;
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetY = 3;
+  ctx.fill();
+  ctx.beginPath();
+  roundRect(ctx, -w * 0.2, -h * 0.35, w * 0.3, h * 0.2, w * 0.1);
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawPinIcon(ctx, cx, cy) {
+  const s = Math.round(ICON_SIZE * 0.45);
+  ctx.beginPath();
+  ctx.arc(cx, cy - s * 0.15, s * 0.35, Math.PI, 0);
+  ctx.lineTo(cx, cy + s * 0.5);
+  ctx.closePath();
+  const grad = ctx.createRadialGradient(cx - s * 0.2, cy - s * 0.25, 0, cx, cy - s * 0.15, s * 0.55);
+  grad.addColorStop(0, '#EF5350');
+  grad.addColorStop(1, '#B71C1C');
+  ctx.save();
+  ctx.fillStyle = grad;
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetY = 3;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx - s * 0.08, cy - s * 0.28, s * 0.1, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawHeartIcon(ctx, cx, cy) {
+  const s = Math.round(ICON_SIZE * 0.48);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.35);
+  ctx.bezierCurveTo(cx - s * 0.5, cy - s * 0.05, cx - s * 0.25, cy - s * 0.55, cx, cy - s * 0.15);
+  ctx.bezierCurveTo(cx + s * 0.25, cy - s * 0.55, cx + s * 0.5, cy - s * 0.05, cx, cy + s * 0.35);
+  ctx.closePath();
+  const grad = ctx.createRadialGradient(cx - s * 0.15, cy - s * 0.2, 0, cx, cy - s * 0.1, s * 0.55);
+  grad.addColorStop(0, '#F06292');
+  grad.addColorStop(1, '#AD1457');
+  ctx.save();
+  ctx.fillStyle = grad;
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetY = 3;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx - s * 0.1, cy - s * 0.25, s * 0.12, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.fill();
+  ctx.restore();
+}
+
+function iconTextWidth(ctx, text) {
+  return ICON_SIZE + ICON_GAP + ctx.measureText(text).width;
+}
+
+function drawIconAndText(ctx, iconFn, text, cx, y) {
+  const totalW = iconTextWidth(ctx, text);
+  const startX = cx - totalW / 2;
+  ctx.textAlign = 'left';
+  const iconCenterX = startX + ICON_SIZE / 2;
+  iconFn(ctx, iconCenterX, y);
+  ctx.strokeText(text, startX + ICON_SIZE + ICON_GAP, y);
+  ctx.fillText(text, startX + ICON_SIZE + ICON_GAP, y);
+}
+
 export async function applyBrandOverlay(imageBuffer, content) {
   const brand = await getBrandSettings();
   const width = 720;
@@ -242,10 +332,8 @@ export async function applyBrandOverlay(imageBuffer, content) {
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
-    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.strokeText('📞 ' + content.contact_info, width / 2, infoY);
-    ctx.fillText('📞 ' + content.contact_info, width / 2, infoY);
+    drawIconAndText(ctx, drawPhoneIcon, content.contact_info, width / 2, infoY);
     ctx.lineWidth = 1;
     infoY += 46;
   }
@@ -255,23 +343,20 @@ export async function applyBrandOverlay(imageBuffer, content) {
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
-    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.strokeText('📍 ' + content.location, width / 2, infoY);
-    ctx.fillText('📍 ' + content.location, width / 2, infoY);
+    drawIconAndText(ctx, drawPinIcon, content.location, width / 2, infoY);
     ctx.lineWidth = 1;
   }
 
   // CTA en footer
+  const ctaUrl = FRONTEND_URL.replace(/^https?:\/\//, '');
+  const ctaText = brand.ctaText + ' ' + ctaUrl;
   ctx.font = 'bold 28px sans-serif';
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = 'rgba(0,0,0,0.5)';
   ctx.lineWidth = 5;
-  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const ctaUrl = FRONTEND_URL.replace(/^https?:\/\//, '');
-  ctx.strokeText('❤️ ' + brand.ctaText + ' ' + ctaUrl, width / 2, height - footerH / 2);
-  ctx.fillText('❤️ ' + brand.ctaText + ' ' + ctaUrl, width / 2, height - footerH / 2);
+  drawIconAndText(ctx, drawHeartIcon, ctaText, width / 2, height - footerH / 2);
   ctx.lineWidth = 1;
 
   return canvas.toBuffer('image/jpeg', { quality: 85 });
