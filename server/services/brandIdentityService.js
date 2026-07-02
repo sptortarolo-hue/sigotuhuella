@@ -207,48 +207,41 @@ export async function applyBrandOverlay(imageBuffer, content) {
   const sigX = brand.logo ? 85 : 40;
   ctx.fillText(brand.signature, sigX, headerH / 2);
 
+  // Badge en header (derecha)
+  ctx.textBaseline = 'middle';
+  const badgeW = 180;
+  const badgeH = 38;
+  const badgeX = width - badgeW - 20;
+  const badgeY = (headerH - badgeH) / 2;
+  ctx.fillStyle = hexToRgba(badge.bg, 0.9);
+  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 19);
+  ctx.fill();
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textAlign = 'center';
+  ctx.fillText(badge.label, badgeX + badgeW / 2, badgeY + badgeH / 2);
+
   // ── Content section (titleTop → height - footerH) ──
 
   ctx.textAlign = 'center';
 
-  // Badge centrado
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = hexToRgba(badge.bg, 0.9);
-  const badgeW = 140;
-  const badgeH = 32;
-  const badgeX = (width - badgeW) / 2;
-  const badgeY = contentSectionTop + 24;
-  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 16);
-  ctx.fill();
-  ctx.font = 'bold 13px sans-serif';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(badge.label, width / 2, badgeY + badgeH / 2);
-
-  // Titulo auto-escalable (28px→16px segun ancho)
+  // Titulo auto-escalable (34px→18px segun ancho)
   const titleText = content.title || '';
-  const maxTitleW = 600;
-  let fontSize = 28;
-  while (fontSize > 16) {
+  let fontSize = 34;
+  const maxTitleW = 620;
+  while (fontSize > 18) {
     ctx.font = `bold ${fontSize}px sans-serif`;
     if (ctx.measureText(titleText).width <= maxTitleW) break;
     fontSize--;
   }
   ctx.font = `bold ${fontSize}px sans-serif`;
   ctx.fillStyle = '#FFFFFF';
-  const titleCenterY = contentSectionTop + 110;
+  const titleCenterY = contentSectionTop + 40;
   if (ctx.measureText(titleText).width <= maxTitleW) {
     ctx.fillText(titleText, width / 2, titleCenterY);
   } else {
     wrapText(ctx, titleText, width / 2, titleCenterY - fontSize / 2, maxTitleW, fontSize + 6, 2);
   }
-
-  // Fecha
-  ctx.font = '14px sans-serif';
-  ctx.fillStyle = '#D1D5DB';
-  ctx.fillText(
-    new Date(content.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }),
-    width / 2, contentSectionTop + 155
-  );
 
   // CTA en footer
   ctx.font = '14px sans-serif';
@@ -256,6 +249,16 @@ export async function applyBrandOverlay(imageBuffer, content) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('❤️ ' + brand.signature, width / 2, height - footerH / 2);
+
+  // Fecha abajo a la derecha (encima del footer)
+  ctx.font = '13px sans-serif';
+  ctx.fillStyle = '#D1D5DB';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(
+    new Date(content.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }),
+    width - 20, height - footerH - 12
+  );
 
   return canvas.toBuffer('image/jpeg', { quality: 85 });
 }
