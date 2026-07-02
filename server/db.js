@@ -1039,6 +1039,9 @@ export async function initDb() {
       INSERT INTO settings (key, value) VALUES ('brand_secondary_color', '#D48C70') ON CONFLICT (key) DO NOTHING
     `, 'brand_secondary_color');
     await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('brand_background_color', '#5A5A40') ON CONFLICT (key) DO NOTHING
+    `, 'brand_background_color');
+    await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('brand_logo', '') ON CONFLICT (key) DO NOTHING
     `, 'brand_logo');
     await migrate(client, `

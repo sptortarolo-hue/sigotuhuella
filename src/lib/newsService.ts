@@ -64,6 +64,7 @@ export interface NewsPublication {
 export interface BrandSettings {
   primaryColor: string;
   secondaryColor: string;
+  backgroundColor: string;
   logo: string | null;
   defaultHashtags: string;
   signature: string;

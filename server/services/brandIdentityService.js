@@ -24,7 +24,7 @@ function hexToRgba(hex, alpha) {
 }
 
 export async function getBrandSettings() {
-  const keys = ['brand_primary_color', 'brand_secondary_color', 'brand_logo',
+  const keys = ['brand_primary_color', 'brand_secondary_color', 'brand_background_color', 'brand_logo',
     'brand_default_hashtags', 'brand_signature', 'brand_cta_text'];
   const { rows } = await pool.query(
     `SELECT key, value FROM settings WHERE key = ANY($1::text[])`,
@@ -39,6 +39,7 @@ export async function getBrandSettings() {
   return {
     primaryColor: map.brand_primary_color || '#5A5A40',
     secondaryColor: map.brand_secondary_color || '#D48C70',
+    backgroundColor: map.brand_background_color || '#5A5A40',
     logo,
     defaultHashtags: map.brand_default_hashtags || '#AdoptaNoCompres #SigoTuHuella #MascotasPerdidas',
     signature: map.brand_signature || 'Sigo tu Huella',
@@ -76,6 +77,7 @@ export async function saveBrandSettings(settings) {
   const map = {
     brand_primary_color: settings.primaryColor,
     brand_secondary_color: settings.secondaryColor,
+    brand_background_color: settings.backgroundColor,
     brand_logo: settings.logo,
     brand_default_hashtags: settings.defaultHashtags,
     brand_signature: settings.signature,
@@ -131,7 +133,7 @@ export async function applyBrandOverlay(imageBuffer, content) {
   const contentSectionTop = titleTop; // 959
 
   // Fondo sólido del color primario (entre header y footer)
-  ctx.fillStyle = hexToRgba(brand.primaryColor, 1);
+  ctx.fillStyle = hexToRgba(brand.backgroundColor, 1);
   ctx.fillRect(0, 0, width, height);
 
   if (imageBuffer && imageBuffer.length > 0) {

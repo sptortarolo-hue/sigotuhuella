@@ -6,6 +6,7 @@ import { api } from '@/src/lib/api';
 const DEFAULT_SETTINGS: BrandSettings = {
   primaryColor: '#5A5A40',
   secondaryColor: '#D48C70',
+  backgroundColor: '#5A5A40',
   logo: null,
   defaultHashtags: '#AdoptaNoCompres #SigoTuHuella #MascotasPerdidas',
   signature: 'Sigo tu Huella',
@@ -125,6 +126,17 @@ export default function BrandSettingsTab() {
                 className="w-12 h-12 rounded-xl border border-brand-accent cursor-pointer" />
               <input type="text" value={settings.secondaryColor}
                 onChange={e => setSettings(prev => ({ ...prev, secondaryColor: e.target.value }))}
+                className="flex-1 px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent text-sm font-mono" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-bold uppercase text-gray-500 mb-2 block">Color de Fondo</label>
+            <div className="flex items-center gap-3">
+              <input type="color" value={settings.backgroundColor}
+                onChange={e => setSettings(prev => ({ ...prev, backgroundColor: e.target.value }))}
+                className="w-12 h-12 rounded-xl border border-brand-accent cursor-pointer" />
+              <input type="text" value={settings.backgroundColor}
+                onChange={e => setSettings(prev => ({ ...prev, backgroundColor: e.target.value }))}
                 className="flex-1 px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent text-sm font-mono" />
             </div>
           </div>
