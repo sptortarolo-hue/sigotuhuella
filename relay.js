@@ -6,7 +6,7 @@ const QR = require('qrcode-terminal');
 const QRCode = require('qrcode');
 
 const VPS_URL = 'https://sigotuhuella.online';
-const TOKEN = 'RELAY_TOKEN';
+const TOKEN = process.env.RELAY_TOKEN || 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
 const POLL_INTERVAL = 30000;
 const MAX_RETRIES = 3;
