@@ -230,6 +230,13 @@ export async function applyBrandOverlay(imageBuffer, content) {
   ctx.lineWidth = 1;
 
   // ── Content section (titleTop → height - footerH) ──
+  // Degradado semi-transparente detrás del título y contacto
+  const contentGrad = ctx.createLinearGradient(0, contentSectionTop - 20, 0, contentSectionTop + 160);
+  contentGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  contentGrad.addColorStop(0.5, 'rgba(0,0,0,0.55)');
+  contentGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = contentGrad;
+  ctx.fillRect(0, contentSectionTop - 20, width, 180);
 
   ctx.textAlign = 'center';
 
