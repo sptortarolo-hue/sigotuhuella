@@ -156,19 +156,14 @@ async function publishToWhatsApp(pet, title) {
   }
 
   const groups = await pool.query(
-    "SELECT id FROM whatsapp_groups WHERE is_active = TRUE AND auto_broadcast = TRUE"
+    "SELECT id, group_id FROM whatsapp_groups WHERE is_active = TRUE AND auto_broadcast = TRUE"
   );
 
   let sent = 0;
   let lastError = null;
   for (const group of groups.rows) {
     try {
-      await enqueue({
-        type: 'group',
-        groupId: group.id,
-        text,
-        imageUrl,
-      });
+      await enqueue(group.group_id, text, imageUrl);
       sent++;
     } catch (err) {
       lastError = err.message;
