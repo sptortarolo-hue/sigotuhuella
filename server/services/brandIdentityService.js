@@ -234,9 +234,9 @@ export async function applyBrandOverlay(imageBuffer, content) {
   ctx.lineWidth = 1;
 
   // Contacto debajo del título
-  let infoY = titleCenterY + (fontSize > 40 ? fontSize + 10 : 80);
+  let infoY = titleCenterY + (fontSize > 40 ? fontSize + 10 : 90);
   if (content.contact_info) {
-    ctx.font = 'bold 26px sans-serif';
+    ctx.font = 'bold 30px sans-serif';
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
@@ -245,11 +245,11 @@ export async function applyBrandOverlay(imageBuffer, content) {
     ctx.strokeText('📞 ' + content.contact_info, width / 2, infoY);
     ctx.fillText('📞 ' + content.contact_info, width / 2, infoY);
     ctx.lineWidth = 1;
-    infoY += 40;
+    infoY += 46;
   }
   // Ubicación debajo del contacto
   if (content.location) {
-    ctx.font = 'bold 26px sans-serif';
+    ctx.font = 'bold 30px sans-serif';
     ctx.fillStyle = '#FFFFFF';
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
@@ -270,18 +270,6 @@ export async function applyBrandOverlay(imageBuffer, content) {
   const ctaUrl = FRONTEND_URL.replace(/^https?:\/\//, '');
   ctx.strokeText('❤️ ' + brand.ctaText + ' ' + ctaUrl, width / 2, height - footerH / 2);
   ctx.fillText('❤️ ' + brand.ctaText + ' ' + ctaUrl, width / 2, height - footerH / 2);
-  ctx.lineWidth = 1;
-
-  // Fecha abajo a la derecha (encima del footer)
-  ctx.font = '24px sans-serif';
-  ctx.fillStyle = '#D1D5DB';
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-  ctx.lineWidth = 4;
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'bottom';
-  const dateStr = new Date(content.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
-  ctx.strokeText(dateStr, width - 20, height - footerH - 12);
-  ctx.fillText(dateStr, width - 20, height - footerH - 12);
   ctx.lineWidth = 1;
 
   return canvas.toBuffer('image/jpeg', { quality: 85 });
