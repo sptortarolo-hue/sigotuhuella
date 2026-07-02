@@ -200,23 +200,23 @@ export async function applyBrandOverlay(imageBuffer, content) {
   }
 
   // Brand signature
-  ctx.font = 'bold 20px sans-serif';
+  ctx.font = 'bold 40px sans-serif';
   ctx.fillStyle = '#FFFFFF';
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
-  const sigX = brand.logo ? 85 : 40;
+  const sigX = brand.logo ? 110 : 40;
   ctx.fillText(brand.signature, sigX, headerH / 2);
 
   // Badge en header (derecha)
   ctx.textBaseline = 'middle';
-  const badgeW = 180;
-  const badgeH = 38;
+  const badgeW = 260;
+  const badgeH = 64;
   const badgeX = width - badgeW - 20;
   const badgeY = (headerH - badgeH) / 2;
   ctx.fillStyle = hexToRgba(badge.bg, 0.9);
-  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 19);
+  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 32);
   ctx.fill();
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = 'bold 30px sans-serif';
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center';
   ctx.fillText(badge.label, badgeX + badgeW / 2, badgeY + badgeH / 2);
@@ -225,18 +225,18 @@ export async function applyBrandOverlay(imageBuffer, content) {
 
   ctx.textAlign = 'center';
 
-  // Titulo auto-escalable (34px→18px segun ancho)
+  // Titulo auto-escalable (64px→32px segun ancho)
   const titleText = content.title || '';
-  let fontSize = 34;
-  const maxTitleW = 620;
-  while (fontSize > 18) {
+  let fontSize = 64;
+  const maxTitleW = 640;
+  while (fontSize > 32) {
     ctx.font = `bold ${fontSize}px sans-serif`;
     if (ctx.measureText(titleText).width <= maxTitleW) break;
     fontSize--;
   }
   ctx.font = `bold ${fontSize}px sans-serif`;
   ctx.fillStyle = '#FFFFFF';
-  const titleCenterY = contentSectionTop + 40;
+  const titleCenterY = contentSectionTop + 50;
   if (ctx.measureText(titleText).width <= maxTitleW) {
     ctx.fillText(titleText, width / 2, titleCenterY);
   } else {
@@ -244,14 +244,14 @@ export async function applyBrandOverlay(imageBuffer, content) {
   }
 
   // CTA en footer
-  ctx.font = '14px sans-serif';
+  ctx.font = 'bold 28px sans-serif';
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('❤️ ' + brand.signature, width / 2, height - footerH / 2);
 
   // Fecha abajo a la derecha (encima del footer)
-  ctx.font = '13px sans-serif';
+  ctx.font = '24px sans-serif';
   ctx.fillStyle = '#D1D5DB';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
