@@ -40,7 +40,6 @@ export const api = {
     pendingMessages: () => request('/relay/pending-list'),
     recentSent: () => request('/relay/recent-sent'),
     deleteMessage: (id: string) => request(`/relay/message/${id}`, { method: 'DELETE' }),
-    statusHistory: () => request('/relay/status-history'),
   },
   get: (path: string) => request(path),
   post: (path: string, body?: any) => request(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
@@ -105,10 +104,6 @@ export const api = {
         } catch (e) { alert('Error al descargar el PDF'); }
       },
     },
-    publish: (id: string, platforms?: string[]) =>
-      request(`/pets/${id}/publish`, { method: 'POST', body: JSON.stringify({ platforms }) }),
-    publications: (id: string) => request(`/pets/${id}/publications`),
-    getPublishImageUrl: (id: string) => `/api/pets/${id}/publish-image`,
   },
   collaboration: {
     list: () => request('/collaboration'),
@@ -151,11 +146,6 @@ export const api = {
     create: (data: any) => request('/news', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => request(`/news/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/news/${id}`, { method: 'DELETE' }),
-    publish: (id: string, platforms?: string[]) => request(`/news/${id}/publish`, { method: 'POST', body: JSON.stringify({ platforms }) }),
-    publications: (id: string) => request(`/news/${id}/publications`),
-    getBrandSettings: () => request('/news/brand-settings'),
-    saveBrandSettings: (data: any) => request('/news/brand-settings', { method: 'PUT', body: JSON.stringify(data) }),
-    getPublishImageUrl: (id: string) => `/api/news/${id}/publish-image`,
   },
   settings: {
     list: () => request('/settings'),

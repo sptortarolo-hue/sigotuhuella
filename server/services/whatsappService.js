@@ -1,7 +1,6 @@
 import axios from 'axios';
 import pool from '../db.js';
 import { enqueue } from './phoneRelayService.js';
-import { publishPetAsStatus } from './whatsappStatusService.js';
 import { generateCelebrationText } from './textTemplates.js';
 import { enqueuePublishTask, applySpintax } from './facebookRelayService.js';
 
@@ -52,7 +51,7 @@ export async function sendInteractiveButtons(to, bodyText, buttons) {
         action: {
           buttons: buttons.map((b, i) => ({
             type: 'reply',
-            reply: { id: String(b.id || i), title: b.title.slice(0, 20) },
+            reply: { id: String(b.id || i), title: b.title },
           })),
         },
       },
@@ -79,11 +78,10 @@ export async function sendListMessage(to, bodyText, rows, { buttonLabel = 'Ver o
         button: buttonLabel,
         sections: [{
           title: '🐾 Sigo Tu Huella',
-          rows: rows.map((r, i) => {
-            const t = r.title.slice(0, 24);
-            console.log(`[sendListMessage] row#${i} id=${r.id} title=${JSON.stringify(t)} len=${t.length}`);
-            return { id: String(r.id || i), title: t };
-          }),
+          rows: rows.map((r, i) => ({
+            id: String(r.id || i),
+            title: r.title.slice(0, 24),
+          })),
         }],
       },
     },
@@ -390,10 +388,6 @@ export async function broadcastPetToGroups(petId) {
         }
       }
     }
-
-    publishPetAsStatus(pet, caption).catch(err =>
-      console.error('[Broadcast] Status publish error:', err.message)
-    );
   } catch (err) {
     console.error('[Broadcast] Error:', err.message);
   }
@@ -481,10 +475,6 @@ export async function broadcastNextAdoptionPet(existingPet = null) {
       await pool.query('UPDATE pets SET adoption_broadcasted_at = NOW() WHERE id = $1', [pet.id]);
     }
     console.log(`[AdoptionBroadcast] Broadcast "${pet.name}" (${pet.id}) to ${groups.length} groups`);
-
-    publishPetAsStatus(pet, caption).catch(err =>
-      console.error('[AdoptionBroadcast] Status publish error:', err.message)
-    );
   } catch (err) {
     console.error('[AdoptionBroadcast] Error:', err.message);
   }

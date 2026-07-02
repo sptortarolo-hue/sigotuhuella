@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getPets, createPet, updatePet, deletePet, Pet, PetStatus, getPetImageUrl, publishPet, getPetPublications, getPetPublishImageUrl, PetPublication } from '@/src/lib/petService';
+import { getPets, createPet, updatePet, deletePet, Pet, PetStatus, getPetImageUrl } from '@/src/lib/petService';
 import { filesToBase64, fileToBase64, compressImage } from '@/src/lib/storageService';
 import ImageCropper from '@/src/components/ImageCropper';
 import {
@@ -13,7 +13,7 @@ import {
   CollaborationAccount,
   VolunteerRequest
 } from '@/src/lib/collaborationService';
-import { getNews, createNews, updateNews, deleteNews, News, getNewsImageUrl, publishNews, getNewsPublications, NewsPublication } from '@/src/lib/newsService';
+import { getNews, createNews, updateNews, deleteNews, News, getNewsImageUrl } from '@/src/lib/newsService';
 import { useAuth } from '@/src/hooks/useAuth';
 import { Badge } from '@/src/hooks/AuthProvider';
 import { api } from '@/src/lib/api';
@@ -26,11 +26,10 @@ import InstagramTab from '@/src/components/admin/InstagramTab';
 import WhatsAppTab from '@/src/components/admin/WhatsAppTab';
 import RelayWhatsAppTab from '@/src/components/admin/RelayWhatsAppTab';
 import FacebookRelayTab from '@/src/components/admin/FacebookRelayTab';
-import BrandSettingsTab from '@/src/components/admin/BrandSettingsTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, Palette, ChevronDown
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -156,22 +155,6 @@ export default function Admin() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiType, setAiType] = useState('consejo_cuidado');
   const [aiTopic, setAiTopic] = useState('');
-  const [newsPublications, setNewsPublications] = useState<Record<string, NewsPublication[]>>({});
-  const [publishingNews, setPublishingNews] = useState<string | null>(null);
-  const [showBrandPanel, setShowBrandPanel] = useState(false);
-  const [publishPlatforms, setPublishPlatforms] = useState<string[]>([]);
-  const [showPlatformPicker, setShowPlatformPicker] = useState<string | null>(null);
-  const [previewLoaded, setPreviewLoaded] = useState(false);
-  const [previewError, setPreviewError] = useState(false);
-  const [petPublications, setPetPublications] = useState<Record<string, PetPublication[]>>({});
-  const [publishingPet, setPublishingPet] = useState<string | null>(null);
-  const [showPetPlatformPicker, setShowPetPlatformPicker] = useState<string | null>(null);
-  const [petPreviewLoaded, setPetPreviewLoaded] = useState(false);
-  const [petPreviewError, setPetPreviewError] = useState(false);
-  const [previewFormat, setPreviewFormat] = useState<'story' | 'feed'>('story');
-  const [petPreviewFormat, setPetPreviewFormat] = useState<'story' | 'feed'>('story');
-  const [autoPublishEnabled, setAutoPublishEnabled] = useState(true);
-  const [autoPublishPlatforms, setAutoPublishPlatforms] = useState<string[]>(['instagram', 'facebook_page', 'facebook_groups', 'whatsapp', 'status']);
 
   // Banner state
   const [bannerChapitaVisible, setBannerChapitaVisible] = useState(true);
@@ -386,21 +369,10 @@ export default function Admin() {
     if (activeTab === 'volunteers') fetchVolunteers();
   }, [activeTab]);
 
-  useEffect(() => {
-    if (activeTab === 'news') {
-      api.news.getBrandSettings().then(data => {
-        const s = data.settings || data;
-        setAutoPublishEnabled(s.enabled !== false);
-        if (s.platforms?.length) setAutoPublishPlatforms(s.platforms);
-      }).catch(() => {});
-    }
-  }, [activeTab]);
-
   const fetchNews = async () => {
     try {
       const data = await getNews();
       setNewsList(data);
-      fetchNewsPublications(data);
     } catch (e) { console.error(e); }
   };
 
@@ -413,7 +385,6 @@ export default function Admin() {
     setAiType('consejo_cuidado');
     setAiTopic('');
     setEditingNews(null);
-    setPublishPlatforms(['instagram', 'facebook_page', 'whatsapp', 'status']);
   };
 
   const editNews = (item: News) => {
@@ -476,7 +447,6 @@ export default function Admin() {
         title: newsFormData.title,
         content: newsFormData.content,
         videoUrl: newsFormData.videoUrl || null,
-        platforms: publishPlatforms,
       };
       if (newsImageData && newsMimeType) {
         payload.imageData = newsImageData;
@@ -498,88 +468,6 @@ export default function Admin() {
       await deleteNews(id);
       fetchNews();
     } catch (e) { console.error(e); alert('Error al eliminar'); }
-  };
-
-  const fetchNewsPublications = async (newsItems: News[]) => {
-    const results: Record<string, NewsPublication[]> = {};
-    await Promise.all(newsItems.map(async (item) => {
-      try {
-        results[item.id] = await getNewsPublications(item.id);
-      } catch { results[item.id] = []; }
-    }));
-    setNewsPublications(results);
-  };
-
-  const handlePublishNews = async (id: string, platforms?: string[]) => {
-    setPublishingNews(id);
-    try {
-      await api.news.publish(id, platforms);
-      await fetchNewsPublications(newsList);
-    } catch (e: any) {
-      alert(e.message || 'Error al publicar');
-    } finally {
-      setPublishingNews(null);
-    }
-  };
-
-  const handlePublishWithPicker = (id: string) => {
-    setPublishPlatforms(['instagram', 'facebook_page', 'whatsapp', 'status']);
-    setPreviewLoaded(false);
-    setPreviewError(false);
-    setPreviewFormat('story');
-    setShowPlatformPicker(id);
-  };
-
-  const confirmPublish = async () => {
-    const id = showPlatformPicker;
-    if (!id) return;
-    setShowPlatformPicker(null);
-    await handlePublishNews(id, publishPlatforms);
-  };
-
-  const fetchPetPublications = async (pets: Pet[]) => {
-    const results: Record<string, PetPublication[]> = {};
-    await Promise.all(pets.map(async (item) => {
-      try {
-        results[item.id] = await getPetPublications(item.id);
-      } catch { results[item.id] = []; }
-    }));
-    setPetPublications(results);
-  };
-
-  const handlePublishPet = async (id: string, platforms?: string[]) => {
-    setPublishingPet(id);
-    try {
-      await publishPet(id, platforms);
-      await fetchPetPublications(pets);
-    } catch (e: any) {
-      alert(e.message || 'Error al publicar');
-    } finally {
-      setPublishingPet(null);
-    }
-  };
-
-  const handlePetPublishWithPicker = (id: string) => {
-    setPublishPlatforms(['instagram', 'facebook_page', 'whatsapp', 'status']);
-    setPetPreviewLoaded(false);
-    setPetPreviewError(false);
-    setPetPreviewFormat('story');
-    setShowPetPlatformPicker(id);
-  };
-
-  const confirmPetPublish = async () => {
-    const id = showPetPlatformPicker;
-    if (!id) return;
-    setShowPetPlatformPicker(null);
-    await handlePublishPet(id, publishPlatforms);
-  };
-
-  const platformIcons: Record<string, { icon: string; label: string }> = {
-    instagram: { icon: '📷', label: 'Instagram' },
-    facebook_page: { icon: '📘', label: 'Facebook' },
-    facebook_groups: { icon: '👥', label: 'Grupos FB' },
-    whatsapp: { icon: '💬', label: 'WhatsApp' },
-    status: { icon: '📢', label: 'Estado WA' },
   };
 
   const loadPetRecords = async (petId: string) => {
@@ -675,7 +563,6 @@ export default function Admin() {
     try {
       const data = await getPets(undefined, true);
       setPets(data);
-      fetchPetPublications(data).catch(() => {});
     } catch (e) { console.error(e); }
   };
 
@@ -1086,17 +973,7 @@ export default function Admin() {
                               'bg-amber-100 text-amber-700'
                             )}>{pet.status}</span>
                             <div className="flex items-center gap-1 mt-2" onClick={e => e.stopPropagation()}>
-                              <button onClick={() => handlePetPublishWithPicker(pet.id)} disabled={publishingPet === pet.id} className="p-1.5 rounded-lg bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-md transition-all" title="Publicar en redes sociales">{publishingPet === pet.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}</button>
-                              {(petPublications[pet.id] || []).map(pub => {
-                                const meta = platformIcons[pub.platform];
-                                if (!meta) return null;
-                                let color = 'text-gray-300';
-                                if (pub.status === 'published') color = 'text-emerald-500';
-                                else if (pub.status === 'failed') color = 'text-red-400';
-                                return (
-                                  <span key={pub.platform} className={`text-[10px] ${color} cursor-help`} title={`${meta.label}: ${pub.status === 'published' ? 'Publicado' : pub.status === 'failed' ? 'Error' : 'Pendiente'}`}>{meta.icon}</span>
-                                );
-                              })}
+                              <button onClick={() => setSharePet(pet)} className="p-1.5 rounded-lg bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-md transition-all" title="Redes Sociales"><Share2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => editPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => setConfirmDialog({ isOpen: true, title: 'Eliminar mascota', message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`, actionLabel: 'CONFIRMAR', variant: 'danger', onConfirm: async () => { try { await deletePet(pet.id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } setConfirmDialog(prev => ({ ...prev, isOpen: false })); } })} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => handleTrackPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Seguimiento"><Activity className="w-3.5 h-3.5" /></button>
@@ -1213,21 +1090,7 @@ export default function Admin() {
                       ) : (
                         <button onClick={() => handleReencuentro(pet.id)} className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"><HeartHandshake className="w-4 h-4" /> Hubo reencuentro</button>
                       )}
-                      <button onClick={() => handlePetPublishWithPicker(pet.id)} disabled={publishingPet === pet.id} className="mt-2 w-full py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">{publishingPet === pet.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Publicar en redes sociales</button>
-                      {petPublications[pet.id] && petPublications[pet.id].length > 0 && (
-                        <div className="flex items-center justify-center gap-2 mt-2">
-                          {petPublications[pet.id].map(pub => {
-                            const meta = platformIcons[pub.platform];
-                            if (!meta) return null;
-                            let color = 'text-gray-300';
-                            if (pub.status === 'published') color = 'text-emerald-500';
-                            else if (pub.status === 'failed') color = 'text-red-400';
-                            return (
-                              <span key={pub.platform} className={`text-xs ${color} cursor-help`} title={`${meta.label}: ${pub.status === 'published' ? 'Publicado' : pub.status === 'failed' ? 'Error' : 'Pendiente'}`}>{meta.icon}</span>
-                            );
-                          })}
-                        </div>
-                      )}
+                      <button onClick={() => setSharePet(pet)} className="mt-2 w-full py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"><Share2 className="w-4 h-4" /> Redes Sociales</button>
                       <button onClick={() => handleTrackPet(pet)} className="mt-2 w-full py-2.5 bg-brand-bg text-brand-primary border border-brand-accent rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary hover:text-white hover:border-brand-primary transition-all"><Activity className="w-4 h-4" /> Seguimiento</button>
                     </div>
                   ))}
@@ -1345,15 +1208,12 @@ export default function Admin() {
                     <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
                       <th className="px-6 py-4">Título</th>
                       <th className="px-6 py-4">Tipo</th>
-                      <th className="px-6 py-4">Publicación</th>
                       <th className="px-6 py-4">Fecha</th>
                       <th className="px-6 py-4 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-brand-accent">
-                    {newsList.map(item => {
-                      const pubs = newsPublications[item.id] || [];
-                      return (
+                    {newsList.map(item => (
                       <tr key={item.id} className="hover:bg-brand-bg/50 transition-colors">
                         <td className="px-6 py-4 font-bold text-brand-primary max-w-[200px] min-w-[120px]">{item.title}</td>
                         <td className="px-6 py-4">
@@ -1365,30 +1225,6 @@ export default function Admin() {
                             {item.type === 'manual' ? 'Manual' : item.type === 'reunited' ? 'Reencuentro' : 'Adopción'}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1.5">
-                            {Object.entries(platformIcons).map(([key, { icon, label }]) => {
-                              const pub = pubs.find(p => p.platform === key);
-                              let color = 'text-gray-300';
-                              let title = `${label}: Pendiente`;
-                              if (pub?.status === 'published') { color = 'text-emerald-500'; title = `${label}: Publicado`; }
-                              else if (pub?.status === 'failed') { color = 'text-red-400'; title = `${label}: Error - ${pub.error_message || 'desconocido'}`; }
-                              return (
-                                <span key={key} className={`text-xs ${color} cursor-help`} title={title}>{icon}</span>
-                              );
-                            })}
-                            <div className="relative">
-                              <button
-                                onClick={() => handlePublishWithPicker(item.id)}
-                                disabled={publishingNews === item.id}
-                                className={`p-1 rounded-lg transition-colors ${publishingNews === item.id ? 'text-gray-300 animate-pulse' : 'text-brand-primary hover:bg-brand-accent'}`}
-                                title="Publicar en plataformas"
-                              >
-                                {publishingNews === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                              </button>
-                            </div>
-                          </div>
-                        </td>
                         <td className="px-6 py-4 text-xs text-gray-400">{new Date(item.created_at).toLocaleDateString()}</td>
                         <td className="px-6 py-4 text-right space-x-2">
                           {item.type === 'manual' && (
@@ -1397,8 +1233,7 @@ export default function Admin() {
                           <button onClick={() => handleDeleteNews(item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                         </td>
                       </tr>
-                      );
-                    })}
+                    ))}
                   </tbody>
                 </table>
                 {newsList.length === 0 && (
@@ -1406,42 +1241,6 @@ export default function Admin() {
                     <p className="text-gray-400 font-medium">No hay novedades aún.</p>
                   </div>
                 )}
-              </div>
-
-              {/* ====== PUBLICACIÓN AUTOMÁTICA ====== */}
-              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-5 sm:p-8 mt-6">
-                <h3 className="text-lg font-bold text-brand-primary mb-4">Publicación Automática</h3>
-                <label className="flex items-center gap-3 cursor-pointer mb-4">
-                  <input type="checkbox" checked={autoPublishEnabled}
-                    onChange={e => setAutoPublishEnabled(e.target.checked)}
-                    className="w-5 h-5 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
-                  <span className="text-sm font-bold text-gray-700">Publicar novedades automáticamente</span>
-                </label>
-                {autoPublishEnabled && (
-                  <div className="space-y-2 mb-4">
-                    {Object.entries(platformIcons).map(([key, { icon, label }]) => (
-                      <label key={key} className="flex items-center gap-3 cursor-pointer p-2 rounded-xl hover:bg-brand-bg/50 transition-colors">
-                        <input type="checkbox" checked={autoPublishPlatforms.includes(key)}
-                          onChange={() => {
-                            setAutoPublishPlatforms(prev =>
-                              prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
-                            );
-                          }}
-                          className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
-                        <span className="text-sm">{icon} {label}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-                <button onClick={async () => {
-                  try {
-                    await api.news.saveBrandSettings({ enabled: autoPublishEnabled, platforms: autoPublishPlatforms });
-                  } catch (e: any) {
-                    alert(e.message || 'Error al guardar');
-                  }
-                }} className="px-6 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all">
-                  Guardar
-                </button>
               </div>
             </>
           )}
@@ -2635,26 +2434,6 @@ export default function Admin() {
   </div>
   </>
 )}
-
-          {/* ====== IDENTIDAD DE MARCA (GLOBAL) ====== */}
-          <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden mt-6">
-            <button
-              onClick={() => setShowBrandPanel(!showBrandPanel)}
-              className="w-full flex items-center justify-between px-6 py-4 hover:bg-brand-bg/50 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Palette className="w-5 h-5 text-brand-primary" />
-                <span className="font-bold text-brand-primary">Identidad de Marca</span>
-              </div>
-              <ChevronDown className={cn("w-5 h-5 text-gray-400 transition-transform", showBrandPanel && "rotate-180")} />
-            </button>
-            {showBrandPanel && (
-              <div className="p-6 border-t border-brand-accent">
-                <BrandSettingsTab />
-              </div>
-            )}
-          </div>
-
           </div>
         )}
 
@@ -2854,115 +2633,10 @@ export default function Admin() {
                     <img src={newsPreview} className="mt-3 w-40 h-28 object-cover rounded-xl border border-brand-accent" />
                   )}
                 </div>
-                <div className="border-t border-brand-accent pt-4">
-                  <label className="text-xs font-bold uppercase text-gray-500 mb-3 block">Publicar en</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {Object.entries(platformIcons).map(([key, { icon, label }]) => (
-                      <label key={key} className="flex items-center gap-2 cursor-pointer p-3 rounded-xl border border-brand-accent hover:bg-brand-bg/50 transition-colors">
-                        <input type="checkbox" checked={publishPlatforms.includes(key)}
-                          onChange={() => {
-                            setPublishPlatforms(prev =>
-                              prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
-                            );
-                          }}
-                          className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
-                        <span className="text-sm">{icon} {label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
                 <button type="submit" disabled={newsFormLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">
                   {newsFormLoading ? <Loader2 className="animate-spin mx-auto" /> : <Save className="w-5 h-5 inline mr-2" />} Guardar
                 </button>
               </form>
-            </motion.div>
-          </div>
-        )}
-
-        {/* Platform picker for publishing existing news */}
-        {showPlatformPicker && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPlatformPicker(null)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-lg bg-white rounded-2xl sm:rounded-[2.5rem] shadow-2xl max-h-[90vh] flex flex-col">
-              <div className="shrink-0 px-5 pt-5 sm:px-8 sm:pt-8">
-                <h3 className="text-lg sm:text-xl font-serif font-bold text-brand-primary">Publicar novedad</h3>
-              </div>
-              <div className="p-5 sm:p-8 pt-4 sm:pt-6 overflow-y-auto">
-                <div className="mb-4 sm:mb-6">
-                  <div className="flex gap-2 mb-3">
-                    <button onClick={() => setPreviewFormat('story')}
-                      className={`px-4 py-1.5 text-xs font-bold rounded-xl transition-colors ${previewFormat === 'story' ? 'bg-brand-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Historia 9:16</button>
-                    <button onClick={() => setPreviewFormat('feed')}
-                      className={`px-4 py-1.5 text-xs font-bold rounded-xl transition-colors ${previewFormat === 'feed' ? 'bg-brand-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Feed 4:5</button>
-                  </div>
-                  <img src={`/api/news/${showPlatformPicker}/publish-image?format=${previewFormat}&t=${Date.now()}`}
-                    className="w-full rounded-lg border border-brand-accent" alt={previewFormat === 'story' ? 'Historia 9:16' : 'Feed 4:5'} />
-                </div>
-                <div className="space-y-2 sm:space-y-3 mb-5 sm:mb-6">
-                  {Object.entries(platformIcons).map(([key, { icon, label }]) => (
-                    <label key={key} className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-brand-accent hover:bg-brand-bg/50 transition-colors">
-                      <input type="checkbox" checked={publishPlatforms.includes(key)}
-                        onChange={() => {
-                          setPublishPlatforms(prev =>
-                            prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
-                          );
-                        }}
-                        className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
-                      <span className="text-sm">{icon} {label}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="flex gap-2 sm:gap-3">
-                  <button onClick={() => setShowPlatformPicker(null)} className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-colors">Cancelar</button>
-                  <button onClick={confirmPublish} disabled={publishPlatforms.length === 0} className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all disabled:opacity-50">
-                    {publishingNews ? <Loader2 className="animate-spin mx-auto" /> : 'Publicar'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-
-        {/* Platform picker for publishing existing pets */}
-        {showPetPlatformPicker && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPetPlatformPicker(null)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-lg bg-white rounded-2xl sm:rounded-[2.5rem] shadow-2xl max-h-[90vh] flex flex-col">
-              <div className="shrink-0 px-5 pt-5 sm:px-8 sm:pt-8">
-                <h3 className="text-lg sm:text-xl font-serif font-bold text-brand-primary">Publicar mascota</h3>
-              </div>
-              <div className="p-5 sm:p-8 pt-4 sm:pt-6 overflow-y-auto">
-                <div className="mb-4 sm:mb-6">
-                  <div className="flex gap-2 mb-3">
-                    <button onClick={() => setPetPreviewFormat('story')}
-                      className={`px-4 py-1.5 text-xs font-bold rounded-xl transition-colors ${petPreviewFormat === 'story' ? 'bg-brand-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Historia 9:16</button>
-                    <button onClick={() => setPetPreviewFormat('feed')}
-                      className={`px-4 py-1.5 text-xs font-bold rounded-xl transition-colors ${petPreviewFormat === 'feed' ? 'bg-brand-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Feed 4:5</button>
-                  </div>
-                  <img src={`/api/pets/${showPetPlatformPicker}/publish-image?format=${petPreviewFormat}&t=${Date.now()}`}
-                    className="w-full rounded-lg border border-brand-accent" alt={petPreviewFormat === 'story' ? 'Historia 9:16' : 'Feed 4:5'} />
-                </div>
-                <div className="space-y-2 sm:space-y-3 mb-5 sm:mb-6">
-                  {Object.entries(platformIcons).map(([key, { icon, label }]) => (
-                    <label key={key} className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-brand-accent hover:bg-brand-bg/50 transition-colors">
-                      <input type="checkbox" checked={publishPlatforms.includes(key)}
-                        onChange={() => {
-                          setPublishPlatforms(prev =>
-                            prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
-                          );
-                        }}
-                        className="w-4 h-4 rounded border-gray-300 text-brand-primary focus:ring-brand-primary" />
-                      <span className="text-sm">{icon} {label}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="flex gap-2 sm:gap-3">
-                  <button onClick={() => setShowPetPlatformPicker(null)} className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-colors">Cancelar</button>
-                  <button onClick={confirmPetPublish} disabled={publishPlatforms.length === 0} className="flex-1 py-2.5 sm:py-3 text-sm sm:text-base bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all disabled:opacity-50">
-                    {publishingPet ? <Loader2 className="animate-spin mx-auto" /> : 'Publicar'}
-                  </button>
-                </div>
-              </div>
             </motion.div>
           </div>
         )}

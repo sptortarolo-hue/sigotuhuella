@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAllGroups, saveQR, clearQR, getQR, getPetForBroadcast, getLatestPet, generateBroadcastCaption, searchPets } from '../services/phoneRelayService.js';
-import { getPendingStatuses, getStatusHistory } from '../services/whatsappStatusService.js';
 import { broadcastAdoptionPet } from '../services/whatsappService.js';
 import { requireAdmin } from '../auth.js';
 
@@ -19,26 +18,6 @@ router.get('/pending', relayAuth, async (req, res) => {
     res.json({ messages });
   } catch (err) {
     console.error('[Relay] pending error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.get('/pending-status', relayAuth, async (req, res) => {
-  try {
-    const statuses = await getPendingStatuses(parseInt(req.query.limit) || 5);
-    res.json({ messages: statuses });
-  } catch (err) {
-    console.error('[Relay] pending-status error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.get('/status-history', requireAdmin, async (req, res) => {
-  try {
-    const history = await getStatusHistory(parseInt(req.query.limit) || 10);
-    res.json(history);
-  } catch (err) {
-    console.error('[Relay] status-history error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -291,19 +270,6 @@ router.post('/broadcast-adoptions', requireAdmin, async (req, res) => {
     res.json({ success: true, message: 'Broadcast de adopciones ejecutado (WA + FB)' });
   } catch (err) {
     console.error('[Relay] broadcast-adoptions error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/test-status', requireAdmin, async (req, res) => {
-  try {
-    const { text } = req.body;
-    const statusText = text || '🔍 Test de estado desde Sigo Tu Huella';
-    const { enqueueStatus } = await import('../services/whatsappStatusService.js');
-    const id = await enqueueStatus(statusText, null);
-    res.json({ success: true, id, message: 'Estado encolado, el relay lo publicará en ~60s' });
-  } catch (err) {
-    console.error('[Relay] test-status error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

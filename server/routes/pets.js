@@ -10,8 +10,6 @@ import sharp from 'sharp';
 import { isConnected, replyToComment, commentOnMedia } from '../services/instagramService.js';
 import { commentOnPagePost } from '../services/facebookPublisher.js';
 import { generateCelebrationText } from '../services/textTemplates.js';
-import { publishNewsToAll } from '../services/newsPublisherService.js';
-import { publishPetToAll, buildPetTitle } from '../services/petPublisherService.js';
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
@@ -116,25 +114,19 @@ async function autoCreateNews(pet, newsType) {
       [pet.id]
     );
     const { data: imageData, mimeType } = await createCollage(imagesResult.rows);
-    let newsId;
     if (imageData && mimeType) {
-      const res = await pool.query(
+      await pool.query(
         `INSERT INTO news (title, content, image_data, mime_type, type, related_pet_id, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [title, content, imageData, mimeType, newsType, pet.id, pet.created_by]
       );
-      newsId = res.rows[0].id;
     } else {
-      const res = await pool.query(
+      await pool.query(
         `INSERT INTO news (title, content, type, related_pet_id, created_by)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+         VALUES ($1, $2, $3, $4, $5)`,
         [title, content, newsType, pet.id, pet.created_by]
       );
-      newsId = res.rows[0].id;
     }
-    publishNewsToAll(newsId).catch(err =>
-      console.error('Auto-publish news error:', err)
-    );
   } catch (err) {
     console.error('Auto-create news error:', err);
   }
@@ -416,8 +408,6 @@ router.post('/', requireAuth, async (req, res) => {
     if (cnt === 15) await awardBadgeIfMissing(req.user.id, 'reporter_15');
 
     res.status(201).json({ pet });
-
-    publishPetToAll(pet.id).catch(e => console.error('Auto-publish pet error:', e.message));
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Create pet error:', err);
@@ -533,8 +523,6 @@ router.put('/:id', requireAuth, async (req, res) => {
       [petId]
     );
     res.json({ pet: updated.rows[0] });
-
-    publishPetToAll(petId).catch(e => console.error('Auto-publish pet on update error:', e.message));
   } catch (err) {
     console.error('Update pet error:', err);
     res.status(500).json({ error: 'Failed to update pet' });
@@ -1010,8 +998,6 @@ router.post('/public', async (req, res) => {
         }
 
         res.status(201).json({ pet });
-
-        publishPetToAll(pet.id).catch(e => console.error('Auto-publish pet error:', e.message));
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Create public pet error:', err);
@@ -1129,8 +1115,6 @@ router.post('/lost-report', async (req, res) => {
         }
 
         res.status(201).json({ pet, registrationPending: !!registrationToken });
-
-        publishPetToAll(pet.id).catch(e => console.error('Auto-publish pet error:', e.message));
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Create lost pet report error:', err);
@@ -1342,61 +1326,6 @@ router.get('/shared/with-me', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Get shared pets error:', err);
     res.status(500).json({ error: 'Error al obtener mascotas compartidas' });
-  }
-});
-
-// GET /:id/publish-image — branded overlay preview for a pet
-router.get('/:id/publish-image', async (req, res) => {
-  try {
-    const { rows } = await pool.query('SELECT * FROM pets WHERE id = $1', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
-    const pet = rows[0];
-    const { applyBrandOverlay } = await import('../services/brandIdentityService.js');
-    // Use first image from pet_images
-    const imgResult = await pool.query('SELECT image_data FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1', [pet.id]);
-    const imageBuffer = imgResult.rows.length > 0 ? Buffer.from(imgResult.rows[0].image_data, 'base64') : null;
-    const content = {
-      type: 'pet',
-      pet_status: pet.status,
-      title: buildPetTitle(pet),
-      created_at: pet.created_at,
-      contact_info: pet.contact_info || null,
-      location: pet.location || null,
-    };
-    const format = req.query.format === 'feed' ? 'feed' : 'story';
-    const branded = await applyBrandOverlay(imageBuffer, content, format);
-    res.set('Content-Type', 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=86400');
-    res.send(branded);
-  } catch (err) {
-    console.error('Get pet publish image error:', err);
-    res.status(500).end();
-  }
-});
-
-// POST /:id/publish — manual trigger to publish a pet to all platforms
-router.post('/:id/publish', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { rows } = await pool.query('SELECT * FROM pets WHERE id = $1', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
-    const pet = rows[0];
-    const platforms = req.body.platforms || ['instagram', 'facebook_page', 'facebook_groups', 'whatsapp', 'status'];
-    await publishPetToAll(pet.id, platforms);
-    res.json({ message: 'Pet publication started', petId: pet.id, platforms });
-  } catch (err) {
-    console.error('Publish pet error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /:id/publications — get publication status for a pet
-router.get('/:id/publications', requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { rows } = await pool.query('SELECT * FROM pet_publications WHERE pet_id = $1 ORDER BY created_at DESC', [req.params.id]);
-    res.json(rows);
-  } catch (err) {
-    console.error('Get pet publications error:', err);
-    res.status(500).json({ error: err.message });
   }
 });
 
