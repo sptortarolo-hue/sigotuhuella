@@ -551,7 +551,7 @@ export default function Admin() {
     setPublishingPet(id);
     try {
       await publishPet(id, platforms);
-      await fetchPetPublications(petsList);
+      await fetchPetPublications(pets);
     } catch (e: any) {
       alert(e.message || 'Error al publicar');
     } finally {
