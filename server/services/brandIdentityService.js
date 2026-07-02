@@ -431,6 +431,12 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+function collapseContent(content, maxParagraphs, suffix) {
+  const paragraphs = content.split(/\n\n+/).filter(p => p.trim());
+  if (paragraphs.length <= maxParagraphs) return content;
+  return paragraphs.slice(0, maxParagraphs).join('\n\n') + '\n\n' + suffix;
+}
+
 export function generatePlatformContent(news, platform) {
   const brand = { defaultHashtags: '#SigoTuHuella', signature: 'Sigo tu Huella' };
   const frontendUrl = FRONTEND_URL;
@@ -438,24 +444,26 @@ export function generatePlatformContent(news, platform) {
   const typeLabels = { reunited: 'Reencuentro', adopted: 'Adopción', manual: 'Novedad' };
   const typeLabel = typeLabels[news.type] || 'Novedad';
 
-  const base = `📰 ${typeLabel}: ${news.title}\n\n${news.content}`;
+  const header = `📰 ${typeLabel}: ${news.title}`;
 
   switch (platform) {
     case 'instagram': {
-      const body = news.content.substring(0, 400);
-      return `${base.substring(0, 400)}\n\n🔗 Encontrá más info en nuestro perfil\n\n${brand.defaultHashtags}`;
+      const body = collapseContent(news.content, 1, 'Lee la nota completa en nuestro perfil');
+      return `${header}\n\n${body}\n\n${brand.defaultHashtags}`;
     }
     case 'facebook': {
-      return `${base}\n\n🔗 ${link}\n\n${brand.defaultHashtags}`;
+      const body = collapseContent(news.content, 2, `Lee la nota completa en:\n🔗 ${link}`);
+      return `${header}\n\n${body}\n\n${brand.defaultHashtags}`;
     }
     case 'whatsapp': {
-      return `${base.substring(0, 200)}\n\n🔗 ${link}`;
+      const body = collapseContent(news.content, 1, `Lee la nota completa en:\n🔗 ${link}`);
+      return `${header}\n\n${body}`;
     }
     case 'status': {
       return `${typeLabel}\n${news.title}\n🔗 ${link}`;
     }
     default:
-      return base;
+      return `${header}\n\n${news.content}`;
   }
 }
 
