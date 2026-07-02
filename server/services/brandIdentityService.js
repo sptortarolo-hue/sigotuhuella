@@ -111,6 +111,7 @@ export const petBadges = {
   reunited: { label: 'REENCUENTRO', bg: '#10B981', primary: '#047857', secondary: '#10B981', overlayBg: '#064E3B' },
 };
 
+const PHONE_ICON_SIZE = 68;
 const ICON_SIZE = 56;
 const ICON_GAP = 14;
 
@@ -187,23 +188,23 @@ function drawHeartIcon(ctx, cx, cy) {
   ctx.restore();
 }
 
-function iconTextWidth(ctx, text) {
-  return ICON_SIZE + ICON_GAP + ctx.measureText(text).width;
+function iconTextWidth(ctx, text, iconSize) {
+  return iconSize + ICON_GAP + ctx.measureText(text).width;
 }
 
-function drawIconAndText(ctx, iconFn, text, cx, y, fontSize, maxTotalWidth) {
+function drawIconAndText(ctx, iconFn, text, cx, y, fontSize, maxTotalWidth, iconSize = ICON_SIZE) {
   ctx.font = `bold ${fontSize}px sans-serif`;
-  while (fontSize > 14 && iconTextWidth(ctx, text) > maxTotalWidth) {
+  while (fontSize > 14 && iconTextWidth(ctx, text, iconSize) > maxTotalWidth) {
     fontSize--;
     ctx.font = `bold ${fontSize}px sans-serif`;
   }
-  const totalW = iconTextWidth(ctx, text);
+  const totalW = iconTextWidth(ctx, text, iconSize);
   const startX = cx - totalW / 2;
   ctx.textAlign = 'left';
-  const iconCenterX = startX + ICON_SIZE / 2;
+  const iconCenterX = startX + iconSize / 2;
   iconFn(ctx, iconCenterX, y);
-  ctx.strokeText(text, startX + ICON_SIZE + ICON_GAP, y);
-  ctx.fillText(text, startX + ICON_SIZE + ICON_GAP, y);
+  ctx.strokeText(text, startX + iconSize + ICON_GAP, y);
+  ctx.fillText(text, startX + iconSize + ICON_GAP, y);
 }
 
 export async function applyBrandOverlay(imageBuffer, content, format = 'story') {
@@ -217,20 +218,21 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   const headerSecondary = statusColors?.secondary || brand.secondaryColor;
   const overlayBg = statusColors?.overlayBg || brand.backgroundColor;
   const { createCanvas, loadImage } = await getCanvas();
+  const feedScale = isFeed ? 1.25 : 1;
 
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // Layout: header 10%, card 59% (9:16), title 15%, footer 10%
-  const headerH = Math.round(height * 0.10); // 128
-  const spaceH = Math.round(height * 0.03); // 38
-  const cardH = Math.round(height * 0.59); // 755
-  const cardW = Math.round(width * 0.95); // 684 (95% del ancho)
-  const cardX = Math.round((width - cardW) / 2); // centered
-  const cardY = headerH + spaceH; // 166
-  const footerH = Math.round(height * 0.10); // 128
-  const titleTop = height - footerH - Math.round(height * 0.15); // ~959
-  const contentSectionTop = titleTop; // 959
+  // Layout: header 10%, card 55%, title 19%, footer 10%
+  const headerH = Math.round(height * 0.10);
+  const spaceH = Math.round(height * 0.03);
+  const cardH = Math.round(height * 0.55);
+  const cardW = Math.round(width * 0.95);
+  const cardX = Math.round((width - cardW) / 2);
+  const cardY = headerH + spaceH;
+  const footerH = Math.round(height * 0.10);
+  const titleTop = height - footerH - Math.round(height * 0.19);
+  const contentSectionTop = titleTop;
 
   // Esquinas redondeadas (clip antes de dibujar)
   ctx.save();
@@ -284,8 +286,8 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
     }
   }
 
-  // Brand signature
-  ctx.font = 'bold 40px sans-serif';
+  // Brand signature (escalado en feed)
+  ctx.font = `bold ${Math.round(40 * feedScale)}px sans-serif`;
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = 'rgba(0,0,0,0.5)';
   ctx.lineWidth = 5;
@@ -296,16 +298,16 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   ctx.fillText(brand.signature, sigX, headerH / 2);
   ctx.lineWidth = 1;
 
-  // Badge en header (derecha)
+  // Badge en header (derecha, escalado en feed)
   ctx.textBaseline = 'middle';
-  const badgeW = 260;
-  const badgeH = 64;
+  const badgeW = Math.round(260 * feedScale);
+  const badgeH = Math.round(64 * feedScale);
   const badgeX = width - badgeW - 20;
   const badgeY = (headerH - badgeH) / 2;
   ctx.fillStyle = hexToRgba(badge.bg, 0.9);
   roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 32);
   ctx.fill();
-  ctx.font = 'bold 30px sans-serif';
+  ctx.font = `bold ${Math.round(30 * feedScale)}px sans-serif`;
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = 'rgba(0,0,0,0.4)';
   ctx.lineWidth = 4;
@@ -331,7 +333,7 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
   ctx.fillStyle = '#FFFFFF';
   ctx.strokeStyle = 'rgba(0,0,0,0.5)';
   ctx.lineWidth = 5;
-  const titleCenterY = contentSectionTop + 50;
+  const titleCenterY = contentSectionTop + 10;
   if (ctx.measureText(titleText).width <= maxTitleW) {
     ctx.strokeText(titleText, width / 2, titleCenterY);
     ctx.fillText(titleText, width / 2, titleCenterY);
@@ -347,9 +349,9 @@ export async function applyBrandOverlay(imageBuffer, content, format = 'story') 
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 4;
     ctx.textBaseline = 'middle';
-    drawIconAndText(ctx, drawPhoneIcon, content.contact_info, width / 2, infoY, 30, Math.round(width * 0.92));
+    drawIconAndText(ctx, drawPhoneIcon, content.contact_info, width / 2, infoY, 30, Math.round(width * 0.92), PHONE_ICON_SIZE);
     ctx.lineWidth = 1;
-    infoY += 46;
+    infoY += PHONE_ICON_SIZE + 12;
   }
   // Ubicación debajo del contacto
   if (content.location) {
