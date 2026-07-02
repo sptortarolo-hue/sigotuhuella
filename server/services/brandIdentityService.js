@@ -255,6 +255,20 @@ export async function applyBrandOverlay(imageBuffer, content) {
   }
   ctx.lineWidth = 1;
 
+  // Contacto debajo del título (solo mascotas)
+  if (content.contact_info) {
+    ctx.font = 'bold 26px sans-serif';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 4;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const contactY = contentSectionTop + 120;
+    ctx.strokeText('📞 ' + content.contact_info, width / 2, contactY);
+    ctx.fillText('📞 ' + content.contact_info, width / 2, contactY);
+    ctx.lineWidth = 1;
+  }
+
   // CTA en footer
   ctx.font = 'bold 28px sans-serif';
   ctx.fillStyle = '#FFFFFF';

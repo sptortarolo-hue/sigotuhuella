@@ -1360,6 +1360,7 @@ router.get('/:id/publish-image', async (req, res) => {
       pet_status: pet.status,
       title: buildPetTitle(pet),
       created_at: pet.created_at,
+      contact_info: pet.contact_info || null,
     };
     const branded = await applyBrandOverlay(imageBuffer, content);
     res.set('Content-Type', 'image/jpeg');

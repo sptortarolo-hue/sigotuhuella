@@ -103,6 +103,7 @@ async function publishToFacebook(pet, title) {
     type: pet.status,
     title,
     created_at: pet.created_at,
+    contact_info: pet.contact_info || null,
   }) : null;
   const imageBase64 = brandedImage ? brandedImage.toString('base64') : null;
 
@@ -147,6 +148,7 @@ async function publishToWhatsApp(pet, title) {
       type: pet.status,
       title,
       created_at: pet.created_at,
+      contact_info: pet.contact_info || null,
     });
     imageUrl = `${FRONTEND_URL}/api/pets/${pet.id}/publish-image`;
   }
@@ -183,6 +185,7 @@ async function publishToStatus(pet, title) {
       type: pet.status,
       title,
       created_at: pet.created_at,
+      contact_info: pet.contact_info || null,
     });
     const imageBase64 = brandedImage.toString('base64');
     const text = generatePetCaption(pet, 'status', pet.id);
