@@ -248,7 +248,8 @@ export async function applyBrandOverlay(imageBuffer, content) {
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('❤️ ' + brand.signature, width / 2, height - footerH / 2);
+  const ctaUrl = FRONTEND_URL.replace(/^https?:\/\//, '');
+  ctx.fillText('❤️ ' + brand.ctaText + ' ' + ctaUrl, width / 2, height - footerH / 2);
 
   // Fecha abajo a la derecha (encima del footer)
   ctx.font = '24px sans-serif';
