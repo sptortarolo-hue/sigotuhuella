@@ -79,7 +79,7 @@ async function publishToInstagram(pet, title) {
   const token = await getStoredToken();
   if (!token) return { success: false, error: 'Instagram sin token' };
 
-  const imageUrl = `${FRONTEND_URL}/api/pets/${pet.id}/publish-image?format=feed`;
+  const imageUrl = `${FRONTEND_URL}/api/pets/${pet.id}/publish-image?format=story`;
 
   const caption = generatePetCaption(pet, 'instagram', pet.id);
 
@@ -105,7 +105,7 @@ async function publishToFacebook(pet, title) {
     created_at: pet.created_at,
     contact_info: pet.contact_info || null,
     location: pet.location || null,
-  }, 'feed') : null;
+  }, 'story') : null;
   const imageBase64 = brandedImage ? brandedImage.toString('base64') : null;
 
   const pageResult = await publishNewsToPage(message, imageBase64);
@@ -151,8 +151,8 @@ async function publishToWhatsApp(pet, title) {
       created_at: pet.created_at,
       contact_info: pet.contact_info || null,
       location: pet.location || null,
-    }, 'feed');
-    imageUrl = `${FRONTEND_URL}/api/pets/${pet.id}/publish-image?format=feed`;
+    }, 'story');
+    imageUrl = `${FRONTEND_URL}/api/pets/${pet.id}/publish-image?format=story`;
   }
 
   const groups = await pool.query(

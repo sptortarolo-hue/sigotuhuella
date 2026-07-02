@@ -55,7 +55,7 @@ async function publishToInstagram(news) {
   const token = await getStoredToken();
   if (!token) return { success: false, error: 'Instagram sin token' };
 
-  const imageUrl = `${FRONTEND_URL}/api/news/${news.id}/publish-image?format=feed`;
+  const imageUrl = `${FRONTEND_URL}/api/news/${news.id}/publish-image?format=story`;
 
   const caption = generatePlatformContent(news, 'instagram');
 
@@ -75,7 +75,7 @@ async function publishToFacebook(news) {
   const message = generatePlatformContent(news, 'facebook');
 
   const imageBuffer = news.image_data ? Buffer.from(news.image_data, 'base64') : null;
-  const brandedImage = imageBuffer ? await applyBrandOverlay(imageBuffer, news, 'feed') : null;
+  const brandedImage = imageBuffer ? await applyBrandOverlay(imageBuffer, news, 'story') : null;
   const imageBase64 = brandedImage ? brandedImage.toString('base64') : null;
 
   const pageResult = await publishNewsToPage(message, imageBase64);
@@ -115,8 +115,8 @@ async function publishToWhatsApp(news) {
   let imageUrl = null;
 
   if (imageBuffer) {
-    await applyBrandOverlay(imageBuffer, news, 'feed');
-    imageUrl = `${FRONTEND_URL}/api/news/${news.id}/publish-image?format=feed`;
+    await applyBrandOverlay(imageBuffer, news, 'story');
+    imageUrl = `${FRONTEND_URL}/api/news/${news.id}/publish-image?format=story`;
   }
 
   const groups = await pool.query(
