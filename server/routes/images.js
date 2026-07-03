@@ -2,7 +2,7 @@ import { Router } from 'express';
 import sharp from 'sharp';
 import pool from '../db.js';
 import { renderFlyer } from '../services/flyerRenderer.js';
-import { overlayStatus } from '../services/imageOverlay.js';
+import { overlayStatus, overlayStory } from '../services/imageOverlay.js';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -35,6 +35,29 @@ async function getLogoImage() {
 }
 
 const router = Router();
+
+router.get('/pet/:petId/story', async (req, res) => {
+  try {
+    const petResult = await pool.query(`
+      SELECT p.status, p.contact_info,
+        (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
+        (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
+      FROM pets p WHERE p.id = $1
+    `, [req.params.petId]);
+    if (petResult.rows.length === 0) { return res.status(404).end(); }
+    const pet = petResult.rows[0];
+    if (!pet.image_data) { return res.status(404).end(); }
+    const jpgBuffer = await overlayStory(pet.image_data, pet.mime_type || 'image/jpeg', pet.status, pet.contact_info);
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Content-Length', jpgBuffer.length);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.end(jpgBuffer);
+  } catch (err) {
+    console.error('[Story] RENDER ERROR:', err.message);
+    res.redirect(302, `/api/images/pet/${req.params.petId}/cover`);
+  }
+});
 
 router.get('/pet/:petId/cover', async (req, res) => {
   try {

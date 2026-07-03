@@ -69,3 +69,61 @@ export async function overlayStatus(imageData, mimeType, status) {
 
   return result;
 }
+
+const STORY_W = 1080, STORY_H = 1920, STORY_BAR_H = 100, STORY_PHONE_H = 120;
+
+export async function overlayStory(imageData, mimeType, status, contactInfo) {
+  const style = STATUS_STYLES[status] || { label: status || 'MASCOTA', color: '#6B7280' };
+
+  const svgBar = `<svg width="${STORY_W}" height="${STORY_BAR_H}" xmlns="http://www.w3.org/2000/svg">
+    <rect width="${STORY_W}" height="${STORY_BAR_H}" fill="${style.color}" fill-opacity="0.92"/>
+    <text x="${STORY_W/2}" y="${STORY_BAR_H/2 + 16}" text-anchor="middle"
+          font-family="Arial,sans-serif" font-size="42" font-weight="bold" fill="white">${style.label}</text>
+  </svg>`;
+
+  const logoB64 = await getLogo();
+  const svgLogo = `<svg width="${LOGO_SIZE}" height="${LOGO_SIZE}" xmlns="http://www.w3.org/2000/svg">
+    <defs><clipPath id="c"><circle cx="${LOGO_SIZE/2}" cy="${LOGO_SIZE/2}" r="${LOGO_SIZE/2}"/></clipPath></defs>
+    <image href="data:image/png;base64,${logoB64}" x="0" y="0" width="${LOGO_SIZE}" height="${LOGO_SIZE}" clip-path="url(#c)"/>
+  </svg>`;
+
+  let phoneBar = null;
+  if (contactInfo && contactInfo.trim()) {
+    const escaped = contactInfo.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    phoneBar = Buffer.from(`<svg width="${STORY_W}" height="${STORY_PHONE_H}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${STORY_W}" height="${STORY_PHONE_H}" fill="rgba(0,0,0,0.75)"/>
+      <text x="${STORY_W/2}" y="${STORY_PHONE_H/2 + 6}" text-anchor="middle"
+            font-family="Arial,sans-serif" font-size="38" font-weight="bold" fill="white">📞 ${escaped}</text>
+    </svg>`);
+  }
+
+  const buf = Buffer.from(imageData, 'base64');
+
+  const bg = await sharp(buf)
+    .resize(STORY_W, STORY_H, { fit: 'cover' })
+    .blur(60)
+    .png()
+    .toBuffer();
+
+  const fg = await sharp(buf)
+    .resize(STORY_W, STORY_H, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+
+  const composites = [
+    { input: fg },
+    { input: Buffer.from(svgBar), top: 0, left: 0 },
+    { input: Buffer.from(svgLogo), top: STORY_BAR_H + LOGO_PAD, left: STORY_W - LOGO_SIZE - LOGO_PAD },
+  ];
+
+  if (phoneBar) {
+    composites.push({ input: phoneBar, top: STORY_H - STORY_PHONE_H, left: 0 });
+  }
+
+  const result = await sharp(bg)
+    .composite(composites)
+    .jpeg({ quality: 85 })
+    .toBuffer();
+
+  return result;
+}

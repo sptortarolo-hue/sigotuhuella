@@ -437,6 +437,16 @@ export async function publishStory(videoUrl) {
   }, accessToken);
 }
 
+export async function publishImageStory(imageUrl) {
+  const igUserId = await getInstagramUserId();
+  if (!igUserId) throw new Error('Instagram not connected');
+  const accessToken = await getStoredToken();
+  return igPost(`${GRAPH_API}/${igUserId}/media_stories`, {
+    media_type: 'IMAGE',
+    image_url: imageUrl,
+  }, accessToken);
+}
+
 export async function isConnected() {
   const token = await getStoredToken();
   if (!token) return false;

@@ -72,6 +72,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
   const [savingRule, setSavingRule] = useState(false);
 
   const [publisherEnabled, setPublisherEnabled] = useState(false);
+  const [storiesEnabled, setStoriesEnabled] = useState(false);
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
   const [defaultHashtags, setDefaultHashtags] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
@@ -126,9 +127,10 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
 
   const fetchConfig = useCallback(async () => {
     try {
-      const keys = ['instagram_publisher_enabled', 'instagram_auto_reply_enabled', 'instagram_default_hashtags'];
+      const keys = ['instagram_publisher_enabled', 'instagram_stories_enabled', 'instagram_auto_reply_enabled', 'instagram_default_hashtags'];
       const res = await api.post('/settings/batch', { keys });
       setPublisherEnabled(res.instagram_publisher_enabled === 'true');
+      setStoriesEnabled(res.instagram_stories_enabled === 'true');
       setAutoReplyEnabled(res.instagram_auto_reply_enabled === 'true');
       setDefaultHashtags(res.instagram_default_hashtags || '');
     } catch { /* ignore */ }
@@ -266,6 +268,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
     setSavingConfig(true);
     try {
       await api.post('/settings', { key: 'instagram_publisher_enabled', value: String(publisherEnabled) });
+      await api.post('/settings', { key: 'instagram_stories_enabled', value: String(storiesEnabled) });
       await api.post('/settings', { key: 'instagram_auto_reply_enabled', value: String(autoReplyEnabled) });
       await api.post('/settings', { key: 'instagram_default_hashtags', value: defaultHashtags });
     } catch (e) { setError('Error al guardar configuración'); }
@@ -719,6 +722,19 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
                   className={cn("w-12 h-7 rounded-full transition-colors relative", publisherEnabled ? "bg-brand-primary" : "bg-gray-300")}
                 >
                   <div className={cn("w-5 h-5 bg-white rounded-full absolute top-1 transition-transform shadow-sm", publisherEnabled ? "left-[26px]" : "left-1")} />
+                </button>
+              </label>
+
+              <label className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-gray-700">Stories automáticas</p>
+                  <p className="text-sm text-gray-400">Publicar Stories para perdidos/adoptados/reunidos</p>
+                </div>
+                <button
+                  onClick={() => setStoriesEnabled(!storiesEnabled)}
+                  className={cn("w-12 h-7 rounded-full transition-colors relative", storiesEnabled ? "bg-brand-primary" : "bg-gray-300")}
+                >
+                  <div className={cn("w-5 h-5 bg-white rounded-full absolute top-1 transition-transform shadow-sm", storiesEnabled ? "left-[26px]" : "left-1")} />
                 </button>
               </label>
 

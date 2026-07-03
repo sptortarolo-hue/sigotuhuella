@@ -129,6 +129,7 @@ function InstagramConfig({ settings, onChange }: { settings: Record<string, stri
   return (
     <div className="space-y-4">
       <Toggle checked={settings.instagram_publisher_enabled === 'true'} onChange={v => onChange('instagram_publisher_enabled', String(v))} label="Activar publicación automática a Instagram" id="d_ig_publisher" />
+      <Toggle checked={settings.instagram_stories_enabled === 'true'} onChange={v => onChange('instagram_stories_enabled', String(v))} label="Publicar Stories automáticas (perdidos/adoptados/reunidos)" id="d_ig_stories" />
       <Toggle checked={settings.instagram_auto_reply_enabled === 'true'} onChange={v => onChange('instagram_auto_reply_enabled', String(v))} label="Auto-reply a comentarios de Instagram" id="d_ig_auto_reply" />
       <Field label="Hashtags por defecto" hint="Se agregan al final de cada caption.">
         <textarea value={settings.instagram_default_hashtags || ''} onChange={e => onChange('instagram_default_hashtags', e.target.value)} rows={3}

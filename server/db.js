@@ -421,6 +421,7 @@ INSERT INTO settings (key, value) VALUES
   ('instagram_publisher_enabled', 'false'),
   ('instagram_publisher_interval', '30'),
   ('instagram_default_hashtags', '#AdoptaNoCompres #SigoTuHuella #MascotasPerdidas'),
+  ('instagram_stories_enabled', 'false'),
   ('instagram_auto_reply_enabled', 'false'),
   ('facebook_page_id', ''),
   ('facebook_page_publisher_enabled', 'false'),
@@ -448,6 +449,7 @@ CREATE TABLE IF NOT EXISTS instagram_posts (
   image_urls TEXT[] DEFAULT '{}',
   status VARCHAR(30) NOT NULL DEFAULT 'pending',
   ig_media_id VARCHAR(255),
+  ig_story_id VARCHAR(255),
   ig_permalink TEXT,
   error_message TEXT,
   scheduled_publish_time TIMESTAMP,
@@ -745,6 +747,9 @@ export async function initDb() {
     await migrate(client, `
       ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS fb_replicated BOOLEAN DEFAULT FALSE
     `, 'instagram_posts fb_replicated');
+    await migrate(client, `
+      ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS ig_story_id VARCHAR(255)
+    `, 'instagram_posts ig_story_id');
 
     await migrate(client, `
       ALTER TABLE pets ADD COLUMN IF NOT EXISTS facebook_embed_html TEXT

@@ -1,9 +1,12 @@
 import pool from '../db.js';
 import {
   getStoredToken, isConnected, createContainer, publishContainer, waitForContainer,
+  publishImageStory,
 } from './instagramService.js';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+
+const STORY_STATUSES = ['lost', 'adopted', 'reunited'];
 
 async function getSetting(key) {
   const result = await pool.query("SELECT value FROM settings WHERE key = $1", [key]);
@@ -50,6 +53,20 @@ function buildImageUrls(petId, imagesData) {
   ];
 }
 
+async function tryPublishStory(pet, postId) {
+  const storiesEnabled = await getSetting('instagram_stories_enabled');
+  if (storiesEnabled !== 'true') return;
+  if (!STORY_STATUSES.includes(pet.status)) return;
+  try {
+    const storyUrl = `${FRONTEND_URL}/api/images/pet/${pet.id}/story`;
+    const storyResult = await publishImageStory(storyUrl);
+    await pool.query('UPDATE instagram_posts SET ig_story_id = $1 WHERE id = $2', [storyResult.id, postId]);
+    console.log(`[Instagram Publisher] Story published for pet ${pet.id}, storyId=${storyResult.id}`);
+  } catch (storyErr) {
+    console.error(`[Instagram Publisher] Story failed for pet ${pet.id}:`, storyErr.message);
+  }
+}
+
 export async function publishSinglePost(petId) {
   const connected = await isConnected();
   if (!connected) return { error: 'Instagram desconectado' };
@@ -77,6 +94,8 @@ export async function publishSinglePost(petId) {
        WHERE pet_id = $4 AND status = 'queued'`,
       [result.id, permalink, imageUrls, petId]
     );
+    const updatedPost = await pool.query('SELECT id FROM instagram_posts WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 1', [petId]);
+    if (updatedPost.rows.length > 0) await tryPublishStory(pet, updatedPost.rows[0].id);
     return { success: true, permalink, mediaId: result.id };
   } catch (err) {
     await pool.query(
@@ -129,9 +148,7 @@ export async function processQueue() {
          WHERE id = $4`,
         [result.id, permalink, imageUrls, post.id]
       );
-      if (post.pet_id) {
-        // instagram field is kept for user-entered handles only
-      }
+      await tryPublishStory(pet, post.id);
       results.push({ postId: post.id, success: true, permalink });
     } catch (err) {
       await pool.query(
