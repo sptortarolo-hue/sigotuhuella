@@ -348,6 +348,11 @@ export const api = {
       });
     },
   },
+  adminDashboard: {
+    get: () => request('/admin/dashboard'),
+    updateSettings: (settings: Record<string, string>) =>
+      request('/admin/dashboard/settings', { method: 'POST', body: JSON.stringify({ settings }) }),
+  },
   feed: {
     list: (page = 1) => request(`/feed?page=${page}`),
     create: (data: any) => request('/feed', { method: 'POST', body: JSON.stringify(data) }),

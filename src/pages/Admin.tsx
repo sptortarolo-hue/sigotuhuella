@@ -26,6 +26,7 @@ import InstagramTab from '@/src/components/admin/InstagramTab';
 import WhatsAppTab from '@/src/components/admin/WhatsAppTab';
 import RelayWhatsAppTab from '@/src/components/admin/RelayWhatsAppTab';
 import FacebookRelayTab from '@/src/components/admin/FacebookRelayTab';
+import UnifiedDashboard from '@/src/pages/admin/UnifiedDashboard';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
@@ -41,7 +42,7 @@ import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -856,6 +857,7 @@ export default function Admin() {
       {/* Tabs */}
       <div className="flex flex-wrap gap-4 mb-12 border-b border-brand-accent pb-px">
         {[
+          { id: 'dashboard', label: 'Tablero', icon: LayoutDashboard },
           { id: 'pets', label: 'Mascotas', icon: LayoutDashboard },
           { id: 'adoption', label: 'Adopción', icon: Heart },
           { id: 'collab', label: 'Cuentas de Ayuda', icon: CreditCard },
@@ -1795,6 +1797,9 @@ export default function Admin() {
 
           {/* ====== WHATSAPP META ====== */}
           {activeTab === 'whatsapp' && <WhatsAppTab />}
+
+          {/* ====== DASHBOARD ====== */}
+          {activeTab === 'dashboard' && <UnifiedDashboard />}
 
           {/* ====== WHATSAPP RELAY ====== */}
           {activeTab === 'relay-whatsapp' && <RelayWhatsAppTab />}

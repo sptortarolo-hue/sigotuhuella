@@ -30,6 +30,7 @@ import imageRoutes from './routes/images.js';
 import phoneRelayRoutes from './routes/phoneRelay.js';
 import facebookRelayRoutes from './routes/facebookRelay.js';
 import invitesRoutes from './routes/invites.js';
+import adminDashboardRoutes from './routes/adminDashboard.js';
 // import { startSyncTimer } from './services/vpsSyncService.js';
 import { startApifyScraper } from './services/apifyScraper.js';
 import { startScreenshotScheduler } from './services/autoScreenshots.js';
@@ -189,6 +190,7 @@ app.use('/api/gamification', gamificationRoutes);
 app.use('/api/facebook', facebookRoutes);
 app.use('/api/instagram', instagramRoutes);
 app.use('/api/images', imageRoutes);
+app.use('/api/admin/dashboard', adminDashboardRoutes);
 app.use('/api/relay', phoneRelayRoutes);
 app.use('/api/relay', facebookRelayRoutes);
 
