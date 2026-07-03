@@ -89,15 +89,27 @@ function buildImageUrls(petId, imagesData) {
   return [`${FRONTEND_URL}/api/images/pet/${petId}/cover`];
 }
 
-export async function publishToPage(petId) {
-  const existing = await pool.query(
-    `SELECT page_post_id FROM facebook_page_posts
-     WHERE pet_id = $1 AND status = 'published' AND page_post_id IS NOT NULL
-     ORDER BY published_at DESC LIMIT 1`,
-    [petId]
-  );
-  if (existing.rows.length > 0) {
-    return { success: true, pagePostId: existing.rows[0].page_post_id, skipped: true };
+export async function publishToPage(petId, instagramPostId) {
+  if (instagramPostId) {
+    const existingIg = await pool.query(
+      `SELECT page_post_id FROM facebook_page_posts
+       WHERE instagram_post_id = $1 AND status = 'published' AND page_post_id IS NOT NULL
+       ORDER BY published_at DESC LIMIT 1`,
+      [instagramPostId]
+    );
+    if (existingIg.rows.length > 0) {
+      return { success: true, pagePostId: existingIg.rows[0].page_post_id, skipped: true };
+    }
+  } else {
+    const existing = await pool.query(
+      `SELECT page_post_id FROM facebook_page_posts
+       WHERE pet_id = $1 AND status = 'published' AND page_post_id IS NOT NULL
+       ORDER BY published_at DESC LIMIT 1`,
+      [petId]
+    );
+    if (existing.rows.length > 0) {
+      return { success: true, pagePostId: existing.rows[0].page_post_id, skipped: true };
+    }
   }
 
   const token = await getPageToken();
@@ -307,13 +319,13 @@ export async function replicateInstagramToFacebook(instagramPostId) {
   if (!post.pet_id) return { error: 'El post no tiene mascota asociada' };
 
   const hashtags = await getSetting('instagram_default_hashtags') || '#SigoTuHuella';
-  const message = buildPetMessage(post, hashtags, post.ig_permalink);
+  const message = post.caption || buildPetMessage(post, hashtags, post.ig_permalink);
   const link = `${FRONTEND_URL}/pet/${post.pet_id}`;
   const imageUrls = buildImageUrls(post.pet_id, post.images_data);
 
   const results = { page: null, groups: [], pagePostId: null };
 
-  const pageResult = await publishToPage(post.pet_id);
+  const pageResult = await publishToPage(post.pet_id, instagramPostId);
   const pagePostId = pageResult.success ? pageResult.pagePostId : null;
   results.page = pageResult;
   results.pagePostId = pagePostId;
