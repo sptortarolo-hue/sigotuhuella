@@ -445,11 +445,11 @@ export async function broadcastNextAdoptionPet(existingPet = null) {
     const edadInfo = pet.age ? ` de ${pet.age}` : '';
 
     const caption = [
-      `🏡 *Buscamos hogar para ${pet.name}*`,
+      `🏡 *Buscamos hogar para ${pet.name || 'una mascota'}*`,
       '',
       'En Sigo Tu Huella conectamos mascotas con familias.',
       '',
-      `Hoy te presentamos a *${pet.name}*, ${speciesLabel}${edadInfo} que está buscando un hogar.`,
+      `Hoy te presentamos a *${pet.name || 'una mascota'}*, ${speciesLabel}${edadInfo} que está buscando un hogar.`,
       desc ? `\n${desc}` : '',
       '',
       `📍 ${pet.location || 'Sin ubicación'}`,
@@ -526,11 +526,11 @@ export async function broadcastFbAdoptionPets(existingPet = null) {
     const edadInfo = pet.age ? ` de ${pet.age}` : '';
 
     const message = applySpintax([
-      `{🏡 Buscamos hogar|🌟 En adopción|❤️ Busca familia} para ${pet.name}`,
+      `{🏡 Buscamos hogar|🌟 En adopción|❤️ Busca familia} para ${pet.name || 'una mascota'}`,
       '',
       'En Sigo Tu Huella conectamos mascotas con familias.',
       '',
-      `Hoy te {presentamos|compartimos|mostramos} a *${pet.name}*, ${speciesLabel}${edadInfo} que {busca un hogar|necesita familia|está en adopción}.`,
+      `Hoy te {presentamos|compartimos|mostramos} a *${pet.name || 'una mascota'}*, ${speciesLabel}${edadInfo} que {busca un hogar|necesita familia|está en adopción}.`,
       desc ? `\n${desc}` : '',
       '',
       `{📍 Ubicación|📍 Zona|📍 Se encuentra en}: ${pet.location || 'Sin ubicación'}`,
