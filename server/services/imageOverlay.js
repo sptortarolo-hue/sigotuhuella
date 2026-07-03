@@ -54,6 +54,7 @@ export async function overlayStatus(imageData, mimeType, status) {
 
   const fg = await sharp(buf)
     .resize(W, H, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
     .toBuffer();
 
   const result = await sharp(bg)
