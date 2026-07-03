@@ -144,6 +144,7 @@ router.get('/pet/:petId/:index/insta', async (req, res) => {
       const bg = await sharp(buffer)
         .resize(1080, 1350, { fit: 'cover' })
         .blur(60)
+        .png()
         .toBuffer();
       const fg = await sharp(buffer)
         .resize(1080, 1350, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
