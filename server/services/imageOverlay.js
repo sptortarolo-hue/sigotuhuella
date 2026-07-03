@@ -47,9 +47,18 @@ export async function overlayStatus(imageData, mimeType, status) {
 
   const buf = Buffer.from(imageData, 'base64');
 
-  const result = await sharp(buf)
+  const bg = await sharp(buf)
     .resize(W, H, { fit: 'cover' })
+    .blur(60)
+    .toBuffer();
+
+  const fg = await sharp(buf)
+    .resize(W, H, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .toBuffer();
+
+  const result = await sharp(bg)
     .composite([
+      { input: fg },
       { input: Buffer.from(svgBar), top: H - BAR_H, left: 0 },
       { input: Buffer.from(svgLogo), top: LOGO_PAD, left: W - LOGO_SIZE - LOGO_PAD },
     ])
