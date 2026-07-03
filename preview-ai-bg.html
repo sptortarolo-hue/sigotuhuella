@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preview AI Backgrounds</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #222; font-family: Arial, sans-serif; padding: 30px; }
+  h1 { color: #fff; text-align: center; font-size: 24px; margin-bottom: 8px; }
+  .sub { color: #888; text-align: center; font-size: 14px; margin-bottom: 30px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .card { display: flex; flex-direction: column; align-items: center; }
+  .label { color: #aaa; font-size: 12px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .canvas-wrap {
+    position: relative;
+    width: 240px;
+    height: 300px;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .canvas-wrap canvas { width: 100%; height: 100%; display: block; }
+  .bar { color: #666; font-size: 11px; text-align: center; margin-top: 4px; }
+  .placeholder {
+    width: 240px; height: 300px;
+    background: #333;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+  <h1>🧪 AI Backgrounds Preview</h1>
+  <p class="sub">Demo con gradientes simulados — al implementar se generarán con Cloudflare Flux</p>
+  <input type="file" id="fileInput" accept="image/*" style="display:none">
+  <div style="text-align:center;margin-bottom:24px">
+    <button onclick="document.getElementById('fileInput').click()" style="padding:10px 28px;border:none;border-radius:8px;background:#5A5A40;color:#fff;font-size:14px;font-weight:bold;cursor:pointer">Subir foto de prueba</button>
+  </div>
+  <div class="grid" id="grid"></div>
+
+  <script>
+    const W = 1080, H = 1350, BAR_H = 90, LOGO_SIZE = 80, LOGO_PAD = 16;
+    let testImg = null;
+
+    const COMBOS = [
+      'perro-perdido', 'gato-perdido', 'perro-retenido', 'gato-retenido',
+      'perro-avistado', 'gato-avistado', 'perro-adopcion', 'gato-adopcion',
+      'perro-adoptado', 'gato-adoptado', 'perro-reencuentro', 'gato-reencuentro',
+      'perro-accidentado', 'gato-accidentado', 'perro-atencion', 'gato-atencion',
+    ];
+
+    const STATUS_LABELS = {
+      perdido: 'SE PERDIÓ', retenido: 'RETENIDO', avistado: 'AVISTADO',
+      adopcion: 'EN ADOPCIÓN', adoptado: 'ADOPTADO', reencuentro: 'REENCUENTRO',
+      accidentado: 'ACCIDENTADO', atencion: 'NECESITA ATENCIÓN',
+    };
+
+    const STATUS_COLORS = {
+      perdido: '#EF4444', retenido: '#2563EB', avistado: '#2563EB',
+      adopcion: '#8B5CF6', adoptado: '#10B981', reencuentro: '#10B981',
+      accidentado: '#EA580C', atencion: '#D97706',
+    };
+
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      testImg = await loadImg(url);
+      renderAll();
+    });
+
+    function loadImg(src) {
+      return new Promise((res) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = () => { const dummy = new Image(); dummy.width = 400; dummy.height = 300; res(dummy); };
+        i.src = src;
+      });
+    }
+
+    async function renderAll() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+
+      for (const id of COMBOS) {
+        const [species, status] = id.split('-');
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const lbl = document.createElement('div');
+        lbl.className = 'label';
+        lbl.textContent = `${species === 'perro' ? '🐕' : '🐈'} ${STATUS_LABELS[status] || status}`;
+        card.appendChild(lbl);
+
+        const wrap = document.createElement('div');
+        wrap.className = 'canvas-wrap';
+        const c = document.createElement('canvas');
+        c.width = W;
+        c.height = H;
+        const ctx = c.getContext('2d');
+        wrap.appendChild(c);
+        card.appendChild(wrap);
+
+        // Cargar background y componer
+        try {
+          const bgResp = await fetch(`/ai-bg/${id}.png`);
+          if (!bgResp.ok) { wrap.innerHTML = '<div class="placeholder">Sin bg</div>'; grid.appendChild(card); continue; }
+          const bgBlob = await bgResp.blob();
+          const bgUrl = URL.createObjectURL(bgBlob);
+          const bgImg = await loadImg(bgUrl);
+          composeFrame(ctx, bgImg, status, species);
+        } catch { wrap.innerHTML = '<div class="placeholder">Error</div>'; }
+
+        grid.appendChild(card);
+      }
+    }
+
+    function composeFrame(ctx, bgImg, status, species) {
+      // 1. Background (cubre todo)
+      ctx.drawImage(bgImg, 0, 0, W, H);
+
+      // 2. Pet photo (fit: contain)
+      if (testImg) {
+        const iw = testImg.naturalWidth || testImg.width || 400;
+        const ih = testImg.naturalHeight || testImg.height || 300;
+        const scale = Math.min(W / iw, H / ih);
+        const dw = iw * scale;
+        const dh = ih * scale;
+        const dx = (W - dw) / 2;
+        const dy = (H - dh) / 2;
+        ctx.drawImage(testImg, dx, dy, dw, dh);
+      }
+
+      // 3. Status bar
+      const style = STATUS_COLORS[status] || '#6B7280';
+      const label = STATUS_LABELS[status] || status;
+      ctx.fillStyle = style;
+      ctx.globalAlpha = 0.88;
+      ctx.fillRect(0, H - BAR_H, W, BAR_H);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 36px Arial,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, W / 2, H - BAR_H / 2);
+
+      // 4. Logo
+      const r = LOGO_SIZE / 2;
+      const cx = W - LOGO_SIZE - LOGO_PAD + r;
+      const cy = LOGO_PAD + r;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = '#5A5A40';
+      ctx.fillRect(cx - r, cy - r, LOGO_SIZE, LOGO_SIZE);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 28px Arial,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('STH', cx, cy);
+      ctx.restore();
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>
