@@ -717,7 +717,7 @@ async function rlPhoto(conv, parsed) {
       delete ctx.contact; delete ctx.contact2;
       await setFlow(conv, 'report_lost.location', ctx);
     } else {
-      await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* para que los dueños puedan comunicarse? 📞`);
+      await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* para que quien la encuentre pueda contactarte? 📞`);
       await setFlow(conv, 'report_lost.contact', ctx);
     }
     return;
@@ -743,7 +743,7 @@ async function rlLocation(conv, parsed) {
     const coords = await geocodeAddress(location);
     if (coords) { lat = coords.lat; lng = coords.lng; }
   }
-  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* para que los dueños puedan comunicarse? 📞`);
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* para que quien la encuentre pueda contactarte? 📞`);
   await setFlow(conv, 'report_lost.contact', { ...conv.context, location, latitude: lat, longitude: lng });
 }
 
