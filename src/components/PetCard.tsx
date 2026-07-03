@@ -124,6 +124,11 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             Difusión particular
           </div>
         )}
+        {pet.source_type === 'whatsapp' && (
+          <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md bg-emerald-50/90 text-emerald-700 border border-emerald-200">
+            📲 Chatbot WhatsApp
+          </div>
+        )}
       </div>
 
       <div className="p-6">
@@ -135,7 +140,9 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
               </h3>
             )}
             <p className={cn("text-gray-500 italic lowercase first-letter:uppercase", pet.name ? "text-sm" : "text-xs")}>
-              {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otra especie'} • {pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : 'Sexo desconocido'}
+              {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species ? 'Otra especie' : ''}
+              {pet.species && (pet.gender ? ' • ' : '')}
+              {pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : ''}
             </p>
           </div>
         </div>

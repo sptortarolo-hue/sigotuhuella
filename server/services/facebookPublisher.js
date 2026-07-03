@@ -72,6 +72,7 @@ function buildPetMessage(pet, hashtags, originalUrl, authorName) {
     authorName ? `👤 Publicado por: ${authorName}` : '',
     '',
     pet.description ? pet.description.substring(0, 500) : '',
+    pet.source_type === 'whatsapp' ? '📲 Reportado por chatbot WhatsApp' : '',
     '',
     `🔗 ${FRONTEND_URL}/pet/${pet.id}`,
     '',

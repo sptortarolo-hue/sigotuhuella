@@ -312,7 +312,7 @@ const PROCESS_IMAGE_CAPTION_PROMPT = `Analizá el siguiente mensaje de WhatsApp 
 
 2. Datos de la mascota (extraé todo lo que puedas de la imagen y el texto):
    - especie: "dog" | "cat" | "other" | null
-   - género/sexo: "male" | "female" | "unknown" | null
+   - género/sexo: "male" | "female" | null (null si no se puede determinar)
    - raza: ej "labrador", "criollo", null
    - color: ej "negro", "blanco y marrón", null
    - nombre: si se ve una chapita con nombre, null si no
@@ -325,7 +325,7 @@ Respondé SOLO un JSON:
 {
   "intent": "found" | "lost" | "sighted" | "unclear",
   "species": "dog" | "cat" | "other" | null,
-  "gender": "male" | "female" | "unknown" | null,
+  "gender": "male" | "female" | null,
   "breed": "texto" | null,
   "color": "texto" | null,
   "name": "texto" | null,
@@ -361,7 +361,7 @@ export async function processImageCaption(caption, imageData, imageMime) {
     return {
       intent: parsed.intent || 'unclear',
       species: parsed.species || null,
-      gender: parsed.gender || null,
+      gender: (parsed.gender && parsed.gender !== 'unknown') ? parsed.gender : null,
       breed: parsed.breed || null,
       color: parsed.color || null,
       name: parsed.name || null,

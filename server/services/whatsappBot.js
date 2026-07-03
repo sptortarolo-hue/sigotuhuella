@@ -795,8 +795,8 @@ async function rlConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
     const petResult = await pool.query(
-      `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color)
-       VALUES ($1, $2, 'lost', $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type)
+       VALUES ($1, $2, 'lost', $3, $4, $5, $6, $7, $8, $9, $10, $11, 'whatsapp')
        RETURNING id`,
       [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.description || 'Reportado por WhatsApp como perdida', ctx.gender || null, ctx.breed || null, ctx.color || null]
     );
@@ -957,9 +957,9 @@ async function rsConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
     const petResult = await pool.query(
-      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color)
-       VALUES ($1, 'sighted', $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-      [ctx.species || 'unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje', ctx.gender || null, ctx.breed || null, ctx.color || null]
+      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type)
+       VALUES ($1, 'sighted', $2, $3, $4, $5, $6, $7, $8, $9, $10, 'whatsapp') RETURNING id`,
+      [ctx.species || null, ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje', ctx.gender || null, ctx.breed || null, ctx.color || null]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -1144,9 +1144,9 @@ async function rfConfirm(conv, parsed, intent) {
     const ctx = conv.context;
     const description = ctx.description || 'Reportado por WhatsApp como encontrada';
     const petResult = await pool.query(
-      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color)
-       VALUES ($1, 'retained', $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-      [ctx.species || 'unknown', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, description, ctx.gender || null, ctx.breed || null, ctx.color || null]
+      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type)
+       VALUES ($1, 'retained', $2, $3, $4, $5, $6, $7, $8, $9, $10, 'whatsapp') RETURNING id`,
+      [ctx.species || null, ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, description, ctx.gender || null, ctx.breed || null, ctx.color || null]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -1786,7 +1786,7 @@ async function fbContinue(conv) {
         }
         // Si no se detectó especie pero hay fotos, marcar como no especificado
         if (!post.species && post.image_urls && post.image_urls.length > 0) {
-          post.species = 'unknown';
+          post.species = null;
         }
       } catch (err) {
         console.error('fbContinue: Gemini error:', err.message);
@@ -2079,7 +2079,7 @@ async function fbConfirm(conv, parsed, intent) {
   const post = ctx.fbPost;
 
   const status = post.classification || 'lost';
-  const species = post.species || 'unknown';
+  const species = post.species || null;
   const location = post.location_hint || 'Sin ubicación';
   const description = (post.content ? post.content.substring(0, 500) : 'Reportado desde Facebook')
     + (post.fb_post_url ? `\n\n🔗 Publicación original: ${post.fb_post_url}` : '');

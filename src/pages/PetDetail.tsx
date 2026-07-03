@@ -219,6 +219,11 @@ Me gustaría obtener más información.`;
                   Difusión particular
                 </div>
               )}
+              {pet.source_type === 'whatsapp' && (
+                <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  📲 Chatbot WhatsApp
+                </div>
+              )}
             </div>
             {pet.name && (
               <h1 className="text-4xl md:text-5xl font-serif font-bold text-brand-primary mb-2">
@@ -226,9 +231,9 @@ Me gustaría obtener más información.`;
               </h1>
             )}
             <p className="text-lg text-gray-500 italic flex items-center gap-2">
-              {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otra especie'} 
-              <span className="text-gray-300">•</span> 
-              {pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : 'Sexo desconocido'}
+              {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species ? 'Otra especie' : ''}
+              {pet.species && pet.gender && <span className="text-gray-300">•</span>}
+              {pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : ''}
             </p>
           </div>
 
@@ -297,6 +302,15 @@ Me gustaría obtener más información.`;
                   Esta publicación es una <strong>difusión particular</strong>.
                   Sigo Tu Huella solo difunde el aviso, no gestiona la adopción.
                   Comunicate directamente con el dueño para más información.
+                </p>
+              </div>
+            )}
+            {pet.source_type === 'whatsapp' && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mt-4 flex items-start gap-3">
+                <Info className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-emerald-800 leading-relaxed">
+                  Este reporte fue procesado automáticamente por nuestro <strong>chatbot de WhatsApp</strong>.
+                  Los datos fueron extraídos del mensaje e imagen enviados por el usuario.
                 </p>
               </div>
             )}

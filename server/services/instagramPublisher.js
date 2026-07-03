@@ -32,6 +32,7 @@ function buildPetCaption(pet, hashtags) {
     pet.location ? `📍 ${pet.location}${pet.contact_info ? ' · ' + pet.contact_info : ''}` : (pet.contact_info ? `📞 ${pet.contact_info}` : ''),
     ``,
     `${pet.description ? pet.description.substring(0, 400) : ''}`,
+    `${pet.source_type === 'whatsapp' ? '📲 Reportado por chatbot WhatsApp' : ''}`,
     ``,
     `🔗 ${FRONTEND_URL}/pet/${pet.id}`,
     ``,
