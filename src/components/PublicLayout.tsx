@@ -2,6 +2,7 @@ import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import PublicMobileTopBar from '@/src/components/PublicMobileTopBar';
 import Sidebar from '@/src/components/auth/Sidebar';
+import SocialLinks from '@/src/components/SocialLinks';
 
 export default function PublicLayout() {
   const { user } = useAuth();
@@ -44,12 +45,8 @@ export default function PublicLayout() {
               </ul>
             </div>
             <div>
-              <h4 className="font-bold text-gray-800 mb-4 uppercase text-xs tracking-widest">Barrios</h4>
-              <ul className="space-y-2 text-gray-600 text-sm">
-                <li>Villa Garibaldi</li>
-                <li>Parque Sicardi</li>
-                <li>Ignacio Correas</li>
-              </ul>
+              <h4 className="font-bold text-gray-800 mb-4 uppercase text-xs tracking-widest">Seguinos</h4>
+              <SocialLinks variant="column" />
             </div>
           </div>
           <div className="mt-12 pt-8 border-t border-brand-accent flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-gray-400 uppercase tracking-widest font-bold">

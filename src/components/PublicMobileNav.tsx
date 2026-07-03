@@ -4,6 +4,7 @@ import { Home, Search, Heart, HandCoins, Sparkles, X, PawPrint, Users, User, Sha
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
+import SocialLinks from '@/src/components/SocialLinks';
 
 const publicTabs = [
   { label: 'Inicio', icon: Home, path: '/' },
@@ -112,6 +113,12 @@ export default function PublicMobileNav() {
                     {opt.label}
                   </button>
                 ))}
+
+                <div className="border-t border-brand-accent my-2" />
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 px-4 pb-1">Seguinos en redes</p>
+                <div className="px-4 py-2">
+                  <SocialLinks variant="row" />
+                </div>
 
                 {user && (
                   <>

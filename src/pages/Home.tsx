@@ -6,6 +6,7 @@ import NewsCarousel from '@/src/components/NewsCarousel';
 import { getNews } from '@/src/lib/newsService';
 import { api } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
+import SocialLinks from '@/src/components/SocialLinks';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -192,6 +193,19 @@ export default function Home() {
               </span>
             </div>
           </Link>
+        </div>
+      </section>
+
+      {/* Social Links */}
+      <section className="py-12 sm:py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 text-center">
+            <h3 className="text-lg font-bold text-brand-primary mb-2">Seguinos en redes</h3>
+            <p className="text-sm text-gray-500 mb-6">Enterate de las novedades y compartí para ayudar a más mascotas.</p>
+            <div className="flex justify-center">
+              <SocialLinks variant="row" />
+            </div>
+          </div>
         </div>
       </section>
 
