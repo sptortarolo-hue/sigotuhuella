@@ -3,10 +3,13 @@ import {
   getStoredToken, isConnected, createContainer, publishContainer, waitForContainer,
   publishImageStory,
 } from './instagramService.js';
+import { enqueue } from './phoneRelayService.js';
+import { normalizePhone } from './phoneUtils.js';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
 
 const STORY_STATUSES = ['lost', 'adopted', 'reunited'];
+const ADOPTION_STATUSES = ['for_adoption', 'for_adoption_simple'];
 
 async function getSetting(key) {
   const result = await pool.query("SELECT value FROM settings WHERE key = $1", [key]);
@@ -67,6 +70,19 @@ async function tryPublishStory(pet, postId) {
   }
 }
 
+async function tryNotifyWhatsApp(pet, permalink) {
+  if (!pet.contact_info || !ADOPTION_STATUSES.includes(pet.status)) return;
+  try {
+    const phone = normalizePhone(pet.contact_info);
+    if (!phone) return;
+    const msg = `📸 ¡Tu mascota fue publicada en Instagram!\n\n${permalink}\n\nCopiá el link y pegalo en tu Story para que más gente la vea 🙌`;
+    await enqueue(phone, msg);
+    console.log(`[Instagram Publisher] WhatsApp notification sent to ${phone} for pet ${pet.id}`);
+  } catch (waErr) {
+    console.error(`[Instagram Publisher] WhatsApp notification failed for pet ${pet.id}:`, waErr.message);
+  }
+}
+
 export async function publishSinglePost(petId) {
   const connected = await isConnected();
   if (!connected) return { error: 'Instagram desconectado' };
@@ -96,6 +112,7 @@ export async function publishSinglePost(petId) {
     );
     const updatedPost = await pool.query('SELECT id FROM instagram_posts WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 1', [petId]);
     if (updatedPost.rows.length > 0) await tryPublishStory(pet, updatedPost.rows[0].id);
+    await tryNotifyWhatsApp(pet, permalink);
     return { success: true, permalink, mediaId: result.id };
   } catch (err) {
     await pool.query(
@@ -149,6 +166,7 @@ export async function processQueue() {
         [result.id, permalink, imageUrls, post.id]
       );
       await tryPublishStory(pet, post.id);
+      await tryNotifyWhatsApp(pet, permalink);
       results.push({ postId: post.id, success: true, permalink });
     } catch (err) {
       await pool.query(
