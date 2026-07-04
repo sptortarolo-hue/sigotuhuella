@@ -76,7 +76,10 @@ router.get('/', requireAuth, async (req, res) => {
         (SELECT count(*) FROM my_pet_photos WHERE my_pet_id = mp.id) as photo_count,
         (SELECT count(*) FROM my_pet_events WHERE my_pet_id = mp.id) as event_count,
         (SELECT count(*) FROM pet_records WHERE my_pet_id = mp.id) as record_count
-       FROM my_pets mp WHERE mp.user_id = $1 ORDER BY mp.created_at DESC`,
+       FROM my_pets mp
+       LEFT JOIN my_pet_shares ms ON ms.pet_id = mp.id AND ms.user_id = $1
+       WHERE mp.user_id = $1 OR ms.user_id IS NOT NULL
+       ORDER BY mp.created_at DESC`,
       [req.user.id]
     );
     res.json({ myPets: result.rows });
@@ -102,11 +105,10 @@ router.get('/featured', async (req, res) => {
 
 router.get('/:id', requireAuth, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM my_pets WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
+
+    const result = await pool.query('SELECT * FROM my_pets WHERE id = $1', [req.params.id]);
     const pet = result.rows[0];
 
     const photosResult = await pool.query(
@@ -255,11 +257,8 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
 router.post('/:id/photos', requireAuth, async (req, res) => {
   try {
-    const petCheck = await pool.query(
-      'SELECT id FROM my_pets WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
-    if (petCheck.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const { image_data, mime_type, caption, taken_at, crop_x, crop_y } = req.body;
     if (!image_data) return res.status(400).json({ error: 'Imagen requerida' });
@@ -294,11 +293,8 @@ router.get('/:id/photos', requireAuth, async (req, res) => {
 
 router.delete('/:id/photos/:photoId', requireAuth, async (req, res) => {
   try {
-    const petCheck = await pool.query(
-      'SELECT id FROM my_pets WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
-    if (petCheck.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const result = await pool.query(
       'DELETE FROM my_pet_photos WHERE id = $1 AND my_pet_id = $2 RETURNING id',
@@ -314,11 +310,12 @@ router.delete('/:id/photos/:photoId', requireAuth, async (req, res) => {
 
 router.get('/:id/photo/:photoId', requireAuth, async (req, res) => {
   try {
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).end();
     const result = await pool.query(
       `SELECT mp.image_data, mp.mime_type FROM my_pet_photos mp
-       JOIN my_pets p ON p.id = mp.my_pet_id
-       WHERE mp.id = $1 AND p.user_id = $2`,
-      [req.params.photoId, req.user.id]
+       WHERE mp.id = $1 AND mp.my_pet_id = $2`,
+      [req.params.photoId, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).end();
     const img = result.rows[0];
@@ -350,11 +347,8 @@ router.get('/:id/avatar', async (req, res) => {
 
 router.post('/:id/events', requireAuth, async (req, res) => {
   try {
-    const petCheck = await pool.query(
-      'SELECT id FROM my_pets WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
-    if (petCheck.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const { event_type, title, description, event_date, next_date, photo_id } = req.body;
     if (!event_type || !title || !event_date) {
@@ -399,11 +393,8 @@ router.get('/:id/events', requireAuth, async (req, res) => {
 
 router.delete('/:id/events/:eventId', requireAuth, async (req, res) => {
   try {
-    const petCheck = await pool.query(
-      'SELECT id FROM my_pets WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
-    if (petCheck.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const result = await pool.query(
       'DELETE FROM my_pet_events WHERE id = $1 AND my_pet_id = $2 RETURNING id',
@@ -536,11 +527,8 @@ router.post('/:id/featured', requireAdmin, async (req, res) => {
 
 router.post('/:id/records', requireAuth, async (req, res) => {
   try {
-    const petCheck = await pool.query(
-      'SELECT id FROM my_pets WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
-    );
-    if (petCheck.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const {
       record_type, title, description, amount, record_date, next_date,
@@ -655,10 +643,12 @@ router.post('/convert/:petId', requireAuth, async (req, res) => {
 
 router.get('/:id/pasaporte', requireAuth, async (req, res) => {
   try {
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
     const petResult = await pool.query(
       `SELECT mp.*, u.display_name as owner_name, u.phone as owner_phone
-       FROM my_pets mp JOIN users u ON u.id = mp.user_id WHERE mp.id = $1 AND mp.user_id = $2`,
-      [req.params.id, req.user.id]
+       FROM my_pets mp JOIN users u ON u.id = mp.user_id WHERE mp.id = $1`,
+      [req.params.id]
     );
     if (petResult.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
     const pet = petResult.rows[0];
@@ -826,8 +816,9 @@ const TIPS_DB = {
 
 router.get('/:id/health-tips', requireAuth, async (req, res) => {
   try {
-    const pet = await pool.query('SELECT species, age, is_vaccinated FROM my_pets WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
-    if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
+    const pet = await pool.query('SELECT species, age, is_vaccinated FROM my_pets WHERE id = $1', [req.params.id]);
 
     const species = pet.rows[0].species;
     const tips = TIPS_DB[species] || TIPS_DB.other;
@@ -843,9 +834,11 @@ import { generateVideo } from '../lib/videoAssembler.js';
 
 router.post('/:id/generate-video', requireAuth, async (req, res) => {
   try {
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
     const pet = await pool.query(
-      'SELECT id, name FROM my_pets WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
+      'SELECT id, name FROM my_pets WHERE id = $1',
+      [req.params.id]
     );
     if (pet.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
 
