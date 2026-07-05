@@ -72,8 +72,9 @@ async function tryPublishStory(pet, postId) {
 async function tryNotifyWhatsApp(pet, permalink) {
   try {
     const statusTag = statusLabels[pet.status] || '🐾 MASCOTA';
+    const appLink = `${FRONTEND_URL}/pet/${pet.id}`;
     await enqueue(RELAY_PHONE, `📸 *Publicación en Instagram*\n\n${statusTag} — ${pet.name || 'Sin nombre'}`);
-    await enqueue(RELAY_PHONE, permalink);
+    await enqueue(RELAY_PHONE, appLink);
   } catch (waErr) {
     console.error(`[Instagram Publisher] WhatsApp notification failed for pet ${pet.id}:`, waErr.message);
   }
