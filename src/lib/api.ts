@@ -356,6 +356,7 @@ export const api = {
     get: () => request('/admin/dashboard'),
     updateSettings: (settings: Record<string, string>) =>
       request('/admin/dashboard/settings', { method: 'POST', body: JSON.stringify({ settings }) }),
+    analytics: () => request('/admin/analytics'),
   },
   feed: {
     list: (page = 1) => request(`/feed?page=${page}`),

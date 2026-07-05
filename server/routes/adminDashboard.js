@@ -190,4 +190,41 @@ router.post('/settings', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/analytics — visit metrics
+router.get('/analytics', requireAdmin, async (_req, res) => {
+  try {
+    const [totalViews, viewsToday, viewsThisWeek, topPets, viewsByDay] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM pet_views'),
+      pool.query("SELECT COUNT(*) FROM pet_views WHERE created_at >= CURRENT_DATE"),
+      pool.query("SELECT COUNT(*) FROM pet_views WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'"),
+      pool.query(`
+        SELECT p.id, p.name, p.species, p.status, p.view_count,
+          (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) IS NOT NULL as has_image
+        FROM pets p
+        WHERE p.view_count > 0
+        ORDER BY p.view_count DESC
+        LIMIT 10
+      `),
+      pool.query(`
+        SELECT DATE(created_at) as date, COUNT(*) as count
+        FROM pet_views
+        WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY DATE(created_at)
+        ORDER BY date ASC
+      `),
+    ]);
+
+    res.json({
+      totalViews: parseInt(totalViews.rows[0].count) || 0,
+      viewsToday: parseInt(viewsToday.rows[0].count) || 0,
+      viewsThisWeek: parseInt(viewsThisWeek.rows[0].count) || 0,
+      topPets: topPets.rows,
+      viewsByDay: viewsByDay.rows,
+    });
+  } catch (err) {
+    console.error('Error fetching analytics:', err);
+    res.status(500).json({ error: 'Error al obtener analytics' });
+  }
+});
+
 export default router;

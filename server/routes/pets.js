@@ -356,6 +356,13 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Pet not found' });
     }
     res.json({ pet: result.rows[0] });
+
+    // Track pet view (fire-and-forget)
+    pool.query(
+      'INSERT INTO pet_views (pet_id, user_id, viewer_ip, user_agent) VALUES ($1, $2, $3, $4)',
+      [req.params.id, req.user?.id || null, req.ip, req.headers['user-agent'] || null]
+    ).catch(() => {});
+    pool.query('UPDATE pets SET view_count = view_count + 1 WHERE id = $1', [req.params.id]).catch(() => {});
   } catch (err) {
     console.error('Get pet error:', err);
     res.status(500).json({ error: 'Failed to fetch pet' });

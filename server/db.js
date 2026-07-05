@@ -173,6 +173,19 @@ CREATE TABLE IF NOT EXISTS device_tokens (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS pet_views (
+  id SERIAL PRIMARY KEY,
+  pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  viewer_ip VARCHAR(45),
+  user_agent TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pet_views_pet_id ON pet_views(pet_id);
+CREATE INDEX IF NOT EXISTS idx_pet_views_created_at ON pet_views(created_at);
+
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS my_pets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
