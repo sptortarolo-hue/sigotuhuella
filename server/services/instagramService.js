@@ -441,9 +441,16 @@ export async function publishImageStory(imageUrl) {
   const igUserId = await getInstagramUserId();
   if (!igUserId) throw new Error('Instagram not connected');
   const accessToken = await getStoredToken();
-  return igPost(`${GRAPH_API}/${igUserId}/media_stories`, {
-    media_type: 'IMAGE',
+
+  const createResult = await igPost(`${GRAPH_API}/${igUserId}/media`, {
+    media_type: 'STORIES',
     image_url: imageUrl,
+  }, accessToken);
+
+  await waitForContainer(createResult.id, 'IMAGE');
+
+  return igPost(`${GRAPH_API}/${igUserId}/media_publish`, {
+    creation_id: createResult.id,
   }, accessToken);
 }
 
