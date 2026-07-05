@@ -101,6 +101,7 @@ export async function searchPets(category, search) {
       (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) IS NOT NULL as has_image
     FROM pets p
     WHERE p.status = ANY($1::varchar[])
+      AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
   `;
   if (search) {
     params.push(`%${search}%`);

@@ -184,6 +184,7 @@ export async function autoQueueForAdoption() {
   const newPets = await pool.query(`
     SELECT p.id FROM pets p
     WHERE p.status IN ('for_adoption', 'lost', 'sighted', 'retained', 'adopted', 'reunited', 'accidented', 'needs_attention')
+    AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
     AND p.instagram IS NULL
     AND EXISTS (SELECT 1 FROM pet_images pi WHERE pi.pet_id = p.id)
     AND NOT EXISTS (SELECT 1 FROM instagram_posts ip WHERE ip.pet_id = p.id)

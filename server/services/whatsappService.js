@@ -332,6 +332,10 @@ export async function broadcastPetToGroups(petId) {
       console.log('[Broadcast] >>> SALIENDO: pet no encontrado, petId:', petId);
       return;
     }
+    if (pet.is_hidden) {
+      console.log('[Broadcast] Mascota oculta, saltando broadcast, petId:', petId);
+      return;
+    }
     console.log('[Broadcast] Pet encontrado, status:', pet.status, 'species:', pet.species);
 
     const statusLabels = {
@@ -410,6 +414,7 @@ export async function getNextAdoptionPet() {
       (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
     FROM pets p
     WHERE p.status IN ('for_adoption', 'for_adoption_simple')
+      AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
     ORDER BY p.adoption_broadcasted_at ASC NULLS FIRST, p.created_at ASC
     LIMIT 1
   `)).rows;

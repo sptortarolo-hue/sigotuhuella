@@ -1543,6 +1543,7 @@ async function adoptSpecies(conv, parsed) {
      FROM pets p
      LEFT JOIN LATERAL (SELECT image_data, mime_type FROM pet_images WHERE pet_id = p.id LIMIT 1) pi ON true
      WHERE p.status = 'for_adoption' AND p.species = $1
+       AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
      ORDER BY p.created_at DESC
      LIMIT 3`,
     [species]
@@ -1572,7 +1573,7 @@ async function adoptSpecies(conv, parsed) {
   }
 
   const more = (await pool.query(
-    `SELECT COUNT(*) FROM pets WHERE status = 'for_adoption' AND species = $1`,
+    `SELECT COUNT(*) FROM pets WHERE status = 'for_adoption' AND species = $1 AND (is_hidden = FALSE OR is_hidden IS NULL)`,
     [species]
   )).rows[0].count;
 
