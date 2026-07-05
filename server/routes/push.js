@@ -31,6 +31,44 @@ router.post('/subscribe', async (req, res) => {
   }
 });
 
+router.post('/register-device', async (req, res) => {
+  const { fcm_token, platform } = req.body;
+  if (!fcm_token) {
+    return res.status(400).json({ error: 'Missing fcm_token' });
+  }
+
+  try {
+    const userId = req.user?.id || null;
+
+    await pool.query(
+      `INSERT INTO device_tokens (user_id, fcm_token, platform)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (fcm_token) DO UPDATE SET user_id = $1, platform = $3`,
+      [userId, fcm_token, platform || 'android']
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Device register error:', err);
+    res.status(500).json({ error: 'Failed to save device token' });
+  }
+});
+
+router.post('/unregister-device', async (req, res) => {
+  const { fcm_token } = req.body;
+  if (!fcm_token) {
+    return res.status(400).json({ error: 'Missing fcm_token' });
+  }
+
+  try {
+    await pool.query('DELETE FROM device_tokens WHERE fcm_token = $1', [fcm_token]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Device unregister error:', err);
+    res.status(500).json({ error: 'Failed to remove device token' });
+  }
+});
+
 router.post('/unsubscribe', async (req, res) => {
   const { endpoint } = req.body;
   if (!endpoint) {

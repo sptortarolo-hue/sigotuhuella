@@ -194,6 +194,16 @@ app.use('/api/admin/dashboard', adminDashboardRoutes);
 app.use('/api/relay', phoneRelayRoutes);
 app.use('/api/relay', facebookRelayRoutes);
 
+const APP_VERSION = process.env.APP_VERSION || '1.0.0';
+app.get('/api/app/version', (_req, res) => {
+  res.json({
+    version: APP_VERSION,
+    bundleUrl: `${process.env.APP_BASE_URL || 'https://sigotuhuella.online'}/bundles/bundle-v${APP_VERSION}.zip`,
+    changelog: '',
+    mandatory: false,
+  });
+});
+
 // Sync with VPS scraper every 5 minutes — removed (scraper deprecated)
 // startSyncTimer(5);
 

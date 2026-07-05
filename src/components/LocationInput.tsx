@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { NEIGHBORHOODS, Neighborhood } from '@/src/lib/neighborhoods';
 import { buildAddress } from '@/src/lib/grid';
 import { fetchEntreCalles } from '@/src/lib/overpass';
+import { getCurrentPosition } from '@/src/lib/geolocation';
 
 const FEATURED_IDS = ['parque_sicardi', 'villa_garibaldi', 'ignacio_correas'];
 const featuredNeighborhoods = FEATURED_IDS.map(id => NEIGHBORHOODS.find(n => n.id === id)).filter((n): n is Neighborhood => !!n);
@@ -114,29 +115,15 @@ export default function LocationInput({
     reverseGeocode(latlng);
   };
 
-  const getLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Tu navegador no soporta geolocalización');
-      return;
-    }
-    const onSuccess = (pos: GeolocationPosition) => {
-      const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  const getLocation = async () => {
+    try {
+      const position = await getCurrentPosition({ enableHighAccuracy: true, timeout: 15000 });
+      const c = { lat: position.coords.latitude, lng: position.coords.longitude };
       onCoordinatesChange(c);
       reverseGeocode(c);
-    };
-    const onError = (err: GeolocationPositionError) => {
-      if (err.code === err.PERMISSION_DENIED) {
-        alert('Permití el acceso a la ubicación en tu navegador y volvé a intentar.');
-      } else if (err.code === err.TIMEOUT) {
-        navigator.geolocation.getCurrentPosition(onSuccess, () => {
-          alert('No se pudo obtener la ubicación. Marcá el punto en el mapa.');
-        }, { enableHighAccuracy: false, timeout: 15000 });
-      } else {
-        alert('No se pudo obtener la ubicación. Marcá el punto en el mapa.');
-      }
-    };
-    navigator.geolocation.getCurrentPosition(onSuccess, onError,
-      { enableHighAccuracy: true, timeout: 15000 });
+    } catch {
+      alert('No se pudo obtener la ubicación. Marcá el punto en el mapa.');
+    }
   };
 
   const areaLabel = (() => {

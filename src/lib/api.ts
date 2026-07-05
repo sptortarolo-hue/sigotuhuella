@@ -1,4 +1,8 @@
-const BASE_URL = '/api';
+import { isNative } from '@/src/lib/platform';
+
+const BASE_URL = isNative()
+  ? `${import.meta.env.VITE_API_URL || 'https://sigotuhuella.online'}/api`
+  : '/api';
 
 function getToken(): string | null {
   return localStorage.getItem('token');

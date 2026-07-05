@@ -21,3 +21,6 @@ storage_state.json
 external/scraper/debug/
 mbasic_debug.html
 fb_scraper_cookies.json
+
+# Capacitor / Android (solo en PC local)
+android/

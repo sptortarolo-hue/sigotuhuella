@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import LocationPicker from '@/src/components/LocationPicker';
 import MapLoader from '@/src/components/MapLoader';
 import ImageCropper from '@/src/components/ImageCropper';
+import { getCurrentPosition } from '@/src/lib/geolocation';
 
 const FRONTEND_URL = window.location.origin;
 
@@ -98,19 +99,13 @@ export default function QuickReport() {
     setImageMimeTypes(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const getLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Tu navegador no soporta geolocalización');
-      return;
+  const getLocation = async () => {
+    try {
+      const position = await getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+      setCoordinates({ lat: position.coords.latitude, lng: position.coords.longitude });
+    } catch {
+      alert('No se pudo obtener la ubicación. Permití el acceso al GPS o marcá la ubicación en el mapa.');
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setCoordinates(coords);
-      },
-      () => alert('No se pudo obtener la ubicación. Permití el acceso al GPS o marcá la ubicación en el mapa.'),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
   };
 
   // Reverse geocoding: auto-fill address from coordinates

@@ -4,52 +4,56 @@ import path from 'path';
 import {defineConfig} from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const isCapacitor = process.env.BUILD_TARGET === 'capacitor';
+
+const pwaPlugin = !isCapacitor ? VitePWA({
+  registerType: 'autoUpdate',
+  strategies: 'injectManifest',
+  srcDir: 'src',
+  filename: 'sw.ts',
+  includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'sigotuhuella.jpg'],
+  workbox: {
+    globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
+    maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
+  },
+  manifest: {
+    name: 'Sigo tu huella - Sicardi/Garibaldi',
+    short_name: 'SigoTuHuella',
+    description: 'Comunidad de rescate y reporte de mascotas en Sicardi y Garibaldi',
+    theme_color: '#fdfcf7',
+    background_color: '#fdfcf7',
+    display: 'standalone',
+    start_url: '/',
+    icons: [
+      { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+      { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+      { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: 'apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+    shortcuts: [
+      {
+        name: 'Reporte Rápido',
+        short_name: 'Reportar',
+        url: '/reportar-rapido',
+        icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }],
+      },
+    ],
+    share_target: {
+      action: '/reportar-rapido',
+      method: 'POST',
+      enctype: 'multipart/form-data',
+      params: {
+        files: [{ name: 'image', accept: ['image/*'] }],
+      },
+    },
+  },
+}) : null;
+
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.ts',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'sigotuhuella.jpg'],
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest}'],
-        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
-      },
-      manifest: {
-        name: 'Sigo tu huella - Sicardi/Garibaldi',
-        short_name: 'SigoTuHuella',
-        description: 'Comunidad de rescate y reporte de mascotas en Sicardi y Garibaldi',
-        theme_color: '#fdfcf7',
-        background_color: '#fdfcf7',
-        display: 'standalone',
-        start_url: '/',
-        icons: [
-          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-          { src: 'apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
-        ],
-        shortcuts: [
-          {
-            name: 'Reporte Rápido',
-            short_name: 'Reportar',
-            url: '/reportar-rapido',
-            icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }],
-          },
-        ],
-        share_target: {
-          action: '/reportar-rapido',
-          method: 'POST',
-          enctype: 'multipart/form-data',
-          params: {
-            files: [{ name: 'image', accept: ['image/*'] }],
-          },
-        },
-      },
-    }),
+    ...(pwaPlugin ? [pwaPlugin] : []),
   ],
   resolve: {
     alias: {

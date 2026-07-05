@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Download, Bell, BellOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { subscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
+import { isNative } from '@/src/lib/platform';
 
 export default function PwaHandler() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -13,6 +14,8 @@ export default function PwaHandler() {
   const rAFRef = useRef(0);
 
   useEffect(() => {
+    if (isNative()) return;
+
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -27,6 +30,7 @@ export default function PwaHandler() {
   }, []);
 
   useEffect(() => {
+    if (isNative()) return;
     isSupported().then(async (supported) => {
       if (!supported) return;
       const already = await isSubscribed();
@@ -97,6 +101,8 @@ export default function PwaHandler() {
   };
 
   const circumference = 2 * Math.PI * 10;
+
+  if (isNative()) return null;
 
   return (
     <>

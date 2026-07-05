@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import FoundReportModal from '@/src/components/FoundReportModal';
+import { getCurrentPosition } from '@/src/lib/geolocation';
 
 const SPECIES_LABELS: Record<string, string> = {
   dog: 'Perro', cat: 'Gato', other: 'Otro',
@@ -42,15 +43,13 @@ export default function PublicPetProfile() {
   useEffect(() => {
     if (data?.found && !scanSent && !silent) {
       setScanSent(true);
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
+      getCurrentPosition({ timeout: 5000 })
+        .then((pos) => {
           api.qr.scan(shareToken!, { latitude: pos.coords.latitude, longitude: pos.coords.longitude }).catch(() => {});
-        },
-        () => {
+        })
+        .catch(() => {
           api.qr.scan(shareToken!).catch(() => {});
-        },
-        { timeout: 5000 }
-      );
+        });
     }
   }, [data, scanSent, shareToken, silent]);
 
