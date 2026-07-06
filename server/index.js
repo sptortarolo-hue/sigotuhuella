@@ -631,6 +631,8 @@ async function start() {
   // Auto-story: rotate through videos with configured intervals
   async function publishNextStory() {
     try {
+      const autoStory = await pool.query("SELECT value FROM settings WHERE key = 'auto_story_enabled'");
+      if (autoStory.rows[0]?.value !== 'true') return;
       const connected = await isConnected();
       if (!connected) return;
       const result = await pool.query(`

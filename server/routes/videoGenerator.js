@@ -398,9 +398,9 @@ router.post('/generate-from-template', requireAuth, requireAdmin, async (req, re
 
 router.get('/reel-config', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const keys = ['reel_enabled', 'reel_interval_hours', 'reel_template_index'];
+    const keys = ['reel_enabled', 'reel_interval_hours', 'reel_template_index', 'auto_story_enabled'];
     const { rows } = await pool.query('SELECT key, value FROM settings WHERE key = ANY($1)', [keys]);
-    const config = { reel_enabled: 'true', reel_interval_hours: '6', reel_template_index: '0' };
+    const config = { reel_enabled: 'true', reel_interval_hours: '6', reel_template_index: '0', auto_story_enabled: 'true' };
     for (const row of rows) config[row.key] = row.value;
     res.json(config);
   } catch (err) {
@@ -411,7 +411,7 @@ router.get('/reel-config', requireAuth, requireAdmin, async (req, res) => {
 
 router.post('/reel-config', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { reel_enabled, reel_interval_hours } = req.body;
+    const { reel_enabled, reel_interval_hours, auto_story_enabled } = req.body;
     if (reel_enabled !== undefined) {
       await pool.query(
         `INSERT INTO settings (key, value) VALUES ('reel_enabled', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
@@ -426,6 +426,12 @@ router.post('/reel-config', requireAuth, requireAdmin, async (req, res) => {
       );
       await pool.query(
         `INSERT INTO settings (key, value) VALUES ('reel_template_index', '0') ON CONFLICT (key) DO UPDATE SET value = '0'`
+      );
+    }
+    if (auto_story_enabled !== undefined) {
+      await pool.query(
+        `INSERT INTO settings (key, value) VALUES ('auto_story_enabled', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [auto_story_enabled ? 'true' : 'false']
       );
     }
     res.json({ message: 'Reel config updated. Changes apply on next cycle.' });

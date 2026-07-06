@@ -1100,6 +1100,9 @@ export async function initDb() {
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('reel_template_index', '0') ON CONFLICT (key) DO NOTHING
     `, 'reel_template_index');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('auto_story_enabled', 'true') ON CONFLICT (key) DO NOTHING
+    `, 'auto_story_enabled');
 
     console.log('Database migrations complete');
   } finally {
