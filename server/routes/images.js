@@ -39,7 +39,7 @@ const router = Router();
 router.get('/pet/:petId/story', async (req, res) => {
   try {
     const petResult = await pool.query(`
-      SELECT p.status, p.contact_info,
+      SELECT p.status, p.contact_info, p.location,
         (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as image_data,
         (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) as mime_type
       FROM pets p WHERE p.id = $1
@@ -47,7 +47,7 @@ router.get('/pet/:petId/story', async (req, res) => {
     if (petResult.rows.length === 0) { return res.status(404).end(); }
     const pet = petResult.rows[0];
     if (!pet.image_data) { return res.status(404).end(); }
-    const jpgBuffer = await overlayStory(pet.image_data, pet.mime_type || 'image/jpeg', pet.status, pet.contact_info);
+    const jpgBuffer = await overlayStory(pet.image_data, pet.mime_type || 'image/jpeg', pet.status, pet.contact_info, pet.location);
     res.set('Content-Type', 'image/jpeg');
     res.set('Content-Length', jpgBuffer.length);
     res.set('Cache-Control', 'public, max-age=3600');
