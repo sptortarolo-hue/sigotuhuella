@@ -1,9 +1,48 @@
 import fs from 'fs';
 import path from 'path';
+import sharp from 'sharp';
 import { getGlobalStats } from './videoAssembler.js';
 import { getPetPhotos } from '../services/pexelsService.js';
 
 const SCREENSHOTS_DIR = path.join(process.env.PUBLIC_DIR || 'public', 'generated', 'screenshots');
+const PLACEHOLDERS_DIR = path.join(process.env.PUBLIC_DIR || 'public', 'generated', 'placeholders');
+
+if (!fs.existsSync(PLACEHOLDERS_DIR)) {
+  fs.mkdirSync(PLACEHOLDERS_DIR, { recursive: true });
+}
+
+function escapeXml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+const PLACEHOLDER_W = 540;
+const PLACEHOLDER_H = 960;
+
+async function getPlaceholder(overlayText, label) {
+  const cachePath = path.join(PLACEHOLDERS_DIR, `${label}.png`);
+  if (fs.existsSync(cachePath)) {
+    return fs.readFileSync(cachePath).toString('base64');
+  }
+  const svg = `<svg width="${PLACEHOLDER_W}" height="${PLACEHOLDER_H}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#7c6f5b"/>
+        <stop offset="100%" stop-color="#5a4f3f"/>
+      </linearGradient>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#g)"/>
+    <text x="${PLACEHOLDER_W / 2}" y="${PLACEHOLDER_H / 2 - 20}" font-family="sans-serif" font-size="24" fill="white" text-anchor="middle" font-weight="bold">${escapeXml(overlayText)}</text>
+    <text x="${PLACEHOLDER_W / 2}" y="${PLACEHOLDER_H / 2 + 30}" font-family="sans-serif" font-size="16" fill="rgba(255,255,255,0.5)" text-anchor="middle">Sigo Tu Huella</text>
+  </svg>`;
+  try {
+    const buf = await sharp(Buffer.from(svg)).png().toBuffer();
+    fs.writeFileSync(cachePath, buf);
+    return buf.toString('base64');
+  } catch (err) {
+    console.error(`[Placeholder] sharp failed for '${label}':`, err.message);
+    return '';
+  }
+}
 
 const TEMPLATES = {
   'app-showcase': {
@@ -120,15 +159,35 @@ export async function resolveTemplate(templateId, options = {}) {
           imageBase64: base64,
           overlayText: scene.overlayText || '',
         });
+      } else {
+        console.warn(`[Template] Screenshot '${scene.label}' not found at ${pngPath}, using placeholder`);
+        const base64 = await getPlaceholder(scene.overlayText || template.name, scene.label);
+        if (base64) {
+          resolvedScenes.push({
+            type: 'photo',
+            imageBase64: base64,
+            overlayText: scene.overlayText || '',
+          });
+        }
       }
     } else if (scene.type === 'pexels') {
-      const photos = await getPetPhotos(1);
-      if (photos.length > 0) {
-        let overlayText = scene.overlayText || '';
-        overlayText = overlayText.replace(/\{(\w+)\}/g, (_, key) => stats[key] !== undefined ? String(stats[key]) : key);
+      let overlayText = scene.overlayText || '';
+      overlayText = overlayText.replace(/\{(\w+)\}/g, (_, key) => stats[key] !== undefined ? String(stats[key]) : key);
+      let photoBase64 = '';
+      try {
+        const photos = await getPetPhotos(1);
+        if (photos.length > 0) photoBase64 = photos[0];
+      } catch (err) {
+        console.warn(`[Template] Pexels fetch failed:`, err.message);
+      }
+      if (!photoBase64) {
+        console.warn(`[Template] No Pexels photo available, using placeholder`);
+        photoBase64 = await getPlaceholder(overlayText, `pexels-${templateId}-${resolvedScenes.length}`);
+      }
+      if (photoBase64) {
         resolvedScenes.push({
           type: 'photo',
-          imageBase64: photos[0],
+          imageBase64: photoBase64,
           overlayText,
         });
       }

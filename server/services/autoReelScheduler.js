@@ -54,7 +54,7 @@ async function cycleReel() {
     console.log(`[AutoReel] Generating from '${templateId}'`);
 
     const templateConfig = await resolveTemplate(templateId);
-    if (templateConfig.scenes.length < 2) {
+    if (templateConfig.scenes.length < 1) {
       console.warn(`[AutoReel] '${templateId}' only ${templateConfig.scenes.length} scenes, skipping`);
       return;
     }
