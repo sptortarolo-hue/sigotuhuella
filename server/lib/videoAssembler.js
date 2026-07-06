@@ -94,7 +94,7 @@ const OPENING_DUR = 2;
 const CLOSING_DUR = 4;
 const FPS = 25;
 const FF_PRESET = 'veryfast';
-const FF_CRF = 17;
+const FF_CRF = 23;
 
 
 
@@ -228,7 +228,9 @@ async function generateMultiVoice(script, voiceKeys, workDir, ttsPath, style = '
 
 const FONT_MONTSERRAT = path.join(PROJECT_ROOT, PUBLIC_DIR, 'fonts', 'Montserrat-Bold.ttf');
 
+let _cachedFontPath = null;
 function getFontPath() {
+  if (_cachedFontPath !== null) return _cachedFontPath;
   const candidates = [
     FONT_MONTSERRAT,
     '/usr/share/fonts/truetype/montserrat/Montserrat-Bold.ttf',
@@ -237,9 +239,13 @@ function getFontPath() {
     '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
   ];
   for (const f of candidates) {
-    if (fs.existsSync(f)) return f;
+    if (fs.existsSync(f)) {
+      _cachedFontPath = f;
+      return f;
+    }
   }
   console.warn('[Font] No font found on system. Text overlays will use fallback font (may be invisible)');
+  _cachedFontPath = null;
   return null;
 }
 
@@ -873,15 +879,16 @@ async function generateVideo(config) {
     ]);
     logStep('opening+closing+audio parallel');
 
-    const mainClips = [];
-    mainClips.push(openingClip);
+    const mainClips = [openingClip];
 
-  for (let i = 1; i < numPhotoScenes; i++) {
-    const scene = photoScenes[i];
-    const clipPath = await generatePhotoClip(photoPaths[i], photoClipDur, zoompan, dims, workDir, i, scene.overlayText);
-    logStep(`photo clip ${i}`);
-    mainClips.push(clipPath);
-  }
+    const photoClipTasks = [];
+    for (let i = 1; i < numPhotoScenes; i++) {
+      const scene = photoScenes[i];
+      photoClipTasks.push(generatePhotoClip(photoPaths[i], photoClipDur, zoompan, dims, workDir, i, scene.overlayText));
+    }
+    const generatedClips = await Promise.all(photoClipTasks);
+    mainClips.push(...generatedClips);
+    logStep('photo clips (parallel)');
 
     mainClips.push(closingClip);
 
