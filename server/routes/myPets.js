@@ -971,9 +971,13 @@ router.post('/:id/report-lost', requireAuth, async (req, res) => {
     await client.query('COMMIT');
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const perdidoEmail = mp.gender === 'female' ? 'perdida' : mp.gender === 'male' ? 'perdido' : null;
+    const perdidoFragment = perdidoEmail
+      ? `como ${perdidoEmail}`
+      : 'la pérdida de';
     sendAdminNotificationEmail(
       '😢 Reporte de mascota perdida desde perfil digital',
-      `<p style="font-size:16px;margin-bottom:16px;"><strong>${req.user.display_name || req.user.email}</strong> reportó a <strong>${mp.name}</strong> como perdida desde su perfil digital.</p>
+      `<p style="font-size:16px;margin-bottom:16px;"><strong>${req.user.display_name || req.user.email}</strong> reportó ${perdidoFragment} <strong>${mp.name}</strong> desde su perfil digital.</p>
        <table style="width:100%;border-collapse:collapse;margin-bottom:12px;">
          <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Especie</td><td style="padding:8px;border:1px solid #e2e8f0;">${mp.species}</td></tr>
          <tr><td style="padding:8px;border:1px solid #e2e8f0;font-weight:bold;">Nombre</td><td style="padding:8px;border:1px solid #e2e8f0;">${mp.name}</td></tr>
@@ -988,7 +992,11 @@ router.post('/:id/report-lost', requireAuth, async (req, res) => {
 
     sendPushToAdmins({
       title: '😢 Mascota perdida',
-      body: `${mp.name} perdid${mp.species === 'gato' ? 'a' : 'o'} en ${location}`,
+      body: mp.gender === 'female'
+        ? `${mp.name} perdida en ${location}`
+        : mp.gender === 'male'
+        ? `${mp.name} perdido en ${location}`
+        : `${mp.name} - pérdida reportada en ${location}`,
       url: `${frontendUrl}/pet/${pet.id}`,
     }).catch(err => console.error('push error:', err));
 

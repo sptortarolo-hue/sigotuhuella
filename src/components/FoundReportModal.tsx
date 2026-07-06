@@ -86,7 +86,7 @@ export default function FoundReportModal({ shareToken, petName, onClose, onSucce
               value={form.finder_location}
               onChange={e => setForm(prev => ({ ...prev, finder_location: e.target.value }))}
               className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
-              placeholder="Dónde la encontraste"
+              placeholder="Dirección o referencia del lugar"
             />
           </div>
 

@@ -515,10 +515,19 @@ async function handleImageFromMenu(conv, parsed) {
       });
       await sendMessage(conv.wa_from, `${conv.bot_name}: Según tu mensaje, ¿*${labels[result.intent]}* esta mascota?`);
       if (result.intent === 'found') {
-        await sendInteractiveButtons(conv.wa_from, '¿La retuviste?', [
-          { id: 'confirm_retained', title: '🐾 La retuve' },
-          { id: 'confirm_sighted', title: '👁️ Solo la vi' },
-        ]);
+        const pronombre = result.gender === 'female' ? 'la' : result.gender === 'male' ? 'lo' : null;
+        if (pronombre) {
+          const cap = pronombre === 'la' ? 'La' : 'Lo';
+          await sendInteractiveButtons(conv.wa_from, `¿${cap} retuviste?`, [
+            { id: 'confirm_retained', title: `🐾 ${cap} retuve` },
+            { id: 'confirm_sighted', title: `👁️ Solo ${pronombre} vi` },
+          ]);
+        } else {
+          await sendInteractiveButtons(conv.wa_from, '¿Retuviste a la mascota?', [
+            { id: 'confirm_retained', title: '🐾 Retuve' },
+            { id: 'confirm_sighted', title: '👁️ Solo vi' },
+          ]);
+        }
       } else {
         await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
           { id: 'confirm_yes', title: '✅ Sí' },
@@ -906,7 +915,9 @@ async function rsSpecies(conv, parsed) {
     await setFlow(conv, 'report_sighted.contact', ctx);
     return;
   }
-  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde la viste? Podés escribir la dirección o compartir tu *ubicación* 📍`);
+  const g = conv.context?.gender;
+  const pregunta909 = g === 'female' ? '¿Dónde la viste?' : g === 'male' ? '¿Dónde lo viste?' : '¿Dónde viste a la mascota?';
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ${pregunta909} Podés escribir la dirección o compartir tu *ubicación* 📍`);
   await setFlow(conv, 'report_sighted.location', { ...conv.context, species });
 }
 
@@ -915,7 +926,9 @@ async function rsLocation(conv, parsed) {
   let lat = parsed.locationLat || null;
   let lng = parsed.locationLng || null;
   if (!location && !lat) {
-    await sendMessage(conv.wa_from, `${conv.bot_name}: Decime dónde la viste o compartí tu ubicación 📍`);
+    const g2 = conv.context?.gender;
+    const pregunta918 = g2 === 'female' ? 'Decime dónde la viste' : g2 === 'male' ? 'Decime dónde lo viste' : 'Decime dónde viste a la mascota';
+    await sendMessage(conv.wa_from, `${conv.bot_name}: ${pregunta918} o compartí tu ubicación 📍`);
     return;
   }
   if (!lat && location) {

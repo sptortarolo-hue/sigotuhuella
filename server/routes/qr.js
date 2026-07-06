@@ -455,7 +455,7 @@ router.post('/public/:shareToken/found', async (req, res) => {
     if (!finder_phone) return res.status(400).json({ error: 'Teléfono de contacto es requerido' });
 
     const qrResult = await pool.query(
-      `SELECT qi.code, mp.name as pet_name, mp.user_id, u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone, u.notification_preference as owner_notification_preference
+      `SELECT qi.code, mp.name as pet_name, mp.gender, mp.user_id, u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone, u.notification_preference as owner_notification_preference
        FROM qr_identifiers qi
        JOIN my_pets mp ON mp.id = qi.my_pet_id
        JOIN users u ON u.id = mp.user_id
@@ -466,9 +466,14 @@ router.post('/public/:shareToken/found', async (req, res) => {
 
     const row = qrResult.rows[0];
 
+    const qrFoundBody = row.gender === 'female'
+      ? `${finder_name || 'Alguien'} reportó haberla encontrado. Tel: ${finder_phone}`
+      : row.gender === 'male'
+      ? `${finder_name || 'Alguien'} reportó haberlo encontrado. Tel: ${finder_phone}`
+      : `${finder_name || 'Alguien'} reportó que encontró a ${row.pet_name}. Tel: ${finder_phone}`;
     sendPushToUser(row.user_id, {
       title: `¡Encontraron a ${row.pet_name}!`,
-      body: `${finder_name || 'Alguien'} reportó haberla encontrado. Tel: ${finder_phone}`,
+      body: qrFoundBody,
       tag: `pet-found-${row.code}`,
     }).catch(() => {});
 
@@ -508,7 +513,12 @@ router.post('/public/:shareToken/found', async (req, res) => {
       const ownerUser = { email: row.owner_email, phone: row.owner_phone, notification_preference: row.owner_notification_preference, display_name: row.owner_name };
       notifyUser(ownerUser, {
         subject: `✅ ¡Encontraron a ${row.pet_name}!`,
-        textMessage: `✅ ¡Encontraron a ${row.pet_name}! Alguien reportó haberla encontrado.\nContacto: ${finder_name || 'No especificado'}\nTel: ${finder_phone}${finder_location ? `\nUbicación: ${finder_location}` : ''}${finder_notes ? `\nNotas: ${finder_notes}` : ''}`,
+        textMessage: (row.gender === 'female'
+          ? `✅ ¡Encontraron a ${row.pet_name}! Alguien reportó haberla encontrado.\nContacto: ${finder_name || 'No especificado'}\nTel: ${finder_phone}${finder_location ? `\nUbicación: ${finder_location}` : ''}${finder_notes ? `\nNotas: ${finder_notes}` : ''}`
+          : row.gender === 'male'
+          ? `✅ ¡Encontraron a ${row.pet_name}! Alguien reportó haberlo encontrado.\nContacto: ${finder_name || 'No especificado'}\nTel: ${finder_phone}${finder_location ? `\nUbicación: ${finder_location}` : ''}${finder_notes ? `\nNotas: ${finder_notes}` : ''}`
+          : `✅ ¡Encontraron a ${row.pet_name}! Alguien reportó que encontró a tu mascota.\nContacto: ${finder_name || 'No especificado'}\nTel: ${finder_phone}${finder_location ? `\nUbicación: ${finder_location}` : ''}${finder_notes ? `\nNotas: ${finder_notes}` : ''}`
+        ),
         sendEmailFn: null,
       }).catch(err => console.error('WhatsApp found pet error:', err));
     }
