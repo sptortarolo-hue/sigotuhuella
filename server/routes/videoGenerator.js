@@ -396,6 +396,45 @@ router.post('/generate-from-template', requireAuth, requireAdmin, async (req, re
   }
 });
 
+router.get('/reel-config', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const keys = ['reel_enabled', 'reel_interval_hours', 'reel_template_index'];
+    const { rows } = await pool.query('SELECT key, value FROM settings WHERE key = ANY($1)', [keys]);
+    const config = { reel_enabled: 'true', reel_interval_hours: '6', reel_template_index: '0' };
+    for (const row of rows) config[row.key] = row.value;
+    res.json(config);
+  } catch (err) {
+    console.error('Get reel config error:', err);
+    res.status(500).json({ error: 'Failed to fetch reel config' });
+  }
+});
+
+router.post('/reel-config', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { reel_enabled, reel_interval_hours } = req.body;
+    if (reel_enabled !== undefined) {
+      await pool.query(
+        `INSERT INTO settings (key, value) VALUES ('reel_enabled', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [reel_enabled ? 'true' : 'false']
+      );
+    }
+    if (reel_interval_hours !== undefined) {
+      const hours = Math.max(1, Math.min(72, parseInt(reel_interval_hours) || 6));
+      await pool.query(
+        `INSERT INTO settings (key, value) VALUES ('reel_interval_hours', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [String(hours)]
+      );
+      await pool.query(
+        `INSERT INTO settings (key, value) VALUES ('reel_template_index', '0') ON CONFLICT (key) DO UPDATE SET value = '0'`
+      );
+    }
+    res.json({ message: 'Reel config updated. Changes apply on next cycle.' });
+  } catch (err) {
+    console.error('Update reel config error:', err);
+    res.status(500).json({ error: 'Failed to update reel config' });
+  }
+});
+
 router.get('/debug-tts', requireAuth, requireAdmin, async (req, res) => {
   const results = { edgeTts: {} };
 

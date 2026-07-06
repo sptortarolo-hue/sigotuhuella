@@ -34,6 +34,7 @@ import adminDashboardRoutes from './routes/adminDashboard.js';
 // import { startSyncTimer } from './services/vpsSyncService.js';
 import { startApifyScraper } from './services/apifyScraper.js';
 import { startScreenshotScheduler } from './services/autoScreenshots.js';
+import { startReelScheduler } from './services/autoReelScheduler.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
 import { publishStory, isConnected } from './services/instagramService.js';
@@ -595,6 +596,9 @@ async function start() {
 
   // Auto screenshots: capture mobile screenshots of key pages periodically
   startScreenshotScheduler();
+
+  // Auto reel: generate promotional reels from templates periodically
+  startReelScheduler();
 
   // Facebook publisher: replicate new Instagram posts to Page + Groups every 2 minutes
   setInterval(async () => {

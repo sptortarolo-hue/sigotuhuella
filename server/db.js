@@ -1091,6 +1091,15 @@ export async function initDb() {
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('screenshots_interval_hours', '6') ON CONFLICT (key) DO NOTHING
     `, 'screenshots_interval_hours');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('reel_enabled', 'true') ON CONFLICT (key) DO NOTHING
+    `, 'reel_enabled');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('reel_interval_hours', '6') ON CONFLICT (key) DO NOTHING
+    `, 'reel_interval_hours');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('reel_template_index', '0') ON CONFLICT (key) DO NOTHING
+    `, 'reel_template_index');
 
     console.log('Database migrations complete');
   } finally {

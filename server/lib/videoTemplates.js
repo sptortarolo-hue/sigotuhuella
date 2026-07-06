@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { getGlobalStats, buildAutoScript, fetchRandomPetPhotos } from './videoAssembler.js';
+import { getGlobalStats } from './videoAssembler.js';
 import { getPetPhotos } from '../services/pexelsService.js';
 
 const SCREENSHOTS_DIR = path.join(process.env.PUBLIC_DIR || 'public', 'generated', 'screenshots');
