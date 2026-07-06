@@ -4,6 +4,8 @@ import pool from '../db.js';
 import { generateVideo, getRandomReunionPhotos, getGlobalStats, getPetImages, getPetInfo, getNewsImage, getNewsData, fetchRandomPetPhotos } from '../lib/videoAssembler.js';
 import { generateVideoContent, generateVideoImages } from '../services/aiService.js';
 import { getTemplates, resolveTemplate } from '../lib/videoTemplates.js';
+import { captureAllScreenshots } from '../services/screenshotService.js';
+import { publishReel } from '../services/instagramService.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -398,9 +400,9 @@ router.post('/generate-from-template', requireAuth, requireAdmin, async (req, re
 
 router.get('/reel-config', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const keys = ['reel_enabled', 'reel_interval_hours', 'reel_template_index', 'auto_story_enabled'];
+    const keys = ['reel_enabled', 'reel_interval_hours', 'reel_template_index', 'auto_story_enabled', 'auto_reels_enabled'];
     const { rows } = await pool.query('SELECT key, value FROM settings WHERE key = ANY($1)', [keys]);
-    const config = { reel_enabled: 'true', reel_interval_hours: '6', reel_template_index: '0', auto_story_enabled: 'true' };
+    const config = { reel_enabled: 'true', reel_interval_hours: '6', reel_template_index: '0', auto_story_enabled: 'true', auto_reels_enabled: 'false' };
     for (const row of rows) config[row.key] = row.value;
     res.json(config);
   } catch (err) {
@@ -411,7 +413,7 @@ router.get('/reel-config', requireAuth, requireAdmin, async (req, res) => {
 
 router.post('/reel-config', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { reel_enabled, reel_interval_hours, auto_story_enabled } = req.body;
+    const { reel_enabled, reel_interval_hours, auto_story_enabled, auto_reels_enabled } = req.body;
     if (reel_enabled !== undefined) {
       await pool.query(
         `INSERT INTO settings (key, value) VALUES ('reel_enabled', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
@@ -434,10 +436,70 @@ router.post('/reel-config', requireAuth, requireAdmin, async (req, res) => {
         [auto_story_enabled ? 'true' : 'false']
       );
     }
+    if (auto_reels_enabled !== undefined) {
+      await pool.query(
+        `INSERT INTO settings (key, value) VALUES ('auto_reels_enabled', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [auto_reels_enabled ? 'true' : 'false']
+      );
+    }
     res.json({ message: 'Reel config updated. Changes apply on next cycle.' });
   } catch (err) {
     console.error('Update reel config error:', err);
     res.status(500).json({ error: 'Failed to update reel config' });
+  }
+});
+
+router.post('/screenshots/trigger', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const startedAt = new Date().toISOString();
+    console.log('[Screenshots] Manual trigger by admin');
+    captureAllScreenshots().catch(err => console.error('[Screenshots] Async error:', err));
+    res.json({ message: 'Screenshots triggered', startedAt });
+  } catch (err) {
+    console.error('Trigger screenshots error:', err);
+    res.status(500).json({ error: 'Failed to trigger screenshots' });
+  }
+});
+
+router.get('/stats', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const stats = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'ready') as ready,
+        COUNT(*) FILTER (WHERE status = 'generating') as generating,
+        COUNT(*) FILTER (WHERE status = 'failed') as failed,
+        COUNT(*) as total,
+        MAX(created_at) FILTER (WHERE status = 'ready') as last_generated
+      FROM promotional_videos
+    `);
+    const byDay = await pool.query(`
+      SELECT DATE(created_at) as day, COUNT(*)::int as count
+      FROM promotional_videos
+      WHERE created_at > NOW() - INTERVAL '7 days'
+      GROUP BY DATE(created_at)
+      ORDER BY day
+    `);
+    res.json({ ...stats.rows[0], byDay: byDay.rows });
+  } catch (err) {
+    console.error('Get reel stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch reel stats' });
+  }
+});
+
+router.post('/publish-reel', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { videoId } = req.body;
+    if (!videoId) return res.status(400).json({ error: 'videoId required' });
+    const result = await pool.query('SELECT video_data, title FROM promotional_videos WHERE id = $1 AND status = \'ready\'', [videoId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Video not found or not ready' });
+    const FRONTEND = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const videoUrl = `${FRONTEND}/generated/videos/${result.rows[0].video_data}`;
+    const published = await publishReel(videoUrl, result.rows[0].title);
+    console.log(`[Publish-Reel] Published video ${videoId}`);
+    res.json({ message: 'Reel published', id: published.id });
+  } catch (err) {
+    console.error('Publish reel error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

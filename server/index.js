@@ -37,7 +37,7 @@ import { startScreenshotScheduler } from './services/autoScreenshots.js';
 import { startReelScheduler } from './services/autoReelScheduler.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
-import { publishStory, isConnected } from './services/instagramService.js';
+import { publishStory, publishReel, isConnected } from './services/instagramService.js';
 import { checkWhatsAppTimeouts } from './services/whatsappScheduler.js';
 import { broadcastNextAdoptionPet, broadcastFbAdoptionPets, broadcastAdoptionPet } from './services/whatsappService.js';
 import { processInviteReminders } from './services/reminderService.js';
@@ -651,6 +651,15 @@ async function start() {
       const FRONTEND = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
       const publicUrl = `${FRONTEND}/generated/videos/${video.video_data}`;
       await publishStory(publicUrl);
+      const reelsResult = await pool.query("SELECT value FROM settings WHERE key = 'auto_reels_enabled'");
+      if (reelsResult.rows[0]?.value === 'true') {
+        try {
+          await publishReel(publicUrl, video.title);
+          console.log(`[Auto-Reel] Published "${video.title}" as Reel`);
+        } catch (reelErr) {
+          console.error('[Auto-Reel] Failed to publish reel:', reelErr.message);
+        }
+      }
       await pool.query('UPDATE promotional_videos SET last_story_posted_at = NOW() WHERE id = $1', [video.id]);
       console.log(`[Auto-Story] Published "${video.title}" (${video.id})`);
     } catch (err) {

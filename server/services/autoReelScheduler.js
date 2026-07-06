@@ -1,8 +1,9 @@
 import pool from '../db.js';
 import { resolveTemplate } from '../lib/videoTemplates.js';
 import { generateVideo } from '../lib/videoAssembler.js';
+import { captureAllScreenshots } from './screenshotService.js';
 
-const TEMPLATE_IDS = ['app-showcase', 'app-success', 'app-feature'];
+const TEMPLATE_IDS = ['app-showcase', 'app-success', 'app-feature', 'app-adoption', 'app-lost'];
 
 let intervalHandle = null;
 let isRunning = false;
@@ -38,6 +39,9 @@ async function cycleReel() {
   }
   isRunning = true;
   try {
+    console.log('[AutoReel] Refreshing screenshots before generating reel...');
+    await captureAllScreenshots();
+
     const idxResult = await pool.query("SELECT value FROM settings WHERE key = 'reel_template_index'");
     let idx = parseInt(idxResult.rows[0]?.value) || 0;
     const templateId = TEMPLATE_IDS[idx % TEMPLATE_IDS.length];

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Film, Download, Trash2, Loader2, RefreshCw, Share2, Copy, AlertCircle, CheckCircle, Monitor, Smartphone, Square, Sparkles, Image, Search, Check, X, ChevronDown } from 'lucide-react';
+import { Film, Download, Trash2, Loader2, RefreshCw, Share2, Copy, AlertCircle, CheckCircle, Monitor, Smartphone, Square, Sparkles, Image, Search, Check, X, ChevronDown, Settings, BarChart3, Camera, Clock, List } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 
@@ -172,6 +172,19 @@ export default function VideoGeneratorTab() {
   const [storyPublishingId, setStoryPublishingId] = useState<string | null>(null);
   const [storySuccessId, setStorySuccessId] = useState<string | null>(null);
 
+  const [reelConfig, setReelConfig] = useState({
+    reel_enabled: 'true',
+    reel_interval_hours: '6',
+    auto_story_enabled: 'true',
+    auto_reels_enabled: 'false',
+  });
+  const [templatesList, setTemplatesList] = useState<{ id: string; name: string; description: string; style: string; sceneCount: number }[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [generatingFromTemplate, setGeneratingFromTemplate] = useState(false);
+  const [reelStats, setReelStats] = useState<{ ready: number; generating: number; failed: number; total: number; last_generated: string | null; byDay: { day: string; count: number }[] } | null>(null);
+  const [reelPublishingId, setReelPublishingId] = useState<string | null>(null);
+  const [reelSuccessId, setReelSuccessId] = useState<string | null>(null);
+
   const musicOptions = [
     { value: 'emotional', label: 'Emocional Piano' },
     { value: 'latin', label: 'Latino Uplifting' },
@@ -210,6 +223,12 @@ export default function VideoGeneratorTab() {
   useEffect(() => {
     fetchAvailableContent();
   }, [petFilter, newsFilter]);
+
+  useEffect(() => {
+    fetchReelConfig();
+    fetchTemplates();
+    fetchReelStats();
+  }, []);
 
   async function fetchVideos(): Promise<Video[] | null> {
     setRefreshing(true);
@@ -357,6 +376,87 @@ export default function VideoGeneratorTab() {
         setGenerating(false);
       }
     }, 10000);
+  }
+
+  async function fetchReelConfig() {
+    try {
+      const res = await authFetch('/api/admin/videos/reel-config');
+      if (res.ok) {
+        const data = await res.json();
+        setReelConfig(data);
+      }
+    } catch (e) { console.error('Failed to fetch reel config:', e); }
+  }
+
+  async function fetchTemplates() {
+    try {
+      const res = await authFetch('/api/admin/videos/templates');
+      if (res.ok) {
+        const data = await res.json();
+        setTemplatesList(data.templates || []);
+      }
+    } catch (e) { console.error('Failed to fetch templates:', e); }
+  }
+
+  async function fetchReelStats() {
+    try {
+      const res = await authFetch('/api/admin/videos/stats');
+      if (res.ok) {
+        setReelStats(await res.json());
+      }
+    } catch (e) { console.error('Failed to fetch reel stats:', e); }
+  }
+
+  async function updateReelConfig(updates: Record<string, string>) {
+    try {
+      await authFetch('/api/admin/videos/reel-config', {
+        method: 'POST',
+        body: JSON.stringify(updates),
+      });
+      setReelConfig(prev => ({ ...prev, ...updates }));
+    } catch (e) { console.error('Failed to update reel config:', e); }
+  }
+
+  async function generateFromTemplate() {
+    if (!selectedTemplateId || generatingFromTemplate) return;
+    setGeneratingFromTemplate(true);
+    try {
+      const res = await authFetch('/api/admin/videos/generate-from-template', {
+        method: 'POST',
+        body: JSON.stringify({ templateId: selectedTemplateId }),
+      });
+      if (res.ok) {
+        startPolling();
+      } else {
+        const data = await res.json().catch(() => ({ error: 'Error' }));
+        alert(data.error || 'Error al generar desde template');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Error');
+    } finally {
+      setGeneratingFromTemplate(false);
+    }
+  }
+
+  async function publishReel(video: Video) {
+    setReelPublishingId(video.id);
+    setReelSuccessId(null);
+    try {
+      const res = await authFetch('/api/admin/videos/publish-reel', {
+        method: 'POST',
+        body: JSON.stringify({ videoId: video.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al publicar reel');
+      }
+      setReelSuccessId(video.id);
+      setTimeout(() => setReelSuccessId(null), 3000);
+    } catch (e: any) {
+      alert(e.message || 'Error al publicar reel');
+    } finally {
+      setReelPublishingId(null);
+    }
   }
 
   async function generate() {
@@ -1025,6 +1125,151 @@ export default function VideoGeneratorTab() {
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+            <BarChart3 className="w-6 h-6" /> Estadísticas de Reels
+          </h2>
+          <button onClick={fetchReelStats} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-brand-primary border border-brand-accent rounded-xl hover:bg-brand-primary/5 transition-colors">
+            <RefreshCw className="w-4 h-4" /> Actualizar
+          </button>
+        </div>
+        {reelStats ? (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="p-4 bg-brand-primary/5 rounded-2xl border border-brand-accent text-center">
+              <div className="text-2xl font-bold text-brand-primary">{reelStats.total}</div>
+              <div className="text-xs text-gray-500 mt-1">Total generados</div>
+            </div>
+            <div className="p-4 bg-green-50 rounded-2xl border border-green-200 text-center">
+              <div className="text-2xl font-bold text-green-700">{reelStats.ready}</div>
+              <div className="text-xs text-gray-500 mt-1">Listos</div>
+            </div>
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-center">
+              <div className="text-2xl font-bold text-amber-700">{reelStats.generating}</div>
+              <div className="text-xs text-gray-500 mt-1">Generando</div>
+            </div>
+            <div className="p-4 bg-red-50 rounded-2xl border border-red-200 text-center">
+              <div className="text-2xl font-bold text-red-700">{reelStats.failed}</div>
+              <div className="text-xs text-gray-500 mt-1">Fallados</div>
+            </div>
+            <div className="p-4 bg-brand-bg rounded-2xl border border-brand-accent text-center">
+              <div className="text-xs font-bold text-gray-700 mt-1">Última generación</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {reelStats.last_generated
+                  ? new Date(reelStats.last_generated).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                  : '—'}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-brand-primary" /></div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <details className="group">
+          <summary className="flex items-center gap-3 cursor-pointer list-none">
+            <Settings className="w-6 h-6 text-brand-primary" />
+            <h2 className="text-xl font-serif font-bold text-brand-primary flex-1">Configuración de Reels Automáticos</h2>
+            <ChevronDown className="w-5 h-5 text-gray-400 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="mt-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl border border-brand-accent">
+                <input type="checkbox" id="reel_enabled"
+                  checked={reelConfig.reel_enabled === 'true'}
+                  onChange={e => updateReelConfig({ reel_enabled: e.target.checked ? 'true' : 'false' })}
+                  className="w-5 h-5 rounded accent-brand-primary" />
+                <label htmlFor="reel_enabled" className="font-bold text-brand-primary text-sm">Generación automática</label>
+              </div>
+              <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl border border-brand-accent">
+                <input type="checkbox" id="auto_story_enabled"
+                  checked={reelConfig.auto_story_enabled === 'true'}
+                  onChange={e => updateReelConfig({ auto_story_enabled: e.target.checked ? 'true' : 'false' })}
+                  className="w-5 h-5 rounded accent-brand-primary" />
+                <label htmlFor="auto_story_enabled" className="font-bold text-brand-primary text-sm">Publicar a Stories</label>
+              </div>
+              <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl border border-brand-accent">
+                <input type="checkbox" id="auto_reels_enabled"
+                  checked={reelConfig.auto_reels_enabled === 'true'}
+                  onChange={e => updateReelConfig({ auto_reels_enabled: e.target.checked ? 'true' : 'false' })}
+                  className="w-5 h-5 rounded accent-brand-primary" />
+                <label htmlFor="auto_reels_enabled" className="font-bold text-brand-primary text-sm">Publicar a Reels (Feed)</label>
+              </div>
+              <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl border border-brand-accent">
+                <Clock className="w-5 h-5 text-brand-primary shrink-0" />
+                <label htmlFor="reel_interval" className="font-bold text-brand-primary text-sm whitespace-nowrap">Cada</label>
+                <select id="reel_interval"
+                  value={reelConfig.reel_interval_hours}
+                  onChange={e => updateReelConfig({ reel_interval_hours: e.target.value })}
+                  className="px-3 py-2 bg-white rounded-xl border border-brand-accent text-sm font-bold text-brand-primary outline-none">
+                  <option value="3">3 horas</option>
+                  <option value="6">6 horas</option>
+                  <option value="12">12 horas</option>
+                  <option value="24">24 horas</option>
+                  <option value="48">48 horas</option>
+                  <option value="72">72 horas</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="border-t border-brand-accent pt-6">
+              <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
+                <List className="w-4 h-4" /> Generar Reel desde Template
+              </h3>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <select
+                  value={selectedTemplateId}
+                  onChange={e => setSelectedTemplateId(e.target.value)}
+                  className="flex-1 px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+                >
+                  <option value="">Seleccionar template...</option>
+                  {templatesList.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.style}) — {t.sceneCount} escenas</option>
+                  ))}
+                </select>
+                <button
+                  onClick={generateFromTemplate}
+                  disabled={!selectedTemplateId || generatingFromTemplate}
+                  className={cn(
+                    "px-8 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 text-white transition-all",
+                    !selectedTemplateId || generatingFromTemplate
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-brand-primary hover:shadow-xl"
+                  )}
+                >
+                  {generatingFromTemplate ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
+                  ) : (
+                    <><Sparkles className="w-4 h-4" /> Generar</>
+                  )}
+                </button>
+              </div>
+              {templatesList.length > 0 && (
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {templatesList.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => { setSelectedTemplateId(t.id); }}
+                      className={cn(
+                        "p-3 rounded-xl border-2 text-left transition-all text-xs",
+                        selectedTemplateId === t.id
+                          ? "border-brand-primary bg-brand-primary/5"
+                          : "border-brand-accent bg-white hover:border-brand-primary/40"
+                      )}
+                    >
+                      <div className="font-bold text-brand-primary">{t.name}</div>
+                      <div className="text-gray-500 mt-0.5">{t.description}</div>
+                      <div className="text-gray-400 mt-1">{t.style} · {t.sceneCount} escenas</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
             <Film className="w-6 h-6" /> Videos Generados
           </h2>
           <button
@@ -1117,6 +1362,25 @@ export default function VideoGeneratorTab() {
                             <Film className="w-3.5 h-3.5" />
                           )}
                           {storySuccessId === video.id ? 'Publicado!' : 'Subir a Stories'}
+                        </button>
+                        <button
+                          onClick={() => publishReel(video)}
+                          disabled={reelPublishingId === video.id}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-colors",
+                            reelSuccessId === video.id
+                              ? "bg-green-100 text-green-700 border border-green-300"
+                              : "bg-brand-primary/10 text-brand-primary border border-brand-primary/30 hover:bg-brand-primary/20"
+                          )}
+                        >
+                          {reelPublishingId === video.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : reelSuccessId === video.id ? (
+                            <CheckCircle className="w-3.5 h-3.5" />
+                          ) : (
+                            <Camera className="w-3.5 h-3.5" />
+                          )}
+                          {reelSuccessId === video.id ? 'Publicado!' : 'Subir a Reels'}
                         </button>
                         <select
                           value={video.story_interval_minutes ?? ''}

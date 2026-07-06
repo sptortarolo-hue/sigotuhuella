@@ -55,6 +55,38 @@ const TEMPLATES = {
       `Más de ${stats.users} vecinos ya la usan. Escaneá con tu celular y accedé al perfil completo ` +
       `con datos, fotos y contacto del dueño. Pedí la tuya en sigotuhuella.online.`,
   },
+  'app-adoption': {
+    name: 'Adopción Responsable',
+    description: 'Mascotas esperando un hogar, galería de adopción',
+    style: 'emotive',
+    music: 'emotional',
+    voices: ['elena'],
+    scenes: [
+      { type: 'pexels', overlayText: '{total_pets} mascotas registradas esperan un hogar' },
+      { type: 'screenshot', label: 'adoption', overlayText: 'Encontrá a tu próximo compañero' },
+      { type: 'pexels', overlayText: 'Adoptar es amor que transforma vidas' },
+    ],
+    generateScript: (stats) =>
+      `Más de ${stats.total_pets} mascotas están registradas en Sigo Tu Huella, y muchas esperan un hogar. ` +
+      `Visitá nuestra galería de adopción, conocé sus historias y animate a abrir tu corazón. ` +
+      `Adoptar transforma dos vidas: la de ellxs y la tuya. Ingresá en sigotuhuella.online.`,
+  },
+  'app-lost': {
+    name: 'Mascotas Perdidas',
+    description: 'Cómo reportar y ayudar a encontrar mascotas perdidas',
+    style: 'informative',
+    music: 'calm',
+    voices: ['elena', 'tomas'],
+    scenes: [
+      { type: 'screenshot', label: 'lost-pets', overlayText: 'Mascotas perdidas cerca tuyo' },
+      { type: 'pexels', overlayText: 'Reportá en segundos y ayudá a difundir' },
+      { type: 'screenshot', label: 'report-lost', overlayText: 'Creá un reporte con foto y ubicación' },
+    ],
+    generateScript: (stats) =>
+      `Si perdiste o encontraste una mascota, reportalo al instante en Sigo Tu Huella. ` +
+      `Con más de ${stats.users} vecinos conectados, las chances de reencontrarse crecen. ` +
+      `Ya logramos ${stats.reunited} reencuentros. Descargá la app desde sigotuhuella.online.`,
+  },
 };
 
 export function getTemplates() {

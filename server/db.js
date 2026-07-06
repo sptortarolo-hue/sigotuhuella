@@ -1103,6 +1103,9 @@ export async function initDb() {
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('auto_story_enabled', 'true') ON CONFLICT (key) DO NOTHING
     `, 'auto_story_enabled');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('auto_reels_enabled', 'false') ON CONFLICT (key) DO NOTHING
+    `, 'auto_reels_enabled');
 
     console.log('Database migrations complete');
   } finally {
