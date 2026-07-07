@@ -5,10 +5,10 @@ import ChannelStatusCard from '@/src/components/admin/ChannelStatusCard';
 import LastPostPreview from '@/src/components/admin/LastPostPreview';
 import {
   Loader2, Save, RefreshCw, Globe, MessageSquare, Camera,
-  Smartphone, Clock, Check, Zap, Users, Radio,
+  Smartphone, Clock, Check, Zap, Users, Radio, Sparkles,
 } from 'lucide-react';
 
-type ConfigTab = 'scraping' | 'matching' | 'publisher' | 'instagram' | 'whatsapp' | 'relay_wa' | 'relay_fb' | 'broadcasts';
+type ConfigTab = 'scraping' | 'matching' | 'publisher' | 'instagram' | 'whatsapp' | 'relay_wa' | 'relay_fb' | 'broadcasts' | 'news';
 
 interface DashboardData {
   channels: Record<string, { enabled: boolean; status: string; lastRun: string | null; detail: string }>;
@@ -26,6 +26,7 @@ const configTabs: { id: ConfigTab; label: string; icon: React.ReactNode }[] = [
   { id: 'relay_wa', label: 'Relay WA', icon: <Radio className="w-4 h-4" /> },
   { id: 'relay_fb', label: 'Relay FB', icon: <Users className="w-4 h-4" /> },
   { id: 'broadcasts', label: 'Broadcasts', icon: <RefreshCw className="w-4 h-4" /> },
+  { id: 'news', label: 'Novedades', icon: <Sparkles className="w-4 h-4" /> },
 ];
 
 function Toggle({ checked, onChange, label, id }: { checked: boolean; onChange: (v: boolean) => void; label: string; id: string }) {
@@ -238,6 +239,49 @@ function BroadcastsConfig({ settings, onChange }: { settings: Record<string, str
   );
 }
 
+function NewsPublishConfig({ settings, onChange }: { settings: Record<string, string>; onChange: (k: string, v: string) => void }) {
+  const platformList = [
+    { key: 'instagram', label: 'Instagram Feed', icon: '📷' },
+    { key: 'instagram_stories', label: 'Instagram Stories', icon: '📱' },
+    { key: 'facebook_page', label: 'Facebook Página', icon: '📘' },
+    { key: 'facebook_groups', label: 'Facebook Grupos', icon: '👥' },
+    { key: 'whatsapp', label: 'WhatsApp Grupos', icon: '💬' },
+    { key: 'status', label: 'WhatsApp Estado', icon: '📢' },
+  ];
+
+  const currentPlatforms = (() => {
+    try { return JSON.parse(settings.news_auto_publish_platforms || '[]'); }
+    catch { return []; }
+  })();
+
+  const togglePlatform = (key: string, v: boolean) => {
+    const next = v ? [...currentPlatforms, key] : currentPlatforms.filter((k: string) => k !== key);
+    onChange('news_auto_publish_platforms', JSON.stringify(next));
+  };
+
+  return (
+    <div className="space-y-4">
+      <Toggle checked={settings.news_auto_publish_enabled === 'true'} onChange={v => onChange('news_auto_publish_enabled', String(v))}
+        label="Publicar novedades automáticamente"
+        id="d_news_auto_publish" />
+      <p className="text-xs text-gray-400 -mt-2">Al crear una novedad manual, se publica automáticamente en los canales activos.</p>
+      <div className={settings.news_auto_publish_enabled !== 'true' ? 'opacity-50 pointer-events-none' : ''}>
+        <p className="text-sm font-bold text-gray-600 mb-2">Canales:</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {platformList.map(p => (
+            <label key={p.key} className="flex items-center gap-3 p-3 bg-brand-bg rounded-xl cursor-pointer hover:bg-brand-accent/50 transition-colors">
+              <input type="checkbox" checked={currentPlatforms.includes(p.key)}
+                onChange={e => togglePlatform(p.key, e.target.checked)}
+                className="w-5 h-5 rounded accent-brand-primary" />
+              <span className="text-sm">{p.icon} {p.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const configComponents: Record<ConfigTab, React.FC<{ settings: Record<string, string>; onChange: (k: string, v: string) => void }>> = {
   scraping: ScrapingConfig,
   matching: MatchingConfig,
@@ -247,6 +291,7 @@ const configComponents: Record<ConfigTab, React.FC<{ settings: Record<string, st
   relay_wa: RelayWAConfig,
   relay_fb: RelayFBConfig,
   broadcasts: BroadcastsConfig,
+  news: NewsPublishConfig,
 };
 
 export default function UnifiedDashboard() {

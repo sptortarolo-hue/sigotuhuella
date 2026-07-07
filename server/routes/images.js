@@ -234,4 +234,71 @@ router.get('/my-pet-avatar/:petId', async (req, res) => {
   }
 });
 
+// ── News images ──
+
+async function serveNewsImage(newsId, width, height, req, res) {
+  const result = await pool.query('SELECT image_data, mime_type, title FROM news WHERE id = $1', [newsId]);
+  if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).end();
+  const news = result.rows[0];
+  const buf = Buffer.from(news.image_data, 'base64');
+
+  const bg = await sharp(buf)
+    .resize(width, height, { fit: 'cover' })
+    .blur(60)
+    .png()
+    .toBuffer();
+  const fg = await sharp(buf)
+    .resize(width, height, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  const out = await sharp(bg)
+    .composite([{ input: fg }])
+    .jpeg({ quality: 85 })
+    .toBuffer();
+
+  res.set('Content-Type', 'image/jpeg');
+  res.set('Content-Length', out.length);
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.set('Access-Control-Allow-Origin', '*');
+  res.end(out);
+}
+
+router.get('/news/:newsId/feed', async (req, res) => {
+  try { await serveNewsImage(req.params.newsId, 1080, 1350, req, res); }
+  catch (err) { console.error('[News image] feed error:', err.message); res.status(500).end(); }
+});
+
+router.get('/news/:newsId/story', async (req, res) => {
+  try { await serveNewsImage(req.params.newsId, 1080, 1920, req, res); }
+  catch (err) { console.error('[News image] story error:', err.message); res.status(500).end(); }
+});
+
+router.get('/news/:newsId/square', async (req, res) => {
+  try { await serveNewsImage(req.params.newsId, 1080, 1080, req, res); }
+  catch (err) { console.error('[News image] square error:', err.message); res.status(500).end(); }
+});
+
+router.get('/news/:newsId/fb', async (req, res) => {
+  try { await serveNewsImage(req.params.newsId, 1200, 630, req, res); }
+  catch (err) { console.error('[News image] fb error:', err.message); res.status(500).end(); }
+});
+
+// Raw news image
+router.get('/news/:newsId', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT image_data, mime_type FROM news WHERE id = $1', [req.params.newsId]);
+    if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).end();
+    const news = result.rows[0];
+    const buffer = Buffer.from(news.image_data, 'base64');
+    res.set('Content-Type', news.mime_type || 'image/jpeg');
+    res.set('Content-Length', buffer.length);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.end(buffer);
+  } catch (err) {
+    console.error('[News image] raw error:', err.message);
+    res.status(500).end();
+  }
+});
+
 export default router;

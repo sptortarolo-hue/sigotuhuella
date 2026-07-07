@@ -1022,7 +1022,7 @@ export async function initDb() {
       CREATE TABLE IF NOT EXISTS news_publications (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         news_id UUID NOT NULL REFERENCES news(id) ON DELETE CASCADE,
-        platform VARCHAR(20) NOT NULL CHECK (platform IN ('instagram', 'facebook_page', 'facebook_groups', 'whatsapp', 'status')),
+        platform VARCHAR(20) NOT NULL CHECK (platform IN ('instagram', 'instagram_stories', 'facebook_page', 'facebook_groups', 'whatsapp', 'status')),
         status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'published', 'failed')),
         platform_post_id TEXT,
         error_message TEXT,

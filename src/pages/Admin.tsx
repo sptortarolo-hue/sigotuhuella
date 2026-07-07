@@ -13,7 +13,7 @@ import {
   CollaborationAccount,
   VolunteerRequest
 } from '@/src/lib/collaborationService';
-import { getNews, createNews, updateNews, deleteNews, News, getNewsImageUrl } from '@/src/lib/newsService';
+import { getNews, createNews, updateNews, deleteNews, News, getNewsImageUrl, publishNewsToPlatforms, PLATFORMS, getPlatformLabel, getPlatformIcon } from '@/src/lib/newsService';
 import { useAuth } from '@/src/hooks/useAuth';
 import { Badge } from '@/src/hooks/AuthProvider';
 import { api } from '@/src/lib/api';
@@ -157,6 +157,10 @@ export default function Admin() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiType, setAiType] = useState('consejo_cuidado');
   const [aiTopic, setAiTopic] = useState('');
+  const [showRepublishModal, setShowRepublishModal] = useState(false);
+  const [republishNews, setRepublishNews] = useState<News | null>(null);
+  const [republishPlatforms, setRepublishPlatforms] = useState<string[]>([]);
+  const [republishing, setRepublishing] = useState(false);
 
   // Banner state
   const [bannerChapitaVisible, setBannerChapitaVisible] = useState(true);
@@ -1212,6 +1216,7 @@ export default function Admin() {
                     <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
                       <th className="px-6 py-4">Título</th>
                       <th className="px-6 py-4">Tipo</th>
+                      <th className="px-6 py-4">Publicación</th>
                       <th className="px-6 py-4">Fecha</th>
                       <th className="px-6 py-4 text-right">Acciones</th>
                     </tr>
@@ -1229,12 +1234,33 @@ export default function Admin() {
                             {item.type === 'manual' ? 'Manual' : item.type === 'reunited' ? 'Reencuentro' : 'Adopción'}
                           </span>
                         </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-1.5">
+                            {(item.publications || []).length > 0 ? (
+                              item.publications!.map(pub => (
+                                <span key={pub.platform} title={`${getPlatformLabel(pub.platform)}: ${pub.status === 'published' ? 'Publicado' : pub.status === 'failed' ? 'Error' : 'Pendiente'}`}
+                                  className={cn(
+                                    "text-[11px] px-1.5 py-0.5 rounded font-bold",
+                                    pub.status === 'published' ? "bg-emerald-100 text-emerald-700" :
+                                    pub.status === 'failed' ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-400"
+                                  )}>
+                                  {getPlatformIcon(pub.platform)}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[11px] text-gray-300 italic">—</span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-6 py-4 text-xs text-gray-400">{new Date(item.created_at).toLocaleDateString()}</td>
                         <td className="px-6 py-4 text-right space-x-2">
                           {item.type === 'manual' && (
-                            <button onClick={() => editNews(item)} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
+                            <button onClick={() => editNews(item)} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors" title="Editar"><Edit2 className="w-4 h-4" /></button>
                           )}
-                          <button onClick={() => handleDeleteNews(item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                          {item.type === 'manual' && (
+                            <button onClick={() => { setRepublishNews(item); setRepublishPlatforms((item.publications || []).filter(p => p.status === 'failed').map(p => p.platform)); setShowRepublishModal(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Republicar"><Send className="w-4 h-4" /></button>
+                          )}
+                          <button onClick={() => handleDeleteNews(item.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar"><Trash2 className="w-4 h-4" /></button>
                         </td>
                       </tr>
                     ))}
@@ -2647,6 +2673,64 @@ export default function Admin() {
                   {newsFormLoading ? <Loader2 className="animate-spin mx-auto" /> : <Save className="w-5 h-5 inline mr-2" />} Guardar
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {showRepublishModal && republishNews && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowRepublishModal(false)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden">
+              <div className="p-6 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+                <h2 className="text-xl font-serif font-bold text-brand-primary">Republicar Novedad</h2>
+                <button onClick={() => setShowRepublishModal(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-gray-600 font-bold">{republishNews.title}</p>
+                <p className="text-xs text-gray-400">Seleccioná los canales donde querés publicar:</p>
+                <div className="space-y-2">
+                  {PLATFORMS.map(p => {
+                    const existing = (republishNews.publications || []).find(pub => pub.platform === p.key);
+                    return (
+                      <label key={p.key} className="flex items-center gap-3 p-3 bg-brand-bg rounded-2xl cursor-pointer hover:bg-brand-accent/50 transition-colors">
+                        <input type="checkbox" checked={republishPlatforms.includes(p.key)}
+                          onChange={e => {
+                            if (e.target.checked) setRepublishPlatforms(prev => [...prev, p.key]);
+                            else setRepublishPlatforms(prev => prev.filter(k => k !== p.key));
+                          }}
+                          className="w-5 h-5 rounded accent-brand-primary" />
+                        <span className="text-sm">{p.icon} {p.label}</span>
+                        {existing && (
+                          <span className={cn(
+                            "text-[10px] px-2 py-0.5 rounded-full font-bold ml-auto",
+                            existing.status === 'published' ? "bg-emerald-100 text-emerald-700" :
+                            existing.status === 'failed' ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-400"
+                          )}>
+                            {existing.status === 'published' ? 'Ya publicado' : existing.status === 'failed' ? 'Error' : 'Pendiente'}
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+                <button onClick={async () => {
+                  if (republishPlatforms.length === 0) { alert('Seleccioná al menos un canal'); return; }
+                  setRepublishing(true);
+                  try {
+                    await publishNewsToPlatforms(republishNews.id, republishPlatforms);
+                    await fetchNews();
+                    setShowRepublishModal(false);
+                  } catch (e: any) {
+                    alert(e.message || 'Error al republicar');
+                  } finally {
+                    setRepublishing(false);
+                  }
+                }} disabled={republishing}
+                  className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-50">
+                  {republishing ? <Loader2 className="animate-spin w-5 h-5" /> : <Send className="w-5 h-5" />}
+                  {republishing ? 'Publicando...' : 'Publicar'}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

@@ -150,6 +150,9 @@ export const api = {
     create: (data: any) => request('/news', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => request(`/news/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/news/${id}`, { method: 'DELETE' }),
+    publications: (id: string) => request(`/news/${id}/publications`),
+    publish: (id: string, platforms: string[]) =>
+      request(`/news/${id}/publish`, { method: 'POST', body: JSON.stringify({ platforms }) }),
   },
   settings: {
     list: () => request('/settings'),

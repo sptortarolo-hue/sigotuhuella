@@ -2,8 +2,17 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAdmin, requireAuth } from '../auth.js';
 import { sendPushToAll } from '../services/pushService.js';
+import { publishNews } from '../services/newsPublisher.js';
 
 const router = Router();
+
+async function getPublications(newsId) {
+  const r = await pool.query(
+    'SELECT platform, status, platform_post_id, error_message, published_at, created_at FROM news_publications WHERE news_id = $1 ORDER BY platform',
+    [newsId]
+  );
+  return r.rows;
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -13,7 +22,12 @@ router.get('/', async (req, res) => {
        LEFT JOIN users u ON u.id = n.created_by
        ORDER BY n.created_at DESC`
     );
-    res.json({ news: result.rows });
+    const news = result.rows;
+    const publications = await Promise.all(news.map(n => getPublications(n.id)));
+    for (let i = 0; i < news.length; i++) {
+      news[i].publications = publications[i];
+    }
+    res.json({ news });
   } catch (err) {
     console.error('Get news error:', err);
     res.status(500).json({ error: 'Failed to fetch news' });
@@ -32,7 +46,9 @@ router.get('/:id', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'News not found' });
     }
-    res.json({ news: result.rows[0] });
+    const news = result.rows[0];
+    news.publications = await getPublications(news.id);
+    res.json({ news });
   } catch (err) {
     console.error('Get news error:', err);
     res.status(500).json({ error: 'Failed to fetch news' });
@@ -60,6 +76,12 @@ router.post('/', requireAdmin, async (req, res) => {
       body: newsItem.content.substring(0, 100),
       url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/novedad/${newsItem.id}`,
     }).catch(err => console.error('Push error:', err));
+
+    if (newsItem.type === 'manual' && newsItem.image_data) {
+      publishNews(newsItem.id).catch(err =>
+        console.error('[NewsPublisher] Auto-publish error:', err.message)
+      );
+    }
 
     res.status(201).json({ news: newsItem });
   } catch (err) {
@@ -104,6 +126,30 @@ router.delete('/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Delete news error:', err);
     res.status(500).json({ error: 'Failed to delete news' });
+  }
+});
+
+router.get('/:id/publications', async (req, res) => {
+  try {
+    const pubs = await getPublications(req.params.id);
+    res.json({ publications: pubs });
+  } catch (err) {
+    console.error('Get publications error:', err);
+    res.status(500).json({ error: 'Failed to fetch publications' });
+  }
+});
+
+router.post('/:id/publish', requireAdmin, async (req, res) => {
+  const { platforms } = req.body;
+  if (!Array.isArray(platforms) || platforms.length === 0) {
+    return res.status(400).json({ error: 'Platforms array is required' });
+  }
+  try {
+    const results = await publishNews(req.params.id, platforms);
+    res.json({ results });
+  } catch (err) {
+    console.error('Publish news error:', err);
+    res.status(500).json({ error: 'Failed to publish news' });
   }
 });
 
