@@ -377,7 +377,7 @@ async function generatePhotoClip(photoPath, clipDur, zoompan, dims, workDir, cli
   await runFfmpeg([
     '-y', '-i', photoPath,
     '-vf', filter,
-    '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', String(FF_CRF),
     '-pix_fmt', 'yuv420p', '-t', String(clipDur), '-r', String(FPS),
     '-an',
     clipPath,
@@ -508,9 +508,15 @@ async function applyPostProcessing(mainVideoPath, dims, style, workDir, config) 
     videoDuration,
   } = config;
 
-  const outPath = path.join(workDir, 'processed.mp4');
-
   const hasLogo = fs.existsSync(LOGO_PATH);
+
+  // Skip entirely for auto reels: no frame, no watermark needed
+  if ((frame === 'none' || !frame) && !hasLogo) {
+    try { fs.copyFileSync(mainVideoPath, path.join(workDir, 'processed.mp4')); return path.join(workDir, 'processed.mp4'); } catch {}
+    return mainVideoPath;
+  }
+
+  const outPath = path.join(workDir, 'processed.mp4');
 
   const inputs = ['-i', mainVideoPath];
   let inputIdx = 1;
