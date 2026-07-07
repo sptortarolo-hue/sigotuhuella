@@ -14,7 +14,7 @@ const router = express.Router();
 router.get('/', requireAuth, requireAdmin, async (req, res) => {
   try {
     await pool.query(
-      "UPDATE promotional_videos SET status = 'failed', error_msg = 'Timeout: generacion excedio 5 minutos' WHERE status = 'generating' AND created_at < NOW() - INTERVAL '5 minutes'"
+      "UPDATE promotional_videos SET status = 'failed', error_msg = 'Timeout: generacion excedio 10 minutos' WHERE status = 'generating' AND created_at < NOW() - INTERVAL '10 minutes'"
     );
     const result = await pool.query(`
       SELECT v.*, u.display_name as created_by_name

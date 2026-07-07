@@ -299,8 +299,9 @@ function ffprobeDuration(filePath) {
 
 function runFfmpeg(args, label) {
   return new Promise((resolve, reject) => {
-    console.log(`[FFmpeg:${label}]`, 'ffmpeg', args.slice(0, 10).join(' '), '...');
-    const proc = spawn('ffmpeg', args, { stdio: ['pipe', 'pipe', 'pipe'] });
+    const fullArgs = ['-threads', '1', ...args];
+    console.log(`[FFmpeg:${label}]`, 'ffmpeg', fullArgs.slice(0, 12).join(' '), '...');
+    const proc = spawn('ffmpeg', fullArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
     let stderr = '';
     proc.stderr.on('data', (d) => { stderr += d.toString(); });
     proc.on('close', (code) => {
@@ -650,52 +651,24 @@ async function generateAudio(config, voiceScript, workDir, videoDuration, ttsPat
 async function concatenateClipsWithTransitions(clipPaths, transitionsArr, workDir) {
   if (clipPaths.length === 1) return clipPaths[0];
 
-  const getT = (i) => {
-    if (!Array.isArray(transitionsArr)) return transitionsArr;
-    return transitionsArr[i % transitionsArr.length];
-  };
+  const outPath = path.join(workDir, 'concat.mp4');
+  const clipCount = clipPaths.length;
 
-  if (clipPaths.length === 2) {
-    const outPath = path.join(workDir, 'concat.mp4');
-    const firstDur = await ffprobeDuration(clipPaths[0]);
-    const offset = Math.max(0.1, firstDur - TRANSITION_DUR);
+  const inputs = clipPaths.flatMap(p => ['-i', p]);
+  const pads = clipPaths.map((_, i) => `[${i}:v]pad=width=iw:height=ih:color=black:y=0[v${i}]`).join(';');
+  const concatInputs = clipPaths.map((_, i) => `[v${i}]`).join('');
+  const filterComplex = `${pads};${concatInputs}concat=n=${clipCount}:v=1:a=0[vo]`;
 
-    await runFfmpeg([
-      '-y', '-i', clipPaths[0], '-i', clipPaths[1],
-      '-filter_complex', `[0:v][1:v]xfade=transition=${getT(0)}:duration=${TRANSITION_DUR}:offset=${offset}[v]`,
-      '-map', '[v]',
-      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
-      '-pix_fmt', 'yuv420p', '-an',
-      outPath,
-    ], 'xfade-2');
+  await runFfmpeg([
+    '-y', ...inputs,
+    '-filter_complex', filterComplex,
+    '-map', '[vo]',
+    '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
+    '-pix_fmt', 'yuv420p', '-an',
+    outPath,
+  ], 'concat-all');
 
-    return outPath;
-  }
-
-  let currentPath = clipPaths[0];
-
-  for (let i = 1; i < clipPaths.length; i++) {
-    const outPath = path.join(workDir, `concat_${i}.mp4`);
-    const firstDur = await ffprobeDuration(currentPath);
-    const offset = Math.max(0.1, firstDur - TRANSITION_DUR);
-
-    await runFfmpeg([
-      '-y', '-i', currentPath, '-i', clipPaths[i],
-      '-filter_complex', `[0:v][1:v]xfade=transition=${getT(i - 1)}:duration=${TRANSITION_DUR}:offset=${offset}[v]`,
-      '-map', '[v]',
-      '-c:v', 'libx264', '-preset', FF_PRESET, '-crf', String(FF_CRF),
-      '-pix_fmt', 'yuv420p', '-an',
-      outPath,
-    ], `xfade-${i}`);
-
-    const prevPath = currentPath;
-    currentPath = outPath;
-    if (i > 1) {
-      try { fs.unlinkSync(prevPath); } catch {}
-    }
-  }
-
-  return currentPath;
+  return outPath;
 }
 
 async function concatenateSimple(clipPaths, workDir) {
