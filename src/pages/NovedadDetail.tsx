@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { News, getNews, getNewsImageUrl, formatNewsDate } from '@/src/lib/newsService';
-import { Sparkles, ArrowLeft, Calendar, Loader2, Info, Play, Share2 } from 'lucide-react';
+import { Sparkles, ArrowLeft, Calendar, Loader2, Info, Play, Share2, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
@@ -25,6 +25,7 @@ export default function NovedadDetail() {
   const [related, setRelated] = useState<News[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
     const fetch = async () => {
@@ -327,13 +328,15 @@ export default function NovedadDetail() {
         </h1>
 
         {imageUrl && (
-          <div className="relative aspect-video rounded-[2.5rem] overflow-hidden mb-10 shadow-xl bg-gray-100">
+          <div className="relative aspect-video rounded-[2.5rem] overflow-hidden mb-10 shadow-xl bg-gray-100 cursor-pointer group"
+            onClick={() => setLightboxOpen(true)}>
             <img src={imageUrl} alt="" aria-hidden
               className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-70" />
             <img src={imageUrl} alt={item.title}
               className="relative w-full h-full object-contain" />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
             <button 
-              onClick={handleShareNews}
+              onClick={(e) => { e.stopPropagation(); handleShareNews(); }}
               className="absolute bottom-2 right-2 p-3 bg-white/80 backdrop-blur-sm rounded-full hover:bg-white/90 transition-colors z-10"
             >
               <Share2 className="w-5 h-5 text-brand-primary" />
@@ -385,6 +388,19 @@ export default function NovedadDetail() {
           </div>
         )}
       </article>
+
+      {lightboxOpen && imageUrl && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setLightboxOpen(false)}>
+          <button onClick={() => setLightboxOpen(false)}
+            className="absolute top-4 right-4 p-2 text-white/70 hover:text-white z-10">
+            <X className="w-6 h-6" />
+          </button>
+          <img src={imageUrl} alt={item.title}
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-2xl"
+            onClick={e => e.stopPropagation()} />
+        </div>
+      )}
 
       {related.length > 0 && (
         <section className="mt-16 pt-12 border-t border-brand-accent">
