@@ -148,6 +148,7 @@ export default function Admin() {
     title: '',
     content: '',
     videoUrl: '',
+    sourceUrl: '',
   });
   const [newsFile, setNewsFile] = useState<File | null>(null);
   const [newsPreview, setNewsPreview] = useState<string | null>(null);
@@ -383,7 +384,7 @@ export default function Admin() {
   };
 
   const resetNewsForm = () => {
-    setNewsFormData({ title: '', content: '', videoUrl: '' });
+    setNewsFormData({ title: '', content: '', videoUrl: '', sourceUrl: '' });
     setNewsFile(null);
     setNewsPreview(null);
     setNewsImageData(null);
@@ -395,7 +396,7 @@ export default function Admin() {
 
   const editNews = (item: News) => {
     setEditingNews(item);
-    setNewsFormData({ title: item.title, content: item.content, videoUrl: item.video_url || '' });
+    setNewsFormData({ title: item.title, content: item.content, videoUrl: item.video_url || '', sourceUrl: item.source_url || '' });
     const url = getNewsImageUrl(item);
     setNewsPreview(url);
     setNewsImageData(item.image_data);
@@ -462,6 +463,7 @@ export default function Admin() {
         title: newsFormData.title,
         content: newsFormData.content,
         videoUrl: newsFormData.videoUrl || null,
+        sourceUrl: newsFormData.sourceUrl || null,
       };
       if (newsImageData && newsMimeType) {
         payload.imageData = newsImageData;
@@ -2670,6 +2672,10 @@ export default function Admin() {
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">URL de Video (opcional)</label>
                   <input type="url" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={newsFormData.videoUrl} onChange={e => setNewsFormData({...newsFormData, videoUrl: e.target.value})} placeholder="https://youtube.com/..." />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Fuente / Referencia (opcional)</label>
+                  <input type="url" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={newsFormData.sourceUrl} onChange={e => setNewsFormData({...newsFormData, sourceUrl: e.target.value})} placeholder="https://ejemplo.com/nota-original" />
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Imagen de portada</label>

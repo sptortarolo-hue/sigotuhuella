@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { News, getNews, getNewsImageUrl, formatNewsDate } from '@/src/lib/newsService';
-import { Sparkles, ArrowLeft, Calendar, Loader2, Info, Play, Share2, X } from 'lucide-react';
+import { Sparkles, ArrowLeft, Calendar, Loader2, Info, Play, Share2, ExternalLink, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
@@ -376,6 +376,13 @@ export default function NovedadDetail() {
         <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed whitespace-pre-wrap text-base sm:text-lg text-justify">
           {item.content}
         </div>
+
+        {item.source_url && (
+          <a href={item.source_url} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm text-brand-primary font-bold hover:underline mt-4">
+            <ExternalLink className="w-4 h-4" /> Ver fuente
+          </a>
+        )}
 
         {item.related_pet_id && (
           <div className="mt-10 p-6 bg-brand-bg rounded-[2rem] border border-brand-accent">

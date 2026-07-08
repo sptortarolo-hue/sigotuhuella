@@ -1129,6 +1129,10 @@ export async function initDb() {
         CHECK (platform IN ('instagram', 'facebook_page', 'facebook_groups', 'whatsapp', 'status', 'whatsapp_channel'))
     `, 'add pet_publications platform check');
 
+    await migrate(client, `
+      ALTER TABLE news ADD COLUMN IF NOT EXISTS source_url TEXT
+    `, 'news source_url');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

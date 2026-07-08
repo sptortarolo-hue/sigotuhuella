@@ -56,17 +56,17 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', requireAdmin, async (req, res) => {
-  const { title, content, imageData, mimeType, videoUrl, type, relatedPetId } = req.body;
+  const { title, content, imageData, mimeType, videoUrl, sourceUrl, type, relatedPetId } = req.body;
   if (!title || !content) {
     return res.status(400).json({ error: 'Title and content are required' });
   }
   try {
     const result = await pool.query(
-      `INSERT INTO news (title, content, image_data, mime_type, video_url, type, related_pet_id, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO news (title, content, image_data, mime_type, video_url, source_url, type, related_pet_id, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [title, content, imageData || null, mimeType || null, videoUrl || null,
-       type || 'manual', relatedPetId || null, req.user.id]
+       sourceUrl || null, type || 'manual', relatedPetId || null, req.user.id]
     );
     const newsItem = result.rows[0];
 
@@ -91,7 +91,7 @@ router.post('/', requireAdmin, async (req, res) => {
 });
 
 router.put('/:id', requireAdmin, async (req, res) => {
-  const { title, content, imageData, mimeType, videoUrl } = req.body;
+  const { title, content, imageData, mimeType, videoUrl, sourceUrl } = req.body;
   try {
     const existing = await pool.query('SELECT * FROM news WHERE id = $1', [req.params.id]);
     if (existing.rows.length === 0) {
@@ -105,6 +105,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
     if (imageData !== undefined) { updates.push(`image_data = $${idx++}`); values.push(imageData); }
     if (mimeType !== undefined) { updates.push(`mime_type = $${idx++}`); values.push(mimeType); }
     if (videoUrl !== undefined) { updates.push(`video_url = $${idx++}`); values.push(videoUrl); }
+    if (sourceUrl !== undefined) { updates.push(`source_url = $${idx++}`); values.push(sourceUrl); }
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }

@@ -16,6 +16,7 @@ export interface News {
   image_data: string | null;
   mime_type: string | null;
   video_url: string | null;
+  source_url: string | null;
   type: 'manual' | 'reunited' | 'adopted';
   related_pet_id: string | null;
   created_by: string;
