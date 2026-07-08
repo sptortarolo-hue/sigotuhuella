@@ -1,8 +1,12 @@
 import { Router } from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import pool from '../db.js';
 import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAllGroups, saveQR, clearQR, getQR, getPetForBroadcast, getLatestPet, generateBroadcastCaption, searchPets } from '../services/phoneRelayService.js';
 import { broadcastAdoptionPet } from '../services/whatsappService.js';
 import { requireAdmin } from '../auth.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const router = Router();
 
@@ -282,6 +286,10 @@ router.post('/clear-queue', requireAdmin, async (req, res) => {
     console.error('[Relay] clear-queue error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+router.get('/script', relayAuth, (req, res) => {
+  res.download(path.join(__dirname, '../../relay.js'), 'relay.js');
 });
 
 export default router;
