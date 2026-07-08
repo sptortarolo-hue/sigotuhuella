@@ -55,17 +55,22 @@ async function cycleReel() {
       return;
     }
 
-    const result = await generateVideo({
-      style: templateConfig.style,
-      duration: 20,
-      music: templateConfig.music,
-      includeVoice: true,
-      format: 'vertical',
-      voiceScript: templateConfig.voiceScript,
-      voices: templateConfig.voices,
-      frame: 'none',
-      scenes: templateConfig.scenes,
-    });
+    const result = await Promise.race([
+      generateVideo({
+        style: templateConfig.style,
+        duration: 20,
+        music: templateConfig.music,
+        includeVoice: true,
+        format: 'vertical',
+        voiceScript: templateConfig.voiceScript,
+        voices: templateConfig.voices,
+        frame: 'none',
+        scenes: templateConfig.scenes,
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Auto-reel timeout (8 min)')), 480_000)
+      ),
+    ]);
 
     const title = `Auto ${templateId} ${new Date().toLocaleDateString('es-AR')}`;
     await pool.query(
@@ -76,7 +81,7 @@ async function cycleReel() {
 
     console.log(`[AutoReel] Done: '${templateId}' -> ${result.filename}`);
   } catch (err) {
-    console.error('[AutoReel] Error:', err.message);
+    console.error(`[AutoReel] Error (template='${templateId}'):`, err.message);
   } finally {
     isRunning = false;
   }

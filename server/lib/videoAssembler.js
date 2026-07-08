@@ -200,6 +200,7 @@ async function generateMultiVoice(script, voiceKeys, workDir, ttsPath, style = '
       '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=stereo',
       '-t', '0.4', '-acodec', 'libmp3lame', '-b:a', '192k', '-y', breakPath,
     ], { stdio: ['pipe', 'pipe', 'pipe'] });
+    cmd.on('error', reject);
     cmd.on('close', code => code === 0 ? resolve() : reject(new Error(`silence exit ${code}`)));
   });
 
@@ -218,6 +219,7 @@ async function generateMultiVoice(script, voiceKeys, workDir, ttsPath, style = '
       '-f', 'concat', '-safe', '0', '-i', concatListPath,
       '-acodec', 'libmp3lame', '-b:a', '192k', '-y', ttsPath,
     ], { stdio: ['pipe', 'pipe', 'pipe'] });
+    cmd.on('error', reject);
     cmd.on('close', code => code === 0 ? resolve() : reject(new Error(`concat exit ${code}`)));
   });
 
@@ -297,14 +299,22 @@ function ffprobeDuration(filePath) {
   });
 }
 
-function runFfmpeg(args, label) {
+function runFfmpeg(args, label, timeoutMs = 180_000) {
   return new Promise((resolve, reject) => {
     const fullArgs = ['-threads', '1', ...args];
     console.log(`[FFmpeg:${label}]`, 'ffmpeg', fullArgs.slice(0, 12).join(' '), '...');
     const proc = spawn('ffmpeg', fullArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
     let stderr = '';
+    let killed = false;
+    const timer = setTimeout(() => {
+      killed = true;
+      try { proc.kill('SIGKILL'); } catch {}
+      reject(new Error(`ffmpeg ${label} timeout (${timeoutMs / 1000}s)`));
+    }, timeoutMs);
     proc.stderr.on('data', (d) => { stderr += d.toString(); });
     proc.on('close', (code) => {
+      clearTimeout(timer);
+      if (killed) return;
       if (code === 0) {
         resolve();
       } else {
@@ -312,7 +322,7 @@ function runFfmpeg(args, label) {
         reject(err);
       }
     });
-    proc.on('error', reject);
+    proc.on('error', (err) => { clearTimeout(timer); reject(err); });
   });
 }
 
@@ -811,7 +821,7 @@ async function generateVideo(config) {
 
   try {
     const t0 = Date.now();
-    const logStep = (label) => console.log(`[VideoGen] ${label} @ ${(Date.now() - t0) / 1000}s`);
+    const logStep = (label) => console.log(`[VideoGen] ${label} @ ${new Date().toISOString()} (+${((Date.now() - t0) / 1000).toFixed(1)}s)`);
 
     const photoScenes = scenes.filter(s => s.type === 'photo' && s.imageBase64);
     const numPhotoScenes = photoScenes.length;
@@ -851,23 +861,33 @@ async function generateVideo(config) {
 
     const hookText = photoScenes[0]?.overlayText || '';
     const lastPhotoPath = photoPaths[numPhotoScenes - 1];
-    const [openingClip, closingClip, audioPath] = await Promise.all([
+
+    const baseResults = await Promise.allSettled([
       generateOpeningClip(dims, style, workDir, photoPaths[0], hookText),
       generateClosingClip(dims, style, workDir, lastPhotoPath),
       generateAudio(config, voiceScript, workDir, videoDuration, ttsPath),
     ]);
-    logStep('opening+closing+audio parallel');
+    const openingClip = baseResults[0].status === 'fulfilled' ? baseResults[0].value : null;
+    const closingClip = baseResults[1].status === 'fulfilled' ? baseResults[1].value : null;
+    const audioPath = baseResults[2].status === 'fulfilled' ? baseResults[2].value : null;
+    if (!openingClip || !closingClip || !audioPath) {
+      const fails = baseResults.map((r, i) => r.status === 'rejected' ? `${['opening', 'closing', 'audio'][i]}: ${r.reason?.message}` : '').filter(Boolean);
+      throw new Error(`Failed generating base clips: ${fails.join(', ')}`);
+    }
+    logStep('opening+closing+audio (settled)');
 
     const mainClips = [openingClip];
 
-    const photoClipTasks = [];
     for (let i = 1; i < numPhotoScenes; i++) {
       const scene = photoScenes[i];
-      photoClipTasks.push(generatePhotoClip(photoPaths[i], photoClipDur, zoompan, dims, workDir, i, scene.overlayText));
+      try {
+        const clip = await generatePhotoClip(photoPaths[i], photoClipDur, zoompan, dims, workDir, i, scene.overlayText);
+        mainClips.push(clip);
+      } catch (err) {
+        console.warn(`[VideoGen] Photo clip ${i} failed, skipping:`, err.message);
+      }
     }
-    const generatedClips = await Promise.all(photoClipTasks);
-    mainClips.push(...generatedClips);
-    logStep('photo clips (parallel)');
+    logStep('photo clips (serial)');
 
     mainClips.push(closingClip);
 
@@ -916,7 +936,9 @@ async function generateVideo(config) {
     };
   } finally {
     if (fs.existsSync(workDir)) {
-      rimraf.sync(workDir);
+      try { rimraf.sync(workDir); } catch (e) {
+        console.warn('[VideoGen] rimraf failed:', e.message);
+      }
     }
   }
 }
