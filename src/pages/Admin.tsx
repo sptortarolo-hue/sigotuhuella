@@ -403,10 +403,19 @@ export default function Admin() {
     setShowNewsForm(true);
   };
 
-  const handleNewsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNewsFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setNewsCropFile(file);
+    try {
+      const compressed = await compressImage(file, 1200, 0.85);
+      const result = await fileToBase64(compressed);
+      setNewsImageData(result.data);
+      setNewsMimeType(result.mimeType);
+      setNewsPreview(URL.createObjectURL(compressed));
+    } catch (err) {
+      console.error('Error al procesar imagen:', err);
+      alert('Error al procesar la imagen');
+    }
   };
 
   const handleNewsCropComplete = async (croppedBlob: Blob) => {
@@ -2666,7 +2675,12 @@ export default function Admin() {
                   <label className="text-xs font-bold uppercase text-gray-500">Imagen de portada</label>
                   <input type="file" accept="image/*" onChange={handleNewsFileChange} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
                   {newsPreview && (
-                    <img src={newsPreview} className="mt-3 w-40 h-28 object-cover rounded-xl border border-brand-accent" />
+                    <div className="relative mt-3 w-40 h-28 rounded-xl overflow-hidden border border-brand-accent bg-gray-100">
+                      <img src={newsPreview} alt="" aria-hidden
+                        className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-70" />
+                      <img src={newsPreview} alt="Preview"
+                        className="relative w-full h-full object-contain" />
+                    </div>
                   )}
                 </div>
                 <button type="submit" disabled={newsFormLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">
