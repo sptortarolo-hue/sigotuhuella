@@ -246,7 +246,8 @@ function NewsPublishConfig({ settings, onChange }: { settings: Record<string, st
     { key: 'facebook_page', label: 'Facebook Página', icon: '📘' },
     { key: 'facebook_groups', label: 'Facebook Grupos', icon: '👥' },
     { key: 'whatsapp', label: 'WhatsApp Grupos', icon: '💬' },
-    { key: 'status', label: 'WhatsApp Estado', icon: '📢' },
+    { key: 'whatsapp_channel', label: 'WhatsApp Canales', icon: '📢' },
+    { key: 'status', label: 'WhatsApp Estado', icon: '📱' },
   ];
 
   const currentPlatforms = (() => {

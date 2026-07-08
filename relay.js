@@ -313,12 +313,13 @@ async function start() {
       for (const msg of data.messages) {
         try {
           const isGroup = msg.wa_to.includes('@g.us');
-          const jid = isGroup ? msg.wa_to : (() => {
+          const isChannel = msg.wa_to.includes('@newsletter');
+          const jid = (isGroup || isChannel) ? msg.wa_to : (() => {
             const normalized = normalizeNumber(msg.wa_to);
             return normalized.includes('@') ? normalized : `${normalized}@s.whatsapp.net`;
           })();
 
-          if (!isGroup) {
+          if (!isGroup && !isChannel) {
             const normalized = jid.split('@')[0];
             const [exists] = await sock.onWhatsApp(normalized);
             if (!exists?.exists) {

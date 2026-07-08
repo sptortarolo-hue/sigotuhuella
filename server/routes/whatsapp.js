@@ -442,11 +442,12 @@ router.get('/groups', requireAdmin, async (req, res) => {
 
 router.post('/groups', requireAdmin, async (req, res) => {
   try {
-    const { name, group_id } = req.body;
+    const { name, group_id, type } = req.body;
     if (!name || !group_id) return res.status(400).json({ error: 'Nombre y Group ID son requeridos' });
+    const groupType = type || 'group';
     const result = await pool.query(
-      'INSERT INTO whatsapp_groups (name, group_id) VALUES ($1, $2) RETURNING *',
-      [name.trim(), group_id.trim()]
+      'INSERT INTO whatsapp_groups (name, group_id, type) VALUES ($1, $2, $3) RETURNING *',
+      [name.trim(), group_id.trim(), groupType]
     );
     res.json(result.rows[0]);
   } catch (err) {

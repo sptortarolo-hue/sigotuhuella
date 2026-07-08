@@ -29,6 +29,7 @@ interface GroupInfo {
   is_active: boolean;
   auto_broadcast: boolean;
   broadcast_adoptions: boolean;
+  type?: string;
 }
 
 const STATUS_BADGES: Record<string, { label: string; color: string }> = {
@@ -91,6 +92,12 @@ export default function RelayWhatsAppTab() {
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupId, setNewGroupId] = useState('');
 
+  // Channels management state
+  const [channels, setChannels] = useState<GroupInfo[]>([]);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelId, setNewChannelId] = useState('');
+
   // Admin notification config
   const [adminPhone, setAdminPhone] = useState('');
   const [adminPhoneSaved, setAdminPhoneSaved] = useState(false);
@@ -145,6 +152,50 @@ export default function RelayWhatsAppTab() {
     try {
       await api.whatsapp.deleteGroup(id);
       await fetchGroups();
+    } catch (e) { console.error(e); }
+  };
+
+  // ─── Channels ───
+  const fetchChannels = async () => {
+    setChannelsLoading(true);
+    try {
+      const data = await api.whatsapp.groups();
+      setChannels(data.filter((g: GroupInfo) => g.type === 'channel'));
+    } catch (e) { /* ignore */ }
+    setChannelsLoading(false);
+  };
+
+  const addChannel = async () => {
+    if (!newChannelName.trim() || !newChannelId.trim()) return;
+    try {
+      await api.whatsapp.addGroup({ name: newChannelName.trim(), group_id: newChannelId.trim(), type: 'channel' });
+      setNewChannelName('');
+      setNewChannelId('');
+      await fetchChannels();
+    } catch (e: any) {
+      alert(e?.message || 'Error al agregar canal');
+    }
+  };
+
+  const toggleChannel = async (id: string, is_active: boolean) => {
+    try {
+      await api.whatsapp.updateGroup(id, { is_active: !is_active });
+      await fetchChannels();
+    } catch (e) { console.error(e); }
+  };
+
+  const toggleChannelAutoBroadcast = async (id: string, auto_broadcast: boolean) => {
+    try {
+      await api.whatsapp.updateGroup(id, { auto_broadcast: !auto_broadcast });
+      await fetchChannels();
+    } catch (e) { console.error(e); }
+  };
+
+  const deleteChannel = async (id: string) => {
+    if (!confirm('¿Eliminar este canal?')) return;
+    try {
+      await api.whatsapp.deleteGroup(id);
+      await fetchChannels();
     } catch (e) { console.error(e); }
   };
 
@@ -224,6 +275,7 @@ export default function RelayWhatsAppTab() {
 
   useEffect(() => {
     fetchGroups();
+    fetchChannels();
   }, []);
 
   useEffect(() => {
@@ -836,6 +888,97 @@ export default function RelayWhatsAppTab() {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => deleteGroup(g.id)}
+                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Canales de difusión */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
+        <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+          <Bell className="w-6 h-6" /> Canales de difusión
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <input
+            value={newChannelName}
+            onChange={(e) => setNewChannelName(e.target.value)}
+            placeholder="Nombre del canal"
+            className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+          />
+          <input
+            value={newChannelId}
+            onChange={(e) => setNewChannelId(e.target.value)}
+            placeholder="Channel ID (ej: 123...@newsletter)"
+            className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary transition-colors text-sm"
+          />
+          <button
+            onClick={addChannel}
+            disabled={!newChannelName.trim() || !newChannelId.trim()}
+            className="px-4 py-3 bg-brand-primary text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2 justify-center text-sm"
+          >
+            <Plus className="w-4 h-4" /> Agregar Canal
+          </button>
+        </div>
+
+        {channelsLoading ? (
+          <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-brand-primary" /></div>
+        ) : channels.length === 0 ? (
+          <div className="text-center py-8">
+            <Bell className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+            <p className="text-gray-400 font-medium">Sin canales registrados</p>
+            <p className="text-xs text-gray-300 mt-1">Agregá un canal para difundir novedades</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+            <table className="w-full text-left min-w-max">
+              <thead>
+                  <tr className="bg-brand-bg text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3">Nombre</th>
+                    <th className="px-4 py-3">Channel ID</th>
+                    <th className="px-4 py-3">Activo</th>
+                    <th className="px-4 py-3">Auto</th>
+                    <th className="px-4 py-3">Acciones</th>
+                  </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-accent">
+                {channels.map((ch) => (
+                  <tr key={ch.id} className="hover:bg-brand-bg/50 transition-colors text-sm">
+                    <td className="px-4 py-3 font-medium text-brand-primary">{ch.name}</td>
+                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{ch.group_id}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleChannel(ch.id, ch.is_active)}
+                        className={cn(
+                          "px-3 py-1 rounded-full text-xs font-bold transition-all",
+                          ch.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                        )}
+                      >
+                        {ch.is_active ? 'Activo' : 'Inactivo'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleChannelAutoBroadcast(ch.id, ch.auto_broadcast)}
+                        className={cn(
+                          "px-3 py-1 rounded-full text-xs font-bold transition-all",
+                          ch.auto_broadcast ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400"
+                        )}
+                      >
+                        {ch.auto_broadcast ? 'Auto' : 'Manual'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => deleteChannel(ch.id)}
                         className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                       >
                         <Trash2 className="w-4 h-4" />

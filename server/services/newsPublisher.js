@@ -3,7 +3,7 @@ import pool from '../db.js';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
 
-const PLATFORMS = ['instagram', 'instagram_stories', 'facebook_page', 'facebook_groups', 'whatsapp', 'status'];
+const PLATFORMS = ['instagram', 'instagram_stories', 'facebook_page', 'facebook_groups', 'whatsapp', 'whatsapp_channel', 'status'];
 
 async function getSetting(key) {
   const r = await pool.query("SELECT value FROM settings WHERE key = $1", [key]);
@@ -63,6 +63,7 @@ function buildCaption(news, platform) {
     case 'facebook_groups':
       return `📰 ${news.title}\n\n${news.content}\n\n🔗 ${link}`;
     case 'whatsapp':
+    case 'whatsapp_channel':
       return `📰 *${news.title}*\n\n${excerpt}\n\n${link}`;
     case 'status':
       return `${news.title}\n${link}`;
@@ -78,6 +79,7 @@ function getImageUrl(newsId, platform) {
     facebook_page: 'fb',
     facebook_groups: 'square',
     whatsapp: 'square',
+    whatsapp_channel: 'square',
     status: 'story',
   };
   return `${FRONTEND_URL}/api/images/news/${newsId}/${formatMap[platform] || 'square'}`;
@@ -150,6 +152,25 @@ async function publishToWhatsApp(news) {
   return { platformPostId: ids.join(',') };
 }
 
+async function publishToWhatsAppChannel(news) {
+  const { enqueue } = await import('./phoneRelayService.js');
+  const channels = await pool.query(
+    "SELECT group_id FROM whatsapp_groups WHERE type = 'channel' AND is_active = true AND auto_broadcast = true AND group_id IS NOT NULL"
+  );
+  const caption = buildCaption(news, 'whatsapp_channel');
+  const imageUrl = getImageUrl(news.id, 'whatsapp_channel');
+  const ids = [];
+  for (const ch of channels.rows) {
+    try {
+      const id = await enqueue(ch.group_id, caption, imageUrl, 'channel');
+      ids.push(id);
+    } catch (err) {
+      console.warn(`[NewsPublisher] WA channel ${ch.group_id} enqueue error:`, err.message);
+    }
+  }
+  return { platformPostId: ids.join(',') };
+}
+
 async function publishToStatus(news) {
   const { enqueue } = await import('./phoneRelayService.js');
   const caption = buildCaption(news, 'status');
@@ -164,6 +185,7 @@ const PUBLISHERS = {
   facebook_page: publishToFacebookPage,
   facebook_groups: publishToFacebookGroups,
   whatsapp: publishToWhatsApp,
+  whatsapp_channel: publishToWhatsAppChannel,
   status: publishToStatus,
 };
 

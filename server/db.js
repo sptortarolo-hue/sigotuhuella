@@ -1107,6 +1107,28 @@ export async function initDb() {
       INSERT INTO settings (key, value) VALUES ('auto_reels_enabled', 'false') ON CONFLICT (key) DO NOTHING
     `, 'auto_reels_enabled');
 
+    await migrate(client, `
+      ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'group'
+    `, 'whatsapp_groups type');
+
+    await migrate(client, `
+      ALTER TABLE news_publications DROP CONSTRAINT IF EXISTS news_publications_platform_check
+    `, 'drop news_publications platform check');
+
+    await migrate(client, `
+      ALTER TABLE news_publications ADD CONSTRAINT news_publications_platform_check
+        CHECK (platform IN ('instagram', 'instagram_stories', 'facebook_page', 'facebook_groups', 'whatsapp', 'status', 'whatsapp_channel'))
+    `, 'add news_publications platform check');
+
+    await migrate(client, `
+      ALTER TABLE pet_publications DROP CONSTRAINT IF EXISTS pet_publications_platform_check
+    `, 'drop pet_publications platform check');
+
+    await migrate(client, `
+      ALTER TABLE pet_publications ADD CONSTRAINT pet_publications_platform_check
+        CHECK (platform IN ('instagram', 'facebook_page', 'facebook_groups', 'whatsapp', 'status', 'whatsapp_channel'))
+    `, 'add pet_publications platform check');
+
     console.log('Database migrations complete');
   } finally {
     client.release();
