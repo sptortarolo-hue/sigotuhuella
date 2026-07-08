@@ -288,7 +288,7 @@ router.post('/clear-queue', requireAdmin, async (req, res) => {
   }
 });
 
-router.get('/script', relayAuth, (req, res) => {
+router.get('/script', (req, res) => {
   res.download(path.join(__dirname, '../../relay.js'), 'relay.js');
 });
 
