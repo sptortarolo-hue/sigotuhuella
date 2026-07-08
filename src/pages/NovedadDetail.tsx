@@ -327,8 +327,11 @@ export default function NovedadDetail() {
         </h1>
 
         {imageUrl && (
-          <div className="relative aspect-video rounded-[2.5rem] overflow-hidden mb-10 shadow-xl">
-            <img src={imageUrl} alt={item.title} className="w-full h-full object-cover" />
+          <div className="relative aspect-video rounded-[2.5rem] overflow-hidden mb-10 shadow-xl bg-gray-100">
+            <img src={imageUrl} alt="" aria-hidden
+              className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-70" />
+            <img src={imageUrl} alt={item.title}
+              className="relative w-full h-full object-contain" />
             <button 
               onClick={handleShareNews}
               className="absolute bottom-2 right-2 p-3 bg-white/80 backdrop-blur-sm rounded-full hover:bg-white/90 transition-colors z-10"

@@ -55,7 +55,10 @@ export default function Novedades() {
                 <div className="relative aspect-video overflow-hidden bg-gray-100">
                   {imageUrl ? (
                     <>
-                      <img src={imageUrl} alt={item.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                      <img src={imageUrl} alt="" aria-hidden
+                        className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-70 transition-transform duration-500 group-hover:scale-125" />
+                      <img src={imageUrl} alt={item.title}
+                        className="relative w-full h-full object-contain transition-transform duration-500 group-hover:scale-105" />
                       {item.video_url && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                           <div className="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center shadow-lg">

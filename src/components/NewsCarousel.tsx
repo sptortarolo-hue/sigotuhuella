@@ -79,7 +79,10 @@ export default function NewsCarousel({ news }: NewsCarouselProps) {
               >
                 {imageUrl ? (
                   <div className="absolute inset-0">
-                    <img src={imageUrl} alt={item.title} className="w-full h-full object-cover" />
+                    <img src={imageUrl} alt="" aria-hidden
+                      className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-70" />
+                    <img src={imageUrl} alt={item.title}
+                      className="absolute inset-0 w-full h-full object-contain" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                   </div>
                 ) : (
