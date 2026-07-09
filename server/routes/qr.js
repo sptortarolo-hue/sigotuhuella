@@ -401,10 +401,12 @@ router.post('/public/:shareToken/scan', async (req, res) => {
       [req.params.shareToken, latitude || null, longitude || null, req.ip, req.headers['user-agent'] || null]
     );
 
+    const mapsLink = latitude && longitude ? `https://www.google.com/maps?q=${latitude},${longitude}` : null;
+
     sendPushToUser(row.user_id, {
       title: `📍 Escanearon el QR de ${row.pet_name}`,
-      body: latitude && longitude
-        ? `Alguien vio el perfil de ${row.pet_name} cerca de ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+      body: mapsLink
+        ? `Alguien vio el perfil de ${row.pet_name} — ${mapsLink}`
         : `Alguien vio el perfil digital de ${row.pet_name}`,
       tag: `qr-scan-${req.params.shareToken}`,
     }).catch(() => {});
@@ -426,21 +428,22 @@ router.post('/public/:shareToken/scan', async (req, res) => {
           html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
             <h2 style="color:#5A5A40;">Escaneo de QR detectado</h2>
             <p style="font-size:16px;">Alguien escaneó el código QR de <strong>${row.pet_name}</strong> y vio su perfil digital.</p>
-            ${latitude && longitude ? `<p><strong>Ubicación aproximada:</strong><br/><a href="https://www.google.com/maps?q=${latitude},${longitude}" style="color:#5A5A40;font-weight:bold;">📍 Ver en Google Maps</a></p>` : ''}
+            ${mapsLink ? `<p><strong>Ubicación aproximada:</strong><br/><a href="${mapsLink}" style="color:#5A5A40;font-weight:bold;">📍 Ver en Google Maps</a></p>` : ''}
             <p style="color:#94a3b8;font-size:12px;margin-top:20px;">Sigo Tu Huella — Identificación Digital</p>
           </div>`,
         });
       } catch (emailErr) {
         console.error('Scan alert email error:', emailErr);
       }
-      const { notifyUser } = await import('../services/notificationService.js');
-      const ownerUser = { email: row.owner_email, phone: row.owner_phone, notification_preference: row.owner_notification_preference, display_name: row.owner_name };
-      notifyUser(ownerUser, {
-        subject: `📍 Escanearon el QR de ${row.pet_name}`,
-        textMessage: `📍 Escanearon el QR de ${row.pet_name}${latitude && longitude ? ` cerca de https://www.google.com/maps?q=${latitude},${longitude}` : ''}. Alguien vio su perfil digital.`,
-        sendEmailFn: null,
-      }).catch(err => console.error('WhatsApp scan alert error:', err));
     }
+
+    const { notifyUser } = await import('../services/notificationService.js');
+    const ownerUser = { email: row.owner_email, phone: row.owner_phone, notification_preference: row.owner_notification_preference, display_name: row.owner_name };
+    notifyUser(ownerUser, {
+      subject: `📍 Escanearon el QR de ${row.pet_name}`,
+      textMessage: `📍 Escanearon el QR de ${row.pet_name}${mapsLink ? ` cerca de ${mapsLink}` : ''}. Alguien vio su perfil digital.`,
+      sendEmailFn: null,
+    }).catch(err => console.error('WhatsApp scan alert error:', err));
 
     res.json({ success: true });
   } catch (err) {

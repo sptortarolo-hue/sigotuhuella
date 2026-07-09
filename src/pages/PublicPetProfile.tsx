@@ -43,7 +43,7 @@ export default function PublicPetProfile() {
   useEffect(() => {
     if (data?.found && !scanSent && !silent) {
       setScanSent(true);
-      getCurrentPosition({ timeout: 5000 })
+      getCurrentPosition({ timeout: 15000 })
         .then((pos) => {
           api.qr.scan(shareToken!, { latitude: pos.coords.latitude, longitude: pos.coords.longitude }).catch(() => {});
         })
