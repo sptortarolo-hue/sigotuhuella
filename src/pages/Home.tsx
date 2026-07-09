@@ -45,10 +45,19 @@ export default function Home() {
               <ShieldCheck className="w-3 h-3 sm:w-4 sm:h-4" />
               Barrios Villa Garibaldi • Sicardi • Correas
             </div>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-brand-primary leading-[0.95] mb-6">
-              Sigo tu <br />
-              <span className="text-brand-secondary">huella.</span>
-            </h1>
+            <div className="flex items-start gap-4 mb-6">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-brand-primary leading-[0.95] flex-1">
+                Sigo tu <br />
+                <span className="text-brand-secondary">huella.</span>
+              </h1>
+              <div className="md:hidden shrink-0 w-16 h-16 sm:w-20 sm:h-20 aspect-square bg-brand-accent rounded-2xl overflow-hidden rotate-3 shadow-lg">
+                <img
+                  src="/sigotuhuella.jpg"
+                  alt="Sigo tu huella"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
             <p className="text-base sm:text-lg text-gray-600 leading-relaxed mb-6 max-w-lg">
               Movimiento de vecinos autoconvocados dedicado a la atención y abordaje de mascotas en situación de vulnerabilidad. Juntos construimos una comunidad más empática.
             </p>

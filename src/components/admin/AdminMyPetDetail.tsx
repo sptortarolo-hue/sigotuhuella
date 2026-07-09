@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { cn } from '@/src/lib/utils';
-import { PawPrint, Syringe, Heart, Droplet, ExternalLink } from 'lucide-react';
+import { PawPrint, Syringe, Heart, Droplet, ExternalLink, Download } from 'lucide-react';
+import QRCode from 'qrcode';
 import ImageLightbox from './ImageLightbox';
 
 interface AdminMyPetDetailProps {
@@ -12,6 +13,23 @@ interface AdminMyPetDetailProps {
 export default function AdminMyPetDetail({ pet, onClose, isMobile }: AdminMyPetDetailProps) {
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const handleDownloadQr = async () => {
+    try {
+      const url = `${window.location.origin}/mascota/${pet.qr_data.share_token}`;
+      const qrDataUrl = await QRCode.toDataURL(url, {
+        width: 400,
+        margin: 2,
+        color: { dark: '#5A5A40', light: '#ffffff' },
+      });
+      const link = document.createElement('a');
+      link.download = `qr-${pet.qr_data.code || pet.qr_data.share_token}.png`;
+      link.href = qrDataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Error generando QR:', err);
+    }
+  };
   const avatarSrc = pet.avatar_image
     ? `data:${pet.avatar_mime_type || 'image/jpeg'};base64,${pet.avatar_image}`
     : pet.photos?.[0]?.image_data
@@ -129,6 +147,12 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile }: AdminMyPetD
             >
               <ExternalLink className="w-3 h-3" /> Ver perfil público
             </a>
+            <button
+              onClick={handleDownloadQr}
+              className="inline-flex items-center gap-1 text-brand-primary hover:underline mt-1"
+            >
+              <Download className="w-3 h-3" /> Descargar QR
+            </button>
           </div>
         </div>
       )}

@@ -83,8 +83,8 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 sm:h-20 items-center">
           <Link to="/" className="flex items-center gap-2 group shrink-0">
-            <div className="p-1.5 sm:p-2.5 bg-brand-primary rounded-xl sm:rounded-2xl transition-all group-hover:rotate-12 shadow-lg group-hover:shadow-brand-primary/20">
-              <PawPrint className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl overflow-hidden shrink-0 shadow-lg group-hover:rotate-12 transition-all ring-2 ring-brand-primary/20">
+              <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
             </div>
             <span className="text-lg sm:text-2xl font-serif font-bold text-brand-primary tracking-tight whitespace-nowrap">Sigo tu huella</span>
           </Link>
@@ -212,8 +212,15 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* Mobile: login/avatar + hamburger */}
-          <div className="flex items-center gap-2 md:hidden">
+          {/* Mobile: logo + login/avatar + hamburger */}
+          <div className="flex items-center justify-between md:hidden">
+            <Link to="/" className="flex items-center gap-1.5 shrink-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg overflow-hidden shrink-0 shadow ring-1 ring-brand-primary/20">
+                <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
+              </div>
+              <span className="text-sm sm:text-base font-serif font-bold text-brand-primary">Sigo tu huella</span>
+            </Link>
+            <div className="flex items-center gap-2">
             {!user ? (
               <Link
                 to="/login"
@@ -316,6 +323,7 @@ export default function Navbar() {
         >
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
+            </div>
           </div>
         </div>
       </div>

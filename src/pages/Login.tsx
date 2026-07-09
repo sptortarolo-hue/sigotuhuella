@@ -492,15 +492,16 @@ export default function Login() {
                     <p className="text-xs text-red-500 mt-1">{phoneError}</p>
                   )}
                 </div>
-                <label className="flex items-center gap-2 p-3 bg-brand-bg rounded-xl cursor-pointer">
+                <label className="flex items-center gap-2 p-3 bg-gray-100 rounded-xl cursor-not-allowed opacity-70">
                   <input
                     type="checkbox"
-                    checked={notifyWhatsApp}
-                    onChange={e => setNotifyWhatsApp(e.target.checked)}
+                    checked={true}
+                    disabled
                     className="w-4 h-4 accent-brand-primary"
                   />
-                  <span className="text-xs text-gray-600 font-medium">Recibir notificaciones por WhatsApp y email</span>
+                  <span className="text-xs text-gray-500 font-medium">Recibir notificaciones por WhatsApp y email</span>
                 </label>
+                <p className="text-xs text-gray-400 mt-1 ml-1">Recibirá notificaciones al WhatsApp y al email. Puede modificarlo desde el perfil de usuario.</p>
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
                     <Lock className="w-3 h-3" /> Contraseña
