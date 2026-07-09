@@ -33,6 +33,7 @@ export default function ReportPet() {
   const initialStatus = (Object.values(PetStatus) as string[]).includes(searchParams.get('status') || '')
     ? searchParams.get('status') as PetStatus
     : PetStatus.LOST;
+  const isStatusLocked = searchParams.has('status');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -353,22 +354,30 @@ const handleSubmit = async (e: React.FormEvent) => {
                    />
                  </div>
 
-                 <div className="space-y-2">
-                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Estado *</label>
-                   <select
-                     required
-                     className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
-                     value={formData.status}
-                     onChange={e => setFormData({ ...formData, status: e.target.value as PetStatus })}
-                   >
-                     <option value={PetStatus.LOST}>Se perdió</option>
-                     <option value={PetStatus.RETAINED}>Está retenido</option>
-                     <option value={PetStatus.SIGHTED}>Fue avistado</option>
-                      <option value={PetStatus.ACCIDENTED}>Está accidentado</option>
-                       <option value={PetStatus.NEEDS_ATTENTION}>Necesita atención</option>
-                       <option value={PetStatus.FOR_ADOPTION_SIMPLE}>En Adopción (Difusión)</option>
-                     </select>
-                 </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Estado *</label>
+                    {isStatusLocked ? (
+                      <div className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent text-gray-800 font-medium">
+                        {formData.status === PetStatus.FOR_ADOPTION_SIMPLE
+                          ? 'En Adopción (Difusión)'
+                          : formData.status}
+                      </div>
+                    ) : (
+                      <select
+                        required
+                        className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
+                        value={formData.status}
+                        onChange={e => setFormData({ ...formData, status: e.target.value as PetStatus })}
+                      >
+                        <option value={PetStatus.LOST}>Se perdió</option>
+                        <option value={PetStatus.RETAINED}>Está retenido</option>
+                        <option value={PetStatus.SIGHTED}>Fue avistado</option>
+                        <option value={PetStatus.ACCIDENTED}>Está accidentado</option>
+                        <option value={PetStatus.NEEDS_ATTENTION}>Necesita atención</option>
+                        <option value={PetStatus.FOR_ADOPTION_SIMPLE}>En Adopción (Difusión)</option>
+                      </select>
+                    )}
+                  </div>
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Especie *</label>
