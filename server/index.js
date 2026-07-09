@@ -3,9 +3,10 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { dirname, join } from 'path';
 import { readFileSync } from 'fs';
+import multer from 'multer';
 import { fileURLToPath } from 'url';
 import pool, { initDb } from './db.js';
-import { hashPassword } from './auth.js';
+import { hashPassword, requireAdmin } from './auth.js';
 import authRoutes from './routes/auth.js';
 import petRoutes from './routes/pets.js';
 import collaborationRoutes from './routes/collaboration.js';
@@ -153,6 +154,7 @@ app.get('/my-pet-photo/:photoId', async (req, res) => {
 
 app.use(express.static(join(__dirname, '..', 'dist')));
 app.use('/generated', express.static(join(__dirname, '..', 'public', 'generated')));
+app.use('/uploads', express.static(join(__dirname, '..', 'public', 'uploads')));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Demasiados intentos. Intentá de nuevo en 15 minutos.' } });
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: 'Demasiados intentos de login. Intentá de nuevo en 15 minutos.' } });
@@ -446,6 +448,27 @@ app.get('/buscar-facebook', (_req, res) => {
 <meta name="twitter:image" content="${baseUrl}/sigotuhuella.jpg" />
 </head>`;
   res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
+});
+
+// Sponsor logo upload
+const sponsorUpload = multer({
+  storage: multer.diskStorage({
+    destination: join(__dirname, '..', 'public', 'uploads', 'sponsors'),
+    filename: (_req, file, cb) => {
+      const ext = file.originalname.split('.').pop() || 'png';
+      cb(null, `sponsor-${Date.now()}.${ext}`);
+    },
+  }),
+  limits: { fileSize: 512 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Solo se permiten imágenes'), false);
+  },
+});
+
+app.post('/api/upload/sponsor-logo', requireAdmin, sponsorUpload.single('logo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
+  res.json({ url: `/uploads/sponsors/${req.file.filename}` });
 });
 
 // Video generator admin routes

@@ -79,6 +79,7 @@ export default function Admin() {
   const [editingSponsor, setEditingSponsor] = useState<number | null>(null);
   const [sponsorData, setSponsorData] = useState({ name: '', logo: '', website: '' });
   const [sponsorsLoading, setSponsorsLoading] = useState(false);
+  const [sponsorLogoUploading, setSponsorLogoUploading] = useState(false);
 
   // Collaboration State
   const [accounts, setAccounts] = useState<CollaborationAccount[]>([]);
@@ -1423,8 +1424,29 @@ export default function Admin() {
                           <input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={sponsorData.name} onChange={e => setSponsorData({ ...sponsorData, name: e.target.value })} placeholder="Nombre de la marca o institución" />
                         </div>
                         <div>
-                          <label className="text-xs font-bold uppercase text-gray-500">URL del logo</label>
-                          <input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent font-mono text-sm" value={sponsorData.logo} onChange={e => setSponsorData({ ...sponsorData, logo: e.target.value })} placeholder="https://ejemplo.com/logo.png" />
+                          <label className="text-xs font-bold uppercase text-gray-500">Logo</label>
+                          <div className="flex gap-2">
+                            <input type="text" className="flex-1 px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent font-mono text-sm" value={sponsorData.logo} onChange={e => setSponsorData({ ...sponsorData, logo: e.target.value })} placeholder="https://ejemplo.com/logo.png" />
+                            <label className="shrink-0 px-4 py-3 bg-brand-primary/10 text-brand-primary rounded-xl font-bold text-xs cursor-pointer hover:bg-brand-primary/20 transition-colors flex items-center gap-1">
+                              <Camera className="w-4 h-4" />
+                              Subir
+                              <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setSponsorLogoUploading(true);
+                                try {
+                                  const fd = new FormData();
+                                  fd.append('logo', file);
+                                  const res = await fetch('/api/upload/sponsor-logo', { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, body: fd });
+                                  const data = await res.json();
+                                  if (res.ok) setSponsorData({ ...sponsorData, logo: data.url });
+                                  else alert(data.error || 'Error al subir');
+                                } catch (e) { alert('Error al subir'); }
+                                finally { setSponsorLogoUploading(false); }
+                              }} />
+                            </label>
+                          </div>
+                          {sponsorLogoUploading && <p className="text-xs text-gray-400 mt-1"><Loader2 className="w-3 h-3 animate-spin inline" /> Subiendo...</p>}
                           {sponsorData.logo && (
                             <div className="mt-2 flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
                               <img src={sponsorData.logo} alt="" className="w-10 h-10 object-contain rounded" onError={e => { (e.target as HTMLElement).innerHTML = '⚠️'; }} />
