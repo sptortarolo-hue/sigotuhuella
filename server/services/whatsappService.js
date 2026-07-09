@@ -305,6 +305,48 @@ export async function sendGroupImage(groupId, imageUrl, caption) {
   return data;
 }
 
+export async function buildPetBroadcastCaption(pet) {
+  const statusLabels = {
+    lost: '🐾 SE PERDIÓ', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
+    for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
+    adopted: '✅ ADOPTADO',
+    reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
+    needs_attention: '⚠️ NECESITA ATENCIÓN',
+  };
+  const label = statusLabels[pet.status] || '🐾 MASCOTA';
+  const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species || 'Mascota';
+  const genderLabel = pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : '';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+
+  const isCelebration = pet.status === 'reunited' || pet.status === 'adopted';
+
+  if (isCelebration) {
+    const hashtagResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_default_hashtags'");
+    const hashtags = hashtagResult.rows[0]?.value || '#SigoTuHuella';
+    const celebrationText = generateCelebrationText(pet, pet.status);
+    return [
+      celebrationText,
+      '',
+      `🔗 ${frontendUrl}/pet/${pet.id}`,
+      '',
+      hashtags,
+    ].join('\n');
+  }
+
+  return [
+    `${label}`,
+    pet.name ? `Nombre: ${pet.name}` : '',
+    `${speciesLabel}${pet.breed ? ' · ' + pet.breed : ''}`,
+    genderLabel && pet.age ? `${genderLabel} · ${pet.age}` : genderLabel || pet.age || '',
+    `📍 ${pet.location || 'Sin ubicación'}`,
+    pet.contact_info ? `📞 ${pet.contact_info}` : '',
+    '',
+    pet.description ? pet.description.substring(0, 300) : '',
+    '',
+    `🔗 ${frontendUrl}/pet/${pet.id}`,
+  ].filter(Boolean).join('\n');
+}
+
 export async function broadcastPetToGroups(petId) {
   console.log('[Broadcast] >>> ENTRANDO petId:', petId);
   try {
@@ -338,48 +380,10 @@ export async function broadcastPetToGroups(petId) {
     }
     console.log('[Broadcast] Pet encontrado, status:', pet.status, 'species:', pet.species);
 
-    const statusLabels = {
-      lost: '🐾 SE PERDIÓ', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
-      for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
-      adopted: '✅ ADOPTADO',
-      reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
-      needs_attention: '⚠️ NECESITA ATENCIÓN',
-    };
-    const label = statusLabels[pet.status] || '🐾 MASCOTA';
-    const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species || 'Mascota';
-    const genderLabel = pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : '';
+    const caption = await buildPetBroadcastCaption(pet);
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
 
-    const isCelebration = pet.status === 'reunited' || pet.status === 'adopted';
-    let caption, coverUrl;
-
-    if (isCelebration) {
-      const hashtagResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_default_hashtags'");
-      const hashtags = hashtagResult.rows[0]?.value || '#SigoTuHuella';
-      const celebrationText = generateCelebrationText(pet, pet.status);
-      caption = [
-        celebrationText,
-        '',
-        `🔗 ${frontendUrl}/pet/${pet.id}`,
-        '',
-        hashtags,
-      ].join('\n');
-    } else {
-      caption = [
-        `${label}`,
-        pet.name ? `Nombre: ${pet.name}` : '',
-        `${speciesLabel}${pet.breed ? ' · ' + pet.breed : ''}`,
-        genderLabel && pet.age ? `${genderLabel} · ${pet.age}` : genderLabel || pet.age || '',
-        `📍 ${pet.location || 'Sin ubicación'}`,
-        pet.contact_info ? `📞 ${pet.contact_info}` : '',
-        '',
-        pet.description ? pet.description.substring(0, 300) : '',
-        '',
-        `🔗 ${frontendUrl}/pet/${pet.id}`,
-      ].filter(Boolean).join('\n');
-    }
-
-    coverUrl = pet.image_data
+    let coverUrl = pet.image_data
       ? `${frontendUrl}/api/images/pet/${petId}/cover`
       : null;
 

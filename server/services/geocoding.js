@@ -51,3 +51,9 @@ export async function geocodeAddress(address) {
     return null;
   }
 }
+
+export function extractNeighborhoods(text) {
+  if (!text) return [];
+  const lower = text.toLowerCase();
+  return Object.keys(NEIGHBORHOOD_CENTERS).filter(k => lower.includes(k));
+}

@@ -4,6 +4,7 @@ import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sen
 import { matchPetToPosts } from '../services/geminiMatching.js';
 import { broadcastPetToGroups } from '../services/whatsappService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
+import { notifyPetPublication } from '../services/petPublicationNotification.js';
 import { enqueuePublishTask } from '../services/facebookRelayService.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
@@ -428,6 +429,8 @@ router.post('/', requireAuth, async (req, res) => {
     const cnt = parseInt(reportCountRes.rows[0].cnt);
     if (cnt === 5) await awardBadgeIfMissing(req.user.id, 'reporter_5');
     if (cnt === 15) await awardBadgeIfMissing(req.user.id, 'reporter_15');
+
+    notifyPetPublication(pet.id, req.user.phone).catch(e => console.error('Publication notify error:', e));
 
     res.status(201).json({ pet });
   } catch (err) {
@@ -1019,6 +1022,8 @@ router.post('/public', async (req, res) => {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
         }
 
+        notifyPetPublication(pet.id, contact_info).catch(e => console.error('Publication notify error:', e));
+
         res.status(201).json({ pet });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -1135,6 +1140,8 @@ router.post('/lost-report', async (req, res) => {
         if (broadcastStatuses.includes(pet.status)) {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
         }
+
+        notifyPetPublication(pet.id, phone).catch(e => console.error('Publication notify error:', e));
 
         res.status(201).json({ pet, registrationPending: !!registrationToken });
   } catch (err) {

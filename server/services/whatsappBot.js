@@ -4,7 +4,8 @@ import { matchWhatsAppToPets, processImageCaption } from './geminiMatching.js';
 import { classifyPost } from './geminiClassifier.js';
 import { sendWhatsAppRegistrationEmail } from '../auth.js';
 import { fetchFbPost } from './fbPostFetcher.js';
-import { geocodeAddress } from './geocoding.js';
+import { geocodeAddress, extractNeighborhoods } from './geocoding.js';
+import { notifyPetPublication } from './petPublicationNotification.js';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
@@ -803,11 +804,16 @@ ${description ? `📝 *Descripción:* ${description}` : ''}
 async function rlConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
+    if (!ctx.latitude && ctx.location) {
+      const coords = await geocodeAddress(ctx.location + ', La Plata, Buenos Aires, Argentina').catch(() => null);
+      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+    }
+    const neighborhoods = extractNeighborhoods(ctx.location);
     const petResult = await pool.query(
-      `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type)
-       VALUES ($1, $2, 'lost', $3, $4, $5, $6, $7, $8, $9, $10, $11, 'whatsapp')
+      `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type, neighborhoods)
+       VALUES ($1, $2, 'lost', $3, $4, $5, $6, $7, $8, $9, $10, $11, 'whatsapp', $12)
        RETURNING id`,
-      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.description || 'Reportado por WhatsApp como perdida', ctx.gender || null, ctx.breed || null, ctx.color || null]
+      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.description || 'Reportado por WhatsApp como perdida', ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -823,6 +829,7 @@ async function rlConfirm(conv, parsed, intent) {
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
+    notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte creado con éxito! Ya lo publicamos en nuestra red.`);
     await sendMessage(conv.wa_from, `📌 Recordá que también podés pedir una *chapita QR* para tu mascota en:\nhttps://sigotuhuella.online/solicitar-chapita`);
     await endFlow(conv);
@@ -969,10 +976,15 @@ async function rsContact(conv, parsed) {
 async function rsConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
+    if (!ctx.latitude && ctx.location) {
+      const coords = await geocodeAddress(ctx.location + ', La Plata, Buenos Aires, Argentina').catch(() => null);
+      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+    }
+    const neighborhoods = extractNeighborhoods(ctx.location);
     const petResult = await pool.query(
-      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type)
-       VALUES ($1, 'sighted', $2, $3, $4, $5, $6, $7, $8, $9, $10, 'whatsapp') RETURNING id`,
-      [ctx.species || null, ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje', ctx.gender || null, ctx.breed || null, ctx.color || null]
+      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type, neighborhoods)
+       VALUES ($1, 'sighted', $2, $3, $4, $5, $6, $7, $8, $9, $10, 'whatsapp', $11) RETURNING id`,
+      [ctx.species || null, ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje', ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -988,6 +1000,7 @@ async function rsConfirm(conv, parsed, intent) {
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
+    notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de avistaje registrado! Gracias por ayudar.`);
     await endFlow(conv);
   } else {
@@ -1155,11 +1168,16 @@ async function rfShowConfirm(conv) {
 async function rfConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
+    if (!ctx.latitude && ctx.location) {
+      const coords = await geocodeAddress(ctx.location + ', La Plata, Buenos Aires, Argentina').catch(() => null);
+      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+    }
+    const neighborhoods = extractNeighborhoods(ctx.location);
     const description = ctx.description || 'Reportado por WhatsApp como encontrada';
     const petResult = await pool.query(
-      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type)
-       VALUES ($1, 'retained', $2, $3, $4, $5, $6, $7, $8, $9, $10, 'whatsapp') RETURNING id`,
-      [ctx.species || null, ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, description, ctx.gender || null, ctx.breed || null, ctx.color || null]
+      `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type, neighborhoods)
+       VALUES ($1, 'retained', $2, $3, $4, $5, $6, $7, $8, $9, $10, 'whatsapp', $11) RETURNING id`,
+      [ctx.species || null, ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, description, ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
@@ -1175,6 +1193,7 @@ async function rfConfirm(conv, parsed, intent) {
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
+    notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de mascota encontrada registrado! Ya visibilizamos la info para encontrar a su dueño.`);
     await sendMessage(conv.wa_from, `🙏 ¡Gracias por tu ayuda!`);
     await endFlow(conv);
@@ -2101,14 +2120,22 @@ async function fbConfirm(conv, parsed, intent) {
     ? `Contactar vía Facebook: ${post.author_name}`
     : 'Contactar vía Facebook';
 
+  let fbLat = ctx.fbLatitude || null;
+  let fbLng = ctx.fbLongitude || null;
+  if (!fbLat && location && location !== 'Sin ubicación') {
+    const coords = await geocodeAddress(location + ', La Plata, Buenos Aires, Argentina').catch(() => null);
+    if (coords) { fbLat = coords.lat; fbLng = coords.lng; }
+  }
+  const neighborhoods = extractNeighborhoods(location);
+
   const petResult = await pool.query(
-    `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description, source_type, source_url, source_facebook_post_id, name, color, gender, breed, facebook_embed_html)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'facebook', $8, $9, $10, $11, $12, $13, $14)
+    `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, description, source_type, source_url, source_facebook_post_id, name, color, gender, breed, facebook_embed_html, neighborhoods)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'facebook', $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING id`,
-    [species, status, location, ctx.fbLatitude || null, ctx.fbLongitude || null,
+    [species, status, location, fbLat, fbLng,
      contactInfo, description, post.fb_post_url || '', post.id,
      post.name || null, post.color || null, post.gender || null, post.breed || null,
-     post.embed_html || null]
+     post.embed_html || null, JSON.stringify(neighborhoods)]
   );
 
   const petId = petResult.rows[0].id;
@@ -2197,6 +2224,7 @@ async function fbConfirm(conv, parsed, intent) {
 
   matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
   broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
+  notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
 
   await sendMessage(conv.wa_from,
     `✅ *${conv.bot_name}:* ¡Reporte creado con éxito desde Facebook!\n` +
@@ -2461,11 +2489,16 @@ async function apDescription(conv, parsed) {
 async function apConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
+    if (!ctx.latitude && ctx.location) {
+      const coords = await geocodeAddress(ctx.location + ', La Plata, Buenos Aires, Argentina').catch(() => null);
+      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+    }
+    const neighborhoods = extractNeighborhoods(ctx.location);
     const petResult = await pool.query(
-      `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, description, source_type, created_by)
-       VALUES ($1, $2, 'for_adoption_simple', $3, $4, $5, $6, $7, 'whatsapp_owner', $8)
+      `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, description, source_type, created_by, neighborhoods)
+       VALUES ($1, $2, 'for_adoption_simple', $3, $4, $5, $6, $7, 'whatsapp_owner', $8, $9)
        RETURNING id`,
-      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.description || 'En adopción — difusión particular', ctx.user_id || null]
+      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.description || 'En adopción — difusión particular', ctx.user_id || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
 
@@ -2486,6 +2519,7 @@ async function apConfirm(conv, parsed, intent) {
     );
 
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
+    notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     await sendMessage(conv.wa_from,
       `✅ *${conv.bot_name}:* ¡Publicación creada con éxito! Ya la difundimos en nuestra red.\n\n` +
       `📌 *Importante:* esta publicación figura como *difusión particular*. Sigo Tu Huella solo la difunde, no gestiona la adopción. Cualquier consulta la respondés vos directamente.`
