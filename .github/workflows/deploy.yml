@@ -17,11 +17,6 @@ jobs:
     - run: npm run build
       env:
         VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
-    - uses: actions/upload-artifact@v7
-      with:
-        name: dist
-        path: dist/
-
     - name: Prep env file
       run: |
         echo "AZURE_TTS_KEY=${{ secrets.AZURE_TTS_KEY }}" >> server/.env
