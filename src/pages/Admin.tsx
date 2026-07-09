@@ -43,7 +43,7 @@ import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -72,6 +72,13 @@ export default function Admin() {
     contactInfo: '',
     description: '',
   });
+
+  // Sponsors State
+  const [sponsors, setSponsors] = useState<{ name: string; logo: string; website: string }[]>([]);
+  const [showSponsorForm, setShowSponsorForm] = useState(false);
+  const [editingSponsor, setEditingSponsor] = useState<number | null>(null);
+  const [sponsorData, setSponsorData] = useState({ name: '', logo: '', website: '' });
+  const [sponsorsLoading, setSponsorsLoading] = useState(false);
 
   // Collaboration State
   const [accounts, setAccounts] = useState<CollaborationAccount[]>([]);
@@ -234,6 +241,9 @@ export default function Admin() {
       if (map.banner_chapita_is_free !== undefined) setBannerChapitaIsFree(map.banner_chapita_is_free === 'true');
       if (map.pdf_page_width !== undefined) setPdfPageWidth(map.pdf_page_width);
       if (map.pdf_page_height !== undefined) setPdfPageHeight(map.pdf_page_height);
+      if (map.sponsors !== undefined) {
+        try { setSponsors(JSON.parse(map.sponsors)); } catch (e) { setSponsors([]); }
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -816,6 +826,37 @@ export default function Admin() {
     }
   };
 
+  // Sponsors Handlers
+  const saveSponsors = async (updated: typeof sponsors) => {
+    setSponsorsLoading(true);
+    try {
+      await api.settings.update('sponsors', JSON.stringify(updated));
+      setSponsors(updated);
+    } catch (e) { console.error(e); alert('Error al guardar'); }
+    finally { setSponsorsLoading(false); }
+  };
+
+  const handleSponsorSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sponsorData.name.trim()) return;
+    const updated = [...sponsors];
+    if (editingSponsor !== null) {
+      updated[editingSponsor] = { ...sponsorData };
+    } else {
+      updated.push({ ...sponsorData });
+    }
+    await saveSponsors(updated);
+    setShowSponsorForm(false);
+    setEditingSponsor(null);
+    setSponsorData({ name: '', logo: '', website: '' });
+  };
+
+  const handleDeleteSponsor = async (index: number) => {
+    if (!confirm('Eliminar este colaborador?')) return;
+    const updated = sponsors.filter((_, i) => i !== index);
+    await saveSponsors(updated);
+  };
+
   const handleVolunteerStatus = async (id: string, status: string) => {
     await updateVolunteerRequestStatus(id, status);
     fetchVolunteers();
@@ -889,6 +930,7 @@ export default function Admin() {
           { id: 'facebook', label: 'Facebook', icon: Globe },
           { id: 'videos', label: 'Videos', icon: Film },
   { id: 'qr', label: 'QR', icon: QrCode },
+  { id: 'sponsors', label: 'Colaboradores', icon: Heart },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
         ].map(tab => (
           <button
@@ -1326,6 +1368,85 @@ export default function Admin() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {/* ====== COLABORADORES ====== */}
+          {activeTab === 'sponsors' && (
+            <div className="space-y-6">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => { setEditingSponsor(null); setSponsorData({ name: '', logo: '', website: '' }); setShowSponsorForm(true); }}
+                  className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:shadow-lg transition-all"
+                >
+                  <Plus className="w-5 h-5" /> Agregar Colaborador
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {sponsors.map((s, i) => (
+                  <div key={i} className="bg-white rounded-[2.5rem] border border-brand-accent p-5 flex flex-col items-center text-center">
+                    {s.logo && (
+                      <img src={s.logo} alt={s.name} className="w-20 h-20 object-contain mb-3 rounded-xl" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    )}
+                    <h4 className="font-bold text-brand-primary text-sm">{s.name}</h4>
+                    {s.website && (
+                      <a href={s.website} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-secondary mt-1 hover:underline">Sitio web →</a>
+                    )}
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => { setEditingSponsor(i); setSponsorData({ name: s.name, logo: s.logo, website: s.website }); setShowSponsorForm(true); }} className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteSponsor(i)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                ))}
+                {sponsors.length === 0 && (
+                  <div className="col-span-full text-center py-16 bg-brand-bg rounded-[2.5rem] border-2 border-dashed border-brand-accent">
+                    <Heart className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-400 font-medium">No hay colaboradores aún.</p>
+                    <p className="text-gray-400 text-sm mt-1">Agregá marcas o instituciones que colaboran con Sigo Tu Huella.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Sponsor form modal */}
+              <AnimatePresence>
+                {showSponsorForm && (
+                  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowSponsorForm(false)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                      <div className="p-6 sm:p-8 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+                        <h2 className="text-xl font-bold text-brand-primary">{editingSponsor !== null ? 'Editar' : 'Agregar'} Colaborador</h2>
+                        <button onClick={() => setShowSponsorForm(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-5 h-5" /></button>
+                      </div>
+                      <form onSubmit={handleSponsorSubmit} className="p-6 sm:p-8 space-y-4 overflow-y-auto">
+                        <div>
+                          <label className="text-xs font-bold uppercase text-gray-500">Nombre</label>
+                          <input required type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={sponsorData.name} onChange={e => setSponsorData({ ...sponsorData, name: e.target.value })} placeholder="Nombre de la marca o institución" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold uppercase text-gray-500">URL del logo</label>
+                          <input type="text" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent font-mono text-sm" value={sponsorData.logo} onChange={e => setSponsorData({ ...sponsorData, logo: e.target.value })} placeholder="https://ejemplo.com/logo.png" />
+                          {sponsorData.logo && (
+                            <div className="mt-2 flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                              <img src={sponsorData.logo} alt="" className="w-10 h-10 object-contain rounded" onError={e => { (e.target as HTMLElement).innerHTML = '⚠️'; }} />
+                              <span className="text-xs text-gray-400 truncate">{sponsorData.logo}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold uppercase text-gray-500">Sitio web</label>
+                          <input type="url" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={sponsorData.website} onChange={e => setSponsorData({ ...sponsorData, website: e.target.value })} placeholder="https://..." />
+                        </div>
+                        <div className="flex gap-3 pt-2">
+                          <button type="button" onClick={() => setShowSponsorForm(false)} className="flex-1 px-6 py-3 border border-brand-accent rounded-xl font-bold text-sm text-gray-600 hover:bg-brand-bg transition-all">Cancelar</button>
+                          <button type="submit" disabled={sponsorsLoading} className="flex-1 px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all disabled:opacity-50">
+                            {sponsorsLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : (editingSponsor !== null ? 'Guardar cambios' : 'Agregar')}
+                          </button>
+                        </div>
+                      </form>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 

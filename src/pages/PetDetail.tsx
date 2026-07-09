@@ -52,9 +52,12 @@ export default function PetDetail() {
   useEffect(() => {
     const fetchPet = async () => {
       try {
-        const data = await getPets(); // This list all pets, we filter by id
+        const data = await getPets();
         const found = data.find(p => p.id === id);
         setPet(found || null);
+        if (found) {
+          fetch(`/api/pets/${id}/view`, { method: 'POST' }).catch(() => {});
+        }
       } catch (e) {
         console.error(e);
       } finally {

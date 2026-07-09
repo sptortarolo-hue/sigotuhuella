@@ -16,6 +16,7 @@ export default function Home() {
   const [bannerPrice, setBannerPrice] = useState('500');
   const [bannerIsFree, setBannerIsFree] = useState(true);
   const [showChapitaModal, setShowChapitaModal] = useState(false);
+  const [sponsors, setSponsors] = useState<{ name: string; logo: string; website: string }[]>([]);
 
 
   useEffect(() => {
@@ -24,6 +25,9 @@ export default function Home() {
       if (data.banner_chapita_visible !== undefined) setBannerVisible(data.banner_chapita_visible !== 'false');
       if (data.banner_chapita_price !== undefined) setBannerPrice(data.banner_chapita_price);
       if (data.banner_chapita_is_free !== undefined) setBannerIsFree(data.banner_chapita_is_free === 'true');
+      if (data.sponsors) {
+        try { setSponsors(JSON.parse(data.sponsors)); } catch (e) { /* ignore */ }
+      }
     }).catch(() => {});
   }, []);
 
@@ -208,6 +212,31 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Sponsors / Collaborators */}
+      {sponsors.length > 0 && (
+        <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-brand-primary">Confían en nosotros</h2>
+            <p className="text-sm text-gray-500 mt-2">Instituciones y marcas que colaboran con Sigo Tu Huella</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            {sponsors.map((s, i) => (
+              <a key={i} href={s.website || '#'} target="_blank" rel="noopener noreferrer"
+                className="group bg-white rounded-2xl border border-brand-accent p-4 sm:p-6 flex flex-col items-center text-center hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                {s.logo ? (
+                  <img src={s.logo} alt={s.name} className="w-14 h-14 sm:w-20 sm:h-20 object-contain mb-3 rounded-xl" />
+                ) : (
+                  <div className="w-14 h-14 sm:w-20 sm:h-20 bg-brand-bg rounded-xl flex items-center justify-center mb-3">
+                    <Heart className="w-6 h-6 sm:w-8 sm:h-8 text-brand-secondary" />
+                  </div>
+                )}
+                <span className="text-xs sm:text-sm font-semibold text-brand-primary">{s.name}</span>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Features */}
       <section className="py-16 sm:py-24 bg-white">

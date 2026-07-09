@@ -369,6 +369,21 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// POST /:id/view — track a pet view without returning data
+router.post('/:id/view', async (req, res) => {
+  try {
+    await pool.query(
+      'INSERT INTO pet_views (pet_id, user_id, viewer_ip, user_agent) VALUES ($1, $2, $3, $4)',
+      [req.params.id, req.user?.id || null, req.ip, req.headers['user-agent'] || null]
+    );
+    await pool.query('UPDATE pets SET view_count = view_count + 1 WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Track view error:', err);
+    res.status(500).json({ error: 'Error al registrar vista' });
+  }
+});
+
 router.post('/', requireAuth, async (req, res) => {
   const { name, species, breed, color, status, gender, age, size, isVaccinated, isSterilized, description, location, latitude, longitude, contactInfo, images, neighborhoods } = req.body;
   if (!species || !status || !location) {
