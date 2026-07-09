@@ -226,7 +226,7 @@ export default function Home() {
       {sponsors.length > 0 && (
         <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
           <div className="text-center mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-brand-primary">Confían en nosotros</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-brand-primary">Colaboran con nosotros</h2>
             <p className="text-sm text-gray-500 mt-2">Instituciones y marcas que colaboran con Sigo Tu Huella</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
