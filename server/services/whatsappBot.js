@@ -1,6 +1,6 @@
 import pool from '../db.js';
 import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups, sendListMessage } from './whatsappService.js';
-import { matchWhatsAppToPets, processImageCaption } from './geminiMatching.js';
+import { matchWhatsAppToPets, matchPetToPosts, processImageCaption } from './geminiMatching.js';
 import { classifyPost } from './geminiClassifier.js';
 import { sendWhatsAppRegistrationEmail } from '../auth.js';
 import { fetchFbPost } from './fbPostFetcher.js';
@@ -828,6 +828,10 @@ async function rlConfirm(conv, parsed, intent) {
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
+    (async () => {
+      const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
+      if (p) matchPetToPosts(p).catch(e => console.error('Matching pet->FB error:', e));
+    })();
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte creado con éxito! Ya lo publicamos en nuestra red.`);
@@ -999,6 +1003,10 @@ async function rsConfirm(conv, parsed, intent) {
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
+    (async () => {
+      const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
+      if (p) matchPetToPosts(p).catch(e => console.error('Matching pet->FB error:', e));
+    })();
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de avistaje registrado! Gracias por ayudar.`);
@@ -1192,6 +1200,10 @@ async function rfConfirm(conv, parsed, intent) {
     }
     await pool.query(`UPDATE whatsapp_messages SET pet_id = $1, status = 'processed' WHERE conversation_id = $2`, [petId, conv.id]);
     matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
+    (async () => {
+      const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
+      if (p) matchPetToPosts(p).catch(e => console.error('Matching pet->FB error:', e));
+    })();
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de mascota encontrada registrado! Ya visibilizamos la info para encontrar a su dueño.`);
@@ -2223,6 +2235,10 @@ async function fbConfirm(conv, parsed, intent) {
   );
 
   matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
+  (async () => {
+    const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
+    if (p) matchPetToPosts(p).catch(e => console.error('Matching pet->FB error:', e));
+  })();
   broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
   notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
 
@@ -2518,6 +2534,11 @@ async function apConfirm(conv, parsed, intent) {
       [petId, conv.id]
     );
 
+    matchWhatsAppToPets(petId).catch(e => console.error('Matching error:', e));
+    (async () => {
+      const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
+      if (p) matchPetToPosts(p).catch(e => console.error('Matching pet->FB error:', e));
+    })();
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     await sendMessage(conv.wa_from,

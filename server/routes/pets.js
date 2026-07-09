@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
-import { matchPetToPosts } from '../services/geminiMatching.js';
+import { matchPetToPosts, matchWhatsAppToPets } from '../services/geminiMatching.js';
 import { broadcastPetToGroups } from '../services/whatsappService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { notifyPetPublication } from '../services/petPublicationNotification.js';
@@ -431,6 +431,7 @@ router.post('/', requireAuth, async (req, res) => {
     if (cnt === 15) await awardBadgeIfMissing(req.user.id, 'reporter_15');
 
     notifyPetPublication(pet.id, req.user.phone).catch(e => console.error('Publication notify error:', e));
+    matchWhatsAppToPets(pet.id).catch(e => console.error('WhatsApp matching error:', e));
 
     res.status(201).json({ pet });
   } catch (err) {
@@ -1014,7 +1015,8 @@ router.post('/public', async (req, res) => {
         }).catch(err => console.error('Push error:', err));
 
         // Run matching in background
-        matchPetToPosts(pet).catch(err => console.error('Matching error:', err));
+        matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
+        matchWhatsAppToPets(pet.id).catch(e => console.error('Matching WhatsApp->pets error:', e));
 
         // Auto-broadcast to WhatsApp groups for active statuses
         const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention'];
@@ -1133,7 +1135,8 @@ router.post('/lost-report', async (req, res) => {
         }).catch(err => console.error('Push error:', err));
 
         // Run matching in background
-        matchPetToPosts(pet).catch(err => console.error('Matching error:', err));
+        matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
+        matchWhatsAppToPets(pet.id).catch(e => console.error('Matching WhatsApp->pets error:', e));
 
         // Auto-broadcast to WhatsApp groups for active statuses
         const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention'];

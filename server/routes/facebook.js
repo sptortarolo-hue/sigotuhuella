@@ -4,6 +4,8 @@ import { requireAdmin } from '../auth.js';
 import { classifyPost } from '../services/geminiClassifier.js';
 import { getSessionFile } from '../services/facebookRelayService.js';
 import { scrapeWithApify } from '../services/apifyScraper.js';
+import { enqueue } from '../services/phoneRelayService.js';
+import { normalizePhone } from '../services/phoneUtils.js';
 
 const router = Router();
 
@@ -489,6 +491,47 @@ router.post('/matches/:id/confirm', requireAdmin, async (req, res) => {
     if (match.target_type === 'fb_post') {
       await pool.query('UPDATE facebook_posts SET is_matched = true WHERE id = $1', [match.target_id]);
     }
+
+    // Notify contactable side(s) about the confirmed match
+    async function getPetWithPhone(petId) {
+      const pet = (await pool.query(
+        `SELECT p.*, u.phone as user_phone FROM pets p LEFT JOIN users u ON u.id = p.created_by WHERE p.id = $1`,
+        [petId]
+      )).rows[0];
+      if (!pet) return null;
+      const phone = normalizePhone(pet.user_phone);
+      if (phone) return { phone, pet };
+      const cleaned = (pet.contact_info || '').replace(/\D/g, '');
+      if (cleaned.length >= 8) return { phone: normalizePhone(pet.contact_info), pet };
+      return null;
+    }
+
+    let sourceDesc = '', targetDesc = '';
+    if (match.source_type === 'fb_post') {
+      const post = (await pool.query('SELECT content, author_name, fb_post_url FROM facebook_posts WHERE id = $1', [match.source_id])).rows[0];
+      if (post) sourceDesc = `📝 *Publicación en Facebook*\n${(post.content || '').substring(0, 200)}${post.fb_post_url ? '\n🔗 ' + post.fb_post_url : ''}`;
+    } else {
+      const info = await getPetWithPhone(match.source_id);
+      if (info) sourceDesc = `🐾 *${info.pet.name || info.pet.species}* — ${info.pet.status} (${info.pet.location || 'sin ubicación'})`;
+    }
+    if (match.target_type === 'fb_post') {
+      const post = (await pool.query('SELECT content, author_name, fb_post_url FROM facebook_posts WHERE id = $1', [match.target_id])).rows[0];
+      if (post) targetDesc = `📝 *Publicación en Facebook*\n${(post.content || '').substring(0, 200)}${post.fb_post_url ? '\n🔗 ' + post.fb_post_url : ''}`;
+    } else {
+      const info = await getPetWithPhone(match.target_id);
+      if (info) targetDesc = `🐾 *${info.pet.name || info.pet.species}* — ${info.pet.status} (${info.pet.location || 'sin ubicación'})`;
+    }
+
+    const notifySide = async (type, id, otherDesc) => {
+      if (type === 'fb_post' || !otherDesc) return;
+      const info = await getPetWithPhone(id);
+      if (!info || !info.phone) return;
+      const msg = `🐾 *¡Coincidencia confirmada!*\n\nSu publicación en Sigo Tu Huella coincide con:\n\n${otherDesc}\n\nPara más información ingrese a la plataforma.`;
+      enqueue(info.phone, msg).catch(e => console.error('Match notification error:', e));
+    };
+
+    notifySide(match.source_type, match.source_id, targetDesc);
+    notifySide(match.target_type, match.target_id, sourceDesc);
 
     res.json(match);
   } catch (err) {
