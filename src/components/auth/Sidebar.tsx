@@ -74,8 +74,8 @@ export default function Sidebar({ onReportClick }: { onReportClick?: () => void 
     <aside className="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-r lg:border-brand-accent lg:bg-white lg:z-50">
       <div className="flex items-center justify-between gap-2 px-6 h-16 border-b border-brand-accent shrink-0">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-brand-primary rounded-xl">
-            <PawPrint className="w-5 h-5 text-white" />
+          <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 ring-1 ring-brand-primary/20">
+            <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
           </div>
           <span className="text-lg font-serif font-bold text-brand-primary">Sigo tu huella</span>
         </div>
