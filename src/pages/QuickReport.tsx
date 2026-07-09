@@ -421,33 +421,8 @@ export default function QuickReport() {
             </div>
           </button>
 
-          {/* Option 3: Lost my pet */}
-          <button onClick={() => navigate('/perdi-mi-mascota')}
-            className="w-full text-left p-5 sm:p-6 rounded-2xl border-2 border-red-200 bg-red-50/50 hover:bg-red-50 hover:border-red-300 transition-all group">
-            <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <Frown className="w-7 h-7 text-red-500" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-base sm:text-lg text-gray-800">Perdí mi mascota</h3>
-                <p className="text-sm text-gray-500 mt-1">Completá un formulario completo con todos los datos. Te avisaremos si aparece.</p>
-              </div>
-            </div>
-          </button>
-        </div>
+          </div>
 
-        {!isStandalone && (
-          <button onClick={handleInstallClick}
-            className="w-full mt-4 px-5 py-3.5 rounded-2xl border-2 border-dashed border-brand-primary/40 text-brand-primary hover:bg-brand-primary/5 hover:border-brand-primary/60 transition-all flex items-center justify-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-brand-primary/10 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Download className="w-5 h-5 text-brand-primary" />
-            </div>
-            <div className="text-left">
-              <span className="font-bold text-sm block">Guardar acceso directo</span>
-              <span className="text-xs text-gray-500">Accedé rápido en tu pantalla de inicio</span>
-            </div>
-          </button>
-        )}
         <p className="text-xs text-gray-400 text-center mt-8">Al enviar aceptás que tus datos sean utilizados para la publicación del reporte.</p>
         </div>
         </div>
