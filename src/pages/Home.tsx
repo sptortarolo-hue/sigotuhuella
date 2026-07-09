@@ -93,7 +93,7 @@ export default function Home() {
                 <span className="text-red-400 text-[10px] sm:text-xs">→</span>
               </Link>
 
-              <Link to="/reportar"
+              <Link to="/reportar?status=for_adoption_simple"
                 className="group bg-purple-50 border-2 border-purple-200 rounded-2xl p-4 sm:p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
                   <HeartHandshake className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500" />

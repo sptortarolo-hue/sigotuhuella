@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { createPet, PetStatus } from '@/src/lib/petService';
 import { filesToBase64 } from '@/src/lib/storageService';
@@ -29,6 +29,10 @@ const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
 export default function ReportPet() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialStatus = (Object.values(PetStatus) as string[]).includes(searchParams.get('status') || '')
+    ? searchParams.get('status') as PetStatus
+    : PetStatus.LOST;
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -46,7 +50,7 @@ export default function ReportPet() {
     species: 'dog' as 'dog' | 'cat' | 'other',
     breed: '',
     color: '',
-    status: PetStatus.LOST,
+    status: initialStatus,
     gender: 'unknown' as 'male' | 'female' | 'unknown',
     age: '',
     size: '',
