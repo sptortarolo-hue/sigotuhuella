@@ -388,8 +388,8 @@ export default function QuickReport() {
           <div className="w-16 h-16 bg-brand-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <PawPrint className="w-8 h-8 text-brand-primary" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary">Reporte rápido</h1>
-          <p className="text-gray-500 mt-2 text-sm sm:text-base">Sin necesidad de registro. Elegí qué situación querés reportar:</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary">Vi una mascota</h1>
+          <p className="text-gray-500 mt-2 text-sm sm:text-base">Sin necesidad de registro. Elegí qué situación aplicar:</p>
         </div>
 
         <div className="space-y-4">
