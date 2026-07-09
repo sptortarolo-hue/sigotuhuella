@@ -35,7 +35,7 @@ export default function Home() {
     <div className="flex flex-col">
       {/* Hero Section */}
       <section className="relative min-h-0 md:min-h-[80vh] flex items-center overflow-hidden bg-brand-bg px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center relative z-10 py-8 md:py-20">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 items-center relative z-10 py-8 md:py-20">
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
@@ -63,7 +63,7 @@ export default function Home() {
             </p>
 
             <Link to="/flyer"
-              className="w-full bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border border-brand-secondary/30 rounded-2xl p-4 sm:p-5 mb-6 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
+              className="w-full bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border border-brand-secondary/30 rounded-2xl p-4 sm:p-5 md:p-6 mb-6 md:mb-8 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-brand-primary to-brand-secondary/80 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
                 <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
@@ -74,9 +74,9 @@ export default function Home() {
               <span className="shrink-0 text-brand-secondary font-bold text-sm group-hover:translate-x-1 transition-transform">→</span>
             </Link>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-5 md:gap-6">
               <Link to="/perdi-mi-mascota"
-                className="group bg-brand-primary/10 border border-brand-primary/30 rounded-2xl p-4 sm:p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                className="group bg-brand-primary/10 border border-brand-primary/30 rounded-2xl p-4 sm:p-6 md:p-8 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-brand-primary rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
                   <PawPrint className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
@@ -85,7 +85,7 @@ export default function Home() {
               </Link>
 
               <Link to="/reportar-rapido"
-                className="group bg-brand-secondary/10 border border-brand-secondary/30 rounded-2xl p-4 sm:p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                className="group bg-brand-secondary/10 border border-brand-secondary/30 rounded-2xl p-4 sm:p-6 md:p-8 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-brand-secondary rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
                   <Search className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
@@ -94,7 +94,7 @@ export default function Home() {
               </Link>
 
               <Link to="/adopcion"
-                className="group bg-red-50 border-2 border-red-200 rounded-2xl p-4 sm:p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                className="group bg-red-50 border-2 border-red-200 rounded-2xl p-4 sm:p-6 md:p-8 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
                   <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" />
                 </div>
@@ -103,7 +103,7 @@ export default function Home() {
               </Link>
 
               <Link to="/reportar?status=for_adoption_simple"
-                className="group bg-purple-50 border-2 border-purple-200 rounded-2xl p-4 sm:p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
+                className="group bg-purple-50 border-2 border-purple-200 rounded-2xl p-4 sm:p-6 md:p-8 text-center hover:shadow-lg hover:-translate-y-1 transition-all">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
                   <HeartHandshake className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500" />
                 </div>
@@ -113,7 +113,7 @@ export default function Home() {
             </div>
 
             <Link to="/colaborar"
-              className="w-full bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border border-brand-secondary/30 rounded-2xl p-4 sm:p-5 mt-6 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
+              className="w-full bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border border-brand-secondary/30 rounded-2xl p-4 sm:p-5 md:p-6 mt-6 md:mt-8 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-brand-primary to-brand-secondary/80 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
                 <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
@@ -131,16 +131,12 @@ export default function Home() {
             transition={{ duration: 1, delay: 0.2 }}
             className="relative flex justify-center md:justify-end"
           >
-            <div className="hidden md:block w-60 sm:w-72 md:w-80 aspect-[4/5] bg-brand-accent rounded-[2rem] sm:rounded-[3rem] overflow-hidden rotate-3 shadow-2xl relative">
+            <div className="hidden md:block w-64 sm:w-80 md:w-96 aspect-[5/6] bg-brand-accent rounded-[2rem] sm:rounded-[3rem] overflow-hidden rotate-3 shadow-2xl relative">
               <img
                 src="/sigotuhuella.jpg"
                 alt="Sigo tu huella"
                 className="w-full h-full object-cover hover:scale-105 transition-all duration-700"
               />
-            </div>
-            <div className="hidden md:block absolute -bottom-4 -left-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xl border border-brand-accent -rotate-2">
-              <span className="block text-2xl sm:text-3xl font-serif font-bold text-brand-secondary">+150</span>
-              <span className="text-[10px] sm:text-xs uppercase tracking-widest text-gray-500 font-bold">Mascotas Ayudadas</span>
             </div>
           </motion.div>
         </div>
