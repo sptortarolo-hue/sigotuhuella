@@ -715,12 +715,16 @@ async function start() {
 
       const waHours = (await pool.query("SELECT value FROM settings WHERE key = 'wa_adoption_broadcast_hours'")).rows[0]?.value || '8,12,16,20';
       const fbHours = (await pool.query("SELECT value FROM settings WHERE key = 'fb_adoption_broadcast_hours'")).rows[0]?.value || '8,12,16,20';
+      const lastWaHour = parseInt((await pool.query("SELECT value FROM settings WHERE key = 'last_wa_adoption_broadcast_hour'")).rows[0]?.value || '-1');
+      const lastFbHour = parseInt((await pool.query("SELECT value FROM settings WHERE key = 'last_fb_adoption_broadcast_hour'")).rows[0]?.value || '-1');
 
-      if (waHours.split(',').map(s => parseInt(s.trim())).includes(hour)) {
+      if (hour !== lastWaHour && waHours.split(',').map(s => parseInt(s.trim())).includes(hour)) {
         await broadcastNextAdoptionPet();
+        await pool.query("UPDATE settings SET value = $1 WHERE key = 'last_wa_adoption_broadcast_hour'", [String(hour)]);
       }
-      if (fbHours.split(',').map(s => parseInt(s.trim())).includes(hour)) {
+      if (hour !== lastFbHour && fbHours.split(',').map(s => parseInt(s.trim())).includes(hour)) {
         await broadcastFbAdoptionPets();
+        await pool.query("UPDATE settings SET value = $1 WHERE key = 'last_fb_adoption_broadcast_hour'", [String(hour)]);
       }
     } catch (err) {
       console.error('[AdoptionBroadcast Scheduler] Error:', err.message);

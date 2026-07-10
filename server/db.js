@@ -885,6 +885,14 @@ export async function initDb() {
     `, 'fb_adoption_broadcast_hours');
 
     await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('last_wa_adoption_broadcast_hour', '-1') ON CONFLICT (key) DO NOTHING
+    `, 'last_wa_adoption_broadcast_hour');
+
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('last_fb_adoption_broadcast_hour', '-1') ON CONFLICT (key) DO NOTHING
+    `, 'last_fb_adoption_broadcast_hour');
+
+    await migrate(client, `
       CREATE TABLE IF NOT EXISTS share_invites (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
