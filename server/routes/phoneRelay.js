@@ -296,6 +296,80 @@ router.get('/script', (req, res) => {
 
 const WA_KEYWORDS = /perdido|perdida|encontré|encontre|encontrada|encontrado|perro|perra|gato|gata|mascota|apareció|aparecio|extraviado|extraviada|adopción|adopcion|callejero|abandonado|busco|busca|rescate|rescaté|rescatado/i;
 
+router.get('/scraped-messages', relayAuth, async (req, res) => {
+  try {
+    const { classification, species, search, limit = 50, offset = 0 } = req.query;
+    const conditions = [];
+    const params = [];
+    let idx = 1;
+
+    if (classification && classification !== 'all') {
+      conditions.push(`classification = $${idx++}`);
+      params.push(classification);
+    }
+    if (species && species !== 'all') {
+      conditions.push(`species = $${idx++}`);
+      params.push(species);
+    }
+    if (search) {
+      conditions.push(`(content ILIKE $${idx} OR author_name ILIKE $${idx})`);
+      params.push(`%${search}%`);
+      idx++;
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    const sql = `
+      SELECT * FROM (
+        SELECT id, 'fb' as source, fg.name as group_name, author_name, content,
+          classification, species, color, location_hint, phone, is_matched, created_at,
+          image_urls, fb_post_url,
+          null as has_image, null as wa_message_id, null as image_data, null as image_mime,
+          null as author_jid
+        FROM facebook_posts fp
+        JOIN facebook_groups fg ON fg.id = fp.group_id
+        WHERE fp.classification IS NOT NULL
+
+        UNION ALL
+
+        SELECT id, 'wa' as source, wg.name as group_name, author_name, content,
+          classification, species, color, location_hint, phone, is_matched, created_at,
+          null as image_urls, null as fb_post_url,
+          (image_data IS NOT NULL) as has_image, wa_message_id, image_data, image_mime,
+          author_jid
+        FROM whatsapp_scraped_messages wsm
+        JOIN whatsapp_groups wg ON wg.id = wsm.group_id
+        WHERE wsm.classification IS NOT NULL
+      ) combined ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT $${idx++} OFFSET $${idx++}
+    `;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const result = await pool.query(sql, params);
+    res.json({ messages: result.rows });
+  } catch (err) {
+    console.error('[Relay] scraped-messages error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/scraped-messages/:id/image', relayAuth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT image_data, image_mime FROM whatsapp_scraped_messages WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).json({ error: 'No image' });
+    const buf = Buffer.from(result.rows[0].image_data, 'base64');
+    res.writeHead(200, {
+      'Content-Type': result.rows[0].image_mime || 'image/jpeg',
+      'Content-Length': buf.length,
+    });
+    res.end(buf);
+  } catch (err) {
+    console.error('[Relay] scraped-message image error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/resolve-group', relayAuth, async (req, res) => {
   try {
     const { jid, name } = req.body;

@@ -22,6 +22,7 @@ import SocialShareModal from '@/src/components/SocialShareModal';
 import { BADGE_CONFIG } from '@/src/components/MemberCard';
 import VideoGeneratorTab from '@/src/pages/admin/VideoGeneratorTab';
 import FacebookTab from '@/src/components/admin/FacebookTab';
+import ScraperTab from '@/src/components/admin/ScraperTab';
 import InstagramTab from '@/src/components/admin/InstagramTab';
 import WhatsAppTab from '@/src/components/admin/WhatsAppTab';
 import RelayWhatsAppTab from '@/src/components/admin/RelayWhatsAppTab';
@@ -43,7 +44,7 @@ import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -928,6 +929,7 @@ export default function Admin() {
           { id: 'relay-whatsapp', label: 'WhatsApp Relay', icon: Smartphone },
           { id: 'fb-relay', label: 'FB Phone Relay', icon: Smartphone },
           { id: 'instagram', label: 'Instagram', icon: Camera },
+          { id: 'scraper', label: 'Scraper', icon: Globe },
           { id: 'facebook', label: 'Facebook', icon: Globe },
           { id: 'videos', label: 'Videos', icon: Film },
   { id: 'qr', label: 'QR', icon: QrCode },
@@ -1995,6 +1997,11 @@ export default function Admin() {
             {/* ====== INSTAGRAM ====== */}
             {activeTab === 'instagram' && (
               <InstagramTab initialError={igConnectError} />
+            )}
+
+            {/* ====== SCRAPER ====== */}
+            {activeTab === 'scraper' && (
+              <ScraperTab />
             )}
 
             {/* ====== FACEBOOK ====== */}
