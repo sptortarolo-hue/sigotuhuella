@@ -36,6 +36,80 @@ Reglas:
 - confidence: 0-100 que tan seguro estás
 - No incluyas la URL del post ni metadatos de Facebook en el summary`;
 
+const WA_CLASSIFICATION_PROMPT = `Eres un clasificador de mensajes de WhatsApp sobre mascotas perdidas y encontradas para la app "Sigo Tu Huella".
+Analizá el mensaje y la imagen. Devolvé SOLO un JSON válido sin markdown:
+
+{
+  "classification": "lost" | "found" | "sighting" | "reunion" | "other",
+  "species": "dog" | "cat" | "other" | null,
+  "species_other": "string | null",
+  "name": "string | null",
+  "breed": "string | null",
+  "gender": "male" | "female" | null,
+  "colors": ["string"],
+  "location": "string | null",
+  "phone": "string | null",
+  "confidence": 0-100,
+  "summary": "string (máx 200 chars, español)"
+}
+
+Reglas:
+- lost = mensaje reportando mascota perdida/extraviada
+- found = mensaje reportando mascota encontrada
+- sighting = alguien vio una mascota
+- reunion = la mascota ya apareció
+- other = no es sobre mascota perdida/encontrada
+- Los mensajes de WhatsApp suelen ser informales, con pocos detalles
+- species: determinar por la imagen si es posible, si no por el texto
+- Extraer teléfono si aparece en el texto`;
+
+export async function classifyWhatsAppMessage(text, imageBuffer = null, imageMime = null) {
+  try {
+    const hasImage = imageBuffer && imageMime;
+    if (hasImage) {
+      const userContent = [
+        { type: 'text', text: `${WA_CLASSIFICATION_PROMPT}\n\nMensaje:\n${text || '(sin texto)'}` },
+        { type: 'image_url', image_url: { url: `data:${imageMime};base64,${imageBuffer}` } },
+      ];
+      const { text: raw, provider } = await classificationAI([{ role: 'user', content: userContent }], true);
+      console.log(`[classifyWA] Usó ${provider}`);
+      const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      const parsed = JSON.parse(cleaned);
+      return formatWAResult(parsed);
+    }
+
+    const { text: raw, provider } = await classificationAI(
+      [{ role: 'user', content: `${WA_CLASSIFICATION_PROMPT}\n\nMensaje:\n${text || '(sin texto)'}` }],
+      false
+    );
+    console.log(`[classifyWA] Usó ${provider}`);
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const parsed = JSON.parse(cleaned);
+    return formatWAResult(parsed);
+  } catch (err) {
+    console.error('classifyWhatsAppMessage error:', err.message);
+    return {
+      classification: 'other',
+      species: null,
+      color: null,
+      location_hint: null,
+      phone: null,
+      confidence: 0,
+    };
+  }
+}
+
+function formatWAResult(result) {
+  return {
+    classification: ['lost', 'found', 'sighting', 'reunion', 'other'].includes(result.classification) ? result.classification : 'other',
+    species: ['dog', 'cat', 'other', null].includes(result.species) ? result.species : null,
+    color: Array.isArray(result.colors) ? result.colors.join(', ') : null,
+    location_hint: result.location || null,
+    phone: result.phone || null,
+    confidence: Math.min(100, Math.max(0, result.confidence || 0)),
+  };
+}
+
 export async function classifyPost(text, imageUrls, comments = [], imageBuffers = []) {
   const commentsText = comments.map(c => `- ${c.author}: "${c.text}"`).join('\n');
 

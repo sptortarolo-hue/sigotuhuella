@@ -442,12 +442,12 @@ router.get('/matches', requireAdmin, async (req, res) => {
     let sql = `SELECT fm.*,
       CASE
         WHEN fm.source_type = 'fb_post' THEN (SELECT content FROM facebook_posts WHERE id = fm.source_id::uuid)
-        WHEN fm.source_type = 'app_pet' THEN (SELECT name FROM pets WHERE id = fm.source_id::uuid)
+        WHEN fm.source_type IN ('app_pet', 'wa_report', 'wa_group') THEN (SELECT name FROM pets WHERE id = fm.source_id::uuid)
         ELSE NULL
       END as source_label,
       CASE
         WHEN fm.target_type = 'fb_post' THEN (SELECT content FROM facebook_posts WHERE id = fm.target_id::uuid)
-        WHEN fm.target_type = 'app_pet' THEN (SELECT name FROM pets WHERE id = fm.target_id::uuid)
+        WHEN fm.target_type IN ('app_pet', 'wa_report', 'wa_group') THEN (SELECT name FROM pets WHERE id = fm.target_id::uuid)
         ELSE NULL
       END as target_label
       FROM facebook_matches fm WHERE 1=1`;

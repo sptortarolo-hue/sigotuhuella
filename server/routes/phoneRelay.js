@@ -5,6 +5,8 @@ import pool from '../db.js';
 import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAllGroups, saveQR, clearQR, getQR, getPetForBroadcast, getLatestPet, generateBroadcastCaption, searchPets } from '../services/phoneRelayService.js';
 import { broadcastAdoptionPet } from '../services/whatsappService.js';
 import { requireAdmin } from '../auth.js';
+import { classifyWhatsAppMessage } from '../services/geminiClassifier.js';
+import { matchWhatsAppMessageToPet } from '../services/geminiMatching.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -290,6 +292,75 @@ router.post('/clear-queue', requireAdmin, async (req, res) => {
 
 router.get('/script', (req, res) => {
   res.download(path.join(__dirname, '../../relay.js'), 'relay.js');
+});
+
+const WA_KEYWORDS = /perdido|perdida|encontré|encontre|encontrada|encontrado|perro|perra|gato|gata|mascota|apareció|aparecio|extraviado|extraviada|adopción|adopcion|callejero|abandonado|busco|busca|rescate|rescaté|rescatado/i;
+
+router.post('/resolve-group', relayAuth, async (req, res) => {
+  try {
+    const { jid, name } = req.body;
+    if (!jid) return res.status(400).json({ error: 'jid required' });
+    const result = await pool.query('SELECT id FROM whatsapp_groups WHERE group_id = $1', [jid]);
+    if (result.rows.length > 0) return res.json({ id: result.rows[0].id });
+    // Auto-register group with scrape enabled
+    const insert = await pool.query(
+      `INSERT INTO whatsapp_groups (name, group_id, is_active, auto_broadcast, scrape_enabled)
+       VALUES ($1, $2, true, false, true) RETURNING id`,
+      [name || jid, jid]
+    );
+    console.log(`[Relay] Auto-registered group ${jid} as ${insert.rows[0].id}`);
+    res.json({ id: insert.rows[0].id });
+  } catch (err) {
+    console.error('[Relay] resolve-group error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/scraped-message', relayAuth, async (req, res) => {
+  try {
+    const { group_id, wa_message_id, author_jid, author_name, content, image_data, image_mime } = req.body;
+    if (!group_id || !wa_message_id) return res.status(400).json({ error: 'group_id and wa_message_id required' });
+
+    // Check if this group has scrape enabled
+    const groupRes = await pool.query('SELECT scrape_enabled FROM whatsapp_groups WHERE id = $1', [group_id]);
+    if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
+    if (!groupRes.rows[0].scrape_enabled) return res.json({ skipped: true, reason: 'scrape disabled' });
+
+    // Check if already exists (dedup)
+    const existing = await pool.query('SELECT id FROM whatsapp_scraped_messages WHERE wa_message_id = $1', [wa_message_id]);
+    if (existing.rows.length > 0) return res.json({ skipped: true, reason: 'duplicate' });
+
+    // Classify with AI
+    const classification = await classifyWhatsAppMessage(content || '', image_data || null, image_mime || null);
+
+    // Skip non-pet messages
+    if (classification.classification === 'other' && !WA_KEYWORDS.test(content || '')) {
+      return res.json({ skipped: true, reason: 'not pet related' });
+    }
+
+    // Store
+    const insertRes = await pool.query(
+      `INSERT INTO whatsapp_scraped_messages (group_id, wa_message_id, author_jid, author_name, content, image_data, image_mime, classification, species, color, location_hint, phone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       ON CONFLICT (wa_message_id) DO NOTHING
+       RETURNING id`,
+      [group_id, wa_message_id, author_jid || null, author_name || null, content || null, image_data || null, image_mime || null,
+       classification.classification, classification.species, classification.color, classification.location_hint, classification.phone]
+    );
+    if (insertRes.rows.length === 0) return res.json({ skipped: true, reason: 'duplicate after insert' });
+
+    const messageId = insertRes.rows[0].id;
+
+    // Run matching in background if lost/found
+    if (['lost', 'found', 'sighting'].includes(classification.classification)) {
+      matchWhatsAppMessageToPet(messageId).catch(e => console.error('WA message matching error:', e));
+    }
+
+    res.json({ id: messageId, classification: classification.classification });
+  } catch (err) {
+    console.error('[Relay] scraped-message error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

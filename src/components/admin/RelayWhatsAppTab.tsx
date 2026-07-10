@@ -29,6 +29,7 @@ interface GroupInfo {
   is_active: boolean;
   auto_broadcast: boolean;
   broadcast_adoptions: boolean;
+  scrape_enabled?: boolean;
   type?: string;
 }
 
@@ -143,6 +144,13 @@ export default function RelayWhatsAppTab() {
   const toggleAdoptions = async (id: string, broadcast_adoptions: boolean) => {
     try {
       await api.whatsapp.updateGroup(id, { broadcast_adoptions: !broadcast_adoptions });
+      await fetchGroups();
+    } catch (e) { console.error(e); }
+  };
+
+  const toggleScrape = async (id: string, scrape_enabled: boolean) => {
+    try {
+      await api.whatsapp.updateGroup(id, { scrape_enabled: !scrape_enabled });
       await fetchGroups();
     } catch (e) { console.error(e); }
   };
@@ -838,14 +846,15 @@ export default function RelayWhatsAppTab() {
           <div className="overflow-x-auto rounded-2xl border border-brand-accent">
             <table className="w-full text-left min-w-max">
               <thead>
-                  <tr className="bg-brand-bg text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    <th className="px-4 py-3">Nombre</th>
-                    <th className="px-4 py-3">Group ID</th>
-                    <th className="px-4 py-3">Activo</th>
-                    <th className="px-4 py-3">Auto</th>
-                    <th className="px-4 py-3">Adopciones</th>
-                    <th className="px-4 py-3">Acciones</th>
-                  </tr>
+                    <tr className="bg-brand-bg text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3">Nombre</th>
+                      <th className="px-4 py-3">Group ID</th>
+                      <th className="px-4 py-3">Activo</th>
+                      <th className="px-4 py-3">Auto</th>
+                      <th className="px-4 py-3">Adopciones</th>
+                      <th className="px-4 py-3">Scrapear</th>
+                      <th className="px-4 py-3">Acciones</th>
+                    </tr>
               </thead>
               <tbody className="divide-y divide-brand-accent">
                 {groups.map((g) => (
@@ -883,6 +892,17 @@ export default function RelayWhatsAppTab() {
                         )}
                       >
                         {g.broadcast_adoptions ? 'Sí' : 'No'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleScrape(g.id, !!g.scrape_enabled)}
+                        className={cn(
+                          "px-3 py-1 rounded-full text-xs font-bold transition-all",
+                          g.scrape_enabled ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-400"
+                        )}
+                      >
+                        {g.scrape_enabled ? 'Sí' : 'No'}
                       </button>
                     </td>
                     <td className="px-4 py-3">

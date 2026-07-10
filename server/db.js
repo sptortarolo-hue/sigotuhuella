@@ -1133,6 +1133,32 @@ export async function initDb() {
       ALTER TABLE news ADD COLUMN IF NOT EXISTS source_url TEXT
     `, 'news source_url');
 
+    await migrate(client, `
+      ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS scrape_enabled BOOLEAN DEFAULT FALSE
+    `, 'whatsapp_groups scrape_enabled');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS whatsapp_scraped_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        group_id UUID REFERENCES whatsapp_groups(id) ON DELETE CASCADE,
+        wa_message_id VARCHAR(255) UNIQUE NOT NULL,
+        author_jid VARCHAR(255),
+        author_name VARCHAR(255),
+        content TEXT,
+        image_data TEXT,
+        image_mime VARCHAR(50),
+        classification VARCHAR(50) DEFAULT 'unclassified',
+        species VARCHAR(50),
+        color VARCHAR(255),
+        location_hint VARCHAR(500),
+        phone VARCHAR(100),
+        latitude DOUBLE PRECISION,
+        longitude DOUBLE PRECISION,
+        is_matched BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `, 'whatsapp_scraped_messages');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

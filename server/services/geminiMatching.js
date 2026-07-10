@@ -96,6 +96,67 @@ export async function matchPostToPet(postId) {
   }
 }
 
+export async function matchWhatsAppMessageToPet(messageId) {
+  try {
+    const msgRes = await pool.query('SELECT * FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
+    if (msgRes.rows.length === 0) return [];
+    const msg = msgRes.rows[0];
+    if (msg.is_matched) return [];
+
+    const candidates = await pool.query(
+      `SELECT id, name, species, color, description, location, latitude, longitude, status
+       FROM pets
+       WHERE status IN ('lost', 'sighted') AND (
+         $1::text IS NULL OR species = $1::text
+       )
+       ORDER BY created_at DESC LIMIT 20`,
+      [msg.species]
+    );
+    if (candidates.rows.length === 0) return [];
+
+    const sourceText = `Mensaje de WhatsApp:\n${msg.content || '(sin texto)'}`;
+    const candidatesText = candidates.rows.map((c, i) =>
+      `[${i}] ${c.name ? 'Nombre: ' + c.name + ', ' : ''}Especie: ${c.species}, Color: ${c.color || 'no especificado'}, Ubicación: ${c.location || 'no especificada'}, Estado: ${c.status}, Descripción: ${c.description || 'N/A'}`
+    ).join('\n');
+
+    const { text: raw, provider } = await matchingAI(
+      BATCH_MATCH_PROMPT,
+      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
+    );
+    console.log(`[matching] matchWhatsAppMessageToPet usó ${provider}`);
+    const result = JSON.parse(raw);
+
+    const matches = [];
+    if (result.matches) {
+      for (const m of result.matches) {
+        if (m.match && m.score >= 50 && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
+          const pet = candidates.rows[m.candidate_index];
+          const insertRes = await pool.query(
+            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
+             VALUES ('wa_group', $1, 'app_pet', $2, $3, $4, 'ai')
+             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING
+             RETURNING id`,
+            [messageId, pet.id, m.score, m.reasons || []]
+          );
+          if (insertRes.rows.length > 0) {
+            matches.push({ pet, score: m.score, reasons: m.reasons || [] });
+          }
+        }
+      }
+    }
+
+    if (matches.length > 0) {
+      await pool.query('UPDATE whatsapp_scraped_messages SET is_matched = true WHERE id = $1', [messageId]);
+      console.log(`[matching] WhatsApp message ${messageId} matched ${matches.length} pets`);
+    }
+
+    return matches;
+  } catch (err) {
+    console.error('matchWhatsAppMessageToPet error:', err);
+    return [];
+  }
+}
+
 export async function matchPetToPosts(pet) {
   try {
     const fbPosts = await pool.query(

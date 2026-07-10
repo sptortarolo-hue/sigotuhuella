@@ -1,9 +1,10 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const { readdirSync, existsSync } = require('fs');
 const path = require('path');
 const axios = require('axios');
 const QR = require('qrcode-terminal');
 const QRCode = require('qrcode');
+const { Readable } = require('stream');
 
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = process.env.RELAY_TOKEN || 'RELAY_TOKEN';
@@ -69,6 +70,27 @@ function isContactKnown(jid) {
     if (k.includes(bare) || bare.includes(k.split('@')[0])) return true;
   }
   return false;
+}
+
+const WA_KEYWORDS = /perdido|perdida|encontré|encontre|encontrada|encontrado|perro|perra|gato|gata|mascota|apareció|aparecio|extraviado|extraviada|adopción|adopcion|callejero|abandonado|busco|busca|rescate|rescaté|rescatado|hallazgo/i;
+
+function streamToBuffer(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on('data', c => chunks.push(c));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+  });
+}
+
+async function getGroupId(jid) {
+  const groupMetadata = await sock.groupMetadata(jid).catch(() => null);
+  const name = groupMetadata?.subject || jid;
+  const { data } = await axios.post(`${VPS_URL}/api/relay/resolve-group`, { jid, name }, {
+    headers: { Authorization: `Bearer ${TOKEN}` },
+    timeout: 10000,
+  });
+  return data?.id || null;
 }
 
 function scheduleTimelockCheck() {
@@ -258,11 +280,10 @@ async function start() {
   sock.ev.on('messages.upsert', async ({ messages }) => {
     for (const msg of messages) {
       if (msg.key.remoteJid === 'status@broadcast') continue;
-      if (msg.key.remoteJid.endsWith('@g.us')) continue;
-
       const from = msg.key.remoteJid;
+      const isGroup = from.endsWith('@g.us');
 
-      if (!msg.key.fromMe) {
+      if (!msg.key.fromMe && !isGroup) {
         knownContacts.add(from);
       }
 
@@ -272,6 +293,53 @@ async function start() {
         continue;
       }
 
+      if (isGroup) {
+        // Scrape group messages for lost/found pets
+        if (replyCooldowns.has(from)) continue;
+
+        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || '';
+        if (!WA_KEYWORDS.test(text)) continue;
+
+        console.log(`[Grupo] ${from}: ${text.substring(0, 80)}`);
+
+        let imageData = null;
+        let imageMime = null;
+        if (msg.message?.imageMessage) {
+          try {
+            const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image');
+            const buffer = await streamToBuffer(stream);
+            imageData = buffer.toString('base64');
+            imageMime = msg.message.imageMessage.mimetype || 'image/jpeg';
+          } catch (e) {
+            console.error(`[Grupo] Error descargando imagen: ${e.message}`);
+          }
+        }
+
+        const groupId = await getGroupId(from).catch(() => null);
+        if (!groupId) continue;
+
+        const authorName = msg.pushName || msg.participant?.split('@')[0] || null;
+
+        axios.post(`${VPS_URL}/api/relay/scraped-message`, {
+          group_id: groupId,
+          wa_message_id: msg.key.id,
+          author_jid: msg.key.participant || msg.key.remoteJid,
+          author_name: authorName,
+          content: text,
+          image_data: imageData,
+          image_mime: imageMime,
+        }, {
+          headers: { Authorization: `Bearer ${TOKEN}` },
+          timeout: 30000,
+        }).then(resp => {
+          if (resp.data?.id) console.log(`[Grupo] Scrapeado: ${resp.data.id} (${resp.data.classification})`);
+          else if (resp.data?.skipped) console.log(`[Grupo] Saltado: ${resp.data.reason}`);
+        }).catch(e => console.error(`[Grupo] Error al enviar: ${e.message}`));
+
+        continue;
+      }
+
+      // Private message handling
       if (replyCooldowns.has(from)) continue;
 
       const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
