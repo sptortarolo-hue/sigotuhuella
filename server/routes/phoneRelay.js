@@ -81,6 +81,18 @@ router.get('/relay-failed', requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/groups', relayAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, name, group_id, scrape_enabled FROM whatsapp_groups WHERE is_active = true ORDER BY name ASC'
+    );
+    res.json({ groups: result.rows });
+  } catch (err) {
+    console.error('[Relay] groups error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/pending-list', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
