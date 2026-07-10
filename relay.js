@@ -1,10 +1,9 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 const { readdirSync, existsSync } = require('fs');
 const path = require('path');
 const axios = require('axios');
 const QR = require('qrcode-terminal');
 const QRCode = require('qrcode');
-const { Readable } = require('stream');
 
 process.on('uncaughtException', (err) => {
   console.error('[FATAL] Uncaught Exception:', err.stack || err.message);
@@ -16,10 +15,10 @@ process.on('unhandledRejection', (reason) => {
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = process.env.RELAY_TOKEN || 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
-const POLL_INTERVAL = 60000;
-const MESSAGE_DELAY = 3000;
-const BATCH_LIMIT = 2;
-const MAX_RETRIES = 3;
+const POLL_INTERVAL = 180000;
+const MESSAGE_DELAY = 10000;
+const BATCH_LIMIT = 1;
+const MAX_RETRIES = 1;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const PREWARM_DELAY = 2000;
 const TIMELOCK_CHECK_MS = 60000;
@@ -82,15 +81,6 @@ function isContactKnown(jid) {
 }
 
 const WA_KEYWORDS = /perdido|perdida|encontré|encontre|encontrada|encontrado|perro|perra|gato|gata|mascota|apareció|aparecio|extraviado|extraviada|adopción|adopcion|callejero|abandonado|busco|busca|rescate|rescaté|rescatado|hallazgo/i;
-
-function streamToBuffer(stream) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on('data', c => chunks.push(c));
-    stream.on('end', () => resolve(Buffer.concat(chunks)));
-    stream.on('error', reject);
-  });
-}
 
 async function getGroupId(jid) {
   const { data } = await axios.post(`${VPS_URL}/api/relay/resolve-group`, { jid, name: jid }, {
@@ -311,18 +301,7 @@ async function start() {
 
         console.log(`[Grupo] ${from}: ${text.substring(0, 80)}`);
 
-        let imageData = null;
-        let imageMime = null;
-        if (msg.message?.imageMessage) {
-          try {
-            const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image');
-            const buffer = await streamToBuffer(stream);
-            imageData = buffer.toString('base64');
-            imageMime = msg.message.imageMessage.mimetype || 'image/jpeg';
-          } catch (e) {
-            console.error(`[Grupo] Error descargando imagen: ${e.message}`);
-          }
-        }
+        const hasImage = !!msg.message?.imageMessage;
 
         const groupId = await getGroupId(from).catch(() => null);
         if (!groupId) continue;
@@ -335,8 +314,7 @@ async function start() {
           author_jid: msg.key.participant || msg.key.remoteJid,
           author_name: authorName,
           content: text,
-          image_data: imageData,
-          image_mime: imageMime,
+          has_image: hasImage,
         }, {
           headers: { Authorization: `Bearer ${TOKEN}` },
           timeout: 30000,
@@ -399,17 +377,9 @@ async function start() {
               return normalized.includes('@') ? normalized : `${normalized}@s.whatsapp.net`;
             })();
 
-            if (!isGroup && !isChannel) {
-              const normalized = jid.split('@')[0];
-              if (!isContactKnown(jid)) {
-                const [exists] = await sock.onWhatsApp(normalized);
-                if (!exists?.exists) {
-                  console.error(`Número no registrado en WhatsApp: ${normalized}`);
-                  continue;
-                }
-                await sock.sendPresenceUpdate('available', jid).catch(() => {});
-                await sleep(PREWARM_DELAY);
-              }
+            if (!isGroup && !isChannel && !isContactKnown(jid)) {
+              await sock.sendPresenceUpdate('available', jid).catch(() => {});
+              await sleep(PREWARM_DELAY);
             }
 
             if (msg.image_url) {
