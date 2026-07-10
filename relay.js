@@ -8,8 +8,8 @@ const QRCode = require('qrcode');
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = process.env.RELAY_TOKEN || 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
-const POLL_INTERVAL = 30000;
-const MAX_RETRIES = 3;
+const POLL_INTERVAL = 120000;
+const MAX_RETRIES = 1;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const PREWARM_DELAY = 2000;
 const TIMELOCK_CHECK_MS = 60000;
@@ -188,6 +188,8 @@ async function start() {
     printQRInTerminal: false,
     syncFullHistory: false,
     connectTimeoutMs: 60000,
+    keepAliveIntervalMs: 60000,
+    markOnlineOnConnect: false,
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -214,8 +216,8 @@ async function start() {
           console.log(`Reconectando en ${delay / 1000}s (intento #${reconnectCount})...`);
           setTimeout(start, delay);
         } else {
-          console.log('Reconectando en 5s...');
-          setTimeout(start, 5000);
+          console.log('Reconectando en 30s...');
+          setTimeout(start, 30000);
         }
       }
     }
