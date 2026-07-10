@@ -5,20 +5,11 @@ const axios = require('axios');
 const QR = require('qrcode-terminal');
 const QRCode = require('qrcode');
 
-process.on('uncaughtException', (err) => {
-  console.error('[FATAL] Uncaught Exception:', err.stack || err.message);
-});
-process.on('unhandledRejection', (reason) => {
-  console.error('[FATAL] Unhandled Rejection:', reason?.stack || reason?.message || reason);
-});
-
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = process.env.RELAY_TOKEN || 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
-const POLL_INTERVAL = 180000;
-const MESSAGE_DELAY = 10000;
-const BATCH_LIMIT = 1;
-const MAX_RETRIES = 1;
+const POLL_INTERVAL = 30000;
+const MAX_RETRIES = 3;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const PREWARM_DELAY = 2000;
 const TIMELOCK_CHECK_MS = 60000;
@@ -50,7 +41,7 @@ function normalizeNumber(num) {
 }
 
 function getReconnectDelay() {
-  const delays = [10, 30, 60, 120, 300];
+  const delays = [10, 30, 60, 120];
   const idx = Math.min(reconnectCount, delays.length - 1);
   return delays[idx] * 1000;
 }
@@ -78,16 +69,6 @@ function isContactKnown(jid) {
     if (k.includes(bare) || bare.includes(k.split('@')[0])) return true;
   }
   return false;
-}
-
-const WA_KEYWORDS = /perdido|perdida|encontré|encontre|encontrada|encontrado|perro|perra|gato|gata|mascota|apareció|aparecio|extraviado|extraviada|adopción|adopcion|callejero|abandonado|busco|busca|rescate|rescaté|rescatado|hallazgo/i;
-
-async function getGroupId(jid) {
-  const { data } = await axios.post(`${VPS_URL}/api/relay/resolve-group`, { jid, name: jid }, {
-    headers: { Authorization: `Bearer ${TOKEN}` },
-    timeout: 10000,
-  });
-  return data?.id || null;
 }
 
 function scheduleTimelockCheck() {
@@ -207,8 +188,6 @@ async function start() {
     printQRInTerminal: false,
     syncFullHistory: false,
     connectTimeoutMs: 60000,
-    keepAliveIntervalMs: 60000,
-    markOnlineOnConnect: false,
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -235,8 +214,8 @@ async function start() {
           console.log(`Reconectando en ${delay / 1000}s (intento #${reconnectCount})...`);
           setTimeout(start, delay);
         } else {
-          console.log('Reconectando en 30s (TLS/red)...');
-          setTimeout(start, 30000);
+          console.log('Reconectando en 5s...');
+          setTimeout(start, 5000);
         }
       }
     }
@@ -279,10 +258,11 @@ async function start() {
   sock.ev.on('messages.upsert', async ({ messages }) => {
     for (const msg of messages) {
       if (msg.key.remoteJid === 'status@broadcast') continue;
-      const from = msg.key.remoteJid;
-      const isGroup = from.endsWith('@g.us');
+      if (msg.key.remoteJid.endsWith('@g.us')) continue;
 
-      if (!msg.key.fromMe && !isGroup) {
+      const from = msg.key.remoteJid;
+
+      if (!msg.key.fromMe) {
         knownContacts.add(from);
       }
 
@@ -292,41 +272,6 @@ async function start() {
         continue;
       }
 
-      if (isGroup) {
-        // Scrape group messages for lost/found pets
-        if (replyCooldowns.has(from)) continue;
-
-        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || '';
-        if (!WA_KEYWORDS.test(text)) continue;
-
-        console.log(`[Grupo] ${from}: ${text.substring(0, 80)}`);
-
-        const hasImage = !!msg.message?.imageMessage;
-
-        const groupId = await getGroupId(from).catch(() => null);
-        if (!groupId) continue;
-
-        const authorName = msg.pushName || msg.participant?.split('@')[0] || null;
-
-        axios.post(`${VPS_URL}/api/relay/scraped-message`, {
-          group_id: groupId,
-          wa_message_id: msg.key.id,
-          author_jid: msg.key.participant || msg.key.remoteJid,
-          author_name: authorName,
-          content: text,
-          has_image: hasImage,
-        }, {
-          headers: { Authorization: `Bearer ${TOKEN}` },
-          timeout: 30000,
-        }).then(resp => {
-          if (resp.data?.id) console.log(`[Grupo] Scrapeado: ${resp.data.id} (${resp.data.classification})`);
-          else if (resp.data?.skipped) console.log(`[Grupo] Saltado: ${resp.data.reason}`);
-        }).catch(e => console.error(`[Grupo] Error al enviar: ${e.message}`));
-
-        continue;
-      }
-
-      // Private message handling
       if (replyCooldowns.has(from)) continue;
 
       const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
@@ -348,80 +293,77 @@ async function start() {
     }
   }, 3600000);
 
-  function startPollTimer() {
-    if (pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(async () => {
-      try {
-        if (timelock.active) {
-          const expiredTimelock = recent463Jids.size > 0 && Date.now() >= timelock.expiresAt;
-          if (expiredTimelock) {
-            timelock.active = false;
-            timelock.expiresAt = 0;
-            console.log('[Timelock] Expirado, reanudando envíos');
-          }
+  pollTimer = setInterval(async () => {
+    try {
+      if (timelock.active) {
+        const expiredTimelock = recent463Jids.size > 0 && Date.now() >= timelock.expiresAt;
+        if (expiredTimelock) {
+          timelock.active = false;
+          timelock.expiresAt = 0;
+          console.log('[Timelock] Expirado, reanudando envíos');
         }
+      }
 
-        const { data } = await axios.get(`${VPS_URL}/api/relay/pending`, {
-          headers: { Authorization: `Bearer ${TOKEN}` },
-          timeout: 20000,
-        });
-        if (!data.messages?.length) return;
-        const sentIds = [];
-        const batch = data.messages.slice(0, BATCH_LIMIT);
-        for (const msg of batch) {
-          try {
-            const isGroup = msg.wa_to.includes('@g.us');
-            const isChannel = msg.wa_to.includes('@newsletter');
-            const jid = (isGroup || isChannel) ? msg.wa_to : (() => {
-              const normalized = normalizeNumber(msg.wa_to);
-              return normalized.includes('@') ? normalized : `${normalized}@s.whatsapp.net`;
-            })();
+      const { data } = await axios.get(`${VPS_URL}/api/relay/pending`, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+        timeout: 20000,
+      });
+      if (!data.messages?.length) return;
+      const sentIds = [];
+      for (const msg of data.messages) {
+        try {
+          const isGroup = msg.wa_to.includes('@g.us');
+          const isChannel = msg.wa_to.includes('@newsletter');
+          const jid = (isGroup || isChannel) ? msg.wa_to : (() => {
+            const normalized = normalizeNumber(msg.wa_to);
+            return normalized.includes('@') ? normalized : `${normalized}@s.whatsapp.net`;
+          })();
 
-            if (!isGroup && !isChannel && !isContactKnown(jid)) {
+          if (!isGroup && !isChannel) {
+            const normalized = jid.split('@')[0];
+            const [exists] = await sock.onWhatsApp(normalized);
+            if (!exists?.exists) {
+              console.error(`Número no registrado en WhatsApp: ${normalized}`);
+              continue;
+            }
+            if (!isContactKnown(jid)) {
               await sock.sendPresenceUpdate('available', jid).catch(() => {});
               await sleep(PREWARM_DELAY);
             }
+          }
 
-            if (msg.image_url) {
-              const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });
-              await sendWithRetry(jid, {
-                image: Buffer.from(imgResp.data),
-                caption: msg.text || '',
-              });
-            } else {
-              await sendWithRetry(jid, { text: msg.text });
-            }
-            sentIds.push(msg.id);
-            knownContacts.add(jid);
-            await sleep(MESSAGE_DELAY);
-          } catch (e) {
-            if (e.code === 428 || e.message?.includes('428')) {
-              console.error(`428 a ${msg.wa_to}, reintentando en próximo ciclo`);
-              continue;
-            }
-            if (e.code === 463) {
-              const isUnknownContact = e.message?.includes('no conocido');
-              console.error(`463 a ${msg.wa_to}: ${isUnknownContact ? 'timelock + contacto desconocido' : 'persistente'}`);
-              await axios.post(`${VPS_URL}/api/relay/failed`, { ids: [msg.id] }, {
-                headers: { Authorization: `Bearer ${TOKEN}` },
-                timeout: 10000,
-              }).catch(() => {});
-            } else {
-              console.error(`Error a ${msg.wa_to}:`, e.message);
-            }
+          if (msg.image_url) {
+            const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });
+            await sendWithRetry(jid, {
+              image: Buffer.from(imgResp.data),
+              caption: msg.text || '',
+            });
+          } else {
+            await sendWithRetry(jid, { text: msg.text });
+          }
+          sentIds.push(msg.id);
+          knownContacts.add(jid);
+        } catch (e) {
+          if (e.code === 463) {
+            const isUnknownContact = e.message?.includes('no conocido');
+            console.error(`463 a ${msg.wa_to}: ${isUnknownContact ? 'timelock + contacto desconocido' : 'persistente'}`);
+            await axios.post(`${VPS_URL}/api/relay/failed`, { ids: [msg.id] }, {
+              headers: { Authorization: `Bearer ${TOKEN}` },
+              timeout: 10000,
+            }).catch(() => {});
+          } else {
+            console.error(`Error a ${msg.wa_to}:`, e.message);
           }
         }
-        if (sentIds.length) await axios.post(`${VPS_URL}/api/relay/sent`, { ids: sentIds }, {
-          headers: { Authorization: `Bearer ${TOKEN}` },
-          timeout: 10000,
-        });
-      } catch (e) {
-        console.error('[Poll]', e.message);
       }
-    }, POLL_INTERVAL);
-  }
-
-  startPollTimer();
+      if (sentIds.length) await axios.post(`${VPS_URL}/api/relay/sent`, { ids: sentIds }, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+        timeout: 10000,
+      });
+    } catch (e) {
+      console.error('[Poll]', e.message);
+    }
+  }, POLL_INTERVAL);
 }
 
 start();
