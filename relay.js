@@ -33,8 +33,6 @@ let isFirstConnection = true;
 let sock = null;
 let pollTimer = null;
 let reconnectCount = 0;
-let last428Time = 0;
-let dynamicPollInterval = POLL_INTERVAL;
 
 const timelock = {
   active: false,
@@ -450,7 +448,7 @@ async function start() {
     }
   }, 3600000);
 
-  function startPollTimer(interval) {
+  function startPollTimer() {
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(async () => {
       try {
@@ -506,14 +504,7 @@ async function start() {
             await sleep(MESSAGE_DELAY);
           } catch (e) {
             if (e.code === 428 || e.message?.includes('428')) {
-              const elapsed = Date.now() - last428Time;
-              if (elapsed > 60000) {
-                last428Time = Date.now();
-                dynamicPollInterval = Math.min(dynamicPollInterval * 2, 300000);
-                console.log(`[RateLimit] 428 detectado, poll cada ${dynamicPollInterval / 1000}s`);
-                startPollTimer(dynamicPollInterval);
-              }
-              console.error(`428 a ${msg.wa_to}`);
+              console.error(`428 a ${msg.wa_to}, reintentando en próximo ciclo`);
               continue;
             }
             if (e.code === 463) {
@@ -532,18 +523,13 @@ async function start() {
           headers: { Authorization: `Bearer ${TOKEN}` },
           timeout: 10000,
         });
-        if (dynamicPollInterval > POLL_INTERVAL && sentIds.length < BATCH_LIMIT && Date.now() - last428Time > 300000) {
-          dynamicPollInterval = POLL_INTERVAL;
-          console.log('[RateLimit] Sin 428 por 5min, restaurado poll a normal');
-          startPollTimer(POLL_INTERVAL);
-        }
       } catch (e) {
         console.error('[Poll]', e.message);
       }
-    }, interval);
+    }, POLL_INTERVAL);
   }
 
-  startPollTimer(POLL_INTERVAL);
+  startPollTimer();
 }
 
 start();
