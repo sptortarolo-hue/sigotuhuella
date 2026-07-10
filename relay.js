@@ -198,7 +198,7 @@ async function start() {
     printQRInTerminal: false,
     syncFullHistory: false,
     connectTimeoutMs: 60000,
-    keepAliveIntervalMs: 120000,
+    keepAliveIntervalMs: 30000,
     markOnlineOnConnect: false,
   });
 
