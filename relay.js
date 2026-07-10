@@ -1,4 +1,5 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { exec } = require('child_process');
 const { readdirSync, existsSync } = require('fs');
 const path = require('path');
 const axios = require('axios');
@@ -181,6 +182,10 @@ class Send463Error extends Error {
 }
 
 async function start() {
+  exec('termux-wake-lock sihuella-relay', (err) => {
+    if (err) console.log('[WakeLock] No disponible (fuera de Termux)');
+    else console.log('[WakeLock] Adquirido');
+  });
   loadKnownContacts();
 
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
@@ -398,5 +403,14 @@ async function start() {
     }
   }, POLL_INTERVAL);
 }
+
+process.on('SIGINT', () => {
+  exec('termux-wake-unlock sihuella-relay', () => {});
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  exec('termux-wake-unlock sihuella-relay', () => {});
+  process.exit(0);
+});
 
 start();
