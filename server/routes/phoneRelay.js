@@ -306,6 +306,20 @@ router.get('/script', (req, res) => {
   res.download(path.join(__dirname, '../../relay.js'), 'relay.js');
 });
 
+router.post('/log-428', relayAuth, async (req, res) => {
+  try {
+    const { code, message, reconnect_count } = req.body;
+    await pool.query(
+      `INSERT INTO relay_428_log (code, message, reconnect_count) VALUES ($1, $2, $3)`,
+      [code || 428, message || null, reconnect_count || 0]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Relay] log-428 error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const WA_KEYWORDS = /perdido|perdida|encontré|encontre|encontrada|encontrado|perro|perra|gato|gata|mascota|apareció|aparecio|extraviado|extraviada|adopción|adopcion|callejero|abandonado|busco|busca|rescate|rescaté|rescatado/i;
 
 router.get('/scraped-messages', relayAuth, async (req, res) => {

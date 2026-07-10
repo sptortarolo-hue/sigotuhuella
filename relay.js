@@ -8,10 +8,9 @@ const QRCode = require('qrcode');
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = process.env.RELAY_TOKEN || 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
-const POLL_INTERVAL = 120000;
+const POLL_INTERVAL = 180000;
 const MAX_RETRIES = 1;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
-const PREWARM_DELAY = 2000;
 const TIMELOCK_CHECK_MS = 60000;
 const WA_KEYWORDS = /perdido|perdida|encontré|encontre|encontrada|encontrado|perro|perra|gato|gata|mascota|apareció|aparecio|extraviado|extraviada|adopción|adopcion|callejero|abandonado|busco|busca|rescate|rescaté|rescatado/i;
 
@@ -148,10 +147,6 @@ async function clearQR() {
 async function sendWithRetry(jid, content) {
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
-      if (i > 0) {
-        await sock.sendPresenceUpdate('composing', jid).catch(() => {});
-        await sleep(2000);
-      }
       await sock.sendMessage(jid, content);
       knownContacts.add(jid);
       recent463Jids.delete(jid);
@@ -198,7 +193,7 @@ async function start() {
     printQRInTerminal: false,
     syncFullHistory: false,
     connectTimeoutMs: 60000,
-    keepAliveIntervalMs: 60000,
+    keepAliveIntervalMs: 120000,
     markOnlineOnConnect: false,
   });
 
@@ -222,6 +217,13 @@ async function start() {
       if (code !== DisconnectReason.loggedOut) {
         if (code === 428 || code === DisconnectReason.connectionClosed) {
           reconnectCount++;
+          if (code === 428) {
+            axios.post(`${VPS_URL}/api/relay/log-428`, {
+              code: 428,
+              message: lastDisconnect?.error?.message?.substring(0, 200) || '',
+              reconnect_count: reconnectCount,
+            }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 5000 }).catch(() => {});
+          }
           const delay = getReconnectDelay();
           console.log(`Reconectando en ${delay / 1000}s (intento #${reconnectCount})...`);
           setTimeout(start, delay);
@@ -362,19 +364,6 @@ async function start() {
             const normalized = normalizeNumber(msg.wa_to);
             return normalized.includes('@') ? normalized : `${normalized}@s.whatsapp.net`;
           })();
-
-          if (!isGroup && !isChannel) {
-            const normalized = jid.split('@')[0];
-            const [exists] = await sock.onWhatsApp(normalized);
-            if (!exists?.exists) {
-              console.error(`Número no registrado en WhatsApp: ${normalized}`);
-              continue;
-            }
-            if (!isContactKnown(jid)) {
-              await sock.sendPresenceUpdate('available', jid).catch(() => {});
-              await sleep(PREWARM_DELAY);
-            }
-          }
 
           if (msg.image_url) {
             const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });

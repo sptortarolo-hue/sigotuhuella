@@ -1146,6 +1146,16 @@ export async function initDb() {
     `, 'whatsapp_groups scrape_enabled');
 
     await migrate(client, `
+      CREATE TABLE IF NOT EXISTS relay_428_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        code INTEGER,
+        message TEXT,
+        reconnect_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `, 'relay_428_log');
+
+    await migrate(client, `
       CREATE TABLE IF NOT EXISTS whatsapp_scraped_messages (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         group_id UUID REFERENCES whatsapp_groups(id) ON DELETE CASCADE,
