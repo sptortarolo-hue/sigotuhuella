@@ -16,7 +16,9 @@ process.on('unhandledRejection', (reason) => {
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = process.env.RELAY_TOKEN || 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
-const POLL_INTERVAL = 30000;
+const POLL_INTERVAL = 60000;
+const MESSAGE_DELAY = 3000;
+const BATCH_LIMIT = 2;
 const MAX_RETRIES = 3;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const PREWARM_DELAY = 2000;
@@ -31,6 +33,8 @@ let isFirstConnection = true;
 let sock = null;
 let pollTimer = null;
 let reconnectCount = 0;
+let last428Time = 0;
+let dynamicPollInterval = POLL_INTERVAL;
 
 const timelock = {
   active: false,
@@ -446,77 +450,100 @@ async function start() {
     }
   }, 3600000);
 
-  pollTimer = setInterval(async () => {
-    try {
-      if (timelock.active) {
-        const expiredTimelock = recent463Jids.size > 0 && Date.now() >= timelock.expiresAt;
-        if (expiredTimelock) {
-          timelock.active = false;
-          timelock.expiresAt = 0;
-          console.log('[Timelock] Expirado, reanudando envíos');
+  function startPollTimer(interval) {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        if (timelock.active) {
+          const expiredTimelock = recent463Jids.size > 0 && Date.now() >= timelock.expiresAt;
+          if (expiredTimelock) {
+            timelock.active = false;
+            timelock.expiresAt = 0;
+            console.log('[Timelock] Expirado, reanudando envíos');
+          }
         }
-      }
 
-      const { data } = await axios.get(`${VPS_URL}/api/relay/pending`, {
-        headers: { Authorization: `Bearer ${TOKEN}` },
-        timeout: 20000,
-      });
-      if (!data.messages?.length) return;
-      const sentIds = [];
-      for (const msg of data.messages) {
-        try {
-          const isGroup = msg.wa_to.includes('@g.us');
-          const isChannel = msg.wa_to.includes('@newsletter');
-          const jid = (isGroup || isChannel) ? msg.wa_to : (() => {
-            const normalized = normalizeNumber(msg.wa_to);
-            return normalized.includes('@') ? normalized : `${normalized}@s.whatsapp.net`;
-          })();
+        const { data } = await axios.get(`${VPS_URL}/api/relay/pending`, {
+          headers: { Authorization: `Bearer ${TOKEN}` },
+          timeout: 20000,
+        });
+        if (!data.messages?.length) return;
+        const sentIds = [];
+        const batch = data.messages.slice(0, BATCH_LIMIT);
+        for (const msg of batch) {
+          try {
+            const isGroup = msg.wa_to.includes('@g.us');
+            const isChannel = msg.wa_to.includes('@newsletter');
+            const jid = (isGroup || isChannel) ? msg.wa_to : (() => {
+              const normalized = normalizeNumber(msg.wa_to);
+              return normalized.includes('@') ? normalized : `${normalized}@s.whatsapp.net`;
+            })();
 
-          if (!isGroup && !isChannel) {
-            const normalized = jid.split('@')[0];
-            const [exists] = await sock.onWhatsApp(normalized);
-            if (!exists?.exists) {
-              console.error(`Número no registrado en WhatsApp: ${normalized}`);
+            if (!isGroup && !isChannel) {
+              const normalized = jid.split('@')[0];
+              if (!isContactKnown(jid)) {
+                const [exists] = await sock.onWhatsApp(normalized);
+                if (!exists?.exists) {
+                  console.error(`Número no registrado en WhatsApp: ${normalized}`);
+                  continue;
+                }
+                await sock.sendPresenceUpdate('available', jid).catch(() => {});
+                await sleep(PREWARM_DELAY);
+              }
+            }
+
+            if (msg.image_url) {
+              const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });
+              await sendWithRetry(jid, {
+                image: Buffer.from(imgResp.data),
+                caption: msg.text || '',
+              });
+            } else {
+              await sendWithRetry(jid, { text: msg.text });
+            }
+            sentIds.push(msg.id);
+            knownContacts.add(jid);
+            await sleep(MESSAGE_DELAY);
+          } catch (e) {
+            if (e.code === 428 || e.message?.includes('428')) {
+              const elapsed = Date.now() - last428Time;
+              if (elapsed > 60000) {
+                last428Time = Date.now();
+                dynamicPollInterval = Math.min(dynamicPollInterval * 2, 300000);
+                console.log(`[RateLimit] 428 detectado, poll cada ${dynamicPollInterval / 1000}s`);
+                startPollTimer(dynamicPollInterval);
+              }
+              console.error(`428 a ${msg.wa_to}`);
               continue;
             }
-            if (!isContactKnown(jid)) {
-              await sock.sendPresenceUpdate('available', jid).catch(() => {});
-              await sleep(PREWARM_DELAY);
+            if (e.code === 463) {
+              const isUnknownContact = e.message?.includes('no conocido');
+              console.error(`463 a ${msg.wa_to}: ${isUnknownContact ? 'timelock + contacto desconocido' : 'persistente'}`);
+              await axios.post(`${VPS_URL}/api/relay/failed`, { ids: [msg.id] }, {
+                headers: { Authorization: `Bearer ${TOKEN}` },
+                timeout: 10000,
+              }).catch(() => {});
+            } else {
+              console.error(`Error a ${msg.wa_to}:`, e.message);
             }
           }
-
-          if (msg.image_url) {
-            const imgResp = await axios.get(msg.image_url, { responseType: 'arraybuffer', timeout: 15000 });
-            await sendWithRetry(jid, {
-              image: Buffer.from(imgResp.data),
-              caption: msg.text || '',
-            });
-          } else {
-            await sendWithRetry(jid, { text: msg.text });
-          }
-          sentIds.push(msg.id);
-          knownContacts.add(jid);
-        } catch (e) {
-          if (e.code === 463) {
-            const isUnknownContact = e.message?.includes('no conocido');
-            console.error(`463 a ${msg.wa_to}: ${isUnknownContact ? 'timelock + contacto desconocido' : 'persistente'}`);
-            await axios.post(`${VPS_URL}/api/relay/failed`, { ids: [msg.id] }, {
-              headers: { Authorization: `Bearer ${TOKEN}` },
-              timeout: 10000,
-            }).catch(() => {});
-          } else {
-            console.error(`Error a ${msg.wa_to}:`, e.message);
-          }
         }
+        if (sentIds.length) await axios.post(`${VPS_URL}/api/relay/sent`, { ids: sentIds }, {
+          headers: { Authorization: `Bearer ${TOKEN}` },
+          timeout: 10000,
+        });
+        if (dynamicPollInterval > POLL_INTERVAL && sentIds.length < BATCH_LIMIT && Date.now() - last428Time > 300000) {
+          dynamicPollInterval = POLL_INTERVAL;
+          console.log('[RateLimit] Sin 428 por 5min, restaurado poll a normal');
+          startPollTimer(POLL_INTERVAL);
+        }
+      } catch (e) {
+        console.error('[Poll]', e.message);
       }
-      if (sentIds.length) await axios.post(`${VPS_URL}/api/relay/sent`, { ids: sentIds }, {
-        headers: { Authorization: `Bearer ${TOKEN}` },
-        timeout: 10000,
-      });
-    } catch (e) {
-      console.error('[Poll]', e.message);
-    }
-  }, POLL_INTERVAL);
+    }, interval);
+  }
+
+  startPollTimer(POLL_INTERVAL);
 }
 
 start();
