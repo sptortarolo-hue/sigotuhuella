@@ -1,4 +1,4 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const { readdirSync, existsSync } = require('fs');
 const path = require('path');
 const axios = require('axios');
@@ -13,6 +13,7 @@ const MAX_RETRIES = 1;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const PREWARM_DELAY = 2000;
 const TIMELOCK_CHECK_MS = 60000;
+const WA_KEYWORDS = /perdido|perdida|encontré|encontre|encontrada|encontrado|perro|perra|gato|gata|mascota|apareció|aparecio|extraviado|extraviada|adopción|adopcion|callejero|abandonado|busco|busca|rescate|rescaté|rescatado/i;
 
 const replyCooldowns = new Map();
 const knownContacts = new Set();
@@ -29,6 +30,15 @@ const timelock = {
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
+}
+
+function streamToBuffer(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on('data', chunk => chunks.push(chunk));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+  });
 }
 
 function normalizeNumber(num) {
@@ -260,7 +270,39 @@ async function start() {
   sock.ev.on('messages.upsert', async ({ messages }) => {
     for (const msg of messages) {
       if (msg.key.remoteJid === 'status@broadcast') continue;
-      if (msg.key.remoteJid.endsWith('@g.us')) continue;
+      if (msg.key.remoteJid.endsWith('@g.us')) {
+        if (msg.key.fromMe) continue;
+        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+        const hasMedia = msg.message?.imageMessage || msg.message?.videoMessage;
+        if (!WA_KEYWORDS.test(text) && !hasMedia) continue;
+        try {
+          const gJid = msg.key.remoteJid;
+          const gRes = await axios.post(`${VPS_URL}/api/relay/resolve-group`, {
+            jid: gJid, name: gJid
+          }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 10000 });
+          const groupId = gRes.data.id;
+          let imageData = null, imageMime = null;
+          const imgMsg = msg.message?.imageMessage;
+          if (imgMsg) {
+            const stream = await downloadContentFromMessage(imgMsg, 'image');
+            const buf = await streamToBuffer(stream);
+            imageData = buf.toString('base64');
+            imageMime = imgMsg.mimetype || 'image/jpeg';
+          }
+          await axios.post(`${VPS_URL}/api/relay/scraped-message`, {
+            group_id: groupId,
+            wa_message_id: msg.key.id,
+            author_jid: msg.key.participant || gJid,
+            author_name: msg.pushName || null,
+            content: text,
+            image_data: imageData,
+            image_mime: imageMime,
+          }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 30000 });
+        } catch (e) {
+          console.log(`[Scraper] Error: ${e.message}`);
+        }
+        continue;
+      }
 
       const from = msg.key.remoteJid;
 
