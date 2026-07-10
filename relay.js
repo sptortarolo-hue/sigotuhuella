@@ -93,9 +93,7 @@ function streamToBuffer(stream) {
 }
 
 async function getGroupId(jid) {
-  const groupMetadata = await sock.groupMetadata(jid).catch(() => null);
-  const name = groupMetadata?.subject || jid;
-  const { data } = await axios.post(`${VPS_URL}/api/relay/resolve-group`, { jid, name }, {
+  const { data } = await axios.post(`${VPS_URL}/api/relay/resolve-group`, { jid, name: jid }, {
     headers: { Authorization: `Bearer ${TOKEN}` },
     timeout: 10000,
   });
