@@ -27,9 +27,6 @@ const TIMELOCK_CHECK_MS = 60000;
 const replyCooldowns = new Map();
 const knownContacts = new Set();
 const recent463Jids = new Map();
-const processedMessageIds = new Set();
-const PROCESSED_IDS_MAX = 1000;
-let isFirstConnection = true;
 let sock = null;
 let pollTimer = null;
 let reconnectCount = 0;
@@ -93,74 +90,6 @@ function streamToBuffer(stream) {
     stream.on('end', () => resolve(Buffer.concat(chunks)));
     stream.on('error', reject);
   });
-}
-
-function trackProcessedId(id) {
-  if (processedMessageIds.size >= PROCESSED_IDS_MAX) {
-    const oldest = processedMessageIds.values().next().value;
-    if (oldest) processedMessageIds.delete(oldest);
-  }
-  processedMessageIds.add(id);
-}
-
-async function recoverMissedMessages() {
-  try {
-    const { data } = await axios.get(`${VPS_URL}/api/relay/groups`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-      timeout: 10000,
-    });
-    const groups = data?.groups || [];
-    for (const group of groups) {
-      if (!group.scrape_enabled) continue;
-      try {
-        if (typeof sock.loadMessages !== 'function') continue;
-        const msgs = await sock.loadMessages(group.group_id, 30);
-        for (const msg of msgs) {
-          if (msg.key.fromMe) continue;
-          if (processedMessageIds.has(msg.key.id)) continue;
-
-          const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || '';
-          if (!WA_KEYWORDS.test(text)) continue;
-
-          trackProcessedId(msg.key.id);
-
-          let imageData = null;
-          let imageMime = null;
-          if (msg.message?.imageMessage) {
-            try {
-              const stream = await downloadContentFromMessage(msg.message.imageMessage, 'image');
-              const buffer = await streamToBuffer(stream);
-              imageData = buffer.toString('base64');
-              imageMime = msg.message.imageMessage.mimetype || 'image/jpeg';
-            } catch (e) {
-              console.error(`[Recovery] Error descargando imagen: ${e.message}`);
-            }
-          }
-
-          const authorName = msg.pushName || msg.participant?.split('@')[0] || null;
-
-          axios.post(`${VPS_URL}/api/relay/scraped-message`, {
-            group_id: group.id,
-            wa_message_id: msg.key.id,
-            author_jid: msg.key.participant || msg.key.remoteJid,
-            author_name: authorName,
-            content: text,
-            image_data: imageData,
-            image_mime: imageMime,
-          }, {
-            headers: { Authorization: `Bearer ${TOKEN}` },
-            timeout: 30000,
-          }).then(resp => {
-            if (resp.data?.id) console.log(`[Recovery] Scrapeado: ${resp.data.id} (${resp.data.classification})`);
-          }).catch(e => console.error(`[Recovery] Error al enviar: ${e.message}`));
-        }
-      } catch (e) {
-        console.error(`[Recovery] Error en grupo ${group.group_id}: ${e.message}`);
-      }
-    }
-  } catch (e) {
-    console.error('[Recovery] Error obteniendo grupos:', e.message);
-  }
 }
 
 async function getGroupId(jid) {
@@ -305,11 +234,6 @@ async function start() {
       reconnectCount = 0;
       console.log('Conectado a WhatsApp');
       clearQR();
-      if (!isFirstConnection) {
-        console.log('[Recovery] Reconexión detectada, recuperando mensajes perdidos en 5s...');
-        setTimeout(recoverMissedMessages, 5000);
-      }
-      isFirstConnection = false;
     }
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
@@ -404,8 +328,6 @@ async function start() {
         if (!groupId) continue;
 
         const authorName = msg.pushName || msg.participant?.split('@')[0] || null;
-
-        trackProcessedId(msg.key.id);
 
         axios.post(`${VPS_URL}/api/relay/scraped-message`, {
           group_id: groupId,
