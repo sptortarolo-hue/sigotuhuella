@@ -182,7 +182,7 @@ class Send463Error extends Error {
 }
 
 async function start() {
-  exec('termux-wake-lock sihuella-relay', (err) => {
+  exec('termux-wake-lock', (err) => {
     if (err) console.log('[WakeLock] No disponible (fuera de Termux)');
     else console.log('[WakeLock] Adquirido');
   });
@@ -405,11 +405,11 @@ async function start() {
 }
 
 process.on('SIGINT', () => {
-  exec('termux-wake-unlock sihuella-relay', () => {});
+  exec('termux-wake-unlock', () => {});
   process.exit(0);
 });
 process.on('SIGTERM', () => {
-  exec('termux-wake-unlock sihuella-relay', () => {});
+  exec('termux-wake-unlock', () => {});
   process.exit(0);
 });
 
