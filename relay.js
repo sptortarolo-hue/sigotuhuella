@@ -51,7 +51,7 @@ function normalizeNumber(num) {
 }
 
 function getReconnectDelay() {
-  const delays = [10, 30, 60, 120];
+  const delays = [10, 30, 60, 120, 300];
   const idx = Math.min(reconnectCount, delays.length - 1);
   return delays[idx] * 1000;
 }
@@ -219,6 +219,8 @@ async function start() {
     printQRInTerminal: false,
     syncFullHistory: false,
     connectTimeoutMs: 60000,
+    keepAliveIntervalMs: 60000,
+    markOnlineOnConnect: false,
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -245,8 +247,8 @@ async function start() {
           console.log(`Reconectando en ${delay / 1000}s (intento #${reconnectCount})...`);
           setTimeout(start, delay);
         } else {
-          console.log('Reconectando en 5s...');
-          setTimeout(start, 5000);
+          console.log('Reconectando en 30s (TLS/red)...');
+          setTimeout(start, 30000);
         }
       }
     }
