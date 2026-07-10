@@ -6,6 +6,13 @@ const QR = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const { Readable } = require('stream');
 
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err.stack || err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Unhandled Rejection:', reason?.stack || reason?.message || reason);
+});
+
 const VPS_URL = 'https://sigotuhuella.online';
 const TOKEN = process.env.RELAY_TOKEN || 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
