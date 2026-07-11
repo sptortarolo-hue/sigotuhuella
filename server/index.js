@@ -323,6 +323,15 @@ app.get('/mascota/:token', async (req, res) => {
       const speciesLabels = { dog: 'Perro', cat: 'Gato', other: 'Otro' };
       title = `${pet.name} - ${speciesLabels[pet.species] || 'Mascota'} | Sigo Tu Huella`;
       description = pet.bio ? pet.bio.substring(0, 160) : `${pet.name} — Identificado con QR ${pet.code}`;
+    } else if (/^\d+$/.test(req.params.token)) {
+      const oldResult = await pool.query(
+        'SELECT qi.share_token, mp.name, mp.species, mp.breed, mp.bio, mp.avatar_image IS NOT NULL as has_avatar, qi.code FROM my_pets mp LEFT JOIN qr_identifiers qi ON qi.my_pet_id = mp.id WHERE mp.id = $1 AND qi.share_token IS NOT NULL',
+        [req.params.token]
+      );
+      if (oldResult.rows.length > 0) {
+        const correctUrl = `${baseUrl}/mascota/${oldResult.rows[0].share_token}`;
+        return res.redirect(302, correctUrl);
+      }
     }
     const ogTags = `<meta property="og:title" content="${escapeHtml(title)}" />
 <meta property="og:description" content="${escapeHtml(description)}" />

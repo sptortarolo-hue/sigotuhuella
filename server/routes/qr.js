@@ -46,9 +46,9 @@ async function getNextCodes(count) {
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
 
-async function notifyChapitaReady(qrId, myPetId, code, petName, user) {
+async function notifyChapitaReady(qrId, shareToken, code, petName, user) {
   const userName = user.display_name || user.email.split('@')[0];
-  const petProfileUrl = `${FRONTEND_URL}/mascota/${myPetId}`;
+  const petProfileUrl = `${FRONTEND_URL}/mascota/${shareToken}`;
 
   const subject = 'Tu chapita QR está lista — Sigo Tu Huella';
 
@@ -567,12 +567,12 @@ router.get('/assigned', requireAdmin, async (req, res) => {
 router.post('/assigned/:id/notify', requireAdmin, async (req, res) => {
   try {
     const qrResult = await pool.query(
-      `SELECT qi.id, qi.code, mp.id as pet_id, mp.name as pet_name,
-              u.id as user_id, u.email, u.phone, u.display_name, u.notification_preference
-       FROM qr_identifiers qi
-       JOIN my_pets mp ON mp.id = qi.my_pet_id
-       JOIN users u ON u.id = mp.user_id
-       WHERE qi.id = $1 AND qi.my_pet_id IS NOT NULL`,
+      `SELECT qi.id, qi.code, qi.share_token, mp.id as pet_id, mp.name as pet_name,
+               u.id as user_id, u.email, u.phone, u.display_name, u.notification_preference
+        FROM qr_identifiers qi
+        JOIN my_pets mp ON mp.id = qi.my_pet_id
+        JOIN users u ON u.id = mp.user_id
+        WHERE qi.id = $1 AND qi.my_pet_id IS NOT NULL`,
       [req.params.id]
     );
     if (qrResult.rows.length === 0) {
@@ -588,7 +588,7 @@ router.post('/assigned/:id/notify', requireAdmin, async (req, res) => {
       notification_preference: 'both',
     };
 
-    const result = await notifyChapitaReady(row.id, row.pet_id, row.code, row.pet_name, user);
+    const result = await notifyChapitaReady(row.id, row.share_token, row.code, row.pet_name, user);
     res.json(result);
   } catch (err) {
     console.error('qr notify error:', err);
