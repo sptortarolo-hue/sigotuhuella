@@ -73,8 +73,9 @@ export async function classifyWhatsAppMessage(text, imageBuffer = null, imageMim
       ];
       const { text: raw, provider } = await classificationAI([{ role: 'user', content: userContent }], true);
       console.log(`[classifyWA] Usó ${provider}`);
-      const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-      const parsed = JSON.parse(cleaned);
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('No JSON found in AI response');
+      const parsed = JSON.parse(jsonMatch[0]);
       return formatWAResult(parsed);
     }
 
@@ -83,8 +84,9 @@ export async function classifyWhatsAppMessage(text, imageBuffer = null, imageMim
       false
     );
     console.log(`[classifyWA] Usó ${provider}`);
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    const parsed = JSON.parse(cleaned);
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON found in AI response');
+    const parsed = JSON.parse(jsonMatch[0]);
     return formatWAResult(parsed);
   } catch (err) {
     console.error('classifyWhatsAppMessage error:', err.message);
