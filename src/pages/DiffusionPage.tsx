@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { PawPrint, Share2, Download, CheckCircle2, Printer, Smartphone, MessageCircle } from 'lucide-react';
 
@@ -94,26 +95,33 @@ export default function DiffusionPage() {
 
   const handlePrint = () => window.print();
 
+  const poster = (
+    <div id="poster-content">
+      <Poster appQrUrl={appQrUrl} waQrUrl={waQrUrl} />
+    </div>
+  );
+
   return (
     <>
       <style>{`
+        @media screen {
+          #poster-content { display: none !important; }
+        }
         @media print {
           @page { size: A4 portrait; margin: 12mm; }
-          .no-print { display: none !important; }
-          body, html { background: white !important; margin: 0; padding: 0; }
+          #root { display: none !important; }
+          body { background: white !important; margin: 0; padding: 0; }
           #poster-content {
             display: flex !important;
-            flex-direction: column !important;
+            position: fixed !important;
+            inset: 0 !important;
             align-items: center !important;
             justify-content: center !important;
-            min-height: 100vh !important;
-            padding: 12mm !important;
           }
         }
       `}</style>
 
-      {/* Screen UI — hidden on print */}
-      <div className="min-h-screen py-8 sm:py-12 px-4 no-print">
+      <div className="min-h-screen py-8 sm:py-12 px-4">
         <div className="max-w-3xl mx-auto">
           {/* Header */}
           <div className="text-center mb-10">
@@ -202,10 +210,7 @@ export default function DiffusionPage() {
         </div>
       </div>
 
-      {/* Print-only poster — outside no-print tree */}
-      <div id="poster-content">
-        <Poster appQrUrl={appQrUrl} waQrUrl={waQrUrl} />
-      </div>
+      {createPortal(poster, document.body)}
     </>
   );
 }
