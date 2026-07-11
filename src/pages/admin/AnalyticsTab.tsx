@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/src/lib/api';
-import { Loader2, Eye, TrendingUp, Calendar, BarChart3 } from 'lucide-react';
+import { Loader2, Eye, TrendingUp, Calendar, BarChart3, Users } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface AnalyticsData {
   totalViews: number;
   viewsToday: number;
   viewsThisWeek: number;
+  uniqueVisitors: number;
+  uniqueVisitorsToday: number;
+  uniqueVisitorsWeek: number;
   topPets: { id: string; name: string; species: string; status: string; view_count: number; has_image: boolean }[];
   viewsByDay: { date: string; count: number }[];
 }
@@ -49,7 +52,7 @@ export default function AnalyticsTab() {
   return (
     <div className="space-y-6">
       {/* Stats cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl border border-brand-accent p-5 flex items-center gap-4">
           <div className="w-12 h-12 bg-brand-primary/10 rounded-xl flex items-center justify-center">
             <Eye className="w-6 h-6 text-brand-primary" />
@@ -77,6 +80,24 @@ export default function AnalyticsTab() {
             <p className="text-xs text-gray-500">Vistas esta semana</p>
           </div>
         </div>
+        <div className="bg-white rounded-2xl border border-brand-accent p-5 flex items-center gap-4">
+          <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+            <Users className="w-6 h-6 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-purple-600">{data.uniqueVisitors.toLocaleString()}</p>
+            <p className="text-xs text-gray-500">Visitantes únicos (30d)</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Ratio views per visitor */}
+      <div className="bg-white rounded-2xl border border-brand-accent p-4 text-center">
+        <p className="text-sm text-gray-500">
+          Ratio vistas/visitante (30d): <span className="font-bold text-brand-primary ml-2">
+            {(data.totalViews / (data.uniqueVisitors || 1)).toFixed(1)}x
+          </span>
+        </p>
       </div>
 
       {/* Chart */}

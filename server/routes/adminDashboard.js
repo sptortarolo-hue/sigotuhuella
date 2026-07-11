@@ -193,7 +193,7 @@ router.post('/settings', requireAdmin, async (req, res) => {
 // GET /api/admin/analytics — visit metrics
 router.get('/analytics', requireAdmin, async (_req, res) => {
   try {
-    const [totalViews, viewsToday, viewsThisWeek, topPets, viewsByDay] = await Promise.all([
+    const [totalViews, viewsToday, viewsThisWeek, topPets, viewsByDay, uniqueVisitors, uniqueVisitorsToday, uniqueVisitorsWeek] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM pet_views'),
       pool.query("SELECT COUNT(*) FROM pet_views WHERE created_at >= CURRENT_DATE"),
       pool.query("SELECT COUNT(*) FROM pet_views WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'"),
@@ -212,12 +212,30 @@ router.get('/analytics', requireAdmin, async (_req, res) => {
         GROUP BY DATE(created_at)
         ORDER BY date ASC
       `),
+      pool.query(`
+        SELECT COUNT(DISTINCT viewer_ip) as unique_visitors
+        FROM pet_views
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+      `),
+      pool.query(`
+        SELECT COUNT(DISTINCT viewer_ip) as unique_visitors
+        FROM pet_views
+        WHERE created_at >= CURRENT_DATE
+      `),
+      pool.query(`
+        SELECT COUNT(DISTINCT viewer_ip) as unique_visitors
+        FROM pet_views
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+      `),
     ]);
 
     res.json({
       totalViews: parseInt(totalViews.rows[0].count) || 0,
       viewsToday: parseInt(viewsToday.rows[0].count) || 0,
       viewsThisWeek: parseInt(viewsThisWeek.rows[0].count) || 0,
+      uniqueVisitors: parseInt(uniqueVisitors.rows[0].unique_visitors) || 0,
+      uniqueVisitorsToday: parseInt(uniqueVisitorsToday.rows[0].unique_visitors) || 0,
+      uniqueVisitorsWeek: parseInt(uniqueVisitorsWeek.rows[0].unique_visitors) || 0,
       topPets: topPets.rows,
       viewsByDay: viewsByDay.rows,
     });
