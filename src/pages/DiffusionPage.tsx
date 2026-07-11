@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { PawPrint, Share2, Download, CheckCircle2, Printer, Smartphone, MessageCircle } from 'lucide-react';
 
@@ -10,11 +10,57 @@ const QR_CONFIG = {
   wa: { width: 400, margin: 2, color: { dark: '#25D366', light: '#ffffff' } },
 };
 
+function Poster({ appQrUrl, waQrUrl }: { appQrUrl: string; waQrUrl: string }) {
+  return (
+    <div className="border border-brand-accent rounded-[2rem] overflow-hidden max-w-sm mx-auto">
+      <div className="py-3 px-5 flex items-center justify-center gap-2" style={{ backgroundColor: '#5A5A40' }}>
+        <PawPrint className="w-5 h-5 text-white" />
+        <span className="font-serif font-bold text-lg text-white">Sigo tu huella</span>
+      </div>
+      <div className="p-6 text-center">
+        <p className="text-3xl mb-2">🐾</p>
+        <h3 className="text-xl font-bold text-gray-800 mb-2">¿Viste un animal perdido?</h3>
+        <p className="text-sm text-gray-500">Reportalo al instante sin necesidad de registro</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 px-6 pb-4">
+        <div className="text-center">
+          <p className="text-[10px] font-bold text-gray-600 mb-2 flex items-center justify-center gap-1">
+            <Smartphone className="w-3 h-3" /> App
+          </p>
+          {appQrUrl && <img src={appQrUrl} alt="QR App" className="w-32 h-32 mx-auto" />}
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] font-bold text-gray-600 mb-2 flex items-center justify-center gap-1">
+            <MessageCircle className="w-3 h-3" /> WhatsApp
+          </p>
+          {waQrUrl && <img src={waQrUrl} alt="QR WhatsApp" className="w-32 h-32 mx-auto" />}
+        </div>
+      </div>
+
+      <div className="px-6 pb-4 text-center space-y-1.5">
+        {[
+          'Elegí el QR: ingresá a la app o reportá por WhatsApp',
+          'Seguí las instrucciones',
+          'Listo, ya se difunde en la red',
+        ].map((text, i) => (
+          <div key={i} className="flex items-center justify-center gap-2 text-xs text-gray-600">
+            <span className="w-5 h-5 bg-brand-primary/10 rounded-full flex items-center justify-center text-[10px] font-bold text-brand-primary">{i + 1}</span>
+            {text}
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-gray-100 py-3 px-6 text-center">
+        <p className="text-[10px] text-gray-400">sigotuhuella.online</p>
+      </div>
+    </div>
+  );
+}
+
 export default function DiffusionPage() {
   const [appQrUrl, setAppQrUrl] = useState('');
   const [waQrUrl, setWaQrUrl] = useState('');
   const [copied, setCopied] = useState<'app' | 'wa' | null>(null);
-  const posterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     QRCode.toDataURL(APP_URL, QR_CONFIG.app).then(setAppQrUrl).catch(console.error);
@@ -52,24 +98,25 @@ export default function DiffusionPage() {
     <>
       <style>{`
         @media print {
-          @page { size: A4 portrait; margin: 15mm; }
+          @page { size: A4 portrait; margin: 12mm; }
           .no-print { display: none !important; }
-          body, html { background: white !important; }
+          body, html { background: white !important; margin: 0; padding: 0; }
           #poster-content {
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
             justify-content: center !important;
-            width: 100% !important;
-            min-height: 80vh !important;
+            min-height: 100vh !important;
+            padding: 12mm !important;
           }
         }
       `}</style>
 
+      {/* Screen UI — hidden on print */}
       <div className="min-h-screen py-8 sm:py-12 px-4 no-print">
         <div className="max-w-3xl mx-auto">
           {/* Header */}
-          <div className="text-center mb-10 no-print">
+          <div className="text-center mb-10">
             <div className="w-16 h-16 bg-brand-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Share2 className="w-8 h-8 text-brand-primary" />
             </div>
@@ -77,8 +124,8 @@ export default function DiffusionPage() {
             <p className="text-gray-500 mt-2 text-sm sm:text-base">Ayudanos a llegar a más vecinos. Compartí los códigos o imprimí un cartel.</p>
           </div>
 
-          {/* QR Digital - 2 QRs */}
-          <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 mb-6 shadow-sm no-print">
+          {/* QR Digital */}
+          <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 mb-6 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
                 <Share2 className="w-5 h-5 text-blue-600" />
@@ -90,7 +137,6 @@ export default function DiffusionPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {/* QR App */}
               <div className="bg-brand-bg rounded-2xl p-6 border border-brand-accent text-center">
                 <div className="flex items-center justify-center gap-2 mb-3">
                   <Smartphone className="w-5 h-5 text-brand-primary" />
@@ -109,7 +155,6 @@ export default function DiffusionPage() {
                 </div>
               </div>
 
-              {/* QR WhatsApp */}
               <div className="bg-green-50 rounded-2xl p-6 border border-green-200 text-center">
                 <div className="flex items-center justify-center gap-2 mb-3">
                   <MessageCircle className="w-5 h-5 text-green-600" />
@@ -130,8 +175,8 @@ export default function DiffusionPage() {
             </div>
           </div>
 
-          {/* Cartel para imprimir */}
-          <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 mb-6 shadow-sm no-print">
+          {/* Cartel — preview on screen */}
+          <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 mb-6 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
                 <Printer className="w-5 h-5 text-amber-600" />
@@ -142,64 +187,24 @@ export default function DiffusionPage() {
               </div>
             </div>
 
-            {/* Poster */}
-            <div ref={posterRef} id="poster-content">
-              <div className="border border-brand-accent rounded-[2rem] overflow-hidden max-w-sm mx-auto shadow-sm">
-                <div className="py-3 px-5 flex items-center justify-center gap-2" style={{ backgroundColor: '#5A5A40' }}>
-                  <PawPrint className="w-5 h-5 text-white" />
-                  <span className="font-serif font-bold text-lg text-white">Sigo tu huella</span>
-                </div>
-                <div className="p-6 text-center">
-                  <p className="text-3xl mb-2">🐾</p>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">¿Viste un animal perdido?</h3>
-                  <p className="text-sm text-gray-500">Reportalo al instante sin necesidad de registro</p>
-                </div>
+            <Poster appQrUrl={appQrUrl} waQrUrl={waQrUrl} />
 
-                <div className="grid grid-cols-2 gap-4 px-6 pb-4">
-                  <div className="text-center">
-                    <p className="text-[10px] font-bold text-gray-600 mb-2 flex items-center justify-center gap-1">
-                      <Smartphone className="w-3 h-3" /> App
-                    </p>
-                    {appQrUrl && <img src={appQrUrl} alt="QR App" className="w-32 h-32 mx-auto" />}
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[10px] font-bold text-gray-600 mb-2 flex items-center justify-center gap-1">
-                      <MessageCircle className="w-3 h-3" /> WhatsApp
-                    </p>
-                    {waQrUrl && <img src={waQrUrl} alt="QR WhatsApp" className="w-32 h-32 mx-auto" />}
-                  </div>
-                </div>
-
-                <div className="px-6 pb-4 text-center space-y-1.5">
-                  {[
-                    'Elegí el QR: ingresá a la app o reportá por WhatsApp',
-                    'Seguí las instrucciones',
-                    'Listo, ya se difunde en la red',
-                  ].map((text, i) => (
-                    <div key={i} className="flex items-center justify-center gap-2 text-xs text-gray-600">
-                      <span className="w-5 h-5 bg-brand-primary/10 rounded-full flex items-center justify-center text-[10px] font-bold text-brand-primary">{i + 1}</span>
-                      {text}
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t border-gray-100 py-3 px-6 text-center">
-                  <p className="text-[10px] text-gray-400">sigotuhuella.online</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Print button */}
-            <div className="flex justify-center mt-6 no-print">
+            <div className="flex justify-center mt-6">
               <button onClick={handlePrint} className="flex items-center gap-2 px-8 py-3.5 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
                 <Printer className="w-5 h-5" /> Imprimir / Descargar PDF
               </button>
             </div>
           </div>
 
-          <p className="text-xs text-gray-400 text-center leading-relaxed no-print">
+          <p className="text-xs text-gray-400 text-center leading-relaxed">
             sigotuhuella.online
           </p>
         </div>
+      </div>
+
+      {/* Print-only poster — outside no-print tree */}
+      <div id="poster-content">
+        <Poster appQrUrl={appQrUrl} waQrUrl={waQrUrl} />
       </div>
     </>
   );
