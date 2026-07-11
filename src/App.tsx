@@ -28,8 +28,9 @@ const ForgotPassword = lazy(() => import('@/src/pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('@/src/pages/ResetPassword'));
 const VerifyMember = lazy(() => import('@/src/pages/VerifyMember'));
 const MemberCardPage = lazy(() => import('@/src/pages/MemberCardPage'));
-const QuickReport = lazy(() => import('@/src/pages/QuickReport'));
+
 const DiffusionPage = lazy(() => import('@/src/pages/DiffusionPage'));
+const QuickReport = lazy(() => import('@/src/pages/QuickReport'));
 const LostPetReport = lazy(() => import('@/src/pages/LostPetReport'));
 const CompleteRegistration = lazy(() => import('@/src/pages/CompleteRegistration'));
 const MyPetsPortal = lazy(() => import('@/src/pages/MyPetsPortal'));
