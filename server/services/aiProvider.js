@@ -152,42 +152,42 @@ function chain(providers) {
 }
 
 const CLASSIFICATION_CHAIN_WITH_IMAGES = chain([
-  { name: 'OpenRouter Scout', call: (m) => callOpenRouter('meta-llama/llama-4-scout-17b-16e-instruct', m, { max_tokens: 1000 }) },
+  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 1000 }) },
   { name: 'NVIDIA 70B', call: (m) => callNVIDIA('meta/llama-3.3-70b-instruct', m, { max_tokens: 1000 }) },
-  { name: 'Groq Scout', call: (m) => callGroqDirect('meta-llama/llama-4-scout-17b-16e-instruct', m, { max_tokens: 1000 }) },
-  { name: 'OpenRouter 70B', call: (m) => callOpenRouter('meta-llama/llama-3.3-70b-instruct', m, { max_tokens: 1000 }) },
-  { name: 'Groq 70B', call: (m) => callGroqDirect('llama-3.3-70b-versatile', m, { max_tokens: 1000 }) },
+  { name: 'Groq GPT-OSS-20B', call: (m) => callGroqDirect('openai/gpt-oss-20b', m, { max_tokens: 1000 }) },
+  { name: 'OpenRouter GPT-OSS-120B', call: (m) => callOpenRouter('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
+  { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
 ]);
 
 const CLASSIFICATION_CHAIN_TEXT = chain([
-  { name: 'OpenRouter 70B', call: (m) => callOpenRouter('meta-llama/llama-3.3-70b-instruct', m, { max_tokens: 1000 }) },
+  { name: 'OpenRouter GPT-OSS-120B', call: (m) => callOpenRouter('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
   { name: 'NVIDIA 70B', call: (m) => callNVIDIA('meta/llama-3.3-70b-instruct', m, { max_tokens: 1000 }) },
-  { name: 'Groq 70B', call: (m) => callGroqDirect('llama-3.3-70b-versatile', m, { max_tokens: 1000 }) },
-  { name: 'OpenRouter Scout', call: (m) => callOpenRouter('meta-llama/llama-4-scout-17b-16e-instruct', m, { max_tokens: 1000 }) },
-  { name: 'Groq Scout', call: (m) => callGroqDirect('meta-llama/llama-4-scout-17b-16e-instruct', m, { max_tokens: 1000 }) },
+  { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
+  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 1000 }) },
+  { name: 'Groq GPT-OSS-20B', call: (m) => callGroqDirect('openai/gpt-oss-20b', m, { max_tokens: 1000 }) },
 ]);
 
 const MATCHING_CHAIN = chain([
   { name: 'Gemini', call: (sys, p) => callGeminiDirect(sys, p) },
-  { name: 'OpenRouter 70B', call: (sys, p) => callOpenRouter('meta-llama/llama-3.3-70b-instruct', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
+  { name: 'OpenRouter GPT-OSS-120B', call: (sys, p) => callOpenRouter('openai/gpt-oss-120b', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
   { name: 'NVIDIA 70B', call: (sys, p) => callNVIDIA('meta/llama-3.3-70b-instruct', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
-  { name: 'Groq Scout', call: (sys, p) => callGroqDirect('meta-llama/llama-4-scout-17b-16e-instruct', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
+  { name: 'Groq GPT-OSS-20B', call: (sys, p) => callGroqDirect('openai/gpt-oss-20b', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
 ]);
 
 const IMAGE_CAPTION_CHAIN = chain([
-  { name: 'Groq Scout', call: (m) => callGroqDirect('meta-llama/llama-4-scout-17b-16e-instruct', m, { max_tokens: 1000 }) },
-  { name: 'OpenRouter Scout', call: (m) => callOpenRouter('meta-llama/llama-4-scout-17b-16e-instruct', m, { max_tokens: 1000 }) },
+  { name: 'Groq Qwen3.6-27B', call: (m) => callGroqDirect('qwen/qwen3.6-27b', m, { max_tokens: 1000 }) },
+  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 1000 }) },
 ]);
 
 const TEXT_INTENT_CHAIN = chain([
-  { name: 'Groq 70B', call: (m) => callGroqDirect('llama-3.3-70b-versatile', m, { max_tokens: 10 }) },
-  { name: 'OpenRouter 70B', call: (m) => callOpenRouter('meta-llama/llama-3.3-70b-instruct', m, { max_tokens: 10 }) },
+  { name: 'Groq GPT-OSS-20B', call: (m) => callGroqDirect('openai/gpt-oss-20b', m, { max_tokens: 10 }) },
+  { name: 'OpenRouter GPT-OSS-120B', call: (m) => callOpenRouter('openai/gpt-oss-120b', m, { max_tokens: 10 }) },
   { name: 'NVIDIA 70B', call: (m) => callNVIDIA('meta/llama-3.3-70b-instruct', m, { max_tokens: 10 }) },
 ]);
 
 const FACE_CROP_CHAIN = chain([
-  { name: 'Groq Scout', call: (m) => callGroqDirect('meta-llama/llama-4-scout-17b-16e-instruct', m, { max_tokens: 200 }) },
-  { name: 'OpenRouter Scout', call: (m) => callOpenRouter('meta-llama/llama-4-scout-17b-16e-instruct', m, { max_tokens: 200 }) },
+  { name: 'Groq Qwen3.6-27B', call: (m) => callGroqDirect('qwen/qwen3.6-27b', m, { max_tokens: 200 }) },
+  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 200 }) },
 ]);
 
 export async function classificationAI(messages, hasImages) {
