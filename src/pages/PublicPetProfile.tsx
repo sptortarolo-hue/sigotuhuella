@@ -88,6 +88,9 @@ export default function PublicPetProfile() {
   }
 
   if (!data || !data.found) {
+    if (data?.resolved_share_token) {
+      return <Navigate to={`/mascota/${data.resolved_share_token}`} replace />;
+    }
     if (data?.exists) {
       return <Navigate to={`/solicitar-chapita?qr=${shareToken}`} replace />;
     }
