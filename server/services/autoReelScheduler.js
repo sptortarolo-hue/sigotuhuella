@@ -37,10 +37,11 @@ async function cycleReel() {
     return;
   }
   isRunning = true;
+  let templateId = 'unknown';
   try {
     const idxResult = await pool.query("SELECT value FROM settings WHERE key = 'reel_template_index'");
     let idx = parseInt(idxResult.rows[0]?.value) || 0;
-    const templateId = TEMPLATE_IDS[idx % TEMPLATE_IDS.length];
+    templateId = TEMPLATE_IDS[idx % TEMPLATE_IDS.length];
 
     await pool.query(
       `INSERT INTO settings (key, value) VALUES ('reel_template_index', $1) ON CONFLICT (key) DO UPDATE SET value = $1`,

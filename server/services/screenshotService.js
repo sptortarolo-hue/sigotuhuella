@@ -17,6 +17,8 @@ const SCREEN_Y = 26;
 const BORDER_R = 40;
 const FRAME_COLOR = '#1a1a1a';
 
+const delay = (ms) => new Promise(r => setTimeout(r, ms));
+
 const PAGES = [
   { label: 'home', path: '/', auth: false },
   { label: 'lost-pets', path: '/perdidos', auth: false },
@@ -103,7 +105,7 @@ async function capturePage(page, pageConfig) {
 
   try {
     await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
-    await page.waitForTimeout(2000);
+    await delay(2000);
 
     const screenshotBuffer = await page.screenshot({ fullPage: false });
     const mockupBuffer = await applyPhoneMockup(screenshotBuffer);
@@ -152,7 +154,7 @@ export async function captureAllScreenshots() {
     if (authPages.length > 0) {
       try {
         await page.goto(`${APP_URL}/login`, { waitUntil: 'networkidle0', timeout: 20000 });
-        await page.waitForTimeout(1500);
+        await delay(1500);
 
         await page.type('input[type="email"]', testUser.email, { delay: 30 });
         await page.type('input[type="password"]', testUser.password, { delay: 20 });
@@ -162,7 +164,7 @@ export async function captureAllScreenshots() {
           page.click('button[type="submit"]'),
         ]);
 
-        await page.waitForTimeout(2000);
+    await delay(2000);
         console.log('[Screenshot] Login submitted');
       } catch (err) {
         console.warn('[Screenshot] Login failed:', err.message);

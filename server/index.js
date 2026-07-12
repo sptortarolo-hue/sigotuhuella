@@ -35,10 +35,8 @@ import adminDashboardRoutes from './routes/adminDashboard.js';
 // import { startSyncTimer } from './services/vpsSyncService.js';
 import { startApifyScraper } from './services/apifyScraper.js';
 import { startScreenshotScheduler } from './services/autoScreenshots.js';
-import { startReelScheduler } from './services/autoReelScheduler.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
-import { publishStory, publishReel, isConnected } from './services/instagramService.js';
 import { checkWhatsAppTimeouts } from './services/whatsappScheduler.js';
 import { broadcastNextAdoptionPet, broadcastFbAdoptionPets, broadcastAdoptionPet } from './services/whatsappService.js';
 import { processInviteReminders } from './services/reminderService.js';
@@ -629,9 +627,6 @@ async function start() {
   // Auto screenshots: capture mobile screenshots of key pages periodically
   startScreenshotScheduler();
 
-  // Auto reel: generate promotional reels from templates periodically
-  startReelScheduler();
-
   // Facebook publisher: replicate new Instagram posts to Page + Groups every 2 minutes
   setInterval(async () => {
     try {
@@ -660,47 +655,6 @@ async function start() {
     }
   }, 15000);
 
-  // Auto-story: rotate through videos with configured intervals
-  async function publishNextStory() {
-    try {
-      const autoStory = await pool.query("SELECT value FROM settings WHERE key = 'auto_story_enabled'");
-      if (autoStory.rows[0]?.value !== 'true') return;
-      const connected = await isConnected();
-      if (!connected) return;
-      const result = await pool.query(`
-        SELECT id, title, video_data, story_interval_minutes, last_story_posted_at
-        FROM promotional_videos
-        WHERE status = 'ready'
-          AND video_data != ''
-          AND story_interval_minutes IS NOT NULL
-          AND (last_story_posted_at IS NULL
-               OR last_story_posted_at < NOW() - (story_interval_minutes || ' minutes')::INTERVAL)
-        ORDER BY last_story_posted_at ASC NULLS FIRST
-        LIMIT 1
-      `);
-      if (result.rows.length === 0) return;
-      const video = result.rows[0];
-      const FRONTEND = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
-      const publicUrl = `${FRONTEND}/generated/videos/${video.video_data}`;
-      await publishStory(publicUrl);
-      const reelsResult = await pool.query("SELECT value FROM settings WHERE key = 'auto_reels_enabled'");
-      if (reelsResult.rows[0]?.value === 'true') {
-        try {
-          await publishReel(publicUrl, video.title);
-          console.log(`[Auto-Reel] Published "${video.title}" as Reel`);
-        } catch (reelErr) {
-          console.error('[Auto-Reel] Failed to publish reel:', reelErr.message);
-        }
-      }
-      await pool.query('UPDATE promotional_videos SET last_story_posted_at = NOW() WHERE id = $1', [video.id]);
-      console.log(`[Auto-Story] Published "${video.title}" (${video.id})`);
-    } catch (err) {
-      console.error('[Auto-Story] Error:', err.message);
-    }
-  }
-
-  setInterval(publishNextStory, 5 * 60 * 1000);
-  setTimeout(publishNextStory, 20_000);
 
   // WhatsApp timeout/reminder check every 10 minutes
   setInterval(async () => {
