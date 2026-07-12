@@ -1,58 +1,134 @@
-import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { PawPrint, Share2, Download, CheckCircle2, Printer, Smartphone, MessageCircle } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
+import { PawPrint, Share2, Download, CheckCircle2, Printer, Smartphone, MessageCircle, FileDown } from 'lucide-react';
 
 const APP_URL = 'https://sigotuhuella.online';
 const WA_URL = 'https://wa.me/5492212025190?text=Hola%21+Quiero+reportar+una+mascota';
 
 const QR_CONFIG = {
-  app: { width: 400, margin: 2, color: { dark: '#5A5A40', light: '#ffffff' } },
-  wa: { width: 400, margin: 2, color: { dark: '#25D366', light: '#ffffff' } },
+  app: { width: 300, margin: 1, color: { dark: '#1a1a1a', light: '#ffffff' } },
+  wa: { width: 300, margin: 1, color: { dark: '#1a1a1a', light: '#ffffff' } },
 };
 
 function Poster({ appQrUrl, waQrUrl }: { appQrUrl: string; waQrUrl: string }) {
   return (
-    <div className="border border-brand-accent rounded-[2rem] overflow-hidden max-w-sm mx-auto">
-      <div className="py-3 px-5 flex items-center justify-center gap-2" style={{ backgroundColor: '#5A5A40' }}>
-        <PawPrint className="w-5 h-5 text-white" />
-        <span className="font-serif font-bold text-lg text-white">Sigo tu huella</span>
-      </div>
-      <div className="p-6 text-center">
-        <p className="text-3xl mb-2">🐾</p>
-        <h3 className="text-xl font-bold text-gray-800 mb-2">¿Viste un animal perdido?</h3>
-        <p className="text-sm text-gray-500">Reportalo al instante sin necesidad de registro</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 px-6 pb-4">
-        <div className="text-center">
-          <p className="text-[10px] font-bold text-gray-600 mb-2 flex items-center justify-center gap-1">
-            <Smartphone className="w-3 h-3" /> App
-          </p>
-          {appQrUrl && <img src={appQrUrl} alt="QR App" className="w-32 h-32 mx-auto" />}
-        </div>
-        <div className="text-center">
-          <p className="text-[10px] font-bold text-gray-600 mb-2 flex items-center justify-center gap-1">
-            <MessageCircle className="w-3 h-3" /> WhatsApp
-          </p>
-          {waQrUrl && <img src={waQrUrl} alt="QR WhatsApp" className="w-32 h-32 mx-auto" />}
-        </div>
+    <div
+      className="bg-[#F5F5F0] overflow-hidden"
+      style={{ width: '210mm', height: '297mm', fontFamily: 'Inter, sans-serif' }}
+    >
+      {/* Header */}
+      <div className="flex flex-col items-center pt-10 pb-6 px-8">
+        <img
+          src="/sigotuhuella.jpg"
+          alt="Sigo Tu Huella"
+          className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md mb-4"
+        />
+        <h1
+          className="text-4xl font-bold text-center leading-tight"
+          style={{ fontFamily: '"Cormorant Garamond", serif', color: '#5A5A40' }}
+        >
+          Sigo tu huella
+        </h1>
       </div>
 
-      <div className="px-6 pb-4 text-center space-y-1.5">
-        {[
-          'Elegí el QR: ingresá a la app o reportá por WhatsApp',
-          'Seguí las instrucciones',
-          'Listo, ya se difunde en la red',
-        ].map((text, i) => (
-          <div key={i} className="flex items-center justify-center gap-2 text-xs text-gray-600">
-            <span className="w-5 h-5 bg-brand-primary/10 rounded-full flex items-center justify-center text-[10px] font-bold text-brand-primary">{i + 1}</span>
-            {text}
+      {/* Headline */}
+      <div className="px-10 pb-6 text-center">
+        <h2
+          className="text-3xl font-bold leading-snug"
+          style={{ fontFamily: '"Cormorant Garamond", serif', color: '#5A5A40' }}
+        >
+          Encontrá y reportá
+          <br />
+          mascotas perdidas
+          <br />
+          en tu zona
+        </h2>
+        <p className="mt-3 text-base" style={{ color: '#8a8a70' }}>
+          La app gratuita que conecta vecinos, voluntarios y veterinarias
+        </p>
+      </div>
+
+      {/* Photo */}
+      <div className="flex justify-center px-10 pb-6">
+        <div className="relative w-56 h-56 rounded-3xl overflow-hidden shadow-lg border-4 border-white">
+          <img
+            src="/bots/toto.jpg"
+            alt="Mascota"
+            className="w-full h-full object-cover"
+          />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'linear-gradient(to top, rgba(90,90,64,0.4) 0%, transparent 50%)',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Features */}
+      <div className="px-12 pb-6">
+        <div
+          className="rounded-2xl p-6 space-y-3"
+          style={{ backgroundColor: 'rgba(230,230,223,0.5)' }}
+        >
+          {[
+            'Reportá una mascota en menos de 2 minutos',
+            'Red de voluntarios que buscan con vos',
+            'Difusión automática en redes y WhatsApp',
+            '100% gratuito, sin registro necesario',
+          ].map((text, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <CheckCircle2
+                className="w-5 h-5 shrink-0"
+                style={{ color: '#D48C70' }}
+              />
+              <span className="text-sm font-medium" style={{ color: '#5A5A40' }}>
+                {text}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* QR Codes */}
+      <div className="flex justify-center gap-6 px-10 pb-6">
+        <div className="flex flex-col items-center">
+          <div className="bg-white rounded-2xl p-3 shadow-sm border border-[#E6E6DF]">
+            {appQrUrl && (
+              <img src={appQrUrl} alt="QR App" className="w-28 h-28" />
+            )}
           </div>
-        ))}
+          <p className="mt-2 text-xs font-bold text-center" style={{ color: '#5A5A40' }}>
+            Escaneá y descargá
+          </p>
+          <p className="text-[10px]" style={{ color: '#8a8a70' }}>
+            la app
+          </p>
+        </div>
+        <div className="flex flex-col items-center">
+          <div className="bg-white rounded-2xl p-3 shadow-sm border border-[#E6E6DF]">
+            {waQrUrl && (
+              <img src={waQrUrl} alt="QR WhatsApp" className="w-28 h-28" />
+            )}
+          </div>
+          <p className="mt-2 text-xs font-bold text-center" style={{ color: '#5A5A40' }}>
+            Escaneá y reportá
+          </p>
+          <p className="text-[10px]" style={{ color: '#8a8a70' }}>
+            por WhatsApp
+          </p>
+        </div>
       </div>
-      <div className="border-t border-gray-100 py-3 px-6 text-center">
-        <p className="text-[10px] text-gray-400">sigotuhuella.online</p>
+
+      {/* Footer */}
+      <div
+        className="mt-auto py-4 text-center"
+        style={{ borderTop: '2px solid #E6E6DF' }}
+      >
+        <p className="text-xs font-bold tracking-wide" style={{ color: '#5A5A40' }}>
+          sigotuhuella.online
+        </p>
       </div>
     </div>
   );
@@ -62,6 +138,8 @@ export default function DiffusionPage() {
   const [appQrUrl, setAppQrUrl] = useState('');
   const [waQrUrl, setWaQrUrl] = useState('');
   const [copied, setCopied] = useState<'app' | 'wa' | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const posterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     QRCode.toDataURL(APP_URL, QR_CONFIG.app).then(setAppQrUrl).catch(console.error);
@@ -93,25 +171,39 @@ export default function DiffusionPage() {
     link.click();
   };
 
-  const handlePrint = () => window.print();
+  const handleDownloadPdf = async () => {
+    const element = posterRef.current;
+    if (!element) return;
+    setGenerating(true);
+    try {
+      await html2pdf()
+        .set({
+          margin: 0,
+          filename: 'sigo-tu-huella-flyer.pdf',
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 3, useCORS: true, logging: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        })
+        .from(element)
+        .save();
+    } finally {
+      setGenerating(false);
+    }
+  };
 
-  const poster = (
-    <div id="poster-content">
-      <Poster appQrUrl={appQrUrl} waQrUrl={waQrUrl} />
-    </div>
-  );
+  const handlePrint = () => window.print();
 
   return (
     <>
       <style>{`
         @media screen {
-          #poster-content { display: none !important; }
+          .print-flyer { display: none !important; }
         }
         @media print {
-          @page { size: A4 portrait; margin: 12mm; }
+          @page { size: A4 portrait; margin: 0; }
           #root { display: none !important; }
           body { background: white !important; margin: 0; padding: 0; }
-          #poster-content {
+          .print-flyer {
             display: flex !important;
             position: fixed !important;
             inset: 0 !important;
@@ -121,6 +213,7 @@ export default function DiffusionPage() {
         }
       `}</style>
 
+      {/* Screen UI */}
       <div className="min-h-screen py-8 sm:py-12 px-4">
         <div className="max-w-3xl mx-auto">
           {/* Header */}
@@ -129,7 +222,7 @@ export default function DiffusionPage() {
               <Share2 className="w-8 h-8 text-brand-primary" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary">Difundí Sigo Tu Huella</h1>
-            <p className="text-gray-500 mt-2 text-sm sm:text-base">Ayudanos a llegar a más vecinos. Compartí los códigos o imprimí un cartel.</p>
+            <p className="text-gray-500 mt-2 text-sm sm:text-base">Descargá e imprimí el flyer para pegar en veterinarias, plazas y comercios.</p>
           </div>
 
           {/* QR Digital */}
@@ -183,23 +276,57 @@ export default function DiffusionPage() {
             </div>
           </div>
 
-          {/* Cartel — preview on screen */}
+          {/* Flyer section */}
           <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 mb-6 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
                 <Printer className="w-5 h-5 text-amber-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-800">Cartel para imprimir</h2>
-                <p className="text-sm text-gray-500">Pegalo en veterinarias, plazas y comercios</p>
+                <h2 className="text-lg font-bold text-gray-800">Flyer para imprimir</h2>
+                <p className="text-sm text-gray-500">Descargalo en PDF o imprimí directo desde el navegador</p>
               </div>
             </div>
 
-            <Poster appQrUrl={appQrUrl} waQrUrl={waQrUrl} />
+            {/* Preview — scaled down A4 */}
+            <div className="flex justify-center mb-6 overflow-hidden rounded-xl border border-brand-accent bg-gray-50 p-4">
+              <div
+                className="origin-top shadow-lg"
+                style={{
+                  width: '210mm',
+                  height: '297mm',
+                  transform: 'scale(0.38)',
+                  transformOrigin: 'top center',
+                  marginBottom: '-145mm',
+                }}
+              >
+                <Poster appQrUrl={appQrUrl} waQrUrl={waQrUrl} />
+              </div>
+            </div>
 
-            <div className="flex justify-center mt-6">
-              <button onClick={handlePrint} className="flex items-center gap-2 px-8 py-3.5 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
-                <Printer className="w-5 h-5" /> Imprimir / Descargar PDF
+            {/* Action buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={handleDownloadPdf}
+                disabled={generating || !appQrUrl}
+                className="flex items-center justify-center gap-2 px-8 py-3.5 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-wait"
+              >
+                {generating ? (
+                  <>
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Generando PDF...
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="w-5 h-5" /> Descargar PDF
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handlePrint}
+                className="flex items-center justify-center gap-2 px-8 py-3.5 border-2 border-brand-primary text-brand-primary rounded-xl font-bold hover:bg-brand-primary/5 transition-all"
+              >
+                <Printer className="w-5 h-5" /> Imprimir
               </button>
             </div>
           </div>
@@ -210,7 +337,10 @@ export default function DiffusionPage() {
         </div>
       </div>
 
-      {createPortal(poster, document.body)}
+      {/* Print-only flyer — hidden on screen, visible on print */}
+      <div ref={posterRef} className="print-flyer">
+        <Poster appQrUrl={appQrUrl} waQrUrl={waQrUrl} />
+      </div>
     </>
   );
 }
