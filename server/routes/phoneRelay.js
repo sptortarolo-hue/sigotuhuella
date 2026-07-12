@@ -422,42 +422,47 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
     const { group_id, wa_message_id, author_jid, author_name, content, image_data, image_mime } = req.body;
     if (!group_id || !wa_message_id) return res.status(400).json({ error: 'group_id and wa_message_id required' });
 
-    // Check if this group has scrape enabled
     const groupRes = await pool.query('SELECT scrape_enabled FROM whatsapp_groups WHERE id = $1', [group_id]);
     if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
     if (!groupRes.rows[0].scrape_enabled) return res.json({ skipped: true, reason: 'scrape disabled' });
 
-    // Check if already exists (dedup)
     const existing = await pool.query('SELECT id FROM whatsapp_scraped_messages WHERE wa_message_id = $1', [wa_message_id]);
     if (existing.rows.length > 0) return res.json({ skipped: true, reason: 'duplicate' });
 
-    // Classify with AI
-    const classification = await classifyWhatsAppMessage(content || '', image_data || null, image_mime || null);
-
-    // Skip non-pet messages
-    if (classification.classification === 'other' && !WA_KEYWORDS.test(content || '')) {
-      return res.json({ skipped: true, reason: 'not pet related' });
-    }
-
-    // Store
+    // Store without classification (fast) and respond immediately
     const insertRes = await pool.query(
-      `INSERT INTO whatsapp_scraped_messages (group_id, wa_message_id, author_jid, author_name, content, image_data, image_mime, classification, species, color, location_hint, phone)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO whatsapp_scraped_messages (group_id, wa_message_id, author_jid, author_name, content, image_data, image_mime)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (wa_message_id) DO NOTHING
        RETURNING id`,
-      [group_id, wa_message_id, author_jid || null, author_name || null, content || null, image_data || null, image_mime || null,
-       classification.classification, classification.species, classification.color, classification.location_hint, classification.phone]
+      [group_id, wa_message_id, author_jid || null, author_name || null, content || null, image_data || null, image_mime || null]
     );
     if (insertRes.rows.length === 0) return res.json({ skipped: true, reason: 'duplicate after insert' });
 
     const messageId = insertRes.rows[0].id;
+    res.json({ id: messageId, status: 'pending_classification' });
 
-    // Run matching in background if lost/found
-    if (['lost', 'found', 'sighting'].includes(classification.classification)) {
-      matchWhatsAppMessageToPet(messageId).catch(e => console.error('WA message matching error:', e));
-    }
-
-    res.json({ id: messageId, classification: classification.classification });
+    // Classify in background (non-blocking)
+    classifyWhatsAppMessage(content || '', image_data || null, image_mime || null)
+      .then(async (classification) => {
+        // Skip non-pet messages: delete from DB
+        if (classification.classification === 'other' && !WA_KEYWORDS.test(content || '')) {
+          await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
+          return;
+        }
+        // Update with classification results
+        await pool.query(
+          `UPDATE whatsapp_scraped_messages
+           SET classification = $1, species = $2, color = $3, location_hint = $4, phone = $5
+           WHERE id = $6`,
+          [classification.classification, classification.species, classification.color, classification.location_hint, classification.phone, messageId]
+        );
+        // Run matching in background if lost/found/sighting
+        if (['lost', 'found', 'sighting'].includes(classification.classification)) {
+          matchWhatsAppMessageToPet(messageId).catch(e => console.error('WA message matching error:', e));
+        }
+      })
+      .catch(e => console.error('[Relay] background classification error:', e.message));
   } catch (err) {
     console.error('[Relay] scraped-message error:', err.message);
     res.status(500).json({ error: err.message });
