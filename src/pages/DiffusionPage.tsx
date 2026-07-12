@@ -14,64 +14,72 @@ const QR_CONFIG = {
 function Poster({ appQrUrl, waQrUrl }: { appQrUrl: string; waQrUrl: string }) {
   return (
     <div
-      className="bg-[#F5F5F0] overflow-hidden"
+      className="bg-white overflow-hidden"
       style={{ width: '210mm', height: '297mm', fontFamily: 'Inter, sans-serif' }}
     >
       {/* Header */}
-      <div className="flex flex-col items-center pt-10 pb-6 px-8">
+      <div className="flex items-center justify-center gap-3 pt-10 pb-2">
         <img
           src="/sigotuhuella.jpg"
           alt="Sigo Tu Huella"
-          className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md mb-4"
+          className="w-12 h-12 rounded-full object-cover"
         />
-        <h1
-          className="text-4xl font-bold text-center leading-tight"
-          style={{ fontFamily: '"Cormorant Garamond", serif', color: '#5A5A40' }}
-        >
+        <h1 className="text-2xl font-bold tracking-wide uppercase" style={{ color: '#1a1a1a' }}>
           Sigo tu huella
         </h1>
       </div>
 
+      {/* Divider */}
+      <div className="mx-auto w-16 h-px bg-black my-4" />
+
       {/* Headline */}
-      <div className="px-10 pb-6 text-center">
+      <div className="px-10 pb-8 text-center">
         <h2
-          className="text-3xl font-bold leading-snug"
-          style={{ fontFamily: '"Cormorant Garamond", serif', color: '#5A5A40' }}
+          className="text-4xl font-bold leading-tight tracking-tight"
+          style={{ fontFamily: '"Cormorant Garamond", serif', color: '#1a1a1a' }}
         >
           Encontrá y reportá
           <br />
           mascotas perdidas
-          <br />
-          en tu zona
         </h2>
-        <p className="mt-3 text-base" style={{ color: '#8a8a70' }}>
+        <p className="mt-3 text-sm tracking-wide" style={{ color: '#666' }}>
           La app gratuita que conecta vecinos, voluntarios y veterinarias
         </p>
       </div>
 
-      {/* Photo */}
-      <div className="flex justify-center px-10 pb-6">
-        <div className="relative w-56 h-56 rounded-3xl overflow-hidden shadow-lg border-4 border-white">
-          <img
-            src="/bots/toto.jpg"
-            alt="Mascota"
-            className="w-full h-full object-cover"
-          />
+      {/* QR Codes — central element */}
+      <div className="flex justify-center gap-10 px-10 pb-8">
+        <div className="flex flex-col items-center">
           <div
-            className="absolute inset-0"
-            style={{
-              background: 'linear-gradient(to top, rgba(90,90,64,0.4) 0%, transparent 50%)',
-            }}
-          />
+            className="p-4 rounded-2xl border-2"
+            style={{ borderColor: '#1a1a1a' }}
+          >
+            {appQrUrl && (
+              <img src={appQrUrl} alt="QR App" className="w-40 h-40" />
+            )}
+          </div>
+          <p className="mt-3 text-sm font-bold uppercase tracking-widest" style={{ color: '#1a1a1a' }}>
+            Descargá la app
+          </p>
+        </div>
+        <div className="flex flex-col items-center">
+          <div
+            className="p-4 rounded-2xl border-2"
+            style={{ borderColor: '#1a1a1a' }}
+          >
+            {waQrUrl && (
+              <img src={waQrUrl} alt="QR WhatsApp" className="w-40 h-40" />
+            )}
+          </div>
+          <p className="mt-3 text-sm font-bold uppercase tracking-widest" style={{ color: '#1a1a1a' }}>
+            Reportá por WhatsApp
+          </p>
         </div>
       </div>
 
       {/* Features */}
-      <div className="px-12 pb-6">
-        <div
-          className="rounded-2xl p-6 space-y-3"
-          style={{ backgroundColor: 'rgba(230,230,223,0.5)' }}
-        >
+      <div className="px-12 pb-8">
+        <div className="space-y-3">
           {[
             'Reportá una mascota en menos de 2 minutos',
             'Red de voluntarios que buscan con vos',
@@ -79,11 +87,13 @@ function Poster({ appQrUrl, waQrUrl }: { appQrUrl: string; waQrUrl: string }) {
             '100% gratuito, sin registro necesario',
           ].map((text, i) => (
             <div key={i} className="flex items-center gap-3">
-              <CheckCircle2
-                className="w-5 h-5 shrink-0"
-                style={{ color: '#D48C70' }}
-              />
-              <span className="text-sm font-medium" style={{ color: '#5A5A40' }}>
+              <span
+                className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+                style={{ backgroundColor: '#1a1a1a', color: '#ffffff' }}
+              >
+                {i + 1}
+              </span>
+              <span className="text-sm font-medium" style={{ color: '#1a1a1a' }}>
                 {text}
               </span>
             </div>
@@ -91,42 +101,12 @@ function Poster({ appQrUrl, waQrUrl }: { appQrUrl: string; waQrUrl: string }) {
         </div>
       </div>
 
-      {/* QR Codes */}
-      <div className="flex justify-center gap-6 px-10 pb-6">
-        <div className="flex flex-col items-center">
-          <div className="bg-white rounded-2xl p-3 shadow-sm border border-[#E6E6DF]">
-            {appQrUrl && (
-              <img src={appQrUrl} alt="QR App" className="w-28 h-28" />
-            )}
-          </div>
-          <p className="mt-2 text-xs font-bold text-center" style={{ color: '#5A5A40' }}>
-            Escaneá y descargá
-          </p>
-          <p className="text-[10px]" style={{ color: '#8a8a70' }}>
-            la app
-          </p>
-        </div>
-        <div className="flex flex-col items-center">
-          <div className="bg-white rounded-2xl p-3 shadow-sm border border-[#E6E6DF]">
-            {waQrUrl && (
-              <img src={waQrUrl} alt="QR WhatsApp" className="w-28 h-28" />
-            )}
-          </div>
-          <p className="mt-2 text-xs font-bold text-center" style={{ color: '#5A5A40' }}>
-            Escaneá y reportá
-          </p>
-          <p className="text-[10px]" style={{ color: '#8a8a70' }}>
-            por WhatsApp
-          </p>
-        </div>
-      </div>
-
       {/* Footer */}
       <div
-        className="mt-auto py-4 text-center"
-        style={{ borderTop: '2px solid #E6E6DF' }}
+        className="mt-auto py-5 text-center"
+        style={{ borderTop: '2px solid #1a1a1a' }}
       >
-        <p className="text-xs font-bold tracking-wide" style={{ color: '#5A5A40' }}>
+        <p className="text-sm font-bold tracking-widest uppercase" style={{ color: '#1a1a1a' }}>
           sigotuhuella.online
         </p>
       </div>
