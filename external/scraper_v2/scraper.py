@@ -161,6 +161,23 @@ async def scrape(token, api):
     print("[scraper] Scrapeo completado")
 
 
+def acquire_wakelock():
+    try:
+        import subprocess
+        subprocess.run(["termux-wake-lock"], capture_output=True, timeout=5)
+        print("[scraper] Wake lock adquirido")
+    except Exception:
+        pass
+
+
+def release_wakelock():
+    try:
+        import subprocess
+        subprocess.run(["termux-wake-unlock"], capture_output=True, timeout=5)
+    except Exception:
+        pass
+
+
 def main():
     parser = argparse.ArgumentParser(description="Scraper de Facebook Groups para SiHuella")
     parser.add_argument("--token", required=True, help="Token del scraper (fb_scraper_token)")
@@ -172,12 +189,15 @@ def main():
 
     token = args.token
     api = args.api.rstrip("/")
+    acquire_wakelock()
 
     if args.once:
         if not check_pending(token, api):
             print("[scraper] No hay scrape pendiente")
+            release_wakelock()
             return
         asyncio.run(scrape(token, api))
+        release_wakelock()
         return
 
     interval = args.daemon or 30
