@@ -277,6 +277,11 @@ export const api = {
     broadcastAdoptions: () => request('/relay/fb/broadcast-adoptions', { method: 'POST' }),
     clearQueue: () => request('/relay/fb/clear-queue', { method: 'POST' }),
   },
+  phoneRelay: {
+    scrapedMessages: {
+      get: (id: string) => request(`/phone-relay/scraped-messages/${id}`),
+    },
+  },
 
   myPets: {
     list: () => request('/my-pets'),

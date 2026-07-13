@@ -8,6 +8,7 @@ import {
   ExternalLink, X, LayoutGrid, List,
 } from 'lucide-react';
 import ImageLightbox from '@/src/components/admin/ImageLightbox';
+import FacebookMatchReview from '@/src/components/admin/FacebookMatchReview';
 
 type SubTab = 'posts' | 'matches' | 'settings';
 
@@ -247,6 +248,7 @@ function MatchesSection() {
   const [matches, setMatches] = useState<MatchItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('pending');
+  const [reviewMode, setReviewMode] = useState(false);
   const [stats, setStats] = useState<{ totalPosts: number; totalMatches: number; pendingMatches: number; confirmedMatches: number } | null>(null);
 
   const fetchData = async () => {
@@ -297,91 +299,108 @@ function MatchesSection() {
         </div>
       )}
 
-      <div className="flex gap-2">
-        {['pending', 'confirmed', 'rejected', 'all'].map(s => (
-          <button key={s} onClick={() => setStatusFilter(s)}
-            className={cn("px-3 py-1.5 text-xs font-bold rounded-xl transition-colors",
-              statusFilter === s ? "bg-brand-primary text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}>
-            {s === 'pending' ? 'Pendientes' : s === 'confirmed' ? 'Confirmados' : s === 'rejected' ? 'Rechazados' : 'Todos'}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex gap-2">
+          {['pending', 'confirmed', 'rejected', 'all'].map(s => (
+            <button key={s} onClick={() => setStatusFilter(s)}
+              className={cn("px-3 py-1.5 text-xs font-bold rounded-xl transition-colors",
+                statusFilter === s ? "bg-brand-primary text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}>
+              {s === 'pending' ? 'Pendientes' : s === 'confirmed' ? 'Confirmados' : s === 'rejected' ? 'Rechazados' : 'Todos'}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setReviewMode(!reviewMode)}
+          className={cn("flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-colors",
+            reviewMode ? "bg-brand-primary text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}>
+          {reviewMode ? <List className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />}
+          {reviewMode ? 'Tabla' : 'Revisión'}
+        </button>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-brand-accent">
-        <table className="w-full text-left text-sm min-w-max">
-          <thead>
-            <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
-              <th className="px-4 py-3">Origen</th>
-              <th className="px-4 py-3">Score</th>
-              <th className="px-4 py-3">Fuente</th>
-              <th className="px-4 py-3">Target</th>
-              <th className="px-4 py-3">Método</th>
-              <th className="px-4 py-3">Razones</th>
-              <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3">Fecha</th>
-              <th className="px-4 py-3">Acción</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-brand-accent">
-            {matches.map(m => {
-              const sourceType = m.source_type === 'fb_post' ? 'FB' : m.source_type === 'wa_group' ? 'WA' : 'App';
-              return (
-                <tr key={m.id} className="hover:bg-brand-bg/50 transition-colors">
-                  <td className="px-4 py-3">
-                    <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold",
-                      sourceType === 'FB' ? "bg-blue-100 text-blue-700" :
-                      sourceType === 'WA' ? "bg-green-100 text-green-700" : "bg-purple-100 text-purple-700")}>
-                      {sourceType}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={cn("font-black text-sm",
-                      m.score >= 80 ? "text-green-600" : m.score >= 60 ? "text-yellow-600" : "text-gray-500")}>{m.score}%</span>
-                  </td>
-                  <td className="px-4 py-3 max-w-[120px] truncate text-xs text-gray-500">{m.source_label || m.source_type}</td>
-                  <td className="px-4 py-3 max-w-[120px] truncate text-xs text-gray-500">{m.target_label || m.target_type}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{m.method}</td>
-                  <td className="px-4 py-3 max-w-[150px]">
-                    <div className="flex flex-wrap gap-1">
-                      {(m.reasons || []).map((r, i) => (
-                        <span key={i} className="text-[9px] px-1.5 py-0.5 bg-gray-100 rounded-full text-gray-500">{r}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold uppercase",
-                      m.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                      m.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                      'bg-red-100 text-red-700')}>
-                      {m.status === 'pending' ? 'Pendiente' : m.status === 'confirmed' ? 'Confirmado' : 'Rechazado'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                    {new Date(m.created_at).toLocaleDateString('es-AR')}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1">
-                      {m.status === 'pending' && (
-                        <>
-                          <button onClick={() => handleConfirm(m.id)} title="Confirmar"
-                            className="p-1.5 text-green-500 hover:text-green-700"><Check className="w-4 h-4" /></button>
-                          <button onClick={() => handleReject(m.id)} title="Rechazar"
-                            className="p-1.5 text-red-400 hover:text-red-600"><XCircle className="w-4 h-4" /></button>
-                        </>
-                      )}
-                      <button onClick={() => handleCopyMatch(m)} title="Copiar"
-                        className="p-1.5 text-gray-400 hover:text-brand-primary"><MessageSquare className="w-4 h-4" /></button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {matches.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">Sin matches</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {reviewMode && statusFilter === 'pending' ? (
+        <FacebookMatchReview
+          matches={matches}
+          onConfirm={handleConfirm}
+          onReject={handleReject}
+          onRefresh={fetchData}
+        />
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+          <table className="w-full text-left text-sm min-w-max">
+            <thead>
+              <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                <th className="px-4 py-3">Origen</th>
+                <th className="px-4 py-3">Score</th>
+                <th className="px-4 py-3">Fuente</th>
+                <th className="px-4 py-3">Target</th>
+                <th className="px-4 py-3">Método</th>
+                <th className="px-4 py-3">Razones</th>
+                <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">Fecha</th>
+                <th className="px-4 py-3">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-accent">
+              {matches.map(m => {
+                const sourceType = m.source_type === 'fb_post' ? 'FB' : m.source_type === 'wa_group' ? 'WA' : 'App';
+                return (
+                  <tr key={m.id} className="hover:bg-brand-bg/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold",
+                        sourceType === 'FB' ? "bg-blue-100 text-blue-700" :
+                        sourceType === 'WA' ? "bg-green-100 text-green-700" : "bg-purple-100 text-purple-700")}>
+                        {sourceType}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn("font-black text-sm",
+                        m.score >= 80 ? "text-green-600" : m.score >= 60 ? "text-yellow-600" : "text-gray-500")}>{m.score}%</span>
+                    </td>
+                    <td className="px-4 py-3 max-w-[120px] truncate text-xs text-gray-500">{m.source_label || m.source_type}</td>
+                    <td className="px-4 py-3 max-w-[120px] truncate text-xs text-gray-500">{m.target_label || m.target_type}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{m.method}</td>
+                    <td className="px-4 py-3 max-w-[150px]">
+                      <div className="flex flex-wrap gap-1">
+                        {(m.reasons || []).map((r, i) => (
+                          <span key={i} className="text-[9px] px-1.5 py-0.5 bg-gray-100 rounded-full text-gray-500">{r}</span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold uppercase",
+                        m.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                        m.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                        'bg-red-100 text-red-700')}>
+                        {m.status === 'pending' ? 'Pendiente' : m.status === 'confirmed' ? 'Confirmado' : 'Rechazado'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                      {new Date(m.created_at).toLocaleDateString('es-AR')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        {m.status === 'pending' && (
+                          <>
+                            <button onClick={() => handleConfirm(m.id)} title="Confirmar"
+                              className="p-1.5 text-green-500 hover:text-green-700"><Check className="w-4 h-4" /></button>
+                            <button onClick={() => handleReject(m.id)} title="Rechazar"
+                              className="p-1.5 text-red-400 hover:text-red-600"><XCircle className="w-4 h-4" /></button>
+                          </>
+                        )}
+                        <button onClick={() => handleCopyMatch(m)} title="Copiar"
+                          className="p-1.5 text-gray-400 hover:text-brand-primary"><MessageSquare className="w-4 h-4" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {matches.length === 0 && (
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">Sin matches</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

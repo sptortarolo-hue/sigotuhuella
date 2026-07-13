@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/src/lib/utils';
 import { api } from '@/src/lib/api';
-import { Check, XCircle, ChevronLeft, ChevronRight, Loader2, ImageIcon } from 'lucide-react';
+import { Check, XCircle, ChevronLeft, ChevronRight, Loader2, ImageIcon, MessageSquare } from 'lucide-react';
 
 interface MatchItem {
   id: string; source_type: string; source_id: string; source_label: string;
@@ -41,6 +41,18 @@ export default function FacebookMatchReview({ matches, onConfirm, onReject, onRe
             const r = await api.facebook.posts.get(id);
             console.log('[match-review] fb_post:', { id, image_urls: r.image_urls?.length ?? 0, ok: true });
             return { id: r.id, type: 'fb_post', label: r.content?.substring(0, 100), content: r.content, images: r.image_urls || [], species: r.species, color: r.color, location: r.location_hint, phone: r.phone, date: r.posted_at };
+          }
+          if (type === 'wa_report') {
+            const r = await api.whatsapp.getMessage(id);
+            console.log('[match-review] wa_report:', { id, has_image: !!r.image_data, ok: true });
+            const images = r.image_data ? [`data:${r.image_mime || 'image/jpeg'};base64,${r.image_data}`] : [];
+            return { id: r.id, type: 'wa_report', label: r.text_body?.substring(0, 100), content: r.text_body || '', images, location: r.location_lat && r.location_lng ? `${r.location_lat},${r.location_lng}` : undefined, phone: r.wa_from, date: r.created_at };
+          }
+          if (type === 'wa_group') {
+            const r = await api.phoneRelay.scrapedMessages.get(id);
+            console.log('[match-review] wa_group:', { id, has_image: !!r.image_data, ok: true });
+            const images = r.image_data ? [`data:${r.image_mime || 'image/jpeg'};base64,${r.image_data}`] : [];
+            return { id: r.id, type: 'wa_group', label: r.content?.substring(0, 100), content: r.content || '', images, species: r.species, color: r.color, location: r.location_hint, phone: r.phone, date: r.created_at };
           }
           const r = await api.pets.get(id);
           console.log('[match-review] pet:', { id: r.pet?.id, images: r.pet?.images?.length ?? 0, ok: true });
