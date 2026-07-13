@@ -450,9 +450,6 @@ function SettingsSection() {
       await api.settings.update('fb_scraper_token', settings.fb_scraper_token || '');
       await api.settings.update('fb_scraper_hour_1', settings.fb_scraper_hour_1 || '8');
       await api.settings.update('fb_scraper_hour_2', settings.fb_scraper_hour_2 || '20');
-      await api.settings.update('fb_scraper_interval_hours', settings.fb_scraper_interval_hours || '3');
-      await api.settings.update('fb_scraper_jitter_minutes', settings.fb_scraper_jitter_minutes || '15');
-      await api.settings.update('fb_scraper_max_posts', settings.fb_scraper_max_posts || '50');
       setSavedScraper(true);
       setTimeout(() => setSavedScraper(false), 2000);
     } catch (e: any) { alert(e.message); }
@@ -503,9 +500,9 @@ function SettingsSection() {
           </div>
           <div className="bg-brand-bg rounded-2xl p-4 space-y-3">
             <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-              <Clock className="w-4 h-4" /> Configuración Apify
+              <Clock className="w-4 h-4" /> Configuración del scraper
             </h4>
-            <p className="text-xs text-gray-500">crowdpull/facebook-group-posts-scraper con Smart Scrape.</p>
+            <p className="text-xs text-gray-500">El scraper corre desde tu dispositivo (Termux + Chromium).</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold text-gray-500 block mb-1">Inicio banda horaria</label>
@@ -526,24 +523,6 @@ function SettingsSection() {
                     <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1">Intervalo (horas)</label>
-                <input type="number" value={settings.fb_scraper_interval_hours || '3'}
-                  onChange={e => setSettings(p => ({ ...p, fb_scraper_interval_hours: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none" min="1" max="24" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1">Jitter (min)</label>
-                <input type="number" value={settings.fb_scraper_jitter_minutes || '15'}
-                  onChange={e => setSettings(p => ({ ...p, fb_scraper_jitter_minutes: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none" min="0" max="120" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1">Máx. posts</label>
-                <input type="number" value={settings.fb_scraper_max_posts || '50'}
-                  onChange={e => setSettings(p => ({ ...p, fb_scraper_max_posts: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none" min="1" max="200" />
               </div>
             </div>
             {settings.apify_last_scrape_at && (

@@ -3,7 +3,6 @@ import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { classifyPost } from '../services/geminiClassifier.js';
 import { getSessionFile } from '../services/facebookRelayService.js';
-import { scrapeWithApify } from '../services/apifyScraper.js';
 import { enqueue } from '../services/phoneRelayService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 
@@ -908,12 +907,56 @@ router.get('/publish-status', requireAdmin, async (_req, res) => {
 
 router.post('/trigger-scrape', requireAdmin, async (req, res) => {
   try {
-    await scrapeWithApify();
+    await pool.query(
+      "INSERT INTO settings (key, value) VALUES ('fb_scrape_pending', NOW()::text) ON CONFLICT (key) DO UPDATE SET value = NOW()::text"
+    );
     const lastRun = await pool.query("SELECT value FROM settings WHERE key = 'apify_last_scrape_at'");
-    res.json({ success: true, lastScrape: lastRun.rows[0]?.value || null });
+    res.json({ success: true, message: 'Scrape marcado como pendiente', lastScrape: lastRun.rows[0]?.value || null });
   } catch (err) {
     console.error('[Trigger Scrape] Error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== PENDING SCRAPE (para scraper desde Termux) ====================
+
+router.get('/pending-scrape', async (req, res) => {
+  const token = await getScraperToken();
+  const qToken = req.query.token;
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if ((!qToken || qToken !== token) && bearerToken !== token) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+  try {
+    const result = await pool.query("SELECT value FROM settings WHERE key = 'fb_scrape_pending'");
+    if (!result.rows[0]?.value) return res.json({ pending: false });
+
+    const timestamp = result.rows[0].value;
+    await pool.query("DELETE FROM settings WHERE key = 'fb_scrape_pending'");
+    res.json({ pending: true, timestamp });
+  } catch (err) {
+    console.error('[Pending Scrape] Error:', err.message);
+    res.status(500).json({ error: 'Error al consultar pendiente' });
+  }
+});
+
+router.post('/scrape-done', async (req, res) => {
+  const token = await getScraperToken();
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (bearerToken !== token && req.query.token !== token) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+  try {
+    await pool.query(
+      "INSERT INTO settings (key, value) VALUES ('apify_last_scrape_at', NOW()::text) ON CONFLICT (key) DO UPDATE SET value = NOW()::text"
+    );
+    await pool.query("DELETE FROM settings WHERE key = 'fb_scrape_pending'");
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Scrape Done] Error:', err.message);
+    res.status(500).json({ error: 'Error al marcar completado' });
   }
 });
 

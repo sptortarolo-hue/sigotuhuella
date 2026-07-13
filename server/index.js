@@ -33,7 +33,7 @@ import facebookRelayRoutes from './routes/facebookRelay.js';
 import invitesRoutes from './routes/invites.js';
 import adminDashboardRoutes from './routes/adminDashboard.js';
 // import { startSyncTimer } from './services/vpsSyncService.js';
-import { startApifyScraper } from './services/apifyScraper.js';
+import { startFbScraperScheduler } from './services/apifyScraper.js';
 import { startScreenshotScheduler } from './services/autoScreenshots.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
@@ -621,8 +621,8 @@ async function start() {
     }
   }, 5000);
 
-  // Apify scraper: scrape Facebook groups via Apify actor
-  startApifyScraper();
+  // FB scraper scheduler: marca scrape pendiente para que Termux lo ejecute
+  startFbScraperScheduler();
 
   // Auto screenshots: capture mobile screenshots of key pages periodically
   startScreenshotScheduler();

@@ -59,7 +59,7 @@ function ScrapingConfig({ settings, onChange }: { settings: Record<string, strin
           className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm font-mono" />
       </Field>
       <div className="bg-brand-bg rounded-2xl p-4 space-y-3">
-        <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2"><Clock className="w-4 h-4" /> Horarios (Apify)</h4>
+        <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2"><Clock className="w-4 h-4" /> Horarios del scraper</h4>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Inicio banda">
             <select value={settings.fb_scraper_hour_1 || '8'} onChange={e => onChange('fb_scraper_hour_1', e.target.value)}
@@ -72,18 +72,6 @@ function ScrapingConfig({ settings, onChange }: { settings: Record<string, strin
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary">
               {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>)}
             </select>
-          </Field>
-          <Field label="Intervalo (horas)">
-            <input type="number" value={settings.fb_scraper_interval_hours || '3'} onChange={e => onChange('fb_scraper_interval_hours', e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="1" max="24" />
-          </Field>
-          <Field label="Jitter (min)">
-            <input type="number" value={settings.fb_scraper_jitter_minutes || '15'} onChange={e => onChange('fb_scraper_jitter_minutes', e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="120" />
-          </Field>
-          <Field label="Máx posts/ciclo">
-            <input type="number" value={settings.fb_scraper_max_posts || '50'} onChange={e => onChange('fb_scraper_max_posts', e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="1" max="200" />
           </Field>
         </div>
       </div>
