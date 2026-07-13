@@ -119,7 +119,6 @@ async def scrape(token, api):
 
     browser = await launch(
         headless=True,
-        executablePath="/data/data/com.termux/files/usr/bin/chromium-browser",
         args=[
             "--no-sandbox",
             "--disable-dev-shm-usage",
