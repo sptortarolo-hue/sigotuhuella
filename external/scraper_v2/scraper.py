@@ -1,51 +1,49 @@
 #!/usr/bin/env python3
 """
 Scraper de Facebook Groups para SiHuella.
-Usa Playwright (Chromium) para navegar como browser real.
+Usa pyppeteer (Chromium headless) + requests.
 Corre desde Termux usando la IP del celular (residencial).
-No necesita cookies ni cuenta de Facebook (grupos públicos).
+No necesita cookies ni cuenta de Facebook.
 
 Uso:
-  python3 scraper.py --token TU_TOKEN               # una vez
-  python3 scraper.py --token TU_TOKEN --daemon 30    # cada 30 min
+  python3 scraper.py --token TU_TOKEN
+  python3 scraper.py --token TU_TOKEN --daemon 30
 """
 
-import os, sys, re, json, time, argparse
+import os, sys, re, json, time, argparse, asyncio
 from urllib.parse import urlparse
 
-CHROMIUM = os.environ.get("CHROMIUM_PATH",
-    "/data/data/com.termux/files/usr/bin/chromium-browser")
+import requests
+
 API_BASE = "https://sigotuhuella.online"
 
 
+def check_pending(token, api):
+    try:
+        r = requests.get(f"{api}/api/facebook/pending-scrape", params={"token": token}, timeout=15)
+        return r.json().get("pending", False)
+    except Exception as e:
+        print(f"[scraper] Error check pending: {e}")
+        return False
+
+
+def mark_done(token, api):
+    try:
+        r = requests.post(f"{api}/api/facebook/scrape-done", params={"token": token}, timeout=15)
+        if r.status_code == 200:
+            print("[scraper] Scrape marcado como completado")
+    except Exception as e:
+        print(f"[scraper] Error mark done: {e}")
+
+
 def get_groups(token, api):
-    r = __import__("requests").get(f"{api}/api/facebook/scraper-groups", params={"token": token})
+    r = requests.get(f"{api}/api/facebook/scraper-groups", params={"token": token}, timeout=15)
     if r.status_code != 200:
         print(f"[scraper] Error grupos: HTTP {r.status_code}")
         sys.exit(1)
     grupos = r.json()
     print(f"[scraper] Grupos activos: {len(grupos)}")
     return grupos
-
-
-def check_pending(token, api):
-    r = __import__("requests").get(f"{api}/api/facebook/pending-scrape", params={"token": token})
-    if r.status_code != 200:
-        print(f"[scraper] Error al consultar pending: HTTP {r.status_code}")
-        return False
-    data = r.json()
-    return data.get("pending", False)
-
-
-def mark_done(token, api):
-    try:
-        r = __import__("requests").post(f"{api}/api/facebook/scrape-done", params={"token": token})
-        if r.status_code == 200:
-            print("[scraper] Scrape marcado como completado")
-        else:
-            print(f"[scraper] Error al marcar done: HTTP {r.status_code}")
-    except Exception as e:
-        print(f"[scraper] Error al marcar done: {e}")
 
 
 def extract_posts(html, gid, slug):
@@ -96,61 +94,69 @@ def extract_posts(html, gid, slug):
     return posts
 
 
-def scrape(token, api):
-    grupos = get_groups(token, api)
+def send_posts(posts, token, api):
+    for post in posts:
+        try:
+            r = requests.post(f"{api}/api/facebook/webhook",
+                              json={"posts": [post]},
+                              headers={"Authorization": f"Bearer {token}"},
+                              timeout=30)
+            if r.status_code == 200:
+                print(f"  OK {post['fb_post_id']}")
+            else:
+                print(f"  FAIL {post['fb_post_id']}: HTTP {r.status_code}")
+        except Exception as e:
+            print(f"  FAIL {post['fb_post_id']}: {e}")
 
+
+async def scrape(token, api):
+    grupos = get_groups(token, api)
     if not grupos:
         print("[scraper] No hay grupos")
         return
 
-    from playwright.sync_api import sync_playwright
+    from pyppeteer import launch
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            executable_path=CHROMIUM,
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
-        )
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-            viewport={"width": 1440, "height": 900}
-        )
-        page = context.new_page()
+    browser = await launch(
+        headless=True,
+        executablePath="/data/data/com.termux/files/usr/bin/chromium-browser",
+        args=[
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--disable-setuid-sandbox",
+        ]
+    )
+    page = await browser.newPage()
+    await page.setUserAgent(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    )
+    await page.setViewport({"width": 1440, "height": 900})
 
-        for grupo in grupos:
-            gid = grupo["id"]
-            slug = urlparse(grupo["url"]).path.rstrip("/").split("/")[-1]
-            name = grupo.get("name", gid)
-            url = f"https://www.facebook.com/groups/{slug}/"
+    for grupo in grupos:
+        gid = grupo["id"]
+        slug = urlparse(grupo["url"]).path.rstrip("/").split("/")[-1]
+        name = grupo.get("name", gid)
+        url = f"https://www.facebook.com/groups/{slug}/"
 
-            print(f"[scraper] Scrapeando {name} ({slug})...")
-            try:
-                page.goto(url, wait_until="networkidle", timeout=60000)
-                time.sleep(4)
+        print(f"[scraper] Scrapeando {name} ({slug})...")
+        try:
+            await page.goto(url, waitUntil="networkidle", timeout=60000)
+            await asyncio.sleep(4)
 
-                if "login" in page.url.lower() or "checkpoint" in page.url.lower():
-                    print("  Redirige a login — saltando")
-                    continue
+            if "login" in page.url.lower() or "checkpoint" in page.url.lower():
+                print("  Redirige a login — saltando")
+                continue
 
-                html = page.content()
-                posts = extract_posts(html, gid, slug)
-                print(f"  Posts: {len(posts)}")
+            html = await page.content()
+            posts = extract_posts(html, gid, slug)
+            print(f"  Posts: {len(posts)}")
+            send_posts(posts, token, api)
+        except Exception as e:
+            print(f"  Error en {name}: {e}")
 
-                for post in posts:
-                    r = __import__("requests").post(f"{api}/api/facebook/webhook",
-                                     json={"posts": [post]},
-                                     headers={"Authorization": f"Bearer {token}"})
-                    if r.status_code == 200:
-                        print(f"    OK {post['fb_post_id']}")
-                    else:
-                        print(f"    FAIL {post['fb_post_id']}: HTTP {r.status_code}")
-
-                time.sleep(2)
-            except Exception as e:
-                print(f"  Error: {e}")
-
-        browser.close()
-
+    await browser.close()
     mark_done(token, api)
     print("[scraper] Scrapeo completado")
 
@@ -158,7 +164,7 @@ def scrape(token, api):
 def main():
     parser = argparse.ArgumentParser(description="Scraper de Facebook Groups para SiHuella")
     parser.add_argument("--token", required=True, help="Token del scraper (fb_scraper_token)")
-    parser.add_argument("--api", default=API_BASE, help=f"URL base de la API (default: {API_BASE})")
+    parser.add_argument("--api", default=API_BASE)
     parser.add_argument("--daemon", type=int, metavar="MIN", help="Modo daemon: ejecutar cada N minutos")
     args = parser.parse_args()
 
@@ -169,7 +175,7 @@ def main():
         print(f"[scraper] Modo daemon: cada {args.daemon} minutos")
         while True:
             if check_pending(token, api):
-                scrape(token, api)
+                asyncio.run(scrape(token, api))
             else:
                 print("[scraper] No hay scrape pendiente, esperando...")
             time.sleep(args.daemon * 60)
@@ -177,7 +183,7 @@ def main():
         if not check_pending(token, api):
             print("[scraper] No hay scrape pendiente")
             return
-        scrape(token, api)
+        asyncio.run(scrape(token, api))
 
 
 if __name__ == "__main__":

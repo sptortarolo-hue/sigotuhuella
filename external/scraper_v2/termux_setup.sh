@@ -12,8 +12,8 @@ echo "[2/4] Instalando Python y Chromium..."
 pkg install -y python chromium-browser
 
 echo ""
-echo "[3/4] Instalando Playwright..."
-pip install playwright
+echo "[3/4] Instalando dependencias Python..."
+pip install requests pyppeteer
 
 echo ""
 echo "[4/4] Descargando scraper.py..."
@@ -30,6 +30,3 @@ echo "  python3 scraper.py --token TU_TOKEN"
 echo ""
 echo "Para ejecutar cada 30 min:"
 echo "  python3 scraper.py --token TU_TOKEN --daemon 30"
-echo ""
-echo "Para configurar job automático:"
-echo "  termux-job-scheduler --interval 30 -- python3 scraper.py --token TU_TOKEN"
