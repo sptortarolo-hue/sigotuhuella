@@ -7,6 +7,25 @@ const BASE_URL = process.env.BASE_URL || 'https://sigotuhuella.online';
 const WEBHOOK_URL = `${BASE_URL}/api/facebook/webhook`;
 const APIFY_BASE = 'https://api.apify.com/v2';
 
+function normalizeUrl(url) {
+  try {
+    const u = new URL(url);
+    u.pathname = u.pathname.replace(/\/+$/, '');
+    if (u.hostname.startsWith('www.')) u.hostname = u.hostname.slice(4);
+    return u.href.replace(/\/+$/, '').toLowerCase();
+  } catch {
+    return url.replace(/\/+$/, '').toLowerCase();
+  }
+}
+
+function arDateHour(date) {
+  return parseInt(new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: 'numeric', hour12: false }).format(date));
+}
+
+function arDateStr(date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+}
+
 export async function scrapeWithApify() {
   if (scrapingInProgress) {
     console.log('[Apify Scraper] Ya hay un scrape en curso, saltando');
@@ -16,8 +35,6 @@ export async function scrapeWithApify() {
     console.log('[Apify Scraper] APIFY_TOKEN no configurado');
     return;
   }
-  scrapingInProgress = true;
-
   const enabled = await pool.query("SELECT value FROM settings WHERE key = 'fb_scraping_enabled'");
   if (enabled.rows[0]?.value !== 'true') return;
 
@@ -26,18 +43,22 @@ export async function scrapeWithApify() {
   );
   if (groupsResult.rows.length === 0) return;
 
+  scrapingInProgress = true;
+
   const groups = groupsResult.rows;
   const urlToGroupId = {};
   for (const g of groups) {
-    const normalized = g.url.replace(/\/+$/, '');
-    urlToGroupId[normalized] = g.id;
+    urlToGroupId[normalizeUrl(g.url)] = g.id;
   }
 
   console.log(`[Apify Scraper] ${groups.length} grupo(s)...`);
 
+  const maxPostsSetting = await pool.query("SELECT value FROM settings WHERE key = 'fb_scraper_max_posts'");
+  const maxPosts = parseInt(maxPostsSetting.rows[0]?.value) || 30;
+
   const input = {
     startUrls: groups.map(g => ({ url: g.url })),
-    maxPosts: 30,
+    maxPosts,
     sortOrder: 'CHRONOLOGICAL',
     includeTopComments: false,
     enableDedup: true,
@@ -84,7 +105,7 @@ export async function scrapeWithApify() {
 
     const postsByGroup = {};
     for (const item of items) {
-      const groupUrl = (item.groupUrl || '').replace(/\/+$/, '');
+      const groupUrl = normalizeUrl(item.groupUrl || '');
       const groupId = urlToGroupId[groupUrl] || null;
       if (!groupId) {
         console.log('[Apify Scraper] Saltado (sin grupo):', groupUrl, (item.postText||'').slice(0, 40));
@@ -164,11 +185,7 @@ async function tryScrapeIfScheduled() {
     const hour1 = map.fb_scraper_hour_1 ?? 8;
     const hour2 = map.fb_scraper_hour_2 ?? 20;
 
-    const now = new Intl.DateTimeFormat('es-AR', {
-      timeZone: 'America/Argentina/Buenos_Aires',
-      hour: 'numeric', hour12: false,
-    }).format(new Date());
-    const currentHour = parseInt(now);
+    const currentHour = arDateHour(new Date());
 
     if (currentHour !== hour1 && currentHour !== hour2) return;
 
@@ -176,9 +193,13 @@ async function tryScrapeIfScheduled() {
     if (lastRun.rows[0]?.value) {
       const lastDate = new Date(lastRun.rows[0].value);
       if (!isNaN(lastDate.getTime())) {
-        const lastHour = lastDate.getHours();
-        const today = new Date().toDateString();
-        if (lastHour === currentHour && lastDate.toDateString() === today) return;
+        const lastHour = arDateHour(lastDate);
+        if (lastHour === currentHour && arDateStr(lastDate) === arDateStr(new Date())) return;
+        const minSince = (Date.now() - lastDate.getTime()) / 60000;
+        if (minSince < 30) {
+          console.log(`[Apify Scraper] Saltando (${Math.round(minSince)} min desde último scrape, mínimo 30)`);
+          return;
+        }
       }
     }
 
