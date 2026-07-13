@@ -968,9 +968,7 @@ router.get('/scraper-script', async (req, res) => {
   try {
     const { readFileSync } = await import('fs');
     const { resolve } = await import('path');
-    const { fileURLToPath } = await import('url');
-    const __dirname = resolve(fileURLToPath(import.meta.url), '..', '..');
-    const filePath = resolve(__dirname, 'external', 'scraper_v2', 'scraper.py');
+    const filePath = resolve(process.cwd(), 'external', 'scraper_v2', 'scraper.py');
     const content = readFileSync(filePath, 'utf8');
     res.type('text/plain').send(content);
   } catch (err) {
