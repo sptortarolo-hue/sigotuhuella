@@ -222,7 +222,9 @@ function parseOneMessage(msg, contacts) {
     }
   }
 
-  const buttonId = msg.interactive?.button_reply?.id || null;
+  const buttonId = msg.interactive?.button_reply?.id ||
+                   msg.interactive?.list_reply?.id ||
+                   null;
 
   return {
     waMessageId,
