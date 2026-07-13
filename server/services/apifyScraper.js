@@ -38,8 +38,14 @@ export async function scrapeWithApify() {
   const enabled = await pool.query("SELECT value FROM settings WHERE key = 'fb_scraping_enabled'");
   if (enabled.rows[0]?.value !== 'true') return;
 
+  // Auto-extract numeric fb_group_id from URLs that have it
+  await pool.query(`
+    UPDATE facebook_groups SET fb_group_id = regexp_replace(url, '.*facebook\\.com/groups/(\\d+).*', '\\1'), updated_at = NOW()
+    WHERE url ~ 'facebook\\.com/groups/\\d+' AND (fb_group_id IS NULL OR fb_group_id = '')
+  `);
+
   const groupsResult = await pool.query(
-    "SELECT id, name, url FROM facebook_groups WHERE is_active = true AND scrape_enabled = true ORDER BY name ASC"
+    "SELECT id, name, url, fb_group_id FROM facebook_groups WHERE is_active = true AND scrape_enabled = true ORDER BY name ASC"
   );
   if (groupsResult.rows.length === 0) return;
 
@@ -47,8 +53,10 @@ export async function scrapeWithApify() {
 
   const groups = groupsResult.rows;
   const urlToGroupId = {};
+  const fbIdToGroupId = {};
   for (const g of groups) {
     urlToGroupId[normalizeUrl(g.url)] = g.id;
+    if (g.fb_group_id) fbIdToGroupId[g.fb_group_id] = g.id;
   }
 
   console.log(`[Apify Scraper] ${groups.length} grupo(s)...`);
@@ -77,7 +85,7 @@ export async function scrapeWithApify() {
     const run = runData.data;
     const runId = run.id;
 
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 120; i++) {
       await new Promise(r => setTimeout(r, 5000));
       const { data: statusData } = await axios.get(`${APIFY_BASE}/actor-runs/${runId}`, {
         params: { token: APIFY_TOKEN },
@@ -106,7 +114,11 @@ export async function scrapeWithApify() {
     const postsByGroup = {};
     for (const item of items) {
       const groupUrl = normalizeUrl(item.groupUrl || '');
-      const groupId = urlToGroupId[groupUrl] || null;
+      let groupId = urlToGroupId[groupUrl] || null;
+      if (!groupId) {
+        const numMatch = (item.groupUrl || '').match(/facebook\.com\/groups\/(\d+)/);
+        if (numMatch) groupId = fbIdToGroupId[numMatch[1]] || null;
+      }
       if (!groupId) {
         console.log('[Apify Scraper] Saltado (sin grupo):', groupUrl, (item.postText||'').slice(0, 40));
         continue;
