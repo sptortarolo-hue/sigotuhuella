@@ -71,10 +71,6 @@ export async function scrapeWithApify() {
     includeTopComments: false,
     enableDedup: true,
     refreshWindowDays: 7,
-    proxyConfig: {
-      useApifyProxy: true,
-      apifyProxyGroups: ['RESIDENTIAL'],
-    },
   };
 
   try {
