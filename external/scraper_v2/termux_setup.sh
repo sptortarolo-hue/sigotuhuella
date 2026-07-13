@@ -16,9 +16,14 @@ echo "[3/4] Instalando dependencias Python..."
 pip install requests pyppeteer
 
 echo ""
-echo "[4/4] Descargando scraper.py..."
-curl -o scraper.py \
-  https://raw.githubusercontent.com/sptortarolo-hue/sigotuhuella/main/external/scraper_v2/scraper.py
+echo "[4/4] Descargando scraper.py desde el servidor..."
+echo "  Necesitás el token del scraper (Admin → Scraper de Facebook)"
+echo "  Reemplazá TU_TOKEN por el token real"
+echo ""
+echo "  curl -o scraper.py \"https://sigotuhuella.online/api/facebook/scraper-script?token=TU_TOKEN\""
+echo ""
+echo "Ejemplo:"
+echo "  curl -o scraper.py \"https://sigotuhuella.online/api/facebook/scraper-script?token=sihuella-scraper-2024\""
 
 chmod +x scraper.py
 

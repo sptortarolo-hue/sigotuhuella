@@ -960,4 +960,23 @@ router.post('/scrape-done', async (req, res) => {
   }
 });
 
+// ==================== SCRAPER SCRIPT (descarga para Termux) ====================
+
+router.get('/scraper-script', async (req, res) => {
+  const token = await getScraperToken();
+  if (req.query.token !== token) return res.status(401).json({ error: 'Token inválido' });
+  try {
+    const { readFileSync } = await import('fs');
+    const { resolve } = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __dirname = resolve(fileURLToPath(import.meta.url), '..', '..');
+    const filePath = resolve(__dirname, 'external', 'scraper_v2', 'scraper.py');
+    const content = readFileSync(filePath, 'utf8');
+    res.type('text/plain').send(content);
+  } catch (err) {
+    console.error('[Scraper Script] Error:', err.message);
+    res.status(500).json({ error: 'Error al leer script' });
+  }
+});
+
 export default router;
