@@ -7,7 +7,7 @@ No necesita cookies ni cuenta de Facebook.
 
 Uso:
   python3 scraper.py --token TU_TOKEN
-  python3 scraper.py --token TU_TOKEN --daemon 30
+  python3 scraper.py --token TU_TOKEN --once
 """
 
 import os, sys, re, json, time, argparse, asyncio
@@ -165,25 +165,29 @@ def main():
     parser = argparse.ArgumentParser(description="Scraper de Facebook Groups para SiHuella")
     parser.add_argument("--token", required=True, help="Token del scraper (fb_scraper_token)")
     parser.add_argument("--api", default=API_BASE)
-    parser.add_argument("--daemon", type=int, metavar="MIN", help="Modo daemon: ejecutar cada N minutos")
+    parser.add_argument("--daemon", type=int, nargs="?", const=30, metavar="MIN",
+                        help="Modo daemon (default: cada 30 min). P.ej: --daemon 10")
+    parser.add_argument("--once", action="store_true", help="Ejecutar una sola vez (no daemon)")
     args = parser.parse_args()
 
     token = args.token
     api = args.api.rstrip("/")
 
-    if args.daemon:
-        print(f"[scraper] Modo daemon: cada {args.daemon} minutos")
-        while True:
-            if check_pending(token, api):
-                asyncio.run(scrape(token, api))
-            else:
-                print("[scraper] No hay scrape pendiente, esperando...")
-            time.sleep(args.daemon * 60)
-    else:
+    if args.once:
         if not check_pending(token, api):
             print("[scraper] No hay scrape pendiente")
             return
         asyncio.run(scrape(token, api))
+        return
+
+    interval = args.daemon or 30
+    print(f"[scraper] Modo daemon: cada {interval} minutos")
+    while True:
+        if check_pending(token, api):
+            asyncio.run(scrape(token, api))
+        else:
+            print("[scraper] No hay scrape pendiente, esperando...")
+        time.sleep(interval * 60)
 
 
 if __name__ == "__main__":
