@@ -245,6 +245,7 @@ async function routeFlow(conv, parsed) {
     case 'report_lost.name': return rlName(conv, parsed);
     case 'report_lost.description': return rlDescription(conv, parsed);
     case 'report_lost.confirm': return rlConfirm(conv, parsed, intent);
+    case 'report_sighted.ask_retained': return rsAskRetained(conv, parsed);
     case 'report_sighted.photo': return rsPhoto(conv, parsed);
     case 'report_sighted.species': return rsSpecies(conv, parsed);
     case 'report_sighted.location': return rsLocation(conv, parsed);
@@ -858,6 +859,15 @@ async function startReportSighted(conv) {
       textBody: conv.context.caption || '',
     });
   }
+  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿*Retuviste* a la mascota o solo la viste?`, [
+    { id: 'rs_retained', title: '🐾 La tengo' },
+    { id: 'rs_just_saw', title: '👁️ Solo la vi' },
+  ]);
+  await setFlow(conv, 'report_sighted.ask_retained');
+}
+
+async function rsAskRetained(conv, parsed) {
+  if (parsed.buttonId === 'rs_retained') return startReportFound(conv);
   await sendMessage(conv.wa_from, `${conv.bot_name}: Enviá una *foto* de la mascota que viste 📸`);
   await setFlow(conv, 'report_sighted.photo');
 }
