@@ -77,7 +77,7 @@ function detectIntent(parsed) {
     if (/saltar|skip|omitir/i.test(text)) return 'skip';
   }
   if (/perdi|perdido|perd[ií]/.test(text)) return 'report_lost';
-  if (/avist|vist|vi un/.test(text)) return 'report_sighted';
+  if (/avist|vist|\bvi\b/.test(text)) return 'report_sighted';
   if (/encontr[eé]|encontrada/.test(text)) return 'report_found';
   if (/info|información|chapita|qr/.test(text)) return 'info_qr';
   if (/voluntario|ayudar|colaborar/.test(text)) return 'volunteer';
