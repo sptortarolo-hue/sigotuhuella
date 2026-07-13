@@ -13,20 +13,20 @@ async function tryScrapeIfScheduled() {
   if (enabled.rows[0]?.value !== 'true') return;
 
   try {
-    const hoursRes = await pool.query(
-      "SELECT key, value FROM settings WHERE key IN ('fb_scraper_hour_1', 'fb_scraper_hour_2')"
+    const res = await pool.query(
+      "SELECT key, value FROM settings WHERE key IN ('fb_scraper_from', 'fb_scraper_to', 'fb_scraper_interval')"
     );
     const map = {};
-    for (const row of hoursRes.rows) {
-      const v = parseInt(row.value);
-      if (!isNaN(v)) map[row.key] = v;
-    }
-    const hour1 = map.fb_scraper_hour_1 ?? 8;
-    const hour2 = map.fb_scraper_hour_2 ?? 20;
+    for (const row of res.rows) map[row.key] = row.value;
+    const from = parseInt(map.fb_scraper_from) || 8;
+    const to = parseInt(map.fb_scraper_to) || 20;
+    const interval = parseInt(map.fb_scraper_interval) || 4;
 
     const currentHour = arDateHour(new Date());
 
-    if (currentHour !== hour1 && currentHour !== hour2) return;
+    const hours = [];
+    for (let h = from; h <= to; h += interval) hours.push(h);
+    if (!hours.includes(currentHour)) return;
 
     const lastRun = await pool.query("SELECT value FROM settings WHERE key = 'apify_last_scrape_at'");
     if (lastRun.rows[0]?.value) {

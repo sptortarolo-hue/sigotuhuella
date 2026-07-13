@@ -448,8 +448,9 @@ function SettingsSection() {
     try {
       await api.settings.update('fb_scraping_enabled', settings.fb_scraping_enabled || 'false');
       await api.settings.update('fb_scraper_token', settings.fb_scraper_token || '');
-      await api.settings.update('fb_scraper_hour_1', settings.fb_scraper_hour_1 || '8');
-      await api.settings.update('fb_scraper_hour_2', settings.fb_scraper_hour_2 || '20');
+      await api.settings.update('fb_scraper_from', settings.fb_scraper_from || '8');
+      await api.settings.update('fb_scraper_to', settings.fb_scraper_to || '20');
+      await api.settings.update('fb_scraper_interval', settings.fb_scraper_interval || '4');
       setSavedScraper(true);
       setTimeout(() => setSavedScraper(false), 2000);
     } catch (e: any) { alert(e.message); }
@@ -498,33 +499,43 @@ function SettingsSection() {
               onChange={(e) => setSettings(p => ({ ...p, fb_scraper_token: e.target.value }))}
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm font-mono" />
           </div>
-          <div className="bg-brand-bg rounded-2xl p-4 space-y-3">
-            <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-              <Clock className="w-4 h-4" /> Configuración del scraper
-            </h4>
-            <p className="text-xs text-gray-500">El scraper corre desde tu dispositivo (Termux + Chromium).</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1">Inicio banda horaria</label>
-                <select value={settings.fb_scraper_hour_1 || '8'}
-                  onChange={e => setSettings(p => ({ ...p, fb_scraper_hour_1: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none">
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
-                  ))}
-                </select>
+            <div className="bg-brand-bg rounded-2xl p-4 space-y-3">
+              <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                <Clock className="w-4 h-4" /> Configuración del scraper
+              </h4>
+              <p className="text-xs text-gray-500">El scraper corre desde tu dispositivo (Termux + Chromium). El servidor marca scrape pendiente en las horas programadas.</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">Horario desde</label>
+                  <select value={settings.fb_scraper_from || '8'}
+                    onChange={e => setSettings(p => ({ ...p, fb_scraper_from: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none">
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">Horario hasta</label>
+                  <select value={settings.fb_scraper_to || '20'}
+                    onChange={e => setSettings(p => ({ ...p, fb_scraper_to: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none">
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">Cada</label>
+                  <select value={settings.fb_scraper_interval || '4'}
+                    onChange={e => setSettings(p => ({ ...p, fb_scraper_interval: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none">
+                    {[1, 2, 3, 4, 6, 8, 12].map(v => (
+                      <option key={v} value={v}>{v} horas</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-gray-500 block mb-1">Fin banda horaria</label>
-                <select value={settings.fb_scraper_hour_2 || '22'}
-                  onChange={e => setSettings(p => ({ ...p, fb_scraper_hour_2: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none">
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
-                  ))}
-                </select>
-              </div>
-            </div>
             {settings.apify_last_scrape_at && (
               <p className="text-xs text-gray-400">Último scrape: {new Date(settings.apify_last_scrape_at).toLocaleString('es-AR')}</p>
             )}

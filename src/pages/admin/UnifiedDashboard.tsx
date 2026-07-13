@@ -60,17 +60,23 @@ function ScrapingConfig({ settings, onChange }: { settings: Record<string, strin
       </Field>
       <div className="bg-brand-bg rounded-2xl p-4 space-y-3">
         <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2"><Clock className="w-4 h-4" /> Horarios del scraper</h4>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Inicio banda">
-            <select value={settings.fb_scraper_hour_1 || '8'} onChange={e => onChange('fb_scraper_hour_1', e.target.value)}
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Desde">
+            <select value={settings.fb_scraper_from || '8'} onChange={e => onChange('fb_scraper_from', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary">
               {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>)}
             </select>
           </Field>
-          <Field label="Fin banda">
-            <select value={settings.fb_scraper_hour_2 || '22'} onChange={e => onChange('fb_scraper_hour_2', e.target.value)}
+          <Field label="Hasta">
+            <select value={settings.fb_scraper_to || '20'} onChange={e => onChange('fb_scraper_to', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary">
               {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>)}
+            </select>
+          </Field>
+          <Field label="Cada">
+            <select value={settings.fb_scraper_interval || '4'} onChange={e => onChange('fb_scraper_interval', e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary">
+              {[1, 2, 3, 4, 6, 8, 12].map(v => <option key={v} value={v}>{v}h</option>)}
             </select>
           </Field>
         </div>

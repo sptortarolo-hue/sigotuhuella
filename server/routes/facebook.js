@@ -378,16 +378,14 @@ router.get('/scraper-config', async (req, res) => {
     return res.status(401).json({ error: 'Token inválido' });
   }
   try {
-    const keys = ['fb_scraper_hour_1', 'fb_scraper_hour_2', 'fb_scraper_interval_hours', 'fb_scraper_jitter_minutes', 'fb_scraper_max_posts', 'fb_scraping_enabled'];
+    const keys = ['fb_scraper_from', 'fb_scraper_to', 'fb_scraper_interval', 'fb_scraping_enabled'];
     const placeholders = keys.map((_, i) => '$' + (i + 1)).join(',');
     const result = await pool.query(`SELECT key, value FROM settings WHERE key IN (${placeholders})`, keys);
-    const data = { hour_start: '8', hour_end: '22', interval_hours: '3', jitter_minutes: '15', max_posts: '50', scraping_enabled: 'false' };
+    const data = { hour_start: '8', hour_end: '20', interval_hours: '4', scraping_enabled: 'false' };
     result.rows.forEach(r => {
-      if (r.key === 'fb_scraper_hour_1') data.hour_start = r.value;
-      else if (r.key === 'fb_scraper_hour_2') data.hour_end = r.value;
-      else if (r.key === 'fb_scraper_interval_hours') data.interval_hours = r.value;
-      else if (r.key === 'fb_scraper_jitter_minutes') data.jitter_minutes = r.value;
-      else if (r.key === 'fb_scraper_max_posts') data.max_posts = r.value;
+      if (r.key === 'fb_scraper_from') data.hour_start = r.value;
+      else if (r.key === 'fb_scraper_to') data.hour_end = r.value;
+      else if (r.key === 'fb_scraper_interval') data.interval_hours = r.value;
       else if (r.key === 'fb_scraping_enabled') data.scraping_enabled = r.value;
     });
     res.json(data);

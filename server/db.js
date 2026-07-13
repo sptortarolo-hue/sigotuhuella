@@ -990,20 +990,14 @@ export async function initDb() {
     }
 
     await migrate(client, `
-      INSERT INTO settings (key, value) VALUES ('fb_scraper_hour_1', '8') ON CONFLICT (key) DO NOTHING
-    `, 'fb_scraper_hour_1');
+      INSERT INTO settings (key, value) VALUES ('fb_scraper_from', '8') ON CONFLICT (key) DO NOTHING
+    `, 'fb_scraper_from');
     await migrate(client, `
-      INSERT INTO settings (key, value) VALUES ('fb_scraper_hour_2', '20') ON CONFLICT (key) DO NOTHING
-    `, 'fb_scraper_hour_2');
+      INSERT INTO settings (key, value) VALUES ('fb_scraper_to', '20') ON CONFLICT (key) DO NOTHING
+    `, 'fb_scraper_to');
     await migrate(client, `
-      INSERT INTO settings (key, value) VALUES ('fb_scraper_interval_hours', '3') ON CONFLICT (key) DO NOTHING
-    `, 'fb_scraper_interval_hours');
-    await migrate(client, `
-      INSERT INTO settings (key, value) VALUES ('fb_scraper_jitter_minutes', '15') ON CONFLICT (key) DO NOTHING
-    `, 'fb_scraper_jitter_minutes');
-    await migrate(client, `
-      INSERT INTO settings (key, value) VALUES ('fb_scraper_max_posts', '50') ON CONFLICT (key) DO NOTHING
-    `, 'fb_scraper_max_posts');
+      INSERT INTO settings (key, value) VALUES ('fb_scraper_interval', '4') ON CONFLICT (key) DO NOTHING
+    `, 'fb_scraper_interval');
 
     await migrate(client, `
       ALTER TABLE fb_relay_tasks
