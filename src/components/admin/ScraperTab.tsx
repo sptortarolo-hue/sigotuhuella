@@ -114,8 +114,11 @@ function PostsSection() {
       if (resp.ok) {
         const data = await resp.json();
         setItems(data.messages || []);
+      } else {
+        const errData = await resp.json().catch(() => ({}));
+        console.error('[ScraperTab] fetch error:', resp.status, errData);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('[ScraperTab] fetch exception:', e); }
     setLoading(false);
   };
 

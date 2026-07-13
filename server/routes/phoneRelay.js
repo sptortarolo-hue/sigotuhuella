@@ -323,7 +323,11 @@ router.post('/log-428', relayAuth, async (req, res) => {
 
 const WA_KEYWORDS = /perdido|perdida|encontré|encontre|encontrada|encontrado|perro|perra|gato|gata|mascota|apareció|aparecio|extraviado|extraviada|adopción|adopcion|callejero|abandonado|busco|busca|rescate|rescaté|rescatado/i;
 
-router.get('/scraped-messages', relayAuth, async (req, res) => {
+router.get('/scraped-messages', (req, res, next) => {
+  const token = req.headers['authorization']?.replace('Bearer ', '');
+  if (token && token === process.env.RELAY_TOKEN) return next();
+  return requireAdmin(req, res, next);
+}, async (req, res) => {
   try {
     const { classification, species, search, limit = 50, offset = 0 } = req.query;
     const conditions = [];
@@ -460,12 +464,7 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
     // Classify in background (non-blocking)
     classifyWhatsAppMessage(content || '', image_data || null, image_mime || null)
       .then(async (classification) => {
-        // Skip non-pet messages: delete from DB
-        if (classification.classification === 'other' && !WA_KEYWORDS.test(content || '')) {
-          await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
-          return;
-        }
-        // Update with classification results
+        // Update with classification results (keep all messages, even 'other' — let admin decide)
         await pool.query(
           `UPDATE whatsapp_scraped_messages
            SET classification = $1, species = $2, color = $3, location_hint = $4, phone = $5
