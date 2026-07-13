@@ -381,7 +381,11 @@ router.get('/scraped-messages', relayAuth, async (req, res) => {
   }
 });
 
-router.get('/scraped-messages/:id', relayAuth, async (req, res) => {
+router.get('/scraped-messages/:id', (req, res, next) => {
+  const token = req.headers['authorization']?.replace('Bearer ', '');
+  if (token && token === process.env.RELAY_TOKEN) return next();
+  return requireAdmin(req, res, next);
+}, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM whatsapp_scraped_messages WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Message not found' });

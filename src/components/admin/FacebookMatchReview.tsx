@@ -42,12 +42,6 @@ export default function FacebookMatchReview({ matches, onConfirm, onReject, onRe
             console.log('[match-review] fb_post:', { id, image_urls: r.image_urls?.length ?? 0, ok: true });
             return { id: r.id, type: 'fb_post', label: r.content?.substring(0, 100), content: r.content, images: r.image_urls || [], species: r.species, color: r.color, location: r.location_hint, phone: r.phone, date: r.posted_at };
           }
-          if (type === 'wa_report') {
-            const r = await api.whatsapp.getMessage(id);
-            console.log('[match-review] wa_report:', { id, has_image: !!r.image_data, ok: true });
-            const images = r.image_data ? [`data:${r.image_mime || 'image/jpeg'};base64,${r.image_data}`] : [];
-            return { id: r.id, type: 'wa_report', label: r.text_body?.substring(0, 100), content: r.text_body || '', images, location: r.location_lat && r.location_lng ? `${r.location_lat},${r.location_lng}` : undefined, phone: r.wa_from, date: r.created_at };
-          }
           if (type === 'wa_group') {
             const r = await api.phoneRelay.scrapedMessages.get(id);
             console.log('[match-review] wa_group:', { id, has_image: !!r.image_data, ok: true });
@@ -176,24 +170,26 @@ export default function FacebookMatchReview({ matches, onConfirm, onReject, onRe
 function SideCard({ side, label, type, imgIdx, setImgIdx, title }: {
   side: SideItem | null; label: string; type: string; imgIdx: number; setImgIdx: (i: number) => void; title: string;
 }) {
-  const [imgError, setImgError] = React.useState(false);
-  const imgKey = `${imgIdx}-${imgError}`;
+  const [failedImgs, setFailedImgs] = React.useState<Set<number>>(new Set());
+  const imgKey = `${imgIdx}`;
 
-  React.useEffect(() => { setImgError(false); }, [imgIdx, side?.images]);
+  React.useEffect(() => { setFailedImgs(new Set()); }, [side?.images]);
+
+  const allFailed = side && side.images.length > 0 && side.images.every((_, i) => failedImgs.has(i));
 
   return (
     <div className="bg-white rounded-2xl border border-brand-accent overflow-hidden">
       <div className="px-4 py-2 bg-brand-bg text-[10px] uppercase font-bold text-gray-500 tracking-wider">{title} — {type === 'fb_post' ? 'Post Facebook' : 'Mascota App'}</div>
       <div className="relative bg-gray-50 aspect-square">
-        {side && side.images.length > 0 && !imgError ? (
+        {side && side.images.length > 0 && !allFailed && !failedImgs.has(imgIdx) ? (
           <>
             <img key={imgKey} src={side.images[imgIdx]} alt="" referrerPolicy="no-referrer"
-              className="w-full h-full object-cover" onError={() => setImgError(true)} />
+              className="w-full h-full object-cover" onError={() => setFailedImgs(prev => new Set([...prev, imgIdx]))} />
             {side.images.length > 1 && (
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
                 {side.images.map((_, i) => (
                   <button key={i} onClick={() => setImgIdx(i)}
-                    className={cn("w-1.5 h-1.5 rounded-full transition-all", i === imgIdx ? "bg-white w-3" : "bg-white/50")}
+                    className={cn("w-1.5 h-1.5 rounded-full transition-all", i === imgIdx ? "bg-white w-3" : failedImgs.has(i) ? "bg-red-400/60" : "bg-white/50")}
                   />
                 ))}
               </div>

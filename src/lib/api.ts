@@ -279,7 +279,7 @@ export const api = {
   },
   phoneRelay: {
     scrapedMessages: {
-      get: (id: string) => request(`/phone-relay/scraped-messages/${id}`),
+      get: (id: string) => request(`/relay/scraped-messages/${id}`),
     },
   },
 
