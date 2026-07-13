@@ -78,31 +78,29 @@ export async function scrapeWithApify() {
   };
 
   try {
-    const { data: runData } = await axios.post(`${APIFY_BASE}/acts/crowdpull~facebook-group-posts-scraper/runs`, input, {
-      params: { token: APIFY_TOKEN },
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const run = runData.data;
-    const runId = run.id;
+    const { data: syncResp } = await axios.post(
+      `${APIFY_BASE}/acts/crowdpull~facebook-group-posts-scraper/run-sync-get-dataset-items`,
+      input,
+      { params: { token: APIFY_TOKEN, waitForFinish: 120 }, timeout: 130000 }
+    );
+    const items = Array.isArray(syncResp) ? syncResp : (syncResp?.data || []);
 
-    for (let i = 0; i < 120; i++) {
-      await new Promise(r => setTimeout(r, 5000));
-      const { data: statusData } = await axios.get(`${APIFY_BASE}/actor-runs/${runId}`, {
-        params: { token: APIFY_TOKEN },
-      });
-      const status = statusData.data.status;
-      if (status === 'SUCCEEDED') { console.log(`[Apify Scraper] Run SUCCEEDED (${i*5}s)`); break; }
-      if (i > 0 && i % 12 === 0) console.log(`[Apify Scraper] Waiting... ${status}`);
-      if (status === 'FAILED' || status === 'ABORTED' || status === 'TIMED-OUT') {
-        console.error(`[Apify Scraper] Run ${status}`);
-        return;
-      }
+    if (items.length === 0) {
+      // Fetch last run log to diagnose 0 results
+      try {
+        const lastRunResp = await axios.get(
+          `${APIFY_BASE}/acts/crowdpull~facebook-group-posts-scraper/runs/last`,
+          { params: { token: APIFY_TOKEN }, timeout: 10000 }
+        );
+        const lastRun = lastRunResp.data?.data;
+        if (lastRun?.id) {
+          const logResp = await axios.get(`${APIFY_BASE}/actor-runs/${lastRun.id}/log`, {
+            params: { token: APIFY_TOKEN }, timeout: 10000,
+          });
+          if (logResp.data) console.log('[Apify Scraper] Log:\n', String(logResp.data).slice(0, 3000));
+        }
+      } catch (e) { /* logs fallback */ }
     }
-
-    const { data: listData } = await axios.get(`${APIFY_BASE}/datasets/${run.defaultDatasetId}/items`, {
-      params: { token: APIFY_TOKEN, format: 'json' },
-    });
-    const items = Array.isArray(listData) ? listData : (listData.data || []);
 
     if (items.length === 0) {
       console.log('[Apify Scraper] 0 posts nuevos');

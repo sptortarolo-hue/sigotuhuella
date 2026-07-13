@@ -39,9 +39,13 @@ router.post('/groups', requireAdmin, async (req, res) => {
     if (!name || !url) {
       return res.status(400).json({ error: 'Nombre y URL son requeridos' });
     }
+    const trimmed = url.trim();
+    if (!/^https?:\/\/(www\.)?(facebook\.com|fb\.com)\/groups\//i.test(trimmed)) {
+      return res.status(400).json({ error: 'La URL debe ser de un grupo de Facebook (facebook.com/groups/...)' });
+    }
     const result = await pool.query(
       'INSERT INTO facebook_groups (name, url) VALUES ($1, $2) RETURNING *',
-      [name.trim(), url.trim()]
+      [name.trim(), trimmed]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
