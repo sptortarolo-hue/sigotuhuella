@@ -402,111 +402,260 @@ async function getActiveGroups() {
 
 async function extractPostsFromGroup(page, groupId, groupUrl, lastSeenId) {
   const url = groupUrl || `https://www.facebook.com/groups/${groupId}`;
-  console.log(`[Scraper] Navegando a ${url}`);
+  const groupUrlChrono = url.includes('?') ? `${url}&sorting_setting=CHRONOLOGICAL` : `${url}?sorting_setting=CHRONOLOGICAL`;
+  console.log(`[Scraper] Navegando a ${groupUrlChrono}`);
 
-  await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+  await page.goto(groupUrlChrono, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await sleep(randomInt(3000, 6000));
 
   if (!(await checkSession(page))) {
     throw new Error('session expired');
   }
 
-  await humanScroll(page, randomInt(1000, 2000));
-  await sleep(randomInt(2000, 4000));
+  try {
+    await page.waitForSelector('[role="feed"]', { timeout: 10000 });
+  } catch {}
 
-  const fs = await import('fs');
-  await page.screenshot({ path: path.join(__dirname, 'debug-screenshot.png'), fullPage: false });
-  const html = await page.content();
-  fs.writeFileSync(path.join(__dirname, 'debug-page.html'), html.substring(0, 50000));
-  console.log(`[Scraper] Debug: screenshot + HTML guardados en ~/relay/`);
+  await sleep(randomInt(1500, 3000));
 
-  const rawPosts = await page.evaluate((maxPosts, groupId) => {
-    const posts = [];
-    const containers = document.querySelectorAll('div[role="feed"] > div');
+  await page.evaluate(() => {
+    const feed = document.querySelector('[role="feed"]');
+    if (feed) {
+      feed.lastElementChild?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      window.scrollTo(0, 600);
+    }
+  });
+  await sleep(randomInt(1500, 3000));
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await sleep(randomInt(800, 1500));
 
-    for (const container of containers) {
-      if (posts.length >= maxPosts) break;
+  let previousArticleCount = 0;
+  const MAX_SCROLL_ATTEMPTS = 5;
 
-      const article = container.querySelector('div[role="article"]');
-      if (!article) continue;
+  for (let i = 0; i < MAX_SCROLL_ATTEMPTS; i++) {
+    const rawPosts = await page.evaluate((maxPosts, groupId) => {
+      const posts = [];
+      const feed = document.querySelector('[role="feed"]');
+      if (!feed) return posts;
 
-      let content = '';
-      const contentEl = article.querySelector('[data-ad-preview="message"]') ||
-                        article.querySelector('div[dir="auto"]');
-      if (contentEl) {
-        content = contentEl.innerText || contentEl.textContent || '';
+      const allArticles = feed.querySelectorAll('[role="article"]');
+      const articles = [];
+
+      for (const article of allArticles) {
+        const ariaLabel = article.getAttribute('aria-label') || '';
+        if (ariaLabel.startsWith('Comment by')) continue;
+        const text = (article.innerText || '').trim();
+        if (!text || text.length < 20) continue;
+        articles.push(article);
       }
 
-      if (!content.trim()) continue;
+      for (let i = 0; i < articles.length && posts.length < maxPosts; i++) {
+        const article = articles[i];
 
-      let author = '';
-      const authorEl = article.querySelector('h3 a span') ||
-                       article.querySelector('span[class*="profile"]') ||
-                       article.querySelector('h3 span');
-      if (authorEl) {
-        author = authorEl.textContent || '';
-      }
+        let authorName = 'Unknown';
+        let profileUrl = null;
 
-      let timestamp = '';
-      let postId = '';
-      const timeEl = article.querySelector('abbr[data-utime]') || article.querySelector('abbr');
-      if (timeEl) {
-        timestamp = timeEl.getAttribute('data-utime') || timeEl.textContent || '';
-        if (/^\d+$/.test(timestamp)) {
-          timestamp = new Date(parseInt(timestamp) * 1000).toISOString();
+        const strongElem = article.querySelector('strong');
+        if (strongElem) {
+          const parentLink = strongElem.closest('a');
+          if (parentLink) {
+            const href = parentLink.getAttribute('href') || '';
+            if (href.includes('/user/') || (href.includes('facebook.com') && !href.includes('/groups/') && !href.includes('/posts/'))) {
+              const strongText = strongElem.innerText?.trim() || '';
+              if (strongText.length < 50 && !strongText.includes('\n')) {
+                authorName = strongText;
+                profileUrl = href;
+              }
+            }
+          }
         }
-      }
 
-      const links = article.querySelectorAll('a[href*="/posts/"], a[href*="story_fbid"]');
-      for (const link of links) {
-        const match = link.href.match(/\/posts\/(\d+)/) || link.href.match(/story_fbid=(\d+)/);
-        if (match) {
-          postId = match[1];
-          break;
+        if (authorName === 'Unknown') {
+          const authorLinks = article.querySelectorAll('a[role="link"]');
+          for (const link of authorLinks) {
+            const href = link.getAttribute('href') || '';
+            const linkText = (link.innerText || '').trim();
+            if (
+              linkText.length > 2 && linkText.length < 50 && !linkText.includes('\n') &&
+              (href.includes('/user/') || (href.includes('facebook.com') && !href.includes('/groups/') && !href.includes('/posts/')))
+            ) {
+              authorName = linkText;
+              profileUrl = href;
+              break;
+            }
+          }
         }
-      }
 
-      if (!postId) {
-        const allLinks = article.querySelectorAll('a[href*="facebook.com"]');
+        const skipAuthors = ['People you may know', 'Suggested for you', 'Groups you might like'];
+        if (skipAuthors.includes(authorName)) continue;
+
+        const contentDivs = article.querySelectorAll('div[dir="auto"]');
+        const contentParts = [];
+        const skipPhrases = ['Like', 'Comment', 'Share', 'Reply', authorName, '·'];
+
+        for (const div of contentDivs) {
+          const text = (div.innerText || '').trim();
+          if (text.length < 10) continue;
+          if (text === authorName) continue;
+          if (skipPhrases.includes(text)) continue;
+          if (/^\d+[hdwm]$/.test(text)) continue;
+          contentParts.push(text);
+        }
+
+        const seenContent = new Set();
+        const uniqueParts = [];
+        for (const part of contentParts) {
+          const cleaned = part.replace(/\s*…?\s*See more\s*$/, '').replace(/^\s*…?\s*See more\s*/, '').trim();
+          if (cleaned && !seenContent.has(cleaned)) {
+            seenContent.add(cleaned);
+            uniqueParts.push(cleaned);
+          }
+        }
+
+        let content = uniqueParts.slice(0, 2).join('\n') || '';
+
+        if (!content || content.length < 5) {
+          const lines = (article.innerText || '').split('\n').map(l => l.trim()).filter(Boolean);
+          const fallbackContent = lines.filter(l => {
+            if (l === authorName) return false;
+            if (/^\d+[hdwm]$/.test(l)) return false;
+            if (['Like', 'Comment', 'Share', '·', 'Reply'].includes(l)) return false;
+            return l.length > 10;
+          }).slice(0, 3).join('\n');
+          if (fallbackContent.length < 5) continue;
+          content = fallbackContent;
+        }
+
+        let postId = null;
+        let postUrl = null;
+        const allLinks = article.querySelectorAll('a[href]');
         for (const link of allLinks) {
-          const match = link.href.match(/\/(\d{10,})/);
-          if (match) {
-            postId = match[1];
+          const href = link.getAttribute('href') || '';
+
+          const pfbidMatch = href.match(/pfbid[a-zA-Z0-9]+/);
+          if (pfbidMatch) {
+            postId = pfbidMatch[0];
+            postUrl = href.startsWith('http') ? href.split('?')[0] : `https://www.facebook.com${href}`.split('?')[0];
+            break;
+          }
+
+          const postsMatch = href.match(/\/posts\/(\d+)/);
+          if (postsMatch) {
+            postId = postsMatch[1];
+            postUrl = href.startsWith('http') ? href.split('?')[0] : `https://www.facebook.com${href}`.split('?')[0];
+            break;
+          }
+
+          const storyMatch = href.match(/story_fbid=(\d+)/);
+          if (storyMatch) {
+            postId = storyMatch[1];
+            postUrl = href.startsWith('http') ? href.split('?')[0] : `https://www.facebook.com${href}`.split('?')[0];
             break;
           }
         }
-      }
 
-      const images = [];
-      const imgEls = article.querySelectorAll('img[src*="fbcdn"], img[src*="scontent"]');
-      for (const img of imgEls) {
-        const src = img.src || img.getAttribute('data-src') || '';
-        if (src && !src.includes('profile') && !src.includes('emoji') && !src.includes('reaction')) {
-          images.push(src);
+        if (!postId) {
+          for (const link of allLinks) {
+            const href = link.getAttribute('href') || '';
+            const numMatch = href.match(/\/(\d{10,})/);
+            if (numMatch) {
+              postId = numMatch[1];
+              postUrl = href.startsWith('http') ? href.split('?')[0] : `https://www.facebook.com${href}`.split('?')[0];
+              break;
+            }
+          }
+        }
+
+        if (!postId) {
+          const hashInput = `${authorName}|${content.substring(0, 100)}`;
+          let hash = 0;
+          for (let j = 0; j < hashInput.length; j++) {
+            hash = ((hash << 5) - hash + hashInput.charCodeAt(j)) | 0;
+          }
+          postId = `text_${Math.abs(hash).toString(36)}`;
+        }
+
+        let timestamp = '';
+        const timeLinks = article.querySelectorAll('a[href*="/posts/"], a[href*="story_fbid"]');
+        for (const link of timeLinks) {
+          const href = link.getAttribute('href') || '';
+          if (href.includes('comment_id=')) continue;
+
+          const aria = link.getAttribute('aria-label') || '';
+          if (aria) {
+            timestamp = aria;
+            break;
+          }
+
+          const linkText = (link.innerText || '').trim();
+          if (linkText && /\d+[hdwm]|yesterday|just now|ayer|ahora/i.test(linkText)) {
+            timestamp = linkText;
+            break;
+          }
+        }
+
+        if (!timestamp) {
+          const abbr = article.querySelector('abbr[data-utime]');
+          if (abbr) {
+            const utime = abbr.getAttribute('data-utime');
+            if (utime && /^\d+$/.test(utime)) {
+              timestamp = new Date(parseInt(utime) * 1000).toISOString();
+            }
+          }
+        }
+
+        const images = [];
+        const imgEls = article.querySelectorAll('img[src*="fbcdn"], img[src*="scontent"]');
+        for (const img of imgEls) {
+          const src = img.src || img.getAttribute('data-src') || '';
+          if (src && !src.includes('profile') && !src.includes('emoji') && !src.includes('reaction') && !src.includes('static')) {
+            images.push(src);
+          }
+        }
+
+        if (lastSeenId && postId === lastSeenId) break;
+
+        if (content.length >= 5 || images.length > 0) {
+          posts.push({
+            fb_post_id: postId,
+            fb_post_url: postUrl || `https://www.facebook.com/groups/${groupId}/posts/${postId}/`,
+            author_name: authorName,
+            content: content.substring(0, 5000),
+            image_urls: images,
+            posted_at: timestamp,
+            group_id: groupId,
+          });
         }
       }
 
-      const postUrl = postId
-        ? `https://www.facebook.com/groups/${groupId}/posts/${postId}/`
-        : (links[0]?.href || '');
+      return posts;
+    }, MAX_POSTS_PER_GROUP, groupId);
 
-      if (postId || content.trim()) {
-        posts.push({
-          fb_post_id: postId || `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          fb_post_url: postUrl,
-          author_name: author,
-          content: content.substring(0, 5000),
-          image_urls: images,
-          posted_at: timestamp,
-          group_id: groupId,
-        });
-      }
+    if (rawPosts.length > 0) {
+      return rawPosts;
     }
 
-    return posts;
-  }, MAX_POSTS_PER_GROUP, groupId);
+    const currentCount = await page.evaluate(() => {
+      const feed = document.querySelector('[role="feed"]');
+      return feed ? feed.querySelectorAll('[role="article"]').length : 0;
+    });
 
-  return rawPosts;
+    if (currentCount === previousArticleCount) break;
+    previousArticleCount = currentCount;
+
+    await page.evaluate(() => {
+      const feed = document.querySelector('[role="feed"]');
+      if (feed) {
+        feed.lastElementChild?.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+    });
+    await sleep(randomInt(2000, 4000));
+  }
+
+  return [];
 }
 
 // ==================== SEND POSTS ====================
