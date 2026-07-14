@@ -10,12 +10,38 @@ Uso:
   python3 scraper.py --token TU_TOKEN --once
 """
 
-import os, sys, re, json, time, argparse, subprocess
+import os, sys, re, json, time, argparse, subprocess, shutil
 from urllib.parse import urlparse
 
 import requests
 
 API_BASE = "https://sigotuhuella.online"
+
+TERMUX_PATHS = [
+    "/data/data/com.termux/files/usr/bin/chromium",
+    "/data/data/com.termux/files/usr/bin/chromium-browser",
+]
+
+
+def find_chromium(manual_path=None):
+    if manual_path:
+        if os.path.isfile(manual_path):
+            return manual_path
+        print(f"[scraper] --chromium-path no encontrado: {manual_path}")
+        sys.exit(1)
+    found = shutil.which("chromium")
+    if found:
+        return found
+    found = shutil.which("chromium-browser")
+    if found:
+        return found
+    for p in TERMUX_PATHS:
+        if os.path.isfile(p):
+            return p
+    print("[scraper] No se encontro chromium. Instalarlo con:")
+    print("  pkg install x11-repo && pkg install chromium")
+    print("O especificar path: --chromium-path /ruta/a/chromium")
+    sys.exit(1)
 
 
 def check_pending(token, api):
@@ -109,22 +135,21 @@ def send_posts(posts, token, api):
             print(f"  FAIL {post['fb_post_id']}: {e}")
 
 
-def fetch_html(url):
-    import subprocess
+def fetch_html(url, chromium_path):
     result = subprocess.run(
-        ["chromium", "--headless", "--disable-gpu", "--no-sandbox",
+        [chromium_path, "--headless", "--disable-gpu", "--no-sandbox",
          "--disable-dev-shm-usage", "--dump-dom", url],
-        capture_output=True, timeout=60000
+        capture_output=True, timeout=60
     )
     result.check_returncode()
     html = result.stdout.decode("utf-8", errors="replace")
     if not html or len(html) < 100:
-        print(f"  HTML vacío o muy corto ({len(html)} chars)")
+        print(f"  HTML vacio o muy corto ({len(html)} chars)")
         return None
     return html
 
 
-def scrape(token, api):
+def scrape(token, api, chromium_path):
     grupos = get_groups(token, api)
     if not grupos:
         print("[scraper] No hay grupos")
@@ -138,7 +163,7 @@ def scrape(token, api):
 
         print(f"[scraper] Scrapeando {name} ({slug})...")
         try:
-            html = fetch_html(url)
+            html = fetch_html(url, chromium_path)
             if html is None:
                 continue
             if "login" in html.lower() or "checkpoint" in html.lower():
@@ -173,6 +198,7 @@ def main():
     parser = argparse.ArgumentParser(description="Scraper de Facebook Groups para SiHuella")
     parser.add_argument("--token", required=True, help="Token del scraper (fb_scraper_token)")
     parser.add_argument("--api", default=API_BASE)
+    parser.add_argument("--chromium-path", default=None, help="Path manual a chromium")
     parser.add_argument("--daemon", type=int, nargs="?", const=30, metavar="MIN",
                         help="Modo daemon (default: cada 30 min). P.ej: --daemon 10")
     parser.add_argument("--once", action="store_true", help="Ejecutar una sola vez (no daemon)")
@@ -180,6 +206,8 @@ def main():
 
     token = args.token
     api = args.api.rstrip("/")
+    chromium_path = find_chromium(args.chromium_path)
+    print(f"[scraper] Chromium: {chromium_path}")
     acquire_wakelock()
 
     if args.once:
@@ -187,7 +215,7 @@ def main():
             print("[scraper] No hay scrape pendiente")
             release_wakelock()
             return
-        scrape(token, api)
+        scrape(token, api, chromium_path)
         release_wakelock()
         return
 
@@ -196,7 +224,7 @@ def main():
     while True:
         try:
             if check_pending(token, api):
-                scrape(token, api)
+                scrape(token, api, chromium_path)
             else:
                 print("[scraper] No hay scrape pendiente, esperando...")
         except Exception as e:
