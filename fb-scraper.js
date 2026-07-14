@@ -48,6 +48,7 @@ const api = axios.create({
 
 const webhookApi = axios.create({
   baseURL: API_BASE,
+  params: { token: TOKEN },
   headers: { Authorization: `Bearer ${TOKEN}` },
   timeout: 120000,
 });
@@ -374,13 +375,16 @@ async function getBrowser(headed = HEADED) {
 
 async function getActiveGroups() {
   try {
+    console.log(`[Scraper] Fetching groups from: ${API_BASE}/facebook/scraper-groups`);
+    console.log(`[Scraper] Token: ${TOKEN}`);
     const resp = await webhookApi.get('/facebook/scraper-groups');
+    console.log(`[Scraper] Groups response (${resp.status}):`, JSON.stringify(resp.data).substring(0, 200));
     const data = resp.data;
     return Array.isArray(data) ? data : (data?.groups || []);
   } catch (err) {
     const status = err.response?.status;
     const body = err.response?.data;
-    remoteLog('error', `Error obteniendo grupos (${status}): ${JSON.stringify(body || err.message)}`);
+    console.error(`[Scraper] Error obteniendo grupos (${status}):`, JSON.stringify(body || err.message));
     return [];
   }
 }
