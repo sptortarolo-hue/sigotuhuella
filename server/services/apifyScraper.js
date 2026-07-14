@@ -35,7 +35,18 @@ async function scrapeGroups(groups) {
   }
 
   const cookieResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_login_cookies'");
-  const loginCookies = cookieResult.rows[0]?.value || '';
+  let loginCookies = cookieResult.rows[0]?.value || '';
+
+  if (loginCookies.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(loginCookies);
+      const fbCookies = parsed
+        .filter(c => (c.domain || '').includes('facebook.com'))
+        .map(c => `${c.name}=${c.value}`)
+        .join('; ');
+      loginCookies = fbCookies;
+    } catch {}
+  }
 
   const input = {
     scrapeMode: 'facebook-groups-scraper',

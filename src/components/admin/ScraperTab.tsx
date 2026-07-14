@@ -504,10 +504,10 @@ function SettingsSection() {
             <label className="block text-sm font-bold text-gray-600 mb-1">Cookies de Facebook (login)</label>
             <textarea value={settings.fb_login_cookies || ''}
               onChange={(e) => setSettings(p => ({ ...p, fb_login_cookies: e.target.value }))}
-              placeholder="c_user=XXX; xs=XXX; fr=XXX; ..."
+              placeholder='Pegá el JSON de Cookie-Editor o: c_user=XXX; xs=XXX; fr=XXX; ...'
               rows={3}
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-xs font-mono resize-none" />
-            <p className="text-[10px] text-gray-400 mt-1">Cookies de sesión de Facebook para acceder a grupos privados. Exportar con Cookie-Editor.</p>
+            <p className="text-[10px] text-gray-400 mt-1">Pegá el JSON exportado de Cookie-Editor directamente. También acepta el formato string de cookies.</p>
           </div>
             <div className="bg-brand-bg rounded-2xl p-4 space-y-3">
               <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
