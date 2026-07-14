@@ -351,7 +351,8 @@ router.get('/scraper-groups', async (req, res) => {
   const qToken = req.query.token;
   const authHeader = req.headers.authorization;
   const isRelay = relayToken && authHeader === `Bearer ${relayToken}`;
-  if (!isRelay && (!qToken || qToken !== token)) {
+  const isScraper = token && authHeader === `Bearer ${token}`;
+  if (!isRelay && !isScraper && (!qToken || qToken !== token)) {
     return res.status(401).json({ error: 'Token inválido' });
   }
   const enabled = await isScrapingEnabled();
