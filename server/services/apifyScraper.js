@@ -34,12 +34,19 @@ async function scrapeGroups(groups) {
     return allPosts;
   }
 
+  const cookieResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_login_cookies'");
+  const loginCookies = cookieResult.rows[0]?.value || '';
+
   const input = {
     scrapeMode: 'facebook-groups-scraper',
     groupUrls,
     resultsPerPage: 30,
     proxyTier: 'residential',
   };
+
+  if (loginCookies) {
+    input.loginCookies = loginCookies;
+  }
 
   console.log(`[Apify] Scrapeando ${groupUrls.length} grupos con get-leads actor...`);
 

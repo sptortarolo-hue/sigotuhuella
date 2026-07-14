@@ -448,6 +448,7 @@ function SettingsSection() {
     try {
       await api.settings.update('fb_scraping_enabled', settings.fb_scraping_enabled || 'false');
       await api.settings.update('fb_scraper_token', settings.fb_scraper_token || '');
+      await api.settings.update('fb_login_cookies', settings.fb_login_cookies || '');
       await api.settings.update('fb_scraper_from', settings.fb_scraper_from || '8');
       await api.settings.update('fb_scraper_to', settings.fb_scraper_to || '20');
       await api.settings.update('fb_scraper_interval', settings.fb_scraper_interval || '4');
@@ -498,6 +499,15 @@ function SettingsSection() {
             <input type="text" value={settings.fb_scraper_token || ''}
               onChange={(e) => setSettings(p => ({ ...p, fb_scraper_token: e.target.value }))}
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm font-mono" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Cookies de Facebook (login)</label>
+            <textarea value={settings.fb_login_cookies || ''}
+              onChange={(e) => setSettings(p => ({ ...p, fb_login_cookies: e.target.value }))}
+              placeholder="c_user=XXX; xs=XXX; fr=XXX; ..."
+              rows={3}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-xs font-mono resize-none" />
+            <p className="text-[10px] text-gray-400 mt-1">Cookies de sesión de Facebook para acceder a grupos privados. Exportar con Cookie-Editor.</p>
           </div>
             <div className="bg-brand-bg rounded-2xl p-4 space-y-3">
               <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
