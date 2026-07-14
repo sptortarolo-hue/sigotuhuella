@@ -9,11 +9,11 @@ pkg update -y && pkg upgrade -y
 
 echo ""
 echo "[2/4] Instalando Python y Chromium..."
-pkg install -y python chromium-browser
+pkg install -y python chromium
 
 echo ""
 echo "[3/4] Instalando dependencias Python..."
-pip install requests pyppeteer
+pip install requests
 
 echo ""
 echo "[4/4] Descargando scraper.py desde el servidor..."

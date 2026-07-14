@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Scraper de Facebook Groups para SiHuella.
-Usa pyppeteer (Chromium headless) + requests.
+Usa chromium headless + requests.
 Corre desde Termux usando la IP del celular (residencial).
 No necesita cookies ni cuenta de Facebook.
 
@@ -10,7 +10,7 @@ Uso:
   python3 scraper.py --token TU_TOKEN --once
 """
 
-import os, sys, re, json, time, argparse, asyncio
+import os, sys, re, json, time, argparse, subprocess
 from urllib.parse import urlparse
 
 import requests
@@ -109,30 +109,26 @@ def send_posts(posts, token, api):
             print(f"  FAIL {post['fb_post_id']}: {e}")
 
 
-async def scrape(token, api):
+def fetch_html(url):
+    import subprocess
+    result = subprocess.run(
+        ["chromium", "--headless", "--disable-gpu", "--no-sandbox",
+         "--disable-dev-shm-usage", "--dump-dom", url],
+        capture_output=True, timeout=60000
+    )
+    result.check_returncode()
+    html = result.stdout.decode("utf-8", errors="replace")
+    if not html or len(html) < 100:
+        print(f"  HTML vacío o muy corto ({len(html)} chars)")
+        return None
+    return html
+
+
+def scrape(token, api):
     grupos = get_groups(token, api)
     if not grupos:
         print("[scraper] No hay grupos")
         return
-
-    from pyppeteer import launch
-
-    browser = await launch(
-        headless=True,
-        executablePath="/data/data/com.termux/files/usr/bin/chromium",
-        args=[
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-gpu",
-            "--disable-setuid-sandbox",
-        ]
-    )
-    page = await browser.newPage()
-    await page.setUserAgent(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-    )
-    await page.setViewport({"width": 1440, "height": 900})
 
     for grupo in grupos:
         gid = grupo["id"]
@@ -142,28 +138,24 @@ async def scrape(token, api):
 
         print(f"[scraper] Scrapeando {name} ({slug})...")
         try:
-            await page.goto(url, waitUntil="networkidle", timeout=60000)
-            await asyncio.sleep(4)
-
-            if "login" in page.url.lower() or "checkpoint" in page.url.lower():
+            html = fetch_html(url)
+            if html is None:
+                continue
+            if "login" in html.lower() or "checkpoint" in html.lower():
                 print("  Redirige a login — saltando")
                 continue
-
-            html = await page.content()
             posts = extract_posts(html, gid, slug)
             print(f"  Posts: {len(posts)}")
             send_posts(posts, token, api)
         except Exception as e:
             print(f"  Error en {name}: {e}")
 
-    await browser.close()
     mark_done(token, api)
     print("[scraper] Scrapeo completado")
 
 
 def acquire_wakelock():
     try:
-        import subprocess
         subprocess.run(["termux-wake-lock"], capture_output=True, timeout=5)
         print("[scraper] Wake lock adquirido")
     except Exception:
@@ -172,7 +164,6 @@ def acquire_wakelock():
 
 def release_wakelock():
     try:
-        import subprocess
         subprocess.run(["termux-wake-unlock"], capture_output=True, timeout=5)
     except Exception:
         pass
@@ -196,7 +187,7 @@ def main():
             print("[scraper] No hay scrape pendiente")
             release_wakelock()
             return
-        asyncio.run(scrape(token, api))
+        scrape(token, api)
         release_wakelock()
         return
 
@@ -205,7 +196,7 @@ def main():
     while True:
         try:
             if check_pending(token, api):
-                asyncio.run(scrape(token, api))
+                scrape(token, api)
             else:
                 print("[scraper] No hay scrape pendiente, esperando...")
         except Exception as e:
