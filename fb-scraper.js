@@ -414,7 +414,35 @@ async function extractPostsFromGroup(page, groupId, groupUrl, lastSeenId) {
 
   try {
     await page.waitForSelector('[role="feed"]', { timeout: 10000 });
-  } catch {}
+  } catch {
+    console.log('[Scraper] DEBUG: No [role="feed"] found after 10s');
+  }
+
+  const domDebug = await page.evaluate(() => {
+    const info = {};
+    info.url = location.href;
+    info.title = document.title;
+    info.feedCount = document.querySelectorAll('[role="feed"]').length;
+    info.articleCount = document.querySelectorAll('[role="article"]').length;
+    const feed = document.querySelector('[role="feed"]');
+    if (feed) {
+      info.feedChildren = feed.children.length;
+      info.feedChildTags = Array.from(feed.children).slice(0, 5).map(c => `${c.tagName}[${c.getAttribute('role') || ''}]`);
+      const articles = feed.querySelectorAll('[role="article"]');
+      info.articleDetails = Array.from(articles).slice(0, 3).map(a => ({
+        ariaLabel: (a.getAttribute('aria-label') || '').substring(0, 80),
+        textLen: (a.innerText || '').length,
+        textPreview: (a.innerText || '').substring(0, 150),
+        hasStrong: !!a.querySelector('strong'),
+        hasDirAuto: !!a.querySelector('div[dir="auto"]'),
+        divDirAutoCount: a.querySelectorAll('div[dir="auto"]').length,
+        linkCount: a.querySelectorAll('a[href]').length,
+      }));
+    }
+    info.bodyTextPreview = document.body?.innerText?.substring(0, 500) || '';
+    return info;
+  });
+  console.log('[Scraper] DOM Debug:', JSON.stringify(domDebug, null, 2));
 
   await sleep(randomInt(1500, 3000));
 
