@@ -119,6 +119,7 @@ async def scrape(token, api):
 
     browser = await launch(
         headless=True,
+        executablePath="/data/data/com.termux/files/usr/bin/chromium",
         args=[
             "--no-sandbox",
             "--disable-dev-shm-usage",
@@ -202,10 +203,13 @@ def main():
     interval = args.daemon or 30
     print(f"[scraper] Modo daemon: cada {interval} minutos")
     while True:
-        if check_pending(token, api):
-            asyncio.run(scrape(token, api))
-        else:
-            print("[scraper] No hay scrape pendiente, esperando...")
+        try:
+            if check_pending(token, api):
+                asyncio.run(scrape(token, api))
+            else:
+                print("[scraper] No hay scrape pendiente, esperando...")
+        except Exception as e:
+            print(f"[scraper] Error en ciclo: {e}")
         time.sleep(interval * 60)
 
 
