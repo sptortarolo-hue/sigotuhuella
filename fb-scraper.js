@@ -34,6 +34,12 @@ function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)
 function randomItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function pickUA() { return randomItem(USER_AGENTS); }
 
+function remoteLog(level, message) {
+  const ts = new Date().toISOString();
+  console.log(`[Scraper] ${message}`);
+  webhookApi.post('/facebook/scraper-log', { level, message, ts }).catch(() => {});
+}
+
 const api = axios.create({
   baseURL: RELAY_API,
   headers: { Authorization: `Bearer ${TOKEN}` },
@@ -374,7 +380,7 @@ async function getActiveGroups() {
   } catch (err) {
     const status = err.response?.status;
     const body = err.response?.data;
-    console.error(`[Scraper] Error obteniendo grupos (${status}): ${JSON.stringify(body || err.message)}`);
+    remoteLog('error', `Error obteniendo grupos (${status}): ${JSON.stringify(body || err.message)}`);
     return [];
   }
 }
@@ -542,7 +548,7 @@ async function scrapeGroup(page, group, seen) {
 // ==================== MAIN SCRAPE CYCLE ====================
 
 async function runScrapeCycle() {
-  console.log('[Scraper] Iniciando ciclo de scraping...');
+  remoteLog('info', 'Iniciando ciclo de scraping...');
 
   const b = await getBrowser();
   const page = await b.newPage();
@@ -551,8 +557,7 @@ async function runScrapeCycle() {
 
   const sessionOk = await ensureFacebookSession(page);
   if (!sessionOk) {
-    console.error('[Scraper] No se pudo establecer sesión de Facebook');
-    console.error('[Scraper] Ejecutá: FB_SCRAPER_HEADED=true node fb-scraper.js --login');
+    remoteLog('error', 'No se pudo establecer sesión de Facebook');
     await page.close();
     return;
   }
@@ -564,7 +569,7 @@ async function runScrapeCycle() {
 
   const groups = await getActiveGroups();
   if (groups.length === 0) {
-    console.log('[Scraper] No hay grupos activos para scrapear');
+    remoteLog('warn', 'No hay grupos activos para scrapear');
     await page.close();
     return;
   }
@@ -658,7 +663,7 @@ async function loginMode() {
 // ==================== TEST MODE ====================
 
 async function testMode(groupId) {
-  console.log(`[Scraper] Modo TEST — scrapeando grupo ${groupId || 'primero'}`);
+  remoteLog('info', `Modo TEST — scrapeando grupo ${groupId || 'primero'}`);
 
   const b = await getBrowser();
   const page = await b.newPage();
@@ -725,8 +730,8 @@ async function main() {
   await fetchConfig();
 
   console.log('[Scraper] Facebook Group Scraper (Puppeteer + Stealth)');
-  console.log(`[Scraper] Intervalo: ${INTERVAL_HOURS}h | Max posts: ${MAX_POSTS_PER_GROUP} | Mode: ${HEADED ? 'X11' : 'headless'}`);
-  console.log(`[Scraper] Chromium: ${CHROMIUM_PATH}`);
+  remoteLog('info', `Intervalo: ${INTERVAL_HOURS}h | Max posts: ${MAX_POSTS_PER_GROUP} | Mode: ${HEADED ? 'X11' : 'headless'}`);
+  remoteLog('info', `Chromium: ${CHROMIUM_PATH}`);
   console.log(`[Scraper] Perfil: ${PROFILE_DIR}`);
 
   ensureProfileDir();

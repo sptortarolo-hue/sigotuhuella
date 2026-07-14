@@ -919,4 +919,31 @@ router.post('/trigger-scrape', requireAdmin, async (req, res) => {
   }
 });
 
+// ==================== SCRAPER LOGS (para monitoreo remoto) ====================
+
+const scraperLogs = [];
+const SCRAPER_LOG_MAX = 50;
+
+router.post('/scraper-log', (req, res) => {
+  const authHeader = req.headers.authorization;
+  const token = req.headers['x-scraper-token'];
+  const scraperToken = process.env.SCRAPER_TOKEN || 'sihuella';
+  if (token !== scraperToken && authHeader !== `Bearer ${scraperToken}`) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+  const { level, message, ts } = req.body;
+  scraperLogs.push({ level: level || 'info', message: message || '', ts: ts || new Date().toISOString() });
+  if (scraperLogs.length > SCRAPER_LOG_MAX) scraperLogs.shift();
+  res.json({ ok: true });
+});
+
+router.get('/scraper-log', (req, res) => {
+  const token = req.query.token || req.headers['x-scraper-token'];
+  const scraperToken = process.env.SCRAPER_TOKEN || 'sihuella';
+  if (token !== scraperToken) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+  res.json(scraperLogs.slice(-30));
+});
+
 export default router;
