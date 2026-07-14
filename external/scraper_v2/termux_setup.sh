@@ -13,7 +13,7 @@ pkg install -y python
 
 echo ""
 echo "[3/4] Instalando dependencias Python..."
-pip install curl_cffi requests
+pip install tls_client requests
 
 echo ""
 echo "[4/4] Descargando scraper.py desde el servidor..."

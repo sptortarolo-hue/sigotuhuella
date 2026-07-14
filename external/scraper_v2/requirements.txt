@@ -1,2 +1,2 @@
-curl_cffi>=0.7.0
+tls_client>=1.0.0
 requests>=2.31.0

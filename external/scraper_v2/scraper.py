@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Scraper de Facebook Groups para SiHuella.
-Usa curl_cffi con TLS fingerprint real de Chrome (sin browser).
+Usa tls_client con TLS fingerprint real de Chrome (sin browser).
 Corre desde Termux usando la IP del celular (residencial).
 No necesita cookies ni cuenta de Facebook.
 
@@ -16,11 +16,16 @@ from urllib.parse import urlparse
 import requests
 
 try:
+    import tls_client
+    HAS_TLS_CLIENT = True
+except ImportError:
+    HAS_TLS_CLIENT = False
+
+try:
     from curl_cffi import requests as cffi_requests
     HAS_CURL_CFFI = True
 except ImportError:
     HAS_CURL_CFFI = False
-    print("[scraper] curl_cffi no instalado. Instalar con: pip install curl_cffi")
 
 API_BASE = "https://sigotuhuella.online"
 
@@ -72,25 +77,57 @@ def get_groups(token, api):
 
 
 def fetch_html(url, debug=False):
-    if not HAS_CURL_CFFI:
-        print("[scraper] curl_cffi no disponible")
-        return None
-    try:
-        r = cffi_requests.get(url, headers=HEADERS, impersonate="chrome", timeout=30)
-        r.raise_for_status()
-        html = r.text
+    html = None
+
+    if HAS_TLS_CLIENT:
+        try:
+            session = tls_client.Session(
+                client_identifier="chrome_120",
+                random_tls_extension_order=True
+            )
+            r = session.get(url, headers=HEADERS, timeout_seconds=30)
+            html = r.text
+            if debug:
+                print(f"  [debug] tls_client OK ({len(html)} chars)")
+        except Exception as e:
+            if debug:
+                print(f"  [debug] tls_client error: {e}")
+
+    if not html and HAS_CURL_CFFI:
+        try:
+            r = cffi_requests.get(url, headers=HEADERS, impersonate="chrome", timeout=30)
+            html = r.text
+            if debug:
+                print(f"  [debug] curl_cffi OK ({len(html)} chars)")
+        except Exception as e:
+            if debug:
+                print(f"  [debug] curl_cffi error: {e}")
+
+    if not html:
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=30, allow_redirects=True)
+            html = r.text
+            if debug:
+                print(f"  [debug] requests OK ({len(html)} chars)")
+        except Exception as e:
+            if debug:
+                print(f"  [debug] requests error: {e}")
+
+    if not html or len(html) < 100:
         if debug:
-            debug_path = "/tmp/fb_debug.html"
+            print(f"  HTML vacio o muy corto ({len(html) if html else 0} chars)")
+        return None
+
+    if debug:
+        debug_path = "/tmp/fb_debug.html"
+        try:
             with open(debug_path, "w", encoding="utf-8") as f:
                 f.write(html)
             print(f"  [debug] HTML guardado en {debug_path} ({len(html)} chars)")
-        if not html or len(html) < 100:
-            print(f"  HTML vacio o muy corto ({len(html)} chars)")
-            return None
-        return html
-    except Exception as e:
-        print(f"  Error fetch: {e}")
-        return None
+        except Exception:
+            pass
+
+    return html
 
 
 def debug_info(html):
@@ -147,10 +184,13 @@ def extract_posts_from_json(html, gid, slug):
             if post_data:
                 content = post_data.get("message", "")
             if not content:
-                msg_match = re.search(r'"message"\s*:\s*"([^"]{' + r'15,' + r'})"', text)
+                msg_match = re.search(r'"message"\s*:\s*"([^"]{15,})"', text)
                 if msg_match:
                     content = msg_match.group(1)
-                    content = content.encode().decode('unicode_escape', errors='replace')
+                    try:
+                        content = content.encode().decode('unicode_escape', errors='replace')
+                    except Exception:
+                        pass
 
             author = ""
             for author_match in re.finditer(r'"author"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"', text):
@@ -332,7 +372,6 @@ def scrape(token, api, debug=False):
         print("[scraper] No hay grupos")
         return
 
-    first_ok = False
     for grupo in grupos:
         gid = grupo["id"]
         slug = urlparse(grupo["url"]).path.rstrip("/").split("/")[-1]
@@ -345,6 +384,7 @@ def scrape(token, api, debug=False):
         ]
 
         print(f"[scraper] Scrapeando {name} ({slug})...")
+        group_ok = False
         for url in urls_to_try:
             print(f"  Probando {url}...")
             html = fetch_html(url, debug=debug)
@@ -365,10 +405,10 @@ def scrape(token, api, debug=False):
             print(f"  Posts: {len(posts)}")
             if posts:
                 send_posts(posts, token, api)
-                first_ok = True
+                group_ok = True
                 break
 
-        if not first_ok:
+        if not group_ok:
             print(f"  No se pudieron extraer posts de {name}")
 
     mark_done(token, api)
@@ -400,9 +440,14 @@ def main():
     parser.add_argument("--once", action="store_true", help="Ejecutar una sola vez (no daemon)")
     args = parser.parse_args()
 
-    if not HAS_CURL_CFFI:
-        print("[scraper] Instalar curl_cffi: pip install curl_cffi")
+    if not HAS_TLS_CLIENT and not HAS_CURL_CFFI:
+        print("[scraper] Instalar tls_client O curl_cffi:")
+        print("  pip install tls_client")
+        print("  pip install curl_cffi")
         sys.exit(1)
+
+    lib = "tls_client" if HAS_TLS_CLIENT else "curl_cffi"
+    print(f"[scraper] HTTP library: {lib}")
 
     token = args.token
     api = args.api.rstrip("/")
