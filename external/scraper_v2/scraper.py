@@ -178,7 +178,7 @@ def send_posts(posts, token, api):
             print(f"  FAIL {post['fb_post_id']}: {e}")
 
 
-def fetch_html(url, chromium_path):
+def fetch_html(url, chromium_path, debug=False):
     result = subprocess.run(
         [
             chromium_path,
@@ -195,39 +195,87 @@ def fetch_html(url, chromium_path):
     )
     result.check_returncode()
     html = result.stdout.decode("utf-8", errors="replace")
+    if debug:
+        debug_path = "/tmp/fb_debug.html"
+        with open(debug_path, "w", encoding="utf-8") as f:
+            f.write(html)
+        print(f"  [debug] HTML guardado en {debug_path} ({len(html)} chars)")
     if not html or len(html) < 100:
         print(f"  HTML vacio o muy corto ({len(html)} chars)")
         return None
     return html
 
 
-def scrape(token, api, chromium_path):
+def debug_info(html):
+    title = re.search(r'<title>(.*?)</title>', html, re.DOTALL)
+    title_text = title.group(1).strip() if title else "NO TITLE"
+    has_login = 'login' in html.lower()
+    has_article = 'role="article"' in html
+    has_post_link = '/posts/' in html or 'ftid=' in html
+    print(f"  [debug] Title: {title_text}")
+    print(f"  [debug] Has login: {has_login}, Has article: {has_article}, Has post links: {has_post_link}")
+    snippet = re.sub(r'<[^>]+>', ' ', html[:3000]).strip()[:500]
+    print(f"  [debug] Preview: {snippet[:300]}...")
+
+
+def scrape(token, api, chromium_path, debug=False):
     grupos = get_groups(token, api)
     if not grupos:
         print("[scraper] No hay grupos")
         return
 
-    for grupo in grupos:
-        gid = grupo["id"]
-        slug = urlparse(grupo["url"]).path.rstrip("/").split("/")[-1]
-        name = grupo.get("name", gid)
-        url = f"https://mbasic.facebook.com/groups/{slug}/"
+    grupo = grupos[0]
+    gid = grupo["id"]
+    slug = urlparse(grupo["url"]).path.rstrip("/").split("/")[-1]
+    name = grupo.get("name", gid)
 
-        print(f"[scraper] Scrapeando {name} ({slug})...")
+    urls_to_try = [
+        f"https://www.facebook.com/groups/{slug}/",
+        f"https://m.facebook.com/groups/{slug}/",
+        f"https://mbasic.facebook.com/groups/{slug}/",
+    ]
+
+    for url in urls_to_try:
+        print(f"[scraper] Probando {url}...")
         try:
-            html = fetch_html(url, chromium_path)
+            html = fetch_html(url, chromium_path, debug=debug)
             if html is None:
                 continue
+            if debug:
+                debug_info(html)
             lower = html.lower()
-            if "login" in lower and "checkpoint" not in lower:
-                if "mbasic.facebook.com/login" in lower or '/login/' in lower:
-                    print("  Redirige a login — saltando")
-                    continue
+            if 'facebook is not available' in lower:
+                print("  Bloqueado: 'not available on this browser'")
+                continue
+            if 'log in or sign up' in lower or ('login' in lower and '/login/' in lower):
+                print("  Redirige a login")
+                continue
             posts = extract_posts(html, gid, slug)
             print(f"  Posts: {len(posts)}")
-            send_posts(posts, token, api)
+            if posts:
+                send_posts(posts, token, api)
+                for remaining in grupos[1:]:
+                    rslug = urlparse(remaining["url"]).path.rstrip("/").split("/")[-1]
+                    rid = remaining["id"]
+                    rname = remaining.get("name", rid)
+                    rurl = f"https://www.facebook.com/groups/{rslug}/"
+                    print(f"[scraper] Scrapeando {rname} ({rslug})...")
+                    try:
+                        rhtml = fetch_html(rurl, chromium_path)
+                        if rhtml is None:
+                            continue
+                        rposts = extract_posts(rhtml, rid, rslug)
+                        print(f"  Posts: {len(rposts)}")
+                        send_posts(rposts, token, api)
+                    except Exception as e:
+                        print(f"  Error en {rname}: {e}")
+                mark_done(token, api)
+                print("[scraper] Scrapeo completado")
+                return
         except Exception as e:
-            print(f"  Error en {name}: {e}")
+            print(f"  Error: {e}")
+
+    print("[scraper] Ninguna URL funcionó. Usar --debug para inspeccionar HTML")
 
     mark_done(token, api)
     print("[scraper] Scrapeo completado")
@@ -253,6 +301,7 @@ def main():
     parser.add_argument("--token", required=True, help="Token del scraper (fb_scraper_token)")
     parser.add_argument("--api", default=API_BASE)
     parser.add_argument("--chromium-path", default=None, help="Path manual a chromium")
+    parser.add_argument("--debug", action="store_true", help="Guardar HTML debug en /tmp/fb_debug.html")
     parser.add_argument("--daemon", type=int, nargs="?", const=30, metavar="MIN",
                         help="Modo daemon (default: cada 30 min). P.ej: --daemon 10")
     parser.add_argument("--once", action="store_true", help="Ejecutar una sola vez (no daemon)")
@@ -269,7 +318,7 @@ def main():
             print("[scraper] No hay scrape pendiente")
             release_wakelock()
             return
-        scrape(token, api, chromium_path)
+        scrape(token, api, chromium_path, debug=args.debug)
         release_wakelock()
         return
 
@@ -278,7 +327,7 @@ def main():
     while True:
         try:
             if check_pending(token, api):
-                scrape(token, api, chromium_path)
+                scrape(token, api, chromium_path, debug=args.debug)
             else:
                 print("[scraper] No hay scrape pendiente, esperando...")
         except Exception as e:
