@@ -331,6 +331,13 @@ async function getBrowser(headed = HEADED) {
 
   console.log(`[Scraper] Lanzando Chromium (${headed ? 'X11 visible' : 'headless'})...`);
 
+  if (headed && !process.env.DISPLAY) {
+    console.error('[Scraper] DISPLAY no está definido. Ejecutá:');
+    console.error('[Scraper]   termux-x11 :0 &');
+    console.error('[Scraper]   export DISPLAY=:0');
+    process.exit(1);
+  }
+
   browser = await puppeteer.launch({
     executablePath: CHROMIUM_PATH,
     headless: headed ? false : 'new',
