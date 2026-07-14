@@ -6,7 +6,7 @@ mkdir -p "$DIR"
 cd "$DIR"
 
 echo '{"name":"fb-scraper","type":"module","dependencies":{}}' > package.json
-npm install puppeteer-extra puppeteer-extra-plugin-stealth axios --silent 2>/dev/null
+PUPPETEER_SKIP_DOWNLOAD=true npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth axios --silent 2>/dev/null
 
 if [ ! -f fb-scraper.js ]; then
   scp -P 5905 root@138.36.236.69:/var/www/sigotuhuella/fb-scraper.js "$DIR/"
