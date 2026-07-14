@@ -15,11 +15,12 @@ const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api';
 const RELAY_API = `${API_BASE}/relay`;
 const TOKEN = process.env.SCRAPER_TOKEN || 'sihuella';
 const HEADED = process.env.FB_SCRAPER_HEADED === 'true';
-const INTERVAL_HOURS = parseInt(process.env.FB_SCRAPER_INTERVAL || '4');
-const MAX_POSTS_PER_GROUP = parseInt(process.env.FB_SCRAPER_MAX_POSTS || '20');
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const PROFILE_DIR = process.env.FB_SCRAPER_PROFILE_DIR || path.join(__dirname, 'fb_scraper_profile');
 const SEEN_PATH = path.join(__dirname, 'fb_scraper_seen.json');
+
+let INTERVAL_HOURS = parseInt(process.env.FB_SCRAPER_INTERVAL || '4');
+let MAX_POSTS_PER_GROUP = parseInt(process.env.FB_SCRAPER_MAX_POSTS || '20');
 
 const USER_AGENTS = [
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
@@ -54,6 +55,21 @@ function acquireWakeLock() {
     execSync('termux-wake-lock', { stdio: 'pipe' });
     console.log('[Scraper] Wake lock activado');
   } catch {}
+}
+
+// ==================== FETCH CONFIG FROM VPS ====================
+
+async function fetchConfig() {
+  try {
+    const { data } = await webhookApi.get('/facebook/scraper-config');
+    if (data.interval_hours) INTERVAL_HOURS = parseInt(data.interval_hours) || INTERVAL_HOURS;
+    if (data.max_posts_per_group) MAX_POSTS_PER_GROUP = parseInt(data.max_posts_per_group) || MAX_POSTS_PER_GROUP;
+    console.log(`[Scraper] Config VPS: intervalo=${INTERVAL_HOURS}h, max_posts=${MAX_POSTS_PER_GROUP}`);
+    return data;
+  } catch (err) {
+    console.warn(`[Scraper] No se pudo leer config del VPS, usando defaults: intervalo=${INTERVAL_HOURS}h, max_posts=${MAX_POSTS_PER_GROUP}`);
+    return null;
+  }
 }
 
 // ==================== UTILITIES ====================
@@ -697,6 +713,8 @@ async function main() {
 
   acquireWakeLock();
 
+  await fetchConfig();
+
   console.log('[Scraper] Facebook Group Scraper (Puppeteer + Stealth)');
   console.log(`[Scraper] Intervalo: ${INTERVAL_HOURS}h | Max posts: ${MAX_POSTS_PER_GROUP} | Mode: ${HEADED ? 'X11' : 'headless'}`);
   console.log(`[Scraper] Chromium: ${CHROMIUM_PATH}`);
@@ -732,6 +750,7 @@ async function main() {
         }
       }
 
+      await fetchConfig();
       await runScrapeCycle();
       await setLastRunTime();
 

@@ -998,6 +998,9 @@ export async function initDb() {
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('fb_scraper_interval', '4') ON CONFLICT (key) DO NOTHING
     `, 'fb_scraper_interval');
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES ('fb_scraper_max_posts', '20') ON CONFLICT (key) DO NOTHING
+    `, 'fb_scraper_max_posts');
 
     await migrate(client, `
       ALTER TABLE fb_relay_tasks

@@ -373,20 +373,24 @@ router.get('/scraper-groups', async (req, res) => {
 
 router.get('/scraper-config', async (req, res) => {
   const relayToken = process.env.RELAY_TOKEN;
+  const scraperToken = await getScraperToken();
   const authHeader = req.headers.authorization;
-  if (!relayToken || authHeader !== `Bearer ${relayToken}`) {
+  const isRelay = relayToken && authHeader === `Bearer ${relayToken}`;
+  const isScraper = scraperToken && authHeader === `Bearer ${scraperToken}`;
+  if (!isRelay && !isScraper) {
     return res.status(401).json({ error: 'Token inválido' });
   }
   try {
-    const keys = ['fb_scraper_from', 'fb_scraper_to', 'fb_scraper_interval', 'fb_scraping_enabled'];
+    const keys = ['fb_scraper_from', 'fb_scraper_to', 'fb_scraper_interval', 'fb_scraping_enabled', 'fb_scraper_max_posts'];
     const placeholders = keys.map((_, i) => '$' + (i + 1)).join(',');
     const result = await pool.query(`SELECT key, value FROM settings WHERE key IN (${placeholders})`, keys);
-    const data = { hour_start: '8', hour_end: '20', interval_hours: '4', scraping_enabled: 'false' };
+    const data = { hour_start: '8', hour_end: '20', interval_hours: '4', scraping_enabled: 'false', max_posts_per_group: '20' };
     result.rows.forEach(r => {
       if (r.key === 'fb_scraper_from') data.hour_start = r.value;
       else if (r.key === 'fb_scraper_to') data.hour_end = r.value;
       else if (r.key === 'fb_scraper_interval') data.interval_hours = r.value;
       else if (r.key === 'fb_scraping_enabled') data.scraping_enabled = r.value;
+      else if (r.key === 'fb_scraper_max_posts') data.max_posts_per_group = r.value;
     });
     res.json(data);
   } catch (err) {

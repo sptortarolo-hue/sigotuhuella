@@ -21,8 +21,6 @@ ENV_FILE="$HOME/.fb-scraper-env"
 cat > "$ENV_FILE" << 'EOF'
 export SCRAPER_TOKEN=sihuella
 export FB_SCRAPER_HEADED=false
-export FB_SCRAPER_INTERVAL=4
-export FB_SCRAPER_MAX_POSTS=20
 export CHROMIUM_PATH=/data/data/com.termux/files/usr/bin/chromium-browser
 EOF
 
