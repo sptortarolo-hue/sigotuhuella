@@ -70,11 +70,13 @@ function saveSeen(seen) { fs.writeFileSync(SEEN_PATH, JSON.stringify(seen, null,
 async function extractFbDtsg(cookies) {
   const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
 
-  const resp = await axios.get('https://www.facebook.com/groups/', {
+  const resp = await axios.get('https://www.facebook.com/', {
     headers: {
       'User-Agent': pickUA(),
       'Cookie': cookieStr,
       'Accept': 'text/html,application/xhtml+xml',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
     },
     timeout: 30000,
     maxRedirects: 5,
@@ -95,7 +97,6 @@ async function extractFbDtsg(cookies) {
     if (match) return match[1];
   }
 
-  console.error('[Scraper] No se pudo extraer fb_dtsg del HTML');
   return null;
 }
 
@@ -152,13 +153,22 @@ async function doLogin() {
 
   const cookies = await page.cookies();
 
-  try {
-    const fbDtsg = await extractFbDtsg(cookies);
-    saveSession({ cookies, fbDtsg, savedAt: new Date().toISOString() });
-    console.log('[Scraper] Sesión guardada.');
-  } catch (err) {
-    console.error('[Scraper] Error guardando sesión:', err.message);
-  }
+  const fbDtsg = await page.evaluate(() => {
+    const patterns = [
+      /\\"fb_dtsg\\":\{\\"token\\":\\"([^"\\]+)\\"/,
+      /"fb_dtsg":"([^"]+)"/,
+      /DTSGInitialData.*?"token":"([^"]+)"/,
+    ];
+    const html = document.documentElement.innerHTML;
+    for (const p of patterns) {
+      const m = html.match(p);
+      if (m) return m[1];
+    }
+    return null;
+  });
+
+  saveSession({ cookies, fbDtsg, savedAt: new Date().toISOString() });
+  console.log(`[Scraper] Sesión guardada. Cookies: ${cookies.length}, fb_dtsg: ${fbDtsg ? 'ok' : 'no extraído (se buscará al scrapear)'}`);
 
   await browser.close();
 }
