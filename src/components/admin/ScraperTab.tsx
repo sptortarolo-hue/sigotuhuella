@@ -503,7 +503,7 @@ function SettingsSection() {
               <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                 <Clock className="w-4 h-4" /> Configuración del scraper
               </h4>
-              <p className="text-xs text-gray-500">El scraper corre desde tu dispositivo (Termux + Chromium). El servidor marca scrape pendiente en las horas programadas.</p>
+              <p className="text-xs text-gray-500">El scraper usa Apify (cloud) con IPs residenciales para extraer posts de grupos de Facebook. Sin necesidad de dispositivo local.</p>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-bold text-gray-500 block mb-1">Horario desde</label>

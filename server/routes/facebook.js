@@ -905,11 +905,10 @@ router.get('/publish-status', requireAdmin, async (_req, res) => {
 
 router.post('/trigger-scrape', requireAdmin, async (req, res) => {
   try {
-    await pool.query(
-      "INSERT INTO settings (key, value) VALUES ('fb_scrape_pending', NOW()::text) ON CONFLICT (key) DO UPDATE SET value = NOW()::text"
-    );
+    const { triggerApifyScrape } = await import('../services/apifyScraper.js');
+    triggerApifyScrape().catch(err => console.error('[Trigger Scrape] Async error:', err.message));
     const lastRun = await pool.query("SELECT value FROM settings WHERE key = 'apify_last_scrape_at'");
-    res.json({ success: true, message: 'Scrape marcado como pendiente', lastScrape: lastRun.rows[0]?.value || null });
+    res.json({ success: true, message: 'Scrape Apify iniciado', lastScrape: lastRun.rows[0]?.value || null });
   } catch (err) {
     console.error('[Trigger Scrape] Error:', err.message);
     res.status(500).json({ error: err.message });
