@@ -1,7 +1,7 @@
 import pool from '../db.js';
 import { ApifyClient } from 'apify-client';
 
-const APIFY_ACTOR = 'crowdpull~facebook-group-posts-scraper';
+const APIFY_ACTOR = 'get-leads~all-in-one-facebook-scraper';
 
 function arDateHour(date) {
   return parseInt(new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: 'numeric', hour12: false }).format(date));
@@ -24,77 +24,79 @@ async function getActiveGroups() {
   return result.rows;
 }
 
-function extractGroupIdFromUrl(url) {
-  const match = url?.match(/facebook\.com\/groups\/(\d+)/);
-  return match ? match[1] : null;
-}
-
-async function scrapeGroupsWithApify(groups) {
+async function scrapeGroups(groups) {
   const client = getApifyClient();
   const allPosts = [];
 
-  for (const group of groups) {
-    const groupUrl = group.url;
-    if (!groupUrl) {
-      console.log(`[Apify] Grupo ${group.name} sin URL, saltando`);
-      continue;
+  const groupUrls = groups.map(g => g.url).filter(Boolean);
+  if (groupUrls.length === 0) {
+    console.log('[Apify] No hay grupos con URL');
+    return allPosts;
+  }
+
+  const input = {
+    scrapeMode: 'facebook-groups-scraper',
+    groupUrls,
+    resultsPerPage: 30,
+    proxyTier: 'residential',
+  };
+
+  console.log(`[Apify] Scrapeando ${groupUrls.length} grupos con get-leads actor...`);
+
+  try {
+    const run = await client.actor(APIFY_ACTOR).call(input, {
+      waitSecs: 300,
+      memory: 4096,
+    });
+
+    console.log(`[Apify] Run ${run.id} terminado (${run.status}), dataset: ${run.defaultDatasetId}`);
+
+    if (run.status !== 'SUCCEEDED') {
+      console.error(`[Apify] Run falló con status: ${run.status}`);
+      return allPosts;
     }
 
-    console.log(`[Apify] Scrapeando grupo: ${group.name} (${groupUrl})`);
+    const { items } = await client.dataset(run.defaultDatasetId).listItems({ limit: 500 });
 
-    try {
-      const input = {
-        startUrls: [{ url: groupUrl }],
-        maxPosts: 30,
-        sortOrder: 'CHRONOLOGICAL',
-        includeTopComments: true,
-        enableDedup: true,
-        proxyConfig: { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
-      };
+    for (const item of items) {
+      const postId = item.postId || item.post_id || item.id;
+      if (!postId) continue;
 
-      const run = await client.actor(APIFY_ACTOR).call(input, {
-        waitSecs: 120,
-        memory: 1024,
-      });
+      const postUrl = item.postUrl || item.post_url || item.permalink || '';
+      const text = item.text || item.message || item.postText || item.content || '';
+      const images = (item.images || item.imageUrls || item.image_urls || item.attachments || [])
+        .filter(Boolean)
+        .map(i => typeof i === 'string' ? i : i.url || i.src || '')
+        .filter(Boolean);
+      const author = item.authorName || item.author_name || item.author || item.username || '';
+      const timestamp = item.timestamp || item.postedAt || item.posted_at || item.createdTime || null;
+      const groupName = item.groupUrl || item.group_name || '';
 
-      console.log(`[Apify] Actor run ${run.id} terminado (${run.status}), datasetItems: ${run.defaultDatasetId}`);
+      let matchedGroup = groups.find(g => g.url && groupName.includes(g.url)) || groups[0];
 
-      const { items } = await client.dataset(run.defaultDatasetId).listItems();
-
-      for (const item of items) {
-        const postId = item.postId || item.id;
-        if (!postId) continue;
-
-        const postUrl = item.postUrl || `https://www.facebook.com/groups/${group.fb_group_id || extractGroupIdFromUrl(groupUrl) || 'unknown'}/posts/${postId}/`;
-        const text = item.postText || item.text || item.message || '';
-        const images = (item.imageUrls || item.images || []).filter(Boolean);
-        const author = item.authorName || item.author || item.username || '';
-        const timestamp = item.timestamp || item.postedAt || null;
-        const comments = (item.topComments || item.comments || []).map(c => ({
+      const comments = (item.comments || item.topComments || [])
+        .map(c => ({
           id: c.id || c.commentId || null,
-          author: c.authorName || c.author || c.username || '',
+          author: c.authorName || c.author_name || c.author || '',
           text: c.text || c.message || '',
           timestamp: c.timestamp || c.postedAt || null,
         }));
 
-        allPosts.push({
-          group_id: group.id,
-          fb_post_id: String(postId),
-          fb_post_url: postUrl,
-          author_name: author,
-          content: text,
-          image_urls: images,
-          posted_at: timestamp,
-          comments,
-        });
-      }
-
-      console.log(`[Apify] ${items.length} posts extraídos de ${group.name}`);
-    } catch (err) {
-      console.error(`[Apify] Error scrapeando ${group.name}:`, err.message);
+      allPosts.push({
+        group_id: matchedGroup?.id || null,
+        fb_post_id: String(postId),
+        fb_post_url: postUrl,
+        author_name: author,
+        content: text,
+        image_urls: images,
+        posted_at: timestamp,
+        comments,
+      });
     }
 
-    await new Promise(r => setTimeout(r, 1000));
+    console.log(`[Apify] ${allPosts.length} posts extraídos en total`);
+  } catch (err) {
+    console.error(`[Apify] Error en actor:`, err.message);
   }
 
   return allPosts;
@@ -136,27 +138,22 @@ async function runApifyScrape() {
 
   console.log(`[Apify] Iniciando scrape de ${groups.length} grupos`);
 
-  const posts = await scrapeGroupsWithApify(groups);
+  const posts = await scrapeGroups(groups);
   console.log(`[Apify] Total posts extraídos: ${posts.length}`);
-
-  if (posts.length === 0) {
-    console.log('[Apify] Sin posts nuevos');
-    await pool.query(
-      "INSERT INTO settings (key, value) VALUES ('apify_last_scrape_at', NOW()::text) ON CONFLICT (key) DO UPDATE SET value = NOW()::text"
-    );
-    return;
-  }
 
   const scraperToken = await pool.query("SELECT value FROM settings WHERE key = 'fb_scraper_token'");
   const tokenValue = scraperToken.rows[0]?.value || 'sihuella';
 
-  const result = await processPosts(posts, tokenValue);
-  console.log(`[Apify] Procesados: ${result.inserted} insertados, ${result.updated} actualizados, ${result.errors} errores`);
+  if (posts.length > 0) {
+    const result = await processPosts(posts, tokenValue);
+    console.log(`[Apify] Procesados: ${result.inserted} insertados, ${result.updated} actualizados, ${result.errors} errores`);
+  } else {
+    console.log('[Apify] Sin posts nuevos');
+  }
 
   await pool.query(
     "INSERT INTO settings (key, value) VALUES ('apify_last_scrape_at', NOW()::text) ON CONFLICT (key) DO UPDATE SET value = NOW()::text"
   );
-  await pool.query("DELETE FROM settings WHERE key = 'fb_scrape_pending'");
 }
 
 let isScraping = false;
@@ -164,13 +161,12 @@ let isScraping = false;
 async function tryScrapeIfScheduled() {
   if (isScraping) return;
 
-  const enabled = await pool.query("SELECT value FROM settings WHERE key = 'fb_scraping_enabled'");
-  if (enabled.rows[0]?.value !== 'true') return;
-
-  const token = process.env.APIFY_TOKEN;
-  if (!token) return;
-
   try {
+    const enabled = await pool.query("SELECT value FROM settings WHERE key = 'fb_scraping_enabled'");
+    if (enabled.rows[0]?.value !== 'true') return;
+
+    if (!process.env.APIFY_TOKEN) return;
+
     const res = await pool.query(
       "SELECT key, value FROM settings WHERE key IN ('fb_scraper_from', 'fb_scraper_to', 'fb_scraper_interval')"
     );
