@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Scraper de Facebook Groups para SiHuella.
-Usa chromium headless + requests.
+Usa chromium headless para fetch mbasic.facebook.com.
 Corre desde Termux usando la IP del celular (residencial).
 No necesita cookies ni cuenta de Facebook.
 
@@ -16,6 +16,12 @@ from urllib.parse import urlparse
 import requests
 
 API_BASE = "https://sigotuhuella.online"
+
+MOBILE_UA = (
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/125.0.0.0 Mobile Safari/537.36"
+)
 
 TERMUX_PATHS = [
     "/data/data/com.termux/files/usr/bin/chromium",
@@ -75,40 +81,77 @@ def get_groups(token, api):
 def extract_posts(html, gid, slug):
     posts = []
     seen = set()
-    articles = re.findall(r'<div[^>]*role="article"[^>]*>(.*?)</div>\s*(?=<div|\Z)', html, re.DOTALL)
-    if not articles:
-        articles = re.findall(r'<article[^>]*>(.*?)</article>', html, re.DOTALL)
-    for art in articles:
-        ids = re.findall(r'/posts/(\d+)', art)
+
+    post_blocks = re.findall(
+        r'<div[^>]*role="article"[^>]*>(.*?)</div>\s*(?=<div[^>]*role="|$)',
+        html, re.DOTALL
+    )
+    if not post_blocks:
+        post_blocks = re.findall(
+            r'<div[^>]*id="structured_composer_async_container"[^>]*>.*?</div>\s*(.*?)\s*(?=<div[^>]*id="structured_composer_async_container"|<div[^>]*role="complementary"|<form|$)',
+            html, re.DOTALL
+        )
+    if not post_blocks:
+        post_blocks = re.findall(
+            r'href="[^"]*posts/(\d+)[^"]*".*?(?=href="[^"]*posts/\d+|$)',
+            html, re.DOTALL
+        )
+        post_blocks = [b for b in post_blocks if isinstance(b, str) and len(b) > 50]
+
+    if not post_blocks:
+        post_blocks = re.findall(
+            r'(<div[^>]*>\s*<[^>]*>\s*<a[^>]*>[^<]+</a>[^<]*<span[^>]*>[^<]*</span>.*?(?:<img[^>]*>|<div[^>]*>.*?</div>).*?</div>)',
+            html, re.DOTALL
+        )
+
+    for block in post_blocks:
+        ids = re.findall(r'/posts/(\d+)', block)
+        if not ids:
+            ids = re.findall(r'ftid=(\d+)', block)
         if not ids:
             continue
         pid = ids[0]
         if pid in seen:
             continue
         seen.add(pid)
-        msg = re.search(r'data-ad-comet-preview="message"[^>]*>(.*?)</div>', art, re.DOTALL)
+
         content = ""
+        msg = re.search(r'<div[^>]*>([^<]{15,})</div>', block, re.DOTALL)
         if msg:
-            content = re.sub(r'<[^>]+>', '', msg.group(1)).strip()
+            raw = msg.group(1).strip()
+            raw = re.sub(r'<[^>]+>', '', raw)
+            raw = re.sub(r'\d+\s*[hmHM]\s*·\s*', '', raw)
+            raw = re.sub(r'(?i)See more|Ver m[aá]s|Mostrar m[aá]s', '', raw)
+            raw = raw.strip()
+            if len(raw) > 15:
+                content = raw[:10000]
+
         if not content:
-            dirs = re.findall(r'<div[^>]*dir="auto"[^>]*>(.*?)</div>', art, re.DOTALL)
+            all_text = re.findall(r'>([^<]{15,})<', block)
             parts = []
-            for d in dirs:
-                t = re.sub(r'<[^>]+>', '', d).strip()
+            for t in all_text:
+                t = t.strip()
+                t = re.sub(r'\d+\s*[hmHM]\s*·\s*', '', t)
+                t = re.sub(r'(?i)See more|Ver m[aá]s|Mostrar m[aá]s', '', t)
+                t = t.strip()
                 if len(t) > 15:
                     parts.append(t)
-            content = "\n".join(parts)
-        content = re.sub(r'\d+\s*[hm]\s*·\s*', '', content)
-        content = re.sub(r'(?i)See more|Ver más|Mostrar más', '', content).strip()[:10000]
+            if parts:
+                content = "\n".join(parts[:3])
+
         author = ""
-        for sel in [r'<h2[^>]*>.*?<a[^>]*>(.*?)</a>', r'<h3[^>]*>.*?<a[^>]*>(.*?)</a>', r'<strong[^>]*>.*?<a[^>]*>(.*?)</a>']:
-            m = re.search(sel, art, re.DOTALL)
+        for pat in [
+            r'<strong[^>]*>\s*<a[^>]*>([^<]+)</a>\s*</strong>',
+            r'<h3[^>]*>\s*<a[^>]*>([^<]+)</a>',
+            r'<a[^>]*href="[^"]*"[^>]*><strong>([^<]+)</strong>',
+        ]:
+            m = re.search(pat, block, re.DOTALL)
             if m:
-                author = re.sub(r'<[^>]+>', '', m.group(1)).strip()
+                author = m.group(1).strip()
                 break
-        images = re.findall(r'<img[^>]+src="([^"]*scontent[^"]*)"', art)
-        if not images:
-            images = re.findall(r'<img[^>]+src="([^"]*fbcdn[^"]*)"', art)
+
+        images = re.findall(r'<img[^>]+src="([^"]*(?:scontent|fbcdn)[^"]*)"', block)
+
         posts.append({
             "fb_post_id": pid,
             "group_id": gid,
@@ -137,9 +180,18 @@ def send_posts(posts, token, api):
 
 def fetch_html(url, chromium_path):
     result = subprocess.run(
-        [chromium_path, "--headless", "--disable-gpu", "--no-sandbox",
-         "--disable-dev-shm-usage", "--dump-dom", url],
-        capture_output=True, timeout=60
+        [
+            chromium_path,
+            "--headless=new",
+            "--disable-gpu",
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-blink-features=AutomationControlled",
+            f"--user-agent={MOBILE_UA}",
+            "--dump-dom",
+            url,
+        ],
+        capture_output=True, timeout=90
     )
     result.check_returncode()
     html = result.stdout.decode("utf-8", errors="replace")
@@ -159,16 +211,18 @@ def scrape(token, api, chromium_path):
         gid = grupo["id"]
         slug = urlparse(grupo["url"]).path.rstrip("/").split("/")[-1]
         name = grupo.get("name", gid)
-        url = f"https://www.facebook.com/groups/{slug}/"
+        url = f"https://mbasic.facebook.com/groups/{slug}/"
 
         print(f"[scraper] Scrapeando {name} ({slug})...")
         try:
             html = fetch_html(url, chromium_path)
             if html is None:
                 continue
-            if "login" in html.lower() or "checkpoint" in html.lower():
-                print("  Redirige a login — saltando")
-                continue
+            lower = html.lower()
+            if "login" in lower and "checkpoint" not in lower:
+                if "mbasic.facebook.com/login" in lower or '/login/' in lower:
+                    print("  Redirige a login — saltando")
+                    continue
             posts = extract_posts(html, gid, slug)
             print(f"  Posts: {len(posts)}")
             send_posts(posts, token, api)
