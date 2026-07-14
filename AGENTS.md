@@ -172,43 +172,56 @@ className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-96"
 - NO poner `overflow-hidden` en contenedores del body (excepto scroll lock del menú mobile)
 - Textos con suficiente contraste, hover/active states en elementos interactivos
 
-## Scraper Facebook (Apify — server-side)
+## Scraper Facebook (Termux — Puppeteer + Stealth)
 
-El scraper principal corre en el mismo server Node.js usando **Apify**. Actor: `crowdpull/facebook-group-posts-scraper`.
+Scraper self-hosted que corre en un celular con Termux + X11. Usa Chromium real con `puppeteer-extra` + `puppeteer-extra-plugin-stealth` para evitar detección de bots.
 
 ### Cómo funciona
 
-- Se ejecuta vía scheduler automático en `server/services/apifyScraper.js`
-- Usa Smart Scrape (`enableDedup: true`) para saltar posts ya scrapeados (ahorra ~75% en costos recurrentes)
-- Scrapea SOLO grupos públicos — **no requiere cuenta de Facebook**
+- Se ejecuta en Termux como daemon via pm2 (`pm2 start fb-scraper.js --name fb-scraper`)
+- Abre Chromium real en X11, navega a cada grupo, extrae posts via DOM
+- Session management: guarda/carga cookies de Termux y las sincroniza con el VPS como backup
+- Login manual una vez via `FB_SCRAPER_HEADED=true node fb-scraper.js --login`
 - Los posts se envían al webhook interno (`POST /api/facebook/webhook`) para clasificación AI y matching
+- El VPS sirve las cookies via `GET /api/relay/fb/cookie-download?token=sihuella`
 
-### Configuración desde Admin
+### Archivos
 
-| Setting | Descripción |
+| Archivo | Descripción |
 |---------|-------------|
-| `fb_scraping_enabled` | Activar/desactivar scraping |
-| `fb_scraper_hour_1` / `fb_scraper_hour_2` | Banda horaria (se scrapea 2x/día) |
-| `fb_scraper_token` | Token compartido scraper ↔ webhook |
+| `fb-scraper.js` | Script principal (~450 líneas). Puppeteer + stealth, DOM extraction, session management, human scrolling |
+| `fb-scraper-setup.sh` | Script de setup en Termux (instala deps, configura env) |
+| `fb-relay.js` | Referencia: mismo patrón Puppeteer+stealth para publicar en grupos |
 
-### Costo (Apify free tier: $5/mes en créditos)
+### Configuración
 
-- Nuevo post extraído: $0.004/post
-- Cache check (Smart Scrape skip): $0.001/post
-- Con ~4 grupos, 2x/día, ~20 posts nuevos/ciclo → ~$0.60-$0.90/mes
+| Variable | Default | Descripción |
+|----------|---------|-------------|
+| `SCRAPER_TOKEN` | `sihuella` | Token para auth con el webhook |
+| `FB_SCRAPER_HEADED` | `false` | `true` para modo X11 visible (login/test), `false` para headless |
+| `FB_SCRAPER_INTERVAL` | `4` | Horas entre scrapes |
+| `FB_SCRAPER_MAX_POSTS` | `20` | Máximo de posts por grupo por scrape |
+| `CHROMIUM_PATH` | auto-detect | Path al binario de Chromium |
+
+### Session Restore Cascade
+
+1. Intenta cargar cookies de Termux local (`~/.fb-cookies.json`)
+2. Si no existen, descarga del VPS (`/api/relay/fb/cookie-download`)
+3. Si el VPS tampoco tiene, necesita login manual via X11
+
+### Costo
+
+$0 — todo corre local en el celular. Sin servicios cloud.
 
 ### Referencia
 
-| Comando / Archivo | Descripción |
-|-------------------|-------------|
-| `server/services/apifyScraper.js` | Lógica del scraper + scheduler |
-| `server/index.js:546` | `startApifyScraper()` al iniciar |
-| `POST /api/facebook/trigger-scrape` | Endpoint para scrape manual desde admin |
-| `apify_last_scrape_at` (settings) | Última ejecución registrada |
-
-## Scraper Facebook (VPS — alternativo)
-
-El scraper self-hosted está en `external/scraper_v2/`. Usa **Playwright** (Chromium real). No se usa actualmente (primamos Apify).
+| Comando | Descripción |
+|---------|-------------|
+| `FB_SCRAPER_HEADED=true node fb-scraper.js --login` | Login manual con X11 |
+| `FB_SCRAPER_HEADED=true node fb-scraper.js --test` | Test scrape (un grupo, 3 posts) |
+| `pm2 start fb-scraper.js --name fb-scraper` | Iniciar daemon |
+| `pm2 logs fb-scraper` | Ver logs |
+| `pm2 restart fb-scraper` | Reiniciar |
 
 ## PostgreSQL (VPS)
 

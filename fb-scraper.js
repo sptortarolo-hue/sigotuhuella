@@ -1,0 +1,788 @@
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { spawnSync, execSync } from 'child_process';
+
+puppeteer.use(StealthPlugin());
+
+// ==================== CONFIG ====================
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api';
+const RELAY_API = `${API_BASE}/relay`;
+const TOKEN = process.env.SCRAPER_TOKEN || 'sihuella';
+const HEADED = process.env.FB_SCRAPER_HEADED === 'true';
+const INTERVAL_HOURS = parseInt(process.env.FB_SCRAPER_INTERVAL || '4');
+const MAX_POSTS_PER_GROUP = parseInt(process.env.FB_SCRAPER_MAX_POSTS || '20');
+const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
+const PROFILE_DIR = process.env.FB_SCRAPER_PROFILE_DIR || path.join(__dirname, 'fb_scraper_profile');
+const SEEN_PATH = path.join(__dirname, 'fb_scraper_seen.json');
+
+const USER_AGENTS = [
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+  'Mozilla/50 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+];
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function randomItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function pickUA() { return randomItem(USER_AGENTS); }
+
+const api = axios.create({
+  baseURL: RELAY_API,
+  headers: { Authorization: `Bearer ${TOKEN}` },
+  timeout: 60000,
+});
+
+const webhookApi = axios.create({
+  baseURL: API_BASE,
+  headers: { Authorization: `Bearer ${TOKEN}` },
+  timeout: 120000,
+});
+
+let browser = null;
+
+// ==================== WAKE LOCK ====================
+
+function acquireWakeLock() {
+  try {
+    execSync('termux-wake-lock', { stdio: 'pipe' });
+    console.log('[Scraper] Wake lock activado');
+  } catch {}
+}
+
+// ==================== UTILITIES ====================
+
+function ensureProfileDir() {
+  if (!fs.existsSync(PROFILE_DIR)) {
+    fs.mkdirSync(PROFILE_DIR, { recursive: true });
+  }
+}
+
+function loadSeen() {
+  try {
+    if (fs.existsSync(SEEN_PATH)) {
+      return JSON.parse(fs.readFileSync(SEEN_PATH, 'utf-8'));
+    }
+  } catch {}
+  return {};
+}
+
+function saveSeen(seen) {
+  fs.writeFileSync(SEEN_PATH, JSON.stringify(seen, null, 2));
+}
+
+// ==================== BEZIER MOUSE MOVEMENT ====================
+
+async function bezierMove(page, fromX, fromY, toX, toY) {
+  const cp1x = fromX + (toX - fromX) * 0.2 + Math.random() * 60 - 30;
+  const cp1y = fromY + (toY - fromY) * 0.1 + Math.random() * 40 - 20;
+  const cp2x = fromX + (toX - fromX) * 0.8 + Math.random() * 60 - 30;
+  const cp2y = fromY + (toY - fromY) * 0.9 + Math.random() * 40 - 20;
+  const steps = randomInt(25, 40);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = Math.pow(1 - t, 3) * fromX + 3 * Math.pow(1 - t, 2) * t * cp1x + 3 * (1 - t) * Math.pow(t, 2) * cp2x + Math.pow(t, 3) * toX;
+    const y = Math.pow(1 - t, 3) * fromY + 3 * Math.pow(1 - t, 2) * t * cp1y + 3 * (1 - t) * Math.pow(t, 2) * cp2y + Math.pow(t, 3) * toY;
+    await page.mouse.move(Math.round(x), Math.round(y));
+    await sleep(10 + Math.random() * 15);
+  }
+}
+
+// ==================== HUMAN SCROLL ====================
+
+async function humanScroll(page, totalY = 2000) {
+  const chunks = randomInt(4, 8);
+  for (let i = 0; i < chunks; i++) {
+    const delta = Math.floor(totalY / chunks) + randomInt(-50, 50);
+    await page.evaluate((y) => window.scrollBy(0, y), delta);
+    await sleep(randomInt(400, 1200));
+  }
+  if (Math.random() < 0.2) {
+    await page.evaluate(() => window.scrollBy(0, -300));
+    await sleep(randomInt(500, 1500));
+  }
+}
+
+// ==================== SESSION MANAGEMENT ====================
+
+function loadCookies() {
+  try {
+    const cookiesPath = path.join(PROFILE_DIR, 'cookies.json');
+    if (fs.existsSync(cookiesPath)) {
+      const data = JSON.parse(fs.readFileSync(cookiesPath, 'utf-8'));
+      return Array.isArray(data) && data.length > 0;
+    }
+  } catch {}
+  return false;
+}
+
+async function saveCookies(page) {
+  try {
+    const cookies = await page.cookies();
+    fs.writeFileSync(path.join(PROFILE_DIR, 'cookies.json'), JSON.stringify(cookies, null, 2));
+  } catch {}
+}
+
+async function checkSession(page) {
+  const hasLogin = await page.evaluate(() => {
+    return !!document.querySelector(
+      'input[name="email"], input[name="pass"], ' +
+      '[aria-label="Correo electrónico"], [aria-label="Contraseña"], ' +
+      'input[type="email"], input[type="password"]'
+    );
+  });
+  return !(page.url().includes('login') || page.url().includes('checkpoint') || hasLogin);
+}
+
+async function downloadProfileBackup() {
+  try {
+    const { data } = await api.get('/fb/download-profile');
+    if (data?.data) {
+      const buf = Buffer.from(data.data, 'base64');
+      const tarPath = path.join(__dirname, '.fb_scraper_download.tar.gz');
+      fs.writeFileSync(tarPath, buf);
+      if (fs.existsSync(PROFILE_DIR)) {
+        fs.rmSync(PROFILE_DIR, { recursive: true, force: true });
+      }
+      fs.mkdirSync(PROFILE_DIR, { recursive: true });
+      const result = spawnSync('tar', ['xzf', tarPath, '-C', PROFILE_DIR], { stdio: 'pipe' });
+      fs.unlinkSync(tarPath);
+      if (result.status !== 0) {
+        console.error('[Scraper] Error extrayendo perfil:', result.stderr.toString());
+        return false;
+      }
+      console.log('[Scraper] Perfil restaurado desde backup');
+      return true;
+    }
+  } catch (err) {
+    if (err.response?.status !== 404) {
+      console.error('[Scraper] Error descargando perfil:', err.message);
+    }
+  }
+  return false;
+}
+
+async function uploadProfileBackup() {
+  try {
+    const tarPath = path.join(__dirname, '.fb_scraper_upload.tar.gz');
+    const cwd = path.dirname(PROFILE_DIR);
+    const dirName = path.basename(PROFILE_DIR);
+    const result = spawnSync('tar', ['czf', tarPath, '-C', cwd, dirName], { stdio: 'pipe' });
+    if (result.status !== 0) return;
+    const buf = fs.readFileSync(tarPath);
+    const base64 = buf.toString('base64');
+    await api.post('/fb/upload-profile', { data: base64 });
+    fs.unlinkSync(tarPath);
+    console.log(`[Scraper] Perfil respaldado (${buf.length} bytes)`);
+  } catch (err) {
+    console.error('[Scraper] Error subiendo perfil:', err.message);
+  }
+}
+
+async function downloadSessionData() {
+  try {
+    const { data } = await api.get('/fb/session-data');
+    if (data?.data) return data.data;
+  } catch (err) {
+    if (err.response?.status !== 404) {
+      console.error('[Scraper] Error descargando session data:', err.message);
+    }
+  }
+  return null;
+}
+
+async function uploadSessionData(page) {
+  try {
+    const sessionData = await page.evaluate(() => ({
+      localStorage: { ...window.localStorage },
+      sessionStorage: { ...window.sessionStorage },
+    }));
+    await api.post('/fb/session-data', { data: sessionData });
+  } catch {}
+}
+
+async function restoreSessionData(page, sessionData) {
+  if (!sessionData) return;
+  try {
+    await page.evaluate(data => {
+      if (data.localStorage) {
+        for (const [key, val] of Object.entries(data.localStorage)) {
+          try { window.localStorage.setItem(key, val); } catch {}
+        }
+      }
+      if (data.sessionStorage) {
+        for (const [key, val] of Object.entries(data.sessionStorage)) {
+          try { window.sessionStorage.setItem(key, val); } catch {}
+        }
+      }
+    }, sessionData);
+  } catch {}
+}
+
+async function downloadCookiesFromServer() {
+  try {
+    const { data } = await api.get('/fb/session-file');
+    if (data?.data) {
+      const raw = Buffer.from(data.data, 'base64').toString('utf-8');
+      let cookies;
+      try {
+        const parsed = JSON.parse(raw);
+        cookies = parsed.cookies || parsed;
+      } catch {
+        cookies = raw;
+      }
+      if (Array.isArray(cookies) && cookies.length > 0) {
+        cookies = cookies.map(c => {
+          if (!c.domain) c.domain = '.facebook.com';
+          if (!c.path) c.path = '/';
+          return c;
+        });
+        console.log(`[Scraper] ${cookies.length} cookies descargadas del servidor`);
+        return cookies;
+      }
+    }
+  } catch (err) {
+    if (err.response?.status !== 404) {
+      console.error('[Scraper] Error descargando cookies:', err.message);
+    }
+  }
+  return [];
+}
+
+async function setCookiesAndCheck(page, cookies) {
+  await page.goto('about:blank');
+  await page.setCookie(...cookies);
+  await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
+  await sleep(3000);
+  if (await checkSession(page)) {
+    await saveCookies(page);
+    return true;
+  }
+  return false;
+}
+
+async function ensureFacebookSession(page) {
+  await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
+  await sleep(3000);
+
+  if (await checkSession(page)) return true;
+
+  console.log('[Scraper] Sesión no encontrada, intentando restaurar...');
+
+  const sessionData = await downloadSessionData();
+  if (sessionData) {
+    await restoreSessionData(page, sessionData);
+    await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
+    await sleep(3000);
+    if (await checkSession(page)) {
+      await saveCookies(page);
+      console.log('[Scraper] Sesión restaurada desde session data');
+      return true;
+    }
+  }
+
+  const cookies = await downloadCookiesFromServer();
+  if (cookies.length > 0) {
+    if (await setCookiesAndCheck(page, cookies)) {
+      console.log('[Scraper] Sesión restaurada desde cookies del servidor');
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// ==================== BROWSER ====================
+
+async function getBrowser(headed = HEADED) {
+  if (browser) {
+    try { await browser.version(); return browser; } catch { browser = null; }
+  }
+
+  if (!fs.existsSync(CHROMIUM_PATH)) {
+    console.error(`[Scraper] Chromium no encontrado en ${CHROMIUM_PATH}`);
+    console.error('[Scraper] Ejecutá: pkg install x11-repo && pkg install chromium');
+    process.exit(1);
+  }
+
+  ensureProfileDir();
+
+  console.log(`[Scraper] Lanzando Chromium (${headed ? 'X11 visible' : 'headless'})...`);
+
+  browser = await puppeteer.launch({
+    executablePath: CHROMIUM_PATH,
+    headless: headed ? false : 'new',
+    userDataDir: PROFILE_DIR,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-blink-features=AutomationControlled',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-features=IsolateOrigins,site-per-process,ChromeWhatsNewUI,OptimizationGuideModelDownloading,Translate',
+      '--disable-sync',
+      '--disable-field-trial-config',
+      '--window-size=1366,768',
+      '--lang=es-AR',
+      '--no-pings',
+      '--disable-crash-reporter',
+      '--disable-background-networking',
+    ],
+  });
+
+  return browser;
+}
+
+// ==================== GROUPS ====================
+
+async function getActiveGroups() {
+  try {
+    const resp = await webhookApi.get('/facebook/scraper-groups');
+    const data = resp.data;
+    return Array.isArray(data) ? data : (data?.groups || []);
+  } catch (err) {
+    console.error('[Scraper] Error obteniendo grupos:', err.message);
+    return [];
+  }
+}
+
+// ==================== DOM EXTRACTION ====================
+
+async function extractPostsFromGroup(page, groupId, groupUrl, lastSeenId) {
+  const url = groupUrl || `https://www.facebook.com/groups/${groupId}`;
+  console.log(`[Scraper] Navegando a ${url}`);
+
+  await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+  await sleep(randomInt(3000, 6000));
+
+  if (!(await checkSession(page))) {
+    throw new Error('session expired');
+  }
+
+  await humanScroll(page, randomInt(1000, 2000));
+  await sleep(randomInt(2000, 4000));
+
+  const rawPosts = await page.evaluate((maxPosts) => {
+    const posts = [];
+    const containers = document.querySelectorAll('div[role="feed"] > div');
+
+    for (const container of containers) {
+      if (posts.length >= maxPosts) break;
+
+      const article = container.querySelector('div[role="article"]');
+      if (!article) continue;
+
+      let content = '';
+      const contentEl = article.querySelector('[data-ad-preview="message"]') ||
+                        article.querySelector('div[dir="auto"]');
+      if (contentEl) {
+        content = contentEl.innerText || contentEl.textContent || '';
+      }
+
+      if (!content.trim()) continue;
+
+      let author = '';
+      const authorEl = article.querySelector('h3 a span') ||
+                       article.querySelector('span[class*="profile"]') ||
+                       article.querySelector('h3 span');
+      if (authorEl) {
+        author = authorEl.textContent || '';
+      }
+
+      let timestamp = '';
+      let postId = '';
+      const timeEl = article.querySelector('abbr[data-utime]') || article.querySelector('abbr');
+      if (timeEl) {
+        timestamp = timeEl.getAttribute('data-utime') || timeEl.textContent || '';
+        if (/^\d+$/.test(timestamp)) {
+          timestamp = new Date(parseInt(timestamp) * 1000).toISOString();
+        }
+      }
+
+      const links = article.querySelectorAll('a[href*="/posts/"], a[href*="story_fbid"]');
+      for (const link of links) {
+        const match = link.href.match(/\/posts\/(\d+)/) || link.href.match(/story_fbid=(\d+)/);
+        if (match) {
+          postId = match[1];
+          break;
+        }
+      }
+
+      if (!postId) {
+        const allLinks = article.querySelectorAll('a[href*="facebook.com"]');
+        for (const link of allLinks) {
+          const match = link.href.match(/\/(\d{10,})/);
+          if (match) {
+            postId = match[1];
+            break;
+          }
+        }
+      }
+
+      const images = [];
+      const imgEls = article.querySelectorAll('img[src*="fbcdn"], img[src*="scontent"]');
+      for (const img of imgEls) {
+        const src = img.src || img.getAttribute('data-src') || '';
+        if (src && !src.includes('profile') && !src.includes('emoji') && !src.includes('reaction')) {
+          images.push(src);
+        }
+      }
+
+      const postUrl = postId
+        ? `https://www.facebook.com/groups/${groupId}/posts/${postId}/`
+        : (links[0]?.href || '');
+
+      if (postId || content.trim()) {
+        posts.push({
+          fb_post_id: postId || `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          fb_post_url: postUrl,
+          author_name: author,
+          content: content.substring(0, 5000),
+          image_urls: images,
+          posted_at: timestamp,
+          group_id: groupId,
+        });
+      }
+    }
+
+    return posts;
+  }, MAX_POSTS_PER_GROUP);
+
+  return rawPosts;
+}
+
+// ==================== SEND POSTS ====================
+
+async function sendPosts(posts, groupName) {
+  if (posts.length === 0) return { inserted: 0, updated: 0, errors: 0 };
+
+  try {
+    const payload = { posts };
+    const resp = await webhookApi.post('/facebook/webhook', payload);
+    const result = resp.data;
+    console.log(`[Scraper] ${groupName}: ${result.inserted || 0} nuevos, ${result.updated || 0} actualizados, ${result.errors || 0} errores`);
+    return result;
+  } catch (err) {
+    console.error(`[Scraper] Error enviando posts de ${groupName}:`, err.message);
+    return { inserted: 0, updated: 0, errors: posts.length };
+  }
+}
+
+// ==================== SCRAPE SINGLE GROUP ====================
+
+async function scrapeGroup(page, group, seen) {
+  const groupId = group.fb_group_id || group.url?.match(/groups\/(\d+)/)?.[1];
+  const groupName = group.name || groupId;
+  const lastSeenId = seen[groupId] || null;
+
+  try {
+    const posts = await extractPostsFromGroup(page, groupId, group.url, lastSeenId);
+
+    const newPosts = [];
+    for (const post of posts) {
+      if (lastSeenId && post.fb_post_id === lastSeenId) break;
+      newPosts.push(post);
+    }
+
+    if (newPosts.length === 0) {
+      console.log(`[Scraper] ${groupName}: sin posts nuevos`);
+      return 0;
+    }
+
+    const limited = newPosts.slice(0, MAX_POSTS_PER_GROUP);
+    console.log(`[Scraper] ${groupName}: ${limited.length} posts nuevos`);
+
+    await sendPosts(limited, groupName);
+
+    if (limited.length > 0 && limited[0].fb_post_id) {
+      seen[groupId] = limited[0].fb_post_id;
+    }
+
+    return limited.length;
+  } catch (err) {
+    if (err.message === 'session expired') throw err;
+    console.error(`[Scraper] Error en grupo ${groupName}:`, err.message);
+    return 0;
+  }
+}
+
+// ==================== MAIN SCRAPE CYCLE ====================
+
+async function runScrapeCycle() {
+  console.log('[Scraper] Iniciando ciclo de scraping...');
+
+  const b = await getBrowser();
+  const page = await b.newPage();
+  await page.setUserAgent(pickUA());
+  await page.setViewport({ width: 1366, height: 768 });
+
+  const sessionOk = await ensureFacebookSession(page);
+  if (!sessionOk) {
+    console.error('[Scraper] No se pudo establecer sesión de Facebook');
+    console.error('[Scraper] Ejecutá: FB_SCRAPER_HEADED=true node fb-scraper.js --login');
+    await page.close();
+    return;
+  }
+
+  await page.setUserAgent(pickUA());
+
+  const seen = loadSeen();
+  let totalPosts = 0;
+
+  const groups = await getActiveGroups();
+  if (groups.length === 0) {
+    console.log('[Scraper] No hay grupos activos para scrapear');
+    await page.close();
+    return;
+  }
+
+  console.log(`[Scraper] Scrapeando ${groups.length} grupos...`);
+
+  for (const group of groups) {
+    try {
+      await humanScroll(page, randomInt(200, 500));
+      await sleep(randomInt(8000, 22000));
+
+      const count = await scrapeGroup(page, group, seen);
+      totalPosts += count;
+
+      saveSeen(seen);
+    } catch (err) {
+      if (err.message === 'session expired') {
+        console.error('[Scraper] Sesión expirada durante scraping');
+        await page.close();
+        browser = null;
+
+        console.log('[Scraper] Intentando restaurar sesión...');
+        const b2 = await getBrowser();
+        const page2 = await b2.newPage();
+        await page2.setUserAgent(pickUA());
+        await page2.setViewport({ width: 1366, height: 768 });
+
+        const restored = await ensureFacebookSession(page2);
+        if (!restored) {
+          console.error('[Scraper] No se pudo restaurar sesión. Esperá o re-login manual.');
+          console.error('[Scraper] Ejecutá: FB_SCRAPER_HEADED=true node fb-scraper.js --login');
+          await page2.close();
+          return;
+        }
+
+        await page2.close();
+        break;
+      }
+      console.error(`[Scraper] Error no recuperable:`, err.message);
+    }
+
+    await sleep(randomInt(5000, 10000));
+  }
+
+  saveSeen(seen);
+  await page.close();
+
+  console.log(`[Scraper] Ciclo completado. ${totalPosts} posts extraídos total.`);
+
+  try {
+    await uploadProfileBackup();
+  } catch {}
+}
+
+// ==================== LOGIN MODE ====================
+
+async function loginMode() {
+  console.log('[Scraper] Modo LOGIN — abrí Chromium y logueate en Facebook');
+  console.log('[Scraper] Cuando estés logueado, presioná Enter acá para continuar...');
+
+  const b = await getBrowser(true);
+  const page = await b.newPage();
+  await page.setUserAgent(pickUA());
+  await page.setViewport({ width: 1366, height: 768 });
+
+  await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 60000 });
+
+  console.log('[Scraper] Abrí Facebook en Chromium y logueate.');
+  console.log('[Scraper] Cuando veas tu feed, presioná Enter acá...');
+
+  await new Promise(resolve => {
+    process.stdin.resume();
+    process.stdin.on('data', () => resolve());
+  });
+
+  if (await checkSession(page)) {
+    console.log('[Scraper] Sesión verificada. Guardando perfil...');
+    await saveCookies(page);
+    await uploadSessionData(page);
+    await uploadProfileBackup();
+    console.log('[Scraper] Login completado. Profile guardado.');
+  } else {
+    console.error('[Scraper] No se detectó sesión válida. Intentá de nuevo.');
+  }
+
+  await page.close();
+  await browser.close();
+  browser = null;
+}
+
+// ==================== TEST MODE ====================
+
+async function testMode(groupId) {
+  console.log(`[Scraper] Modo TEST — scrapeando grupo ${groupId || 'primero'}`);
+
+  const b = await getBrowser(true);
+  const page = await b.newPage();
+  await page.setUserAgent(pickUA());
+  await page.setViewport({ width: 1366, height: 768 });
+
+  const sessionOk = await ensureFacebookSession(page);
+  if (!sessionOk) {
+    console.error('[Scraper] Sin sesión. Ejecutá: FB_SCRAPER_HEADED=true node fb-scraper.js --login');
+    await page.close();
+    await browser.close();
+    browser = null;
+    return;
+  }
+
+  await page.setUserAgent(pickUA());
+
+  const groups = await getActiveGroups();
+  const target = groupId
+    ? groups.find(g => g.fb_group_id === groupId || g.url?.includes(groupId))
+    : groups[0];
+
+  if (!target) {
+    console.error('[Scraper] Grupo no encontrado');
+    await page.close();
+    await browser.close();
+    browser = null;
+    return;
+  }
+
+  const seen = loadSeen();
+  try {
+    const count = await scrapeGroup(page, target, seen);
+    saveSeen(seen);
+    console.log(`[Scraper] Test completado. ${count} posts extraídos.`);
+  } catch (err) {
+    console.error('[Scraper] Error en test:', err.message);
+  }
+
+  await page.close();
+  await browser.close();
+  browser = null;
+}
+
+// ==================== MAIN ====================
+
+async function main() {
+  const args = process.argv.slice(2);
+
+  if (args.includes('--login')) {
+    await loginMode();
+    return;
+  }
+
+  if (args.includes('--test')) {
+    const groupIdx = args.indexOf('--group');
+    const groupId = groupIdx >= 0 ? args[groupIdx + 1] : null;
+    await testMode(groupId);
+    return;
+  }
+
+  acquireWakeLock();
+
+  console.log('[Scraper] Facebook Group Scraper (Puppeteer + Stealth)');
+  console.log(`[Scraper] Intervalo: ${INTERVAL_HOURS}h | Max posts: ${MAX_POSTS_PER_GROUP} | Mode: ${HEADED ? 'X11' : 'headless'}`);
+  console.log(`[Scraper] Chromium: ${CHROMIUM_PATH}`);
+  console.log(`[Scraper] Perfil: ${PROFILE_DIR}`);
+
+  ensureProfileDir();
+
+  const hasLocalCookies = loadCookies();
+  if (!hasLocalCookies) {
+    console.log('[Scraper] Sin perfil local. Intentando descargar backup...');
+    const restored = await downloadProfileBackup();
+    if (!restored) {
+      console.log('[Scraper] Sin backup. Necesitás loguear primero:');
+      console.log('[Scraper] FB_SCRAPER_HEADED=true node fb-scraper.js --login');
+    }
+  }
+
+  while (true) {
+    try {
+      const now = new Date();
+      const lastRun = await getLastRunTime();
+
+      if (lastRun) {
+        const hoursSince = (now - lastRun) / (1000 * 60 * 60);
+        const jitter = randomInt(-30, 30) / 60;
+        const waitHours = INTERVAL_HOURS + jitter;
+
+        if (hoursSince < waitHours) {
+          const remaining = Math.round((waitHours - hoursSince) * 60);
+          console.log(`[Scraper] Próximo scrape en ${remaining} min`);
+          await sleep(Math.min(remaining * 60 * 1000, 30 * 60 * 1000));
+          continue;
+        }
+      }
+
+      await runScrapeCycle();
+      await setLastRunTime();
+
+      const sleepTime = (INTERVAL_HOURS + randomInt(-30, 30) / 60) * 60 * 60 * 1000;
+      console.log(`[Scraper] Durmiendo ${Math.round(sleepTime / 60000)} min`);
+      await sleep(sleepTime);
+    } catch (err) {
+      console.error('[Scraper] Error en main loop:', err.message);
+      await sleep(5 * 60 * 1000);
+    }
+  }
+}
+
+async function getLastRunTime() {
+  try {
+    const resp = await webhookApi.get('/facebook/stats');
+    const data = resp.data;
+    if (data?.lastScrape) return new Date(data.lastScrape);
+  } catch {}
+  try {
+    const resp = await axios.get(`${API_BASE}/settings/fb_last_scraper_run`, {
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    });
+    if (resp.data?.value) return new Date(resp.data.value);
+  } catch {}
+  return null;
+}
+
+async function setLastRunTime() {
+  try {
+    await webhookApi.post('/facebook/webhook', { posts: [] }).catch(() => {});
+  } catch {}
+}
+
+process.on('SIGINT', async () => {
+  console.log('[Scraper] Shutting down...');
+  if (browser) {
+    try { await browser.close(); } catch {}
+  }
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('[Scraper] SIGTERM received, shutting down...');
+  if (browser) {
+    try { await browser.close(); } catch {}
+  }
+  process.exit(0);
+});
+
+main().catch(err => {
+  console.error('[Scraper] Fatal error:', err);
+  process.exit(1);
+});

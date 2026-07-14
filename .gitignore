@@ -24,3 +24,8 @@ fb_scraper_cookies.json
 
 # Capacitor / Android (solo en PC local)
 android/
+
+# Build artifacts
+.next/
+tsconfig.tsbuildinfo
+next-env.d.ts
