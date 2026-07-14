@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api';
 const RELAY_API = `${API_BASE}/relay`;
 const TOKEN = process.env.SCRAPER_TOKEN || 'sihuella';
-const HEADED = process.env.FB_SCRAPER_HEADED === 'true';
+const HEADED = process.env.FB_SCRAPER_HEADED === 'true' || process.argv.includes('--headed');
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const PROFILE_DIR = process.env.FB_SCRAPER_PROFILE_DIR || path.join(__dirname, 'fb_scraper_profile');
 const SEEN_PATH = path.join(__dirname, 'fb_scraper_seen.json');
@@ -333,7 +333,7 @@ async function getBrowser(headed = HEADED) {
 
   if (headed && !process.env.DISPLAY) {
     console.error('[Scraper] DISPLAY no está definido. Ejecutá:');
-    console.error('[Scraper]   termux-x11 :0 &');
+    console.error('[Scraper]   termux-x11-nightly :0 &');
     console.error('[Scraper]   export DISPLAY=:0');
     process.exit(1);
   }
