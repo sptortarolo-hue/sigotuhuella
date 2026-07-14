@@ -1,33 +1,48 @@
 #!/usr/bin/env python3
 """
 Scraper de Facebook Groups para SiHuella.
-Usa Google Search para descubrir posts recientes, luego fetch cada URL individual.
-No necesita browser ni TLS fingerprinting.
-Corre desde Termux usando la IP del celular (residencial).
+Usa tls_client con TLS fingerprint real de Chrome (sin browser).
+Corre desde Termux (dentro de proot-distro Ubuntu) usando la IP del celular.
+No necesita cookies ni cuenta de Facebook.
+
+Setup:
+  1. En Termux:     pkg install proot-distro
+  2. En Termux:     proot-distro install ubuntu
+  3. Login Ubuntu:   proot-distro login ubuntu
+  4. En Ubuntu:      pip install tls_client requests
+  5. Descargar:      curl -o scraper.py "https://sigotuhuella.online/api/facebook/scraper-script?token=TU_TOKEN"
+  6. Ejecutar:       python3 scraper.py --token TU_TOKEN --once --debug
 
 Uso:
   python3 scraper.py --token TU_TOKEN
   python3 scraper.py --token TU_TOKEN --once
+  python3 scraper.py --token TU_TOKEN --daemon 30
 """
 
 import os, sys, re, json, time, argparse, subprocess
-from urllib.parse import urlparse, quote_plus, unquote
+from urllib.parse import urlparse
 
 import requests
+import tls_client
 
 API_BASE = "https://sigotuhuella.online"
 
 MOBILE_UA = (
     "Mozilla/5.0 (Linux; Android 14; Pixel 8) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/125.0.0.0 Mobile Safari/537.36"
+    "Chrome/120.0.0.0 Mobile Safari/537.36"
 )
 
 HEADERS = {
     "User-Agent": MOBILE_UA,
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "es-419,es;q=0.9,en;q=0.5",
-    "Accept-Encoding": "gzip, deflate",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
 }
 
 
@@ -59,238 +74,200 @@ def get_groups(token, api):
     return grupos
 
 
-def discover_posts_via_google(slug, debug=False):
-    post_urls = []
-    seen = set()
-
-    queries = [
-        f"site:facebook.com/groups/{slug}/posts",
-        f'site:facebook.com/groups/{slug} "public"',
-        f"facebook.com/groups/{slug}/posts",
-    ]
-
-    for q in queries:
-        search_url = f"https://www.google.com/search?q={quote_plus(q)}&num=20&tbs=qdr:w"
-        if debug:
-            print(f"  [debug] Google: {q}")
-
-        try:
-            r = requests.get(search_url, headers=HEADERS, timeout=20)
-            html = r.text
-
-            urls = re.findall(
-                r'https?://(?:www\.|m\.)?facebook\.com/groups/' + re.escape(slug) + r'/posts/(\d+)',
-                html
-            )
-
-            for pid in urls:
-                if pid not in seen:
-                    seen.add(pid)
-                    post_urls.append(pid)
-
-            urls2 = re.findall(
-                r'facebook\.com/groups/' + re.escape(slug) + r'/posts/(\d+)',
-                html
-            )
-            for pid in urls2:
-                if pid not in seen:
-                    seen.add(pid)
-                    post_urls.append(pid)
-
-            if debug:
-                print(f"  [debug] Google results: {len(post_urls)} post IDs")
-
-        except Exception as e:
-            if debug:
-                print(f"  [debug] Google error: {e}")
-
-        time.sleep(1)
-
-    return post_urls
+def make_session():
+    return tls_client.Session(
+        client_identifier="chrome_120",
+        random_tls_extension_order=True
+    )
 
 
-def discover_posts_via_bing(slug, debug=False):
-    post_urls = []
-    seen = set()
-
-    queries = [
-        f"site:facebook.com/groups/{slug}/posts",
-        f"facebook.com/groups/{slug}/posts",
-    ]
-
-    for q in queries:
-        search_url = f"https://www.bing.com/search?q={quote_plus(q)}&count=20"
-        try:
-            r = requests.get(search_url, headers=HEADERS, timeout=20)
-            html = r.text
-
-            urls = re.findall(
-                r'facebook\.com/groups/' + re.escape(slug) + r'/posts/(\d+)',
-                html
-            )
-            for pid in urls:
-                if pid not in seen:
-                    seen.add(pid)
-                    post_urls.append(pid)
-
-            if debug:
-                print(f"  [debug] Bing results: {len(post_urls)} post IDs")
-
-        except Exception as e:
-            if debug:
-                print(f"  [debug] Bing error: {e}")
-
-        time.sleep(1)
-
-    return post_urls
-
-
-def discover_posts_via_duckduckgo(slug, debug=False):
-    post_urls = []
-    seen = set()
-
-    query = f"site:facebook.com/groups/{slug}/posts"
-    search_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
-
+def fetch_html(url, session, debug=False):
     try:
-        r = requests.get(search_url, headers=HEADERS, timeout=20)
+        r = session.get(url, headers=HEADERS, timeout_seconds=30)
         html = r.text
-
-        urls = re.findall(
-            r'facebook\.com/groups/' + re.escape(slug) + r'/posts/(\d+)',
-            html
-        )
-        for pid in urls:
-            if pid not in seen:
-                seen.add(pid)
-                post_urls.append(pid)
-
         if debug:
-            print(f"  [debug] DDG results: {len(post_urls)} post IDs")
-
+            print(f"  [debug] fetch OK: {len(html)} chars, status: {r.status_code}")
+        if not html or len(html) < 100:
+            print(f"  HTML vacio o muy corto ({len(html) if html else 0} chars)")
+            return None
+        if debug:
+            debug_path = "/tmp/fb_debug.html"
+            try:
+                with open(debug_path, "w", encoding="utf-8") as f:
+                    f.write(html)
+                print(f"  [debug] HTML guardado en {debug_path}")
+            except Exception:
+                pass
+        return html
     except Exception as e:
-        if debug:
-            print(f"  [debug] DDG error: {e}")
-
-    return post_urls
+        print(f"  Error fetch: {e}")
+        return None
 
 
-def discover_posts(slug, debug=False):
-    posts = discover_posts_via_google(slug, debug)
-    if not posts:
-        if debug:
-            print("  Google no dio resultados, probando Bing...")
-        posts = discover_posts_via_bing(slug, debug)
-    if not posts:
-        if debug:
-            print("  Bing no dio resultados, probando DuckDuckGo...")
-        posts = discover_posts_via_duckduckgo(slug, debug)
-    return posts
+def debug_info(html):
+    title = re.search(r'<title>(.*?)</title>', html, re.DOTALL)
+    title_text = title.group(1).strip() if title else "NO TITLE"
+    lower = html.lower()
+    has_login = 'login' in lower or 'log in' in lower
+    has_article = 'role="article"' in html
+    has_post_link = '/posts/' in html
+    has_serverjs = 'ServerJS' in html
+    has_composer = 'structured_composer_async_container' in html
+    print(f"  [debug] Title: {title_text}")
+    print(f"  [debug] Login: {has_login}, Article: {has_article}, Posts: {has_post_link}")
+    print(f"  [debug] ServerJS: {has_serverjs}, Composer: {has_composer}")
+    snippet = re.sub(r'<[^>]+>', ' ', html[:2000]).strip()
+    print(f"  [debug] Preview: {snippet[:400]}")
 
 
-def fetch_post_page(pid, slug, debug=False):
-    urls_to_try = [
-        f"https://www.facebook.com/groups/{slug}/posts/{pid}/",
-        f"https://m.facebook.com/groups/{slug}/posts/{pid}/",
+def extract_post_ids(html, slug):
+    pids = set()
+    patterns = [
+        rf'/groups/{re.escape(slug)}/posts/(\d+)',
+        rf'groups/{re.escape(slug)}/permalink/(\d+)',
+        r'"/posts/(\d+)',
+        r'permalink\.php\?story_fbid=(\d+)',
     ]
+    for pat in patterns:
+        for m in re.finditer(pat, html):
+            pid = m.group(1)
+            if len(pid) > 10:
+                pids.add(pid)
+    return list(pids)
 
-    for url in urls_to_try:
+
+def extract_post_content(html, pid):
+    content = ""
+
+    m = re.search(r'"message"\s*:\s*("(?:[^"\\]|\\.)*")', html)
+    if m:
         try:
-            r = requests.get(url, headers=HEADERS, timeout=20, allow_redirects=True)
-            html = r.text
+            raw = json.loads(m.group(1))
+            if isinstance(raw, str) and len(raw) > 10:
+                content = raw
+        except (json.JSONDecodeError, ValueError):
+            pass
 
-            lower = html.lower()
-            if 'facebook is not available' in lower:
-                if debug:
-                    print(f"    [debug] {url} blocked")
-                continue
-            if 'log in or sign up' in lower or 'please log in' in lower:
-                if debug:
-                    print(f"    [debug] {url} login required")
-                continue
-            if len(html) < 500:
-                if debug:
-                    print(f"    [debug] {url} too short ({len(html)})")
-                continue
+    if not content:
+        for pat in [
+            r'<div[^>]*data-ad-preview="message"[^>]*>(.*?)</div>',
+            r'<div[^>]*class="[^"]*xdj266r[^"]*"[^>]*>(.*?)</div>',
+            r'<div[^>]*data-testid="[^"]*post_message[^"]*"[^>]*>(.*?)</div>',
+        ]:
+            m = re.search(pat, html, re.DOTALL)
+            if m:
+                raw = m.group(1).strip()
+                raw = re.sub(r'<[^>]+>', ' ', raw)
+                raw = re.sub(r'\s+', ' ', raw).strip()
+                raw = re.sub(r'\d+\s*[hmHM]\s*·.*$', '', raw)
+                raw = re.sub(r'(?i)See more|Ver m[aá]s|Mostrar m[aá]s', '', raw)
+                raw = raw.strip()
+                if len(raw) > 10:
+                    content = raw
+                    break
 
-            if debug:
-                title = re.search(r'<title>(.*?)</title>', html, re.DOTALL)
-                t = title.group(1).strip() if title else "NO TITLE"
-                print(f"    [debug] {url} OK ({len(html)} chars, title: {t})")
-
-            return html
-
-        except Exception as e:
-            if debug:
-                print(f"    [debug] {url} error: {e}")
-
-    return None
-
-
-def extract_post_from_page(html, pid, gid, slug):
-    post = {
-        "fb_post_id": pid,
-        "group_id": gid,
-        "author_name": "",
-        "content": "",
-        "image_urls": [],
-        "fb_post_url": f"https://www.facebook.com/groups/{slug}/posts/{pid}/",
-    }
-
-    content_patterns = [
-        r'"message"\s*:\s*"([^"]{10,})"',
-        r'<div[^>]*data-ad-preview="message"[^>]*>(.*?)</div>',
-        r'<span[^>]*class="[^"]*"[^>]*>([^<]{20,})</span>',
-    ]
-
-    for pat in content_patterns:
-        m = re.search(pat, html, re.DOTALL)
-        if m:
-            text = m.group(1).strip()
-            text = re.sub(r'<[^>]+>', '', text)
-            text = re.sub(r'\d+\s*[hmHM]\s*·', '', text)
-            text = re.sub(r'(?i)See more|Ver m[aá]s|Mostrar m[aá]s', '', text)
-            text = text.strip()
-            if len(text) > 10:
-                post["content"] = text[:10000]
-                break
-
-    if not post["content"]:
+    if not content:
         texts = re.findall(r'>([^<]{20,})<', html)
         cleaned = []
         for t in texts:
-            t = t.strip()
-            t = re.sub(r'\d+\s*[hmHM]\s*·', '', t)
-            t = re.sub(r'(?i)See more|Ver m[aá]s|Mostrar m[aá]s', '', t)
             t = t.strip()
             if (len(t) > 20 and
                 not t.startswith('{') and
                 not t.startswith('"') and
                 'facebook' not in t.lower() and
-                'sign up' not in t.lower()):
+                'sign up' not in t.lower() and
+                'cookie' not in t.lower() and
+                'javascript' not in t.lower()):
                 cleaned.append(t)
         if cleaned:
-            post["content"] = "\n".join(cleaned[:3])
+            content = "\n".join(cleaned[:3])
 
-    author_patterns = [
+    author = ""
+    for pat in [
         r'"name"\s*:\s*"([^"]{2,50})"',
         r'<strong[^>]*>\s*<a[^>]*>([^<]+)</a>\s*</strong>',
         r'<h3[^>]*>\s*<a[^>]*>([^<]+)</a>',
-    ]
-    for pat in author_patterns:
+    ]:
         m = re.search(pat, html)
         if m:
             name = m.group(1).strip()
             if len(name) > 2 and name.lower() not in ['facebook', 'see more', 'log in']:
-                post["author_name"] = name
+                author = name
                 break
 
-    images = re.findall(r'src="([^"]*(?:scontent|fbcdn|external)[^"]*)" ', html)
-    post["image_urls"] = images[:5]
+    images = re.findall(r'src="([^"]*(?:scontent|fbcdn)[^"]*)"', html)
 
-    if post["content"] or post["author_name"]:
-        return post
-    return None
+    return {
+        "content": content[:10000] if content else "",
+        "author": author,
+        "images": images[:5],
+    }
+
+
+def scrape_group(group, session, token, api, debug=False):
+    gid = group["id"]
+    slug = urlparse(group["url"]).path.rstrip("/").split("/")[-1]
+    name = group.get("name", gid)
+
+    urls_to_try = [
+        f"https://www.facebook.com/groups/{slug}/",
+        f"https://m.facebook.com/groups/{slug}/",
+    ]
+
+    print(f"[scraper] Scrapeando {name} ({slug})...")
+    all_pids = set()
+
+    for url in urls_to_try:
+        print(f"  Probando {url}...")
+        html = fetch_html(url, session, debug=debug)
+        if html is None:
+            continue
+        if debug:
+            debug_info(html)
+
+        lower = html.lower()
+        if 'facebook is not available' in lower:
+            print("  Bloqueado: 'not available'")
+            continue
+        if 'log in or sign up' in lower or 'please log in' in lower:
+            print("  Redirige a login")
+            continue
+
+        pids = extract_post_ids(html, slug)
+        print(f"  Post IDs encontrados: {len(pids)}")
+        if pids:
+            all_pids.update(pids)
+            break
+
+    if not all_pids:
+        print(f"  No se encontraron posts en feed de {name}")
+        return []
+
+    all_pids = list(all_pids)[:10]
+    print(f"  Fetching {len(all_pids)} posts individuales...")
+
+    posts = []
+    for pid in all_pids:
+        post_url = f"https://www.facebook.com/groups/{slug}/posts/{pid}/"
+        html = fetch_html(post_url, session, debug=False)
+        if html:
+            data = extract_post_content(html, pid)
+            if data["content"] or data["author"]:
+                posts.append({
+                    "fb_post_id": pid,
+                    "group_id": gid,
+                    "author_name": data["author"],
+                    "content": data["content"],
+                    "image_urls": data["images"],
+                    "fb_post_url": post_url,
+                })
+                preview = data["content"][:80].replace("\n", " ")
+                print(f"    -> {data['author']}: {preview}...")
+            else:
+                print(f"    -> {pid}: sin contenido")
+        time.sleep(0.5)
+
+    return posts
 
 
 def send_posts(posts, token, api):
@@ -317,40 +294,18 @@ def scrape(token, api, debug=False):
         print("[scraper] No hay grupos")
         return
 
+    session = make_session()
     total_sent = 0
-    for grupo in grupos:
-        gid = grupo["id"]
-        slug = urlparse(grupo["url"]).path.rstrip("/").split("/")[-1]
-        name = grupo.get("name", gid)
 
-        print(f"[scraper] Buscando posts de {name} ({slug})...")
-        pids = discover_posts(slug, debug)
-        print(f"  Encontrados {len(pids)} post IDs via search engines")
-
-        if not pids:
-            print(f"  No se encontraron posts para {name}")
-            continue
-
-        posts = []
-        for pid in pids[:15]:
-            print(f"  Fetching post {pid}...")
-            html = fetch_post_page(pid, slug, debug)
-            if html:
-                post = extract_post_from_page(html, pid, gid, slug)
-                if post and post["content"]:
-                    posts.append(post)
-                    print(f"    -> {post['author_name']}: {post['content'][:80]}...")
-                else:
-                    print(f"    -> No se pudo extraer contenido")
-            time.sleep(0.5)
-
+    for group in grupos:
+        posts = scrape_group(group, session, token, api, debug=debug)
         if posts:
             sent = send_posts(posts, token, api)
             total_sent += sent
-            print(f"  {sent}/{len(posts)} posts enviados de {name}")
+            print(f"  {sent}/{len(posts)} posts enviados")
 
     mark_done(token, api)
-    print(f"[scraper] Scrapeo completado. Total: {total_sent} posts")
+    print(f"[scraper] Completado. Total enviados: {total_sent}")
 
 
 def acquire_wakelock():
@@ -372,7 +327,7 @@ def main():
     parser = argparse.ArgumentParser(description="Scraper de Facebook Groups para SiHuella")
     parser.add_argument("--token", required=True, help="Token del scraper (fb_scraper_token)")
     parser.add_argument("--api", default=API_BASE)
-    parser.add_argument("--debug", action="store_true", help="Debug output")
+    parser.add_argument("--debug", action="store_true", help="Debug output + guardar HTML")
     parser.add_argument("--daemon", type=int, nargs="?", const=30, metavar="MIN",
                         help="Modo daemon (default: cada 30 min)")
     parser.add_argument("--once", action="store_true", help="Ejecutar una sola vez")

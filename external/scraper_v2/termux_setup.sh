@@ -1,34 +1,41 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -e
 
-echo "=== Instalando dependencias para el scraper de Facebook ==="
+echo "=== Setup Scraper de Facebook para Termux ==="
+echo ""
+echo "Este scraper usa tls_client (TLS fingerprint real de Chrome)."
+echo "Necesita proot-distro Ubuntu porque tls_client requiere glibc."
+echo ""
+
+echo "[1/6] Instalando proot-distro..."
+pkg install -y proot-distro
 
 echo ""
-echo "[1/4] Actualizando paquetes..."
-pkg update -y && pkg upgrade -y
+echo "[2/6] Instalando Ubuntu..."
+proot-distro install ubuntu
 
 echo ""
-echo "[2/4] Instalando Python..."
-pkg install -y python
+echo "[3/6] Instalando Python dentro de Ubuntu..."
+proot-distro login ubuntu -- bash -c "apt update && apt install -y python3 python3-pip curl"
 
 echo ""
-echo "[3/4] Instalando dependencias Python..."
-pip install requests
+echo "[4/6] Instalando dependencias Python (tls_client, requests)..."
+proot-distro login ubuntu -- pip3 install tls_client requests
 
 echo ""
-echo "[4/4] Descargando scraper.py desde el servidor..."
-echo "  Necesitás el token del scraper (Admin → Scraper de Facebook)"
+echo "[5/6] Descargando scraper.py..."
+echo "  Necesitás el token del scraper (Admin -> Scraper de Facebook)"
 echo "  Reemplazá TU_TOKEN por el token real"
 echo ""
-echo "  curl -o scraper.py \"https://sigotuhuella.online/api/facebook/scraper-script?token=TU_TOKEN\""
+echo "  proot-distro login ubuntu -- bash -c 'curl -o /root/scraper.py \"https://sigotuhuella.online/api/facebook/scraper-script?token=TU_TOKEN\"'"
+echo ""
 
-chmod +x scraper.py
-
+echo "[6/6] Listo! Para ejecutar:"
 echo ""
-echo "=== Instalación completada ==="
+echo "  Una vez:"
+echo "    proot-distro login ubuntu -- python3 /root/scraper.py --token TU_TOKEN --once --debug"
 echo ""
-echo "Para probar:"
-echo "  python3 scraper.py --token TU_TOKEN --once --debug"
+echo "  Daemon (cada 30 min):"
+echo "    proot-distro login ubuntu -- python3 /root/scraper.py --token TU_TOKEN --daemon 30"
 echo ""
-echo "Para ejecutar cada 30 min:"
-echo "  python3 scraper.py --token TU_TOKEN --daemon 30"
+echo "=== Setup completado ==="
