@@ -658,7 +658,7 @@ async function loginMode() {
 async function testMode(groupId) {
   console.log(`[Scraper] Modo TEST — scrapeando grupo ${groupId || 'primero'}`);
 
-  const b = await getBrowser(true);
+  const b = await getBrowser();
   const page = await b.newPage();
   await page.setUserAgent(pickUA());
   await page.setViewport({ width: 1366, height: 768 });
