@@ -385,6 +385,10 @@ async function getActiveGroups() {
     });
     console.log(`[Scraper] Groups response (${resp.status}):`, JSON.stringify(resp.data).substring(0, 200));
     const data = resp.data;
+    if (typeof data === 'string' || data?.error) {
+      console.error(`[Scraper] Respuesta inesperada:`, typeof data === 'string' ? data.substring(0, 100) : data);
+      return [];
+    }
     return Array.isArray(data) ? data : (data?.groups || []);
   } catch (err) {
     const status = err.response?.status;
