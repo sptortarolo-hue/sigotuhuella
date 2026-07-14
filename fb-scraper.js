@@ -414,7 +414,7 @@ async function extractPostsFromGroup(page, groupId, groupUrl, lastSeenId) {
   await humanScroll(page, randomInt(1000, 2000));
   await sleep(randomInt(2000, 4000));
 
-  const rawPosts = await page.evaluate((maxPosts) => {
+  const rawPosts = await page.evaluate((maxPosts, groupId) => {
     const posts = [];
     const containers = document.querySelectorAll('div[role="feed"] > div');
 
@@ -498,7 +498,7 @@ async function extractPostsFromGroup(page, groupId, groupUrl, lastSeenId) {
     }
 
     return posts;
-  }, MAX_POSTS_PER_GROUP);
+  }, MAX_POSTS_PER_GROUP, groupId);
 
   return rawPosts;
 }
