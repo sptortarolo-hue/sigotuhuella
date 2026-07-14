@@ -6,7 +6,7 @@ echo ""
 
 echo "[1/3] Instalando dependencias..."
 pkg update -y
-pkg install -y x11-repo termux-x11-nightly openbox
+pkg install -y x11-repo xorg-server-xvfb chromium
 
 echo ""
 echo "[2/3] Verificando chromium..."

@@ -179,20 +179,20 @@ def send_posts(posts, token, api):
 
 
 def fetch_html(url, chromium_path, debug=False):
-    result = subprocess.run(
-        [
-            chromium_path,
-            "--headless=new",
-            "--disable-gpu",
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-blink-features=AutomationControlled",
-            f"--user-agent={MOBILE_UA}",
-            "--dump-dom",
-            url,
-        ],
-        capture_output=True, timeout=90
-    )
+    cmd = [
+        chromium_path,
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-blink-features=AutomationControlled",
+        f"--user-agent={MOBILE_UA}",
+        "--dump-dom",
+        url,
+    ]
+    if shutil.which("xvfb-run"):
+        cmd = ["xvfb-run", "-a"] + cmd
+    else:
+        cmd = ["--headless=new", "--disable-gpu"] + cmd
+    result = subprocess.run(cmd, capture_output=True, timeout=90)
     result.check_returncode()
     html = result.stdout.decode("utf-8", errors="replace")
     if debug:
