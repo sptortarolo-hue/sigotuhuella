@@ -372,7 +372,9 @@ async function getActiveGroups() {
     const data = resp.data;
     return Array.isArray(data) ? data : (data?.groups || []);
   } catch (err) {
-    console.error('[Scraper] Error obteniendo grupos:', err.message);
+    const status = err.response?.status;
+    const body = err.response?.data;
+    console.error(`[Scraper] Error obteniendo grupos (${status}): ${JSON.stringify(body || err.message)}`);
     return [];
   }
 }

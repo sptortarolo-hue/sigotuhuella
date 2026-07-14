@@ -10,7 +10,7 @@ const router = Router();
 
 async function getScraperToken() {
   const result = await pool.query("SELECT value FROM settings WHERE key = 'fb_scraper_token'");
-  return result.rows[0]?.value || process.env.FB_SCRAPER_TOKEN || 'sihuella-scraper-2024';
+  return result.rows[0]?.value || process.env.FB_SCRAPER_TOKEN || 'sihuella';
 }
 
 async function isScrapingEnabled() {
