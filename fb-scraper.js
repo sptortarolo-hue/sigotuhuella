@@ -374,10 +374,15 @@ async function getBrowser(headed = HEADED) {
 // ==================== GROUPS ====================
 
 async function getActiveGroups() {
+  const url = `${API_BASE}/facebook/scraper-groups`;
   try {
-    console.log(`[Scraper] Fetching groups from: ${API_BASE}/facebook/scraper-groups`);
+    console.log(`[Scraper] Fetching groups from: ${url}`);
     console.log(`[Scraper] Token: ${TOKEN}`);
-    const resp = await webhookApi.get('/facebook/scraper-groups');
+    const resp = await axios.get(url, {
+      params: { token: TOKEN },
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      timeout: 30000,
+    });
     console.log(`[Scraper] Groups response (${resp.status}):`, JSON.stringify(resp.data).substring(0, 200));
     const data = resp.data;
     return Array.isArray(data) ? data : (data?.groups || []);
