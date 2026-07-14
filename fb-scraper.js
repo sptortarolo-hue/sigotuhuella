@@ -414,6 +414,12 @@ async function extractPostsFromGroup(page, groupId, groupUrl, lastSeenId) {
   await humanScroll(page, randomInt(1000, 2000));
   await sleep(randomInt(2000, 4000));
 
+  const fs = await import('fs');
+  await page.screenshot({ path: path.join(__dirname, 'debug-screenshot.png'), fullPage: false });
+  const html = await page.content();
+  fs.writeFileSync(path.join(__dirname, 'debug-page.html'), html.substring(0, 50000));
+  console.log(`[Scraper] Debug: screenshot + HTML guardados en ~/relay/`);
+
   const rawPosts = await page.evaluate((maxPosts, groupId) => {
     const posts = [];
     const containers = document.querySelectorAll('div[role="feed"] > div');
