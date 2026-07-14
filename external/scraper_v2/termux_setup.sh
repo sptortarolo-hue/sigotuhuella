@@ -8,12 +8,12 @@ echo "[1/4] Actualizando paquetes..."
 pkg update -y && pkg upgrade -y
 
 echo ""
-echo "[2/4] Instalando Python y Chromium..."
-pkg install -y python chromium
+echo "[2/4] Instalando Python..."
+pkg install -y python
 
 echo ""
 echo "[3/4] Instalando dependencias Python..."
-pip install requests
+pip install curl_cffi requests
 
 echo ""
 echo "[4/4] Descargando scraper.py desde el servidor..."
@@ -31,7 +31,7 @@ echo ""
 echo "=== Instalación completada ==="
 echo ""
 echo "Para probar:"
-echo "  python3 scraper.py --token TU_TOKEN"
+echo "  python3 scraper.py --token TU_TOKEN --once --debug"
 echo ""
 echo "Para ejecutar cada 30 min:"
 echo "  python3 scraper.py --token TU_TOKEN --daemon 30"
