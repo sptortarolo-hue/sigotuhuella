@@ -144,12 +144,20 @@ async function doLogin() {
   await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 60000 });
 
   console.log('[Scraper] Logueate en Facebook en la ventana del navegador.');
-  console.log('[Scraper] Cuando veas tu feed, presioná ENTER acá para continuar...');
-  await new Promise(resolve => {
-    process.stdin.setRawMode?.(true);
-    process.stdin.resume();
-    process.stdin.once('data', resolve);
-  });
+  console.log('[Scraper] Esperando login (hasta 120s)...');
+
+  for (let i = 0; i < 60; i++) {
+    const url = page.url();
+    const loggedIn = !url.includes('login') && !url.includes('checkpoint') && !url.includes('captcha')
+      && await page.evaluate(() => !document.querySelector('input[name="email"], input[name="pass"], input[type="email"], input[type="password"]'));
+    if (loggedIn) {
+      console.log('[Scraper] Login detectado!');
+      break;
+    }
+    await sleep(2000);
+  }
+
+  await sleep(3000);
 
   const cookies = await page.cookies();
 
