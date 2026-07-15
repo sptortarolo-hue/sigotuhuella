@@ -41,7 +41,7 @@ async function callOpenRouter(model, messages, options = {}) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
     const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -78,7 +78,7 @@ async function callNVIDIA(model, messages, options = {}) {
   };
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
     const resp = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
@@ -107,14 +107,21 @@ async function callNVIDIA(model, messages, options = {}) {
 async function callGroqDirect(model, messages, options = {}) {
   if (!groq) throw new Error('Groq no configurado');
 
-  const result = await groq.chat.completions.create({
-    model,
-    messages,
-    temperature: options.temperature ?? 0,
-    max_tokens: options.max_tokens ?? 1000,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
 
-  return result.choices?.[0]?.message?.content || '';
+  try {
+    const result = await groq.chat.completions.create({
+      model,
+      messages,
+      temperature: options.temperature ?? 0,
+      max_tokens: options.max_tokens ?? 1000,
+    }, { signal: controller.signal });
+
+    return result.choices?.[0]?.message?.content || '';
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function callGeminiDirect(systemPrompt, prompt) {
@@ -123,11 +130,15 @@ async function callGeminiDirect(systemPrompt, prompt) {
 
   try {
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    const response = await ai.models.generateContent({
+    const geminiPromise = ai.models.generateContent({
       model: 'gemini-2.0-flash-lite',
       contents: systemPrompt + '\n\n' + prompt,
       config: { responseMimeType: 'application/json' },
     });
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Gemini timeout after 8s')), 8000)
+    );
+    const response = await Promise.race([geminiPromise, timeoutPromise]);
     return response.text;
   } catch (err) {
     handleGeminiError(err);
@@ -177,11 +188,15 @@ async function callGeminiVisionMessages(messages) {
   if (sys) contents.unshift({ role: 'user', parts: [{ text: sys.content }] });
   try {
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    const response = await ai.models.generateContent({
+    const geminiPromise = ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents,
       config: { responseMimeType: 'application/json' },
     });
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Gemini Vision timeout after 8s')), 8000)
+    );
+    const response = await Promise.race([geminiPromise, timeoutPromise]);
     return response.text;
   } catch (err) {
     handleGeminiError(err);
@@ -206,42 +221,42 @@ function chain(providers) {
 }
 
 const CLASSIFICATION_CHAIN_WITH_IMAGES = chain([
-  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 1000 }) },
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
-  { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
   { name: 'NVIDIA 70B', call: (m) => callNVIDIA('meta/llama-3.3-70b-instruct', m, { max_tokens: 1000 }) },
+  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 1000 }) },
+  { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
 ]);
 
 const CLASSIFICATION_CHAIN_TEXT = chain([
-  { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
-  { name: 'OpenRouter GPT-OSS-120B', call: (m) => callOpenRouter('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
   { name: 'NVIDIA 70B', call: (m) => callNVIDIA('meta/llama-3.3-70b-instruct', m, { max_tokens: 1000 }) },
   { name: 'Gemini', call: (m) => callGeminiFromMessages(m) },
+  { name: 'OpenRouter GPT-OSS-120B', call: (m) => callOpenRouter('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
+  { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
 ]);
 
 const MATCHING_CHAIN = chain([
-  { name: 'Groq GPT-OSS-20B', call: (sys, p) => callGroqDirect('openai/gpt-oss-20b', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
-  { name: 'OpenRouter GPT-OSS-120B', call: (sys, p) => callOpenRouter('openai/gpt-oss-120b', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
-  { name: 'NVIDIA 70B', call: (sys, p) => callNVIDIA('meta/llama-3.3-70b-instruct', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
   { name: 'Gemini', call: (sys, p) => callGeminiDirect(sys, p) },
+  { name: 'NVIDIA 70B', call: (sys, p) => callNVIDIA('meta/llama-3.3-70b-instruct', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
+  { name: 'OpenRouter GPT-OSS-120B', call: (sys, p) => callOpenRouter('openai/gpt-oss-120b', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
+  { name: 'Groq GPT-OSS-20B', call: (sys, p) => callGroqDirect('openai/gpt-oss-20b', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
 ]);
 
 const IMAGE_CAPTION_CHAIN = chain([
-  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 1000 }) },
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
+  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 1000 }) },
   { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
 ]);
 
 const TEXT_INTENT_CHAIN = chain([
-  { name: 'Groq GPT-OSS-20B', call: (m) => callGroqDirect('openai/gpt-oss-20b', m, { max_tokens: 10 }) },
-  { name: 'OpenRouter GPT-OSS-120B', call: (m) => callOpenRouter('openai/gpt-oss-120b', m, { max_tokens: 10 }) },
   { name: 'NVIDIA 70B', call: (m) => callNVIDIA('meta/llama-3.3-70b-instruct', m, { max_tokens: 10 }) },
   { name: 'Gemini', call: (m) => callGeminiFromMessages(m) },
+  { name: 'OpenRouter GPT-OSS-120B', call: (m) => callOpenRouter('openai/gpt-oss-120b', m, { max_tokens: 10 }) },
+  { name: 'Groq GPT-OSS-20B', call: (m) => callGroqDirect('openai/gpt-oss-20b', m, { max_tokens: 10 }) },
 ]);
 
 const FACE_CROP_CHAIN = chain([
-  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 200 }) },
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
+  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 200 }) },
   { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 200 }) },
 ]);
 

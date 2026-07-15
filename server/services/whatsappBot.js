@@ -1,6 +1,6 @@
 import pool from '../db.js';
 import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups, sendListMessage } from './whatsappService.js';
-import { matchWhatsAppToPets, matchPetToPosts, processImageCaption } from './geminiMatching.js';
+import { matchWhatsAppToPets, matchPetToPosts, processImageCaption, classifyTextIntent, detectAndCropPetFace } from './geminiMatching.js';
 import { classifyPost } from './geminiClassifier.js';
 import { sendWhatsAppRegistrationEmail } from '../auth.js';
 import { fetchFbPost } from './fbPostFetcher.js';
@@ -94,7 +94,6 @@ function detectIntent(parsed) {
 
 async function detectIntentWithAI(text) {
   try {
-    const { classifyTextIntent } = await import('./geminiMatching.js');
     const classification = await classifyTextIntent(text);
     if (classification && classification !== 'other' && classification !== 'greeting') {
       const intentMap = {
@@ -474,7 +473,6 @@ async function handleUnrecognizedText(conv, parsed) {
   }
 
   try {
-    const { classifyTextIntent } = await import('./geminiMatching.js');
     const classification = await classifyTextIntent(text);
     if (classification && classification !== 'other' && classification !== 'greeting') {
       const intentMap = {
@@ -500,7 +498,6 @@ async function handleUnrecognizedText(conv, parsed) {
 async function handleImageFromMenu(conv, parsed) {
   const caption = parsed.textBody || '';
   if (caption || parsed.imageData) {
-    const { processImageCaption } = await import('./geminiMatching.js');
     const result = await processImageCaption(caption, parsed.imageData, parsed.imageMime);
     if (result.intent && result.intent !== 'unclear') {
       const labels = { found: 'encontraste', lost: 'se te perdió', sighted: 'viste' };
@@ -819,7 +816,6 @@ async function rlConfirm(conv, parsed, intent) {
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
       try {
-        const { detectAndCropPetFace } = await import('./geminiMatching.js');
         const cropped = await detectAndCropPetFace(ctx.photo_data, ctx.photo_mime);
         if (cropped) {
           await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`, [petId, cropped.cropped, 'image/jpeg']);
@@ -1008,7 +1004,6 @@ async function rsConfirm(conv, parsed, intent) {
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
       try {
-        const { detectAndCropPetFace } = await import('./geminiMatching.js');
         const cropped = await detectAndCropPetFace(ctx.photo_data, ctx.photo_mime);
         if (cropped) {
           await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`, [petId, cropped.cropped, 'image/jpeg']);
@@ -1025,7 +1020,7 @@ async function rsConfirm(conv, parsed, intent) {
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     try {
-      await sendMessage(conv.wa_from, '✅ *${conv.bot_name}:* ¡Reporte de avistaje registrado! Gracias por ayudar.');
+      await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de avistaje registrado! Gracias por ayudar.`);
     } catch (e) {
       console.error('Error sending confirm message:', e.message);
     }
@@ -1101,7 +1096,6 @@ async function rfPhoto(conv, parsed) {
   if (caption) {
     await sendMessage(conv.wa_from, `📸 Foto recibida. Estoy leyendo la descripción... 🔍`);
     try {
-      const { processImageCaption } = await import('./geminiMatching.js');
       const result = await processImageCaption(caption);
       const ctx = { photo_data: photoData, photo_mime: photoMime || 'image/jpeg' };
       if (result.species) ctx.species = result.species;
@@ -1210,7 +1204,6 @@ async function rfConfirm(conv, parsed, intent) {
     const petId = petResult.rows[0].id;
     if (ctx.photo_data) {
       try {
-        const { detectAndCropPetFace } = await import('./geminiMatching.js');
         const cropped = await detectAndCropPetFace(ctx.photo_data, ctx.photo_mime);
         if (cropped) {
           await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`, [petId, cropped.cropped, 'image/jpeg']);
@@ -2381,11 +2374,11 @@ async function registerConfirm(conv, parsed, intent) {
 
     await sendWhatsAppRegistrationEmail(email, name, token);
 
+    const redirect = conv.context._redirect || 'adopt_post.species';
+
     await sendMessage(conv.wa_from,
       `✅ *${conv.bot_name}:* Registro creado. Te enviamos un mail a *${email}* para activar tu cuenta. ${redirect === 'chapita.pet_name' ? 'Ahora vamos a pedir la chapita.' : 'Ahora vamos a publicar la adopción.'}`
     );
-
-    const redirect = conv.context._redirect || 'adopt_post.species';
     await setFlow(conv, redirect, { ...conv.context });
     if (redirect === 'adopt_post.species') {
       await apAskSpecies(conv);
@@ -2544,7 +2537,6 @@ async function apConfirm(conv, parsed, intent) {
 
     if (ctx.photo_data) {
       try {
-        const { detectAndCropPetFace } = await import('./geminiMatching.js');
         const cropped = await detectAndCropPetFace(ctx.photo_data, ctx.photo_mime);
         if (cropped) {
           await pool.query(`INSERT INTO pet_images (pet_id, image_data, mime_type) VALUES ($1, $2, $3)`, [petId, cropped.cropped, 'image/jpeg']);
@@ -2578,11 +2570,15 @@ async function apConfirm(conv, parsed, intent) {
 // ─── End Flow ───
 
 async function endFlow(conv) {
-  await sendInteractiveButtons(conv.wa_from,
-    `${conv.bot_name}: ¿Te puedo ayudar en algo más?`, [
-    { id: 'end_yes', title: '✅ Sí' },
-    { id: 'end_no', title: '❌ No' },
-  ]);
+  try {
+    await sendInteractiveButtons(conv.wa_from,
+      `${conv.bot_name}: ¿Te puedo ayudar en algo más?`, [
+      { id: 'end_yes', title: '✅ Sí' },
+      { id: 'end_no', title: '❌ No' },
+    ]);
+  } catch (e) {
+    console.error('endFlow sendInteractiveButtons error:', e.message);
+  }
   await setFlow(conv, 'end_flow');
 }
 
