@@ -1,5 +1,5 @@
 import pool from '../db.js';
-import { sendMessage } from './whatsappService.js';
+import { sendMessage, sendInteractiveButtons } from './whatsappService.js';
 import { isWhatsAppEnabled } from './whatsappService.js';
 
 export async function checkWhatsAppTimeouts() {
@@ -19,7 +19,10 @@ export async function checkWhatsAppTimeouts() {
 
     for (const conv of midFlow.rows) {
       try {
-        await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Seguís ahí? 😊 Recordá que podés continuar donde lo dejaste o escribir "menu" para volver al inicio.`);
+        await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Seguís ahí? 😊`, [
+          { id: 'confirm_yes', title: '✅ Sí, sigo aquí' },
+          { id: 'confirm_no', title: '❌ Cerrar' },
+        ]);
         await pool.query(`UPDATE whatsapp_conversations SET last_message_at = NOW() WHERE id = $1`, [conv.id]);
       } catch (e) {
         console.error(`Reminder error for ${conv.wa_from}:`, e.message);
