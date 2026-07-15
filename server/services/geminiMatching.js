@@ -433,6 +433,17 @@ export async function processImageCaption(caption, imageData, imageMime) {
     };
   } catch (err) {
     console.error('processImageCaption error:', err);
+    if (caption) {
+      const lower = caption.toLowerCase();
+      let intent = 'unclear';
+      if (/perdi|perdido|perd[ií]/.test(lower)) intent = 'lost';
+      else if (/encontr[eé]|encontrada/.test(lower)) intent = 'found';
+      else if (/avist|vist|vi\b/.test(lower)) intent = 'sighted';
+      const phoneMatch = caption.match(/(\d{7,15})/);
+      const phone = phoneMatch ? phoneMatch[1] : null;
+      const species = /gato|felino|mich/.test(lower) ? 'cat' : /perr|can|cachorr/.test(lower) ? 'dog' : null;
+      return { intent, species, gender: null, breed: null, color: null, name: null, location: null, phone, phone2: null, description: caption.substring(0, 200) };
+    }
     return { intent: 'unclear', species: null, gender: null, breed: null, color: null, name: null, location: null, phone: null, phone2: null, description: null };
   }
 }
