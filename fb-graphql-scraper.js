@@ -66,18 +66,40 @@ function loadSeen() {
 }
 function saveSeen(seen) { fs.writeFileSync(SEEN_PATH, JSON.stringify(seen, null, 2)); }
 
-// ==================== FB DTSG EXTRACTION ====================
+// ==================== FULL SESSION BOOTSTRAP ====================
 
-async function extractFbDtsg(cookies) {
-  const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+function extractFromHtml(html, patterns) {
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) return match[1];
+  }
+  return null;
+}
 
-  const resp = await axios.get('https://www.facebook.com/', {
+function computeJazoest(fbDtsg) {
+  let sum = 0;
+  for (let i = 0; i < fbDtsg.length; i++) sum += fbDtsg.charCodeAt(i);
+  return '2' + sum;
+}
+
+async function bootstrapSession(cookies, groupId) {
+  const cookieStr = cookiesToHeader(cookies);
+  const url = groupId
+    ? `https://www.facebook.com/groups/${groupId}/`
+    : 'https://www.facebook.com/';
+
+  console.log(`[Scraper] Bootstrapping session desde ${url}...`);
+
+  const resp = await axios.get(url, {
     headers: {
       'User-Agent': pickUA(),
       'Cookie': cookieStr,
-      'Accept': 'text/html,application/xhtml+xml',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Sec-Fetch-Mode': 'navigate',
       'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1',
     },
     timeout: 30000,
     maxRedirects: 5,
@@ -85,20 +107,46 @@ async function extractFbDtsg(cookies) {
 
   const html = typeof resp.data === 'string' ? resp.data : '';
 
-  const patterns = [
+  const fbDtsg = extractFromHtml(html, [
     /\\"fb_dtsg\\":\{\\"token\\":\\"([^"\\]+)\\"/,
     /"fb_dtsg":"([^"]+)"/,
     /fb_dtsg.*?value="([^"]+)"/,
     /DTSGInitialData.*?"token":"([^"]+)"/,
     /\["DTSGInitialData",\[\],\{"token":"([^"]+)"/,
-  ];
+  ]);
 
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-    if (match) return match[1];
-  }
+  const lsd = extractFromHtml(html, [
+    /\["LSD",\[\],\{"token":"([^"]+)"/,
+    /"LSD",\[\],\{"token":"([^"]+)"/,
+    /"lsd"\s*:\s*"([^"]+)"/,
+  ]);
 
-  return null;
+  const rev = extractFromHtml(html, [
+    /"client_revision"\s*:\s*(\d+)/,
+    /"__rev"\s*:\s*(\d+)/,
+  ]);
+
+  const hs = extractFromHtml(html, [
+    /"haste_session"\s*:\s*"([^"]+)"/,
+    /"__hs"\s*:\s*"([^"]+)"/,
+  ]);
+
+  const hsi = extractFromHtml(html, [
+    /"hsi"\s*:\s*"(\d+)"/,
+  ]);
+
+  const spinT = extractFromHtml(html, [
+    /"_?_?spin_t"\s*:\s*(\d+)/,
+  ]);
+
+  const jazoest = fbDtsg ? computeJazoest(fbDtsg) : null;
+
+  const tokens = { fbDtsg, lsd, rev, hs, hsi, spinT, jazoest };
+  console.log('[Scraper] Tokens extraídos:', JSON.stringify(Object.fromEntries(
+    Object.entries(tokens).map(([k, v]) => [k, v ? (typeof v === 'string' ? v.substring(0, 15) + '...' : v) : 'NULL'])
+  )));
+
+  return tokens;
 }
 
 // ==================== COOKIE HELPERS ====================
@@ -162,22 +210,33 @@ async function doLogin() {
 
   const cookies = await page.cookies();
 
-  const fbDtsg = await page.evaluate(() => {
-    const patterns = [
+  const allTokens = await page.evaluate(() => {
+    const html = document.documentElement.innerHTML;
+    function extract(patterns) {
+      for (const p of patterns) { const m = html.match(p); if (m && m[1]) return m[1]; }
+      return null;
+    }
+    const fbDtsg = extract([
       /\\"fb_dtsg\\":\{\\"token\\":\\"([^"\\]+)\\"/,
       /"fb_dtsg":"([^"]+)"/,
       /DTSGInitialData.*?"token":"([^"]+)"/,
-    ];
-    const html = document.documentElement.innerHTML;
-    for (const p of patterns) {
-      const m = html.match(p);
-      if (m) return m[1];
-    }
-    return null;
+    ]);
+    const lsd = extract([
+      /\["LSD",\[\],\{"token":"([^"]+)"/,
+      /"LSD",\[\],\{"token":"([^"]+)"/,
+      /"lsd"\s*:\s*"([^"]+)"/,
+    ]);
+    const rev = extract([/"client_revision"\s*:\s*(\d+)/, /"__rev"\s*:\s*(\d+)/]);
+    const hs = extract([/"haste_session"\s*:\s*"([^"]+)"/]);
+    const hsi = extract([/"hsi"\s*:\s*"(\d+)"/]);
+    const spinT = extract([/"_?_?spin_t"\s*:\s*(\d+)/]);
+    let jazoest = null;
+    if (fbDtsg) { let s = 0; for (let i = 0; i < fbDtsg.length; i++) s += fbDtsg.charCodeAt(i); jazoest = '2' + s; }
+    return { fbDtsg, lsd, rev, hs, hsi, spinT, jazoest };
   });
 
-  saveSession({ cookies, fbDtsg, savedAt: new Date().toISOString() });
-  console.log(`[Scraper] Sesión guardada. Cookies: ${cookies.length}, fb_dtsg: ${fbDtsg ? 'ok' : 'no extraído (se buscará al scrapear)'}`);
+  saveSession({ cookies, ...allTokens, savedAt: new Date().toISOString() });
+  console.log(`[Scraper] Sesión guardada. Cookies: ${cookies.length}, fb_dtsg: ${allTokens.fbDtsg ? 'ok' : 'FALLO'}, lsd: ${allTokens.lsd ? 'ok' : 'FALLO'}`);
 
   await browser.close();
 }
@@ -204,12 +263,10 @@ async function discoverDocId(cookies, groupId) {
     const html = typeof resp.data === 'string' ? resp.data : '';
 
     const docPatterns = [
-      /"doc_id"\s*:\s*"(?:1452240142610665|(\d+))"/g,
+      /"doc_id"\s*:\s*"?(\d{10,})"?/g,
+      /"queryID"\s*:\s*"?(\d{10,})"?/g,
       /doc_id.*?(\d{15,})/g,
-      /\{"groupFeedQueryRenderer":\{"query":\{"doc_id":\s*"?(\d+)/,
-      /GroupsCometFeedRegularStoriesPaginationQuery.*?doc_id.*?(\d{15,})/,
-      /"queryID"\s*:\s*"(\d+)"/,
-      /"pageID"\s*:\s*"(\d+)"/,
+      /GroupsCometFeedRegularStoriesPaginationQuery.*?(\d{15,})/g,
     ];
 
     for (const pattern of docPatterns) {
@@ -233,7 +290,9 @@ async function discoverDocId(cookies, groupId) {
 
 // ==================== GRAPHQL SCRAPING ====================
 
-function buildPayload(groupId, cursor, count, userId, fbDtsg, docId) {
+let reqCounter = 0;
+
+function buildPayload(groupId, cursor, count, userId, tokens, docId) {
   const variables = {
     count: count || 8,
     cursor: cursor || null,
@@ -251,13 +310,31 @@ function buildPayload(groupId, cursor, count, userId, fbDtsg, docId) {
     id: groupId,
   };
 
+  reqCounter++;
+  const reqHex = reqCounter.toString(16);
+
   const params = new URLSearchParams();
   params.append('av', userId || '0');
   params.append('__user', userId || '0');
   params.append('__a', '1');
-  params.append('fb_dtsg', fbDtsg || '');
-  params.append('doc_id', docId);
+  params.append('__req', reqHex);
+  params.append('dpr', '2');
+  params.append('__ccg', 'EXCELLENT');
+  params.append('__comet_req', '15');
+  params.append('fb_dtsg', tokens.fbDtsg || '');
+  params.append('jazoest', tokens.jazoest || '');
+  params.append('lsd', tokens.lsd || '');
+  params.append('__hs', tokens.hs || '');
+  params.append('__hsi', tokens.hsi || '');
+  params.append('__rev', tokens.rev || '');
+  params.append('__spin_r', tokens.rev || '');
+  params.append('__spin_b', 'trunk');
+  params.append('__spin_t', tokens.spinT || String(Math.floor(Date.now() / 1000)));
+  params.append('server_timestamps', 'true');
+  params.append('fb_api_caller_class', 'RelayModern');
+  params.append('fb_api_req_friendly_name', 'GroupsCometFeedRegularStoriesPaginationQuery');
   params.append('variables', JSON.stringify(variables));
+  params.append('doc_id', docId);
 
   return params.toString();
 }
@@ -379,79 +456,102 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
 
   const docId = await discoverDocId(session.cookies, groupId);
 
+  const tokens = await bootstrapSession(session.cookies, groupId);
+  if (!tokens.fbDtsg) {
+    console.error('[Scraper] No se pudo obtener fb_dtsg del bootstrap');
+    return [];
+  }
+  console.log(`[Scraper] Bootstrap OK: fb_dtsg=${tokens.fbDtsg.substring(0, 10)}..., lsd=${tokens.lsd ? 'ok' : 'MISSING'}, rev=${tokens.rev || 'MISSING'}`);
+
   while (allPosts.length < maxPosts && pageNum <= maxPages) {
     console.log(`[Scraper] ${groupName} - GraphQL page ${pageNum}...`);
 
-    const payload = buildPayload(groupId, cursor, 8, userId, session.fbDtsg, docId);
+    const payload = buildPayload(groupId, cursor, 8, userId, tokens, docId);
 
-    try {
-      const resp = await axios.post(GRAPHQL_URL, payload, {
-        headers: {
-          'User-Agent': pickUA(),
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Cookie': cookieStr,
-          'Origin': 'https://www.facebook.com',
-          'Referer': `https://www.facebook.com/groups/${groupId}/`,
-        },
-        timeout: 30000,
-      });
-
-      const rawText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
-
-      if (pageNum === 1) {
-        try {
-          fs.writeFileSync(DEBUG_PATH, JSON.stringify({
-            groupId,
-            docId,
-            status: resp.status,
-            first500: rawText.substring(0, 500),
-            last500: rawText.substring(rawText.length - 500),
-            fullLength: rawText.length,
-            timestamp: new Date().toISOString(),
-          }, null, 2));
-          console.log(`[Scraper] Debug guardado en ${DEBUG_PATH} (${rawText.length} bytes)`);
-        } catch (e) {
-          console.error('[Scraper] Error guardando debug:', e.message);
-        }
-      }
-
-      if (resp.status !== 200) {
-        console.error(`[Scraper] GraphQL returned ${resp.status}`);
+    let resp = null;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        resp = await axios.post(GRAPHQL_URL, payload, {
+          headers: {
+            'User-Agent': pickUA(),
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Cookie': cookieStr,
+            'Origin': 'https://www.facebook.com',
+            'Referer': `https://www.facebook.com/groups/${groupId}/`,
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'X-FB-LSD': tokens.lsd || '',
+          },
+          timeout: 30000,
+        });
         break;
+      } catch (err) {
+        lastErr = err;
+        console.error(`[Scraper] Intento ${attempt}/3 falló: ${err.message}`);
+        if (attempt < 3) await sleep(attempt * 3000);
       }
+    }
 
-      const data = parseFbResponse(rawText);
-      if (!data || data.length === 0) {
-        console.log(`[Scraper] ${groupName}: sin datos en page ${pageNum}. Response first 300: ${rawText.substring(0, 300)}`);
-        break;
-      }
-
-      console.log(`[Scraper] ${groupName}: ${data.length} bloques en page ${pageNum}`);
-      const posts = extractPostsFromResponse(data);
-      console.log(`[Scraper] ${groupName}: ${posts.length} posts en page ${pageNum}`);
-
-      if (posts.length === 0) break;
-
-      allPosts.push(...posts);
-
-      let nextCursor = null;
-      for (const item of data) {
-        if (item?.page_info?.has_next_page && item.page_info.end_cursor) {
-          nextCursor = item.page_info.end_cursor;
-        }
-        if (item?.node?.group_feed?.page_info?.has_next_page) {
-          nextCursor = item.node.group_feed.page_info.end_cursor;
-        }
-      }
-
-      if (!nextCursor) break;
-      cursor = nextCursor;
-      pageNum++;
-      await sleep(randomInt(2000, 5000));
-    } catch (err) {
-      console.error(`[Scraper] GraphQL error:`, err.message);
+    if (!resp) {
+      console.error(`[Scraper] Todos los intentos fallaron para ${groupName}`);
       break;
     }
+
+    const rawText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+
+    if (pageNum === 1) {
+      try {
+        fs.writeFileSync(DEBUG_PATH, JSON.stringify({
+          groupId,
+          docId,
+          tokens: { fbDtsg: tokens.fbDtsg?.substring(0, 15) + '...', lsd: tokens.lsd, rev: tokens.rev, jazoest: tokens.jazoest },
+          status: resp.status,
+          first500: rawText.substring(0, 500),
+          last500: rawText.substring(rawText.length - 500),
+          fullLength: rawText.length,
+          timestamp: new Date().toISOString(),
+        }, null, 2));
+        console.log(`[Scraper] Debug guardado en ${DEBUG_PATH} (${rawText.length} bytes)`);
+      } catch (e) {
+        console.error('[Scraper] Error guardando debug:', e.message);
+      }
+    }
+
+    if (resp.status !== 200) {
+      console.error(`[Scraper] GraphQL returned ${resp.status}`);
+      break;
+    }
+
+    const data = parseFbResponse(rawText);
+    if (!data || data.length === 0) {
+      console.log(`[Scraper] ${groupName}: sin datos en page ${pageNum}. Response first 300: ${rawText.substring(0, 300)}`);
+      break;
+    }
+
+    console.log(`[Scraper] ${groupName}: ${data.length} bloques en page ${pageNum}`);
+    const posts = extractPostsFromResponse(data);
+    console.log(`[Scraper] ${groupName}: ${posts.length} posts en page ${pageNum}`);
+
+    if (posts.length === 0) break;
+
+    allPosts.push(...posts);
+
+    let nextCursor = null;
+    for (const item of data) {
+      if (item?.page_info?.has_next_page && item.page_info.end_cursor) {
+        nextCursor = item.page_info.end_cursor;
+      }
+      if (item?.node?.group_feed?.page_info?.has_next_page) {
+        nextCursor = item.node.group_feed.page_info.end_cursor;
+      }
+    }
+
+    if (!nextCursor) break;
+    cursor = nextCursor;
+    pageNum++;
+    await sleep(randomInt(2000, 5000));
   }
 
   return allPosts.slice(0, maxPosts);
@@ -517,15 +617,14 @@ async function testMode() {
   console.log('[Scraper] Modo TEST (GraphQL, sin Chromium)');
 
   const session = loadSession();
-  if (!session || !session.fbDtsg) {
+  if (!session || !session.cookies) {
     console.error('[Scraper] Sin sesión GraphQL. Ejecutá: node fb-graphql-scraper.js --login');
     return;
   }
-  console.log(`[Scraper] Sesión cargada, fb_dtsg: ${session.fbDtsg.substring(0, 10)}...`);
-  console.log(`[Scraper] Cookies: ${session.cookies.length}`);
   const cUser = session.cookies.find(c => c.name === 'c_user');
   const xs = session.cookies.find(c => c.name === 'xs');
-  console.log(`[Scraper] c_user: ${cUser ? cUser.value.substring(0, 8) + '...' : 'MISSING'}, xs: ${xs ? 'present' : 'MISSING'}`);
+  console.log(`[Scraper] Sesión: Cookies=${session.cookies.length}, c_user=${cUser ? cUser.value.substring(0, 8) + '...' : 'MISSING'}, xs=${xs ? 'present' : 'MISSING'}`);
+  console.log(`[Scraper] Tokens saved: fb_dtsg=${session.fbDtsg ? 'ok' : 'will bootstrap'}, lsd=${session.lsd ? 'ok' : 'will bootstrap'}, rev=${session.rev || 'will bootstrap'}`);
 
   const groups = await getActiveGroups();
   if (groups.length === 0) {
@@ -559,11 +658,11 @@ async function runDaemon() {
   await fetchConfig();
 
   const session = loadSession();
-  if (!session || !session.fbDtsg) {
+  if (!session || !session.cookies) {
     console.error('[Scraper] Sin sesión GraphQL. Ejecutá: node fb-graphql-scraper.js --login');
     return;
   }
-  console.log(`[Scraper] Sesión cargada`);
+  console.log(`[Scraper] Sesión cargada (tokens se refrescan por grupo)`);
 
   while (true) {
     console.log(`[Scraper] Iniciando ciclo de scraping...`);
