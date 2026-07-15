@@ -584,11 +584,13 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
 
 // ==================== WEBHOOK ====================
 
-async function sendPosts(posts, groupName) {
+async function sendPosts(posts, groupName, groupUuid) {
   if (posts.length === 0) return { inserted: 0, updated: 0, errors: 0 };
 
+  const payload = posts.map(p => ({ ...p, group_id: groupUuid || null }));
+
   try {
-    const resp = await axios.post(`${API_BASE}/facebook/webhook`, { posts }, {
+    const resp = await axios.post(`${API_BASE}/facebook/webhook`, { posts: payload }, {
       headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
       params: { token: TOKEN },
       timeout: 120000,
@@ -670,7 +672,7 @@ async function testMode() {
       console.log(`  - [${p.fb_post_id}] ${p.author_name}: ${p.content.substring(0, 80)}...`);
     }
     console.log(`  Enviando al webhook...`);
-    await sendPosts(posts, groupName);
+    await sendPosts(posts, groupName, group.id);
   } else {
     console.log('[Scraper] Revisá debug-graphql-response.json para ver qué devolvió Facebook');
   }
@@ -715,7 +717,7 @@ async function runDaemon() {
         if (newPosts.length > 0) {
           const limited = newPosts.slice(0, MAX_POSTS_PER_GROUP);
           console.log(`[Scraper] ${groupName}: ${limited.length} posts nuevos`);
-          await sendPosts(limited, groupName);
+          await sendPosts(limited, groupName, group.id);
           seen[groupId] = limited[0].fb_post_id;
           totalPosts += limited.length;
         } else {

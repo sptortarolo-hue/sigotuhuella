@@ -272,6 +272,15 @@ router.post('/webhook', async (req, res) => {
         const { group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, comments } = post;
         if (!fb_post_id) { results.errors++; continue; }
 
+        let resolvedGroupId = group_id || null;
+        if (!resolvedGroupId && fb_post_url) {
+          const fbGroupMatch = fb_post_url.match(/groups\/(\d+)/);
+          if (fbGroupMatch) {
+            const grpRes = await pool.query('SELECT id FROM facebook_groups WHERE fb_group_id = $1', [fbGroupMatch[1]]);
+            if (grpRes.rows.length > 0) resolvedGroupId = grpRes.rows[0].id;
+          }
+        }
+
         let classification;
         try {
           classification = await classifyPost(content || '', image_urls || [], comments || []);
@@ -291,7 +300,7 @@ router.post('/webhook', async (req, res) => {
              scraped_at = NOW()
            RETURNING id`,
           [
-            group_id || null, fb_post_id, fb_post_url || null, author_name || null,
+            resolvedGroupId, fb_post_id, fb_post_url || null, author_name || null,
             content || '', image_urls || [], posted_at ? new Date(posted_at) : null,
             classification.classification, classification.species, classification.color,
             classification.location_hint, classification.phone,
