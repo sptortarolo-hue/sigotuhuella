@@ -294,6 +294,7 @@ router.post('/webhook', async (req, res) => {
           `INSERT INTO facebook_posts (group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, classification, species, color, location_hint, phone, latitude, longitude)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
            ON CONFLICT (fb_post_id) DO UPDATE SET
+             group_id = COALESCE(EXCLUDED.group_id, facebook_posts.group_id),
              content = EXCLUDED.content,
              image_urls = EXCLUDED.image_urls,
              author_name = EXCLUDED.author_name,

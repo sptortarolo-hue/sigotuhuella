@@ -358,7 +358,7 @@ router.get('/scraped-messages', (req, res, next) => {
           null as has_image, null as wa_message_id, null as image_data, null as image_mime,
           null as author_jid
         FROM facebook_posts fp
-        JOIN facebook_groups fg ON fg.id = fp.group_id
+        LEFT JOIN facebook_groups fg ON fg.id = fp.group_id
         WHERE fp.classification IS NOT NULL
 
         UNION ALL
