@@ -262,25 +262,25 @@ async function discoverDocId(cookies, groupId) {
 
     const html = typeof resp.data === 'string' ? resp.data : '';
 
-    const docPatterns = [
-      /"doc_id"\s*:\s*"?(\d{10,})"?/g,
-      /"queryID"\s*:\s*"?(\d{10,})"?/g,
-      /doc_id.*?(\d{15,})/g,
-      /GroupsCometFeedRegularStoriesPaginationQuery.*?(\d{15,})/g,
-    ];
-
-    for (const pattern of docPatterns) {
-      const matches = [...html.matchAll(pattern)];
-      for (const match of matches) {
-        const id = match[1] || match[0].match(/\d{15,}/)?.[0];
-        if (id && /^\d{10,}$/.test(id)) {
-          console.log(`[Scraper] doc_id encontrado: ${id}`);
-          return id;
-        }
-      }
+    // Try to find doc_id specifically for GroupsCometFeedRegularStoriesPaginationQuery
+    const feedQueryPattern = /GroupsCometFeedRegularStoriesPaginationQuery[^}]*?"doc_id"\s*:\s*"?(\d{10,})"?/g;
+    const feedMatches = [...html.matchAll(feedQueryPattern)];
+    if (feedMatches.length > 0) {
+      const id = feedMatches[0][1];
+      console.log(`[Scraper] doc_id para feed encontrado: ${id}`);
+      return id;
     }
 
-    console.warn('[Scraper] No se encontró doc_id en HTML, usando fallback');
+    // Reverse: doc_id appears before query name
+    const feedQueryPattern2 = /"doc_id"\s*:\s*"?(\d{10,})"?[^}]*?GroupsCometFeedRegularStoriesPaginationQuery/g;
+    const feedMatches2 = [...html.matchAll(feedQueryPattern2)];
+    if (feedMatches2.length > 0) {
+      const id = feedMatches2[0][1];
+      console.log(`[Scraper] doc_id para feed encontrado (reversed): ${id}`);
+      return id;
+    }
+
+    console.warn('[Scraper] No se encontró doc_id específico del feed, usando fallback conocido');
     return FALLBACK_DOC_ID;
   } catch (err) {
     console.error('[Scraper] Error descubriendo doc_id:', err.message);
