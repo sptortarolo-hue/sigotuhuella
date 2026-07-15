@@ -341,54 +341,86 @@ function buildPayload(groupId, cursor, count, userId, tokens, docId) {
 
 function parseFbResponse(text) {
   text = text.replace('for (;;);', '').trim();
-  const blocks = [];
-  let i = 0;
+  const stories = [];
 
-  while (true) {
-    const idx = text.indexOf('"data"', i);
-    if (idx === -1) break;
-    const braceStart = text.indexOf('{', idx);
-    if (braceStart === -1) break;
-
-    let depth = 0;
-    for (let j = braceStart; j < text.length; j++) {
-      if (text[j] === '{') depth++;
-      else if (text[j] === '}') {
-        depth--;
-        if (depth === 0) {
-          try {
-            const block = JSON.parse(text.substring(braceStart, j + 1));
-            if (block.errors) delete block.errors;
-            if (block.extensions) delete block.extensions;
-            blocks.push(block);
-          } catch {}
-          i = j + 1;
-          break;
-        }
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || !trimmed.startsWith('{')) continue;
+    try {
+      const obj = JSON.parse(trimmed);
+      const edges = obj?.data?.node?.group_feed?.edges || [];
+      for (const edge of edges) {
+        if (edge?.node) stories.push(edge.node);
       }
+    } catch {
+      try {
+        const blocks = [];
+        let i = 0;
+        while (true) {
+          const idx = trimmed.indexOf('"data"', i);
+          if (idx === -1) break;
+          const braceStart = trimmed.indexOf('{', idx);
+          if (braceStart === -1) break;
+          let depth = 0;
+          for (let j = braceStart; j < trimmed.length; j++) {
+            if (trimmed[j] === '{') depth++;
+            else if (trimmed[j] === '}') {
+              depth--;
+              if (depth === 0) {
+                try {
+                  const block = JSON.parse(trimmed.substring(braceStart, j + 1));
+                  const edges = block?.node?.group_feed?.edges || [];
+                  for (const edge of edges) {
+                    if (edge?.node) stories.push(edge.node);
+                  }
+                } catch {}
+                i = j + 1;
+                break;
+              }
+            }
+          }
+          if (i <= braceStart) break;
+        }
+      } catch {}
     }
-    if (i <= braceStart) break;
   }
 
-  return blocks;
+  return stories;
 }
 
 function extractPostFromNode(node) {
-  if (!node || node.__typename !== 'Story') return null;
+  const typename = node.__typename || node.typename;
+  if (typename !== 'Story') return null;
 
-  const contentStory = node.comet_sections?.content?.story || {};
-  const message = contentStory.message?.text || '';
   const postId = node.post_id;
   if (!postId) return null;
 
+  let message = '';
+  let authorName = 'Unknown';
+  let timestamp = null;
   let commentCount = 0;
+  let permalink = node.permalink_url || '';
+  let images = [];
+
+  const story = node.comet_sections?.content?.story || {};
+  message = story.message?.text || '';
+  timestamp = node.comet_sections?.context_layout?.story?.comet_sections?.metadata?.[0]?.story?.creation_time || null;
+
+  const titleStory = node.comet_sections?.title?.story || {};
+  const actors = titleStory.actors || [];
+  if (actors.length > 0) authorName = actors[0].name || 'Unknown';
+
+  if (!authorName || authorName === 'Unknown') {
+    authorName = story.actor?.name || node.comet_sections?.content?.story?.actors?.[0]?.name || 'Unknown';
+  }
+
   try {
     commentCount =
       node.feedback?.comment_rendering_instance?.comments?.total_count ||
       node.comet_sections?.feedback?.story?.story_ufi_container?.story?.feedback_context?.feedback_target_with_context?.comment_rendering_instance?.comments?.total_count || 0;
   } catch {}
 
-  const images = [];
   const attachments = node.attachments || [];
   for (const att of attachments) {
     if (att.media?.__typename === 'Photo') {
@@ -404,15 +436,14 @@ function extractPostFromNode(node) {
     }
   }
 
-  const author = contentStory.comet_sections?.title?.story?.actors?.[0] || {};
-  const authorName = author.name || 'Unknown';
-
-  const permalink = node.permalink_url || '';
-  const timestamp = contentStory.comet_sections?.context_layout?.story?.comet_sections?.metadata?.[0]?.story?.creation_time || null;
+  if (!permalink) {
+    const groupId = node.comet_sections?.context_layout?.story?.comet_sections?.title?.story?.to?.id || '';
+    permalink = `https://www.facebook.com/groups/${groupId}/posts/${postId}`;
+  }
 
   return {
     fb_post_id: postId,
-    fb_post_url: permalink || `https://www.facebook.com/groups/${node.comet_sections?.context_layout?.story?.comet_sections?.title?.story?.to?.id || ''}/posts/${postId}`,
+    fb_post_url: permalink,
     author_name: authorName,
     content: message.substring(0, 5000),
     image_urls: images,
@@ -421,27 +452,11 @@ function extractPostFromNode(node) {
   };
 }
 
-function extractPostsFromResponse(data) {
+function extractPostsFromResponse(stories) {
   const posts = [];
-  for (const item of data) {
-    if (!item || typeof item !== 'object') continue;
-
-    const node = item.node || {};
-
-    if (node.__typename === 'Story') {
-      const post = extractPostFromNode(node);
-      if (post) posts.push(post);
-    }
-
-    if (node.__typename === 'Group' && node.group_feed?.edges) {
-      for (const edge of node.group_feed.edges) {
-        const edgeNode = edge.node;
-        if (edgeNode?.__typename === 'Story') {
-          const post = extractPostFromNode(edgeNode);
-          if (post) posts.push(post);
-        }
-      }
-    }
+  for (const node of stories) {
+    const post = extractPostFromNode(node);
+    if (post) posts.push(post);
   }
   return posts;
 }
@@ -503,28 +518,18 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
 
     if (pageNum === 1) {
       try {
-        const data = parseFbResponse(rawText);
-        let sampleStory = null;
-        for (const block of data) {
-          const edges = block?.data?.node?.group_feed?.edges || [];
-          for (const edge of edges) {
-            if (edge?.node?.__typename === 'Story' || edge?.node?.typename === 'Story') {
-              sampleStory = edge.node;
-              break;
-            }
-          }
-          if (sampleStory) break;
-        }
+        let sampleStory = stories.length > 0 ? stories[0] : null;
         fs.writeFileSync(DEBUG_PATH, JSON.stringify({
           groupId,
           docId,
           tokens: { fbDtsg: tokens.fbDtsg?.substring(0, 15) + '...', lsd: tokens.lsd, rev: tokens.rev, jazoest: tokens.jazoest },
           status: resp.status,
           fullLength: rawText.length,
+          totalStories: stories.length,
           sampleStory: sampleStory ? JSON.stringify(sampleStory).substring(0, 5000) : 'NO STORY FOUND',
           timestamp: new Date().toISOString(),
         }, null, 2));
-        console.log(`[Scraper] Debug guardado en ${DEBUG_PATH} (${rawText.length} bytes)`);
+        console.log(`[Scraper] Debug guardado en ${DEBUG_PATH} (${rawText.length} bytes, ${stories.length} stories)`);
         if (sampleStory) {
           console.log(`[Scraper] Sample Story keys: ${Object.keys(sampleStory).join(', ')}`);
         }
@@ -538,14 +543,14 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
       break;
     }
 
-    const data = parseFbResponse(rawText);
-    if (!data || data.length === 0) {
+    const stories = parseFbResponse(rawText);
+    if (!stories || stories.length === 0) {
       console.log(`[Scraper] ${groupName}: sin datos en page ${pageNum}. Response first 300: ${rawText.substring(0, 300)}`);
       break;
     }
 
-    console.log(`[Scraper] ${groupName}: ${data.length} bloques en page ${pageNum}`);
-    const posts = extractPostsFromResponse(data);
+    console.log(`[Scraper] ${groupName}: ${stories.length} stories en page ${pageNum}`);
+    const posts = extractPostsFromResponse(stories);
     console.log(`[Scraper] ${groupName}: ${posts.length} posts en page ${pageNum}`);
 
     if (posts.length === 0) break;
@@ -553,13 +558,16 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
     allPosts.push(...posts);
 
     let nextCursor = null;
-    for (const item of data) {
-      if (item?.page_info?.has_next_page && item.page_info.end_cursor) {
-        nextCursor = item.page_info.end_cursor;
-      }
-      if (item?.node?.group_feed?.page_info?.has_next_page) {
-        nextCursor = item.node.group_feed.page_info.end_cursor;
-      }
+    const trimmed = rawText.replace('for (;;);', '').trim();
+    const lines = trimmed.split('\n');
+    for (const line of lines) {
+      try {
+        const obj = JSON.parse(line.trim());
+        const pageInfo = obj?.data?.node?.group_feed?.page_info;
+        if (pageInfo?.has_next_page && pageInfo.end_cursor) {
+          nextCursor = pageInfo.end_cursor;
+        }
+      } catch {}
     }
 
     if (!nextCursor) break;
