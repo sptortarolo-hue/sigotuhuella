@@ -352,7 +352,7 @@ router.get('/scraped-messages', (req, res, next) => {
 
     const sql = `
       SELECT * FROM (
-        SELECT id, 'fb' as source, fg.name as group_name, author_name, content,
+        SELECT fp.id, 'fb' as source, fg.name as group_name, author_name, content,
           classification, species, color, location_hint, phone, is_matched, created_at,
           image_urls, fb_post_url,
           null as has_image, null as wa_message_id, null as image_data, null as image_mime,
@@ -363,7 +363,7 @@ router.get('/scraped-messages', (req, res, next) => {
 
         UNION ALL
 
-        SELECT id, 'wa' as source, wg.name as group_name, author_name, content,
+        SELECT wsm.id, 'wa' as source, wg.name as group_name, author_name, content,
           classification, species, color, location_hint, phone, is_matched, created_at,
           null as image_urls, null as fb_post_url,
           (image_data IS NOT NULL) as has_image, wa_message_id, image_data, image_mime,
