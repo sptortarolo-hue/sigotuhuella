@@ -21,7 +21,8 @@ let INTERVAL_HOURS = parseInt(process.env.FB_SCRAPER_INTERVAL || '4');
 let MAX_POSTS_PER_GROUP = parseInt(process.env.FB_SCRAPER_MAX_POSTS || '20');
 
 const GRAPHQL_URL = 'https://www.facebook.com/api/graphql/';
-const DOC_ID = '25716860671307636';
+const FALLBACK_DOC_ID = '25716860671307636';
+const DEBUG_PATH = path.join(__dirname, 'debug-graphql-response.json');
 
 const USER_AGENTS = [
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
@@ -181,9 +182,58 @@ async function doLogin() {
   await browser.close();
 }
 
+// ==================== DOC_ID AUTO-DISCOVERY ====================
+
+async function discoverDocId(cookies, groupId) {
+  const cookieStr = cookiesToHeader(cookies);
+
+  try {
+    console.log(`[Scraper] Descubriendo doc_id para grupo ${groupId}...`);
+    const resp = await axios.get(`https://www.facebook.com/groups/${groupId}/`, {
+      headers: {
+        'User-Agent': pickUA(),
+        'Cookie': cookieStr,
+        'Accept': 'text/html,application/xhtml+xml',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+      },
+      timeout: 30000,
+      maxRedirects: 5,
+    });
+
+    const html = typeof resp.data === 'string' ? resp.data : '';
+
+    const docPatterns = [
+      /"doc_id"\s*:\s*"(?:1452240142610665|(\d+))"/g,
+      /doc_id.*?(\d{15,})/g,
+      /\{"groupFeedQueryRenderer":\{"query":\{"doc_id":\s*"?(\d+)/,
+      /GroupsCometFeedRegularStoriesPaginationQuery.*?doc_id.*?(\d{15,})/,
+      /"queryID"\s*:\s*"(\d+)"/,
+      /"pageID"\s*:\s*"(\d+)"/,
+    ];
+
+    for (const pattern of docPatterns) {
+      const matches = [...html.matchAll(pattern)];
+      for (const match of matches) {
+        const id = match[1] || match[0].match(/\d{15,}/)?.[0];
+        if (id && /^\d{10,}$/.test(id)) {
+          console.log(`[Scraper] doc_id encontrado: ${id}`);
+          return id;
+        }
+      }
+    }
+
+    console.warn('[Scraper] No se encontró doc_id en HTML, usando fallback');
+    return FALLBACK_DOC_ID;
+  } catch (err) {
+    console.error('[Scraper] Error descubriendo doc_id:', err.message);
+    return FALLBACK_DOC_ID;
+  }
+}
+
 // ==================== GRAPHQL SCRAPING ====================
 
-function buildPayload(groupId, cursor, count, userId, fbDtsg) {
+function buildPayload(groupId, cursor, count, userId, fbDtsg, docId) {
   const variables = {
     count: count || 8,
     cursor: cursor || null,
@@ -206,7 +256,7 @@ function buildPayload(groupId, cursor, count, userId, fbDtsg) {
   params.append('__user', userId || '0');
   params.append('__a', '1');
   params.append('fb_dtsg', fbDtsg || '');
-  params.append('doc_id', DOC_ID);
+  params.append('doc_id', docId);
   params.append('variables', JSON.stringify(variables));
 
   return params.toString();
@@ -324,13 +374,15 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
   const userId = session.cookies.find(c => c.name === 'c_user')?.value || '0';
   let allPosts = [];
   let cursor = null;
-  let page = 1;
+  let pageNum = 1;
   const maxPages = 5;
 
-  while (allPosts.length < maxPosts && page <= maxPages) {
-    console.log(`[Scraper] ${groupName} - GraphQL page ${page}...`);
+  const docId = await discoverDocId(session.cookies, groupId);
 
-    const payload = buildPayload(groupId, cursor, 8, userId, session.fbDtsg);
+  while (allPosts.length < maxPosts && pageNum <= maxPages) {
+    console.log(`[Scraper] ${groupName} - GraphQL page ${pageNum}...`);
+
+    const payload = buildPayload(groupId, cursor, 8, userId, session.fbDtsg, docId);
 
     try {
       const resp = await axios.post(GRAPHQL_URL, payload, {
@@ -344,19 +396,39 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
         timeout: 30000,
       });
 
+      const rawText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+
+      if (pageNum === 1) {
+        try {
+          fs.writeFileSync(DEBUG_PATH, JSON.stringify({
+            groupId,
+            docId,
+            status: resp.status,
+            first500: rawText.substring(0, 500),
+            last500: rawText.substring(rawText.length - 500),
+            fullLength: rawText.length,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+          console.log(`[Scraper] Debug guardado en ${DEBUG_PATH} (${rawText.length} bytes)`);
+        } catch (e) {
+          console.error('[Scraper] Error guardando debug:', e.message);
+        }
+      }
+
       if (resp.status !== 200) {
         console.error(`[Scraper] GraphQL returned ${resp.status}`);
         break;
       }
 
-      const data = parseFbResponse(resp.text || resp.data);
+      const data = parseFbResponse(rawText);
       if (!data || data.length === 0) {
-        console.log(`[Scraper] ${groupName}: sin datos en page ${page}`);
+        console.log(`[Scraper] ${groupName}: sin datos en page ${pageNum}. Response first 300: ${rawText.substring(0, 300)}`);
         break;
       }
 
+      console.log(`[Scraper] ${groupName}: ${data.length} bloques en page ${pageNum}`);
       const posts = extractPostsFromResponse(data);
-      console.log(`[Scraper] ${groupName}: ${posts.length} posts en page ${page}`);
+      console.log(`[Scraper] ${groupName}: ${posts.length} posts en page ${pageNum}`);
 
       if (posts.length === 0) break;
 
@@ -374,7 +446,7 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
 
       if (!nextCursor) break;
       cursor = nextCursor;
-      page++;
+      pageNum++;
       await sleep(randomInt(2000, 5000));
     } catch (err) {
       console.error(`[Scraper] GraphQL error:`, err.message);
@@ -450,6 +522,10 @@ async function testMode() {
     return;
   }
   console.log(`[Scraper] Sesión cargada, fb_dtsg: ${session.fbDtsg.substring(0, 10)}...`);
+  console.log(`[Scraper] Cookies: ${session.cookies.length}`);
+  const cUser = session.cookies.find(c => c.name === 'c_user');
+  const xs = session.cookies.find(c => c.name === 'xs');
+  console.log(`[Scraper] c_user: ${cUser ? cUser.value.substring(0, 8) + '...' : 'MISSING'}, xs: ${xs ? 'present' : 'MISSING'}`);
 
   const groups = await getActiveGroups();
   if (groups.length === 0) {
@@ -462,7 +538,6 @@ async function testMode() {
   const groupName = group.name || groupId;
   console.log(`[Scraper] Test: scrapeando "${groupName}" (${groupId})`);
 
-  const seen = loadSeen();
   const posts = await scrapeGroupGraphQL(session, groupId, groupName, 5);
   console.log(`[Scraper] ${groupName}: ${posts.length} posts extraídos`);
 
@@ -472,6 +547,8 @@ async function testMode() {
     }
     console.log(`  Enviando al webhook...`);
     await sendPosts(posts, groupName);
+  } else {
+    console.log('[Scraper] Revisá debug-graphql-response.json para ver qué devolvió Facebook');
   }
 }
 
@@ -542,6 +619,12 @@ const args = process.argv.slice(2);
 
 if (args.includes('--login')) {
   await doLogin();
+} else if (args.includes('--debug')) {
+  if (fs.existsSync(DEBUG_PATH)) {
+    console.log(fs.readFileSync(DEBUG_PATH, 'utf-8'));
+  } else {
+    console.log('No hay debug guardado. Corré --test primero.');
+  }
 } else if (args.includes('--test')) {
   await testMode();
 } else {
