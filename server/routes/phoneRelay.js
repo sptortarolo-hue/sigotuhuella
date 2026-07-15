@@ -335,15 +335,15 @@ router.get('/scraped-messages', (req, res, next) => {
     let idx = 1;
 
     if (classification && classification !== 'all') {
-      conditions.push(`classification = $${idx++}`);
+      conditions.push(`combined.classification = $${idx++}`);
       params.push(classification);
     }
     if (species && species !== 'all') {
-      conditions.push(`species = $${idx++}`);
+      conditions.push(`combined.species = $${idx++}`);
       params.push(species);
     }
     if (search) {
-      conditions.push(`(content ILIKE $${idx} OR author_name ILIKE $${idx})`);
+      conditions.push(`(combined.content ILIKE $${idx} OR combined.author_name ILIKE $${idx})`);
       params.push(`%${search}%`);
       idx++;
     }
@@ -372,7 +372,7 @@ router.get('/scraped-messages', (req, res, next) => {
         JOIN whatsapp_groups wg ON wg.id = wsm.group_id
         WHERE wsm.classification IS NOT NULL
       ) combined ${whereClause}
-      ORDER BY created_at DESC
+      ORDER BY combined.created_at DESC
       LIMIT $${idx++} OFFSET $${idx++}
     `;
     params.push(parseInt(limit), parseInt(offset));
