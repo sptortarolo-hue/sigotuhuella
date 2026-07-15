@@ -40,8 +40,9 @@ async function callOpenRouter(model, messages, options = {}) {
     body.response_format = { type: 'json_object' };
   }
 
+  const timeoutMs = options.timeout ?? 8000;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -222,9 +223,7 @@ function chain(providers) {
 
 const CLASSIFICATION_CHAIN_WITH_IMAGES = chain([
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
-  { name: 'NVIDIA 70B', call: (m) => callNVIDIA('meta/llama-3.3-70b-instruct', m, { max_tokens: 1000 }) },
-  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 1000 }) },
-  { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
+  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 1000, timeout: 20000 }) },
 ]);
 
 const CLASSIFICATION_CHAIN_TEXT = chain([
@@ -243,8 +242,7 @@ const MATCHING_CHAIN = chain([
 
 const IMAGE_CAPTION_CHAIN = chain([
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
-  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 1000 }) },
-  { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
+  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 1000, timeout: 20000 }) },
 ]);
 
 const TEXT_INTENT_CHAIN = chain([
@@ -256,8 +254,7 @@ const TEXT_INTENT_CHAIN = chain([
 
 const FACE_CROP_CHAIN = chain([
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
-  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 200 }) },
-  { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 200 }) },
+  { name: 'OpenRouter Qwen3.6-27B', call: (m) => callOpenRouter('qwen/qwen3.6-27b', m, { max_tokens: 200, timeout: 20000 }) },
 ]);
 
 export async function classificationAI(messages, hasImages) {

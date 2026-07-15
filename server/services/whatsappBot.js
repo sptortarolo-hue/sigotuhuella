@@ -472,6 +472,8 @@ async function handleUnrecognizedText(conv, parsed) {
     return showMenu(conv);
   }
 
+  await sendMessage(conv.wa_from, `🤔 *${conv.bot_name}:* Dame un segundo...`);
+
   try {
     const classification = await classifyTextIntent(text);
     if (classification && classification !== 'other' && classification !== 'greeting') {
@@ -498,6 +500,7 @@ async function handleUnrecognizedText(conv, parsed) {
 async function handleImageFromMenu(conv, parsed) {
   const caption = parsed.textBody || '';
   if (caption || parsed.imageData) {
+    await sendMessage(conv.wa_from, `📸 *${conv.bot_name}:* Estoy analizando la imagen...`);
     const result = await processImageCaption(caption, parsed.imageData, parsed.imageMime);
     if (result.intent && result.intent !== 'unclear') {
       const labels = { found: 'encontraste', lost: 'se te perdió', sighted: 'viste' };
