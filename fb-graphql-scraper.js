@@ -343,6 +343,17 @@ function parseFbResponse(text) {
   text = text.replace('for (;;);', '').trim();
   const stories = [];
 
+  // Try direct JSON parse first (most common case)
+  try {
+    const obj = JSON.parse(text);
+    const edges = obj?.data?.node?.group_feed?.edges || [];
+    for (const edge of edges) {
+      if (edge?.node) stories.push(edge.node);
+    }
+    if (stories.length > 0) return stories;
+  } catch {}
+
+  // Facebook sometimes sends newline-delimited JSON
   const lines = text.split('\n');
   for (const line of lines) {
     const trimmed = line.trim();
@@ -353,37 +364,7 @@ function parseFbResponse(text) {
       for (const edge of edges) {
         if (edge?.node) stories.push(edge.node);
       }
-    } catch {
-      try {
-        const blocks = [];
-        let i = 0;
-        while (true) {
-          const idx = trimmed.indexOf('"data"', i);
-          if (idx === -1) break;
-          const braceStart = trimmed.indexOf('{', idx);
-          if (braceStart === -1) break;
-          let depth = 0;
-          for (let j = braceStart; j < trimmed.length; j++) {
-            if (trimmed[j] === '{') depth++;
-            else if (trimmed[j] === '}') {
-              depth--;
-              if (depth === 0) {
-                try {
-                  const block = JSON.parse(trimmed.substring(braceStart, j + 1));
-                  const edges = block?.node?.group_feed?.edges || [];
-                  for (const edge of edges) {
-                    if (edge?.node) stories.push(edge.node);
-                  }
-                } catch {}
-                i = j + 1;
-                break;
-              }
-            }
-          }
-          if (i <= braceStart) break;
-        }
-      } catch {}
-    }
+    } catch {}
   }
 
   return stories;
@@ -516,6 +497,13 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
 
     const rawText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
 
+    if (resp.status !== 200) {
+      console.error(`[Scraper] GraphQL returned ${resp.status}`);
+      break;
+    }
+
+    const stories = parseFbResponse(rawText);
+
     if (pageNum === 1) {
       try {
         let sampleStory = stories.length > 0 ? stories[0] : null;
@@ -526,24 +514,20 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
           status: resp.status,
           fullLength: rawText.length,
           totalStories: stories.length,
-          sampleStory: sampleStory ? JSON.stringify(sampleStory).substring(0, 5000) : 'NO STORY FOUND',
+          sampleStory: sampleStory ? JSON.stringify(sampleStory).substring(0, 8000) : 'NO STORY FOUND',
           timestamp: new Date().toISOString(),
         }, null, 2));
-        console.log(`[Scraper] Debug guardado en ${DEBUG_PATH} (${rawText.length} bytes, ${stories.length} stories)`);
+        console.log(`[Scraper] Debug guardado (${rawText.length} bytes, ${stories.length} stories)`);
         if (sampleStory) {
-          console.log(`[Scraper] Sample Story keys: ${Object.keys(sampleStory).join(', ')}`);
+          console.log(`[Scraper] Sample keys: ${Object.keys(sampleStory).join(', ')}`);
+          console.log(`[Scraper] Sample typename: ${sampleStory.__typename || sampleStory.typename || 'NONE'}`);
+          console.log(`[Scraper] Sample post_id: ${sampleStory.post_id || 'NONE'}`);
         }
       } catch (e) {
         console.error('[Scraper] Error guardando debug:', e.message);
       }
     }
 
-    if (resp.status !== 200) {
-      console.error(`[Scraper] GraphQL returned ${resp.status}`);
-      break;
-    }
-
-    const stories = parseFbResponse(rawText);
     if (!stories || stories.length === 0) {
       console.log(`[Scraper] ${groupName}: sin datos en page ${pageNum}. Response first 300: ${rawText.substring(0, 300)}`);
       break;
