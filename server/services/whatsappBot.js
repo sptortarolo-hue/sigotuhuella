@@ -637,6 +637,18 @@ async function hConfirm(conv, parsed, intent) {
       body: `${ctx.full_name} · ${ctx.motive}: ${(ctx.message || '').substring(0, 100)}`,
       tag: `whatsapp-contact-${Date.now()}`,
     }).catch(() => {});
+
+    const { enqueue } = await import('./phoneRelayService.js');
+    const admins = (await pool.query("SELECT phone FROM users WHERE role = 'admin' AND phone IS NOT NULL AND phone != ''")).rows;
+    for (const admin of admins) {
+      const text = `🗣 *Contacto desde WhatsApp*\n\n👤 *Nombre:* ${ctx.full_name}\n📞 *Teléfono:* ${conv.wa_from}\n📋 *Motivo:* ${ctx.motive}\n💬 *Mensaje:* ${ctx.message}`;
+      try {
+        await enqueue(admin.phone, text);
+      } catch (e) {
+        console.error('hConfirm relay error:', e.message);
+      }
+    }
+
     await sendMessage(conv.wa_from,
       `✅ *${conv.bot_name}:* Recibimos tu mensaje. Te vamos a responder a la brevedad.\n\n` +
       `Mientras tanto, si necesitás ayuda urgente con una mascota, usá las opciones del menú principal.`);
