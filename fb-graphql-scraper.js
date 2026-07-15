@@ -340,73 +340,74 @@ function buildPayload(groupId, cursor, count, userId, tokens, docId) {
 }
 
 function parseFbResponse(text) {
-  const stories = [];
+  // Strip for(;;); from the beginning only
+  text = text.replace('for (;;);', '').trim();
+  const blocks = [];
+  let i = 0;
 
-  // Facebook GraphQL sends newline-delimited JSON, each line prefixed with "for (;;);"
-  const lines = text.split('\n');
-  for (const line of lines) {
-    let trimmed = line.trim();
-    if (!trimmed || !trimmed.startsWith('{')) {
-      // Strip "for (;;);" prefix from each chunk
-      trimmed = trimmed.replace(/^for\s*\(\s*\)\s*;\s*/, '').trim();
+  while (true) {
+    const idx = text.indexOf('"data"', i);
+    if (idx === -1) break;
+    const braceStart = text.indexOf('{', idx);
+    if (braceStart === -1) break;
+
+    let depth = 0;
+    for (let j = braceStart; j < text.length; j++) {
+      if (text[j] === '{') depth++;
+      else if (text[j] === '}') {
+        depth--;
+        if (depth === 0) {
+          try {
+            const block = JSON.parse(text.substring(braceStart, j + 1));
+            if (block.errors) delete block.errors;
+            if (block.extensions) delete block.extensions;
+            blocks.push(block);
+          } catch {}
+          i = j + 1;
+          break;
+        }
+      }
     }
-    if (!trimmed || !trimmed.startsWith('{')) continue;
-    try {
-      const obj = JSON.parse(trimmed);
-      const edges = obj?.data?.node?.group_feed?.edges || [];
-      for (const edge of edges) {
-        if (edge?.node) stories.push(edge.node);
-      }
-    } catch {}
+    if (i <= braceStart) break;
   }
 
-  // Fallback: try parsing the whole thing as one JSON
-  if (stories.length === 0) {
-    try {
-      const cleaned = text.replace(/^for\s*\(\s*\)\s*;\s*/, '').trim();
-      const obj = JSON.parse(cleaned);
-      const edges = obj?.data?.node?.group_feed?.edges || [];
-      for (const edge of edges) {
-        if (edge?.node) stories.push(edge.node);
-      }
-    } catch {}
-  }
-
-  return stories;
+  return blocks;
 }
 
 function extractPostFromNode(node) {
-  const typename = node.__typename || node.typename;
-  if (typename !== 'Story') return null;
+  if (!node || node.__typename !== 'Story') return null;
 
   const postId = node.post_id;
   if (!postId) return null;
 
-  let message = '';
-  let authorName = 'Unknown';
-  let timestamp = null;
-  let commentCount = 0;
-  let permalink = node.permalink_url || '';
-  let images = [];
-
-  const story = node.comet_sections?.content?.story || {};
-  message = story.message?.text || '';
-  timestamp = node.comet_sections?.context_layout?.story?.comet_sections?.metadata?.[0]?.story?.creation_time || null;
-
+  const contentStory = node.comet_sections?.content?.story || {};
   const titleStory = node.comet_sections?.title?.story || {};
-  const actors = titleStory.actors || [];
-  if (actors.length > 0) authorName = actors[0].name || 'Unknown';
 
-  if (!authorName || authorName === 'Unknown') {
-    authorName = story.actor?.name || node.comet_sections?.content?.story?.actors?.[0]?.name || 'Unknown';
+  const message = contentStory.message?.text || '';
+
+  let authorName = 'Unknown';
+  const actors = titleStory.actors || [];
+  if (actors.length > 0 && actors[0].name) {
+    authorName = actors[0].name;
+  }
+  if (authorName === 'Unknown') {
+    authorName = contentStory.comet_sections?.title?.story?.actors?.[0]?.name || 'Unknown';
+  }
+  if (authorName === 'Unknown') {
+    authorName = contentStory.actor?.name || node.comet_sections?.content?.story?.actors?.[0]?.name || 'Unknown';
+  }
+  if (authorName === 'Unknown') {
+    authorName = node.comet_sections?.context_layout?.story?.comet_sections?.title?.story?.actors?.[0]?.name || 'Unknown';
   }
 
+  let commentCount = 0;
   try {
     commentCount =
       node.feedback?.comment_rendering_instance?.comments?.total_count ||
       node.comet_sections?.feedback?.story?.story_ufi_container?.story?.feedback_context?.feedback_target_with_context?.comment_rendering_instance?.comments?.total_count || 0;
   } catch {}
 
+  const images = [];
   const attachments = node.attachments || [];
   for (const att of attachments) {
     if (att.media?.__typename === 'Photo') {
@@ -422,14 +423,12 @@ function extractPostFromNode(node) {
     }
   }
 
-  if (!permalink) {
-    const groupId = node.comet_sections?.context_layout?.story?.comet_sections?.title?.story?.to?.id || '';
-    permalink = `https://www.facebook.com/groups/${groupId}/posts/${postId}`;
-  }
+  const permalink = node.permalink_url || '';
+  const timestamp = contentStory.comet_sections?.context_layout?.story?.comet_sections?.metadata?.[0]?.story?.creation_time || null;
 
   return {
     fb_post_id: postId,
-    fb_post_url: permalink,
+    fb_post_url: permalink || `https://www.facebook.com/groups/${titleStory.to?.id || ''}/posts/${postId}`,
     author_name: authorName,
     content: message.substring(0, 5000),
     image_urls: images,
@@ -438,11 +437,23 @@ function extractPostFromNode(node) {
   };
 }
 
-function extractPostsFromResponse(stories) {
+function extractPostsFromResponse(data) {
   const posts = [];
-  for (const node of stories) {
-    const post = extractPostFromNode(node);
-    if (post) posts.push(post);
+  for (const item of data) {
+    if (!item || typeof item !== 'object') continue;
+    const node = item.node || {};
+    if (node.__typename === 'Story') {
+      const post = extractPostFromNode(node);
+      if (post) posts.push(post);
+    }
+    if (node.__typename === 'Group' && node.group_feed?.edges) {
+      for (const edge of node.group_feed.edges) {
+        if (edge?.node?.__typename === 'Story') {
+          const post = extractPostFromNode(edge.node);
+          if (post) posts.push(post);
+        }
+      }
+    }
   }
   return posts;
 }
@@ -507,25 +518,33 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
       break;
     }
 
-    const stories = parseFbResponse(rawText);
+    const blocks = parseFbResponse(rawText);
 
     if (pageNum === 1) {
       try {
-        let sampleStory = stories.length > 0 ? stories[0] : null;
+        // Find first Story node across all blocks for debug
+        let sampleStory = null;
+        for (const block of blocks) {
+          const edges = block?.node?.group_feed?.edges || [];
+          for (const edge of edges) {
+            if (edge?.node?.__typename === 'Story') { sampleStory = edge.node; break; }
+          }
+          if (!sampleStory && block?.node?.__typename === 'Story') sampleStory = block.node;
+          if (sampleStory) break;
+        }
         fs.writeFileSync(DEBUG_PATH, JSON.stringify({
           groupId,
           docId,
           tokens: { fbDtsg: tokens.fbDtsg?.substring(0, 15) + '...', lsd: tokens.lsd, rev: tokens.rev, jazoest: tokens.jazoest },
           status: resp.status,
           fullLength: rawText.length,
-          totalStories: stories.length,
+          totalBlocks: blocks.length,
           sampleStory: sampleStory ? JSON.stringify(sampleStory).substring(0, 8000) : 'NO STORY FOUND',
           timestamp: new Date().toISOString(),
         }, null, 2));
-        console.log(`[Scraper] Debug guardado (${rawText.length} bytes, ${stories.length} stories)`);
+        console.log(`[Scraper] Debug guardado (${rawText.length} bytes, ${blocks.length} blocks)`);
         if (sampleStory) {
           console.log(`[Scraper] Sample keys: ${Object.keys(sampleStory).join(', ')}`);
-          console.log(`[Scraper] Sample typename: ${sampleStory.__typename || sampleStory.typename || 'NONE'}`);
           console.log(`[Scraper] Sample post_id: ${sampleStory.post_id || 'NONE'}`);
         }
       } catch (e) {
@@ -533,13 +552,13 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
       }
     }
 
-    if (!stories || stories.length === 0) {
+    if (!blocks || blocks.length === 0) {
       console.log(`[Scraper] ${groupName}: sin datos en page ${pageNum}. Response first 300: ${rawText.substring(0, 300)}`);
       break;
     }
 
-    console.log(`[Scraper] ${groupName}: ${stories.length} stories en page ${pageNum}`);
-    const posts = extractPostsFromResponse(stories);
+    console.log(`[Scraper] ${groupName}: ${blocks.length} blocks en page ${pageNum}`);
+    const posts = extractPostsFromResponse(blocks);
     console.log(`[Scraper] ${groupName}: ${posts.length} posts en page ${pageNum}`);
 
     if (posts.length === 0) break;
@@ -547,18 +566,11 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
     allPosts.push(...posts);
 
     let nextCursor = null;
-    const lines = rawText.split('\n');
-    for (const line of lines) {
-      let trimmed = line.trim();
-      trimmed = trimmed.replace(/^for\s*\(\s*\)\s*;\s*/, '').trim();
-      if (!trimmed || !trimmed.startsWith('{')) continue;
-      try {
-        const obj = JSON.parse(trimmed);
-        const pageInfo = obj?.data?.node?.group_feed?.page_info;
-        if (pageInfo?.has_next_page && pageInfo.end_cursor) {
-          nextCursor = pageInfo.end_cursor;
-        }
-      } catch {}
+    for (const block of blocks) {
+      const pageInfo = block?.node?.group_feed?.page_info;
+      if (pageInfo?.has_next_page && pageInfo.end_cursor) {
+        nextCursor = pageInfo.end_cursor;
+      }
     }
 
     if (!nextCursor) break;
