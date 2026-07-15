@@ -340,26 +340,31 @@ function buildPayload(groupId, cursor, count, userId, tokens, docId) {
 }
 
 function parseFbResponse(text) {
-  text = text.replace('for (;;);', '').trim();
   const stories = [];
 
-  // Try direct JSON parse first (most common case)
-  try {
-    const obj = JSON.parse(text);
-    const edges = obj?.data?.node?.group_feed?.edges || [];
-    for (const edge of edges) {
-      if (edge?.node) stories.push(edge.node);
-    }
-    if (stories.length > 0) return stories;
-  } catch {}
-
-  // Facebook sometimes sends newline-delimited JSON
+  // Facebook GraphQL sends newline-delimited JSON, each line prefixed with "for (;;);"
   const lines = text.split('\n');
   for (const line of lines) {
-    const trimmed = line.trim();
+    let trimmed = line.trim();
+    if (!trimmed || !trimmed.startsWith('{')) {
+      // Strip "for (;;);" prefix from each chunk
+      trimmed = trimmed.replace(/^for\s*\(\s*\)\s*;\s*/, '').trim();
+    }
     if (!trimmed || !trimmed.startsWith('{')) continue;
     try {
       const obj = JSON.parse(trimmed);
+      const edges = obj?.data?.node?.group_feed?.edges || [];
+      for (const edge of edges) {
+        if (edge?.node) stories.push(edge.node);
+      }
+    } catch {}
+  }
+
+  // Fallback: try parsing the whole thing as one JSON
+  if (stories.length === 0) {
+    try {
+      const cleaned = text.replace(/^for\s*\(\s*\)\s*;\s*/, '').trim();
+      const obj = JSON.parse(cleaned);
       const edges = obj?.data?.node?.group_feed?.edges || [];
       for (const edge of edges) {
         if (edge?.node) stories.push(edge.node);
@@ -542,11 +547,13 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
     allPosts.push(...posts);
 
     let nextCursor = null;
-    const trimmed = rawText.replace('for (;;);', '').trim();
-    const lines = trimmed.split('\n');
+    const lines = rawText.split('\n');
     for (const line of lines) {
+      let trimmed = line.trim();
+      trimmed = trimmed.replace(/^for\s*\(\s*\)\s*;\s*/, '').trim();
+      if (!trimmed || !trimmed.startsWith('{')) continue;
       try {
-        const obj = JSON.parse(line.trim());
+        const obj = JSON.parse(trimmed);
         const pageInfo = obj?.data?.node?.group_feed?.page_info;
         if (pageInfo?.has_next_page && pageInfo.end_cursor) {
           nextCursor = pageInfo.end_cursor;
