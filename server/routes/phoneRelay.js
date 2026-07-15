@@ -352,22 +352,22 @@ router.get('/scraped-messages', (req, res, next) => {
 
     const sql = `
       SELECT * FROM (
-        SELECT fp.id, 'fb' as source, fg.name as group_name, author_name, content,
-          classification, species, color, location_hint, phone, is_matched, created_at,
-          image_urls, fb_post_url,
-          null as has_image, null as wa_message_id, null as image_data, null as image_mime,
-          null as author_jid
+        SELECT fp.id, 'fb' as source, fg.name as group_name, fp.author_name, fp.content,
+          fp.classification, fp.species, fp.color, fp.location_hint, fp.phone, fp.is_matched, fp.created_at,
+          fp.image_urls, fp.fb_post_url,
+          null::boolean as has_image, null::text as wa_message_id, null::text as image_data, null::text as image_mime,
+          null::text as author_jid
         FROM facebook_posts fp
         LEFT JOIN facebook_groups fg ON fg.id = fp.group_id
         WHERE fp.classification IS NOT NULL
 
         UNION ALL
 
-        SELECT wsm.id, 'wa' as source, wg.name as group_name, author_name, content,
-          classification, species, color, location_hint, phone, is_matched, created_at,
-          null as image_urls, null as fb_post_url,
-          (image_data IS NOT NULL) as has_image, wa_message_id, image_data, image_mime,
-          author_jid
+        SELECT wsm.id, 'wa' as source, wg.name as group_name, wsm.author_name, wsm.content,
+          wsm.classification, wsm.species, wsm.color, wsm.location_hint, wsm.phone, wsm.is_matched, wsm.created_at,
+          null::text[] as image_urls, null::text as fb_post_url,
+          (wsm.image_data IS NOT NULL) as has_image, wsm.wa_message_id, wsm.image_data, wsm.image_mime,
+          wsm.author_jid
         FROM whatsapp_scraped_messages wsm
         JOIN whatsapp_groups wg ON wg.id = wsm.group_id
         WHERE wsm.classification IS NOT NULL
