@@ -503,17 +503,31 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
 
     if (pageNum === 1) {
       try {
+        const data = parseFbResponse(rawText);
+        let sampleStory = null;
+        for (const block of data) {
+          const edges = block?.data?.node?.group_feed?.edges || [];
+          for (const edge of edges) {
+            if (edge?.node?.__typename === 'Story' || edge?.node?.typename === 'Story') {
+              sampleStory = edge.node;
+              break;
+            }
+          }
+          if (sampleStory) break;
+        }
         fs.writeFileSync(DEBUG_PATH, JSON.stringify({
           groupId,
           docId,
           tokens: { fbDtsg: tokens.fbDtsg?.substring(0, 15) + '...', lsd: tokens.lsd, rev: tokens.rev, jazoest: tokens.jazoest },
           status: resp.status,
-          first500: rawText.substring(0, 500),
-          last500: rawText.substring(rawText.length - 500),
           fullLength: rawText.length,
+          sampleStory: sampleStory ? JSON.stringify(sampleStory).substring(0, 5000) : 'NO STORY FOUND',
           timestamp: new Date().toISOString(),
         }, null, 2));
         console.log(`[Scraper] Debug guardado en ${DEBUG_PATH} (${rawText.length} bytes)`);
+        if (sampleStory) {
+          console.log(`[Scraper] Sample Story keys: ${Object.keys(sampleStory).join(', ')}`);
+        }
       } catch (e) {
         console.error('[Scraper] Error guardando debug:', e.message);
       }
