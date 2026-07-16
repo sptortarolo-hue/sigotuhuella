@@ -537,17 +537,19 @@ function extractPostFromNode(node) {
   const contentStory = node.comet_sections?.content?.story || {};
   const titleStory = node.comet_sections?.title?.story || {};
 
-  const message = contentStory.message?.text
+  let message = contentStory.message?.text
     || node.attached_story?.comet_sections?.content?.story?.message?.text
     || node.attached_story?.message?.text
     || '';
 
   if (!message && node.attached_story) {
     const fullJson = JSON.stringify(node);
-    const msgMatch = fullJson.match(/"text"\s*:\s*"([^"]{30,})"/);
-    if (msgMatch) {
-      console.log(`[TEXT FIX] post=${postId}: text found via deep scan`);
+    const candidates = [...fullJson.matchAll(/"text"\s*:\s*"([^"]{30,})"/g)];
+    for (const c of candidates) {
+      const t = c[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+      if (t.length > message.length) message = t;
     }
+    if (message) console.log(`[TEXT FIX] post=${postId}: text found via deep scan (${message.length} chars)`);
   }
 
   let authorName = 'Unknown';
