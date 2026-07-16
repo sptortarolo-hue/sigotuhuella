@@ -457,12 +457,23 @@ function extractPostFromNode(node) {
   } catch {}
 
   if (node.attached_story && !extractPostFromNode._debugDumped) {
-    console.log('[Scraper] ATTACHED_STORY_DUMP:', JSON.stringify(node.attached_story, null, 2).substring(0, 5000));
     extractPostFromNode._debugDumped = true;
-  }
-  if (!extractPostFromNode._debugDumped && node.attachments?.length > 0) {
-    console.log('[Scraper] NODE_ATTACHMENTS_DUMP:', JSON.stringify(node.attachments[0], null, 2).substring(0, 3000));
-    extractPostFromNode._debugDumped = true;
+    const as = node.attached_story;
+    console.log('[Scraper] attached_story keys:', Object.keys(as));
+    console.log('[Scraper] attached_story.comet_sections keys:', Object.keys(as.comet_sections || {}));
+    const contentStory = as.comet_sections?.content?.story;
+    if (contentStory) {
+      console.log('[Scraper] content.story keys:', Object.keys(contentStory));
+      console.log('[Scraper] content.story.attachments count:', (contentStory.attachments || []).length);
+      if (contentStory.attachments?.[0]) {
+        console.log('[Scraper] content.story.attachments[0]:', JSON.stringify(contentStory.attachments[0]).substring(0, 3000));
+      }
+    } else {
+      console.log('[Scraper] attached_story.comet_sections.content is MISSING');
+    }
+    const fullJson = JSON.stringify(as);
+    const photoMatches = fullJson.match(/"photo_image"|"image".*?"uri"|\.jpg|\.png|fbcdn/gi);
+    console.log('[Scraper] photo/image refs in attached_story:', photoMatches ? photoMatches.length : 0);
   }
 
   const images = [];
