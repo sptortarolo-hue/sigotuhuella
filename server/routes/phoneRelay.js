@@ -489,4 +489,30 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
   }
 });
 
+router.post('/scraped-messages/bulk-delete', requireAdmin, async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Se requiere un array de items [{id, source}]' });
+    }
+    let deleted = 0;
+    const fbIds = items.filter(i => i.source === 'fb').map(i => i.id);
+    const waIds = items.filter(i => i.source === 'wa').map(i => i.id);
+    if (fbIds.length > 0) {
+      const ph = fbIds.map((_, i) => `$${i + 1}`).join(',');
+      const r = await pool.query(`DELETE FROM facebook_posts WHERE id IN (${ph}) RETURNING id`, fbIds);
+      deleted += r.rows.length;
+    }
+    if (waIds.length > 0) {
+      const ph = waIds.map((_, i) => `$${i + 1}`).join(',');
+      const r = await pool.query(`DELETE FROM whatsapp_scraped_messages WHERE id IN (${ph}) RETURNING id`, waIds);
+      deleted += r.rows.length;
+    }
+    res.json({ deleted });
+  } catch (err) {
+    console.error('Bulk delete error:', err.message);
+    res.status(500).json({ error: 'Error al eliminar' });
+  }
+});
+
 export default router;

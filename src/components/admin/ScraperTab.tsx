@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/src/lib/api';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import {
   Save, Loader2, Search, RefreshCw, Check, XCircle, MessageSquare,
   Globe, Users, Sliders, FlaskConical, Clock, ImageIcon,
-  ExternalLink, X, LayoutGrid, List,
+  ExternalLink, X, LayoutGrid, List, Trash2,
 } from 'lucide-react';
 import ImageLightbox from '@/src/components/admin/ImageLightbox';
 import FacebookMatchReview from '@/src/components/admin/FacebookMatchReview';
@@ -99,6 +99,9 @@ function PostsSection() {
   const [classification, setClassification] = useState('all');
   const [species, setSpecies] = useState('all');
   const [lightbox, setLightbox] = useState<{ images: string[]; idx: number } | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'gallery'>('gallery');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -131,8 +134,54 @@ function PostsSection() {
     return true;
   });
 
+  const toggleSelect = (key: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map(i => i.id + i.source)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`¿Eliminar ${selected.size} publicación(es)? Esta acción no se puede deshacer.`)) return;
+    setDeleting(true);
+    try {
+      const itemsToDelete = filtered
+        .filter(i => selected.has(i.id + i.source))
+        .map(i => ({ id: i.id, source: i.source }));
+      const resp = await fetch('/api/relay/scraped-messages/bulk-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ items: itemsToDelete }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setSelected(new Set());
+        await fetchItems();
+      }
+    } catch (e) { console.error('Bulk delete error:', e); }
+    setDeleting(false);
+  };
+
+  const getImageUrl = (item: ScrapedItem) => {
+    if (item.source === 'fb' && item.image_urls && item.image_urls.length > 0) return item.image_urls[0];
+    if (item.source === 'wa' && item.has_image) return `/api/relay/scraped-messages/${item.id}/image`;
+    return null;
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -159,17 +208,113 @@ function PostsSection() {
           className="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors">
           <RefreshCw className="w-4 h-4" />
         </button>
+        <div className="flex bg-white rounded-xl border border-brand-accent overflow-hidden">
+          <button onClick={() => setViewMode('gallery')}
+            className={cn("px-3 py-3 transition-colors", viewMode === 'gallery' ? 'bg-brand-primary text-white' : 'text-gray-400 hover:text-gray-600')}>
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button onClick={() => setViewMode('list')}
+            className={cn("px-3 py-3 transition-colors", viewMode === 'list' ? 'bg-brand-primary text-white' : 'text-gray-400 hover:text-gray-600')}>
+            <List className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      <p className="text-xs text-gray-400">{filtered.length} resultado(s)</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-400">{filtered.length} resultado(s)</p>
+        {filtered.length > 0 && (
+          <button onClick={selectAll}
+            className="text-xs text-brand-primary font-bold hover:underline">
+            {selected.size === filtered.length ? 'Desseleccionar todo' : 'Seleccionar todo'}
+          </button>
+        )}
+      </div>
+
+      {/* Bulk delete bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+          <span className="text-sm font-bold text-red-700">{selected.size} seleccionado(s)</span>
+          <button onClick={handleBulkDelete} disabled={deleting}
+            className="ml-auto flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50">
+            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            {deleting ? 'Eliminando...' : 'Eliminar seleccionados'}
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>
+      ) : viewMode === 'gallery' ? (
+        /* GALLERY VIEW */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filtered.map(item => {
+            const key = item.id + item.source;
+            const imgUrl = getImageUrl(item);
+            return (
+              <div key={key}
+                className={cn(
+                  "bg-white rounded-2xl border overflow-hidden transition-all hover:shadow-md",
+                  selected.has(key) ? 'border-brand-primary ring-2 ring-brand-primary/20' : 'border-brand-accent'
+                )}>
+                <div className="relative aspect-square bg-gray-100">
+                  {imgUrl ? (
+                    <img src={imgUrl} className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => setLightbox({ images: [imgUrl], idx: 0 })} />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <ImageIcon className="w-10 h-10 text-gray-300" />
+                    </div>
+                  )}
+                  <button onClick={() => toggleSelect(key)}
+                    className={cn(
+                      "absolute top-2 left-2 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
+                      selected.has(key) ? 'bg-brand-primary border-brand-primary text-white' : 'bg-white/80 border-gray-300 text-transparent hover:border-brand-primary'
+                    )}>
+                    {selected.has(key) && <Check className="w-3.5 h-3.5" />}
+                  </button>
+                  <span className={cn(
+                    "absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full font-bold",
+                    item.source === 'fb' ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
+                  )}>
+                    {item.source === 'fb' ? 'FB' : 'WA'}
+                  </span>
+                </div>
+                <div className="p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0",
+                      CLASSIFICATION_BADGES[item.classification] || 'bg-gray-100 text-gray-400')}>
+                      {CLASSIFICATION_LABELS[item.classification] || item.classification}
+                    </span>
+                    {item.species && (
+                      <span className="text-[10px] text-gray-400">{item.species === 'dog' ? '🐕' : item.species === 'cat' ? '🐈' : item.species}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-600 line-clamp-2">{item.content || '(sin texto)'}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{item.group_name}</span>
+                    <span className="text-[10px] text-gray-400">{new Date(item.created_at).toLocaleDateString('es-AR')}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && (
+            <div className="col-span-full py-10 text-center text-sm text-gray-400">Sin resultados</div>
+          )}
+        </div>
       ) : (
+        /* LIST VIEW */
         <div className="overflow-x-auto rounded-2xl border border-brand-accent">
           <table className="w-full text-left text-sm min-w-max">
             <thead>
               <tr className="bg-brand-bg text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                <th className="px-4 py-3 w-10">
+                  <button onClick={selectAll}
+                    className={cn("w-5 h-5 rounded border-2 flex items-center justify-center transition-all",
+                      selected.size === filtered.length && filtered.length > 0 ? 'bg-brand-primary border-brand-primary text-white' : 'border-gray-300 text-transparent')}>
+                    {selected.size === filtered.length && filtered.length > 0 && <Check className="w-3 h-3" />}
+                  </button>
+                </th>
                 <th className="px-4 py-3">Origen</th>
                 <th className="px-4 py-3">Grupo</th>
                 <th className="px-4 py-3">Autor</th>
@@ -182,54 +327,67 @@ function PostsSection() {
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-accent">
-              {filtered.map(item => (
-                <tr key={item.id + item.source} className="hover:bg-brand-bg/50 transition-colors">
-                  <td className="px-4 py-3">
-                    <span className={cn(
-                      "text-[10px] px-2 py-1 rounded-full font-bold",
-                      item.source === 'fb' ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
-                    )}>
-                      {item.source === 'fb' ? '🐦 FB' : '💬 WA'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{item.group_name}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500 max-w-[100px] truncate">{item.author_name || '—'}</td>
-                  <td className="px-4 py-3 max-w-[250px]">
-                    <div className="flex items-center gap-2">
-                      {item.source === 'wa' && item.has_image && (
-                        <img src={`/api/relay/scraped-messages/${item.id}/image`}
-                          className="w-8 h-8 rounded-lg object-cover shrink-0 cursor-pointer"
-                          onClick={() => setLightbox({ images: [`/api/relay/scraped-messages/${item.id}/image`], idx: 0 })} />
-                      )}
-                      <span className="text-xs text-gray-600 line-clamp-2">{(item.content || '(sin texto)').substring(0, 200)}</span>
-                      {item.source === 'fb' && item.fb_post_url && (
-                        <a href={item.fb_post_url} target="_blank" rel="noopener noreferrer"
-                          className="shrink-0 p-1 text-blue-400 hover:text-blue-600">
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold whitespace-nowrap",
-                      CLASSIFICATION_BADGES[item.classification] || 'bg-gray-100 text-gray-400')}>
-                      {CLASSIFICATION_LABELS[item.classification] || item.classification}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{item.species || '—'}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500 max-w-[120px] truncate">{item.location_hint || '—'}</td>
-                  <td className="px-4 py-3">
-                    {item.is_matched ? (
-                      <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-green-100 text-green-700">Sí</span>
-                    ) : <span className="text-xs text-gray-400">No</span>}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                    {new Date(item.created_at).toLocaleDateString('es-AR')}
-                  </td>
-                </tr>
-              ))}
+              {filtered.map(item => {
+                const key = item.id + item.source;
+                return (
+                  <tr key={key}
+                    className={cn("hover:bg-brand-bg/50 transition-colors cursor-pointer",
+                      selected.has(key) && 'bg-brand-primary/5')}
+                    onClick={() => toggleSelect(key)}>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => toggleSelect(key)}
+                        className={cn("w-5 h-5 rounded border-2 flex items-center justify-center transition-all",
+                          selected.has(key) ? 'bg-brand-primary border-brand-primary text-white' : 'border-gray-300 text-transparent hover:border-brand-primary')}>
+                        {selected.has(key) && <Check className="w-3 h-3" />}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn(
+                        "text-[10px] px-2 py-1 rounded-full font-bold",
+                        item.source === 'fb' ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
+                      )}>
+                        {item.source === 'fb' ? '🐦 FB' : '💬 WA'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{item.group_name}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 max-w-[100px] truncate">{item.author_name || '—'}</td>
+                    <td className="px-4 py-3 max-w-[250px]">
+                      <div className="flex items-center gap-2">
+                        {item.source === 'wa' && item.has_image && (
+                          <img src={`/api/relay/scraped-messages/${item.id}/image`}
+                            className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                        )}
+                        <span className="text-xs text-gray-600 line-clamp-2">{(item.content || '(sin texto)').substring(0, 200)}</span>
+                        {item.source === 'fb' && item.fb_post_url && (
+                          <a href={item.fb_post_url} target="_blank" rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="shrink-0 p-1 text-blue-400 hover:text-blue-600">
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn("text-[10px] px-2 py-1 rounded-full font-bold whitespace-nowrap",
+                        CLASSIFICATION_BADGES[item.classification] || 'bg-gray-100 text-gray-400')}>
+                        {CLASSIFICATION_LABELS[item.classification] || item.classification}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{item.species || '—'}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 max-w-[120px] truncate">{item.location_hint || '—'}</td>
+                    <td className="px-4 py-3">
+                      {item.is_matched ? (
+                        <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-green-100 text-green-700">Sí</span>
+                      ) : <span className="text-xs text-gray-400">No</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                      {new Date(item.created_at).toLocaleDateString('es-AR')}
+                    </td>
+                  </tr>
+                );
+              })}
               {filtered.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">Sin resultados</td></tr>
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-400">Sin resultados</td></tr>
               )}
             </tbody>
           </table>
