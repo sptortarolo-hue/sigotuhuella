@@ -75,7 +75,7 @@ router.get('/pet/:petId/cover', async (req, res) => {
     console.log(`[Cover] success, size=${jpgBuffer.length}`);
     res.set('Content-Type', 'image/jpeg');
     res.set('Content-Length', jpgBuffer.length);
-    res.set('Cache-Control', 'public, max-age=3600');
+    res.set('Cache-Control', 'no-store');
     res.set('Access-Control-Allow-Origin', '*');
     res.end(jpgBuffer);
   } catch (err) {
