@@ -55,7 +55,7 @@ router.get('/', requireAdmin, async (_req, res) => {
       fb_scraper: {
         enabled: settings.fb_scraping_enabled === 'true',
         status: settings.fb_scraping_enabled === 'true' ? 'ok' : 'idle',
-        lastRun: settings.apify_last_scrape_at || null,
+        lastRun: null,
         detail: settings.fb_scraping_enabled === 'true'
           ? `Cada ${settings.fb_scraper_interval || '4'}h (${settings.fb_scraper_from || '8'}:00-${settings.fb_scraper_to || '20'}:00)`
           : 'Desactivado',

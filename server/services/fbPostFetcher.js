@@ -109,40 +109,6 @@ async function fetchOembedViaGraph(url, token) {
   return await resp.json();
 }
 
-async function fetchFbPostApify(url) {
-  const token = process.env.APIFY_TOKEN;
-  if (!token) throw new Error('APIFY_TOKEN not configured');
-
-  console.log(`fetchFbPostApify: scraping ${url.slice(0, 100)}`);
-  const resp = await fetch(
-    `https://api.apify.com/v2/acts/apify~facebook-posts-scraper/run-sync-get-dataset-items?token=${token}&waitForFinish=60`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ startUrls: [{ url }] }),
-      signal: AbortSignal.timeout(70000),
-    }
-  );
-
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`Apify HTTP ${resp.status}: ${err.slice(0, 200)}`);
-  }
-
-  const items = await resp.json();
-  if (!items || items.length === 0) throw new Error('Apify returned empty dataset');
-
-  const item = items[0];
-  const text = item.text || item.caption || item.description || '';
-  const images = (item.images || []).filter(Boolean).map(i => typeof i === 'string' ? i : i.url || '');
-  const author = item.authorName || item.username || item.pageName || '';
-
-  console.log(`fetchFbPostApify: success, content_length=${text.length}, images=${images.length}`);
-  if (text) console.log(`fetchFbPostApify: preview=${text.slice(0, 120)}`);
-
-  return { content: text, image_urls: images, author_name: author };
-}
-
 export async function fetchFbPost(url) {
   const ids = extractIdsFromUrl(url);
   const fallbackId = ids?.postId || Buffer.from(url).toString('base64').slice(0, 30);
@@ -153,20 +119,6 @@ export async function fetchFbPost(url) {
   let author_name = '';
 
   try {
-    if (!content) {
-      const apifyToken = process.env.APIFY_TOKEN;
-      if (apifyToken) {
-        try {
-          const apify = await fetchFbPostApify(url);
-          if (apify.content) content = apify.content;
-          if (apify.image_urls?.length) image_urls = apify.image_urls;
-          if (apify.author_name) author_name = apify.author_name;
-        } catch (err) {
-          console.error('fetchFbPost: Apify falló:', err.message);
-        }
-      }
-    }
-
     if (!image_urls.length) {
       try {
         const og = await fetchFbPostOG(url);

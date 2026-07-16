@@ -573,8 +573,6 @@ function SettingsSection() {
   const [savedScraper, setSavedScraper] = useState(false);
   const [savedMatching, setSavedMatching] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [scrapingNow, setScrapingNow] = useState(false);
-  const [scrapeResult, setScrapeResult] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -591,15 +589,6 @@ function SettingsSection() {
       setLoading(false);
     })();
   }, []);
-
-  const handleTriggerScrape = async () => {
-    setScrapingNow(true); setScrapeResult(null);
-    try {
-      const res = await api.facebook.triggerScrape() as any;
-      setScrapeResult(res.success ? `✅ Scrape completado (${res.lastScrape ? new Date(res.lastScrape).toLocaleString('es-AR') : 'ok'})` : '❌ Error');
-    } catch (e: any) { setScrapeResult('❌ ' + (e.message || 'Error')); }
-    setScrapingNow(false);
-  };
 
   const handleSaveScraper = async () => {
     setSaving(true);
@@ -671,7 +660,7 @@ function SettingsSection() {
               <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
                 <Clock className="w-4 h-4" /> Configuración del scraper
               </h4>
-              <p className="text-xs text-gray-500">El scraper usa Apify (cloud) con IPs residenciales para extraer posts de grupos de Facebook. Sin necesidad de dispositivo local.</p>
+              <p className="text-xs text-gray-500">El scraper corre en Termux (celular) y envía posts al servidor automáticamente.</p>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-bold text-gray-500 block mb-1">Horario desde</label>
@@ -704,17 +693,6 @@ function SettingsSection() {
                   </select>
                 </div>
               </div>
-            {settings.apify_last_scrape_at && (
-              <p className="text-xs text-gray-400">Último scrape: {new Date(settings.apify_last_scrape_at).toLocaleString('es-AR')}</p>
-            )}
-            <button onClick={handleTriggerScrape} disabled={scrapingNow}
-              className="px-4 py-2.5 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-gray-800 transition-all disabled:opacity-50 flex items-center gap-2">
-              {scrapingNow ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              {scrapingNow ? 'Scrapeando...' : 'Scrapear ahora'}
-            </button>
-            {scrapeResult && (
-              <p className="text-xs font-bold" style={{ color: scrapeResult.startsWith('✅') ? '#16a34a' : '#dc2626' }}>{scrapeResult}</p>
-            )}
           </div>
           <button onClick={handleSaveScraper} disabled={saving}
             className="px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
