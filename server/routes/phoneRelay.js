@@ -355,7 +355,7 @@ router.get('/scraped-messages', (req, res, next) => {
         SELECT fp.id, 'fb' as source, fg.name as group_name, fp.author_name, fp.content,
           fp.classification, fp.species, fp.color, fp.location_hint, fp.phone, fp.is_matched, fp.created_at,
           fp.image_urls, fp.fb_post_url,
-          (fp.image_data IS NOT NULL OR array_length(fp.image_urls, 1) > 0) as has_image, null::text as wa_message_id, null::text as image_data, null::text as image_mime,
+          (fp.image_data IS NOT NULL) as has_image, null::text as wa_message_id, null::text as image_data, null::text as image_mime,
           null::text as author_jid
         FROM facebook_posts fp
         LEFT JOIN facebook_groups fg ON fg.id = fp.group_id
