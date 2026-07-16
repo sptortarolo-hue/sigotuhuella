@@ -582,6 +582,47 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
   return allPosts.slice(0, maxPosts);
 }
 
+// ==================== IMAGE DOWNLOAD ====================
+
+async function downloadImagesAsBuffers(posts, cookies) {
+  const cookieStr = cookiesToHeader(cookies);
+  const results = [];
+  for (const post of posts) {
+    if (!post.image_urls || post.image_urls.length === 0) {
+      results.push(post);
+      continue;
+    }
+    const buffers = [];
+    for (const url of post.image_urls.slice(0, 3)) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        const resp = await axios.get(url, {
+          headers: {
+            'Cookie': cookieStr,
+            'User-Agent': pickUA(),
+            'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+          },
+          responseType: 'arraybuffer',
+          signal: controller.signal,
+          timeout: 15000,
+          maxRedirects: 5,
+        });
+        clearTimeout(timeout);
+        const ct = resp.headers['content-type'] || 'image/jpeg';
+        buffers.push({
+          data: Buffer.from(resp.data).toString('base64'),
+          mimeType: ct.split(';')[0].trim(),
+        });
+      } catch (e) {
+        console.warn(`[Scraper] No se pudo descargar imagen: ${e.message}`);
+      }
+    }
+    results.push({ ...post, image_buffers: buffers.length > 0 ? buffers : undefined });
+  }
+  return results;
+}
+
 // ==================== WEBHOOK ====================
 
 async function sendPosts(posts, groupName, groupUuid) {
@@ -671,8 +712,12 @@ async function testMode() {
     for (const p of posts.slice(0, 3)) {
       console.log(`  - [${p.fb_post_id}] ${p.author_name}: ${p.content.substring(0, 80)}...`);
     }
+    console.log(`  Descargando imágenes...`);
+    const withBuffers = await downloadImagesAsBuffers(posts, session.cookies);
+    const imgCount = withBuffers.filter(p => p.image_buffers && p.image_buffers.length > 0).length;
+    console.log(`  ${imgCount}/${withBuffers.length} posts con imágenes`);
     console.log(`  Enviando al webhook...`);
-    await sendPosts(posts, groupName, group.id);
+    await sendPosts(withBuffers, groupName, group.id);
   } else {
     console.log('[Scraper] Revisá debug-graphql-response.json para ver qué devolvió Facebook');
   }
@@ -716,8 +761,9 @@ async function runDaemon() {
 
         if (newPosts.length > 0) {
           const limited = newPosts.slice(0, MAX_POSTS_PER_GROUP);
+          const withBuffers = await downloadImagesAsBuffers(limited, session.cookies);
           console.log(`[Scraper] ${groupName}: ${limited.length} posts nuevos`);
-          await sendPosts(limited, groupName, group.id);
+          await sendPosts(withBuffers, groupName, group.id);
           seen[groupId] = limited[0].fb_post_id;
           totalPosts += limited.length;
         } else {

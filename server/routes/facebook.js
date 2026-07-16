@@ -269,7 +269,7 @@ router.post('/webhook', async (req, res) => {
 
     for (const post of posts) {
       try {
-        const { group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, comments } = post;
+        const { group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, comments, image_buffers } = post;
         if (!fb_post_id) { results.errors++; continue; }
 
         let resolvedGroupId = group_id || null;
@@ -283,7 +283,7 @@ router.post('/webhook', async (req, res) => {
 
         let classification;
         try {
-          classification = await classifyPost(content || '', image_urls || [], comments || []);
+          classification = await classifyPost(content || '', image_urls || [], comments || [], image_buffers || []);
         } catch (e) {
           classification = { classification: 'unclassified', species: null, color: null, location_hint: null, phone: null, location_lat: null, location_lng: null, comments: [] };
         }
@@ -621,7 +621,7 @@ router.post('/classify/:id', requireAdmin, async (req, res) => {
     if (postRes.rows.length === 0) return res.status(404).json({ error: 'Publicación no encontrada' });
 
     const post = postRes.rows[0];
-    const result = await classifyAndExtract(post.content || '', post.image_urls || []);
+    const result = await classifyPost(post.content || '', post.image_urls || [], [], []);
 
     await pool.query(
       `UPDATE facebook_posts SET
@@ -635,6 +635,35 @@ router.post('/classify/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error classifying post:', err);
     res.status(500).json({ error: 'Error al clasificar publicación' });
+  }
+});
+
+router.post('/reclassify-all', requireAdmin, async (req, res) => {
+  try {
+    const postRes = await pool.query(
+      "SELECT id, content, image_urls FROM facebook_posts WHERE classification IN ('other', 'unclassified') ORDER BY created_at DESC LIMIT 50"
+    );
+    console.log(`[Reclassify] Re-clasificando ${postRes.rows.length} posts...`);
+    let updated = 0, errors = 0;
+    for (const post of postRes.rows) {
+      try {
+        const result = await classifyPost(post.content || '', post.image_urls || [], [], []);
+        await pool.query(
+          `UPDATE facebook_posts SET classification=$1, species=$2, color=$3, location_hint=$4, phone=$5, updated_at=NOW() WHERE id=$6`,
+          [result.classification, result.species, result.color, result.location_hint, result.phone, post.id]
+        );
+        updated++;
+        console.log(`[Reclassify] ${post.id}: ${result.classification}`);
+        await new Promise(r => setTimeout(r, 1000));
+      } catch (e) {
+        errors++;
+        console.error(`[Reclassify] Error ${post.id}:`, e.message);
+      }
+    }
+    res.json({ ok: true, updated, errors, total: postRes.rows.length });
+  } catch (err) {
+    console.error('Reclassify error:', err);
+    res.status(500).json({ error: 'Error al re-clasificar' });
   }
 });
 
