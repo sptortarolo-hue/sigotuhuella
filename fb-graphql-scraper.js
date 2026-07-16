@@ -509,6 +509,21 @@ function extractPostFromNode(node) {
       if (images.length > 0) break;
     }
   }
+
+  let reshareUrl = null;
+  if (images.length === 0 && node.attached_story) {
+    const attachedMeta = node.attached_story?.comet_sections?.context_layout?.story?.comet_sections?.metadata;
+    if (attachedMeta) {
+      for (const m of attachedMeta) {
+        if (m.story?.url) { reshareUrl = m.story.url; break; }
+      }
+    }
+    if (!reshareUrl) reshareUrl = node.attached_story?.permalink_url || null;
+    if (reshareUrl) {
+      console.log(`[Scraper] Post ${postId}: reshare, guardando URL para fetch: ${reshareUrl}`);
+    }
+  }
+
   if (images.length === 0) {
     const debugFile = path.join(__dirname, 'debug-attachments.json');
     try {
@@ -528,6 +543,7 @@ function extractPostFromNode(node) {
     author_name: authorName,
     content: message.substring(0, 5000),
     image_urls: images,
+    reshare_url: reshareUrl,
     posted_at: timestamp ? new Date(timestamp * 1000).toISOString() : '',
     comments_count: commentCount,
   };
@@ -702,10 +718,51 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
 
 // ==================== IMAGE DOWNLOAD ====================
 
+async function fetchReshareOgImage(reshareUrl, cookies) {
+  const cookieStr = cookiesToHeader(cookies);
+  try {
+    const resp = await axios.get(reshareUrl, {
+      headers: {
+        'User-Agent': pickUA(),
+        'Cookie': cookieStr,
+        'Accept': 'text/html',
+        'Sec-Fetch-Mode': 'navigate',
+      },
+      timeout: 15000,
+      maxRedirects: 5,
+    });
+    const html = typeof resp.data === 'string' ? resp.data : '';
+    const ogMatch = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/i)
+      || html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:image"/i);
+    if (ogMatch && ogMatch[1]) {
+      const url = ogMatch[1].replace(/&amp;/g, '&');
+      console.log(`[Scraper] Reshare og:image: ${url.substring(0, 100)}`);
+      return url;
+    }
+    const fbImageMatch = html.match(/"image_src"\s*:\s*"([^"]+fbcdn[^"]+)"/);
+    if (fbImageMatch && fbImageMatch[1]) {
+      const url = fbImageMatch[1].replace(/\\u0025/g, '%');
+      console.log(`[Scraper] Reshare image_src: ${url.substring(0, 100)}`);
+      return url;
+    }
+    console.log(`[Scraper] No og:image found for reshare: ${reshareUrl}`);
+    return null;
+  } catch (e) {
+    console.warn(`[Scraper] Error fetching reshare URL: ${e.message}`);
+    return null;
+  }
+}
+
 async function downloadImagesAsBuffers(posts, cookies) {
   const cookieStr = cookiesToHeader(cookies);
   const results = [];
   for (const post of posts) {
+    if ((!post.image_urls || post.image_urls.length === 0) && post.reshare_url) {
+      const ogUrl = await fetchReshareOgImage(post.reshare_url, cookies);
+      if (ogUrl) {
+        post.image_urls = [ogUrl];
+      }
+    }
     if (!post.image_urls || post.image_urls.length === 0) {
       results.push(post);
       continue;
