@@ -551,6 +551,8 @@ function extractPostFromNode(node) {
     }
   }
 
+  message = message.replace(/^.*?Cualquier persona puede ver quién pertenece al grupo.*?\n/gim, '').trim();
+
   let authorName = 'Unknown';
   const actors = titleStory.actors || [];
   if (actors.length > 0 && actors[0].name) {
