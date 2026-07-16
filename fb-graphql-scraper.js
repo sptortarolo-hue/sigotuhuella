@@ -549,7 +549,6 @@ function extractPostFromNode(node) {
       const t = c[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
       if (t.length > message.length) message = t;
     }
-    if (message) console.log(`[TEXT FIX] post=${postId}: text found via deep scan (${message.length} chars)`);
   }
 
   let authorName = 'Unknown';

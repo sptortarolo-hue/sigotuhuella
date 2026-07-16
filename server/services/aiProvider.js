@@ -223,9 +223,9 @@ function chain(providers) {
 }
 
 const CLASSIFICATION_CHAIN_WITH_IMAGES = chain([
-  { name: 'Groq Llama 3.2 Vision', call: (m) => callGroqDirect('llama-3.2-11b-vision-preview', m, { max_tokens: 1000, timeout: 15000 }) },
+  { name: 'Groq Llama 3.2 Vision', call: (m) => callGroqDirect('meta-llama/llama-4-scout-17b-16e-instruct', m, { max_tokens: 1000, timeout: 15000 }) },
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
-  { name: 'OpenRouter Qwen VL Plus', call: (m) => callOpenRouter('qwen/qwen-vl-plus', m, { max_tokens: 1000, timeout: 20000 }) },
+  { name: 'OpenRouter Qwen VL Plus', call: (m) => callOpenRouter('nvidia/nemotron-nano-12b-v2-vl:free', m, { max_tokens: 1000, timeout: 20000 }) },
 ]);
 
 const CLASSIFICATION_CHAIN_TEXT = chain([
@@ -245,9 +245,9 @@ const MATCHING_CHAIN = chain([
 ]);
 
 const IMAGE_CAPTION_CHAIN = chain([
-  { name: 'Groq Llama 3.2 Vision', call: (m) => callGroqDirect('llama-3.2-11b-vision-preview', m, { max_tokens: 1000, timeout: 15000 }) },
+  { name: 'Groq Llama 3.2 Vision', call: (m) => callGroqDirect('meta-llama/llama-4-scout-17b-16e-instruct', m, { max_tokens: 1000, timeout: 15000 }) },
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
-  { name: 'OpenRouter Qwen VL Plus', call: (m) => callOpenRouter('qwen/qwen-vl-plus', m, { max_tokens: 1000, timeout: 20000 }) },
+  { name: 'OpenRouter Qwen VL Plus', call: (m) => callOpenRouter('nvidia/nemotron-nano-12b-v2-vl:free', m, { max_tokens: 1000, timeout: 20000 }) },
 ]);
 
 const TEXT_INTENT_CHAIN = chain([
@@ -259,9 +259,9 @@ const TEXT_INTENT_CHAIN = chain([
 ]);
 
 const FACE_CROP_CHAIN = chain([
-  { name: 'Groq Llama 3.2 Vision', call: (m) => callGroqDirect('llama-3.2-11b-vision-preview', m, { max_tokens: 200, timeout: 15000 }) },
+  { name: 'Groq Llama 3.2 Vision', call: (m) => callGroqDirect('meta-llama/llama-4-scout-17b-16e-instruct', m, { max_tokens: 200, timeout: 15000 }) },
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
-  { name: 'OpenRouter Qwen VL Plus', call: (m) => callOpenRouter('qwen/qwen-vl-plus', m, { max_tokens: 200, timeout: 20000 }) },
+  { name: 'OpenRouter Qwen VL Plus', call: (m) => callOpenRouter('nvidia/nemotron-nano-12b-v2-vl:free', m, { max_tokens: 200, timeout: 20000 }) },
 ]);
 
 export async function classificationAI(messages, hasImages) {
