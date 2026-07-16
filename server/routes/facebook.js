@@ -216,6 +216,18 @@ router.delete('/posts/:id', requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/posts/:id/image', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT image_data FROM facebook_posts WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).json({ error: 'No image' });
+    const buf = Buffer.from(result.rows[0].image_data, 'base64');
+    res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': buf.length });
+    res.end(buf);
+  } catch (err) {
+    res.status(500).json({ error: 'Error serving image' });
+  }
+});
+
 router.post('/posts/bulk-delete', requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
@@ -291,18 +303,20 @@ router.post('/webhook', async (req, res) => {
 
         const existing = await pool.query('SELECT id FROM facebook_posts WHERE fb_post_id = $1', [fb_post_id]);
         const postResult = await pool.query(
-          `INSERT INTO facebook_posts (group_id, fb_post_id, fb_post_url, author_name, content, image_urls, posted_at, classification, species, color, location_hint, phone, latitude, longitude)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          `INSERT INTO facebook_posts (group_id, fb_post_id, fb_post_url, author_name, content, image_urls, image_data, posted_at, classification, species, color, location_hint, phone, latitude, longitude)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
            ON CONFLICT (fb_post_id) DO UPDATE SET
              group_id = COALESCE(EXCLUDED.group_id, facebook_posts.group_id),
              content = EXCLUDED.content,
              image_urls = EXCLUDED.image_urls,
+             image_data = COALESCE(EXCLUDED.image_data, facebook_posts.image_data),
              author_name = EXCLUDED.author_name,
              scraped_at = NOW()
            RETURNING id`,
           [
             resolvedGroupId, fb_post_id, fb_post_url || null, author_name || null,
-            content || '', image_urls || [], posted_at ? new Date(posted_at) : null,
+            content || '', image_urls || [], image_buffers?.[0]?.data || null,
+            posted_at ? new Date(posted_at) : null,
             classification.classification, classification.species, classification.color,
             classification.location_hint, classification.phone,
             classification.location_lat, classification.location_lng,

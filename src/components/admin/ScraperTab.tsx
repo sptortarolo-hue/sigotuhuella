@@ -175,7 +175,7 @@ function PostsSection() {
   };
 
   const getImageUrl = (item: ScrapedItem) => {
-    if (item.source === 'fb' && item.image_urls && item.image_urls.length > 0) return item.image_urls[0];
+    if (item.source === 'fb' && item.has_image) return `/api/facebook/posts/${item.id}/image`;
     if (item.source === 'wa' && item.has_image) return `/api/relay/scraped-messages/${item.id}/image`;
     return null;
   };

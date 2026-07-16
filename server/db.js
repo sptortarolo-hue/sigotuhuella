@@ -1174,6 +1174,10 @@ export async function initDb() {
       )
     `, 'whatsapp_scraped_messages');
 
+    await migrate(client, `
+      ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS image_data TEXT
+    `, 'facebook_posts image_data');
+
     console.log('Database migrations complete');
   } finally {
     client.release();
