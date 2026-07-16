@@ -543,18 +543,20 @@ function extractPostFromNode(node) {
     || '';
 
   if (!message) {
-    const as = node.attached_story;
-    const asCs = as?.comet_sections;
-    const asContentStory = asCs?.content?.story;
-    console.log(`[TEXT DEBUG] post=${postId} empty_text | cs_keys=${JSON.stringify(Object.keys(contentStory)).substring(0,120)} | as_keys=${JSON.stringify(Object.keys(as || {})).substring(0,120)} | as_cs_keys=${JSON.stringify(Object.keys(asCs || {})).substring(0,120)} | as_cs_story_keys=${JSON.stringify(Object.keys(asContentStory || {})).substring(0,120)}`);
-    if (asContentStory) {
-      console.log(`[TEXT DEBUG]   as_cs_story.message=${JSON.stringify(asContentStory.message).substring(0,200)}`);
-      console.log(`[TEXT DEBUG]   as_cs_story.rich_content=${JSON.stringify(asContentStory.rich_content).substring(0,200)}`);
-    }
-    if (as?.message) console.log(`[TEXT DEBUG]   as.message=${JSON.stringify(as.message).substring(0,200)}`);
     const fullJson = JSON.stringify(node);
-    const msgMatch = fullJson.match(/"text"\s*:\s*"([^"]{20,})"/);
-    if (msgMatch) console.log(`[TEXT DEBUG]   found_any_text=${msgMatch[1].substring(0,200)}`);
+    const paths = [
+      ['cs.message', contentStory.message],
+      ['cs.rich_content', contentStory.rich_content],
+      ['as.message', node.attached_story?.message],
+      ['as.cs.content.story.message', node.attached_story?.comet_sections?.content?.story?.message],
+      ['as.cs.content.story.rich_content', node.attached_story?.comet_sections?.content?.story?.rich_content],
+      ['as.permalink_url', node.attached_story?.permalink_url],
+      ['as.comet_sections.context_layout', node.attached_story?.comet_sections?.context_layout?.story?.comet_sections?.metadata?.[0]?.story?.creation_time ? 'has_creation_time' : null],
+    ];
+    const found = paths.filter(p => p[1] && JSON.stringify(p[1]).length > 10);
+    console.log(`[TEXT DEBUG] post=${postId} | non_empty: ${found.map(p => p[0]).join(', ') || 'NONE'}`);
+    const msgMatch = fullJson.match(/"text"\s*:\s*"([^"]{30,})"/);
+    if (msgMatch) console.log(`[TEXT DEBUG]   any_text_snippet: ${msgMatch[1].substring(0, 100)}`);
   }
 
   let authorName = 'Unknown';
