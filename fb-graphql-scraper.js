@@ -588,12 +588,12 @@ function extractPostFromNode(node) {
 
   if (images.length === 0 && node.attached_story) {
     const fullJson = JSON.stringify(node);
-    const BAD_PATTERNS = ['profile', 'p40x40', 'p50x50', 'p80x80', 'p100x100', 'rsrc.php', 'static.xx.fbcdn.net/rsrc', 'badge', 'emoji'];
+    const BAD_PATTERNS = ['profile', 'p40x40', 'p50x50', 'p80x80', 'p100x100', 's40x40', 's50x50', 's80x80', 's100x100', 'rsrc.php', 'static.xx.fbcdn.net/rsrc', 'badge', 'emoji'];
     const fbcdnMatches = [...fullJson.matchAll(/https?:\/\/scontent[^"]*\.(?:jpg|png|webp)(?:\?[^"]*)?/gi)];
     for (const m of fbcdnMatches) {
       let url = m[0].replace(/\\u0025/g, '%').replace(/\\u0026/g, '&');
       if (BAD_PATTERNS.some(p => url.toLowerCase().includes(p))) continue;
-      if (/\b(?:40x40|50x50|80x80|100x100)\b/.test(url)) continue;
+      if (url.includes('40x40') || url.includes('50x50') || url.includes('80x80') || url.includes('100x100')) continue;
       images.push(url);
       console.log(`[Scraper] Reshare image from node scan: ${url.substring(0, 150)}`);
       break;
