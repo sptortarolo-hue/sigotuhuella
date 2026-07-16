@@ -464,15 +464,20 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
     // Classify in background (non-blocking)
     classifyWhatsAppMessage(content || '', image_data || null, image_mime || null)
       .then(async (classification) => {
-        // Update with classification results (keep all messages, even 'other' — let admin decide)
+        // Discard messages with images that are NOT pets (keep all text-only messages for context)
+        if (classification.species !== 'dog' && classification.species !== 'cat' && image_data) {
+          await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
+          return;
+        }
+        // Update with classification results
         await pool.query(
           `UPDATE whatsapp_scraped_messages
            SET classification = $1, species = $2, color = $3, location_hint = $4, phone = $5
            WHERE id = $6`,
           [classification.classification, classification.species, classification.color, classification.location_hint, classification.phone, messageId]
         );
-        // Run matching in background if lost/found/sighting
-        if (['lost', 'found', 'sighting'].includes(classification.classification)) {
+        // Run matching in background if lost/found/sighting with a pet
+        if (['lost', 'found', 'sighting'].includes(classification.classification) && ['dog', 'cat'].includes(classification.species)) {
           matchWhatsAppMessageToPet(messageId).catch(e => console.error('WA message matching error:', e));
         }
       })
