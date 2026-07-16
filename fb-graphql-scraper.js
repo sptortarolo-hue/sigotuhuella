@@ -410,17 +410,24 @@ function extractPostFromNode(node) {
   const images = [];
   const attachments = node.attachments || [];
   for (const att of attachments) {
+    if (att.__typename === 'Photo') {
+      if (att.photo_image?.uri) images.push(att.photo_image.uri);
+      else if (att.image?.uri) images.push(att.image.uri);
+    }
     if (att.media?.__typename === 'Photo') {
-      const photoData = att.styles?.attachment?.media?.photo_image;
-      if (photoData?.uri) images.push(photoData.uri);
+      if (att.media.photo_image?.uri) images.push(att.media.photo_image.uri);
+      else if (att.media.image?.uri) images.push(att.media.image.uri);
+      else if (att.styles?.attachment?.media?.photo_image?.uri) images.push(att.styles.attachment.media.photo_image.uri);
     }
     if (att.all_subattachments?.nodes) {
       for (const sub of att.all_subattachments.nodes) {
-        if (sub.media?.__typename === 'Photo' && sub.media.image?.uri) {
-          images.push(sub.media.image.uri);
+        if (sub.media?.__typename === 'Photo') {
+          if (sub.media.image?.uri) images.push(sub.media.image.uri);
+          else if (sub.media.photo_image?.uri) images.push(sub.media.photo_image.uri);
         }
       }
     }
+    if (images.length > 0) break;
   }
 
   const permalink = node.permalink_url || '';
