@@ -461,12 +461,19 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
     const messageId = insertRes.rows[0].id;
     res.json({ id: messageId, status: 'pending_classification' });
 
+    // Pre-filter: discard images without pet-related text (skip AI call)
+    const PET_KEYWORDS = /\b(perro|gato|mascota|puppy|kitten|pet|encontrad[oa]|perdid[oa]|avist[eé]|lo vi|lo encontr|busc[aá]ndo|rewards|recompensa|collar|chucho|canino|felino|ave|loro|conejo|hamster|hurto|robo)\b/i;
+    if (image_data && !PET_KEYWORDS.test(content || '')) {
+      await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
+      return;
+    }
+
     // Classify in background (non-blocking)
     classifyWhatsAppMessage(content || '', image_data || null, image_mime || null)
       .then(async (classification) => {
         // Discard messages with images that are DEFINITELY not pets
         // Only delete when AI confirmed species='other' with confidence (not on errors/null)
-        if (image_data && classification.species === 'other' && (classification.confidence || 0) > 50) {
+        if (image_data && classification.species === 'other' && (classification.confidence || 0) > 30) {
           await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
           return;
         }
