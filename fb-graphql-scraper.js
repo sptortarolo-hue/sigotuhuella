@@ -29,14 +29,110 @@ const FALLBACK_DOC_ID = FALLBACK_DOC_IDS[0];
 const DEBUG_PATH = path.join(__dirname, 'debug-graphql-response.json');
 
 const USER_AGENTS = [
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
+  'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
+  'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
+  'Mozilla/5.0 (Linux; Android 13; SM-A536B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
+  'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36',
 ];
 
 function pickUA() { return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]; }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function realHeaders() {
+  return {
+    'User-Agent': pickUA(),
+    'Accept-Language': pick([
+      'es-AR,es;q=0.9,en;q=0.8',
+      'es-AR,es;q=0.9',
+      'es;q=0.9,en;q=0.8',
+      'es-419,es;q=0.9,en;q=0.8',
+    ]),
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Accept': pick([
+      'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      '*/*',
+    ]),
+  };
+}
+
+// ==================== BROWSING SIMULATION ====================
+
+const FB_IDLE_PAGES = [
+  '/',
+  '/feed',
+  '/gaming/feed',
+  '/watch',
+  '/marketplace',
+  '/memories',
+  '/pages',
+  '/pages/?category=local_service&subcategory=pet_service',
+  '/groups/?category=local_service',
+  '/me',
+];
+
+async function fetchFbPage(cookies, path) {
+  const cookieStr = cookiesToHeader(cookies);
+  try {
+    await axios.get(`https://www.facebook.com${path}`, {
+      headers: {
+        ...realHeaders(),
+        'Cookie': cookieStr,
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-Dest': 'document',
+        'Upgrade-Insecure-Requests': '1',
+      },
+      timeout: 20000,
+      maxRedirects: 5,
+    });
+  } catch {}
+}
+
+async function warmUpBrowsing(cookies) {
+  console.log('[Scraper] Warm-up: browsing Facebook...');
+  const pages = pick([
+    ['/', '/feed'],
+    ['/', '/feed', '/watch'],
+    ['/', '/groups/'],
+  ]);
+  for (const p of pages) {
+    await fetchFbPage(cookies, p);
+    await sleep(randomInt(3000, 8000));
+  }
+  console.log('[Scraper] Warm-up done');
+}
+
+async function coolDownBrowsing(cookies) {
+  console.log('[Scraper] Cool-down: browsing Facebook...');
+  const count = randomInt(2, 4);
+  const used = new Set();
+  for (let i = 0; i < count; i++) {
+    let p;
+    do { p = pick(FB_IDLE_PAGES); } while (used.has(p) && used.size < FB_IDLE_PAGES.length);
+    used.add(p);
+    await fetchFbPage(cookies, p);
+    await sleep(randomInt(8000, 25000));
+  }
+  console.log('[Scraper] Cool-down done');
+}
+
+async function idleBrowsingSession(cookies) {
+  const count = randomInt(3, 6);
+  console.log(`[Scraper] Idle browsing: ${count} pages...`);
+  const used = new Set();
+  for (let i = 0; i < count; i++) {
+    let p;
+    do { p = pick(FB_IDLE_PAGES); } while (used.has(p) && used.size < FB_IDLE_PAGES.length);
+    used.add(p);
+    await fetchFbPage(cookies, p);
+    await sleep(randomInt(15000, 40000));
+  }
+  console.log('[Scraper] Idle session done');
+}
 
 // ==================== LOGGING ====================
 
@@ -96,9 +192,8 @@ async function bootstrapSession(cookies, groupId) {
 
   const resp = await axios.get(url, {
     headers: {
-      'User-Agent': pickUA(),
+      ...realHeaders(),
       'Cookie': cookieStr,
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Sec-Fetch-Mode': 'navigate',
       'Sec-Fetch-Site': 'none',
       'Sec-Fetch-Dest': 'document',
@@ -254,9 +349,8 @@ async function discoverDocId(cookies, groupId) {
     console.log(`[Scraper] Descubriendo doc_id para grupo ${groupId}...`);
     const resp = await axios.get(`https://www.facebook.com/groups/${groupId}/`, {
       headers: {
-        'User-Agent': pickUA(),
+        ...realHeaders(),
         'Cookie': cookieStr,
-        'Accept': 'text/html,application/xhtml+xml',
         'Sec-Fetch-Mode': 'navigate',
         'Sec-Fetch-Site': 'same-origin',
       },
@@ -348,7 +442,7 @@ function buildPayload(groupId, cursor, count, userId, tokens, docId) {
   params.append('__a', '1');
   params.append('__req', reqHex);
   params.append('dpr', '2');
-  params.append('__ccg', 'EXCELLENT');
+  params.append('__ccg', pick(['EXCELLENT', 'GOOD', 'GOOD', 'MODERATE']));
   params.append('__comet_req', '15');
   params.append('fb_dtsg', tokens.fbDtsg || '');
   params.append('jazoest', tokens.jazoest || '');
@@ -570,6 +664,8 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
 
   let docId = await discoverDocId(session.cookies, groupId);
 
+  await sleep(randomInt(2000, 5000));
+
   const tokens = await bootstrapSession(session.cookies, groupId);
   if (!tokens.fbDtsg) {
     console.error('[Scraper] No se pudo obtener fb_dtsg del bootstrap');
@@ -598,7 +694,7 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
         try {
           resp = await axios.post(GRAPHQL_URL, payload, {
             headers: {
-              'User-Agent': pickUA(),
+              ...realHeaders(),
               'Content-Type': 'application/x-www-form-urlencoded',
               'Cookie': cookieStr,
               'Origin': 'https://www.facebook.com',
@@ -713,9 +809,8 @@ async function fetchReshareOgImage(reshareUrl, cookies, cUserId) {
   try {
     const resp = await axios.get(reshareUrl, {
       headers: {
-        'User-Agent': pickUA(),
+        ...realHeaders(),
         'Cookie': cookieStr,
-        'Accept': 'text/html,application/xhtml+xml',
         'Sec-Fetch-Mode': 'navigate',
         'Sec-Fetch-Site': 'same-origin',
       },
@@ -804,7 +899,7 @@ async function downloadImagesAsBuffers(posts, cookies) {
         const resp = await axios.get(url, {
           headers: {
             'Cookie': cookieStr,
-            'User-Agent': pickUA(),
+            ...realHeaders(),
             'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
           },
           responseType: 'arraybuffer',
@@ -820,6 +915,9 @@ async function downloadImagesAsBuffers(posts, cookies) {
         });
       } catch (e) {
         console.warn(`[Scraper] No se pudo descargar imagen: ${e.message}`);
+      }
+      if (post.image_urls.indexOf(url) < post.image_urls.slice(0, 3).length - 1) {
+        await sleep(randomInt(500, 1500));
       }
     }
     results.push({ ...post, image_buffers: buffers.length > 0 ? buffers : undefined });
@@ -943,6 +1041,8 @@ async function runDaemon() {
   while (true) {
     console.log(`[Scraper] Iniciando ciclo de scraping...`);
 
+    await warmUpBrowsing(session.cookies);
+
     const groups = await getActiveGroups();
     if (groups.length === 0) {
       console.log('[Scraper] No hay grupos activos');
@@ -981,9 +1081,17 @@ async function runDaemon() {
       console.log(`[Scraper] Ciclo completado. ${totalPosts} posts totales.`);
     }
 
+    await coolDownBrowsing(session.cookies);
+
     const sleepMinutes = INTERVAL_HOURS * 60;
-    console.log(`[Scraper] Durmiendo ${sleepMinutes} min`);
-    await sleep(sleepMinutes * 60 * 1000);
+    const IDLE_INTERVAL = randomInt(25, 45) * 60 * 1000;
+    const idleSessions = Math.ceil((sleepMinutes * 60 * 1000) / IDLE_INTERVAL);
+    console.log(`[Scraper] Durmiendo ${sleepMinutes} min (${idleSessions} idle sessions)`);
+
+    for (let i = 0; i < idleSessions; i++) {
+      await sleep(IDLE_INTERVAL);
+      try { await idleBrowsingSession(session.cookies); } catch {}
+    }
 
     await fetchConfig();
   }
