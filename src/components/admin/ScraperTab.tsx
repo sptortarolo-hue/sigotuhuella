@@ -290,9 +290,18 @@ function PostsSection() {
                     )}
                   </div>
                   <p className="text-xs text-gray-600 line-clamp-2">{item.content || '(sin texto)'}</p>
-                  <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between">
                     <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{item.group_name}</span>
-                    <span className="text-[10px] text-gray-400">{new Date(item.created_at).toLocaleDateString('es-AR')}</span>
+                    <div className="flex items-center gap-1">
+                      {item.source === 'fb' && item.fb_post_url && (
+                        <a href={item.fb_post_url} target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="p-1 text-blue-400 hover:text-blue-600">
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                      <span className="text-[10px] text-gray-400">{new Date(item.created_at).toLocaleDateString('es-AR')}</span>
+                    </div>
                   </div>
                 </div>
               </div>
