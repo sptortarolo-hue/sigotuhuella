@@ -459,17 +459,50 @@ function extractPostFromNode(node) {
 
   if (node.attached_story && !extractPostFromNode._debugDumped) {
     extractPostFromNode._debugDumped = true;
-    console.log('[Scraper] Reshare detected, checking comet_sections.content.story.attached_story for images...');
+    const as = node.attached_story;
+    console.log('[Scraper] RESHARE DEBUG ===');
+    console.log('[Scraper] attached_story keys:', Object.keys(as));
+    console.log('[Scraper] attached_story.comet_sections keys:', Object.keys(as.comet_sections || {}));
+    const csKeys = Object.keys(as.comet_sections || {});
+    for (const k of csKeys) {
+      const section = as.comet_sections[k];
+      console.log(`[Scraper]   comet_sections.${k} keys:`, Object.keys(section || {}));
+      if (section?.story) {
+        console.log(`[Scraper]   comet_sections.${k}.story keys:`, Object.keys(section.story));
+        if (section.story.comet_sections) {
+          console.log(`[Scraper]   comet_sections.${k}.story.comet_sections keys:`, Object.keys(section.story.comet_sections));
+        }
+      }
+    }
+
+    const outerCs = node.comet_sections || {};
+    console.log('[Scraper] OUTER comet_sections keys:', Object.keys(outerCs));
+    const outerContentStory = outerCs.content?.story;
+    if (outerContentStory) {
+      console.log('[Scraper] OUTER content.story keys:', Object.keys(outerContentStory));
+      console.log('[Scraper] OUTER content.story.attachments count:', (outerContentStory.attachments || []).length);
+      const outerAttachedStory = outerContentStory.attached_story;
+      if (outerAttachedStory) {
+        console.log('[Scraper] OUTER content.story.attached_story keys:', Object.keys(outerAttachedStory));
+        const oasAtts = outerAttachedStory.attachments || outerAttachedStory.comet_sections?.content?.story?.attachments;
+        console.log('[Scraper] OUTER content.story.attached_story attachments count:', (oasAtts || []).length);
+        if (oasAtts?.[0]) {
+          console.log('[Scraper] outerAttachedStory att[0] keys:', Object.keys(oasAtts[0]));
+          console.log('[Scraper] outerAttachedStory att[0] snippet:', JSON.stringify(oasAtts[0]).substring(0, 2000));
+        }
+      }
+    }
+
+    const fullJson = JSON.stringify(node);
+    const fbcdnMatches = [...new Set([...fullJson.matchAll(/https?:\/\/[^"]*fbcdn[^"]*/g)].map(m => m[0]))];
+    console.log('[Scraper] Total fbcdn URLs in node:', fbcdnMatches.length);
+    for (const u of fbcdnMatches.slice(0, 5)) {
+      console.log('[Scraper]   fbcdn:', u.substring(0, 200));
+    }
+    console.log('[Scraper] RESHARE DEBUG END ===');
   }
 
   const images = [];
-  const attSourceNames = [
-    'node.attachments',
-    'node.attached_story.attachments',
-    'node.attached_story.comet_sections.content.story.attachments',
-    'node.comet_sections.content.story.attachments',
-    'node.comet_sections.content.story.attached_story.attachments',
-  ];
   const attSources = [
     node.attachments,
     node.attached_story?.attachments,
@@ -480,16 +513,24 @@ function extractPostFromNode(node) {
   for (let i = 0; i < attSources.length; i++) {
     const attList = attSources[i];
     if (!attList || images.length > 0) continue;
-    if (node.attached_story && attList?.length > 0) {
-      console.log(`[Scraper] attSource[${attSourceNames[i]}] count=${attList.length}`);
-      const sample = attList[0];
-      console.log('[Scraper] att[0] keys:', Object.keys(sample || {}));
-      console.log('[Scraper] att[0] snippet:', JSON.stringify(sample).substring(0, 1500));
-    }
     for (const att of attList) {
       const fromAtt = extractImagesFromAttachment(att);
       images.push(...fromAtt);
       if (images.length > 0) break;
+    }
+  }
+
+  if (images.length === 0 && node.attached_story) {
+    const fullJson = JSON.stringify(node);
+    const BAD_PATTERNS = ['profile', 'p40x40', 'p50x50', 'p80x80', 'rsrc.php', 'static.xx.fbcdn.net/rsrc', 'badge', 'emoji'];
+    const fbcdnMatches = [...fullJson.matchAll(/https?:\/\/scontent[^"]*\.(?:jpg|png|webp)(?:\?[^"]*)?/gi)];
+    for (const m of fbcdnMatches) {
+      let url = m[0].replace(/\\u0025/g, '%').replace(/\\u0026/g, '&');
+      if (BAD_PATTERNS.some(p => url.toLowerCase().includes(p))) continue;
+      if (url.includes('80x80') || url.includes('40x40') || url.includes('50x50')) continue;
+      images.push(url);
+      console.log(`[Scraper] Reshare image from node scan: ${url.substring(0, 150)}`);
+      break;
     }
   }
 
@@ -701,7 +742,7 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
 
 // ==================== IMAGE DOWNLOAD ====================
 
-async function fetchReshareOgImage(reshareUrl, cookies) {
+async function fetchReshareOgImage(reshareUrl, cookies, cUserId) {
   const cookieStr = cookiesToHeader(cookies);
   try {
     const resp = await axios.get(reshareUrl, {
@@ -717,6 +758,8 @@ async function fetchReshareOgImage(reshareUrl, cookies) {
     });
     const html = typeof resp.data === 'string' ? resp.data : '';
 
+    const BAD_URL_PATTERNS = ['profile', 'p40x40', 'p50x50', 'rsrc.php', 'static.xx.fbcdn.net/rsrc', 'badge', 'emoji', ' reactions'];
+
     const patterns = [
       /<meta[^>]*property="og:image"[^>]*content="([^"]+)"/i,
       /<meta[^>]*content="([^"]+)"[^>]*property="og:image"/i,
@@ -730,20 +773,41 @@ async function fetchReshareOgImage(reshareUrl, cookies) {
       const m = html.match(pat);
       if (m && m[1]) {
         const url = m[1].replace(/&amp;/g, '&').replace(/\\u0025/g, '%');
-        if (url.includes('profile') || url.includes('p40x40') || url.includes('p50x50') || url.includes('rsrc.php') || url.includes('static.xx.fbcdn.net/rsrc')) continue;
-        console.log(`[Scraper] Reshare image found: ${url.substring(0, 150)}`);
+        if (BAD_URL_PATTERNS.some(p => url.includes(p))) continue;
+        console.log(`[Scraper] Reshare image found via meta: ${url.substring(0, 150)}`);
         return url;
       }
     }
 
-    const photoIdMatch = html.match(/"photo_id"\s*:\s*"?(\d+)"?/) || html.match(/"fbid"\s*:\s*"?(\d+)"?/);
-    if (photoIdMatch) {
-      const photoUrl = `https://www.facebook.com/photo/?fbid=${photoIdMatch[1]}`;
-      console.log(`[Scraper] Reshare photo_id found: ${photoIdMatch[1]}`);
-      return photoUrl;
+    const photoIdPatterns = [
+      /"photo_id"\s*:\s*"?(\d{10,})"?/g,
+      /"fbid"\s*:\s*"?(\d{10,})"?/g,
+      /"id"\s*:\s*"?(\d{10,})"?/g,
+    ];
+    for (const pat of photoIdPatterns) {
+      const matches = [...html.matchAll(pat)];
+      for (const m of matches) {
+        const id = m[1];
+        if (cUserId && id.startsWith(cUserId.substring(0, 7))) continue;
+        if (id.length < 10 || id.length > 20) continue;
+        const photoUrl = `https://www.facebook.com/photo/?fbid=${id}`;
+        console.log(`[Scraper] Reshare photo_id found: ${id}`);
+        return photoUrl;
+      }
     }
 
-    console.log(`[Scraper] No image found for reshare (html ${html.length} bytes, first 500: ${html.substring(0, 500)})`);
+    const allFbcdnUrls = [...html.matchAll(/https?:\/\/scontent[^"'\s\\]+\.(?:jpg|png|webp)(?:\?[^"'\s\\]*)?/gi)];
+    if (allFbcdnUrls.length > 0) {
+      const goodUrls = allFbcdnUrls
+        .map(m => m[0].replace(/\\u0025/g, '%').replace(/\\u0026/g, '&').replace(/&amp;/g, '&'))
+        .filter(url => !BAD_URL_PATTERNS.some(p => url.includes(p)));
+      if (goodUrls.length > 0) {
+        console.log(`[Scraper] Reshare image found via fbcdn scan: ${goodUrls[0].substring(0, 150)}`);
+        return goodUrls[0];
+      }
+    }
+
+    console.log(`[Scraper] No image found for reshare (html ${html.length} bytes)`);
     return null;
   } catch (e) {
     console.warn(`[Scraper] Error fetching reshare URL: ${e.message}`);
@@ -756,7 +820,8 @@ async function downloadImagesAsBuffers(posts, cookies) {
   const results = [];
   for (const post of posts) {
     if ((!post.image_urls || post.image_urls.length === 0) && post.reshare_url) {
-      const ogUrl = await fetchReshareOgImage(post.reshare_url, cookies);
+      const cUserId = cookies.find(c => c.name === 'c_user')?.value || '';
+      const ogUrl = await fetchReshareOgImage(post.reshare_url, cookies, cUserId);
       if (ogUrl) {
         post.image_urls = [ogUrl];
       }
