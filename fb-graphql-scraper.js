@@ -469,6 +469,7 @@ function extractPostFromNode(node) {
   const attSources = [
     node.attachments,
     node.attached_story?.attachments,
+    node.attached_story?.comet_sections?.content?.story?.attachments,
     node.comet_sections?.content?.story?.attachments,
     node.comet_sections?.content?.story?.attached_story?.attachments,
   ];
