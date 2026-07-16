@@ -476,19 +476,37 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
         mergedImageData = prev.image_data;
       }
       messageId = prev.id;
-      await pool.query(
-        `UPDATE whatsapp_scraped_messages SET content = $1, image_data = COALESCE($2, image_data), image_mime = COALESCE($3, image_mime), author_phone = $4, author_name = COALESCE($5, author_name) WHERE id = $6`,
-        [mergedContent, image_data || null, image_mime || null, authorPhone, author_name || null, messageId]
-      );
+      try {
+        await pool.query(
+          `UPDATE whatsapp_scraped_messages SET content = $1, image_data = COALESCE($2, image_data), image_mime = COALESCE($3, image_mime), author_phone = $4, author_name = COALESCE($5, author_name) WHERE id = $6`,
+          [mergedContent, image_data || null, image_mime || null, authorPhone, author_name || null, messageId]
+        );
+      } catch (e) {
+        await pool.query(
+          `UPDATE whatsapp_scraped_messages SET content = $1, image_data = COALESCE($2, image_data), image_mime = COALESCE($3, image_mime), author_name = COALESCE($4, author_name) WHERE id = $5`,
+          [mergedContent, image_data || null, image_mime || null, author_name || null, messageId]
+        );
+      }
     } else {
       // Insert new message
-      const insertRes = await pool.query(
-        `INSERT INTO whatsapp_scraped_messages (group_id, wa_message_id, author_jid, author_name, author_phone, content, image_data, image_mime)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (wa_message_id) DO NOTHING
-         RETURNING id`,
-        [group_id, wa_message_id, author_jid || null, author_name || null, authorPhone, content || null, image_data || null, image_mime || null]
-      );
+      let insertRes;
+      try {
+        insertRes = await pool.query(
+          `INSERT INTO whatsapp_scraped_messages (group_id, wa_message_id, author_jid, author_name, author_phone, content, image_data, image_mime)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (wa_message_id) DO NOTHING
+           RETURNING id`,
+          [group_id, wa_message_id, author_jid || null, author_name || null, authorPhone, content || null, image_data || null, image_mime || null]
+        );
+      } catch (e) {
+        insertRes = await pool.query(
+          `INSERT INTO whatsapp_scraped_messages (group_id, wa_message_id, author_jid, author_name, content, image_data, image_mime)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (wa_message_id) DO NOTHING
+           RETURNING id`,
+          [group_id, wa_message_id, author_jid || null, author_name || null, content || null, image_data || null, image_mime || null]
+        );
+      }
       if (insertRes.rows.length === 0) return res.json({ skipped: true, reason: 'duplicate after insert' });
       messageId = insertRes.rows[0].id;
     }
@@ -496,8 +514,10 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
     res.json({ id: messageId, status: 'pending_classification', merged: recentRes.rows.length > 0 });
 
     // Pre-filter: discard images without pet-related text (skip AI call)
+    // Only delete if there IS text AND it has no pet keywords (empty text = keep, let AI decide)
     const PET_KEYWORDS = /\b(perro|gato|mascota|puppy|kitten|pet|encontrad[oa]|perdid[oa]|avist[eé]|lo vi|lo encontr|busc[aá]ndo|rewards|recompensa|collar|chucho|canino|felino|ave|loro|conejo|hamster|hurto|robo)\b/i;
-    if (mergedImageData && !PET_KEYWORDS.test(mergedContent || '')) {
+    const trimmedContent = (mergedContent || '').trim();
+    if (mergedImageData && trimmedContent && !PET_KEYWORDS.test(trimmedContent)) {
       await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
       return;
     }
