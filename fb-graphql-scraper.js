@@ -461,19 +461,33 @@ function extractPostFromNode(node) {
     const as = node.attached_story;
     console.log('[Scraper] attached_story keys:', Object.keys(as));
     console.log('[Scraper] attached_story.comet_sections keys:', Object.keys(as.comet_sections || {}));
-    const contentStory = as.comet_sections?.content?.story;
-    if (contentStory) {
-      console.log('[Scraper] content.story keys:', Object.keys(contentStory));
-      console.log('[Scraper] content.story.attachments count:', (contentStory.attachments || []).length);
-      if (contentStory.attachments?.[0]) {
-        console.log('[Scraper] content.story.attachments[0]:', JSON.stringify(contentStory.attachments[0]).substring(0, 3000));
-      }
-    } else {
-      console.log('[Scraper] attached_story.comet_sections.content is MISSING');
+
+    console.log('[Scraper] OUTER node.comet_sections keys:', Object.keys(node.comet_sections || {}));
+    console.log('[Scraper] OUTER node.attachments count:', (node.attachments || []).length);
+    if (node.attachments?.[0]) {
+      const a = node.attachments[0];
+      console.log('[Scraper] OUTER attachment[0] keys:', Object.keys(a));
+      console.log('[Scraper] OUTER attachment[0] style_list:', a.style_list);
+      console.log('[Scraper] OUTER attachment[0] snippet:', JSON.stringify(a).substring(0, 1000));
     }
+
     const fullJson = JSON.stringify(as);
-    const photoMatches = fullJson.match(/"photo_image"|"image".*?"uri"|\.jpg|\.png|fbcdn/gi);
-    console.log('[Scraper] photo/image refs in attached_story:', photoMatches ? photoMatches.length : 0);
+    const fbcdnMatches = [...fullJson.matchAll(/https?:\/\/[^"]*fbcdn[^"]*/g)];
+    console.log('[Scraper] fbcdn URLs in attached_story:', fbcdnMatches.length);
+    for (const m of fbcdnMatches.slice(0, 3)) {
+      const start = Math.max(0, m.index - 100);
+      const end = Math.min(fullJson.length, m.index + m[0].length + 50);
+      console.log('[Scraper] fbcdn context:', fullJson.substring(start, end));
+    }
+    const uriMatches = [...fullJson.matchAll(/"uri"\s*:\s*"([^"]+)"/g)];
+    console.log('[Scraper] "uri" fields in attached_story:', uriMatches.length);
+    for (const m of uriMatches.slice(0, 5)) {
+      console.log('[Scraper] uri value:', m[1].substring(0, 120));
+    }
+
+    const outerFullJson = JSON.stringify(node);
+    const outerFbcdn = [...outerFullJson.matchAll(/https?:\/\/[^"]*fbcdn[^"]*/g)];
+    console.log('[Scraper] fbcdn URLs in FULL outer node:', outerFbcdn.length);
   }
 
   const images = [];
