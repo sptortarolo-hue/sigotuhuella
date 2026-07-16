@@ -366,7 +366,7 @@ router.get('/scraped-messages', (req, res, next) => {
         SELECT wsm.id, 'wa' as source, wg.name as group_name, wsm.author_name, wsm.content,
           wsm.classification, wsm.species, wsm.color, wsm.location_hint, wsm.phone, wsm.is_matched, wsm.created_at,
           null::text[] as image_urls, null::text as fb_post_url,
-          (wsm.image_data IS NOT NULL) as has_image, wsm.wa_message_id, wsm.image_data, wsm.image_mime,
+          (wsm.image_data IS NOT NULL) as has_image, wsm.wa_message_id, null::text as image_data, wsm.image_mime,
           wsm.author_jid
         FROM whatsapp_scraped_messages wsm
         JOIN whatsapp_groups wg ON wg.id = wsm.group_id
@@ -464,8 +464,9 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
     // Classify in background (non-blocking)
     classifyWhatsAppMessage(content || '', image_data || null, image_mime || null)
       .then(async (classification) => {
-        // Discard messages with images that are NOT pets (keep all text-only messages for context)
-        if (classification.species !== 'dog' && classification.species !== 'cat' && image_data) {
+        // Discard messages with images that are DEFINITELY not pets
+        // Only delete when AI confirmed species='other' with confidence (not on errors/null)
+        if (image_data && classification.species === 'other' && (classification.confidence || 0) > 50) {
           await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
           return;
         }
