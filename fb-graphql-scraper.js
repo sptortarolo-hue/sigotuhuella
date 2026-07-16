@@ -740,27 +740,42 @@ async function fetchReshareOgImage(reshareUrl, cookies) {
       headers: {
         'User-Agent': pickUA(),
         'Cookie': cookieStr,
-        'Accept': 'text/html',
+        'Accept': 'text/html,application/xhtml+xml',
         'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
       },
-      timeout: 15000,
+      timeout: 20000,
       maxRedirects: 5,
     });
     const html = typeof resp.data === 'string' ? resp.data : '';
-    const ogMatch = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/i)
-      || html.match(/<meta[^>]*content="([^"]+)"[^>]*property="og:image"/i);
-    if (ogMatch && ogMatch[1]) {
-      const url = ogMatch[1].replace(/&amp;/g, '&');
-      console.log(`[Scraper] Reshare og:image: ${url.substring(0, 100)}`);
-      return url;
+
+    const patterns = [
+      /<meta[^>]*property="og:image"[^>]*content="([^"]+)"/i,
+      /<meta[^>]*content="([^"]+)"[^>]*property="og:image"/i,
+      /<meta[^>]*name="twitter:image"[^>]*content="([^"]+)"/i,
+      /<meta[^>]*content="([^"]+)"[^>]*name="twitter:image"/i,
+      /"image_src"\s*:\s*"([^"]+)"/,
+      /"uri"\s*:\s*"(https?:\/\/[^"]*fbcdn[^"]+)"/,
+      /src="(https?:\/\/[^"]*fbcdn[^"]*\.(?:jpg|png|webp)[^"]*)"/i,
+    ];
+    for (const pat of patterns) {
+      const m = html.match(pat);
+      if (m && m[1]) {
+        const url = m[1].replace(/&amp;/g, '&').replace(/\\u0025/g, '%');
+        if (url.includes('profile') || url.includes('p40x40') || url.includes('p50x50')) continue;
+        console.log(`[Scraper] Reshare image found: ${url.substring(0, 150)}`);
+        return url;
+      }
     }
-    const fbImageMatch = html.match(/"image_src"\s*:\s*"([^"]+fbcdn[^"]+)"/);
-    if (fbImageMatch && fbImageMatch[1]) {
-      const url = fbImageMatch[1].replace(/\\u0025/g, '%');
-      console.log(`[Scraper] Reshare image_src: ${url.substring(0, 100)}`);
-      return url;
+
+    const photoIdMatch = html.match(/"photo_id"\s*:\s*"?(\d+)"?/) || html.match(/"fbid"\s*:\s*"?(\d+)"?/);
+    if (photoIdMatch) {
+      const photoUrl = `https://www.facebook.com/photo/?fbid=${photoIdMatch[1]}`;
+      console.log(`[Scraper] Reshare photo_id found: ${photoIdMatch[1]}`);
+      return photoUrl;
     }
-    console.log(`[Scraper] No og:image found for reshare: ${reshareUrl}`);
+
+    console.log(`[Scraper] No image found for reshare (html ${html.length} bytes, first 500: ${html.substring(0, 500)})`);
     return null;
   } catch (e) {
     console.warn(`[Scraper] Error fetching reshare URL: ${e.message}`);
