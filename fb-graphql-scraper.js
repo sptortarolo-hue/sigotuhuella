@@ -29,11 +29,11 @@ const FALLBACK_DOC_ID = FALLBACK_DOC_IDS[0];
 const DEBUG_PATH = path.join(__dirname, 'debug-graphql-response.json');
 
 const USER_AGENTS = [
-  'Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36',
-  'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
-  'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
-  'Mozilla/5.0 (Linux; Android 13; SM-A536B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
-  'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
 ];
 
 function pickUA() { return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]; }
@@ -1083,10 +1083,10 @@ async function runDaemon() {
 
     await coolDownBrowsing(session.cookies);
 
-    const sleepMinutes = INTERVAL_HOURS * 60;
+    const sleepMinutes = INTERVAL_HOURS * 60 + randomInt(-45, 45);
     const IDLE_INTERVAL = randomInt(25, 45) * 60 * 1000;
     const idleSessions = Math.ceil((sleepMinutes * 60 * 1000) / IDLE_INTERVAL);
-    console.log(`[Scraper] Durmiendo ${sleepMinutes} min (${idleSessions} idle sessions)`);
+    console.log(`[Scraper] Durmiendo ~${sleepMinutes} min (${idleSessions} idle sessions)`);
 
     for (let i = 0; i < idleSessions; i++) {
       await sleep(IDLE_INTERVAL);
