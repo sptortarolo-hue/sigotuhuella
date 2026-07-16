@@ -407,11 +407,12 @@ function extractImagesFromAttachment(att) {
   if (!att) return [];
   const imgs = [];
   const media = att.media || att.style_type_renderer?.attachment?.media || att.styles?.attachment?.media || att.styles?.style_type_renderer?.attachment?.media;
-  if (media?.__typename === 'Photo') {
+  const isPhoto = media?.__typename === 'Photo' || media?.typename === 'Photo';
+  if (isPhoto) {
     if (media.photo_image?.uri) imgs.push(media.photo_image.uri);
     else if (media.image?.uri) imgs.push(media.image.uri);
   }
-  if (att.__typename === 'Photo') {
+  if (att.__typename === 'Photo' || att.typename === 'Photo') {
     if (att.photo_image?.uri) imgs.push(att.photo_image.uri);
     else if (att.image?.uri) imgs.push(att.image.uri);
   }
@@ -458,54 +459,7 @@ function extractPostFromNode(node) {
 
   if (node.attached_story && !extractPostFromNode._debugDumped) {
     extractPostFromNode._debugDumped = true;
-    const as = node.attached_story;
-    console.log('[Scraper] attached_story keys:', Object.keys(as));
-    console.log('[Scraper] attached_story.comet_sections keys:', Object.keys(as.comet_sections || {}));
-
-    console.log('[Scraper] OUTER node.comet_sections keys:', Object.keys(node.comet_sections || {}));
-    const outerContent = node.comet_sections?.content?.story;
-    if (outerContent) {
-      console.log('[Scraper] OUTER content.story keys:', Object.keys(outerContent));
-      console.log('[Scraper] OUTER content.story.attachments count:', (outerContent.attachments || []).length);
-      const outerAttachedStory = outerContent.attached_story;
-      if (outerAttachedStory) {
-        console.log('[Scraper] OUTER content.story.attached_story keys:', Object.keys(outerAttachedStory));
-        const oasFull = JSON.stringify(outerAttachedStory);
-        console.log('[Scraper] outerAttachedStory size:', oasFull.length);
-        const oasAtts = outerAttachedStory.attachments || outerAttachedStory.comet_sections?.content?.story?.attachments;
-        console.log('[Scraper] outerAttachedStory attachments count:', (oasAtts || []).length);
-        if (oasAtts?.[0]) {
-          console.log('[Scraper] outerAttachedStory att[0] snippet:', JSON.stringify(oasAtts[0]).substring(0, 2000));
-        }
-        const oasFbcdn = [...oasFull.matchAll(/https?:\/\/[^"]*fbcdn[^"]*/g)];
-        console.log('[Scraper] outerAttachedStory fbcdn URLs:', oasFbcdn.length);
-        if (oasFbcdn.length > 0) {
-          console.log('[Scraper] outerAttachedStory fbcdn[0]:', oasFbcdn[0][0].substring(0, 200));
-        }
-      }
-      if (outerContent.message?.text) {
-        console.log('[Scraper] OUTER content.story.message:', outerContent.message.text.substring(0, 200));
-      }
-      if (outerContent.wwwURL) console.log('[Scraper] OUTER content.story.wwwURL:', outerContent.wwwURL);
-      if (outerContent.post_id) console.log('[Scraper] OUTER content.story.post_id:', outerContent.post_id);
-    }
-    console.log('[Scraper] OUTER node.attachments count:', (node.attachments || []).length);
-
-    const outerMeta = node.comet_sections?.context_layout?.story?.comet_sections?.metadata;
-    if (outerMeta) {
-      for (const m of outerMeta) {
-        if (m.story?.url) console.log('[Scraper] metadata URL:', m.story.url);
-        if (m.story?.creation_time) console.log('[Scraper] metadata creation_time:', m.story.creation_time);
-      }
-    }
-
-    const attachedMeta = as.comet_sections?.context_layout?.story?.comet_sections?.metadata;
-    if (attachedMeta) {
-      for (const m of attachedMeta) {
-        if (m.story?.url) console.log('[Scraper] attached_story URL:', m.story.url);
-      }
-    }
-    if (as.permalink_url) console.log('[Scraper] attached_story permalink_url:', as.permalink_url);
+    console.log('[Scraper] Reshare detected, checking comet_sections.content.story.attached_story for images...');
   }
 
   const images = [];
@@ -762,7 +716,7 @@ async function fetchReshareOgImage(reshareUrl, cookies) {
       const m = html.match(pat);
       if (m && m[1]) {
         const url = m[1].replace(/&amp;/g, '&').replace(/\\u0025/g, '%');
-        if (url.includes('profile') || url.includes('p40x40') || url.includes('p50x50')) continue;
+        if (url.includes('profile') || url.includes('p40x40') || url.includes('p50x50') || url.includes('rsrc.php') || url.includes('static.xx.fbcdn.net/rsrc')) continue;
         console.log(`[Scraper] Reshare image found: ${url.substring(0, 150)}`);
         return url;
       }
