@@ -542,6 +542,21 @@ function extractPostFromNode(node) {
     || node.attached_story?.message?.text
     || '';
 
+  if (!message) {
+    const as = node.attached_story;
+    const asCs = as?.comet_sections;
+    const asContentStory = asCs?.content?.story;
+    console.log(`[TEXT DEBUG] post=${postId} empty_text | cs_keys=${JSON.stringify(Object.keys(contentStory)).substring(0,120)} | as_keys=${JSON.stringify(Object.keys(as || {})).substring(0,120)} | as_cs_keys=${JSON.stringify(Object.keys(asCs || {})).substring(0,120)} | as_cs_story_keys=${JSON.stringify(Object.keys(asContentStory || {})).substring(0,120)}`);
+    if (asContentStory) {
+      console.log(`[TEXT DEBUG]   as_cs_story.message=${JSON.stringify(asContentStory.message).substring(0,200)}`);
+      console.log(`[TEXT DEBUG]   as_cs_story.rich_content=${JSON.stringify(asContentStory.rich_content).substring(0,200)}`);
+    }
+    if (as?.message) console.log(`[TEXT DEBUG]   as.message=${JSON.stringify(as.message).substring(0,200)}`);
+    const fullJson = JSON.stringify(node);
+    const msgMatch = fullJson.match(/"text"\s*:\s*"([^"]{20,})"/);
+    if (msgMatch) console.log(`[TEXT DEBUG]   found_any_text=${msgMatch[1].substring(0,200)}`);
+  }
+
   let authorName = 'Unknown';
   const actors = titleStory.actors || [];
   if (actors.length > 0 && actors[0].name) {
