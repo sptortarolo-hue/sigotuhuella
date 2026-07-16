@@ -542,23 +542,12 @@ function extractPostFromNode(node) {
     || node.attached_story?.message?.text
     || '';
 
-  if (!message) {
-    const as = node.attached_story;
-    const asCs = as?.comet_sections;
-    const asCsContent = asCs?.content;
-    console.log(`[TEXT DEBUG] post=${postId}`);
-    console.log(`  node_keys: ${JSON.stringify(Object.keys(node).join(','))}`);
-    console.log(`  node.message: ${JSON.stringify(node.message).substring(0,150)}`);
-    console.log(`  as_keys: ${JSON.stringify(Object.keys(as || {}).join(','))}`);
-    console.log(`  as.message: ${JSON.stringify(as?.message).substring(0,150)}`);
-    console.log(`  as.text: ${JSON.stringify(as?.text).substring(0,150)}`);
-    console.log(`  as.rich_text: ${JSON.stringify(as?.rich_text).substring(0,150)}`);
-    console.log(`  as.comet_sections keys: ${JSON.stringify(Object.keys(asCs || {}).join(','))}`);
-    console.log(`  as.comet_sections.content exists: ${!!asCsContent}`);
-    if (asCsContent) console.log(`  as.cs.content.story keys: ${JSON.stringify(Object.keys(asCsContent.story || {}).join(','))}`);
+  if (!message && node.attached_story) {
     const fullJson = JSON.stringify(node);
     const msgMatch = fullJson.match(/"text"\s*:\s*"([^"]{30,})"/);
-    if (msgMatch) console.log(`  any_text: ${msgMatch[1].substring(0, 100)}`);
+    if (msgMatch) {
+      console.log(`[TEXT FIX] post=${postId}: text found via deep scan`);
+    }
   }
 
   let authorName = 'Unknown';
