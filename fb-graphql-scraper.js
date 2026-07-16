@@ -537,7 +537,10 @@ function extractPostFromNode(node) {
   const contentStory = node.comet_sections?.content?.story || {};
   const titleStory = node.comet_sections?.title?.story || {};
 
-  const message = contentStory.message?.text || '';
+  const message = contentStory.message?.text
+    || node.attached_story?.comet_sections?.content?.story?.message?.text
+    || node.attached_story?.message?.text
+    || '';
 
   let authorName = 'Unknown';
   const actors = titleStory.actors || [];
