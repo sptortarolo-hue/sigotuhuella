@@ -409,6 +409,15 @@ function extractPostFromNode(node) {
 
   const images = [];
   const attachments = node.attachments || [];
+  if (attachments.length > 0 && images.length === 0) {
+    const debugFile = path.join(__dirname, 'debug-attachments.json');
+    try {
+      const existing = fs.existsSync(debugFile) ? JSON.parse(fs.readFileSync(debugFile, 'utf-8')) : [];
+      existing.push({ postId, attachments: JSON.parse(JSON.stringify(attachments)) });
+      fs.writeFileSync(debugFile, JSON.stringify(existing.slice(-5), null, 2));
+      console.log(`[Scraper] Post ${postId}: 0 images found, saved debug to debug-attachments.json`);
+    } catch (e) { console.warn('[Scraper] debug save error:', e.message); }
+  }
   for (const att of attachments) {
     if (att.__typename === 'Photo') {
       if (att.photo_image?.uri) images.push(att.photo_image.uri);
