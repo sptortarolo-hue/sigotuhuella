@@ -456,6 +456,15 @@ function extractPostFromNode(node) {
       node.comet_sections?.feedback?.story?.story_ufi_container?.story?.feedback_context?.feedback_target_with_context?.comment_rendering_instance?.comments?.total_count || 0;
   } catch {}
 
+  if (node.attached_story && !extractPostFromNode._debugDumped) {
+    console.log('[Scraper] ATTACHED_STORY_DUMP:', JSON.stringify(node.attached_story, null, 2).substring(0, 5000));
+    extractPostFromNode._debugDumped = true;
+  }
+  if (!extractPostFromNode._debugDumped && node.attachments?.length > 0) {
+    console.log('[Scraper] NODE_ATTACHMENTS_DUMP:', JSON.stringify(node.attachments[0], null, 2).substring(0, 3000));
+    extractPostFromNode._debugDumped = true;
+  }
+
   const images = [];
   const attSources = [
     node.attachments,
