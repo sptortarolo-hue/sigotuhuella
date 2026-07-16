@@ -21,7 +21,11 @@ let INTERVAL_HOURS = parseInt(process.env.FB_SCRAPER_INTERVAL || '4');
 let MAX_POSTS_PER_GROUP = parseInt(process.env.FB_SCRAPER_MAX_POSTS || '20');
 
 const GRAPHQL_URL = 'https://www.facebook.com/api/graphql/';
-const FALLBACK_DOC_ID = '25716860671307636';
+const FALLBACK_DOC_IDS = [
+  '26577462205242925',
+  '25716860671307636',
+];
+const FALLBACK_DOC_ID = FALLBACK_DOC_IDS[0];
 const DEBUG_PATH = path.join(__dirname, 'debug-graphql-response.json');
 
 const USER_AGENTS = [
@@ -262,7 +266,6 @@ async function discoverDocId(cookies, groupId) {
 
     const html = typeof resp.data === 'string' ? resp.data : '';
 
-    // Try to find doc_id specifically for GroupsCometFeedRegularStoriesPaginationQuery
     const feedQueryPattern = /GroupsCometFeedRegularStoriesPaginationQuery[^}]*?"doc_id"\s*:\s*"?(\d{10,})"?/g;
     const feedMatches = [...html.matchAll(feedQueryPattern)];
     if (feedMatches.length > 0) {
@@ -271,7 +274,6 @@ async function discoverDocId(cookies, groupId) {
       return id;
     }
 
-    // Reverse: doc_id appears before query name
     const feedQueryPattern2 = /"doc_id"\s*:\s*"?(\d{10,})"?[^}]*?GroupsCometFeedRegularStoriesPaginationQuery/g;
     const feedMatches2 = [...html.matchAll(feedQueryPattern2)];
     if (feedMatches2.length > 0) {
@@ -280,7 +282,34 @@ async function discoverDocId(cookies, groupId) {
       return id;
     }
 
-    console.warn('[Scraper] No se encontró doc_id específico del feed, usando fallback conocido');
+    const feedQueryPattern3 = /GroupsCometFeedRegularStories[^"]*"[^}]*?doc_id[^}]*?(\d{15,})/g;
+    const feedMatches3 = [...html.matchAll(feedQueryPattern3)];
+    if (feedMatches3.length > 0) {
+      const id = feedMatches3[0][1];
+      console.log(`[Scraper] doc_id para feed encontrado (flex): ${id}`);
+      return id;
+    }
+
+    const feedQueryPattern4 = /"doc_id"\s*:\s*(\d{15,})/g;
+    const allDocIds = [...html.matchAll(feedQueryPattern4)].map(m => m[1]);
+    if (allDocIds.length > 0) {
+      console.log(`[Scraper] doc_ids encontrados en HTML: ${allDocIds.join(', ')}`);
+      const groupIdPrefix = groupId.substring(0, 6);
+      const match = allDocIds.find(id => id.startsWith(groupIdPrefix));
+      if (match) {
+        console.log(`[Scraper] doc_id seleccionado (por prefijo de grupo): ${match}`);
+        return match;
+      }
+      console.log(`[Scraper] Usando primer doc_id encontrado: ${allDocIds[0]}`);
+      return allDocIds[0];
+    }
+
+    console.warn('[Scraper] No se encontró ningún doc_id en HTML, guardando debug...');
+    try {
+      const debugHtml = path.join(__dirname, 'debug-group-page.html');
+      fs.writeFileSync(debugHtml, html.substring(0, 200000));
+      console.log(`[Scraper] HTML guardado en debug-group-page.html (${html.length} bytes)`);
+    } catch (e) {}
     return FALLBACK_DOC_ID;
   } catch (err) {
     console.error('[Scraper] Error descubriendo doc_id:', err.message);
@@ -374,6 +403,26 @@ function parseFbResponse(text) {
   return blocks;
 }
 
+function extractImagesFromAttachment(att) {
+  if (!att) return [];
+  const imgs = [];
+  const media = att.media || att.style_type_renderer?.attachment?.media || att.styles?.attachment?.media || att.styles?.style_type_renderer?.attachment?.media;
+  if (media?.__typename === 'Photo') {
+    if (media.photo_image?.uri) imgs.push(media.photo_image.uri);
+    else if (media.image?.uri) imgs.push(media.image.uri);
+  }
+  if (att.__typename === 'Photo') {
+    if (att.photo_image?.uri) imgs.push(att.photo_image.uri);
+    else if (att.image?.uri) imgs.push(att.image.uri);
+  }
+  if (att.all_subattachments?.nodes) {
+    for (const sub of att.all_subattachments.nodes) {
+      imgs.push(...extractImagesFromAttachment(sub));
+    }
+  }
+  return imgs;
+}
+
 function extractPostFromNode(node) {
   if (!node || node.__typename !== 'Story') return null;
 
@@ -408,35 +457,28 @@ function extractPostFromNode(node) {
   } catch {}
 
   const images = [];
-  const attachments = node.attachments || [];
-  if (attachments.length > 0 && images.length === 0) {
+  const attSources = [
+    node.attachments,
+    node.attached_story?.attachments,
+    node.comet_sections?.content?.story?.attachments,
+    node.comet_sections?.content?.story?.attached_story?.attachments,
+  ];
+  for (const attList of attSources) {
+    if (!attList || images.length > 0) continue;
+    for (const att of attList) {
+      const fromAtt = extractImagesFromAttachment(att);
+      images.push(...fromAtt);
+      if (images.length > 0) break;
+    }
+  }
+  if (images.length === 0) {
     const debugFile = path.join(__dirname, 'debug-attachments.json');
     try {
       const existing = fs.existsSync(debugFile) ? JSON.parse(fs.readFileSync(debugFile, 'utf-8')) : [];
-      existing.push({ postId, attachments: JSON.parse(JSON.stringify(attachments)) });
-      fs.writeFileSync(debugFile, JSON.stringify(existing.slice(-5), null, 2));
-      console.log(`[Scraper] Post ${postId}: 0 images found, saved debug to debug-attachments.json`);
-    } catch (e) { console.warn('[Scraper] debug save error:', e.message); }
-  }
-  for (const att of attachments) {
-    if (att.__typename === 'Photo') {
-      if (att.photo_image?.uri) images.push(att.photo_image.uri);
-      else if (att.image?.uri) images.push(att.image.uri);
-    }
-    if (att.media?.__typename === 'Photo') {
-      if (att.media.photo_image?.uri) images.push(att.media.photo_image.uri);
-      else if (att.media.image?.uri) images.push(att.media.image.uri);
-      else if (att.styles?.attachment?.media?.photo_image?.uri) images.push(att.styles.attachment.media.photo_image.uri);
-    }
-    if (att.all_subattachments?.nodes) {
-      for (const sub of att.all_subattachments.nodes) {
-        if (sub.media?.__typename === 'Photo') {
-          if (sub.media.image?.uri) images.push(sub.media.image.uri);
-          else if (sub.media.photo_image?.uri) images.push(sub.media.photo_image.uri);
-        }
-      }
-    }
-    if (images.length > 0) break;
+      existing.push({ postId, attachedStory: !!node.attached_story, nodeAttachments: (node.attachments || []).length });
+      fs.writeFileSync(debugFile, JSON.stringify(existing.slice(-10), null, 2));
+      console.log(`[Scraper] Post ${postId}: 0 images (attached_story=${!!node.attached_story})`);
+    } catch (e) {}
   }
 
   const permalink = node.permalink_url || '';
@@ -482,7 +524,7 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
   let pageNum = 1;
   const maxPages = 5;
 
-  const docId = await discoverDocId(session.cookies, groupId);
+  let docId = await discoverDocId(session.cookies, groupId);
 
   const tokens = await bootstrapSession(session.cookies, groupId);
   if (!tokens.fbDtsg) {
@@ -491,108 +533,130 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
   }
   console.log(`[Scraper] Bootstrap OK: fb_dtsg=${tokens.fbDtsg.substring(0, 10)}..., lsd=${tokens.lsd ? 'ok' : 'MISSING'}, rev=${tokens.rev || 'MISSING'}`);
 
-  while (allPosts.length < maxPosts && pageNum <= maxPages) {
-    console.log(`[Scraper] ${groupName} - GraphQL page ${pageNum}...`);
+  const docIdCandidates = [docId, ...FALLBACK_DOC_IDS.filter(id => id !== docId)];
 
-    const payload = buildPayload(groupId, cursor, 8, userId, tokens, docId);
+  for (const candidateDocId of docIdCandidates) {
+    docId = candidateDocId;
+    console.log(`[Scraper] Intentando doc_id: ${docId}`);
+    allPosts = [];
+    cursor = null;
+    pageNum = 1;
+    let gotPosts = false;
 
-    let resp = null;
-    let lastErr = null;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        resp = await axios.post(GRAPHQL_URL, payload, {
-          headers: {
-            'User-Agent': pickUA(),
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Cookie': cookieStr,
-            'Origin': 'https://www.facebook.com',
-            'Referer': `https://www.facebook.com/groups/${groupId}/`,
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-origin',
-            'X-FB-LSD': tokens.lsd || '',
-          },
-          timeout: 30000,
-        });
+    while (allPosts.length < maxPosts && pageNum <= maxPages) {
+      console.log(`[Scraper] ${groupName} - GraphQL page ${pageNum}...`);
+
+      const payload = buildPayload(groupId, cursor, 8, userId, tokens, docId);
+
+      let resp = null;
+      let lastErr = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          resp = await axios.post(GRAPHQL_URL, payload, {
+            headers: {
+              'User-Agent': pickUA(),
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Cookie': cookieStr,
+              'Origin': 'https://www.facebook.com',
+              'Referer': `https://www.facebook.com/groups/${groupId}/`,
+              'Sec-Fetch-Dest': 'empty',
+              'Sec-Fetch-Mode': 'cors',
+              'Sec-Fetch-Site': 'same-origin',
+              'X-FB-LSD': tokens.lsd || '',
+            },
+            timeout: 30000,
+          });
+          break;
+        } catch (err) {
+          lastErr = err;
+          console.error(`[Scraper] Intento ${attempt}/3 falló: ${err.message}`);
+          if (attempt < 3) await sleep(attempt * 3000);
+        }
+      }
+
+      if (!resp) {
+        console.error(`[Scraper] Todos los intentos fallaron para ${groupName}`);
         break;
-      } catch (err) {
-        lastErr = err;
-        console.error(`[Scraper] Intento ${attempt}/3 falló: ${err.message}`);
-        if (attempt < 3) await sleep(attempt * 3000);
       }
-    }
 
-    if (!resp) {
-      console.error(`[Scraper] Todos los intentos fallaron para ${groupName}`);
-      break;
-    }
+      const rawText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
 
-    const rawText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+      if (resp.status !== 200) {
+        console.error(`[Scraper] GraphQL returned ${resp.status}`);
+        break;
+      }
 
-    if (resp.status !== 200) {
-      console.error(`[Scraper] GraphQL returned ${resp.status}`);
-      break;
-    }
+      const blocks = parseFbResponse(rawText);
 
-    const blocks = parseFbResponse(rawText);
-
-    if (pageNum === 1) {
-      try {
-        // Find first Story node across all blocks for debug
-        let sampleStory = null;
-        for (const block of blocks) {
-          const edges = block?.node?.group_feed?.edges || [];
-          for (const edge of edges) {
-            if (edge?.node?.__typename === 'Story') { sampleStory = edge.node; break; }
+      if (pageNum === 1) {
+        try {
+          let sampleStory = null;
+          for (const block of blocks) {
+            const edges = block?.node?.group_feed?.edges || [];
+            for (const edge of edges) {
+              if (edge?.node?.__typename === 'Story') { sampleStory = edge.node; break; }
+            }
+            if (!sampleStory && block?.node?.__typename === 'Story') sampleStory = block.node;
+            if (sampleStory) break;
           }
-          if (!sampleStory && block?.node?.__typename === 'Story') sampleStory = block.node;
-          if (sampleStory) break;
+          fs.writeFileSync(DEBUG_PATH, JSON.stringify({
+            groupId,
+            docId,
+            tokens: { fbDtsg: tokens.fbDtsg?.substring(0, 15) + '...', lsd: tokens.lsd, rev: tokens.rev, jazoest: tokens.jazoest },
+            status: resp.status,
+            fullLength: rawText.length,
+            totalBlocks: blocks.length,
+            sampleStory: sampleStory ? JSON.stringify(sampleStory).substring(0, 8000) : 'NO STORY FOUND',
+            sampleStoryKeys: sampleStory ? Object.keys(sampleStory) : [],
+            hasAttachedStory: sampleStory ? !!sampleStory.attached_story : false,
+            attachmentsCount: sampleStory?.attachments?.length || 0,
+            attachedStoryAttachmentsCount: sampleStory?.attached_story?.attachments?.length || 0,
+            timestamp: new Date().toISOString(),
+          }, null, 2));
+          console.log(`[Scraper] Debug guardado (${rawText.length} bytes, ${blocks.length} blocks)`);
+          if (sampleStory) {
+            console.log(`[Scraper] Sample keys: ${Object.keys(sampleStory).join(', ')}`);
+            console.log(`[Scraper] Sample post_id: ${sampleStory.post_id || 'NONE'}`);
+          }
+        } catch (e) {
+          console.error('[Scraper] Error guardando debug:', e.message);
         }
-        fs.writeFileSync(DEBUG_PATH, JSON.stringify({
-          groupId,
-          docId,
-          tokens: { fbDtsg: tokens.fbDtsg?.substring(0, 15) + '...', lsd: tokens.lsd, rev: tokens.rev, jazoest: tokens.jazoest },
-          status: resp.status,
-          fullLength: rawText.length,
-          totalBlocks: blocks.length,
-          sampleStory: sampleStory ? JSON.stringify(sampleStory).substring(0, 8000) : 'NO STORY FOUND',
-          timestamp: new Date().toISOString(),
-        }, null, 2));
-        console.log(`[Scraper] Debug guardado (${rawText.length} bytes, ${blocks.length} blocks)`);
-        if (sampleStory) {
-          console.log(`[Scraper] Sample keys: ${Object.keys(sampleStory).join(', ')}`);
-          console.log(`[Scraper] Sample post_id: ${sampleStory.post_id || 'NONE'}`);
-        }
-      } catch (e) {
-        console.error('[Scraper] Error guardando debug:', e.message);
       }
+
+      if (!blocks || blocks.length === 0) {
+        console.log(`[Scraper] ${groupName}: sin datos en page ${pageNum}. Response first 300: ${rawText.substring(0, 300)}`);
+        break;
+      }
+
+      console.log(`[Scraper] ${groupName}: ${blocks.length} blocks en page ${pageNum}`);
+      const posts = extractPostsFromResponse(blocks);
+      console.log(`[Scraper] ${groupName}: ${posts.length} posts en page ${pageNum}`);
+
+      if (posts.length === 0) break;
+
+      gotPosts = true;
+      allPosts.push(...posts);
+
+      let nextCursor = null;
+      for (const block of blocks) {
+        const pageInfo = block?.node?.group_feed?.page_info;
+        if (pageInfo?.has_next_page && pageInfo.end_cursor) {
+          nextCursor = pageInfo.end_cursor;
+        }
+      }
+
+      if (!nextCursor) break;
+      cursor = nextCursor;
+      pageNum++;
+      await sleep(randomInt(2000, 5000));
     }
 
-    if (!blocks || blocks.length === 0) {
-      console.log(`[Scraper] ${groupName}: sin datos en page ${pageNum}. Response first 300: ${rawText.substring(0, 300)}`);
+    if (gotPosts || allPosts.length > 0) {
+      console.log(`[Scraper] doc_id ${docId} devolvió ${allPosts.length} posts, usando este.`);
       break;
     }
-
-    console.log(`[Scraper] ${groupName}: ${blocks.length} blocks en page ${pageNum}`);
-    const posts = extractPostsFromResponse(blocks);
-    console.log(`[Scraper] ${groupName}: ${posts.length} posts en page ${pageNum}`);
-
-    if (posts.length === 0) break;
-
-    allPosts.push(...posts);
-
-    let nextCursor = null;
-    for (const block of blocks) {
-      const pageInfo = block?.node?.group_feed?.page_info;
-      if (pageInfo?.has_next_page && pageInfo.end_cursor) {
-        nextCursor = pageInfo.end_cursor;
-      }
-    }
-
-    if (!nextCursor) break;
-    cursor = nextCursor;
-    pageNum++;
-    await sleep(randomInt(2000, 5000));
+    console.warn(`[Scraper] doc_id ${docId} devolvió 0 posts, probando siguiente...`);
+    await sleep(2000);
   }
 
   return allPosts.slice(0, maxPosts);
