@@ -463,31 +463,34 @@ function extractPostFromNode(node) {
     console.log('[Scraper] attached_story.comet_sections keys:', Object.keys(as.comet_sections || {}));
 
     console.log('[Scraper] OUTER node.comet_sections keys:', Object.keys(node.comet_sections || {}));
+    const outerContent = node.comet_sections?.content?.story;
+    if (outerContent) {
+      console.log('[Scraper] OUTER content.story keys:', Object.keys(outerContent));
+      console.log('[Scraper] OUTER content.story.attachments count:', (outerContent.attachments || []).length);
+      if (outerContent.attachments?.[0]) {
+        console.log('[Scraper] OUTER content.story.attachments[0] snippet:', JSON.stringify(outerContent.attachments[0]).substring(0, 1500));
+      }
+      if (outerContent.message?.text) {
+        console.log('[Scraper] OUTER content.story.message:', outerContent.message.text.substring(0, 200));
+      }
+    }
     console.log('[Scraper] OUTER node.attachments count:', (node.attachments || []).length);
-    if (node.attachments?.[0]) {
-      const a = node.attachments[0];
-      console.log('[Scraper] OUTER attachment[0] keys:', Object.keys(a));
-      console.log('[Scraper] OUTER attachment[0] style_list:', a.style_list);
-      console.log('[Scraper] OUTER attachment[0] snippet:', JSON.stringify(a).substring(0, 1000));
+
+    const outerMeta = node.comet_sections?.context_layout?.story?.comet_sections?.metadata;
+    if (outerMeta) {
+      for (const m of outerMeta) {
+        if (m.story?.url) console.log('[Scraper] metadata URL:', m.story.url);
+        if (m.story?.creation_time) console.log('[Scraper] metadata creation_time:', m.story.creation_time);
+      }
     }
 
-    const fullJson = JSON.stringify(as);
-    const fbcdnMatches = [...fullJson.matchAll(/https?:\/\/[^"]*fbcdn[^"]*/g)];
-    console.log('[Scraper] fbcdn URLs in attached_story:', fbcdnMatches.length);
-    for (const m of fbcdnMatches.slice(0, 3)) {
-      const start = Math.max(0, m.index - 100);
-      const end = Math.min(fullJson.length, m.index + m[0].length + 50);
-      console.log('[Scraper] fbcdn context:', fullJson.substring(start, end));
+    const attachedMeta = as.comet_sections?.context_layout?.story?.comet_sections?.metadata;
+    if (attachedMeta) {
+      for (const m of attachedMeta) {
+        if (m.story?.url) console.log('[Scraper] attached_story URL:', m.story.url);
+      }
     }
-    const uriMatches = [...fullJson.matchAll(/"uri"\s*:\s*"([^"]+)"/g)];
-    console.log('[Scraper] "uri" fields in attached_story:', uriMatches.length);
-    for (const m of uriMatches.slice(0, 5)) {
-      console.log('[Scraper] uri value:', m[1].substring(0, 120));
-    }
-
-    const outerFullJson = JSON.stringify(node);
-    const outerFbcdn = [...outerFullJson.matchAll(/https?:\/\/[^"]*fbcdn[^"]*/g)];
-    console.log('[Scraper] fbcdn URLs in FULL outer node:', outerFbcdn.length);
+    if (as.permalink_url) console.log('[Scraper] attached_story permalink_url:', as.permalink_url);
   }
 
   const images = [];
