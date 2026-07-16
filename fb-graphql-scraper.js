@@ -467,12 +467,27 @@ function extractPostFromNode(node) {
     if (outerContent) {
       console.log('[Scraper] OUTER content.story keys:', Object.keys(outerContent));
       console.log('[Scraper] OUTER content.story.attachments count:', (outerContent.attachments || []).length);
-      if (outerContent.attachments?.[0]) {
-        console.log('[Scraper] OUTER content.story.attachments[0] snippet:', JSON.stringify(outerContent.attachments[0]).substring(0, 1500));
+      const outerAttachedStory = outerContent.attached_story;
+      if (outerAttachedStory) {
+        console.log('[Scraper] OUTER content.story.attached_story keys:', Object.keys(outerAttachedStory));
+        const oasFull = JSON.stringify(outerAttachedStory);
+        console.log('[Scraper] outerAttachedStory size:', oasFull.length);
+        const oasAtts = outerAttachedStory.attachments || outerAttachedStory.comet_sections?.content?.story?.attachments;
+        console.log('[Scraper] outerAttachedStory attachments count:', (oasAtts || []).length);
+        if (oasAtts?.[0]) {
+          console.log('[Scraper] outerAttachedStory att[0] snippet:', JSON.stringify(oasAtts[0]).substring(0, 2000));
+        }
+        const oasFbcdn = [...oasFull.matchAll(/https?:\/\/[^"]*fbcdn[^"]*/g)];
+        console.log('[Scraper] outerAttachedStory fbcdn URLs:', oasFbcdn.length);
+        if (oasFbcdn.length > 0) {
+          console.log('[Scraper] outerAttachedStory fbcdn[0]:', oasFbcdn[0][0].substring(0, 200));
+        }
       }
       if (outerContent.message?.text) {
         console.log('[Scraper] OUTER content.story.message:', outerContent.message.text.substring(0, 200));
       }
+      if (outerContent.wwwURL) console.log('[Scraper] OUTER content.story.wwwURL:', outerContent.wwwURL);
+      if (outerContent.post_id) console.log('[Scraper] OUTER content.story.post_id:', outerContent.post_id);
     }
     console.log('[Scraper] OUTER node.attachments count:', (node.attachments || []).length);
 
