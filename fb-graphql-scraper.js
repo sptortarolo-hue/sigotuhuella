@@ -463,6 +463,13 @@ function extractPostFromNode(node) {
   }
 
   const images = [];
+  const attSourceNames = [
+    'node.attachments',
+    'node.attached_story.attachments',
+    'node.attached_story.comet_sections.content.story.attachments',
+    'node.comet_sections.content.story.attachments',
+    'node.comet_sections.content.story.attached_story.attachments',
+  ];
   const attSources = [
     node.attachments,
     node.attached_story?.attachments,
@@ -470,8 +477,15 @@ function extractPostFromNode(node) {
     node.comet_sections?.content?.story?.attachments,
     node.comet_sections?.content?.story?.attached_story?.attachments,
   ];
-  for (const attList of attSources) {
+  for (let i = 0; i < attSources.length; i++) {
+    const attList = attSources[i];
     if (!attList || images.length > 0) continue;
+    if (node.attached_story && attList?.length > 0) {
+      console.log(`[Scraper] attSource[${attSourceNames[i]}] count=${attList.length}`);
+      const sample = attList[0];
+      console.log('[Scraper] att[0] keys:', Object.keys(sample || {}));
+      console.log('[Scraper] att[0] snippet:', JSON.stringify(sample).substring(0, 1500));
+    }
     for (const att of attList) {
       const fromAtt = extractImagesFromAttachment(att);
       images.push(...fromAtt);
