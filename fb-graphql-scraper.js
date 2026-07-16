@@ -406,13 +406,23 @@ function parseFbResponse(text) {
 function extractImagesFromAttachment(att) {
   if (!att) return [];
   const imgs = [];
-  const media = att.media || att.style_type_renderer?.attachment?.media || att.styles?.attachment?.media || att.styles?.style_type_renderer?.attachment?.media;
-  const isPhoto = media?.__typename === 'Photo' || media?.typename === 'Photo';
-  if (isPhoto) {
-    if (media.photo_image?.uri) imgs.push(media.photo_image.uri);
-    else if (media.image?.uri) imgs.push(media.image.uri);
+  const mediaCandidates = [
+    att.media,
+    att.style_type_renderer?.attachment?.media,
+    att.styles?.attachment?.media,
+    att.styles?.style_type_renderer?.attachment?.media,
+  ];
+  let media = null;
+  for (const m of mediaCandidates) {
+    if (m && (m.__typename === 'Photo' || m.typename === 'Photo')) {
+      media = m;
+      break;
+    }
   }
-  if (att.__typename === 'Photo' || att.typename === 'Photo') {
+  if (!media) media = att.media || att.styles?.attachment?.media || mediaCandidates.find(Boolean);
+  if (media?.photo_image?.uri) imgs.push(media.photo_image.uri);
+  else if (media?.image?.uri) imgs.push(media.image.uri);
+  if (imgs.length === 0 && (att.__typename === 'Photo' || att.typename === 'Photo')) {
     if (att.photo_image?.uri) imgs.push(att.photo_image.uri);
     else if (att.image?.uri) imgs.push(att.image.uri);
   }
@@ -459,47 +469,9 @@ function extractPostFromNode(node) {
 
   if (node.attached_story && !extractPostFromNode._debugDumped) {
     extractPostFromNode._debugDumped = true;
-    const as = node.attached_story;
-    console.log('[Scraper] RESHARE DEBUG ===');
-    console.log('[Scraper] attached_story keys:', Object.keys(as));
-    console.log('[Scraper] attached_story.comet_sections keys:', Object.keys(as.comet_sections || {}));
-    const csKeys = Object.keys(as.comet_sections || {});
-    for (const k of csKeys) {
-      const section = as.comet_sections[k];
-      console.log(`[Scraper]   comet_sections.${k} keys:`, Object.keys(section || {}));
-      if (section?.story) {
-        console.log(`[Scraper]   comet_sections.${k}.story keys:`, Object.keys(section.story));
-        if (section.story.comet_sections) {
-          console.log(`[Scraper]   comet_sections.${k}.story.comet_sections keys:`, Object.keys(section.story.comet_sections));
-        }
-      }
-    }
-
-    const outerCs = node.comet_sections || {};
-    console.log('[Scraper] OUTER comet_sections keys:', Object.keys(outerCs));
-    const outerContentStory = outerCs.content?.story;
-    if (outerContentStory) {
-      console.log('[Scraper] OUTER content.story keys:', Object.keys(outerContentStory));
-      console.log('[Scraper] OUTER content.story.attachments count:', (outerContentStory.attachments || []).length);
-      const outerAttachedStory = outerContentStory.attached_story;
-      if (outerAttachedStory) {
-        console.log('[Scraper] OUTER content.story.attached_story keys:', Object.keys(outerAttachedStory));
-        const oasAtts = outerAttachedStory.attachments || outerAttachedStory.comet_sections?.content?.story?.attachments;
-        console.log('[Scraper] OUTER content.story.attached_story attachments count:', (oasAtts || []).length);
-        if (oasAtts?.[0]) {
-          console.log('[Scraper] outerAttachedStory att[0] keys:', Object.keys(oasAtts[0]));
-          console.log('[Scraper] outerAttachedStory att[0] snippet:', JSON.stringify(oasAtts[0]).substring(0, 2000));
-        }
-      }
-    }
-
-    const fullJson = JSON.stringify(node);
-    const fbcdnMatches = [...new Set([...fullJson.matchAll(/https?:\/\/[^"]*fbcdn[^"]*/g)].map(m => m[0]))];
-    console.log('[Scraper] Total fbcdn URLs in node:', fbcdnMatches.length);
-    for (const u of fbcdnMatches.slice(0, 5)) {
-      console.log('[Scraper]   fbcdn:', u.substring(0, 200));
-    }
-    console.log('[Scraper] RESHARE DEBUG END ===');
+    const asCs = Object.keys(node.attached_story?.comet_sections || {});
+    const outerAtts = node.comet_sections?.content?.story?.attached_story?.attachments;
+    console.log(`[Scraper] Reshare: attached_story.comet_sections=[${asCs}] outer.attached_story.attachments=${(outerAtts || []).length}`);
   }
 
   const images = [];
@@ -522,12 +494,12 @@ function extractPostFromNode(node) {
 
   if (images.length === 0 && node.attached_story) {
     const fullJson = JSON.stringify(node);
-    const BAD_PATTERNS = ['profile', 'p40x40', 'p50x50', 'p80x80', 'rsrc.php', 'static.xx.fbcdn.net/rsrc', 'badge', 'emoji'];
+    const BAD_PATTERNS = ['profile', 'p40x40', 'p50x50', 'p80x80', 'p100x100', 'rsrc.php', 'static.xx.fbcdn.net/rsrc', 'badge', 'emoji'];
     const fbcdnMatches = [...fullJson.matchAll(/https?:\/\/scontent[^"]*\.(?:jpg|png|webp)(?:\?[^"]*)?/gi)];
     for (const m of fbcdnMatches) {
       let url = m[0].replace(/\\u0025/g, '%').replace(/\\u0026/g, '&');
       if (BAD_PATTERNS.some(p => url.toLowerCase().includes(p))) continue;
-      if (url.includes('80x80') || url.includes('40x40') || url.includes('50x50')) continue;
+      if (/\b(?:40x40|50x50|80x80|100x100)\b/.test(url)) continue;
       images.push(url);
       console.log(`[Scraper] Reshare image from node scan: ${url.substring(0, 150)}`);
       break;
@@ -549,13 +521,7 @@ function extractPostFromNode(node) {
   }
 
   if (images.length === 0) {
-    const debugFile = path.join(__dirname, 'debug-attachments.json');
-    try {
-      const existing = fs.existsSync(debugFile) ? JSON.parse(fs.readFileSync(debugFile, 'utf-8')) : [];
-      existing.push({ postId, attachedStory: !!node.attached_story, nodeAttachments: (node.attachments || []).length });
-      fs.writeFileSync(debugFile, JSON.stringify(existing.slice(-10), null, 2));
-      console.log(`[Scraper] Post ${postId}: 0 images (attached_story=${!!node.attached_story})`);
-    } catch (e) {}
+    console.log(`[Scraper] Post ${postId}: 0 images (attached_story=${!!node.attached_story})`);
   }
 
   const permalink = node.permalink_url || '';
