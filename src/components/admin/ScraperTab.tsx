@@ -32,6 +32,7 @@ interface ScrapedItem {
   image_data: string | null;
   image_mime: string | null;
   author_jid: string | null;
+  author_phone: string | null;
 }
 
 interface MatchItem {
@@ -290,6 +291,11 @@ function PostsSection() {
                     )}
                   </div>
                   <p className="text-xs text-gray-600 line-clamp-2">{item.content || '(sin texto)'}</p>
+                  {item.author_name && (
+                    <p className="text-[10px] text-gray-400 truncate">
+                      {item.author_name}{item.author_phone ? ` · ${item.author_phone}` : ''}
+                    </p>
+                  )}
                 <div className="flex items-center justify-between">
                     <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{item.group_name}</span>
                     <div className="flex items-center gap-1">
@@ -359,7 +365,7 @@ function PostsSection() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">{item.group_name}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 max-w-[100px] truncate">{item.author_name || '—'}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 max-w-[100px] truncate">{item.author_name || '—'}{item.author_phone ? ` (${item.author_phone})` : ''}</td>
                     <td className="px-4 py-3 max-w-[250px]">
                       <div className="flex items-center gap-2">
                         {item.source === 'wa' && item.has_image && (

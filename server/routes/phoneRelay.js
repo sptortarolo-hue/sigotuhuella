@@ -356,7 +356,7 @@ router.get('/scraped-messages', (req, res, next) => {
           fp.classification, fp.species, fp.color, fp.location_hint, fp.phone, fp.is_matched, fp.created_at,
           fp.image_urls, fp.fb_post_url,
           (fp.image_data IS NOT NULL) as has_image, null::text as wa_message_id, null::text as image_data, null::text as image_mime,
-          null::text as author_jid
+          null::text as author_jid, null::text as author_phone
         FROM facebook_posts fp
         LEFT JOIN facebook_groups fg ON fg.id = fp.group_id
         WHERE fp.classification IS NOT NULL
@@ -367,7 +367,7 @@ router.get('/scraped-messages', (req, res, next) => {
           wsm.classification, wsm.species, wsm.color, wsm.location_hint, wsm.phone, wsm.is_matched, wsm.created_at,
           null::text[] as image_urls, null::text as fb_post_url,
           (wsm.image_data IS NOT NULL) as has_image, wsm.wa_message_id, null::text as image_data, wsm.image_mime,
-          wsm.author_jid
+          wsm.author_jid, wsm.author_phone
         FROM whatsapp_scraped_messages wsm
         JOIN whatsapp_groups wg ON wg.id = wsm.group_id
         WHERE wsm.classification IS NOT NULL
@@ -448,43 +448,73 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
     const existing = await pool.query('SELECT id FROM whatsapp_scraped_messages WHERE wa_message_id = $1', [wa_message_id]);
     if (existing.rows.length > 0) return res.json({ skipped: true, reason: 'duplicate' });
 
-    // Store without classification (fast) and respond immediately
-    const insertRes = await pool.query(
-      `INSERT INTO whatsapp_scraped_messages (group_id, wa_message_id, author_jid, author_name, content, image_data, image_mime)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (wa_message_id) DO NOTHING
-       RETURNING id`,
-      [group_id, wa_message_id, author_jid || null, author_name || null, content || null, image_data || null, image_mime || null]
-    );
-    if (insertRes.rows.length === 0) return res.json({ skipped: true, reason: 'duplicate after insert' });
+    const authorPhone = author_jid ? author_jid.replace(/@s\.whatsapp\.net$/i, '').replace(/[^0-9]/g, '') : null;
 
-    const messageId = insertRes.rows[0].id;
-    res.json({ id: messageId, status: 'pending_classification' });
+    // Check for recent message from same author in same group (last 1 minute)
+    const recentRes = await pool.query(
+      `SELECT id, content, image_data FROM whatsapp_scraped_messages
+       WHERE group_id = $1 AND author_jid = $2
+         AND created_at > NOW() - INTERVAL '1 minute'
+       ORDER BY created_at DESC LIMIT 1`,
+      [group_id, author_jid || '']
+    );
+
+    let messageId;
+    let mergedContent = content || '';
+    let mergedImageData = image_data || null;
+    let mergedImageMime = image_mime || null;
+
+    if (recentRes.rows.length > 0) {
+      // Merge into existing message
+      const prev = recentRes.rows[0];
+      const prevContent = prev.content || '';
+      mergedContent = prevContent ? `${prevContent}\n${content || ''}` : (content || '');
+      if (!prev.image_data && image_data) {
+        mergedImageData = image_data;
+        mergedImageMime = image_mime;
+      } else {
+        mergedImageData = prev.image_data;
+      }
+      messageId = prev.id;
+      await pool.query(
+        `UPDATE whatsapp_scraped_messages SET content = $1, image_data = COALESCE($2, image_data), image_mime = COALESCE($3, image_mime), author_phone = $4, author_name = COALESCE($5, author_name) WHERE id = $6`,
+        [mergedContent, image_data || null, image_mime || null, authorPhone, author_name || null, messageId]
+      );
+    } else {
+      // Insert new message
+      const insertRes = await pool.query(
+        `INSERT INTO whatsapp_scraped_messages (group_id, wa_message_id, author_jid, author_name, author_phone, content, image_data, image_mime)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (wa_message_id) DO NOTHING
+         RETURNING id`,
+        [group_id, wa_message_id, author_jid || null, author_name || null, authorPhone, content || null, image_data || null, image_mime || null]
+      );
+      if (insertRes.rows.length === 0) return res.json({ skipped: true, reason: 'duplicate after insert' });
+      messageId = insertRes.rows[0].id;
+    }
+
+    res.json({ id: messageId, status: 'pending_classification', merged: recentRes.rows.length > 0 });
 
     // Pre-filter: discard images without pet-related text (skip AI call)
     const PET_KEYWORDS = /\b(perro|gato|mascota|puppy|kitten|pet|encontrad[oa]|perdid[oa]|avist[eé]|lo vi|lo encontr|busc[aá]ndo|rewards|recompensa|collar|chucho|canino|felino|ave|loro|conejo|hamster|hurto|robo)\b/i;
-    if (image_data && !PET_KEYWORDS.test(content || '')) {
+    if (mergedImageData && !PET_KEYWORDS.test(mergedContent || '')) {
       await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
       return;
     }
 
     // Classify in background (non-blocking)
-    classifyWhatsAppMessage(content || '', image_data || null, image_mime || null)
+    classifyWhatsAppMessage(mergedContent || '', mergedImageData || null, mergedImageMime || null)
       .then(async (classification) => {
-        // Discard messages with images that are DEFINITELY not pets
-        // Only delete when AI confirmed species='other' with confidence (not on errors/null)
-        if (image_data && classification.species === 'other' && (classification.confidence || 0) > 30) {
+        if (mergedImageData && classification.species === 'other' && (classification.confidence || 0) > 30) {
           await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
           return;
         }
-        // Update with classification results
         await pool.query(
           `UPDATE whatsapp_scraped_messages
            SET classification = $1, species = $2, color = $3, location_hint = $4, phone = $5
            WHERE id = $6`,
           [classification.classification, classification.species, classification.color, classification.location_hint, classification.phone, messageId]
         );
-        // Run matching in background if lost/found/sighting with a pet
         if (['lost', 'found', 'sighting'].includes(classification.classification) && ['dog', 'cat'].includes(classification.species)) {
           matchWhatsAppMessageToPet(messageId).catch(e => console.error('WA message matching error:', e));
         }

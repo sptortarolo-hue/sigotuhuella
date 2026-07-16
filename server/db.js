@@ -1178,6 +1178,10 @@ export async function initDb() {
       ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS image_data TEXT
     `, 'facebook_posts image_data');
 
+    await migrate(client, `
+      ALTER TABLE whatsapp_scraped_messages ADD COLUMN IF NOT EXISTS author_phone VARCHAR(50)
+    `, 'whatsapp_scraped_messages author_phone');
+
     console.log('Database migrations complete');
   } finally {
     client.release();
