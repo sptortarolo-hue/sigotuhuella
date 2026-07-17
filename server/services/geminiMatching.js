@@ -8,6 +8,11 @@ import { matchingAI, imageCaptionAI, textIntentAI, faceCropAI } from './aiProvid
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
 
+function parseAIResponse(raw) {
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+  return JSON.parse(cleaned);
+}
+
 const BATCH_MATCH_PROMPT = `Sos un sistema de matching para mascotas perdidas de la app "Sigo Tu Huella".
 Te voy a dar 1 nuevo reporte y una lista de CANDIDATOS numerados.
 Determiná cuáles de los candidatos podrían ser el MISMO animal.
@@ -63,7 +68,7 @@ export async function matchPostToPet(postId) {
       `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
     );
     console.log(`[matching] matchPostToPet usó ${provider}`);
-    const result = JSON.parse(raw);
+    const result = parseAIResponse(raw);
 
     const matches = [];
     if (result.matches) {
@@ -124,7 +129,7 @@ export async function matchWhatsAppMessageToPet(messageId) {
       `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
     );
     console.log(`[matching] matchWhatsAppMessageToPet usó ${provider}`);
-    const result = JSON.parse(raw);
+    const result = parseAIResponse(raw);
 
     const matches = [];
     if (result.matches) {
@@ -179,7 +184,7 @@ export async function matchPetToPosts(pet) {
       `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
     );
     console.log(`[matching] matchPetToPosts usó ${provider}`);
-    const result = JSON.parse(raw);
+    const result = parseAIResponse(raw);
 
     const matches = [];
     if (result.matches) {
@@ -333,7 +338,7 @@ export async function matchWhatsAppToPets(newPetId) {
       `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
     );
     console.log(`[matching] matchWhatsAppToPets usó ${provider}`);
-    const result = JSON.parse(raw);
+    const result = parseAIResponse(raw);
 
     const matches = [];
     if (result.matches) {
@@ -605,7 +610,7 @@ export async function matchScrapedToAppPets(scrapedMessageId) {
       `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
     );
     console.log(`[matching] matchScrapedToAppPets usó ${provider}`);
-    const result = JSON.parse(raw);
+    const result = parseAIResponse(raw);
 
     const matches = [];
     if (result.matches) {
@@ -672,7 +677,7 @@ ${BATCH_MATCH_PROMPT.split('\n').slice(1).join('\n')}`,
       `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
     );
     console.log(`[matching] matchScrapedToScraped usó ${provider}`);
-    const result = JSON.parse(raw);
+    const result = parseAIResponse(raw);
 
     const matches = [];
     if (result.matches) {
