@@ -721,8 +721,12 @@ export default function Admin() {
 
   // Reencuentro handler
   const handleReencuentro = async (petId: string, petName?: string) => {
-    setReunionPet({ id: petId, name: petName || 'Mascota' });
-    setReunionIsAdoption(false);
+    try {
+      setReunionPet({ id: petId, name: petName || 'Mascota' });
+      setReunionIsAdoption(false);
+    } catch (e) {
+      console.error('handleReencuentro error:', e);
+    }
   };
 
   // Pet Handlers
@@ -906,6 +910,18 @@ export default function Admin() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {reunionPet && (
+        <ReunionModal
+          petId={reunionPet.id}
+          petName={reunionPet.name}
+          isAdoption={reunionIsAdoption}
+          onClose={() => setReunionPet(null)}
+          onSaved={() => {
+            setReunionPet(null);
+            fetchPets();
+          }}
+        />
+      )}
       <div className="mb-12">
         <h1 className="text-4xl font-serif font-bold text-brand-primary mb-2">Panel de Administración</h1>
         <p className="text-gray-500">Gestión integral de reportes, ayuda y red de vecinos.</p>
@@ -3235,18 +3251,6 @@ function PublicReportsTab() {
       )}
 
 
-      {reunionPet && (
-        <ReunionModal
-          petId={reunionPet.id}
-          petName={reunionPet.name}
-          isAdoption={reunionIsAdoption}
-          onClose={() => setReunionPet(null)}
-          onSaved={() => {
-            setReunionPet(null);
-            fetchPets();
-          }}
-        />
-      )}
     </div>
   );
 }
