@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
-import '@tensorflow/tfjs-node';
+import '@tensorflow/tfjs';
 
 const CONFIDENCE_THRESHOLD = 0.5;
 
