@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X, PawPrint, MapPin, Phone, Calendar, Shield, MessageSquare, Camera,
-  Globe, Instagram, QrCode, ExternalLink, ChevronRight, ChevronDown, User, Heart
+  Globe, Instagram, QrCode, ExternalLink, ChevronRight, ChevronDown, User, Heart, HeartHandshake
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import ReunionModal from '@/src/components/ReunionModal';
 
 function Section({ title, icon, children, defaultOpen = true }: { title: string; icon: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -45,6 +46,7 @@ interface PetDetailPanelProps {
 
 export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }: PetDetailPanelProps) {
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'images' | 'relations'>('info');
+  const [showReunionModal, setShowReunionModal] = useState(false);
   const { pet, created_by_user, facebook_posts, instagram_posts, whatsapp_messages, facebook_matches, qr_identifiers } = data;
 
   const statusLabels: Record<string, string> = {
@@ -189,6 +191,55 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
               {pet.is_dewormed && <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-amber-100 text-amber-700">🪱 Desparasitado</span>}
             </div>
           )}
+
+          {/* Owner data */}
+          <div className="border border-brand-accent rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-bold text-xs text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                <HeartHandshake className="w-3.5 h-3.5" /> Datos del dueño
+              </h4>
+              <button onClick={() => setShowReunionModal(true)}
+                className="text-[10px] px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center gap-1">
+                <HeartHandshake className="w-3 h-3" /> {pet.owner_name ? 'Editar' : 'Completar'}
+              </button>
+            </div>
+            {pet.reunited_at && (
+              <p className="text-[10px] text-emerald-600 font-medium mb-2">
+                {pet.status === 'reunited' ? 'Reencontrada' : 'Adoptada'} el {new Date(pet.reunited_at).toLocaleDateString('es-AR')}
+              </p>
+            )}
+            {(pet.owner_name || pet.owner_phone || pet.owner_email || pet.owner_address) ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                {pet.owner_name && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <User className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                    <span>{pet.owner_name}</span>
+                  </div>
+                )}
+                {pet.owner_phone && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Phone className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                    <a href={`https://wa.me/54${pet.owner_phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                      className="text-emerald-600 hover:underline">{pet.owner_phone}</a>
+                  </div>
+                )}
+                {pet.owner_email && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <MessageSquare className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                    <a href={`mailto:${pet.owner_email}`} className="text-brand-primary hover:underline">{pet.owner_email}</a>
+                  </div>
+                )}
+                {pet.owner_address && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <MapPin className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                    <span>{pet.owner_address}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">Sin datos del dueño cargados.</p>
+            )}
+          </div>
 
           {pet.description && (
             <div className="border border-brand-accent rounded-2xl p-4">
@@ -360,6 +411,16 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
             <p className="text-gray-400 text-sm text-center py-8">Sin relaciones registradas</p>
           )}
         </div>
+      )}
+
+      {showReunionModal && (
+        <ReunionModal
+          petId={pet.id}
+          petName={pet.name || 'Mascota'}
+          isAdoption={pet.status === 'for_adoption' || pet.status === 'for_adoption_simple'}
+          onClose={() => setShowReunionModal(false)}
+          onSaved={() => setShowReunionModal(false)}
+        />
       )}
     </div>
   );
