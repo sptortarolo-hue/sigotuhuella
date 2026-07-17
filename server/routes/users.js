@@ -303,8 +303,11 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
                   classification, species, phone, location_hint, is_matched, posted_at, notes
            FROM facebook_posts
            WHERE id IN (
-             SELECT target_id FROM facebook_matches
-             WHERE source_type = 'pet' AND source_id = $1 AND target_type = 'facebook_post'
+             SELECT target_id::uuid FROM facebook_matches
+             WHERE source_type = 'app_pet' AND source_id = $1 AND target_type = 'fb_post'
+             UNION
+             SELECT source_id::uuid FROM facebook_matches
+             WHERE target_type = 'app_pet' AND target_id = $1 AND source_type = 'fb_post'
            )
            ORDER BY posted_at DESC
            LIMIT 10`,
@@ -323,9 +326,11 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
           `SELECT fm.*, fp.fb_post_id, fp.fb_post_url, fp.content as fb_content, fp.author_name as fb_author,
                   fp.classification as fb_classification
            FROM facebook_matches fm
-           LEFT JOIN facebook_posts fp ON fp.id = fm.source_id
-           WHERE (fm.source_type = 'pet' AND fm.source_id = $1)
-              OR (fm.target_type = 'pet' AND fm.target_id = $1)
+           LEFT JOIN facebook_posts fp ON fp.id = fm.source_id::uuid AND fm.source_type = 'fb_post'
+           WHERE (fm.source_type = 'app_pet' AND fm.source_id = $1)
+              OR (fm.target_type = 'app_pet' AND fm.target_id = $1)
+              OR (fm.source_type = 'wa_report' AND fm.source_id = $1)
+              OR (fm.target_type = 'wa_report' AND fm.target_id = $1)
            ORDER BY fm.created_at DESC
            LIMIT 20`,
           [pet.id]

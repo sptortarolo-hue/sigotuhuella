@@ -431,6 +431,7 @@ router.post('/', requireAuth, async (req, res) => {
     if (cnt === 15) await awardBadgeIfMissing(req.user.id, 'reporter_15');
 
     notifyPetPublication(pet.id, req.user.phone).catch(e => console.error('Publication notify error:', e));
+    matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
     matchWhatsAppToPets(pet.id).catch(e => console.error('WhatsApp matching error:', e));
 
     res.status(201).json({ pet });
@@ -605,9 +606,9 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
       `SELECT fp.*, fm.id as match_id, fm.score as match_score, fm.status as match_status, fm.reasons as match_reasons
        FROM facebook_posts fp
        JOIN facebook_matches fm ON (
-         (fm.source_type = 'facebook_post' AND fm.source_id = fp.id AND fm.target_type = 'pet' AND fm.target_id = $1)
+         (fm.source_type = 'fb_post' AND fm.source_id = fp.id AND fm.target_type = 'app_pet' AND fm.target_id = $1)
          OR
-         (fm.target_type = 'facebook_post' AND fm.target_id = fp.id AND fm.source_type = 'pet' AND fm.source_id = $1)
+         (fm.target_type = 'fb_post' AND fm.target_id = fp.id AND fm.source_type = 'app_pet' AND fm.source_id = $1)
        )
        ORDER BY fp.posted_at DESC
        LIMIT 20`,
@@ -628,20 +629,26 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
     const matchesRes = await pool.query(
       `SELECT fm.*,
         CASE
-          WHEN fm.target_type = 'facebook_post' THEN (SELECT fb_post_id FROM facebook_posts WHERE id = fm.target_id)
-          WHEN fm.source_type = 'facebook_post' THEN (SELECT fb_post_id FROM facebook_posts WHERE id = fm.source_id)
+          WHEN fm.target_type = 'fb_post' THEN (SELECT fb_post_id FROM facebook_posts WHERE id = fm.target_id::uuid)
+          WHEN fm.source_type = 'fb_post' THEN (SELECT fb_post_id FROM facebook_posts WHERE id = fm.source_id::uuid)
         END as related_fb_post_id,
         CASE
-          WHEN fm.target_type = 'facebook_post' THEN (SELECT content FROM facebook_posts WHERE id = fm.target_id)
-          WHEN fm.source_type = 'facebook_post' THEN (SELECT content FROM facebook_posts WHERE id = fm.source_id)
+          WHEN fm.target_type = 'fb_post' THEN (SELECT content FROM facebook_posts WHERE id = fm.target_id::uuid)
+          WHEN fm.source_type = 'fb_post' THEN (SELECT content FROM facebook_posts WHERE id = fm.source_id::uuid)
         END as related_fb_content,
         CASE
-          WHEN fm.target_type = 'facebook_post' THEN (SELECT author_name FROM facebook_posts WHERE id = fm.target_id)
-          WHEN fm.source_type = 'facebook_post' THEN (SELECT author_name FROM facebook_posts WHERE id = fm.source_id)
-        END as related_fb_author
+          WHEN fm.target_type = 'fb_post' THEN (SELECT author_name FROM facebook_posts WHERE id = fm.target_id::uuid)
+          WHEN fm.source_type = 'fb_post' THEN (SELECT author_name FROM facebook_posts WHERE id = fm.source_id::uuid)
+        END as related_fb_author,
+        CASE
+          WHEN fm.target_type IN ('app_pet', 'wa_report') THEN (SELECT name FROM pets WHERE id = fm.target_id::uuid)
+          WHEN fm.source_type IN ('app_pet', 'wa_report') THEN (SELECT name FROM pets WHERE id = fm.source_id::uuid)
+        END as related_pet_name
        FROM facebook_matches fm
-       WHERE (fm.source_type = 'pet' AND fm.source_id = $1)
-          OR (fm.target_type = 'pet' AND fm.target_id = $1)
+       WHERE (fm.source_type = 'app_pet' AND fm.source_id = $1)
+          OR (fm.target_type = 'app_pet' AND fm.target_id = $1)
+          OR (fm.source_type = 'wa_report' AND fm.source_id = $1)
+          OR (fm.target_type = 'wa_report' AND fm.target_id = $1)
        ORDER BY fm.created_at DESC
        LIMIT 20`,
       [petId]

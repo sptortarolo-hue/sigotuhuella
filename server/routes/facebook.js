@@ -2,7 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { classifyPost } from '../services/geminiClassifier.js';
-import { detectReunion, matchPostToPet } from '../services/geminiMatching.js';
+import { detectReunion, matchPostToPet, runFullMatching } from '../services/geminiMatching.js';
 import { getSessionFile } from '../services/facebookRelayService.js';
 import { enqueue } from '../services/phoneRelayService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
