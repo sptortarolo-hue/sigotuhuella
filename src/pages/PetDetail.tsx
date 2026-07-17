@@ -320,16 +320,11 @@ Me gustaría obtener más información.`;
           </div>
 
           <div className="mt-auto space-y-6">
-            {(pet.status === PetStatus.SIGHTED || pet.status === PetStatus.REUNITED) && (pet.owner_name || pet.owner_phone || pet.owner_email || pet.owner_address) && (
+            {(pet.status === PetStatus.SIGHTED || pet.status === PetStatus.RETAINED) && (pet.owner_name || pet.owner_phone || pet.owner_email || pet.owner_address) && (
               <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
                 <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
-                  {pet.status === PetStatus.REUNITED ? 'Mascota reencontrada' : 'Datos del dueño'}
+                  Datos del dueño
                 </h4>
-                {pet.reunited_at && (
-                  <p className="text-xs text-emerald-600 font-medium mb-2">
-                    Reencontrada el {new Date(pet.reunited_at).toLocaleDateString('es-AR')}
-                  </p>
-                )}
                 <div className="space-y-2">
                   {pet.owner_name && (
                     <div className="flex items-center gap-2">
