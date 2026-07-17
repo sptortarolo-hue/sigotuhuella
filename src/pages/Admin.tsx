@@ -725,6 +725,7 @@ export default function Admin() {
     const pet = pets.find(p => p.id === petId);
     setReunionPet({ id: petId, name: pet?.name || 'Mascota' });
     setReunionIsAdoption(false);
+    window.__reunionDebug = { petId, name: pet?.name || 'Mascota' };
   };
 
   // Pet Handlers
@@ -908,6 +909,12 @@ export default function Admin() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {reunionPet && <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50">
+        <div className="bg-white p-8 rounded-2xl max-w-md mx-4">
+          <p className="text-lg font-bold mb-4">DEBUG — {reunionPet.name}</p>
+          <button onClick={() => setReunionPet(null)} className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold">OK</button>
+        </div>
+      </div>}
       <div className="mb-12">
         <h1 className="text-4xl font-serif font-bold text-brand-primary mb-2">Panel de Administración</h1>
         <p className="text-gray-500">Gestión integral de reportes, ayuda y red de vecinos.</p>
@@ -3236,15 +3243,7 @@ function PublicReportsTab() {
         </div>
       )}
 
-      {reunionPet && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50">
-          <div className="bg-white p-8 rounded-2xl max-w-md w-full mx-4">
-            <p className="text-lg font-bold mb-4">DEBUG MODAL — {reunionPet.name}</p>
-            <p className="text-sm text-gray-500 mb-4">ID: {reunionPet.id}</p>
-            <button onClick={() => setReunionPet(null)} className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold">Cerrar</button>
-          </div>
-        </div>
-      )}
+      
     </div>
   );
 }
