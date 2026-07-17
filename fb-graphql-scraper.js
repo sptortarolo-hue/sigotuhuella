@@ -305,19 +305,39 @@ async function discoverDocIdWithPuppeteer(groupId, cookies) {
     const fbCookies = cookies.filter(c => c.domain?.includes('facebook') || c.domain?.includes('.facebook'));
     if (fbCookies.length > 0) await page.setCookie(...fbCookies);
 
-    // Intercept GraphQL requests to extract doc_id from POST body
+    // Capture GraphQL requests and check responses for actual group feed data
     let foundDocId = null;
     let graphQLCount = 0;
+    const graphQLReqs = [];
+
     page.on('request', (req) => {
       try {
         if (req.url().includes('/api/graphql/') && req.method() === 'POST') {
           graphQLCount++;
-          const postData = req.postData();
-          if (postData) {
-            const match = postData.match(/doc_id=(\d+)/);
-            if (match) {
-              foundDocId = match[1];
-              console.log(`[Scraper] Capturado doc_id=${match[1]} de request GraphQL #${graphQLCount}`);
+          graphQLReqs.push({
+            url: req.url(),
+            postData: req.postData(),
+          });
+        }
+      } catch {}
+    });
+
+    page.on('response', async (resp) => {
+      try {
+        if (!resp.url().includes('/api/graphql/')) return;
+        let rawText = await resp.text();
+        rawText = rawText.replace(/^for\s*\(\s*;\s*;\s*\)\s*/, '').trim();
+        if (!rawText.startsWith('{')) return;
+        const json = JSON.parse(rawText);
+        // Check if this response actually contains group feed posts
+        const edges = json?.data?.node?.group_feed?.edges;
+        if (edges && edges.length > 0) {
+          const matchReq = graphQLReqs.find(r => r.url === resp.url());
+          if (matchReq?.postData) {
+            const m = matchReq.postData.match(/doc_id=(\d+)/);
+            if (m) {
+              foundDocId = m[1];
+              console.log(`[Scraper] Capturado doc_id=${m[1]} de request con ${edges.length} posts`);
             }
           }
         }
@@ -337,7 +357,7 @@ async function discoverDocIdWithPuppeteer(groupId, cookies) {
     }
 
     if (!foundDocId) {
-      console.warn(`[Scraper] No se capturó request GraphQL en ${graphQLCount} requests interceptadas`);
+      console.warn(`[Scraper] No se encontró feed en ${graphQLCount} requests GraphQL`);
       // Fallback: try to capture doc_id from XHR responses too
       foundDocId = await page.evaluate(() => {
         try {
