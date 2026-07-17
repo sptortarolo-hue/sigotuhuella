@@ -17,7 +17,7 @@ const RIGHT_BOX = { x: 575, y: 665, w: 320, h: 380 };
 const BG_COLOR = '#f4eae1';
 
 // New QR positioned at bottom of box interior, with padding from bottom edge
-const BOTTOM_PAD = 15;
+const BOTTOM_PAD = 5;
 const APP_QR = { left: LEFT_BOX.x + Math.round((LEFT_BOX.w - QR_SIZE) / 2), top: LEFT_BOX.y + LEFT_BOX.h - QR_SIZE - BOTTOM_PAD };
 const WA_QR = { left: RIGHT_BOX.x + Math.round((RIGHT_BOX.w - QR_SIZE) / 2), top: RIGHT_BOX.y + RIGHT_BOX.h - QR_SIZE - BOTTOM_PAD };
 
