@@ -45,7 +45,7 @@ interface PetDetailPanelProps {
 }
 
 export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }: PetDetailPanelProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'info' | 'images' | 'relations'>('info');
+  const [activeSubTab, setActiveSubTab] = useState<'info' | 'images' | 'owner' | 'relations'>('info');
   const [showReunionModal, setShowReunionModal] = useState(false);
   const { pet, created_by_user, facebook_posts, instagram_posts, whatsapp_messages, facebook_matches, qr_identifiers } = data;
 
@@ -108,10 +108,11 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex border-b border-brand-accent gap-0">
+      <div className="flex border-b border-brand-accent gap-0 overflow-x-auto">
         {[
           { id: 'info', label: 'Info' },
           { id: 'images', label: `Fotos (${pet.images?.length || 0})` },
+          { id: 'owner', label: 'Dueño' },
           { id: 'relations', label: 'Relaciones' },
         ].map(tab => (
           <button
@@ -192,55 +193,6 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
             </div>
           )}
 
-          {/* Owner data */}
-          <div className="border border-brand-accent rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-bold text-xs text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                <HeartHandshake className="w-3.5 h-3.5" /> Datos del dueño
-              </h4>
-              <button onClick={() => setShowReunionModal(true)}
-                className="text-[10px] px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center gap-1">
-                <HeartHandshake className="w-3 h-3" /> {pet.owner_name ? 'Editar' : 'Completar'}
-              </button>
-            </div>
-            {pet.reunited_at && (
-              <p className="text-[10px] text-emerald-600 font-medium mb-2">
-                {pet.status === 'reunited' ? 'Reencontrada' : 'Adoptada'} el {new Date(pet.reunited_at).toLocaleDateString('es-AR')}
-              </p>
-            )}
-            {(pet.owner_name || pet.owner_phone || pet.owner_email || pet.owner_address) ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                {pet.owner_name && (
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <User className="w-3.5 h-3.5 shrink-0 text-gray-400" />
-                    <span>{pet.owner_name}</span>
-                  </div>
-                )}
-                {pet.owner_phone && (
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Phone className="w-3.5 h-3.5 shrink-0 text-gray-400" />
-                    <a href={`https://wa.me/54${pet.owner_phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
-                      className="text-emerald-600 hover:underline">{pet.owner_phone}</a>
-                  </div>
-                )}
-                {pet.owner_email && (
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <MessageSquare className="w-3.5 h-3.5 shrink-0 text-gray-400" />
-                    <a href={`mailto:${pet.owner_email}`} className="text-brand-primary hover:underline">{pet.owner_email}</a>
-                  </div>
-                )}
-                {pet.owner_address && (
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <MapPin className="w-3.5 h-3.5 shrink-0 text-gray-400" />
-                    <span>{pet.owner_address}</span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400">Sin datos del dueño cargados.</p>
-            )}
-          </div>
-
           {pet.description && (
             <div className="border border-brand-accent rounded-2xl p-4">
               <h4 className="font-bold text-xs text-gray-400 uppercase tracking-widest mb-2">Descripción</h4>
@@ -280,6 +232,73 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
                   )}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Owner tab */}
+      {activeSubTab === 'owner' && (
+        <div className="space-y-4 p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-sm text-brand-primary flex items-center gap-2">
+              <HeartHandshake className="w-4 h-4" /> Datos del dueño
+            </h3>
+            <button onClick={() => setShowReunionModal(true)}
+              className="text-xs px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center gap-1">
+              <HeartHandshake className="w-3.5 h-3.5" /> {pet.owner_name ? 'Editar datos' : 'Completar datos'}
+            </button>
+          </div>
+          {pet.reunited_at && (
+            <p className="text-xs text-emerald-600 font-medium">
+              {pet.status === 'reunited' ? 'Reencontrada' : 'Adoptada'} el {new Date(pet.reunited_at).toLocaleDateString('es-AR')}
+            </p>
+          )}
+          {(pet.owner_name || pet.owner_phone || pet.owner_email || pet.owner_address) ? (
+            <div className="space-y-3">
+              {pet.owner_name && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl text-sm">
+                  <User className="w-4 h-4 shrink-0 text-gray-400" />
+                  <div>
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wider">Nombre</p>
+                    <p className="font-medium">{pet.owner_name}</p>
+                  </div>
+                </div>
+              )}
+              {pet.owner_phone && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl text-sm">
+                  <Phone className="w-4 h-4 shrink-0 text-gray-400" />
+                  <div>
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wider">Teléfono</p>
+                    <a href={`https://wa.me/54${pet.owner_phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                      className="font-medium text-emerald-600 hover:underline">{pet.owner_phone}</a>
+                  </div>
+                </div>
+              )}
+              {pet.owner_email && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl text-sm">
+                  <MessageSquare className="w-4 h-4 shrink-0 text-gray-400" />
+                  <div>
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wider">Email</p>
+                    <a href={`mailto:${pet.owner_email}`} className="font-medium text-brand-primary hover:underline">{pet.owner_email}</a>
+                  </div>
+                </div>
+              )}
+              {pet.owner_address && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl text-sm">
+                  <MapPin className="w-4 h-4 shrink-0 text-gray-400" />
+                  <div>
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wider">Dirección</p>
+                    <p className="font-medium">{pet.owner_address}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              <HeartHandshake className="w-10 h-10 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">Sin datos del dueño cargados.</p>
+              <p className="text-xs mt-1">Hacé click en "Completar datos" para agregar la información.</p>
             </div>
           )}
         </div>
