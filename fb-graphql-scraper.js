@@ -291,39 +291,67 @@ async function discoverDocIdWithPuppeteer(groupId, cookies) {
     browser = await puppeteer.launch({
       headless: true,
       executablePath: CHROMIUM_PATH,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+      args: [
+        '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+        '--disable-gpu', '--disable-features=site-per-process',
+      ],
       defaultViewport: { width: 1366, height: 768 },
     });
     const page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(60000);
     await page.setUserAgent(pickUA());
 
     // Set cookies before navigation
     const fbCookies = cookies.filter(c => c.domain?.includes('facebook') || c.domain?.includes('.facebook'));
     if (fbCookies.length > 0) await page.setCookie(...fbCookies);
 
-    // Intercept GraphQL requests to extract doc_id
+    // Intercept GraphQL requests to extract doc_id from POST body
     let foundDocId = null;
-    page.on('response', async (resp) => {
-      if (resp.url().includes('/api/graphql/')) {
-        try {
-          const urlObj = new URL(resp.url());
-          const docId = urlObj.searchParams.get('doc_id') || urlObj.searchParams.get('__doc_id');
-          const respText = await resp.text();
-          if (docId && respText.length > 100 && !respText.includes('"errors"')) {
-            foundDocId = docId;
+    let graphQLCount = 0;
+    page.on('request', (req) => {
+      try {
+        if (req.url().includes('/api/graphql/') && req.method() === 'POST') {
+          graphQLCount++;
+          const postData = req.postData();
+          if (postData) {
+            const match = postData.match(/doc_id=(\d+)/);
+            if (match) {
+              foundDocId = match[1];
+              console.log(`[Scraper] Capturado doc_id=${match[1]} de request GraphQL #${graphQLCount}`);
+            }
           }
-        } catch {}
-      }
+        }
+      } catch {}
     });
 
     await page.goto(`https://www.facebook.com/groups/${groupId}/`, {
-      waitUntil: 'networkidle2',
-      timeout: 30000,
+      waitUntil: 'load',
+      timeout: 45000,
+    }).catch(err => {
+      console.warn(`[Scraper] Navigation warning: ${err.message}`);
     });
 
-    // Wait up to 10s for a GraphQL request to be intercepted
-    for (let i = 0; i < 20 && !foundDocId; i++) {
+    // Try to wait for GraphQL requests (up to 15s)
+    for (let i = 0; i < 30 && !foundDocId; i++) {
       await sleep(500);
+    }
+
+    if (!foundDocId) {
+      console.warn(`[Scraper] No se capturó request GraphQL en ${graphQLCount} requests interceptadas`);
+      // Fallback: try to capture doc_id from XHR responses too
+      foundDocId = await page.evaluate(() => {
+        try {
+          const perf = performance.getEntriesByType('resource') || [];
+          for (const entry of perf) {
+            if (entry.name.includes('/api/graphql/')) {
+              const m = entry.name.match(/doc_id[=/](\d+)/);
+              if (m) return m[1];
+            }
+          }
+        } catch {}
+        return null;
+      });
+      if (foundDocId) console.log(`[Scraper] Doc_id recuperado de Performance API: ${foundDocId}`);
     }
 
     await browser.close();
