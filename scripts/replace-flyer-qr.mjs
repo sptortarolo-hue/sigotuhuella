@@ -16,9 +16,10 @@ const RIGHT_BOX = { x: 575, y: 665, w: 320, h: 380 };
 // Background color sampled from inside the boxes
 const BG_COLOR = '#f4eae1';
 
-// New QR centered in each box
-const APP_QR = { left: LEFT_BOX.x + Math.round((LEFT_BOX.w - QR_SIZE) / 2), top: LEFT_BOX.y + Math.round((LEFT_BOX.h - QR_SIZE) / 2) };
-const WA_QR = { left: RIGHT_BOX.x + Math.round((RIGHT_BOX.w - QR_SIZE) / 2), top: RIGHT_BOX.y + Math.round((RIGHT_BOX.h - QR_SIZE) / 2) };
+// New QR positioned at bottom of box interior, with padding from bottom edge
+const BOTTOM_PAD = 15;
+const APP_QR = { left: LEFT_BOX.x + Math.round((LEFT_BOX.w - QR_SIZE) / 2), top: LEFT_BOX.y + LEFT_BOX.h - QR_SIZE - BOTTOM_PAD };
+const WA_QR = { left: RIGHT_BOX.x + Math.round((RIGHT_BOX.w - QR_SIZE) / 2), top: RIGHT_BOX.y + RIGHT_BOX.h - QR_SIZE - BOTTOM_PAD };
 
 async function main() {
   console.log('Generating QR codes...');
@@ -39,19 +40,20 @@ async function main() {
 
   console.log('Covering old QR areas with matching background...');
 
+  const qrMargin = 10;
   const leftBg = Buffer.from(
-    `<svg width="${LEFT_BOX.w}" height="${LEFT_BOX.h}"><rect width="100%" height="100%" fill="${BG_COLOR}"/></svg>`
+    `<svg width="${QR_SIZE + qrMargin * 2}" height="${QR_SIZE + qrMargin * 2}"><rect width="100%" height="100%" fill="${BG_COLOR}"/></svg>`
   );
   const rightBg = Buffer.from(
-    `<svg width="${RIGHT_BOX.w}" height="${RIGHT_BOX.h}"><rect width="100%" height="100%" fill="${BG_COLOR}"/></svg>`
+    `<svg width="${QR_SIZE + qrMargin * 2}" height="${QR_SIZE + qrMargin * 2}"><rect width="100%" height="100%" fill="${BG_COLOR}"/></svg>`
   );
 
   console.log(`Left QR at (${APP_QR.left}, ${APP_QR.top}), Right QR at (${WA_QR.left}, ${WA_QR.top})`);
 
   await sharp(FLYER_PATH)
     .composite([
-      { input: leftBg, left: LEFT_BOX.x, top: LEFT_BOX.y },
-      { input: rightBg, left: RIGHT_BOX.x, top: RIGHT_BOX.y },
+      { input: leftBg, left: APP_QR.left - qrMargin, top: APP_QR.top - qrMargin },
+      { input: rightBg, left: WA_QR.left - qrMargin, top: WA_QR.top - qrMargin },
       { input: appQrBuffer, left: APP_QR.left, top: APP_QR.top, width: QR_SIZE, height: QR_SIZE },
       { input: waQrBuffer, left: WA_QR.left, top: WA_QR.top, width: QR_SIZE, height: QR_SIZE },
     ])
