@@ -6,7 +6,8 @@ import { getPending, markSent, markFailed, enqueue, getStatus, setEnabled, getAl
 import { broadcastAdoptionPet } from '../services/whatsappService.js';
 import { requireAdmin } from '../auth.js';
 import { classifyWhatsAppMessage } from '../services/geminiClassifier.js';
-import { matchWhatsAppMessageToPet } from '../services/geminiMatching.js';
+import { matchScrapedToAppPets, matchScrapedToScraped } from '../services/geminiMatching.js';
+import { detectAnimal } from '../services/animalDetector.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -615,8 +616,31 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
            WHERE id = $6`,
           [classification.classification, classification.species, classification.color, classification.location_hint, classification.phone, messageId]
         );
-        if (['lost', 'found', 'sighting'].includes(classification.classification) && ['dog', 'cat'].includes(classification.species)) {
-          matchWhatsAppMessageToPet(messageId).catch(e => console.error('WA message matching error:', e));
+
+        // YOLO detection: confirm there's a dog or cat in the image
+        if (classImage) {
+          const detection = await detectAnimal(classImage, classMime || 'image/jpeg');
+          if (!detection.detected) {
+            await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
+            return;
+          }
+          await pool.query(
+            `UPDATE whatsapp_scraped_messages
+             SET animal_detected = true, animal_species = $1, animal_confidence = $2
+             WHERE id = $3`,
+            [detection.species, detection.confidence, messageId]
+          );
+        }
+
+        // Run matching only if classified as lost/found/sighting
+        if (['lost', 'found', 'sighting'].includes(classification.classification)) {
+          // Phase 1: match against app DB (pets + pet_images)
+          const appMatches = await matchScrapedToAppPets(messageId);
+
+          // Phase 2: match against other scraped messages
+          if (appMatches.length === 0) {
+            matchScrapedToScraped(messageId).catch(e => console.error('WA scraped-to-scraped matching error:', e));
+          }
         }
       })
       .catch(e => console.error('[Relay] background classification error:', e.message));

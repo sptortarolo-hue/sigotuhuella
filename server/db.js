@@ -1183,6 +1183,13 @@ export async function initDb() {
     `, 'whatsapp_scraped_messages author_phone');
 
     await migrate(client, `
+      ALTER TABLE whatsapp_scraped_messages
+        ADD COLUMN IF NOT EXISTS animal_detected BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS animal_species VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS animal_confidence REAL
+    `, 'whatsapp_scraped_messages animal_detect');
+
+    await migrate(client, `
       CREATE TABLE IF NOT EXISTS whatsapp_message_images (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         message_id UUID REFERENCES whatsapp_scraped_messages(id) ON DELETE CASCADE,

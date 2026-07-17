@@ -82,6 +82,15 @@ jobs:
           fi
           cd /var/www/sigotuhuella
           npm install --production
+          # Download YOLO model if not present
+          mkdir -p server/models
+          if [ ! -f server/models/yolov8n.onnx ]; then
+            echo "[YOLO] Downloading YOLOv8n model..."
+            curl -L https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.onnx -o server/models/yolov8n.onnx
+            echo "[YOLO] Model downloaded"
+          else
+            echo "[YOLO] Model already exists"
+          fi
           # Restore DATABASE_URL (never overwritten by deploy)
           if [ -f /root/.sihuella-db.env ]; then
             grep -q 'DATABASE_URL' server/.env 2>/dev/null || cat /root/.sihuella-db.env >> server/.env

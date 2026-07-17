@@ -555,3 +555,156 @@ export async function detectAndCropPetFace(imageBase64, mimeType) {
     return null;
   }
 }
+
+const VISUAL_MATCH_PROMPT = `Sos un sistema de matching visual para mascotas perdidas.
+Te doy DOS reportes, cada uno con imagen y texto.
+Determiná si se trata del MISMO animal.
+
+Devuelve SOLO un JSON:
+{
+  "match": true|false,
+  "score": 0-100,
+  "reasons": ["razón clara 1", "razón clara 2"]
+}
+
+Reglas:
+- Score > 70 = muy probable que sea el mismo
+- Score 50-70 = posible match
+- Score < 50 = probablemente no es el mismo
+- Considerá: especie, color, tamaño, ubicación
+- Si la especie NO coincide → score < 20
+- Si están en ubicaciones muy distantes → score bajo`;
+
+export async function matchScrapedToAppPets(scrapedMessageId) {
+  try {
+    const msgRes = await pool.query('SELECT * FROM whatsapp_scraped_messages WHERE id = $1', [scrapedMessageId]);
+    if (msgRes.rows.length === 0) return [];
+    const msg = msgRes.rows[0];
+    if (msg.is_matched) return [];
+
+    const speciesFilter = msg.animal_species || msg.species;
+    const candidates = await pool.query(
+      `SELECT p.id, p.name, p.species, p.color, p.description, p.location, p.latitude, p.longitude, p.status,
+              pi.image_data as pet_image, pi.mime_type as pet_image_mime
+       FROM pets p
+       LEFT JOIN pet_images pi ON pi.pet_id = p.id AND pi.sort_order = 0
+       WHERE p.status IN ('lost', 'sighted')
+         AND ($1::text IS NULL OR p.species = $1)
+       ORDER BY p.created_at DESC LIMIT 20`,
+      [speciesFilter]
+    );
+    if (candidates.rows.length === 0) return [];
+
+    const sourceText = `Mensaje de WhatsApp:\n${msg.content || '(sin texto)'}`;
+    const candidatesText = candidates.rows.map((c, i) =>
+      `[${i}] ${c.name ? 'Nombre: ' + c.name + ', ' : ''}Especie: ${c.species}, Color: ${c.color || 'no especificado'}, Ubicación: ${c.location || 'no especificada'}, Estado: ${c.status}, Descripción: ${c.description || 'N/A'}`
+    ).join('\n');
+
+    const { text: raw, provider } = await matchingAI(
+      BATCH_MATCH_PROMPT,
+      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
+    );
+    console.log(`[matching] matchScrapedToAppPets usó ${provider}`);
+    const result = JSON.parse(raw);
+
+    const matches = [];
+    if (result.matches) {
+      for (const m of result.matches) {
+        if (m.match && m.score >= 50 && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
+          const pet = candidates.rows[m.candidate_index];
+          const insertRes = await pool.query(
+            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
+             VALUES ('wa_group', $1, 'app_pet', $2, $3, $4, 'visual')
+             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING
+             RETURNING id`,
+            [scrapedMessageId, pet.id, m.score, m.reasons || []]
+          );
+          if (insertRes.rows.length > 0) {
+            matches.push({ pet, score: m.score, reasons: m.reasons || [] });
+          }
+        }
+      }
+    }
+
+    if (matches.length > 0) {
+      await pool.query('UPDATE whatsapp_scraped_messages SET is_matched = true WHERE id = $1', [scrapedMessageId]);
+      console.log(`[matching] WA message ${scrapedMessageId} matched ${matches.length} app pets`);
+    }
+
+    return matches;
+  } catch (err) {
+    console.error('matchScrapedToAppPets error:', err);
+    return [];
+  }
+}
+
+export async function matchScrapedToScraped(messageId) {
+  try {
+    const msgRes = await pool.query('SELECT * FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
+    if (msgRes.rows.length === 0) return [];
+    const msg = msgRes.rows[0];
+    if (msg.is_matched) return [];
+
+    const oppositeStatuses = msg.classification === 'lost' ? ['found', 'sighting'] : ['lost'];
+    const speciesFilter = msg.animal_species || msg.species;
+
+    const candidates = await pool.query(
+      `SELECT id, content, image_data, image_mime, classification, animal_detected, animal_species, animal_confidence, location_hint, created_at
+       FROM whatsapp_scraped_messages
+       WHERE id != $1
+         AND classification = ANY($2)
+         AND animal_detected = true
+         AND is_matched = false
+         AND ($3::text IS NULL OR animal_species = $3)
+       ORDER BY created_at DESC LIMIT 10`,
+      [messageId, oppositeStatuses, speciesFilter]
+    );
+    if (candidates.rows.length === 0) return [];
+
+    const sourceText = `Reporte ${msg.classification}:\n${msg.content || '(sin texto)'}\nUbicación: ${msg.location_hint || 'no especificada'}`;
+    const candidatesText = candidates.rows.map((c, i) =>
+      `[${i}] ${c.classification}: ${(c.content || '').substring(0, 150)}${c.image_data ? ' [con imagen]' : ''}`
+    ).join('\n');
+
+    const { text: raw, provider } = await matchingAI(
+      `Sos un sistema de matching entre reportes de WhatsApp para mascotas perdidas. Determiná si reportes con estados opuestos (perdido vs encontrado) podrían referirse al MISMO animal.
+${BATCH_MATCH_PROMPT.split('\n').slice(1).join('\n')}`,
+      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
+    );
+    console.log(`[matching] matchScrapedToScraped usó ${provider}`);
+    const result = JSON.parse(raw);
+
+    const matches = [];
+    if (result.matches) {
+      for (const m of result.matches) {
+        if (m.match && m.score >= 50 && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
+          const candidate = candidates.rows[m.candidate_index];
+          const insertRes = await pool.query(
+            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
+             VALUES ('wa_scraped', $1, 'wa_scraped', $2, $3, $4, 'visual')
+             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING
+             RETURNING id`,
+            [messageId, candidate.id, m.score, m.reasons || []]
+          );
+          if (insertRes.rows.length > 0) {
+            matches.push({ candidate, score: m.score, reasons: m.reasons || [] });
+          }
+        }
+      }
+    }
+
+    if (matches.length > 0) {
+      await pool.query('UPDATE whatsapp_scraped_messages SET is_matched = true WHERE id = $1', [messageId]);
+      await pool.query(
+        'UPDATE whatsapp_scraped_messages SET is_matched = true WHERE id = ANY($1::uuid[])',
+        [matches.map(m => m.candidate.id)]
+      );
+      console.log(`[matching] WA message ${messageId} matched ${matches.length} other scraped messages`);
+    }
+
+    return matches;
+  } catch (err) {
+    console.error('matchScrapedToScraped error:', err);
+    return [];
+  }
+}
