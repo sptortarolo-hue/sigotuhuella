@@ -721,6 +721,7 @@ export default function Admin() {
 
   // Reencuentro handler
   const handleReencuentro = async (petId: string) => {
+    console.log('handleReencuentro called with', petId);
     const pet = pets.find(p => p.id === petId);
     setReunionPet({ id: petId, name: pet?.name || 'Mascota' });
     setReunionIsAdoption(false);
