@@ -7,15 +7,18 @@ const OUTPUT_PATH = 'public/difusion.jpeg';
 const APP_URL = 'https://sigotuhuella.online';
 const WA_URL = 'https://wa.me/5492212025190?text=Hola%21+Quiero+reportar+una+mascota';
 
-const QR_SIZE = 280;
+const QR_SIZE = 270;
 
-// Measured from pixel analysis of the original flyer (1024x1536)
-const LEFT_QR_CONTENT = { x: 155, y: 670, w: 290, h: 360 };
-const RIGHT_QR_CONTENT = { x: 600, y: 670, w: 270, h: 360 };
+// Exact box interiors measured from pixel analysis
+const LEFT_BOX = { x: 135, y: 665, w: 300, h: 380 };
+const RIGHT_BOX = { x: 575, y: 665, w: 320, h: 380 };
 
-// New QR positions: centered in the cleared areas
-const APP_QR = { left: 155, top: 680 };
-const WA_QR = { left: 600, top: 680 };
+// Background color sampled from inside the boxes
+const BG_COLOR = '#f4eae1';
+
+// New QR centered in each box
+const APP_QR = { left: LEFT_BOX.x + Math.round((LEFT_BOX.w - QR_SIZE) / 2), top: LEFT_BOX.y + Math.round((LEFT_BOX.h - QR_SIZE) / 2) };
+const WA_QR = { left: RIGHT_BOX.x + Math.round((RIGHT_BOX.w - QR_SIZE) / 2), top: RIGHT_BOX.y + Math.round((RIGHT_BOX.h - QR_SIZE) / 2) };
 
 async function main() {
   console.log('Generating QR codes...');
@@ -34,24 +37,21 @@ async function main() {
     errorCorrectionLevel: 'H',
   });
 
-  console.log('White-out old QR areas...');
+  console.log('Covering old QR areas with matching background...');
 
-  // Create white rectangles to cover old QR content
-  const leftWhiteSvg = Buffer.from(
-    `<svg width="${LEFT_QR_CONTENT.w}" height="${LEFT_QR_CONTENT.h}"><rect width="100%" height="100%" fill="white"/></svg>`
+  const leftBg = Buffer.from(
+    `<svg width="${LEFT_BOX.w}" height="${LEFT_BOX.h}"><rect width="100%" height="100%" fill="${BG_COLOR}"/></svg>`
   );
-  const rightWhiteSvg = Buffer.from(
-    `<svg width="${RIGHT_QR_CONTENT.w}" height="${RIGHT_QR_CONTENT.h}"><rect width="100%" height="100%" fill="white"/></svg>`
+  const rightBg = Buffer.from(
+    `<svg width="${RIGHT_BOX.w}" height="${RIGHT_BOX.h}"><rect width="100%" height="100%" fill="${BG_COLOR}"/></svg>`
   );
 
-  console.log('Compositing new QR codes...');
+  console.log(`Left QR at (${APP_QR.left}, ${APP_QR.top}), Right QR at (${WA_QR.left}, ${WA_QR.top})`);
 
   await sharp(FLYER_PATH)
     .composite([
-      // Step 1: White-out old QR areas
-      { input: leftWhiteSvg, left: LEFT_QR_CONTENT.x, top: LEFT_QR_CONTENT.y },
-      { input: rightWhiteSvg, left: RIGHT_QR_CONTENT.x, top: RIGHT_QR_CONTENT.y },
-      // Step 2: Place new QR codes centered
+      { input: leftBg, left: LEFT_BOX.x, top: LEFT_BOX.y },
+      { input: rightBg, left: RIGHT_BOX.x, top: RIGHT_BOX.y },
       { input: appQrBuffer, left: APP_QR.left, top: APP_QR.top, width: QR_SIZE, height: QR_SIZE },
       { input: waQrBuffer, left: WA_QR.left, top: WA_QR.top, width: QR_SIZE, height: QR_SIZE },
     ])
