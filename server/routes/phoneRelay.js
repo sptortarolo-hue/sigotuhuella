@@ -355,7 +355,8 @@ router.get('/scraped-messages', (req, res, next) => {
         SELECT fp.id, 'fb' as source, fg.name as group_name, fp.author_name, fp.content,
           fp.classification, fp.species, fp.color, fp.location_hint, fp.phone, fp.is_matched, fp.created_at,
           fp.image_urls, fp.fb_post_url,
-          (fp.image_data IS NOT NULL) as has_image, null::text as wa_message_id, null::text as image_data, null::text as image_mime,
+          (fp.image_data IS NOT NULL) as has_image, 0 as image_count,
+          null::text as wa_message_id, null::text as image_data, null::text as image_mime,
           null::text as author_jid, null::text as author_phone
         FROM facebook_posts fp
         LEFT JOIN facebook_groups fg ON fg.id = fp.group_id
@@ -366,7 +367,9 @@ router.get('/scraped-messages', (req, res, next) => {
         SELECT wsm.id, 'wa' as source, wg.name as group_name, wsm.author_name, wsm.content,
           wsm.classification, wsm.species, wsm.color, wsm.location_hint, wsm.phone, wsm.is_matched, wsm.created_at,
           null::text[] as image_urls, null::text as fb_post_url,
-          (wsm.image_data IS NOT NULL) as has_image, wsm.wa_message_id, null::text as image_data, wsm.image_mime,
+          ((wsm.image_data IS NOT NULL) OR EXISTS(SELECT 1 FROM whatsapp_message_images WHERE message_id = wsm.id)) as has_image,
+          (SELECT COUNT(*)::int FROM whatsapp_message_images WHERE message_id = wsm.id) as image_count,
+          wsm.wa_message_id, null::text as image_data, wsm.image_mime,
           wsm.author_jid, wsm.author_phone
         FROM whatsapp_scraped_messages wsm
         JOIN whatsapp_groups wg ON wg.id = wsm.group_id
@@ -393,7 +396,22 @@ router.get('/scraped-messages/:id', (req, res, next) => {
   try {
     const result = await pool.query('SELECT * FROM whatsapp_scraped_messages WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Message not found' });
-    res.json(result.rows[0]);
+    const msg = result.rows[0];
+    // Include images from new table
+    try {
+      const imgs = await pool.query(
+        'SELECT image_data, image_mime, position FROM whatsapp_message_images WHERE message_id = $1 ORDER BY position',
+        [req.params.id]
+      );
+      msg.images = imgs.rows;
+      if (!msg.image_data && imgs.rows.length > 0) {
+        msg.image_data = imgs.rows[0].image_data;
+        msg.image_mime = imgs.rows[0].image_mime;
+      }
+    } catch (e) {
+      msg.images = [];
+    }
+    res.json(msg);
   } catch (err) {
     console.error('[Relay] scraped-message detail error:', err.message);
     res.status(500).json({ error: err.message });
@@ -402,6 +420,26 @@ router.get('/scraped-messages/:id', (req, res, next) => {
 
 router.get('/scraped-messages/:id/image', async (req, res) => {
   try {
+    const position = parseInt(req.query.position) || 0;
+    // Try new images table first
+    let imgResult;
+    try {
+      imgResult = await pool.query(
+        'SELECT image_data, image_mime FROM whatsapp_message_images WHERE message_id = $1 AND position = $2',
+        [req.params.id, position]
+      );
+    } catch (e) {
+      imgResult = { rows: [] };
+    }
+    if (imgResult.rows.length > 0 && imgResult.rows[0].image_data) {
+      const buf = Buffer.from(imgResult.rows[0].image_data, 'base64');
+      res.writeHead(200, {
+        'Content-Type': imgResult.rows[0].image_mime || 'image/jpeg',
+        'Content-Length': buf.length,
+      });
+      return res.end(buf);
+    }
+    // Fallback to legacy column
     const result = await pool.query('SELECT image_data, image_mime FROM whatsapp_scraped_messages WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).json({ error: 'No image' });
     const buf = Buffer.from(result.rows[0].image_data, 'base64');
@@ -461,31 +499,40 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
 
     let messageId;
     let mergedContent = content || '';
-    let mergedImageData = image_data || null;
-    let mergedImageMime = image_mime || null;
+    let isMerged = recentRes.rows.length > 0;
 
-    if (recentRes.rows.length > 0) {
-      // Merge into existing message
+    if (isMerged) {
+      // Merge into existing message: combine content, reset classification
       const prev = recentRes.rows[0];
       const prevContent = prev.content || '';
       mergedContent = prevContent ? `${prevContent}\n${content || ''}` : (content || '');
-      if (!prev.image_data && image_data) {
-        mergedImageData = image_data;
-        mergedImageMime = image_mime;
-      } else {
-        mergedImageData = prev.image_data;
-      }
       messageId = prev.id;
       try {
         await pool.query(
-          `UPDATE whatsapp_scraped_messages SET content = $1, image_data = COALESCE($2, image_data), image_mime = COALESCE($3, image_mime), author_phone = $4, author_name = COALESCE($5, author_name) WHERE id = $6`,
-          [mergedContent, image_data || null, image_mime || null, authorPhone, author_name || null, messageId]
+          `UPDATE whatsapp_scraped_messages SET content = $1, classification = NULL, author_phone = $2, author_name = COALESCE($3, author_name) WHERE id = $4`,
+          [mergedContent, authorPhone, author_name || null, messageId]
         );
       } catch (e) {
         await pool.query(
-          `UPDATE whatsapp_scraped_messages SET content = $1, image_data = COALESCE($2, image_data), image_mime = COALESCE($3, image_mime), author_name = COALESCE($4, author_name) WHERE id = $5`,
-          [mergedContent, image_data || null, image_mime || null, author_name || null, messageId]
+          `UPDATE whatsapp_scraped_messages SET content = $1, classification = NULL, author_name = COALESCE($2, author_name) WHERE id = $3`,
+          [mergedContent, author_name || null, messageId]
         );
+      }
+      // Save new image to images table if present
+      if (image_data) {
+        const maxPos = await pool.query(
+          `SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM whatsapp_message_images WHERE message_id = $1`,
+          [messageId]
+        );
+        const pos = maxPos.rows[0].next_pos;
+        try {
+          await pool.query(
+            `INSERT INTO whatsapp_message_images (message_id, image_data, image_mime, position) VALUES ($1, $2, $3, $4)`,
+            [messageId, image_data, image_mime || 'image/jpeg', pos]
+          );
+        } catch (e) {
+          console.error('[Relay] failed to save merged image:', e.message);
+        }
       }
     } else {
       // Insert new message
@@ -509,23 +556,56 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
       }
       if (insertRes.rows.length === 0) return res.json({ skipped: true, reason: 'duplicate after insert' });
       messageId = insertRes.rows[0].id;
+      // Save image to images table if present
+      if (image_data) {
+        try {
+          await pool.query(
+            `INSERT INTO whatsapp_message_images (message_id, image_data, image_mime, position) VALUES ($1, $2, $3, 0)`,
+            [messageId, image_data, image_mime || 'image/jpeg']
+          );
+        } catch (e) {
+          console.error('[Relay] failed to save image:', e.message);
+        }
+      }
     }
 
-    res.json({ id: messageId, status: 'pending_classification', merged: recentRes.rows.length > 0 });
+    res.json({ id: messageId, status: 'pending_classification', merged: isMerged });
 
-    // Pre-filter: discard images without pet-related text (skip AI call)
-    // Only delete if there IS text AND it has no pet keywords (empty text = keep, let AI decide)
+    // Pre-filter: only for NEW (non-merged) messages. Merged messages already passed the filter.
+    let hasImage = image_data || false;
+    if (!hasImage && !isMerged) {
+      const imgCheck = await pool.query(
+        `SELECT EXISTS(SELECT 1 FROM whatsapp_message_images WHERE message_id = $1) AS has_img`,
+        [messageId]
+      );
+      hasImage = imgCheck.rows[0]?.has_img || false;
+    }
+
     const PET_KEYWORDS = /\b(perro|gato|mascota|puppy|kitten|pet|encontrad[oa]|perdid[oa]|avist[eé]|lo vi|lo encontr|busc[aá]ndo|rewards|recompensa|collar|chucho|canino|felino|ave|loro|conejo|hamster|hurto|robo)\b/i;
     const trimmedContent = (mergedContent || '').trim();
-    if (mergedImageData && trimmedContent && !PET_KEYWORDS.test(trimmedContent)) {
+    if (!isMerged && hasImage && trimmedContent && !PET_KEYWORDS.test(trimmedContent)) {
       await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
       return;
     }
 
+    // Get best image for classification: prefer the new image, fallback to first image in table
+    let classImage = image_data || null;
+    let classMime = image_mime || null;
+    if (!classImage) {
+      const imgRow = await pool.query(
+        `SELECT image_data, image_mime FROM whatsapp_message_images WHERE message_id = $1 ORDER BY position ASC LIMIT 1`,
+        [messageId]
+      );
+      if (imgRow.rows.length > 0) {
+        classImage = imgRow.rows[0].image_data;
+        classMime = imgRow.rows[0].image_mime;
+      }
+    }
+
     // Classify in background (non-blocking)
-    classifyWhatsAppMessage(mergedContent || '', mergedImageData || null, mergedImageMime || null)
+    classifyWhatsAppMessage(mergedContent || '', classImage, classMime)
       .then(async (classification) => {
-        if (mergedImageData && classification.species === 'other' && (classification.confidence || 0) > 30) {
+        if (classImage && classification.species === 'other' && (classification.confidence || 0) > 30) {
           await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
           return;
         }

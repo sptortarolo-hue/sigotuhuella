@@ -28,6 +28,7 @@ interface ScrapedItem {
   image_urls: string[] | null;
   fb_post_url: string | null;
   has_image: boolean;
+  image_count: number;
   wa_message_id: string | null;
   image_data: string | null;
   image_mime: string | null;
@@ -103,6 +104,7 @@ function PostsSection() {
   const [viewMode, setViewMode] = useState<'list' | 'gallery'>('gallery');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [imgIndices, setImgIndices] = useState<Record<string, number>>({});
 
   const fetchItems = async () => {
     setLoading(true);
@@ -175,10 +177,17 @@ function PostsSection() {
     setDeleting(false);
   };
 
-  const getImageUrl = (item: ScrapedItem) => {
-    if (item.source === 'fb' && item.has_image) return `/api/facebook/posts/${item.id}/image`;
-    if (item.source === 'wa' && item.has_image) return `/api/relay/scraped-messages/${item.id}/image`;
-    return null;
+  const getImageUrls = (item: ScrapedItem): string[] => {
+    if (item.source === 'fb' && item.has_image) return [`/api/facebook/posts/${item.id}/image`];
+    if (item.source === 'wa' && item.has_image) {
+      const count = item.image_count || 1;
+      const urls: string[] = [];
+      for (let i = 0; i < count; i++) {
+        urls.push(`/api/relay/scraped-messages/${item.id}/image?position=${i}`);
+      }
+      return urls;
+    }
+    return [];
   };
 
   return (
@@ -250,7 +259,9 @@ function PostsSection() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map(item => {
             const key = item.id + item.source;
-            const imgUrl = getImageUrl(item);
+            const imgUrls = getImageUrls(item);
+            const curIdx = imgIndices[key] || 0;
+            const currentImg = imgUrls[curIdx] || null;
             return (
               <div key={key}
                 className={cn(
@@ -258,12 +269,21 @@ function PostsSection() {
                   selected.has(key) ? 'border-brand-primary ring-2 ring-brand-primary/20' : 'border-brand-accent'
                 )}>
                 <div className="relative aspect-square bg-gray-100">
-                  {imgUrl ? (
-                    <img src={imgUrl} className="w-full h-full object-cover cursor-pointer"
-                      onClick={() => setLightbox({ images: [imgUrl], idx: 0 })} />
+                  {currentImg ? (
+                    <img src={currentImg} className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => setLightbox({ images: imgUrls, idx: curIdx })} />
                   ) : (
                     <div className="flex items-center justify-center h-full">
                       <ImageIcon className="w-10 h-10 text-gray-300" />
+                    </div>
+                  )}
+                  {imgUrls.length > 1 && (
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/50 rounded-full px-2 py-0.5">
+                      {imgUrls.map((_: string, i: number) => (
+                        <button key={i} onClick={(e: React.MouseEvent) => { e.stopPropagation(); setImgIndices(prev => ({ ...prev, [key]: i })); }}
+                          className={cn("w-1.5 h-1.5 rounded-full transition-all",
+                            i === curIdx ? 'bg-white' : 'bg-white/40')} />
+                      ))}
                     </div>
                   )}
                   <button onClick={() => toggleSelect(key)}
@@ -371,6 +391,9 @@ function PostsSection() {
                         {item.source === 'wa' && item.has_image && (
                           <img src={`/api/relay/scraped-messages/${item.id}/image`}
                             className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                        )}
+                        {item.source === 'wa' && (item.image_count || 0) > 1 && (
+                          <span className="text-[10px] text-gray-400 shrink-0">+{(item.image_count || 1) - 1}</span>
                         )}
                         <span className="text-xs text-gray-600 line-clamp-2">{(item.content || '(sin texto)').substring(0, 200)}</span>
                         {item.source === 'fb' && item.fb_post_url && (

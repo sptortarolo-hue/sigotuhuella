@@ -1182,6 +1182,17 @@ export async function initDb() {
       ALTER TABLE whatsapp_scraped_messages ADD COLUMN IF NOT EXISTS author_phone VARCHAR(50)
     `, 'whatsapp_scraped_messages author_phone');
 
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS whatsapp_message_images (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        message_id UUID REFERENCES whatsapp_scraped_messages(id) ON DELETE CASCADE,
+        image_data TEXT NOT NULL,
+        image_mime VARCHAR(50) DEFAULT 'image/jpeg',
+        position INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `, 'whatsapp_message_images');
+
     console.log('Database migrations complete');
   } finally {
     client.release();
