@@ -720,17 +720,9 @@ export default function Admin() {
   };
 
   // Reencuentro handler
-  const handleReencuentro = async (petId: string) => {
-    console.log('handleReencuentro called with', petId, 'pets type:', typeof pets, 'isArray:', Array.isArray(pets));
-    (window as any).__dbg = { pets, petId };
-    try {
-      const pet = pets.find((p: any) => p.id === petId);
-      console.log('pet found:', pet?.name);
-      setReunionPet({ id: petId, name: pet?.name || 'Mascota' });
-      setReunionIsAdoption(false);
-    } catch (e) {
-      console.error('handleReencuentro error:', e);
-    }
+  const handleReencuentro = async (petId: string, petName?: string) => {
+    setReunionPet({ id: petId, name: petName || 'Mascota' });
+    setReunionIsAdoption(false);
   };
 
   // Pet Handlers
@@ -914,12 +906,6 @@ export default function Admin() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {reunionPet && <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50">
-        <div className="bg-white p-8 rounded-2xl max-w-md mx-4">
-          <p className="text-lg font-bold mb-4">DEBUG — {reunionPet.name}</p>
-          <button onClick={() => setReunionPet(null)} className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold">OK</button>
-        </div>
-      </div>}
       <div className="mb-12">
         <h1 className="text-4xl font-serif font-bold text-brand-primary mb-2">Panel de Administración</h1>
         <p className="text-gray-500">Gestión integral de reportes, ayuda y red de vecinos.</p>
@@ -1061,7 +1047,7 @@ export default function Admin() {
                               ) : pet.status === PetStatus.ADOPTED ? (
                                 <span className="ml-auto text-[10px] px-2 py-1 rounded-lg bg-purple-50 text-purple-600 font-bold">Adoptado</span>
                               ) : (
-                                <button onClick={() => handleReencuentro(pet.id)} className="ml-auto p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Hubo reencuentro"><HeartHandshake className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => handleReencuentro(pet.id, pet.name)} className="ml-auto p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Hubo reencuentro"><HeartHandshake className="w-3.5 h-3.5" /></button>
                               )}
                             </div>
                           </div>
@@ -1171,7 +1157,7 @@ export default function Admin() {
                       ) : pet.status === PetStatus.REUNITED ? (
                         <div className="mt-3 w-full py-2.5 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border border-gray-200"><HeartHandshake className="w-4 h-4 text-emerald-500" /> Reencontrado</div>
                       ) : (
-                        <button onClick={() => handleReencuentro(pet.id)} className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"><HeartHandshake className="w-4 h-4" /> Hubo reencuentro</button>
+                        <button onClick={() => handleReencuentro(pet.id, pet.name)} className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"><HeartHandshake className="w-4 h-4" /> Hubo reencuentro</button>
                       )}
                       <button onClick={() => setSharePet(pet)} className="mt-2 w-full py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"><Share2 className="w-4 h-4" /> Redes Sociales</button>
                       <button onClick={() => handleTrackPet(pet)} className="mt-2 w-full py-2.5 bg-brand-bg text-brand-primary border border-brand-accent rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary hover:text-white hover:border-brand-primary transition-all"><Activity className="w-4 h-4" /> Seguimiento</button>
@@ -3248,7 +3234,19 @@ function PublicReportsTab() {
         </div>
       )}
 
-      
+
+      {reunionPet && (
+        <ReunionModal
+          petId={reunionPet.id}
+          petName={reunionPet.name}
+          isAdoption={reunionIsAdoption}
+          onClose={() => setReunionPet(null)}
+          onSaved={() => {
+            setReunionPet(null);
+            fetchPets();
+          }}
+        />
+      )}
     </div>
   );
 }
