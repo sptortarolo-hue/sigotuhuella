@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { getPets, Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, HeartHandshake } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
@@ -13,6 +13,7 @@ import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import PetImage from '@/src/components/PetImage';
 import { LinkifiedText } from '@/src/lib/linkify';
 import ImageLightbox from '@/src/components/admin/ImageLightbox';
+import ReunionModal from '@/src/components/ReunionModal';
 
 function parseNeighborhoods(n: any): string[] {
   if (Array.isArray(n)) return n;
@@ -36,6 +37,7 @@ export default function PetDetail() {
   const [sharePhoneError, setSharePhoneError] = useState('');
   const [shareLoading, setShareLoading] = useState(false);
   const [shareResult, setShareResult] = useState<any>(null);
+  const [showReunionModal, setShowReunionModal] = useState(false);
 
   const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
 
@@ -320,7 +322,7 @@ Me gustaría obtener más información.`;
           </div>
 
           <div className="mt-auto space-y-6">
-            {(pet.owner_name || pet.owner_phone || pet.owner_email || pet.owner_address) && (
+            {user && user.id === pet.created_by && (
               <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
                 <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
                   {pet.status === 'reunited' ? 'Mascota reencontrada' : pet.status === 'adopted' ? 'Mascota adoptada' : 'Datos del dueño'}
@@ -330,33 +332,42 @@ Me gustaría obtener más información.`;
                     {pet.status === 'reunited' ? 'Reencontrada' : 'Adoptada'} el {new Date(pet.reunited_at).toLocaleDateString('es-AR')}
                   </p>
                 )}
-                <div className="space-y-2">
-                  {pet.owner_name && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Nombre:</span>
-                      <span className="text-sm font-medium text-gray-800">{pet.owner_name}</span>
-                    </div>
-                  )}
-                  {pet.owner_phone && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Teléfono:</span>
-                      <a href={`https://wa.me/54${pet.owner_phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
-                        className="text-sm font-medium text-emerald-600 hover:underline">{pet.owner_phone}</a>
-                    </div>
-                  )}
-                  {pet.owner_email && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Email:</span>
-                      <a href={`mailto:${pet.owner_email}`} className="text-sm font-medium text-brand-primary hover:underline">{pet.owner_email}</a>
-                    </div>
-                  )}
-                  {pet.owner_address && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Dirección:</span>
-                      <span className="text-sm font-medium text-gray-800">{pet.owner_address}</span>
-                    </div>
-                  )}
-                </div>
+                {(pet.owner_name || pet.owner_phone || pet.owner_email || pet.owner_address) ? (
+                  <div className="space-y-2">
+                    {pet.owner_name && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Nombre:</span>
+                        <span className="text-sm font-medium text-gray-800">{pet.owner_name}</span>
+                      </div>
+                    )}
+                    {pet.owner_phone && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Teléfono:</span>
+                        <a href={`https://wa.me/54${pet.owner_phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                          className="text-sm font-medium text-emerald-600 hover:underline">{pet.owner_phone}</a>
+                      </div>
+                    )}
+                    {pet.owner_email && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Email:</span>
+                        <a href={`mailto:${pet.owner_email}`} className="text-sm font-medium text-brand-primary hover:underline">{pet.owner_email}</a>
+                      </div>
+                    )}
+                    {pet.owner_address && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Dirección:</span>
+                        <span className="text-sm font-medium text-gray-800">{pet.owner_address}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400">No hay datos del dueño cargados aún.</p>
+                )}
+                <button onClick={() => setShowReunionModal(true)}
+                  className="mt-3 w-full py-2.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
+                >
+                  <HeartHandshake className="w-4 h-4" /> {pet.owner_name ? 'Editar datos' : 'Completar datos del dueño'}
+                </button>
               </div>
             )}
 
@@ -504,6 +515,21 @@ Me gustaría obtener más información.`;
           currentIndex={lightboxIndex}
           onClose={() => setLightboxImages([])}
           onChange={setLightboxIndex}
+        />
+      )}
+
+      {showReunionModal && (
+        <ReunionModal
+          petId={pet.id}
+          petName={pet.name || 'Mascota'}
+          isAdoption={pet.status === 'for_adoption' || pet.status === 'for_adoption_simple'}
+          onClose={() => setShowReunionModal(false)}
+          onSaved={async () => {
+            setShowReunionModal(false);
+            const data = await getPets();
+            const found = data.find(p => p.id === id);
+            if (found) setPet(found);
+          }}
         />
       )}
     </div>
