@@ -513,7 +513,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     const values = [];
     let idx = 1;
     for (const field of fields) {
-      const key = field === 'contact_info' ? 'contactInfo' : field === 'is_vaccinated' ? 'isVaccinated' : field === 'is_sterilized' ? 'isSterilized' : field === 'is_dewormed' ? 'isDewormed' : field === 'owner_name' ? 'ownerName' : field === 'owner_phone' ? 'ownerPhone' : field === 'owner_email' ? 'ownerEmail' : field === 'owner_address' ? 'ownerAddress' : field;
+      const key = field === 'contact_info' ? 'contactInfo' : field === 'is_vaccinated' ? 'isVaccinated' : field === 'is_sterilized' ? 'isSterilized' : field === 'is_dewormed' ? 'isDewormed' : field;
       if (req.body[key] !== undefined) {
         updates.push(`${field} = $${idx++}`);
         values.push(req.body[key]);
@@ -573,7 +573,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     if ((isReunited || isAdopted) && !pet.reunited_at) {
       await pool.query('UPDATE pets SET reunited_at = NOW() WHERE id = $1', [petId]);
     }
-    if ((isReunited || isAdopted) && pet.created_by && (!req.body.ownerName && !req.body.ownerPhone)) {
+    if ((isReunited || isAdopted) && pet.created_by && (!req.body.owner_name && !req.body.owner_phone)) {
       try {
         const userRes = await pool.query('SELECT display_name, email, phone FROM users WHERE id = $1', [pet.created_by]);
         const user = userRes.rows[0];
