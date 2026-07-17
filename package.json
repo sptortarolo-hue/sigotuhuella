@@ -41,7 +41,6 @@
     "google-auth-library": "^10.7.0",
     "groq-sdk": "^0.5.0",
     "heic2any": "^0.0.4",
-    "html2pdf.js": "^0.14.0",
     "jsonwebtoken": "^9.0.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.546.0",
