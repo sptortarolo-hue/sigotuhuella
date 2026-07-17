@@ -138,6 +138,7 @@ export default function Admin() {
   const [userRelationsLoading, setUserRelationsLoading] = useState(false);
   const [petRelationsLoading, setPetRelationsLoading] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'user' | 'pet'>('list');
+  const [mobilePetView, setMobilePetView] = useState<'list' | 'detail'>('list');
 
   const [showEditUserModal, setShowEditUserModal] = useState(false);
 
@@ -1089,6 +1090,8 @@ export default function Admin() {
 
               {/* Mobile: grid + bottom sheet */}
               <div className="lg:hidden space-y-4">
+                {mobilePetView === 'list' ? (
+                <>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <div className="relative flex-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1128,21 +1131,26 @@ export default function Admin() {
                     return (p.name && p.name.toLowerCase().includes(q)) || (p.location && p.location.toLowerCase().includes(q)) || (p.species && p.species.toLowerCase().includes(q)) || (p.breed && p.breed.toLowerCase().includes(q)) || (p.color && p.color.toLowerCase().includes(q));
                   }).map(pet => (
                     <div key={pet.id} className="relative">
-                      <PetCard
-                        pet={pet}
-                        showAdminActions
-                        onEdit={editPet}
-                        onDelete={(id) => {
-                          setConfirmDialog({
-                            isOpen: true,
-                            title: 'Eliminar mascota',
-                            message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`,
-                            actionLabel: 'CONFIRMAR',
-                            variant: 'danger',
-                            onConfirm: async () => { try { await deletePet(id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } setConfirmDialog(prev => ({ ...prev, isOpen: false })); },
-                          });
-                        }}
-                      />
+                      <div
+                        onClick={() => { fetchPetRelations(pet.id); setMobilePetView('detail'); window.scrollTo(0, 0); }}
+                        className="cursor-pointer"
+                      >
+                        <PetCard
+                          pet={pet}
+                          showAdminActions
+                          onEdit={editPet}
+                          onDelete={(id) => {
+                            setConfirmDialog({
+                              isOpen: true,
+                              title: 'Eliminar mascota',
+                              message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`,
+                              actionLabel: 'CONFIRMAR',
+                              variant: 'danger',
+                              onConfirm: async () => { try { await deletePet(id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } setConfirmDialog(prev => ({ ...prev, isOpen: false })); },
+                            });
+                          }}
+                        />
+                      </div>
                       {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.FOR_ADOPTION_SIMPLE) ? (
                         <button onClick={() => { setReunionPet({ id: pet.id, name: pet.name || 'Mascota' }); setReunionIsAdoption(true); }} className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"><Heart className="w-4 h-4" /> Marcar como Adoptado</button>
                       ) : pet.status === PetStatus.ADOPTED ? (
@@ -1157,6 +1165,24 @@ export default function Admin() {
                     </div>
                   ))}
                 </div>
+                </>
+                ) : (
+                <div className="space-y-4">
+                  <button
+                    onClick={() => { setMobilePetView('list'); setSelectedPetData(null); setSelectedPetId(null); }}
+                    className="flex items-center gap-2 text-sm text-brand-primary font-bold"
+                  >
+                    ← Volver a mascotas
+                  </button>
+                  {petRelationsLoading ? (
+                    <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>
+                  ) : selectedPetData ? (
+                    <PetDetailPanel data={selectedPetData} isMobile onClose={() => { setMobilePetView('list'); setSelectedPetData(null); setSelectedPetId(null); }} />
+                  ) : (
+                    <div className="text-center py-12 text-gray-400">No se pudo cargar la info</div>
+                  )}
+                </div>
+                )}
               </div>
 
               <AdminConfirmDialog
