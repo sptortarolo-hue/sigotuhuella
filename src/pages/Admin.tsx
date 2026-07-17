@@ -3237,16 +3237,13 @@ function PublicReportsTab() {
       )}
 
       {reunionPet && (
-        <ReunionModal
-          petId={reunionPet.id}
-          petName={reunionPet.name}
-          isAdoption={reunionIsAdoption}
-          onClose={() => setReunionPet(null)}
-          onSaved={() => {
-            setReunionPet(null);
-            fetchPets();
-          }}
-        />
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50">
+          <div className="bg-white p-8 rounded-2xl max-w-md w-full mx-4">
+            <p className="text-lg font-bold mb-4">DEBUG MODAL — {reunionPet.name}</p>
+            <p className="text-sm text-gray-500 mb-4">ID: {reunionPet.id}</p>
+            <button onClick={() => setReunionPet(null)} className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold">Cerrar</button>
+          </div>
+        </div>
       )}
     </div>
   );
