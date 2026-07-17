@@ -48,6 +48,11 @@ export interface Pet {
   created_at: string;
   updated_at: string;
   is_hidden?: boolean;
+  owner_name?: string | null;
+  owner_phone?: string | null;
+  owner_email?: string | null;
+  owner_address?: string | null;
+  reunited_at?: string | null;
 }
 
 export function getPetImageUrl(pet: Pet): string | undefined {

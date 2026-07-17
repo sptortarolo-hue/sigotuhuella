@@ -80,6 +80,7 @@ export const api = {
       request(`/pets/${petId}/images/${imageId}`, { method: 'DELETE' }),
     verify: (id: string, verified: boolean) =>
       request(`/pets/${id}/verify`, { method: 'PUT', body: JSON.stringify({ verified }) }),
+    ownerData: (id: string) => request(`/pets/${id}/owner-data`),
     records: {
       list: (petId: string) => request(`/pets/${petId}/records`),
       summary: (petId: string) => request(`/pets/${petId}/records/summary`),

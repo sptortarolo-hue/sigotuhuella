@@ -1193,6 +1193,14 @@ export async function initDb() {
       )
     `, 'whatsapp_message_images');
 
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS owner_name VARCHAR(255);
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS owner_phone VARCHAR(100);
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS owner_email VARCHAR(255);
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS owner_address TEXT;
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS reunited_at TIMESTAMP
+    `, 'pets_owner_fields');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

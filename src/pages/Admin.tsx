@@ -41,6 +41,7 @@ import AdminEditUserModal from '@/src/components/admin/AdminEditUserModal';
 import UserDetailPanel from '@/src/components/admin/UserDetailPanel';
 import AdminMyPetDetail from '@/src/components/admin/AdminMyPetDetail';
 import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
+import ReunionModal from '@/src/components/ReunionModal';
 
 export default function Admin() {
   const { user } = useAuth();
@@ -73,6 +74,8 @@ export default function Admin() {
     contactInfo: '',
     description: '',
   });
+  const [reunionPet, setReunionPet] = useState<{ id: string; name: string } | null>(null);
+  const [reunionIsAdoption, setReunionIsAdoption] = useState(false);
 
   // Sponsors State
   const [sponsors, setSponsors] = useState<{ name: string; logo: string; website: string }[]>([]);
@@ -717,14 +720,9 @@ export default function Admin() {
 
   // Reencuentro handler
   const handleReencuentro = async (petId: string) => {
-    if (!confirm('¿Marcar esta mascota como "Hubo reencuentro"? Se moverá a Noticias Destacadas.')) return;
-    try {
-      await updatePet(petId, { status: PetStatus.REUNITED });
-      fetchPets();
-    } catch (e) {
-      console.error(e);
-      alert('Error al actualizar el estado.');
-    }
+    const pet = pets.find(p => p.id === petId);
+    setReunionPet({ id: petId, name: pet?.name || 'Mascota' });
+    setReunionIsAdoption(false);
   };
 
   // Pet Handlers
@@ -1146,7 +1144,7 @@ export default function Admin() {
                         }}
                       />
                       {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.FOR_ADOPTION_SIMPLE) ? (
-                        <button onClick={async () => { if (confirm('¿Marcar como adoptada?')) { await updatePet(pet.id, { status: PetStatus.ADOPTED }); fetchPets(); } }} className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"><Heart className="w-4 h-4" /> Marcar como Adoptado</button>
+                        <button onClick={() => { setReunionPet({ id: pet.id, name: pet.name || 'Mascota' }); setReunionIsAdoption(true); }} className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"><Heart className="w-4 h-4" /> Marcar como Adoptado</button>
                       ) : pet.status === PetStatus.ADOPTED ? (
                         <div className="mt-3 w-full py-2.5 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold flex items-center justify-center gap-2 border border-gray-200"><Heart className="w-4 h-4 text-emerald-500" /> Adoptado</div>
                       ) : pet.status === PetStatus.REUNITED ? (
@@ -3209,6 +3207,19 @@ function PublicReportsTab() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {reunionPet && (
+        <ReunionModal
+          petId={reunionPet.id}
+          petName={reunionPet.name}
+          isAdoption={reunionIsAdoption}
+          onClose={() => setReunionPet(null)}
+          onSaved={() => {
+            setReunionPet(null);
+            fetchPets();
+          }}
+        />
       )}
     </div>
   );

@@ -13,6 +13,7 @@ import { Search, Loader2, Grid, Map as MapIcon, PawPrint, X, Save, HeartHandshak
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { ALL_TAGS, formatTag } from '@/src/lib/personalityTags';
+import ReunionModal from '@/src/components/ReunionModal';
 
 const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
 
@@ -31,6 +32,8 @@ export default function MyPets() {
   const [convertBirthDate, setConvertBirthDate] = useState('');
   const [convertWeight, setConvertWeight] = useState('');
   const [convertTags, setConvertTags] = useState<string[]>([]);
+  const [reunionPet, setReunionPet] = useState<{ id: string; name: string } | null>(null);
+  const [reunionIsAdoption, setReunionIsAdoption] = useState(false);
 
   const openConvertWizard = (pet: Pet) => {
     setConvertBio(pet.description || '');
@@ -146,15 +149,8 @@ export default function MyPets() {
   });
 
   const handleReencuentro = async (petId: string) => {
-    if (!confirm('¿Marcar esta mascota como "Hubo reencuentro"?')) return;
-    try {
-      await updatePet(petId, { status: PetStatus.REUNITED });
-      const data = await api.users.myPets(user!.id);
-      setPets(data.pets || []);
-    } catch (e) {
-      console.error(e);
-      alert('Error al actualizar el estado.');
-    }
+    setReunionPet({ id: petId, name: pets.find(p => p.id === petId)?.name || 'Mascota' });
+    setReunionIsAdoption(false);
   };
 
   const resetPetForm = () => {
@@ -569,6 +565,22 @@ export default function MyPets() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {reunionPet && (
+          <ReunionModal
+            petId={reunionPet.id}
+            petName={reunionPet.name}
+            isAdoption={reunionIsAdoption}
+            onClose={() => setReunionPet(null)}
+            onSaved={async () => {
+              setReunionPet(null);
+              const data = await api.users.myPets(user!.id);
+              setPets(data.pets || []);
+            }}
+          />
         )}
       </AnimatePresence>
     </div>

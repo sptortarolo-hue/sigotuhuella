@@ -370,6 +370,59 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET /:id/owner-data — suggest owner data for reunion/adoption
+router.get('/:id/owner-data', requireAuth, async (req, res) => {
+  try {
+    const petResult = await pool.query('SELECT * FROM pets WHERE id = $1', [req.params.id]);
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
+    const pet = petResult.rows[0];
+
+    let ownerName = pet.owner_name || null;
+    let ownerPhone = pet.owner_phone || null;
+    let ownerEmail = pet.owner_email || null;
+    let ownerAddress = pet.owner_address || null;
+
+    if (pet.created_by) {
+      const userRes = await pool.query('SELECT display_name, email, phone FROM users WHERE id = $1', [pet.created_by]);
+      const user = userRes.rows[0];
+      if (user) {
+        if (!ownerName && user.display_name) ownerName = user.display_name;
+        if (!ownerPhone && user.phone) ownerPhone = user.phone;
+        if (!ownerEmail && user.email) ownerEmail = user.email;
+      }
+    }
+
+    if (!ownerPhone && pet.contact_info && /^\d{8,}$/.test(pet.contact_info.replace(/\D/g, ''))) {
+      ownerPhone = pet.contact_info;
+    }
+
+    if (!ownerAddress && pet.location) ownerAddress = pet.location;
+
+    if (!ownerAddress && !ownerPhone && !ownerName) {
+      try {
+        const mpRes = await pool.query(
+          'SELECT emergency_phone FROM my_pets WHERE user_id = $1 LIMIT 1',
+          [pet.created_by]
+        );
+        if (mpRes.rows.length > 0 && mpRes.rows[0].emergency_phone && !ownerPhone) {
+          ownerPhone = mpRes.rows[0].emergency_phone;
+        }
+      } catch (_) {}
+    }
+
+    res.json({
+      owner_name: ownerName,
+      owner_phone: ownerPhone,
+      owner_email: ownerEmail,
+      owner_address: ownerAddress,
+      reunited_at: pet.reunited_at || null,
+    });
+  } catch (err) {
+    console.error('Get owner data error:', err);
+    res.status(500).json({ error: 'Failed to fetch owner data' });
+  }
+});
+
 // POST /:id/view — track a pet view without returning data
 router.post('/:id/view', async (req, res) => {
   try {
@@ -455,12 +508,12 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (req.user.role !== 'admin' && !(await canEditPet(req.user.id, petId))) {
       return res.status(403).json({ error: 'Not authorized' });
     }
-    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info', 'is_hidden'];
+    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info', 'is_hidden', 'owner_name', 'owner_phone', 'owner_email', 'owner_address'];
     const updates = [];
     const values = [];
     let idx = 1;
     for (const field of fields) {
-      const key = field === 'contact_info' ? 'contactInfo' : field === 'is_vaccinated' ? 'isVaccinated' : field === 'is_sterilized' ? 'isSterilized' : field === 'is_dewormed' ? 'isDewormed' : field;
+      const key = field === 'contact_info' ? 'contactInfo' : field === 'is_vaccinated' ? 'isVaccinated' : field === 'is_sterilized' ? 'isSterilized' : field === 'is_dewormed' ? 'isDewormed' : field === 'owner_name' ? 'ownerName' : field === 'owner_phone' ? 'ownerPhone' : field === 'owner_email' ? 'ownerEmail' : field === 'owner_address' ? 'ownerAddress' : field;
       if (req.body[key] !== undefined) {
         updates.push(`${field} = $${idx++}`);
         values.push(req.body[key]);
@@ -517,6 +570,27 @@ router.put('/:id', requireAuth, async (req, res) => {
     // Auto-generate news on status change to REUNITED or ADOPTED
     const isReunited = pet.status !== 'reunited' && req.body.status === 'reunited';
     const isAdopted = pet.status !== 'adopted' && req.body.status === 'adopted';
+    if ((isReunited || isAdopted) && !pet.reunited_at) {
+      await pool.query('UPDATE pets SET reunited_at = NOW() WHERE id = $1', [petId]);
+    }
+    if ((isReunited || isAdopted) && pet.created_by && (!req.body.ownerName && !req.body.ownerPhone)) {
+      try {
+        const userRes = await pool.query('SELECT display_name, email, phone FROM users WHERE id = $1', [pet.created_by]);
+        const user = userRes.rows[0];
+        if (user) {
+          const autoFields = [];
+          const autoVals = [];
+          let aidx = 1;
+          if (user.display_name) { autoFields.push(`owner_name = $${aidx++}`); autoVals.push(user.display_name); }
+          if (user.phone) { autoFields.push(`owner_phone = $${aidx++}`); autoVals.push(user.phone); }
+          if (user.email) { autoFields.push(`owner_email = $${aidx++}`); autoVals.push(user.email); }
+          if (autoFields.length > 0) {
+            autoVals.push(petId);
+            await pool.query(`UPDATE pets SET ${autoFields.join(', ')} WHERE id = $${aidx}`, autoVals);
+          }
+        }
+      } catch (_) {}
+    }
     // Re-fetch pet with updated data for news generation
     if (isReunited || isAdopted) {
       const updatedPet = await pool.query('SELECT * FROM pets WHERE id = $1', [petId]);

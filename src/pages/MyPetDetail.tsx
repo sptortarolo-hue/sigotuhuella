@@ -9,11 +9,12 @@ import {
   PawPrint, Loader2, Syringe, Scissors, Bug, Weight,
   Calendar, Plus, X, Save, Camera, Trash2, Sparkles, Heart,
   Dog, Cat, Edit3, Image as ImageIcon, Activity, Clock,
-  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle, Download,
+  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle, Download, HeartHandshake,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'qrcode';
 import HealthTips from '@/src/components/HealthTips';
+import ReunionModal from '@/src/components/ReunionModal';
 
 const EVENT_TYPES = [
   { value: 'birthday', label: 'Cumpleaños', icon: '🎂' },
@@ -139,6 +140,7 @@ export default function MyPetDetail() {
   const [editingBio, setEditingBio] = useState(false);
   const [bioDraft, setBioDraft] = useState('');
   const [showLostModal, setShowLostModal] = useState(false);
+  const [showReunionModal, setShowReunionModal] = useState(false);
   const [lostLocation, setLostLocation] = useState('');
   const [lostPhone, setLostPhone] = useState(user?.phone || '');
   const [lostPhoneError, setLostPhoneError] = useState('');
@@ -849,6 +851,53 @@ export default function MyPetDetail() {
                   Descargar pasaporte PDF
                 </button>
               </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-brand-accent">
+              {(pet.owner_name || pet.owner_phone || pet.owner_email || pet.owner_address) ? (
+                <div className="mb-4">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">
+                    Datos del {pet.status === 'adopted' ? 'adoptante' : 'dueño'}
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {pet.owner_name && (
+                      <div className="p-3 bg-brand-bg rounded-xl">
+                        <p className="text-[10px] font-bold uppercase text-gray-400">Nombre</p>
+                        <p className="text-sm text-gray-800">{pet.owner_name}</p>
+                      </div>
+                    )}
+                    {pet.owner_phone && (
+                      <div className="p-3 bg-brand-bg rounded-xl">
+                        <p className="text-[10px] font-bold uppercase text-gray-400">Teléfono</p>
+                        <a href={`https://wa.me/54${pet.owner_phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                          className="text-sm text-emerald-600 hover:underline">{pet.owner_phone}</a>
+                      </div>
+                    )}
+                    {pet.owner_email && (
+                      <div className="p-3 bg-brand-bg rounded-xl">
+                        <p className="text-[10px] font-bold uppercase text-gray-400">Email</p>
+                        <a href={`mailto:${pet.owner_email}`} className="text-sm text-brand-primary hover:underline">{pet.owner_email}</a>
+                      </div>
+                    )}
+                    {pet.owner_address && (
+                      <div className="p-3 bg-brand-bg rounded-xl">
+                        <p className="text-[10px] font-bold uppercase text-gray-400">Dirección</p>
+                        <p className="text-sm text-gray-800">{pet.owner_address}</p>
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => setShowReunionModal(true)}
+                    className="mt-2 text-xs text-gray-400 hover:text-brand-primary transition-colors">
+                    Editar datos del {pet.status === 'adopted' ? 'adoptante' : 'dueño'}
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => setShowReunionModal(true)}
+                  className="w-full py-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2 mb-4"
+                >
+                  <HeartHandshake className="w-4 h-4" /> Marcar como reencontrado / adoptado
+                </button>
+              )}
             </div>
 
             <HealthTips petId={id} />
@@ -1876,6 +1925,20 @@ export default function MyPetDetail() {
             className="max-w-full max-h-[90vh] object-contain rounded-2xl"
             onClick={(e) => e.stopPropagation()} />
         </motion.div>
+      )}
+
+      {showReunionModal && (
+        <ReunionModal
+          petId={id}
+          petName={pet?.name || 'Mascota'}
+          isAdoption={false}
+          onClose={() => setShowReunionModal(false)}
+          onSaved={async () => {
+            setShowReunionModal(false);
+            const data = await api.myPets.get(id);
+            setPet(data);
+          }}
+        />
       )}
     </div></>
   );
