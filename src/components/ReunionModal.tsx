@@ -13,7 +13,7 @@ interface ReunionModalProps {
 }
 
 export default function ReunionModal({ petId, petName, isAdoption, onClose, onSaved }: ReunionModalProps) {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [ownerName, setOwnerName] = useState('');
   const [ownerPhone, setOwnerPhone] = useState('');
@@ -24,12 +24,14 @@ export default function ReunionModal({ petId, petName, isAdoption, onClose, onSa
     (async () => {
       try {
         const data = await api.pets.ownerData(petId);
-        setOwnerName(data.owner_name || '');
-        setOwnerPhone(data.owner_phone || '');
-        setOwnerEmail(data.owner_email || '');
-        setOwnerAddress(data.owner_address || '');
+        if (data) {
+          setOwnerName(data.owner_name || '');
+          setOwnerPhone(data.owner_phone || '');
+          setOwnerEmail(data.owner_email || '');
+          setOwnerAddress(data.owner_address || '');
+        }
       } catch (e) {
-        console.error(e);
+        console.error('Error loading owner data:', e);
       } finally {
         setLoading(false);
       }
