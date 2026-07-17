@@ -21,11 +21,9 @@ let INTERVAL_HOURS = parseInt(process.env.FB_SCRAPER_INTERVAL || '4');
 let MAX_POSTS_PER_GROUP = parseInt(process.env.FB_SCRAPER_MAX_POSTS || '20');
 
 const GRAPHQL_URL = 'https://www.facebook.com/api/graphql/';
-const FALLBACK_DOC_IDS = [
-  '26577462205242925',
-  '25716860671307636',
-];
-const FALLBACK_DOC_ID = FALLBACK_DOC_IDS[0];
+// Fallback doc_ids (no longer used by default — discovery uses Puppeteer)
+const FALLBACK_DOC_IDS = [];
+const FALLBACK_DOC_ID = null;
 const DEBUG_PATH = path.join(__dirname, 'debug-graphql-response.json');
 
 const USER_AGENTS = [
@@ -270,6 +268,82 @@ function cookiesToHeader(cookies) {
 
 // ==================== BROWSER LOGIN (ONE TIME) ====================
 
+// ==================== DOC ID CACHE ====================
+
+function getDocIdCache(groupId) {
+  const session = loadSession();
+  return session?.docIdsCache?.[groupId] || null;
+}
+
+function setDocIdCache(groupId, docId) {
+  const session = loadSession() || {};
+  if (!session.docIdsCache) session.docIdsCache = {};
+  session.docIdsCache[groupId] = docId;
+  saveSession(session);
+}
+
+// ==================== PUPPETEER DOC ID DISCOVERY ====================
+
+async function discoverDocIdWithPuppeteer(groupId, cookies) {
+  console.log(`[Scraper] Descubriendo doc_id con Puppeteer (headless) para grupo ${groupId}...`);
+  let browser = null;
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      executablePath: CHROMIUM_PATH,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+      defaultViewport: { width: 1366, height: 768 },
+    });
+    const page = await browser.newPage();
+    await page.setUserAgent(pickUA());
+
+    // Set cookies before navigation
+    const fbCookies = cookies.filter(c => c.domain?.includes('facebook') || c.domain?.includes('.facebook'));
+    if (fbCookies.length > 0) await page.setCookie(...fbCookies);
+
+    // Intercept GraphQL requests to extract doc_id
+    let foundDocId = null;
+    page.on('response', async (resp) => {
+      if (resp.url().includes('/api/graphql/')) {
+        try {
+          const urlObj = new URL(resp.url());
+          const docId = urlObj.searchParams.get('doc_id') || urlObj.searchParams.get('__doc_id');
+          const respText = await resp.text();
+          if (docId && respText.length > 100 && !respText.includes('"errors"')) {
+            foundDocId = docId;
+          }
+        } catch {}
+      }
+    });
+
+    await page.goto(`https://www.facebook.com/groups/${groupId}/`, {
+      waitUntil: 'networkidle2',
+      timeout: 30000,
+    });
+
+    // Wait up to 10s for a GraphQL request to be intercepted
+    for (let i = 0; i < 20 && !foundDocId; i++) {
+      await sleep(500);
+    }
+
+    await browser.close();
+    browser = null;
+
+    if (foundDocId) {
+      console.log(`[Scraper] Doc_id descubierto con Puppeteer: ${foundDocId}`);
+      setDocIdCache(groupId, foundDocId);
+      return foundDocId;
+    }
+
+    console.warn('[Scraper] Puppeteer no pudo descubrir doc_id');
+    return null;
+  } catch (err) {
+    console.error('[Scraper] Error en Puppeteer discovery:', err.message);
+    if (browser) await browser.close().catch(() => {});
+    return null;
+  }
+}
+
 async function doLogin() {
   console.log('[Scraper] Iniciando login manual...');
   if (execSync('which termux-wake-lock', { stdio: 'pipe' }).toString().trim()) {
@@ -343,72 +417,8 @@ async function doLogin() {
 // ==================== DOC_ID AUTO-DISCOVERY ====================
 
 async function discoverDocId(cookies, groupId) {
-  const cookieStr = cookiesToHeader(cookies);
-
-  try {
-    console.log(`[Scraper] Descubriendo doc_id para grupo ${groupId}...`);
-    const resp = await axios.get(`https://www.facebook.com/groups/${groupId}/`, {
-      headers: {
-        ...realHeaders(),
-        'Cookie': cookieStr,
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'same-origin',
-      },
-      timeout: 30000,
-      maxRedirects: 5,
-    });
-
-    const html = typeof resp.data === 'string' ? resp.data : '';
-
-    const feedQueryPattern = /GroupsCometFeedRegularStoriesPaginationQuery[^}]*?"doc_id"\s*:\s*"?(\d{10,})"?/g;
-    const feedMatches = [...html.matchAll(feedQueryPattern)];
-    if (feedMatches.length > 0) {
-      const id = feedMatches[0][1];
-      console.log(`[Scraper] doc_id para feed encontrado: ${id}`);
-      return id;
-    }
-
-    const feedQueryPattern2 = /"doc_id"\s*:\s*"?(\d{10,})"?[^}]*?GroupsCometFeedRegularStoriesPaginationQuery/g;
-    const feedMatches2 = [...html.matchAll(feedQueryPattern2)];
-    if (feedMatches2.length > 0) {
-      const id = feedMatches2[0][1];
-      console.log(`[Scraper] doc_id para feed encontrado (reversed): ${id}`);
-      return id;
-    }
-
-    const feedQueryPattern3 = /GroupsCometFeedRegularStories[^"]*"[^}]*?doc_id[^}]*?(\d{15,})/g;
-    const feedMatches3 = [...html.matchAll(feedQueryPattern3)];
-    if (feedMatches3.length > 0) {
-      const id = feedMatches3[0][1];
-      console.log(`[Scraper] doc_id para feed encontrado (flex): ${id}`);
-      return id;
-    }
-
-    const feedQueryPattern4 = /"doc_id"\s*:\s*(\d{15,})/g;
-    const allDocIds = [...html.matchAll(feedQueryPattern4)].map(m => m[1]);
-    if (allDocIds.length > 0) {
-      console.log(`[Scraper] doc_ids encontrados en HTML: ${allDocIds.join(', ')}`);
-      const groupIdPrefix = groupId.substring(0, 6);
-      const match = allDocIds.find(id => id.startsWith(groupIdPrefix));
-      if (match) {
-        console.log(`[Scraper] doc_id seleccionado (por prefijo de grupo): ${match}`);
-        return match;
-      }
-      console.log(`[Scraper] Usando primer doc_id encontrado: ${allDocIds[0]}`);
-      return allDocIds[0];
-    }
-
-    console.warn('[Scraper] No se encontró ningún doc_id en HTML, guardando debug...');
-    try {
-      const debugHtml = path.join(__dirname, 'debug-group-page.html');
-      fs.writeFileSync(debugHtml, html.substring(0, 200000));
-      console.log(`[Scraper] HTML guardado en debug-group-page.html (${html.length} bytes)`);
-    } catch (e) {}
-    return FALLBACK_DOC_ID;
-  } catch (err) {
-    console.error('[Scraper] Error descubriendo doc_id:', err.message);
-    return FALLBACK_DOC_ID;
-  }
+  console.log('[Scraper] discoverDocId() deprecated — usando descubrimiento via Puppeteer');
+  return discoverDocIdWithPuppeteer ? await discoverDocIdWithPuppeteer(groupId, cookies) : null;
 }
 
 // ==================== GRAPHQL SCRAPING ====================
@@ -676,7 +686,18 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
   let pageNum = 1;
   const maxPages = 5;
 
-  let docId = await discoverDocId(session.cookies, groupId);
+  // Get cached doc_id or discover with Puppeteer
+  let docId = getDocIdCache(groupId);
+  if (!docId) {
+    console.log(`[Scraper] Sin doc_id cacheado para ${groupName}, descubriendo...`);
+    docId = await discoverDocIdWithPuppeteer(groupId, session.cookies);
+    if (!docId) {
+      console.error(`[Scraper] No se pudo descubrir doc_id para ${groupName}`);
+      return [];
+    }
+  } else {
+    console.log(`[Scraper] Usando doc_id cacheado para ${groupName}: ${docId}`);
+  }
 
   await sleep(randomInt(2000, 5000));
 
@@ -687,11 +708,8 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
   }
   console.log(`[Scraper] Bootstrap OK: fb_dtsg=${tokens.fbDtsg.substring(0, 10)}..., lsd=${tokens.lsd ? 'ok' : 'MISSING'}, rev=${tokens.rev || 'MISSING'}`);
 
-  const docIdCandidates = [docId, ...FALLBACK_DOC_IDS.filter(id => id !== docId)];
-
-  for (const candidateDocId of docIdCandidates) {
-    docId = candidateDocId;
-    console.log(`[Scraper] Intentando doc_id: ${docId}`);
+  // Try with doc_id; if it fails, rediscover with Puppeteer
+  for (let attempt = 0; attempt < 2; attempt++) {
     allPosts = [];
     cursor = null;
     pageNum = 1;
@@ -704,7 +722,7 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
 
       let resp = null;
       let lastErr = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      for (let retry = 1; retry <= 3; retry++) {
         try {
           resp = await axios.post(GRAPHQL_URL, payload, {
             headers: {
@@ -723,8 +741,8 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
           break;
         } catch (err) {
           lastErr = err;
-          console.error(`[Scraper] Intento ${attempt}/3 falló: ${err.message}`);
-          if (attempt < 3) await sleep(attempt * 3000);
+          console.error(`[Scraper] Intento ${retry}/3 falló: ${err.message}`);
+          if (retry < 3) await sleep(retry * 3000);
         }
       }
 
@@ -806,10 +824,18 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
     }
 
     if (gotPosts || allPosts.length > 0) {
-      console.log(`[Scraper] doc_id ${docId} devolvió ${allPosts.length} posts, usando este.`);
+      console.log(`[Scraper] doc_id ${docId} devolvió ${allPosts.length} posts para ${groupName}`);
+      setDocIdCache(groupId, docId);
       break;
     }
-    console.warn(`[Scraper] doc_id ${docId} devolvió 0 posts, probando siguiente...`);
+
+    // If cache failed, rediscover with Puppeteer and retry
+    console.warn(`[Scraper] doc_id ${docId} devolvió 0 posts, rediscovering with Puppeteer...`);
+    docId = await discoverDocIdWithPuppeteer(groupId, session.cookies);
+    if (!docId) {
+      console.error(`[Scraper] Rediscovery falló para ${groupName}`);
+      return [];
+    }
     await sleep(2000);
   }
 
