@@ -721,11 +721,16 @@ export default function Admin() {
 
   // Reencuentro handler
   const handleReencuentro = async (petId: string) => {
-    console.log('handleReencuentro called with', petId);
-    const pet = pets.find(p => p.id === petId);
-    setReunionPet({ id: petId, name: pet?.name || 'Mascota' });
-    setReunionIsAdoption(false);
-    window.__reunionDebug = { petId, name: pet?.name || 'Mascota' };
+    console.log('handleReencuentro called with', petId, 'pets type:', typeof pets, 'isArray:', Array.isArray(pets));
+    (window as any).__dbg = { pets, petId };
+    try {
+      const pet = pets.find((p: any) => p.id === petId);
+      console.log('pet found:', pet?.name);
+      setReunionPet({ id: petId, name: pet?.name || 'Mascota' });
+      setReunionIsAdoption(false);
+    } catch (e) {
+      console.error('handleReencuentro error:', e);
+    }
   };
 
   // Pet Handlers
