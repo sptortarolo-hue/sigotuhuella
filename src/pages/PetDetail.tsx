@@ -320,41 +320,6 @@ Me gustaría obtener más información.`;
           </div>
 
           <div className="mt-auto space-y-6">
-            {(pet.status === PetStatus.SIGHTED || pet.status === PetStatus.RETAINED) && !(pet.owner_name && pet.owner_phone) && (
-              <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
-                <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
-                  Datos del dueño
-                </h4>
-                <div className="space-y-2">
-                  {pet.owner_name && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Nombre:</span>
-                      <span className="text-sm font-medium text-gray-800">{pet.owner_name}</span>
-                    </div>
-                  )}
-                  {pet.owner_phone && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Teléfono:</span>
-                      <a href={`https://wa.me/54${pet.owner_phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
-                        className="text-sm font-medium text-emerald-600 hover:underline">{pet.owner_phone}</a>
-                    </div>
-                  )}
-                  {pet.owner_email && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Email:</span>
-                      <a href={`mailto:${pet.owner_email}`} className="text-sm font-medium text-brand-primary hover:underline">{pet.owner_email}</a>
-                    </div>
-                  )}
-                  {pet.owner_address && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Dirección:</span>
-                      <span className="text-sm font-medium text-gray-800">{pet.owner_address}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
             <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
               {pet.contact_info ? (
                 <div className="flex gap-3">
