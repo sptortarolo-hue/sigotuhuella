@@ -24,7 +24,7 @@ function parseNeighborhoods(n: any): string[] {
 export default function PetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [pet, setPet] = useState<Pet | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIdx, setCurrentImageIdx] = useState(0);
@@ -322,7 +322,7 @@ Me gustaría obtener más información.`;
           </div>
 
           <div className="mt-auto space-y-6">
-            {user && user.id === pet.created_by && (
+            {isAdmin && (
               <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
                 <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
                   {pet.status === 'reunited' ? 'Mascota reencontrada' : pet.status === 'adopted' ? 'Mascota adoptada' : 'Datos del dueño'}
