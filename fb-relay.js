@@ -431,15 +431,15 @@ async function postToGroup(b, fbGroupId, message, imageUrls, marker) {
         try {
           const fileInput = await page.$('div[role="dialog"] input[type="file"]');
           if (fileInput) {
-            await fileInput.uploadFile(...files);
-            console.log(`[FB Relay] ${files.length} imagen(es) subida(s), esperando procesamiento...`);
+            await fileInput.uploadFile(files[0]);
+            console.log('[FB Relay] Imagen subida, esperando procesamiento...');
             try {
-              await page.waitForSelector('div[role="dialog"] img[src*="blob:"], div[role="dialog"] img[src*="data:"]', { timeout: 20000 });
+              await page.waitForSelector('div[role="dialog"] img[src*="blob:"], div[role="dialog"] img[src*="data:"]', { timeout: 15000 });
             } catch {}
-            await sleep(4000);
+            await sleep(3000);
           }
         } catch (err) {
-          console.error('[FB Relay] Error subiendo imágenes:', err.message);
+          console.error('[FB Relay] Error subiendo imagen:', err.message);
         }
       }
       cleanupImages();
