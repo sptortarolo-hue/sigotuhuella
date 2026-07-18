@@ -8,7 +8,15 @@ export function applySpintax(text) {
   });
 }
 
-export async function enqueuePublishTask(petId, groupId, fbGroupId, message, imageUrls) {
+export async function enqueuePublishTask(petId, groupId, fbGroupId, message, imageUrls, pagePostUrl) {
+  if (pagePostUrl) {
+    const result = await pool.query(
+      `INSERT INTO fb_relay_tasks (pet_id, group_id, fb_group_id, message, action, target_url, status)
+       VALUES ($1, $2, $3, $4, 'share', $5, 'pending') RETURNING id`,
+      [petId, groupId, fbGroupId, message, pagePostUrl]
+    );
+    return { taskId: result.rows[0].id, marker: '' };
+  }
   const marker = crypto.randomUUID().substring(0, 5);
   const messageWithMarker = message + '\n\n[MKR-' + marker + ']';
   const result = await pool.query(

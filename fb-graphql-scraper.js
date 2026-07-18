@@ -15,6 +15,7 @@ const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/
 const PROFILE_DIR = process.env.FB_SCRAPER_PROFILE_DIR || path.join(__dirname, 'fb_scraper_profile');
 const SEEN_PATH = path.join(__dirname, 'fb_scraper_seen.json');
 const SESSION_PATH = path.join(PROFILE_DIR, 'graphql-session.json');
+const LOCK_DIR = path.join(__dirname, '.fb_lock');
 
 let INTERVAL_HOURS = parseInt(process.env.FB_SCRAPER_INTERVAL || '4');
 let MAX_POSTS_PER_GROUP = parseInt(process.env.FB_SCRAPER_MAX_POSTS || '20');
@@ -965,6 +966,47 @@ async function testMode() {
   }
 }
 
+async function acquireLock() {
+  const start = Date.now();
+  const timeout = 15 * 60 * 1000;
+  while (Date.now() - start < timeout) {
+    try {
+      fs.mkdirSync(LOCK_DIR);
+      fs.writeFileSync(path.join(LOCK_DIR, 'pid'), String(process.pid));
+      console.log('[Scraper] Lock adquirido');
+      return true;
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      try {
+        const pidFile = path.join(LOCK_DIR, 'pid');
+        if (fs.existsSync(pidFile)) {
+          const age = Date.now() - fs.statSync(pidFile).mtimeMs;
+          if (age > 30 * 60 * 1000) {
+            console.log('[Scraper] Lock stale, removiendo...');
+            fs.rmSync(LOCK_DIR, { recursive: true, force: true });
+            continue;
+          }
+        }
+      } catch {}
+    }
+    console.log('[Scraper] Lock ocupado, esperando 10s...');
+    await sleep(10000);
+  }
+  console.error('[Scraper] Timeout esperando lock (15 min)');
+  return false;
+}
+
+function releaseLock() {
+  try {
+    if (fs.existsSync(LOCK_DIR)) {
+      fs.rmSync(LOCK_DIR, { recursive: true, force: true });
+      console.log('[Scraper] Lock liberado');
+    }
+  } catch (e) {
+    console.error('[Scraper] Error liberando lock:', e.message);
+  }
+}
+
 async function runDaemon() {
   console.log('[Scraper] Daemon iniciado — Puppeteer DOM + GraphQL rápido');
   remoteLog('info', 'Daemon iniciado');
@@ -979,49 +1021,60 @@ async function runDaemon() {
   console.log(`[Scraper] Sesión cargada. Cookies: ${session.cookies.length}`);
 
   while (true) {
-    console.log(`[Scraper] Iniciando ciclo de scraping...`);
+    console.log('[Scraper] Adquiriendo lock...');
+    if (!(await acquireLock())) {
+      console.log('[Scraper] No se pudo obtener lock, esperando 15 min...');
+      await sleep(15 * 60 * 1000);
+      continue;
+    }
 
-    const groups = await getActiveGroups();
-    if (groups.length === 0) {
-      console.log('[Scraper] No hay grupos activos');
-    } else {
-      const seen = loadSeen();
-      let totalPosts = 0;
+    try {
+      console.log(`[Scraper] Iniciando ciclo de scraping...`);
 
-      for (const group of groups) {
-        const groupId = group.fb_group_id || group.url?.match(/groups\/(\d+)/)?.[1];
-        const groupName = group.name || groupId;
-        const lastSeenId = seen[groupId] || null;
+      const groups = await getActiveGroups();
+      if (groups.length === 0) {
+        console.log('[Scraper] No hay grupos activos');
+      } else {
+        const seen = loadSeen();
+        let totalPosts = 0;
 
-        // Primero GraphQL (rápido), si da 0 posts -> Puppeteer DOM
-        let posts = await scrapeGroupGraphQL(session, groupId, groupName, MAX_POSTS_PER_GROUP);
-        if (posts.length === 0) {
-          console.log(`[Scraper] GraphQL sin posts, usando Puppeteer DOM...`);
-          posts = await scrapeGroupPuppeteer(groupId, groupName, MAX_POSTS_PER_GROUP, session.cookies);
+        for (const group of groups) {
+          const groupId = group.fb_group_id || group.url?.match(/groups\/(\d+)/)?.[1];
+          const groupName = group.name || groupId;
+          const lastSeenId = seen[groupId] || null;
+
+          // Primero GraphQL (rápido), si da 0 posts -> Puppeteer DOM
+          let posts = await scrapeGroupGraphQL(session, groupId, groupName, MAX_POSTS_PER_GROUP);
+          if (posts.length === 0) {
+            console.log(`[Scraper] GraphQL sin posts, usando Puppeteer DOM...`);
+            posts = await scrapeGroupPuppeteer(groupId, groupName, MAX_POSTS_PER_GROUP, session.cookies);
+          }
+
+          const newPosts = [];
+          for (const post of posts) {
+            if (lastSeenId && post.fb_post_id === lastSeenId) break;
+            newPosts.push(post);
+          }
+
+          if (newPosts.length > 0) {
+            const limited = newPosts.slice(0, MAX_POSTS_PER_GROUP);
+            const withBuffers = await downloadImagesAsBuffers(limited, session.cookies);
+            console.log(`[Scraper] ${groupName}: ${limited.length} posts nuevos`);
+            await sendPosts(withBuffers, groupName, group.id);
+            seen[groupId] = limited[0].fb_post_id;
+            totalPosts += limited.length;
+          } else {
+            console.log(`[Scraper] ${groupName}: sin posts nuevos`);
+          }
+
+          await sleep(randomInt(5000, 15000));
         }
 
-        const newPosts = [];
-        for (const post of posts) {
-          if (lastSeenId && post.fb_post_id === lastSeenId) break;
-          newPosts.push(post);
-        }
-
-        if (newPosts.length > 0) {
-          const limited = newPosts.slice(0, MAX_POSTS_PER_GROUP);
-          const withBuffers = await downloadImagesAsBuffers(limited, session.cookies);
-          console.log(`[Scraper] ${groupName}: ${limited.length} posts nuevos`);
-          await sendPosts(withBuffers, groupName, group.id);
-          seen[groupId] = limited[0].fb_post_id;
-          totalPosts += limited.length;
-        } else {
-          console.log(`[Scraper] ${groupName}: sin posts nuevos`);
-        }
-
-        await sleep(randomInt(5000, 15000));
+        saveSeen(seen);
+        console.log(`[Scraper] Ciclo completado. ${totalPosts} posts totales.`);
       }
-
-      saveSeen(seen);
-      console.log(`[Scraper] Ciclo completado. ${totalPosts} posts totales.`);
+    } finally {
+      releaseLock();
     }
 
     const sleepMinutes = INTERVAL_HOURS * 60 + randomInt(-45, 45);

@@ -14,10 +14,11 @@ const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api/re
 const TOKEN = process.env.RELAY_TOKEN || process.env.FB_RELAY_TOKEN;
 const POLL_INTERVAL = parseInt(process.env.FB_POLL_INTERVAL || '60000');
 
-const PROFILE_DIR = process.env.FB_PROFILE_DIR || path.join(__dirname, 'fb_profile');
+const PROFILE_DIR = process.env.FB_PROFILE_DIR || process.env.FB_SCRAPER_PROFILE_DIR || path.join(__dirname, 'fb_scraper_profile');
 const COOKIES_PATH = path.join(PROFILE_DIR, 'cookies.json');
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const TMP_DIR = path.join(__dirname, '.fb_img_tmp');
+const LOCK_DIR = path.join(__dirname, '.fb_lock');
 
 const USER_AGENTS = [
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
@@ -362,6 +363,47 @@ async function ensureFacebookSession(page) {
   return false;
 }
 
+async function acquireLock() {
+  const start = Date.now();
+  const timeout = 15 * 60 * 1000;
+  while (Date.now() - start < timeout) {
+    try {
+      fs.mkdirSync(LOCK_DIR);
+      fs.writeFileSync(path.join(LOCK_DIR, 'pid'), String(process.pid));
+      console.log('[FB Relay] Lock adquirido');
+      return true;
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      try {
+        const pidFile = path.join(LOCK_DIR, 'pid');
+        if (fs.existsSync(pidFile)) {
+          const age = Date.now() - fs.statSync(pidFile).mtimeMs;
+          if (age > 30 * 60 * 1000) {
+            console.log('[FB Relay] Lock stale, removiendo...');
+            fs.rmSync(LOCK_DIR, { recursive: true, force: true });
+            continue;
+          }
+        }
+      } catch {}
+    }
+    console.log('[FB Relay] Lock ocupado, esperando 10s...');
+    await sleep(10000);
+  }
+  console.error('[FB Relay] Timeout esperando lock (15 min)');
+  return false;
+}
+
+function releaseLock() {
+  try {
+    if (fs.existsSync(LOCK_DIR)) {
+      fs.rmSync(LOCK_DIR, { recursive: true, force: true });
+      console.log('[FB Relay] Lock liberado');
+    }
+  } catch (e) {
+    console.error('[FB Relay] Error liberando lock:', e.message);
+  }
+}
+
 async function postToGroup(b, fbGroupId, message, imageUrls, marker) {
   const page = await b.newPage();
 
@@ -524,18 +566,114 @@ async function commentOnPost(b, targetUrl, text) {
   }
 }
 
-async function executeTask(task) {
-  const b = await getBrowser();
+async function sharePostToGroup(b, targetUrl, fbGroupId, message) {
+  const page = await b.newPage();
 
-  if (task.action === 'comment' && task.target_url) {
-    await commentOnPost(b, task.target_url, task.message);
-    await api.post('/fb/completed', { task_updates: [{ task_id: task.id }] });
-    console.log(`[FB Relay] Comentario tarea ${task.id} completada`);
-  } else {
-    const result = await postToGroup(b, task.fb_group_id, task.message, task.image_urls || [], task.marker || '');
-    const fbPostUrl = result?.fb_post_url || '';
-    await api.post('/fb/completed', { task_updates: [{ task_id: task.id, fb_post_url: fbPostUrl }] });
-    console.log(`[FB Relay] Tarea ${task.id} completada (post)`);
+  try {
+    await page.setUserAgent(pickUA());
+    await page.setViewport({ width: 1366, height: 768 });
+
+    if (!(await ensureFacebookSession(page))) throw new Error('session expired');
+
+    console.log(`[FB Relay] Navegando a post: ${targetUrl}`);
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await sleep(3000);
+
+    if (!(await checkSession(page))) throw new Error('session expired');
+
+    await prePostBehavior(page);
+
+    console.log('[FB Relay] Click en Compartir...');
+    const shareBtn = await page.waitForSelector('[aria-label="Compartir"], [aria-label="Share"]', { visible: true, timeout: 10000 }).catch(() => null);
+    if (!shareBtn) throw new Error('Share button not found');
+    await shareBtn.click();
+    await sleep(2000);
+
+    console.log('[FB Relay] Seleccionando Compartir en grupo...');
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const clicked = await page.evaluate(() => {
+        const items = document.querySelectorAll('[role="menuitem"], [role="button"]');
+        for (const item of items) {
+          const text = item.textContent.toLowerCase();
+          if (text.includes('compartir en grupo') || text.includes('share to group')) {
+            item.click();
+            return true;
+          }
+        }
+        return false;
+      });
+      if (clicked) break;
+      await sleep(1000);
+    }
+    await sleep(3000);
+
+    const searchInput = await page.waitForSelector('div[role="dialog"] input', { visible: true, timeout: 15000 }).catch(() => null);
+    if (!searchInput) throw new Error('Group search input not found');
+    await searchInput.click();
+    await sleep(500);
+    await page.keyboard.type(fbGroupId, { delay: randomInt(50, 100) });
+    await sleep(2000);
+
+    const groupResult = await page.waitForSelector(
+      'div[role="option"], [role="dialog"] [role="listbox"] li, [role="dialog"] [role="listitem"]',
+      { visible: true, timeout: 10000 }
+    ).catch(() => null);
+    if (groupResult) {
+      await groupResult.click();
+      await sleep(2000);
+    }
+
+    if (message) {
+      const editor = await page.$('div[role="dialog"] div[role="textbox"][contenteditable="true"]');
+      if (editor) await humanType(page, editor, message);
+      await sleep(2000);
+    }
+
+    const finalBtn = await page.waitForSelector(
+      'div[role="dialog"] [aria-label="Compartir ahora"], div[role="dialog"] [aria-label="Share Now"], div[role="dialog"] [aria-label="Compartir"], div[role="dialog"] [aria-label="Publicar"]',
+      { visible: true, timeout: 10000 }
+    );
+    if (!finalBtn) throw new Error('Final share button not found');
+    await finalBtn.click();
+
+    try {
+      await page.waitForSelector('div[role="dialog"]', { hidden: true, timeout: 15000 });
+    } catch {
+      await page.keyboard.press('Enter');
+      await sleep(3000);
+    }
+
+    console.log(`[FB Relay] Compartido en grupo ${fbGroupId}`);
+    await saveCookies(page);
+    await uploadSessionData(page);
+    return true;
+  } finally {
+    await page.close();
+  }
+}
+
+async function executeTask(task) {
+  if (!(await acquireLock())) throw new Error('Could not acquire lock');
+
+  try {
+    const b = await getBrowser();
+
+    if (task.action === 'share' && task.target_url) {
+      await sharePostToGroup(b, task.target_url, task.fb_group_id, task.message);
+      await api.post('/fb/completed', { task_updates: [{ task_id: task.id }] });
+      console.log(`[FB Relay] Tarea ${task.id} completada (share)`);
+    } else if (task.action === 'comment' && task.target_url) {
+      await commentOnPost(b, task.target_url, task.message);
+      await api.post('/fb/completed', { task_updates: [{ task_id: task.id }] });
+      console.log(`[FB Relay] Comentario tarea ${task.id} completada`);
+    } else {
+      const result = await postToGroup(b, task.fb_group_id, task.message, task.image_urls || [], task.marker || '');
+      const fbPostUrl = result?.fb_post_url || '';
+      await api.post('/fb/completed', { task_updates: [{ task_id: task.id, fb_post_url: fbPostUrl }] });
+      console.log(`[FB Relay] Tarea ${task.id} completada (post)`);
+    }
+  } finally {
+    releaseLock();
   }
 
   // Delay humano entre tareas: 90-180s aleatorio

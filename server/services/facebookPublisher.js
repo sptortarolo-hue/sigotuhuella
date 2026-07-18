@@ -142,7 +142,7 @@ export async function publishToPage(petId, instagramPostId) {
         timeout: 30000,
       });
       const postId = data.id;
-      return { success: true, pagePostId: postId, type: 'photo' };
+      return { success: true, pagePostId: postId, type: 'photo', pageId };
     }
 
     // Staging todas las fotos (published=false) para crear un carrusel
@@ -173,7 +173,7 @@ export async function publishToPage(petId, instagramPostId) {
       timeout: 30000,
     });
     console.log(`[FB Publisher] Post publicado con ${stagedMedia.length} foto(s), id=${data.id}`);
-    return { success: true, pagePostId: data.id, type: 'feed' };
+    return { success: true, pagePostId: data.id, type: 'feed', pageId };
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
     return { error: `Error al publicar en Page: ${detail}` };
@@ -294,13 +294,13 @@ export async function verifyAllGroupMemberships() {
   return { updated, results };
 }
 
-export async function publishToGroupsViaScraper(groups, message, imageUrls, petId) {
+export async function publishToGroupsViaScraper(groups, message, imageUrls, petId, pagePostUrl) {
   try {
     const { enqueuePublishTask } = await import('./facebookRelayService.js');
     const results = [];
     for (const group of groups) {
       try {
-        const task = await enqueuePublishTask(petId, group.id, group.fb_group_id, message, imageUrls);
+        const task = await enqueuePublishTask(petId, group.id, group.fb_group_id, message, imageUrls, pagePostUrl);
         results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: true, marker: task.marker });
       } catch (err) {
         results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: false, error: err.message });
@@ -536,6 +536,10 @@ export async function publishPetToGroups(petId) {
   const pageResult = await publishToPage(petId);
   results.page = pageResult;
 
+  const pagePostUrl = pageResult.success && pageResult.pagePostId && pageResult.pageId
+    ? `https://www.facebook.com/${pageResult.pageId}/posts/${pageResult.pagePostId}`
+    : null;
+
   const groupsResult = await pool.query(
     `SELECT id, name, fb_group_id FROM facebook_groups
      WHERE is_active = true AND publish_on_create = true AND page_is_member = true
@@ -548,7 +552,7 @@ export async function publishPetToGroups(petId) {
       id: g.id, fb_group_id: g.fb_group_id, name: g.name,
     }));
 
-    const scraperResult = await publishToGroupsViaScraper(eligibleGroups, message, imageUrls, petId);
+    const scraperResult = await publishToGroupsViaScraper(eligibleGroups, message, imageUrls, petId, pagePostUrl);
     if (scraperResult.success) {
       for (const r of scraperResult.results) {
         results.groups.push({
