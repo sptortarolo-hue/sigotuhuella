@@ -134,7 +134,7 @@ async function publishToFacebookGroups(news, pagePostUrl) {
   const taskIds = [];
   for (const group of groups.rows) {
     try {
-      const { taskId } = await enqueuePublishTask(news.id, group.id, group.fb_group_id, caption, [imageUrl], pagePostUrl);
+      const { taskId } = await enqueuePublishTask(null, group.id, group.fb_group_id, caption, [imageUrl], pagePostUrl);
       taskIds.push(taskId);
     } catch (err) {
       console.warn(`[NewsPublisher] FB group ${group.fb_group_id} enqueue error:`, err.message);
