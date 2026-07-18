@@ -114,7 +114,7 @@ async function getBrowser() {
   }
   ensureProfileDir();
 
-  const isHeadless = !process.argv.includes('--headed');
+  const isHeadless = !process.argv.includes('--headed') && process.env.FB_SCRAPER_HEADED !== 'true';
 
   browser = await puppeteer.launch({
     executablePath: CHROMIUM_PATH,
@@ -776,29 +776,9 @@ if (process.argv.includes('--login')) {
     if (!TOKEN) { console.error('FATAL: RELAY_TOKEN no configurado'); process.exit(1); }
     ensureProfileDir();
     setWakeLock(true);
-    console.log('[FB Relay] Modo login. Abriendo Chromium...');
-    const b = await puppeteer.launch({
-      executablePath: CHROMIUM_PATH,
-      headless: false,
-      userDataDir: PROFILE_DIR,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-blink-features=AutomationControlled',
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-features=IsolateOrigins,site-per-process,ChromeWhatsNewUI,OptimizationGuideModelDownloading,Translate',
-        '--disable-sync',
-        '--disable-field-trial-config',
-        '--window-size=1366,768',
-        '--lang=es-AR',
-        '--no-pings',
-        '--disable-crash-reporter',
-        '--disable-background-networking',
-      ],
-    });
+    // Forzar headed mode para --login
+    process.argv.push('--headed');
+    const b = await getBrowser();
     const page = await b.newPage();
     await page.setUserAgent(pickUA());
     await page.setViewport({ width: 1366, height: 768 });
