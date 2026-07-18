@@ -120,6 +120,7 @@ async function getBrowser() {
     executablePath: CHROMIUM_PATH,
     headless: isHeadless ? 'new' : false,
     userDataDir: PROFILE_DIR,
+    env: { ...process.env, DISPLAY: process.env.DISPLAY || ':0' },
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
