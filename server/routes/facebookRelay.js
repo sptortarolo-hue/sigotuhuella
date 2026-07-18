@@ -8,7 +8,6 @@ import {
 } from '../services/facebookRelayService.js';
 import { requireAdmin } from '../auth.js';
 import { searchPets } from '../services/phoneRelayService.js';
-import { enqueuePublishTask, applySpintax } from '../services/facebookRelayService.js';
 import { broadcastAdoptionPet } from '../services/whatsappService.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -249,74 +248,6 @@ router.get('/fb/groups-ui', requireAdmin, async (req, res) => {
     res.json({ groups: result.rows });
   } catch (err) {
     console.error('[FB Relay] groups-ui error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-const fbStatusLabels = {
-  lost: '🐾 SE PERDIÓ', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
-  for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
-  adopted: '✅ ADOPTADO',
-  reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
-  needs_attention: '⚠️ NECESITA ATENCIÓN',
-};
-const fbSpeciesLabel = { dog: 'Perro', cat: 'Gato' };
-const fbGenderLabel = { male: 'Macho', female: 'Hembra' };
-
-router.post('/fb/broadcast-pet', requireAdmin, async (req, res) => {
-  try {
-    const { petId, groups } = req.body;
-    if (!petId) return res.status(400).json({ error: 'petId required' });
-    if (!groups || !Array.isArray(groups) || groups.length === 0)
-      return res.status(400).json({ error: 'groups array required' });
-
-    const pet = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
-    if (!pet) return res.status(404).json({ error: 'Mascota no encontrada' });
-
-    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
-    const tag = fbStatusLabels[pet.status] || '🐾 MASCOTA';
-    const species = fbSpeciesLabel[pet.species] || pet.species || 'Mascota';
-    const gender = fbGenderLabel[pet.gender] || '';
-    const ageGender = [gender, pet.age].filter(Boolean).join(' · ');
-    const hashtags = '#SigoTuHuella #MascotasPerdidas #AdoptaNoCompres';
-
-    const caption = applySpintax([
-      tag,
-      pet.name ? `{Nombre|Se llama|Responde a}: ${pet.name}` : '',
-      `${species}${pet.breed ? ' · ' + pet.breed : ''}`,
-      ageGender || '',
-      pet.color ? `🎨 ${pet.color}` : '',
-      pet.location ? `{📍 Ubicación|📍 Zona|📍 Se vio en}: ${pet.location}` : '',
-      pet.contact_info ? `{📞 Contacto|📞 Teléfono|📞 WhatsApp}: ${pet.contact_info}` : '',
-      '',
-      pet.description ? pet.description.substring(0, 500) : '',
-      '',
-      `🔗 ${frontendUrl}/pet/${pet.id}`,
-      '',
-      hashtags,
-    ].filter(Boolean).join('\n'));
-
-    const imagesResult = await pool.query(
-      'SELECT image_data FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 5',
-      [petId]
-    );
-    const imageUrls = imagesResult.rows.length > 0
-      ? [`${frontendUrl}/api/images/pet/${pet.id}/cover`, ...imagesResult.rows.slice(1).map((_, i) => `${frontendUrl}/api/images/pet/${pet.id}/${i + 1}`)]
-      : [`${frontendUrl}/api/images/pet/${pet.id}/cover`];
-
-    const results = [];
-    for (const group of groups) {
-      try {
-        const { taskId } = await enqueuePublishTask(petId, group.id, group.fb_group_id, caption, imageUrls);
-        results.push({ groupId: group.fb_group_id, groupName: group.name || group.id, status: 'queued', taskId });
-      } catch (err) {
-        results.push({ groupId: group.fb_group_id, groupName: group.name || group.id, status: 'error', error: err.message });
-      }
-    }
-
-    res.json({ results, caption });
-  } catch (err) {
-    console.error('[FB Relay] broadcast-pet error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

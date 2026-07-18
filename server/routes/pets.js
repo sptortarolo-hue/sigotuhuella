@@ -5,11 +5,10 @@ import { matchPetToPosts, matchWhatsAppToPets } from '../services/geminiMatching
 import { broadcastPetToGroups } from '../services/whatsappService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { notifyPetPublication } from '../services/petPublicationNotification.js';
-import { enqueuePublishTask } from '../services/facebookRelayService.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import { isConnected, replyToComment, commentOnMedia } from '../services/instagramService.js';
-import { commentOnPagePost } from '../services/facebookPublisher.js';
+import { commentOnPagePost, publishPetToGroups } from '../services/facebookPublisher.js';
 import { generateCelebrationText } from '../services/textTemplates.js';
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
@@ -217,67 +216,7 @@ const statusLabels = {
 const speciesLabel = { dog: 'Perro', cat: 'Gato', other: 'Otra mascota' };
 const genderLabel = { male: 'Macho', female: 'Hembra', unknown: '' };
 
-async function enqueueFbGroupPublish(pet) {
-  try {
-    const fbRelay = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_enabled'");
-    if (fbRelay.rows[0]?.value !== 'true') return;
-    const groups = await pool.query(
-      `SELECT id, name, fb_group_id FROM facebook_groups
-       WHERE is_active = true AND publish_on_create = true AND fb_group_id IS NOT NULL AND fb_group_id != ''
-       ORDER BY name`
-    );
-    if (groups.rows.length === 0) return;
-    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
-    const isCelebration = pet.status === 'reunited' || pet.status === 'adopted';
-    let message;
 
-    if (isCelebration) {
-      const hashtagResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_default_hashtags'");
-      const hashtags = hashtagResult.rows[0]?.value || '#SigoTuHuella';
-      const celebrationText = generateCelebrationText(pet, pet.status);
-      message = [
-        celebrationText,
-        '',
-        `🔗 ${frontendUrl}/pet/${pet.id}`,
-        '',
-        hashtags,
-      ].join('\n');
-    } else {
-      const tag = statusLabels[pet.status] || '🐾 MASCOTA';
-      const species = speciesLabel[pet.species] || 'Mascota';
-      const gender = genderLabel[pet.gender] || '';
-      const ageGender = [gender, pet.age].filter(Boolean).join(' · ');
-      const hashtags = '#SigoTuHuella #MascotasPerdidas #AdoptaNoCompres';
-      message = [
-        `${tag}`,
-        `${pet.name ? 'Nombre: ' + pet.name : ''}`,
-        `${species}${pet.breed ? ' - ' + pet.breed : ''}`,
-        `${ageGender ? ageGender : ''}`,
-        `${pet.color ? '🎨 ' + pet.color : ''}`,
-        `${pet.location ? '📍 ' + pet.location : ''}`,
-        pet.contact_info ? `📞 ${pet.contact_info}` : '',
-        '',
-        pet.description ? pet.description.substring(0, 500) : '',
-        '',
-        `🔗 ${frontendUrl}/pet/${pet.id}`,
-        '',
-        hashtags,
-      ].filter(Boolean).join('\n');
-    }
-    const imagesResult = await pool.query(
-      'SELECT image_data FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 5',
-      [pet.id]
-    );
-    const imageUrls = imagesResult.rows.length > 0
-      ? [`${frontendUrl}/api/images/pet/${pet.id}/cover`, ...imagesResult.rows.slice(1).map((_, i) => `${frontendUrl}/api/images/pet/${pet.id}/${i + 1}`)]
-      : [`${frontendUrl}/api/images/pet/${pet.id}/cover`];
-    for (const group of groups.rows) {
-      const task = await enqueuePublishTask(pet.id, group.id, group.fb_group_id, message, imageUrls);
-    }
-  } catch (err) {
-    console.error('[FB Relay] enqueueFbGroupPublish error:', err.message);
-  }
-}
 
 async function enqueueFbGroupComment(pet, newsType) {
   try {
@@ -600,7 +539,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       await autoFacebookPageComment(updatedPet.rows[0], newsType);
       await autoQueueCelebrationPost(updatedPet.rows[0], newsType);
       broadcastPetToGroups(petId).catch(e => console.error('Broadcast reunion/adoption error:', e));
-      enqueueFbGroupPublish(updatedPet.rows[0]).catch(e => console.error('[FB Relay] enqueueFbGroupPublish error:', e));
+      publishPetToGroups(updatedPet.rows[0].id).catch(e => console.error('[FB Relay] publishPetToGroups error:', e));
       enqueueFbGroupComment(updatedPet.rows[0], newsType).catch(e => console.error('[FB Relay] enqueueFbGroupComment error:', e));
     }
     // Auto-badge: reunited_hero (first reunion)

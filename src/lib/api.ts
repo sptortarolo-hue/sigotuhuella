@@ -253,7 +253,6 @@ export const api = {
     verifyAllMemberships: () => request('/facebook/groups/verify-memberships', { method: 'POST' }),
     verifyGroupMembership: (id: string) => request(`/facebook/groups/${id}/verify-membership`, { method: 'POST' }),
     publishStatus: () => request('/facebook/publish-status'),
-    publishPetToGroups: (petId: string) => request(`/facebook/publish-pet-to-groups/${petId}`, { method: 'POST' }),
     extractGroupIds: () => request('/facebook/extract-group-ids', { method: 'POST' }),
   },
 
@@ -269,10 +268,6 @@ export const api = {
     stats: () => request('/relay/fb/stats'),
     failedTasks: () => request('/relay/fb/failed-tasks'),
     debugView: () => request('/relay/fb-debug-view'),
-    pets: (category: string, search?: string) =>
-      request(`/relay/fb/pets?category=${category}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
-    broadcastPet: (petId: string, groups: { id: string; fb_group_id: string; name?: string }[]) =>
-      request('/relay/fb/broadcast-pet', { method: 'POST', body: JSON.stringify({ petId, groups }) }),
     groups: () => request('/relay/fb/groups-ui'),
     broadcastAdoptions: () => request('/relay/fb/broadcast-adoptions', { method: 'POST' }),
     clearQueue: () => request('/relay/fb/clear-queue', { method: 'POST' }),

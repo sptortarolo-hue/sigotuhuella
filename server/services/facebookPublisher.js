@@ -542,7 +542,7 @@ export async function publishPetToGroups(petId) {
 
   const groupsResult = await pool.query(
     `SELECT id, name, fb_group_id FROM facebook_groups
-     WHERE is_active = true AND publish_on_create = true AND page_is_member = true
+     WHERE is_active = true AND publish_on_create = true
        AND fb_group_id IS NOT NULL AND fb_group_id != ''
      ORDER BY name`
   );
