@@ -483,59 +483,47 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
     browser = await puppeteer.launch({
       headless: true,
       executablePath: CHROMIUM_PATH,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-      defaultViewport: { width: 1366, height: 768 },
+      args: ['--no-sandbox', '--disable-gpu'],
     });
     const page = await browser.newPage();
+    await page.setViewport({ width: 1366, height: 768 });
     await page.setDefaultNavigationTimeout(90000);
     await page.setUserAgent(pickUA());
 
-    const fbCookies = cookies.filter(c => c.domain?.includes('facebook'));
-    if (fbCookies.length > 0) await page.setCookie(...fbCookies);
+    const fbCookies = (cookies || []).filter(c => c.domain?.includes('facebook'));
+    if (fbCookies.length > 0) {
+      await page.setCookie(...fbCookies.map(c => ({
+        name: c.name, value: c.value, domain: c.domain || '.facebook.com',
+        path: c.path || '/', secure: !!c.secure, httpOnly: !!c.httpOnly
+      })));
+    }
 
     await page.goto(`https://www.facebook.com/groups/${groupId}/`, { waitUntil: 'networkidle2', timeout: 90000 });
     console.log(`[Scraper] [Puppeteer] URL after goto: ${page.url()}`);
 
     await sleep(5000);
 
+    if (process.env.DEBUG_SCREENSHOT) {
+      await page.screenshot({ path: `debug-group-${groupId}.png`, fullPage: true });
+      console.log(`[Scraper] [Puppeteer] Debug screenshot saved: debug-group-${groupId}.png`);
+    }
+
     const posts = [];
     let scrollAttempts = 0;
     const maxScrolls = 6;
 
     while (posts.length < maxPosts && scrollAttempts < maxScrolls) {
-      const newPosts = await page.evaluate((maxToCollect) => {
+      const newPosts = await page.evaluate((maxToCollect, scrollNum) => {
         const results = [];
 
-        // Intentar multiples selectores de contenedor
         const candidates = [];
-
-        // 1. role="feed" > role="article" (estructura clasica desktop)
-        const feed = document.querySelector('[role="feed"]');
-        if (feed) {
-          candidates.push(...feed.querySelectorAll('[role="article"]'));
+        const roleArticles = document.querySelectorAll('[role="article"]');
+        if (roleArticles.length > 0) {
+          candidates.push(...roleArticles);
         }
-
-        // 2. role="article" directo (WebLite mobile, layout alternativo)
         if (candidates.length === 0) {
-          candidates.push(...document.querySelectorAll('[role="article"]'));
-        }
-
-        // 3. data-pagelet (nuevo layout React)
-        if (candidates.length === 0) {
-          candidates.push(...document.querySelectorAll('[data-pagelet]'));
-        }
-
-        // 4. Fallback: busqueda generica por enlaces a /posts/
-        if (candidates.length === 0) {
-          const links = document.querySelectorAll('a[href*="/posts/"]');
-          const seenParents = new Set();
-          for (const link of links) {
-            const parent = link.closest('div, article, section');
-            if (parent && !seenParents.has(parent)) {
-              seenParents.add(parent);
-              candidates.push(parent);
-            }
-          }
+          const postClassEls = document.querySelectorAll('[class*="post"]');
+          candidates.push(...postClassEls);
         }
 
         for (const el of candidates) {
@@ -543,14 +531,12 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
           const fullText = el.textContent || '';
           if (fullText.length < 30) continue;
 
-          // Extraer post ID
           const link = el.querySelector('a[href*="/posts/"], a[href*="?story_fbid="]');
           const permalink = link ? link.getAttribute('href') : '';
           const postId = (permalink.match(/\/posts\/(\d+)/) || [])[1]
             || (permalink.match(/story_fbid=(\d+)/) || [])[1]
             || '';
 
-          // Extraer autor: buscar <strong> dentro de un <a>
           let authorName = 'Unknown';
           const strongInLink = el.querySelector('a strong, strong a, a[role="link"] strong');
           if (strongInLink) {
@@ -565,7 +551,6 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
             }
           }
 
-          // Extraer contenido de div[dir="auto"]
           const contentParts = [];
           const dirDivs = el.querySelectorAll('div[dir="auto"]');
           for (const dd of dirDivs) {
@@ -574,7 +559,6 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
           }
           let content = contentParts.slice(0, 3).join('\n') || '';
 
-          // Fallback: si no hay div[dir="auto"], usar texto completo limpiado
           if (!content || content.length < 5) {
             const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
             const filtered = lines.filter(l => {
@@ -586,9 +570,6 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
             content = filtered.slice(0, 3).join('\n');
           }
 
-          if (!content && images.length === 0) continue;
-
-          // Extraer imagenes
           const images = [];
           const imgEls = el.querySelectorAll('img');
           for (const img of imgEls) {
@@ -604,7 +585,7 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
           if (content.length < 5 && images.length === 0) continue;
 
           results.push({
-            fb_post_id: postId || `dom_${groupId}_${results.length}`,
+            fb_post_id: postId || `${groupId}_dom_${scrollNum}_${results.length}`,
             fb_post_url: permalink ? `https://www.facebook.com${permalink}` : '',
             author_name: authorName,
             content: content.substring(0, 5000),
@@ -615,7 +596,7 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
           });
         }
         return results;
-      }, maxPosts - posts.length);
+      }, maxPosts - posts.length, scrollAttempts);
 
       console.log(`[Scraper] [Puppeteer] Scroll ${scrollAttempts + 1}: ${newPosts.length} candidates`);
 
