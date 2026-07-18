@@ -356,9 +356,8 @@ async function downloadCookiesFromServer() {
 }
 
 async function setCookiesAndCheck(page, cookies) {
-  await page.goto('about:blank');
   await page.setCookie(...cookies);
-  await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
+  await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
   await sleep(3000);
   if (await checkSession(page)) {
     await saveCookies(page);
@@ -368,11 +367,6 @@ async function setCookiesAndCheck(page, cookies) {
 }
 
 async function ensureFacebookSession(page) {
-  await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
-  await sleep(3000);
-
-  if (await checkSession(page)) return true;
-
   let cookies = [];
   if (sessionSource === 'scraper') {
     cookies = loadScraperCookies();
@@ -381,10 +375,19 @@ async function ensureFacebookSession(page) {
   }
 
   if (cookies.length > 0) {
-    if (await setCookiesAndCheck(page, cookies)) {
+    await page.goto('https://facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.setCookie(...cookies);
+    await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
+    await sleep(3000);
+    if (await checkSession(page)) {
+      await saveCookies(page);
       console.log(`[FB Relay] Sesión iniciada desde fuente: ${sessionSource}`);
       return true;
     }
+  } else {
+    await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
+    await sleep(3000);
+    if (await checkSession(page)) return true;
   }
 
   console.log(`[FB Relay] No se pudo iniciar sesión desde fuente: ${sessionSource}`);
