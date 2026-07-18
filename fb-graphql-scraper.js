@@ -11,7 +11,6 @@ puppeteer.use(StealthPlugin());
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api';
 const TOKEN = process.env.SCRAPER_TOKEN || 'sihuella';
-const HEADED = process.env.FB_SCRAPER_HEADED === 'true' || process.argv.includes('--headed');
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const PROFILE_DIR = process.env.FB_SCRAPER_PROFILE_DIR || path.join(__dirname, 'fb_scraper_profile');
 const SEEN_PATH = path.join(__dirname, 'fb_scraper_seen.json');
@@ -21,15 +20,14 @@ let INTERVAL_HOURS = parseInt(process.env.FB_SCRAPER_INTERVAL || '4');
 let MAX_POSTS_PER_GROUP = parseInt(process.env.FB_SCRAPER_MAX_POSTS || '20');
 
 const GRAPHQL_URL = 'https://www.facebook.com/api/graphql/';
-// Fallback doc_ids (no longer used by default — discovery uses Puppeteer)
-const FALLBACK_DOC_IDS = [];
-const FALLBACK_DOC_ID = null;
+const HARDCODED_DOC_IDS = [
+  '25716860671307636',
+  '26577462205242925',
+];
 const DEBUG_PATH = path.join(__dirname, 'debug-graphql-response.json');
 
 const USER_AGENTS = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
 ];
@@ -37,102 +35,15 @@ const USER_AGENTS = [
 function pickUA() { return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]; }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
-function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 function realHeaders() {
   return {
     'User-Agent': pickUA(),
-    'Accept-Language': pick([
-      'es-AR,es;q=0.9,en;q=0.8',
-      'es-AR,es;q=0.9',
-      'es;q=0.9,en;q=0.8',
-      'es-419,es;q=0.9,en;q=0.8',
-    ]),
+    'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8',
     'Accept-Encoding': 'gzip, deflate, br',
-    'Accept': pick([
-      'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      '*/*',
-    ]),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   };
 }
-
-// ==================== BROWSING SIMULATION ====================
-
-const FB_IDLE_PAGES = [
-  '/',
-  '/feed',
-  '/gaming/feed',
-  '/watch',
-  '/marketplace',
-  '/memories',
-  '/pages',
-  '/pages/?category=local_service&subcategory=pet_service',
-  '/groups/?category=local_service',
-  '/me',
-];
-
-async function fetchFbPage(cookies, path) {
-  const cookieStr = cookiesToHeader(cookies);
-  try {
-    await axios.get(`https://www.facebook.com${path}`, {
-      headers: {
-        ...realHeaders(),
-        'Cookie': cookieStr,
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'same-origin',
-        'Sec-Fetch-Dest': 'document',
-        'Upgrade-Insecure-Requests': '1',
-      },
-      timeout: 20000,
-      maxRedirects: 5,
-    });
-  } catch {}
-}
-
-async function warmUpBrowsing(cookies) {
-  console.log('[Scraper] Warm-up: browsing Facebook...');
-  const pages = pick([
-    ['/', '/feed'],
-    ['/', '/feed', '/watch'],
-    ['/', '/groups/'],
-  ]);
-  for (const p of pages) {
-    await fetchFbPage(cookies, p);
-    await sleep(randomInt(3000, 8000));
-  }
-  console.log('[Scraper] Warm-up done');
-}
-
-async function coolDownBrowsing(cookies) {
-  console.log('[Scraper] Cool-down: browsing Facebook...');
-  const count = randomInt(2, 4);
-  const used = new Set();
-  for (let i = 0; i < count; i++) {
-    let p;
-    do { p = pick(FB_IDLE_PAGES); } while (used.has(p) && used.size < FB_IDLE_PAGES.length);
-    used.add(p);
-    await fetchFbPage(cookies, p);
-    await sleep(randomInt(8000, 25000));
-  }
-  console.log('[Scraper] Cool-down done');
-}
-
-async function idleBrowsingSession(cookies) {
-  const count = randomInt(3, 6);
-  console.log(`[Scraper] Idle browsing: ${count} pages...`);
-  const used = new Set();
-  for (let i = 0; i < count; i++) {
-    let p;
-    do { p = pick(FB_IDLE_PAGES); } while (used.has(p) && used.size < FB_IDLE_PAGES.length);
-    used.add(p);
-    await fetchFbPage(cookies, p);
-    await sleep(randomInt(15000, 40000));
-  }
-  console.log('[Scraper] Idle session done');
-}
-
-// ==================== LOGGING ====================
 
 function remoteLog(level, message) {
   axios.post(`${API_BASE}/facebook/scraper-log`, { level, message, ts: new Date().toISOString() }, {
@@ -164,39 +75,15 @@ function loadSeen() {
 }
 function saveSeen(seen) { fs.writeFileSync(SEEN_PATH, JSON.stringify(seen, null, 2)); }
 
-// ==================== FULL SESSION BOOTSTRAP ====================
+// ==================== FB DTSG EXTRACTION ====================
 
-function extractFromHtml(html, patterns) {
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-    if (match && match[1]) return match[1];
-  }
-  return null;
-}
+async function extractFbDtsg(cookies) {
+  const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
 
-function computeJazoest(fbDtsg) {
-  let sum = 0;
-  for (let i = 0; i < fbDtsg.length; i++) sum += fbDtsg.charCodeAt(i);
-  return '2' + sum;
-}
-
-async function bootstrapSession(cookies, groupId) {
-  const cookieStr = cookiesToHeader(cookies);
-  const url = groupId
-    ? `https://www.facebook.com/groups/${groupId}/`
-    : 'https://www.facebook.com/';
-
-  console.log(`[Scraper] Bootstrapping session desde ${url}...`);
-
-  const resp = await axios.get(url, {
+  const resp = await axios.get('https://www.facebook.com/groups/', {
     headers: {
       ...realHeaders(),
       'Cookie': cookieStr,
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-User': '?1',
-      'Upgrade-Insecure-Requests': '1',
     },
     timeout: 30000,
     maxRedirects: 5,
@@ -204,60 +91,24 @@ async function bootstrapSession(cookies, groupId) {
 
   const html = typeof resp.data === 'string' ? resp.data : '';
 
-  const fbDtsg = extractFromHtml(html, [
+  const patterns = [
     /\\"fb_dtsg\\":\{\\"token\\":\\"([^"\\]+)\\"/,
     /"fb_dtsg":"([^"]+)"/,
     /fb_dtsg.*?value="([^"]+)"/,
     /DTSGInitialData.*?"token":"([^"]+)"/,
     /\["DTSGInitialData",\[\],\{"token":"([^"]+)"/,
-  ]);
+  ];
 
-  const lsd = extractFromHtml(html, [
-    /\["LSD",\[\],\{"token":"([^"]+)"/,
-    /"LSD",\[\],\{"token":"([^"]+)"/,
-    /"lsd"\s*:\s*"([^"]+)"/,
-  ]);
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) return match[1];
+  }
 
-  const rev = extractFromHtml(html, [
-    /"client_revision"\s*:\s*(\d+)/,
-    /"__rev"\s*:\s*(\d+)/,
-  ]);
-
-  const hs = extractFromHtml(html, [
-    /"haste_session"\s*:\s*"([^"]+)"/,
-    /"__hs"\s*:\s*"([^"]+)"/,
-  ]);
-
-  const hsi = extractFromHtml(html, [
-    /"hsi"\s*:\s*"(\d+)"/,
-  ]);
-
-  const spinT = extractFromHtml(html, [
-    /"_?_?spin_t"\s*:\s*(\d+)/,
-  ]);
-
-  const jazoest = fbDtsg ? computeJazoest(fbDtsg) : null;
-
-  const tokens = { fbDtsg, lsd, rev, hs, hsi, spinT, jazoest };
-  console.log('[Scraper] Tokens extraídos:', JSON.stringify(Object.fromEntries(
-    Object.entries(tokens).map(([k, v]) => [k, v ? (typeof v === 'string' ? v.substring(0, 15) + '...' : v) : 'NULL'])
-  )));
-
-  return tokens;
+  console.error('[Scraper] No se pudo extraer fb_dtsg del HTML');
+  return null;
 }
 
 // ==================== COOKIE HELPERS ====================
-
-function loadCookiesFromProfile() {
-  try {
-    const cookiesPath = path.join(PROFILE_DIR, 'cookies.json');
-    if (fs.existsSync(cookiesPath)) {
-      const cookies = JSON.parse(fs.readFileSync(cookiesPath, 'utf-8'));
-      if (Array.isArray(cookies) && cookies.length > 0) return cookies;
-    }
-  } catch {}
-  return [];
-}
 
 function cookiesToHeader(cookies) {
   return cookies
@@ -266,131 +117,7 @@ function cookiesToHeader(cookies) {
     .join('; ');
 }
 
-// ==================== BROWSER LOGIN (ONE TIME) ====================
-
-// ==================== DOC ID CACHE ====================
-
-function getDocIdCache(groupId) {
-  const session = loadSession();
-  return session?.docIdsCache?.[groupId] || null;
-}
-
-function setDocIdCache(groupId, docId) {
-  const session = loadSession() || {};
-  if (!session.docIdsCache) session.docIdsCache = {};
-  session.docIdsCache[groupId] = docId;
-  saveSession(session);
-}
-
-// ==================== PUPPETEER DOC ID DISCOVERY ====================
-
-async function discoverDocIdWithPuppeteer(groupId, cookies) {
-  console.log(`[Scraper] Descubriendo doc_id con Puppeteer (headless) para grupo ${groupId}...`);
-  let browser = null;
-  try {
-    browser = await puppeteer.launch({
-      headless: true,
-      executablePath: CHROMIUM_PATH,
-      args: [
-        '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-        '--disable-gpu', '--disable-features=site-per-process',
-      ],
-      defaultViewport: { width: 1366, height: 768 },
-    });
-    const page = await browser.newPage();
-    await page.setDefaultNavigationTimeout(60000);
-    await page.setUserAgent(pickUA());
-
-    // Set cookies before navigation
-    const fbCookies = cookies.filter(c => c.domain?.includes('facebook') || c.domain?.includes('.facebook'));
-    if (fbCookies.length > 0) await page.setCookie(...fbCookies);
-
-    // Capture GraphQL requests and check responses for actual group feed data
-    let foundDocId = null;
-    let graphQLCount = 0;
-    const graphQLReqs = [];
-
-    page.on('request', (req) => {
-      try {
-        if (req.url().includes('/api/graphql/') && req.method() === 'POST') {
-          graphQLCount++;
-          graphQLReqs.push({
-            url: req.url(),
-            postData: req.postData(),
-          });
-        }
-      } catch {}
-    });
-
-    page.on('response', async (resp) => {
-      try {
-        if (!resp.url().includes('/api/graphql/')) return;
-        let rawText = await resp.text();
-        rawText = rawText.replace(/^for\s*\(\s*;\s*;\s*\)\s*/, '').trim();
-        if (!rawText.startsWith('{')) return;
-        const json = JSON.parse(rawText);
-        // Check if this response actually contains group feed posts
-        const edges = json?.data?.node?.group_feed?.edges;
-        if (edges && edges.length > 0) {
-          const matchReq = graphQLReqs.find(r => r.url === resp.url());
-          if (matchReq?.postData) {
-            const m = matchReq.postData.match(/doc_id=(\d+)/);
-            if (m) {
-              foundDocId = m[1];
-              console.log(`[Scraper] Capturado doc_id=${m[1]} de request con ${edges.length} posts`);
-            }
-          }
-        }
-      } catch {}
-    });
-
-    await page.goto(`https://www.facebook.com/groups/${groupId}/`, {
-      waitUntil: 'load',
-      timeout: 45000,
-    }).catch(err => {
-      console.warn(`[Scraper] Navigation warning: ${err.message}`);
-    });
-
-    // Try to wait for GraphQL requests (up to 15s)
-    for (let i = 0; i < 30 && !foundDocId; i++) {
-      await sleep(500);
-    }
-
-    if (!foundDocId) {
-      console.warn(`[Scraper] No se encontró feed en ${graphQLCount} requests GraphQL`);
-      // Fallback: try to capture doc_id from XHR responses too
-      foundDocId = await page.evaluate(() => {
-        try {
-          const perf = performance.getEntriesByType('resource') || [];
-          for (const entry of perf) {
-            if (entry.name.includes('/api/graphql/')) {
-              const m = entry.name.match(/doc_id[=/](\d+)/);
-              if (m) return m[1];
-            }
-          }
-        } catch {}
-        return null;
-      });
-      if (foundDocId) console.log(`[Scraper] Doc_id recuperado de Performance API: ${foundDocId}`);
-    }
-
-    await browser.close();
-    browser = null;
-
-    if (foundDocId) {
-      console.log(`[Scraper] Doc_id descubierto con Puppeteer: ${foundDocId}`);
-      setDocIdCache(groupId, foundDocId);
-      return foundDocId;
-    }
-
-    console.warn('[Scraper] Puppeteer no pudo descubrir doc_id');
-    return null;
-  } catch (err) {
-    console.error('[Scraper] Error en Puppeteer discovery:', err.message);
-    if (browser) await browser.close().catch(() => {});
-    return null;
-  }
-}
+// ==================== LOGIN (ONE TIME) ====================
 
 async function doLogin() {
   console.log('[Scraper] Iniciando login manual...');
@@ -431,49 +158,26 @@ async function doLogin() {
 
   const cookies = await page.cookies();
 
-  const allTokens = await page.evaluate(() => {
+  const fbDtsg = await page.evaluate(() => {
     const html = document.documentElement.innerHTML;
-    function extract(patterns) {
-      for (const p of patterns) { const m = html.match(p); if (m && m[1]) return m[1]; }
-      return null;
-    }
-    const fbDtsg = extract([
+    const patterns = [
       /\\"fb_dtsg\\":\{\\"token\\":\\"([^"\\]+)\\"/,
       /"fb_dtsg":"([^"]+)"/,
       /DTSGInitialData.*?"token":"([^"]+)"/,
-    ]);
-    const lsd = extract([
-      /\["LSD",\[\],\{"token":"([^"]+)"/,
-      /"LSD",\[\],\{"token":"([^"]+)"/,
-      /"lsd"\s*:\s*"([^"]+)"/,
-    ]);
-    const rev = extract([/"client_revision"\s*:\s*(\d+)/, /"__rev"\s*:\s*(\d+)/]);
-    const hs = extract([/"haste_session"\s*:\s*"([^"]+)"/]);
-    const hsi = extract([/"hsi"\s*:\s*"(\d+)"/]);
-    const spinT = extract([/"_?_?spin_t"\s*:\s*(\d+)/]);
-    let jazoest = null;
-    if (fbDtsg) { let s = 0; for (let i = 0; i < fbDtsg.length; i++) s += fbDtsg.charCodeAt(i); jazoest = '2' + s; }
-    return { fbDtsg, lsd, rev, hs, hsi, spinT, jazoest };
+    ];
+    for (const p of patterns) { const m = html.match(p); if (m && m[1]) return m[1]; }
+    return null;
   });
 
-  saveSession({ cookies, ...allTokens, savedAt: new Date().toISOString() });
-  console.log(`[Scraper] Sesión guardada. Cookies: ${cookies.length}, fb_dtsg: ${allTokens.fbDtsg ? 'ok' : 'FALLO'}, lsd: ${allTokens.lsd ? 'ok' : 'FALLO'}`);
+  saveSession({ cookies, fbDtsg, savedAt: new Date().toISOString() });
+  console.log(`[Scraper] Sesión guardada. Cookies: ${cookies.length}, fb_dtsg: ${fbDtsg ? 'ok' : 'FALLO'}`);
 
   await browser.close();
 }
 
-// ==================== DOC_ID AUTO-DISCOVERY ====================
-
-async function discoverDocId(cookies, groupId) {
-  console.log('[Scraper] discoverDocId() deprecated — usando descubrimiento via Puppeteer');
-  return discoverDocIdWithPuppeteer ? await discoverDocIdWithPuppeteer(groupId, cookies) : null;
-}
-
 // ==================== GRAPHQL SCRAPING ====================
 
-let reqCounter = 0;
-
-function buildPayload(groupId, cursor, count, userId, tokens, docId) {
+function buildPayload(groupId, cursor, count, userId, fbDtsg, docId) {
   const variables = {
     count: count || 8,
     cursor: cursor || null,
@@ -491,27 +195,11 @@ function buildPayload(groupId, cursor, count, userId, tokens, docId) {
     id: groupId,
   };
 
-  reqCounter++;
-  const reqHex = reqCounter.toString(16);
-
   const params = new URLSearchParams();
-  params.append('av', userId || '0');
   params.append('__user', userId || '0');
   params.append('__a', '1');
-  params.append('__req', reqHex);
   params.append('dpr', '2');
-  params.append('__ccg', pick(['EXCELLENT', 'GOOD', 'GOOD', 'MODERATE']));
-  params.append('__comet_req', '15');
-  params.append('fb_dtsg', tokens.fbDtsg || '');
-  params.append('jazoest', tokens.jazoest || '');
-  params.append('lsd', tokens.lsd || '');
-  params.append('__hs', tokens.hs || '');
-  params.append('__hsi', tokens.hsi || '');
-  params.append('__rev', tokens.rev || '');
-  params.append('__spin_r', tokens.rev || '');
-  params.append('__spin_b', 'trunk');
-  params.append('__spin_t', tokens.spinT || String(Math.floor(Date.now() / 1000)));
-  params.append('server_timestamps', 'true');
+  params.append('fb_dtsg', fbDtsg || '');
   params.append('fb_api_caller_class', 'RelayModern');
   params.append('fb_api_req_friendly_name', 'GroupsCometFeedRegularStoriesPaginationQuery');
   params.append('variables', JSON.stringify(variables));
@@ -521,7 +209,6 @@ function buildPayload(groupId, cursor, count, userId, tokens, docId) {
 }
 
 function parseFbResponse(text) {
-  // Strip for(;;); from the beginning only
   text = text.replace('for (;;);', '').trim();
   const blocks = [];
   let i = 0;
@@ -633,13 +320,6 @@ function extractPostFromNode(node) {
       node.comet_sections?.feedback?.story?.story_ufi_container?.story?.feedback_context?.feedback_target_with_context?.comment_rendering_instance?.comments?.total_count || 0;
   } catch {}
 
-  if (node.attached_story && !extractPostFromNode._debugDumped) {
-    extractPostFromNode._debugDumped = true;
-    const asCs = Object.keys(node.attached_story?.comet_sections || {});
-    const outerAtts = node.comet_sections?.content?.story?.attached_story?.attachments;
-    console.log(`[Scraper] Reshare: attached_story.comet_sections=[${asCs}] outer.attached_story.attachments=${(outerAtts || []).length}`);
-  }
-
   const images = [];
   const attSources = [
     node.attachments,
@@ -667,7 +347,6 @@ function extractPostFromNode(node) {
       if (BAD_PATTERNS.some(p => url.toLowerCase().includes(p))) continue;
       if (url.includes('40x40') || url.includes('50x50') || url.includes('80x80') || url.includes('100x100')) continue;
       images.push(url);
-      console.log(`[Scraper] Reshare image from node scan: ${url.substring(0, 150)}`);
       break;
     }
   }
@@ -681,13 +360,6 @@ function extractPostFromNode(node) {
       }
     }
     if (!reshareUrl) reshareUrl = node.attached_story?.permalink_url || null;
-    if (reshareUrl) {
-      console.log(`[Scraper] Post ${postId}: reshare, guardando URL para fetch: ${reshareUrl}`);
-    }
-  }
-
-  if (images.length === 0) {
-    console.log(`[Scraper] Post ${postId}: 0 images (attached_story=${!!node.attached_story})`);
   }
 
   const permalink = node.permalink_url || '';
@@ -726,135 +398,59 @@ function extractPostsFromResponse(data) {
   return posts;
 }
 
+// ==================== GRAPHQL SCRAPE (RAPIDO) ====================
+
 async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
   const cookieStr = cookiesToHeader(session.cookies);
   const userId = session.cookies.find(c => c.name === 'c_user')?.value || '0';
+
+  const fbDtsg = session.fbDtsg || await extractFbDtsg(session.cookies);
+  if (!fbDtsg) {
+    console.error('[Scraper] No se pudo obtener fb_dtsg');
+    return [];
+  }
+
+  const docId = HARDCODED_DOC_IDS[0];
+  console.log(`[Scraper] ${groupName} - GraphQL con doc_id=${docId}...`);
+
   let allPosts = [];
   let cursor = null;
   let pageNum = 1;
-  const maxPages = 5;
+  const maxPages = 3;
 
-  // Get cached doc_id or discover with Puppeteer
-  let docId = getDocIdCache(groupId);
-  if (!docId) {
-    console.log(`[Scraper] Sin doc_id cacheado para ${groupName}, descubriendo...`);
-    docId = await discoverDocIdWithPuppeteer(groupId, session.cookies);
-    if (!docId) {
-      console.error(`[Scraper] No se pudo descubrir doc_id para ${groupName}`);
-      return [];
-    }
-  } else {
-    console.log(`[Scraper] Usando doc_id cacheado para ${groupName}: ${docId}`);
-  }
+  while (allPosts.length < maxPosts && pageNum <= maxPages) {
+    const payload = buildPayload(groupId, cursor, 8, userId, fbDtsg, docId);
 
-  await sleep(randomInt(2000, 5000));
-
-  const tokens = await bootstrapSession(session.cookies, groupId);
-  if (!tokens.fbDtsg) {
-    console.error('[Scraper] No se pudo obtener fb_dtsg del bootstrap');
-    return [];
-  }
-  console.log(`[Scraper] Bootstrap OK: fb_dtsg=${tokens.fbDtsg.substring(0, 10)}..., lsd=${tokens.lsd ? 'ok' : 'MISSING'}, rev=${tokens.rev || 'MISSING'}`);
-
-  // Try with doc_id; if it fails, rediscover with Puppeteer
-  for (let attempt = 0; attempt < 2; attempt++) {
-    allPosts = [];
-    cursor = null;
-    pageNum = 1;
-    let gotPosts = false;
-
-    while (allPosts.length < maxPosts && pageNum <= maxPages) {
-      console.log(`[Scraper] ${groupName} - GraphQL page ${pageNum}...`);
-
-      const payload = buildPayload(groupId, cursor, 8, userId, tokens, docId);
-
-      let resp = null;
-      let lastErr = null;
-      for (let retry = 1; retry <= 3; retry++) {
-        try {
-          resp = await axios.post(GRAPHQL_URL, payload, {
-            headers: {
-              ...realHeaders(),
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'Cookie': cookieStr,
-              'Origin': 'https://www.facebook.com',
-              'Referer': `https://www.facebook.com/groups/${groupId}/`,
-              'Sec-Fetch-Dest': 'empty',
-              'Sec-Fetch-Mode': 'cors',
-              'Sec-Fetch-Site': 'same-origin',
-              'X-FB-LSD': tokens.lsd || '',
-            },
-            timeout: 30000,
-          });
-          break;
-        } catch (err) {
-          lastErr = err;
-          console.error(`[Scraper] Intento ${retry}/3 falló: ${err.message}`);
-          if (retry < 3) await sleep(retry * 3000);
-        }
-      }
-
-      if (!resp) {
-        console.error(`[Scraper] Todos los intentos fallaron para ${groupName}`);
-        break;
-      }
-
-      const rawText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+    try {
+      const resp = await axios.post(GRAPHQL_URL, payload, {
+        headers: {
+          ...realHeaders(),
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Cookie': cookieStr,
+          'Origin': 'https://www.facebook.com',
+          'Referer': `https://www.facebook.com/groups/${groupId}/`,
+        },
+        timeout: 30000,
+      });
 
       if (resp.status !== 200) {
         console.error(`[Scraper] GraphQL returned ${resp.status}`);
         break;
       }
 
+      const rawText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
       const blocks = parseFbResponse(rawText);
 
-      if (pageNum === 1) {
-        try {
-          let sampleStory = null;
-          for (const block of blocks) {
-            const edges = block?.node?.group_feed?.edges || [];
-            for (const edge of edges) {
-              if (edge?.node?.__typename === 'Story') { sampleStory = edge.node; break; }
-            }
-            if (!sampleStory && block?.node?.__typename === 'Story') sampleStory = block.node;
-            if (sampleStory) break;
-          }
-          fs.writeFileSync(DEBUG_PATH, JSON.stringify({
-            groupId,
-            docId,
-            tokens: { fbDtsg: tokens.fbDtsg?.substring(0, 15) + '...', lsd: tokens.lsd, rev: tokens.rev, jazoest: tokens.jazoest },
-            status: resp.status,
-            fullLength: rawText.length,
-            totalBlocks: blocks.length,
-            sampleStory: sampleStory ? JSON.stringify(sampleStory).substring(0, 8000) : 'NO STORY FOUND',
-            sampleStoryKeys: sampleStory ? Object.keys(sampleStory) : [],
-            hasAttachedStory: sampleStory ? !!sampleStory.attached_story : false,
-            attachmentsCount: sampleStory?.attachments?.length || 0,
-            attachedStoryAttachmentsCount: sampleStory?.attached_story?.attachments?.length || 0,
-            timestamp: new Date().toISOString(),
-          }, null, 2));
-          console.log(`[Scraper] Debug guardado (${rawText.length} bytes, ${blocks.length} blocks)`);
-          if (sampleStory) {
-            console.log(`[Scraper] Sample keys: ${Object.keys(sampleStory).join(', ')}`);
-            console.log(`[Scraper] Sample post_id: ${sampleStory.post_id || 'NONE'}`);
-          }
-        } catch (e) {
-          console.error('[Scraper] Error guardando debug:', e.message);
-        }
-      }
-
       if (!blocks || blocks.length === 0) {
-        console.log(`[Scraper] ${groupName}: sin datos en page ${pageNum}. Response first 300: ${rawText.substring(0, 300)}`);
+        console.log(`[Scraper] ${groupName}: sin datos en page ${pageNum}`);
         break;
       }
 
-      console.log(`[Scraper] ${groupName}: ${blocks.length} blocks en page ${pageNum}`);
       const posts = extractPostsFromResponse(blocks);
       console.log(`[Scraper] ${groupName}: ${posts.length} posts en page ${pageNum}`);
 
       if (posts.length === 0) break;
 
-      gotPosts = true;
       allPosts.push(...posts);
 
       let nextCursor = null;
@@ -868,28 +464,194 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
       if (!nextCursor) break;
       cursor = nextCursor;
       pageNum++;
-      await sleep(randomInt(2000, 5000));
-    }
-
-    if (gotPosts || allPosts.length > 0) {
-      console.log(`[Scraper] doc_id ${docId} devolvió ${allPosts.length} posts para ${groupName}`);
-      setDocIdCache(groupId, docId);
+      await sleep(randomInt(2000, 4000));
+    } catch (err) {
+      console.error(`[Scraper] GraphQL error: ${err.message}`);
       break;
     }
-
-    // If cache failed, rediscover with Puppeteer and retry
-    console.warn(`[Scraper] doc_id ${docId} devolvió 0 posts, rediscovering with Puppeteer...`);
-    docId = await discoverDocIdWithPuppeteer(groupId, session.cookies);
-    if (!docId) {
-      console.error(`[Scraper] Rediscovery falló para ${groupName}`);
-      // Fallback: Puppeteer DOM scraping
-      console.log(`[Scraper] Cayendo a Puppeteer DOM scraping para ${groupName}...`);
-      return await scrapeGroupPuppeteer(groupId, groupName, maxPosts, session.cookies);
-    }
-    await sleep(2000);
   }
 
   return allPosts.slice(0, maxPosts);
+}
+
+// ==================== PUPPETEER DOM SCRAPING (PRINCIPAL) ====================
+
+async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
+  console.log(`[Scraper] [Puppeteer] Scrapeando "${groupName}" (${groupId}) via DOM...`);
+  let browser = null;
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      executablePath: CHROMIUM_PATH,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+      defaultViewport: { width: 1366, height: 768 },
+    });
+    const page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(90000);
+    await page.setUserAgent(pickUA());
+
+    const fbCookies = cookies.filter(c => c.domain?.includes('facebook'));
+    if (fbCookies.length > 0) await page.setCookie(...fbCookies);
+
+    await page.goto(`https://www.facebook.com/groups/${groupId}/`, { waitUntil: 'networkidle2', timeout: 90000 });
+    console.log(`[Scraper] [Puppeteer] URL after goto: ${page.url()}`);
+
+    await sleep(5000);
+
+    const posts = [];
+    let scrollAttempts = 0;
+    const maxScrolls = 6;
+
+    while (posts.length < maxPosts && scrollAttempts < maxScrolls) {
+      const newPosts = await page.evaluate((maxToCollect) => {
+        const results = [];
+
+        // Intentar multiples selectores de contenedor
+        const candidates = [];
+
+        // 1. role="feed" > role="article" (estructura clasica desktop)
+        const feed = document.querySelector('[role="feed"]');
+        if (feed) {
+          candidates.push(...feed.querySelectorAll('[role="article"]'));
+        }
+
+        // 2. role="article" directo (WebLite mobile, layout alternativo)
+        if (candidates.length === 0) {
+          candidates.push(...document.querySelectorAll('[role="article"]'));
+        }
+
+        // 3. data-pagelet (nuevo layout React)
+        if (candidates.length === 0) {
+          candidates.push(...document.querySelectorAll('[data-pagelet]'));
+        }
+
+        // 4. Fallback: busqueda generica por enlaces a /posts/
+        if (candidates.length === 0) {
+          const links = document.querySelectorAll('a[href*="/posts/"]');
+          const seenParents = new Set();
+          for (const link of links) {
+            const parent = link.closest('div, article, section');
+            if (parent && !seenParents.has(parent)) {
+              seenParents.add(parent);
+              candidates.push(parent);
+            }
+          }
+        }
+
+        for (const el of candidates) {
+          if (results.length >= maxToCollect) break;
+          const fullText = el.textContent || '';
+          if (fullText.length < 30) continue;
+
+          // Extraer post ID
+          const link = el.querySelector('a[href*="/posts/"], a[href*="?story_fbid="]');
+          const permalink = link ? link.getAttribute('href') : '';
+          const postId = (permalink.match(/\/posts\/(\d+)/) || [])[1]
+            || (permalink.match(/story_fbid=(\d+)/) || [])[1]
+            || '';
+
+          // Extraer autor: buscar <strong> dentro de un <a>
+          let authorName = 'Unknown';
+          const strongInLink = el.querySelector('a strong, strong a, a[role="link"] strong');
+          if (strongInLink) {
+            const txt = (strongInLink.textContent || '').trim();
+            if (txt.length > 0 && txt.length < 50) authorName = txt;
+          }
+          if (authorName === 'Unknown') {
+            const authorLinks = el.querySelectorAll('a[href*="/user/"], a[href*="?__tn"]');
+            for (const al of authorLinks) {
+              const txt = (al.textContent || '').trim();
+              if (txt.length > 2 && txt.length < 50) { authorName = txt; break; }
+            }
+          }
+
+          // Extraer contenido de div[dir="auto"]
+          const contentParts = [];
+          const dirDivs = el.querySelectorAll('div[dir="auto"]');
+          for (const dd of dirDivs) {
+            const txt = (dd.textContent || '').trim();
+            if (txt.length >= 10 && txt !== authorName) contentParts.push(txt);
+          }
+          let content = contentParts.slice(0, 3).join('\n') || '';
+
+          // Fallback: si no hay div[dir="auto"], usar texto completo limpiado
+          if (!content || content.length < 5) {
+            const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
+            const filtered = lines.filter(l => {
+              if (l === authorName) return false;
+              if (l.length < 10) return false;
+              if (['Like', 'Comment', 'Share', '·', 'Reply', 'Me gusta', 'Comentar', 'Compartir'].includes(l)) return false;
+              return true;
+            });
+            content = filtered.slice(0, 3).join('\n');
+          }
+
+          if (!content && images.length === 0) continue;
+
+          // Extraer imagenes
+          const images = [];
+          const imgEls = el.querySelectorAll('img');
+          for (const img of imgEls) {
+            const src = img.getAttribute('src') || '';
+            const cls = img.getAttribute('class') || '';
+            if (cls.includes('profile') || cls.includes('avatar') || cls.includes('emoji')) continue;
+            if (src.includes('rsrc.php') || src.includes('p40x40') || src.includes('p50x50') || src.includes('badge')) continue;
+            if ((src.includes('scontent') || src.includes('fbcdn')) && !images.includes(src)) {
+              images.push(src);
+            }
+          }
+
+          if (content.length < 5 && images.length === 0) continue;
+
+          results.push({
+            fb_post_id: postId || `dom_${groupId}_${results.length}`,
+            fb_post_url: permalink ? `https://www.facebook.com${permalink}` : '',
+            author_name: authorName,
+            content: content.substring(0, 5000),
+            image_urls: images,
+            reshare_url: null,
+            posted_at: '',
+            comments_count: 0,
+          });
+        }
+        return results;
+      }, maxPosts - posts.length);
+
+      console.log(`[Scraper] [Puppeteer] Scroll ${scrollAttempts + 1}: ${newPosts.length} candidates`);
+
+      for (const p of newPosts) {
+        if (!posts.find(ex => ex.fb_post_id === p.fb_post_id && p.fb_post_id)) {
+          posts.push(p);
+        }
+      }
+
+      console.log(`[Scraper] [Puppeteer] Scroll ${scrollAttempts + 1}: ${newPosts.length} new, ${posts.length} unique`);
+
+      if (posts.length >= maxPosts) break;
+
+      await page.evaluate(() => window.scrollBy(0, 1000));
+      await sleep(3000 + randomInt(0, 2000));
+      scrollAttempts++;
+    }
+
+    await browser.close();
+    browser = null;
+
+    if (posts.length > 0) {
+      console.log(`[Scraper] [Puppeteer] ${posts.length} posts extraídos de "${groupName}"`);
+      for (const p of posts.slice(0, 3)) {
+        console.log(`  - ${p.author_name}: ${p.content.substring(0, 80)}`);
+      }
+    } else {
+      console.warn(`[Scraper] [Puppeteer] 0 posts para "${groupName}"`);
+    }
+
+    return posts;
+  } catch (err) {
+    console.error(`[Scraper] [Puppeteer] Error: ${err.message}`);
+    if (browser) await browser.close().catch(() => {});
+    return [];
+  }
 }
 
 // ==================== IMAGE DOWNLOAD ====================
@@ -925,7 +687,6 @@ async function fetchReshareOgImage(reshareUrl, cookies, cUserId) {
       if (m && m[1]) {
         const url = m[1].replace(/&amp;/g, '&').replace(/\\u0025/g, '%');
         if (BAD_URL_PATTERNS.some(p => url.includes(p))) continue;
-        console.log(`[Scraper] Reshare image found via meta: ${url.substring(0, 150)}`);
         return url;
       }
     }
@@ -933,7 +694,6 @@ async function fetchReshareOgImage(reshareUrl, cookies, cUserId) {
     const photoIdPatterns = [
       /"photo_id"\s*:\s*"?(\d{10,})"?/g,
       /"fbid"\s*:\s*"?(\d{10,})"?/g,
-      /"id"\s*:\s*"?(\d{10,})"?/g,
     ];
     for (const pat of photoIdPatterns) {
       const matches = [...html.matchAll(pat)];
@@ -941,9 +701,7 @@ async function fetchReshareOgImage(reshareUrl, cookies, cUserId) {
         const id = m[1];
         if (cUserId && id.startsWith(cUserId.substring(0, 7))) continue;
         if (id.length < 10 || id.length > 20) continue;
-        const photoUrl = `https://www.facebook.com/photo/?fbid=${id}`;
-        console.log(`[Scraper] Reshare photo_id found: ${id}`);
-        return photoUrl;
+        return `https://www.facebook.com/photo/?fbid=${id}`;
       }
     }
 
@@ -952,16 +710,11 @@ async function fetchReshareOgImage(reshareUrl, cookies, cUserId) {
       const goodUrls = allFbcdnUrls
         .map(m => m[0].replace(/\\u0025/g, '%').replace(/\\u0026/g, '&').replace(/&amp;/g, '&'))
         .filter(url => !BAD_URL_PATTERNS.some(p => url.includes(p)));
-      if (goodUrls.length > 0) {
-        console.log(`[Scraper] Reshare image found via fbcdn scan: ${goodUrls[0].substring(0, 150)}`);
-        return goodUrls[0];
-      }
+      if (goodUrls.length > 0) return goodUrls[0];
     }
 
-    console.log(`[Scraper] No image found for reshare (html ${html.length} bytes)`);
     return null;
   } catch (e) {
-    console.warn(`[Scraper] Error fetching reshare URL: ${e.message}`);
     return null;
   }
 }
@@ -989,7 +742,6 @@ async function downloadImagesAsBuffers(posts, cookies) {
         const resp = await axios.get(url, {
           headers: {
             'Cookie': cookieStr,
-            ...realHeaders(),
             'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
           },
           responseType: 'arraybuffer',
@@ -1071,170 +823,19 @@ async function fetchConfig() {
   } catch {}
 }
 
-// ==================== PUPPETEER DOM SCRAPING (FALLBACK) ====================
-
-async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
-  console.log(`[Scraper] [Puppeteer] Scrapeando "${groupName}" (${groupId}) via DOM...`);
-  let browser = null;
-  try {
-    browser = await puppeteer.launch({
-      headless: true,
-      executablePath: CHROMIUM_PATH,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-      defaultViewport: { width: 1366, height: 768 },
-    });
-    const page = await browser.newPage();
-    await page.setDefaultNavigationTimeout(90000);
-    await page.setUserAgent(pickUA());
-
-    const fbCookies = cookies.filter(c => c.domain?.includes('facebook'));
-    if (fbCookies.length > 0) await page.setCookie(...fbCookies);
-
-    await page.goto(`https://www.facebook.com/groups/${groupId}/`, { waitUntil: 'networkidle2', timeout: 90000 });
-    console.log(`[Scraper] [Puppeteer] URL after goto: ${page.url()}`);
-
-    // Wait for posts to render
-    await sleep(6000);
-
-    const posts = [];
-    let scrollAttempts = 0;
-    const maxScrolls = 6;
-
-    while (posts.length < maxPosts && scrollAttempts < maxScrolls) {
-      const newPosts = await page.evaluate((maxToCollect, scrollNum) => {
-        const results = [];
-
-        // Try multiple selectors for post containers
-        const postSelectors = [
-          ...document.querySelectorAll('[role="article"]'),
-          ...document.querySelectorAll('[data-pagelet*="Feed"]'),
-          ...document.querySelectorAll('[data-pagelet*="feed"]'),
-        ];
-
-        // Deduplicate by reference
-        const seen = new Set();
-        const containers = postSelectors.filter(el => {
-          if (seen.has(el)) return false;
-          seen.add(el);
-          return true;
-        });
-
-        for (const art of containers) {
-          if (results.length >= maxToCollect) break;
-          const fullText = art.textContent || '';
-          if (fullText.length < 20) continue;
-
-          // Skip group header / compose areas by checking for known senders
-          const innerHTML = art.innerHTML || '';
-
-          // Extract post ID from permalink
-          const link = art.querySelector('a[href*="/posts/"], a[href*="/photo/"]');
-          const permalink = link ? link.getAttribute('href') : '';
-          const postId = (permalink.match(/\/posts\/(\d+)/) || [])[1] || '';
-
-          // Extract author name from links
-          const authorEl = art.querySelector('a[href*="/user/"], a[href*="?__tn"], a[role="link"]');
-          let authorName = 'Unknown';
-          if (authorEl && authorEl.textContent.trim().length > 0 && authorEl.textContent.trim().length < 60) {
-            authorName = authorEl.textContent.trim();
-          }
-
-          // Extract images (skip profile/icon images)
-          const imgs = [];
-          const imgEls = art.querySelectorAll('img');
-          for (const img of imgEls) {
-            const src = img.getAttribute('src') || '';
-            const cls = img.getAttribute('class') || '';
-            const w = img.getAttribute('width') || '0';
-            const h = img.getAttribute('height') || '0';
-            if (cls.includes('profile') || cls.includes('avatar') || cls.includes('emoji')) continue;
-            if (src.includes('rsrc.php') || src.includes('p40x40') || src.includes('p50x50') || src.includes('p100x100') || src.includes('badge')) continue;
-            if (parseInt(w) < 80 && parseInt(h) < 80) continue;
-            if ((src.includes('scontent') || src.includes('fbcdn')) && !imgs.includes(src)) {
-              imgs.push(src);
-            }
-          }
-
-          // Clean the text: remove scattered single chars that appear in Facebook's obfuscated DOM
-          let content = fullText
-            // Remove scattered single non-letter chars
-            .replace(/\b[a-z]\s+(?=[a-z]\s+)/gi, '')
-            // Remove repetitive "Facebook" noise
-            .replace(/(Facebook\s*){2,}/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-          // Skip if content is too short and no images
-          if (content.length < 15 && imgs.length === 0) continue;
-
-          results.push({
-            fb_post_id: postId || `${groupId}_puppeteer_${scrollNum}_${results.length}`,
-            fb_post_url: permalink ? `https://www.facebook.com${permalink}` : '',
-            author_name: authorName,
-            content: content.substring(0, 5000),
-            image_urls: imgs,
-            reshare_url: null,
-            posted_at: '',
-            comments_count: 0,
-          });
-        }
-        return results;
-      }, maxPosts - posts.length, scrollAttempts);
-
-      // Debug: log what we found
-      console.log(`[Scraper] [Puppeteer] Scroll ${scrollAttempts + 1}: raw ${newPosts.length} candidates`);
-
-      // Deduplicate by postId
-      for (const p of newPosts) {
-        if (!posts.find(ex => ex.fb_post_id === p.fb_post_id && p.fb_post_id)) {
-          posts.push(p);
-        }
-      }
-
-      console.log(`[Scraper] [Puppeteer] Scroll ${scrollAttempts + 1}: ${newPosts.length} new, ${posts.length} unique total`);
-
-      if (posts.length >= maxPosts) break;
-
-      // Scroll down
-      await page.evaluate(() => window.scrollBy(0, 1200));
-      await sleep(3000 + randomInt(0, 2000));
-      scrollAttempts++;
-    }
-
-    await browser.close();
-    browser = null;
-
-    if (posts.length > 0) {
-      console.log(`[Scraper] [Puppeteer] ${posts.length} posts extraídos de "${groupName}"`);
-      for (const p of posts.slice(0, 3)) {
-        console.log(`  - ${p.author_name}: ${p.content.substring(0, 80)}`);
-      }
-    } else {
-      console.warn(`[Scraper] [Puppeteer] 0 posts para "${groupName}"`);
-    }
-
-    return posts;
-  } catch (err) {
-    console.error(`[Scraper] [Puppeteer] Error: ${err.message}`);
-    if (browser) await browser.close().catch(() => {});
-    return [];
-  }
-}
-
 // ==================== MAIN ====================
 
 async function testMode() {
-  console.log('[Scraper] Modo TEST (GraphQL + Puppeteer fallback)');
+  console.log('[Scraper] Modo TEST (Puppeteer DOM)');
 
   const session = loadSession();
   if (!session || !session.cookies) {
-    console.error('[Scraper] Sin sesión GraphQL. Ejecutá: node fb-graphql-scraper.js --login');
+    console.error('[Scraper] Sin sesión. Ejecutá: node fb-graphql-scraper.js --login');
     return;
   }
   const cUser = session.cookies.find(c => c.name === 'c_user');
   const xs = session.cookies.find(c => c.name === 'xs');
   console.log(`[Scraper] Sesión: Cookies=${session.cookies.length}, c_user=${cUser ? cUser.value.substring(0, 8) + '...' : 'MISSING'}, xs=${xs ? 'present' : 'MISSING'}`);
-  console.log(`[Scraper] Tokens saved: fb_dtsg=${session.fbDtsg ? 'ok' : 'will bootstrap'}, lsd=${session.lsd ? 'ok' : 'will bootstrap'}, rev=${session.rev || 'will bootstrap'}`);
 
   const groups = await getActiveGroups();
   if (groups.length === 0) {
@@ -1247,7 +848,7 @@ async function testMode() {
   const groupName = group.name || groupId;
   console.log(`[Scraper] Test: scrapeando "${groupName}" (${groupId})`);
 
-  const posts = await scrapeGroupGraphQL(session, groupId, groupName, 5);
+  const posts = await scrapeGroupPuppeteer(groupId, groupName, 5, session.cookies);
   console.log(`[Scraper] ${groupName}: ${posts.length} posts extraídos`);
 
   if (posts.length > 0) {
@@ -1260,28 +861,24 @@ async function testMode() {
     console.log(`  ${imgCount}/${withBuffers.length} posts con imágenes`);
     console.log(`  Enviando al webhook...`);
     await sendPosts(withBuffers, groupName, group.id);
-  } else {
-    console.log('[Scraper] Revisá debug-graphql-response.json para ver qué devolvió Facebook');
   }
 }
 
 async function runDaemon() {
-  console.log('[Scraper] Daemon GraphQL + Puppeteer fallback');
-  remoteLog('info', 'Daemon GraphQL iniciado');
+  console.log('[Scraper] Daemon iniciado — Puppeteer DOM + GraphQL rápido');
+  remoteLog('info', 'Daemon iniciado');
 
   await fetchConfig();
 
   const session = loadSession();
   if (!session || !session.cookies) {
-    console.error('[Scraper] Sin sesión GraphQL. Ejecutá: node fb-graphql-scraper.js --login');
+    console.error('[Scraper] Sin sesión. Ejecutá: node fb-graphql-scraper.js --login');
     return;
   }
-  console.log(`[Scraper] Sesión cargada (tokens se refrescan por grupo)`);
+  console.log(`[Scraper] Sesión cargada. Cookies: ${session.cookies.length}`);
 
   while (true) {
     console.log(`[Scraper] Iniciando ciclo de scraping...`);
-
-    await warmUpBrowsing(session.cookies);
 
     const groups = await getActiveGroups();
     if (groups.length === 0) {
@@ -1295,7 +892,12 @@ async function runDaemon() {
         const groupName = group.name || groupId;
         const lastSeenId = seen[groupId] || null;
 
-        const posts = await scrapeGroupGraphQL(session, groupId, groupName, MAX_POSTS_PER_GROUP);
+        // Primero GraphQL (rápido), si da 0 posts -> Puppeteer DOM
+        let posts = await scrapeGroupGraphQL(session, groupId, groupName, MAX_POSTS_PER_GROUP);
+        if (posts.length === 0) {
+          console.log(`[Scraper] GraphQL sin posts, usando Puppeteer DOM...`);
+          posts = await scrapeGroupPuppeteer(groupId, groupName, MAX_POSTS_PER_GROUP, session.cookies);
+        }
 
         const newPosts = [];
         for (const post of posts) {
@@ -1321,17 +923,9 @@ async function runDaemon() {
       console.log(`[Scraper] Ciclo completado. ${totalPosts} posts totales.`);
     }
 
-    await coolDownBrowsing(session.cookies);
-
     const sleepMinutes = INTERVAL_HOURS * 60 + randomInt(-45, 45);
-    const IDLE_INTERVAL = randomInt(25, 45) * 60 * 1000;
-    const idleSessions = Math.ceil((sleepMinutes * 60 * 1000) / IDLE_INTERVAL);
-    console.log(`[Scraper] Durmiendo ~${sleepMinutes} min (${idleSessions} idle sessions)`);
-
-    for (let i = 0; i < idleSessions; i++) {
-      await sleep(IDLE_INTERVAL);
-      try { await idleBrowsingSession(session.cookies); } catch {}
-    }
+    console.log(`[Scraper] Durmiendo ~${sleepMinutes} min`);
+    await sleep(sleepMinutes * 60 * 1000);
 
     await fetchConfig();
   }
@@ -1343,12 +937,6 @@ const args = process.argv.slice(2);
 
 if (args.includes('--login')) {
   await doLogin();
-} else if (args.includes('--debug')) {
-  if (fs.existsSync(DEBUG_PATH)) {
-    console.log(fs.readFileSync(DEBUG_PATH, 'utf-8'));
-  } else {
-    console.log('No hay debug guardado. Corré --test primero.');
-  }
 } else if (args.includes('--test')) {
   await testMode();
 } else {
