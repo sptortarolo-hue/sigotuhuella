@@ -91,6 +91,16 @@ function ensureProfileDir() {
   }
 }
 
+function setWakeLock(acquire) {
+  try {
+    spawnSync(acquire ? 'termux-wake-lock' : 'termux-wake-unlock', ['fb-relay'], { stdio: 'ignore' });
+  } catch {}
+}
+
+process.on('exit', () => setWakeLock(false));
+process.on('SIGINT', () => { setWakeLock(false); process.exit(0); });
+process.on('SIGTERM', () => { setWakeLock(false); process.exit(0); });
+
 async function getBrowser() {
   if (browser) {
     try { await browser.version(); return browser; }
@@ -721,6 +731,7 @@ async function main() {
   }
 
   ensureProfileDir();
+  setWakeLock(true);
 
   // Si el profile está vacío, intentar restaurar desde backup
   const hasLocalCookies = loadCookies();
