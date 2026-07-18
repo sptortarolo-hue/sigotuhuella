@@ -510,12 +510,16 @@ export async function retryFailedFacebookPosts(limit = 10) {
   return results;
 }
 
-export async function publishPetToGroups(petId) {
-  const dupCheck = await pool.query(
-    'SELECT 1 FROM facebook_page_posts WHERE pet_id = $1 AND status = $2 AND group_post_ids IS NOT NULL AND array_length(group_post_ids, 1) > 0',
-    [petId, 'published']
-  );
-  if (dupCheck.rows.length > 0) return { alreadyPublished: true, petId };
+export async function publishPetToGroups(petId, options = {}) {
+  const { skipPagePublish = false, pagePostUrl: externalPagePostUrl = null } = options;
+
+  if (!skipPagePublish) {
+    const dupCheck = await pool.query(
+      'SELECT 1 FROM facebook_page_posts WHERE pet_id = $1 AND status = $2 AND group_post_ids IS NOT NULL AND array_length(group_post_ids, 1) > 0',
+      [petId, 'published']
+    );
+    if (dupCheck.rows.length > 0) return { alreadyPublished: true, petId };
+  }
 
   const petResult = await pool.query(
     `SELECT p.*,
@@ -533,12 +537,16 @@ export async function publishPetToGroups(petId) {
 
   const results = { page: null, groups: [], petId };
 
-  const pageResult = await publishToPage(petId);
-  results.page = pageResult;
+  let pagePostUrl = externalPagePostUrl;
 
-  const pagePostUrl = pageResult.success && pageResult.pagePostId && pageResult.pageId
-    ? `https://www.facebook.com/${pageResult.pageId}/posts/${pageResult.pagePostId}`
-    : null;
+  if (!skipPagePublish) {
+    const pageResult = await publishToPage(petId);
+    results.page = pageResult;
+
+    if (pageResult.success && pageResult.pagePostId && pageResult.pageId) {
+      pagePostUrl = `https://www.facebook.com/${pageResult.pageId}/posts/${pageResult.pagePostId}`;
+    }
+  }
 
   const groupsResult = await pool.query(
     `SELECT id, name, fb_group_id FROM facebook_groups
@@ -572,18 +580,20 @@ export async function publishPetToGroups(petId) {
     }
   }
 
-  const groupPostIds = results.groups
-    .filter(g => g.success && g.groupPostId)
-    .map(g => g.groupPostId);
+  if (!skipPagePublish) {
+    const groupPostIds = results.groups
+      .filter(g => g.success && g.groupPostId)
+      .map(g => g.groupPostId);
 
-  const status = pageResult.success ? 'published' : pageResult.error ? 'failed' : 'published';
-  const errorMsg = pageResult.error || results.groups.find(g => g.error)?.error || null;
+    const status = pageResult.success ? 'published' : pageResult.error ? 'failed' : 'published';
+    const errorMsg = pageResult.error || results.groups.find(g => g.error)?.error || null;
 
-  await pool.query(
-    `INSERT INTO facebook_page_posts (pet_id, page_post_id, group_post_ids, message, status, error_message, published_at)
-     VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-    [petId, pageResult.pagePostId || null, groupPostIds, message, status, errorMsg]
-  );
+    await pool.query(
+      `INSERT INTO facebook_page_posts (pet_id, page_post_id, group_post_ids, message, status, error_message, published_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [petId, pageResult.pagePostId || null, groupPostIds, message, status, errorMsg]
+    );
+  }
 
   return results;
 }

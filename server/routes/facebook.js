@@ -6,6 +6,7 @@ import { detectReunion, matchPostToPet, runFullMatching } from '../services/gemi
 import { getSessionFile } from '../services/facebookRelayService.js';
 import { enqueue } from '../services/phoneRelayService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
+import { publishToPage, publishPetToGroups } from '../services/facebookPublisher.js';
 
 const router = Router();
 
@@ -720,16 +721,27 @@ router.post('/publish', requireAdmin, async (req, res) => {
   try {
     const { petId } = req.body;
     if (!petId) return res.status(400).json({ error: 'petId requerido' });
-    const result = await publishToPage(petId);
-    if (result.success) {
+    const pageResult = await publishToPage(petId);
+
+    let pagePostUrl = null;
+    if (pageResult.success) {
+      if (pageResult.pagePostId && pageResult.pageId) {
+        pagePostUrl = `https://www.facebook.com/${pageResult.pageId}/posts/${pageResult.pagePostId}`;
+      }
       await pool.query(
         `INSERT INTO facebook_page_posts (pet_id, page_post_id, message, status, published_at)
          VALUES ($1, $2, $3, 'published', NOW())`,
-        [petId, result.pagePostId, result.message || '']
+        [petId, pageResult.pagePostId, pageResult.message || '']
       );
     }
-    if (result.error) return res.status(500).json(result);
-    res.json(result);
+    if (pageResult.error) return res.status(500).json(pageResult);
+
+    // Share to FB groups after publishing to page
+    publishPetToGroups(petId, { skipPagePublish: true, pagePostUrl }).catch(
+      e => console.error('[FB Relay] Error sharing to groups:', e)
+    );
+
+    res.json(pageResult);
   } catch (err) {
     console.error('Error publishing to Facebook Page:', err);
     res.status(500).json({ error: 'Error al publicar en Facebook' });
