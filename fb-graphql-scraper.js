@@ -1084,75 +1084,91 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
       defaultViewport: { width: 1366, height: 768 },
     });
     const page = await browser.newPage();
-    await page.setDefaultNavigationTimeout(60000);
+    await page.setDefaultNavigationTimeout(90000);
     await page.setUserAgent(pickUA());
 
     const fbCookies = cookies.filter(c => c.domain?.includes('facebook'));
     if (fbCookies.length > 0) await page.setCookie(...fbCookies);
 
-    await page.goto(`https://www.facebook.com/groups/${groupId}/`, { waitUntil: 'networkidle2', timeout: 60000 });
-    await sleep(3000);
+    await page.goto(`https://www.facebook.com/groups/${groupId}/`, { waitUntil: 'networkidle2', timeout: 90000 });
+    console.log(`[Scraper] [Puppeteer] URL after goto: ${page.url()}`);
 
-    const urlAfter = page.url();
-    console.log(`[Scraper] [Puppeteer] URL after goto: ${urlAfter}`);
+    // Wait for posts to render
+    await sleep(6000);
 
     const posts = [];
     let scrollAttempts = 0;
-    const maxScrolls = 5;
+    const maxScrolls = 6;
 
     while (posts.length < maxPosts && scrollAttempts < maxScrolls) {
-      const newPosts = await page.evaluate((maxToCollect) => {
-        const articles = document.querySelectorAll('[role="article"]');
+      const newPosts = await page.evaluate((maxToCollect, scrollNum) => {
         const results = [];
-        const BAD_PATTERNS = ['profile', 'p40x40', 'p50x50', 'p80x80', 'p100x100', 's40x40', 's50x50', 's80x80', 's100x100', 'rsrc.php', 'static.xx.fbcdn.net/rsrc', 'badge', 'emoji'];
 
-        for (const art of articles) {
+        // Try multiple selectors for post containers
+        const postSelectors = [
+          ...document.querySelectorAll('[role="article"]'),
+          ...document.querySelectorAll('[data-pagelet*="Feed"]'),
+          ...document.querySelectorAll('[data-pagelet*="feed"]'),
+        ];
+
+        // Deduplicate by reference
+        const seen = new Set();
+        const containers = postSelectors.filter(el => {
+          if (seen.has(el)) return false;
+          seen.add(el);
+          return true;
+        });
+
+        for (const art of containers) {
           if (results.length >= maxToCollect) break;
           const fullText = art.textContent || '';
+          if (fullText.length < 20) continue;
 
-          // Skip known non-post articles
-          if (fullText.includes('Escribe algo') || fullText.includes('Buscar amigos') || fullText.includes('Invitar') || fullText.includes('Miembro')) continue;
+          // Skip group header / compose areas by checking for known senders
+          const innerHTML = art.innerHTML || '';
 
           // Extract post ID from permalink
-          const link = art.querySelector('a[href*="/posts/"]');
+          const link = art.querySelector('a[href*="/posts/"], a[href*="/photo/"]');
           const permalink = link ? link.getAttribute('href') : '';
           const postId = (permalink.match(/\/posts\/(\d+)/) || [])[1] || '';
 
-          // Extract author
-          const authorEl = art.querySelector('a[href*="/user/"], a[href*="?__tn"]');
+          // Extract author name from links
+          const authorEl = art.querySelector('a[href*="/user/"], a[href*="?__tn"], a[role="link"]');
           let authorName = 'Unknown';
-          if (authorEl) {
-            authorName = authorEl.textContent.trim() || authorEl.getAttribute('aria-label') || 'Unknown';
+          if (authorEl && authorEl.textContent.trim().length > 0 && authorEl.textContent.trim().length < 60) {
+            authorName = authorEl.textContent.trim();
           }
 
-          // Extract images
+          // Extract images (skip profile/icon images)
           const imgs = [];
-          const imgEls = art.querySelectorAll('img:not([class*="profile"]):not([class*="avatar"]):not([class*="emoji"])');
+          const imgEls = art.querySelectorAll('img');
           for (const img of imgEls) {
             const src = img.getAttribute('src') || '';
-            if (src && !BAD_PATTERNS.some(p => src.includes(p)) && !src.includes('40x40') && !src.includes('50x50') && !src.includes('80x80') && !src.includes('100x100')) {
-              if (src.includes('scontent') || src.includes('fbcdn')) {
-                if (!imgs.includes(src)) imgs.push(src);
-              }
+            const cls = img.getAttribute('class') || '';
+            const w = img.getAttribute('width') || '0';
+            const h = img.getAttribute('height') || '0';
+            if (cls.includes('profile') || cls.includes('avatar') || cls.includes('emoji')) continue;
+            if (src.includes('rsrc.php') || src.includes('p40x40') || src.includes('p50x50') || src.includes('p100x100') || src.includes('badge')) continue;
+            if (parseInt(w) < 80 && parseInt(h) < 80) continue;
+            if ((src.includes('scontent') || src.includes('fbcdn')) && !imgs.includes(src)) {
+              imgs.push(src);
             }
           }
 
-          // Remove header/footer noise from text
+          // Clean the text: remove scattered single chars that appear in Facebook's obfuscated DOM
           let content = fullText
-            .replace(/Animales perdidos y encontrados solo Sicardi, Villa Garibaldi y Correas\s*Grupo público\s*\d+ miembros/i, '')
-            .replace(/Seguir|Dejar de seguir|Invitar|Compartir|Miembro|Más|Información|Conversación|Personas|Eventos|Multimedia/i, '')
-            .replace(/Escribe algo.*|Publicación anónima|Sentimiento\/actividad.*|Estoy aquí.*|Destacados.*|Insignia.*/i, '')
-            .replace(/ordenar feed del grupo por.*/i, '')
-            .replace(/Facebook\s*/g, '')
+            // Remove scattered single non-letter chars
+            .replace(/\b[a-z]\s+(?=[a-z]\s+)/gi, '')
+            // Remove repetitive "Facebook" noise
+            .replace(/(Facebook\s*){2,}/g, ' ')
+            .replace(/\s+/g, ' ')
             .trim();
 
-          // Clean up repeated spaces/newlines
-          content = content.replace(/\s+/g, ' ').trim();
-
-          if (!content && imgs.length === 0) continue;
+          // Skip if content is too short and no images
+          if (content.length < 15 && imgs.length === 0) continue;
 
           results.push({
-            fb_post_id: postId || `puppeteer_${Date.now()}_${results.length}`,
+            fb_post_id: postId || `${groupId}_puppeteer_${scrollNum}_${results.length}`,
             fb_post_url: permalink ? `https://www.facebook.com${permalink}` : '',
             author_name: authorName,
             content: content.substring(0, 5000),
@@ -1163,21 +1179,25 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
           });
         }
         return results;
-      }, maxPosts - posts.length);
+      }, maxPosts - posts.length, scrollAttempts);
 
+      // Debug: log what we found
+      console.log(`[Scraper] [Puppeteer] Scroll ${scrollAttempts + 1}: raw ${newPosts.length} candidates`);
+
+      // Deduplicate by postId
       for (const p of newPosts) {
         if (!posts.find(ex => ex.fb_post_id === p.fb_post_id && p.fb_post_id)) {
           posts.push(p);
         }
       }
 
-      console.log(`[Scraper] [Puppeteer] Scroll ${scrollAttempts + 1}: ${newPosts.length} new, ${posts.length} total`);
+      console.log(`[Scraper] [Puppeteer] Scroll ${scrollAttempts + 1}: ${newPosts.length} new, ${posts.length} unique total`);
 
       if (posts.length >= maxPosts) break;
 
-      // Scroll down for more
-      await page.evaluate(() => window.scrollBy(0, 1000));
-      await sleep(2000 + randomInt(0, 2000));
+      // Scroll down
+      await page.evaluate(() => window.scrollBy(0, 1200));
+      await sleep(3000 + randomInt(0, 2000));
       scrollAttempts++;
     }
 
@@ -1186,6 +1206,9 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
 
     if (posts.length > 0) {
       console.log(`[Scraper] [Puppeteer] ${posts.length} posts extraídos de "${groupName}"`);
+      for (const p of posts.slice(0, 3)) {
+        console.log(`  - ${p.author_name}: ${p.content.substring(0, 80)}`);
+      }
     } else {
       console.warn(`[Scraper] [Puppeteer] 0 posts para "${groupName}"`);
     }
