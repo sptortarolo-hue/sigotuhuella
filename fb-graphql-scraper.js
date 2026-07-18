@@ -545,6 +545,16 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
     while (posts.length < maxPosts && scrollAttempts < maxScrolls) {
       const currentCount = posts.length;
 
+      await page.evaluate(() => {
+        document.querySelectorAll('div[role="button"]').forEach(btn => {
+          const text = (btn.textContent || '').trim().toLowerCase();
+          if (text === 'see more' || text === 'ver más' || text.startsWith('see more') || text.startsWith('ver más')) {
+            try { btn.click(); } catch {}
+          }
+        });
+      });
+      await sleep(1500);
+
       const newPosts = await page.evaluate((maxToCollect, scrollNum, uiTextsArr) => {
         const uiTexts = new Set(uiTextsArr);
         const results = [];
@@ -633,6 +643,22 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
             }
           }
 
+          if (authorName === 'Unknown') {
+            const strong = el.querySelector('strong');
+            if (strong) {
+              const t = (strong.textContent || '').trim();
+              if (t.length > 2 && t.length < 50) authorName = t;
+            }
+          }
+
+          if (authorName === 'Unknown') {
+            const firstImg = el.querySelector('img[alt]:not([alt=""])');
+            if (firstImg) {
+              const alt = firstImg.getAttribute('alt') || '';
+              if (alt.length > 2 && alt.length < 60) authorName = alt;
+            }
+          }
+
           let content = '';
           const dirDivs = el.querySelectorAll('div[dir="auto"]');
           const contentParts = [];
@@ -693,15 +719,17 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
 
       if (posts.length >= maxPosts) break;
 
-      await page.evaluate(() => { window.scrollBy(0, window.innerHeight * 0.8); });
-      await sleep(4000 + randomInt(0, 2000));
+      await page.evaluate(() => { window.scrollBy(0, window.innerHeight * 1.5); });
+      await sleep(2000);
+      await page.keyboard.press('PageDown');
+      await sleep(2000);
 
       try {
         await page.waitForFunction((prevCount) => {
           const feed = document.querySelector('[role="feed"], [data-pagelet="GroupFeed"], [data-pagelet="Feed"]');
           if (!feed) return false;
-          return feed.children.length > prevCount;
-        }, { timeout: 8000 }, currentCount);
+          return feed.querySelectorAll(':scope > div').length > prevCount;
+        }, { timeout: 10000 }, currentCount);
       } catch {}
 
       scrollAttempts++;
