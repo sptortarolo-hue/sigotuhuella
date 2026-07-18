@@ -18,10 +18,15 @@ async function upsertPublication(newsId, platform, status, platformPostId, error
   if (existing.rows.length > 0) {
     await pool.query(
       `UPDATE news_publications SET status = $1, platform_post_id = $2, error_message = $3,
-       published_at = CASE WHEN $1 = 'published' THEN NOW() ELSE published_at END,
        updated_at = NOW() WHERE id = $4`,
       [status, platformPostId, errorMessage, existing.rows[0].id]
     );
+    if (status === 'published') {
+      await pool.query(
+        'UPDATE news_publications SET published_at = NOW() WHERE id = $1',
+        [existing.rows[0].id]
+      );
+    }
     return existing.rows[0].id;
   }
   const r = await pool.query(
