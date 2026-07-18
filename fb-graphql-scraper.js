@@ -503,6 +503,12 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
 
     await sleep(5000);
 
+    try {
+      await page.waitForSelector('[role="article"]', { timeout: 15000 });
+    } catch {
+      console.log(`[Scraper] [Puppeteer] No [role="article"] found after initial wait, proceeding anyway`);
+    }
+
     if (process.env.DEBUG_SCREENSHOT) {
       await page.screenshot({ path: `debug-group-${groupId}.png`, fullPage: true });
       console.log(`[Scraper] [Puppeteer] Debug screenshot saved: debug-group-${groupId}.png`);
@@ -510,7 +516,7 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
 
     const posts = [];
     let scrollAttempts = 0;
-    const maxScrolls = 6;
+    const maxScrolls = 8;
 
     while (posts.length < maxPosts && scrollAttempts < maxScrolls) {
       const newPosts = await page.evaluate((maxToCollect, scrollNum) => {
@@ -548,6 +554,17 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
             for (const al of authorLinks) {
               const txt = (al.textContent || '').trim();
               if (txt.length > 2 && txt.length < 50) { authorName = txt; break; }
+            }
+          }
+          if (authorName === 'Unknown') {
+            const allLinks = el.querySelectorAll('a');
+            for (const al of allLinks) {
+              const txt = (al.textContent || '').trim();
+              if (txt.length > 2 && txt.length < 50
+                && !['Seguir', 'Invitar', 'Compartir', 'Miembro', 'Más', 'Like', 'Comment', 'Share', 'Me gusta', 'Comentar'].includes(txt)) {
+                authorName = txt;
+                break;
+              }
             }
           }
 
@@ -610,8 +627,8 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
 
       if (posts.length >= maxPosts) break;
 
-      await page.evaluate(() => window.scrollBy(0, 1000));
-      await sleep(3000 + randomInt(0, 2000));
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await sleep(6000 + randomInt(0, 3000));
       scrollAttempts++;
     }
 
