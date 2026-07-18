@@ -52,6 +52,26 @@ function remoteLog(level, message) {
   }).catch(() => {});
 }
 
+async function dismissOverlays(page) {
+  await page.evaluate(() => {
+    const clicks = [];
+    const selectors = [
+      'div[aria-label="Close"]', 'div[aria-label="Cerrar"]',
+      'button[aria-label="Close"]', 'button[aria-label="Cerrar"]',
+      '[data-cookiebanner="accept_button"]',
+      'div[role="dialog"] button:first-child',
+      'div[role="dialog"] div[role="button"]',
+      'div[aria-label="Accept all"]', 'div[aria-label="Aceptar todo"]',
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el) { try { el.click(); } catch {} }
+    }
+    document.querySelectorAll('div[role="dialog"]').forEach(d => d.remove());
+  });
+  await sleep(1000);
+}
+
 // ==================== SESSION MANAGEMENT ====================
 
 function loadSession() {
@@ -501,35 +521,59 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
     await page.goto(`https://www.facebook.com/groups/${groupId}/`, { waitUntil: 'networkidle2', timeout: 90000 });
     console.log(`[Scraper] [Puppeteer] URL after goto: ${page.url()}`);
 
-    await sleep(5000);
+    await dismissOverlays(page);
+    await sleep(4000);
 
-    try {
-      await page.waitForSelector('[role="article"]', { timeout: 15000 });
-    } catch {
-      console.log(`[Scraper] [Puppeteer] No [role="article"] found after initial wait, proceeding anyway`);
-    }
+    await page.waitForFunction(() => {
+      return document.querySelector('[role="feed"]') ||
+             document.querySelector('[data-pagelet="GroupFeed"]') ||
+             document.querySelector('[data-pagelet="Feed"]');
+    }, { timeout: 20000 });
+    console.log('[Scraper] [Puppeteer] Feed container detected');
 
     if (process.env.DEBUG_SCREENSHOT) {
       await page.screenshot({ path: `debug-group-${groupId}.png`, fullPage: true });
       console.log(`[Scraper] [Puppeteer] Debug screenshot saved: debug-group-${groupId}.png`);
     }
 
+    const UI_TEXTS = new Set(['Seguir', 'Follow', 'Invitar', 'Invite', 'Compartir', 'Share', 'Más', 'More', 'Like', 'Comment', 'Me gusta', 'Comentar', 'Reaccionar', 'React', 'Enviar', 'Send', 'Reply', 'Responder', 'Miembro', 'Member']);
+
     const posts = [];
     let scrollAttempts = 0;
-    const maxScrolls = 8;
+    const maxScrolls = 12;
 
     while (posts.length < maxPosts && scrollAttempts < maxScrolls) {
-      const newPosts = await page.evaluate((maxToCollect, scrollNum) => {
+      const currentCount = posts.length;
+
+      const newPosts = await page.evaluate((maxToCollect, scrollNum, uiTextsArr) => {
+        const uiTexts = new Set(uiTextsArr);
         const results = [];
 
-        const candidates = [];
-        const roleArticles = document.querySelectorAll('[role="article"]');
-        if (roleArticles.length > 0) {
-          candidates.push(...roleArticles);
+        const feed = document.querySelector('[role="feed"]') ||
+                     document.querySelector('[data-pagelet="GroupFeed"]') ||
+                     document.querySelector('[data-pagelet="Feed"]');
+
+        let candidates = [];
+        if (feed && feed.children.length > 0) {
+          for (const child of feed.children) {
+            const text = (child.textContent || '').trim();
+            const cls = (child.className || '').toLowerCase();
+            if (text.length < 50) continue;
+            if (cls.includes('sponsor') || cls.includes('suggested') || text.includes('Sponsored') || text.includes('Publicidad')) continue;
+            candidates.push(child);
+          }
         }
+
         if (candidates.length === 0) {
-          const postClassEls = document.querySelectorAll('[class*="post"]');
-          candidates.push(...postClassEls);
+          candidates.push(...document.querySelectorAll('[role="article"]'));
+        }
+
+        if (candidates.length === 0) {
+          const allDivs = document.querySelectorAll('div[style*="transform"]');
+          for (const div of allDivs) {
+            const t = (div.textContent || '').trim();
+            if (t.length > 100) candidates.push(div);
+          }
         }
 
         for (const el of candidates) {
@@ -544,44 +588,65 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
             || '';
 
           let authorName = 'Unknown';
-          const strongInLink = el.querySelector('a strong, strong a, a[role="link"] strong');
-          if (strongInLink) {
-            const txt = (strongInLink.textContent || '').trim();
-            if (txt.length > 0 && txt.length < 50) authorName = txt;
+
+          const h4 = el.querySelector('h4, h4 span, h4 a');
+          if (h4) {
+            const t = (h4.textContent || '').trim();
+            if (t.length > 0 && t.length < 50) authorName = t;
           }
+
           if (authorName === 'Unknown') {
-            const authorLinks = el.querySelectorAll('a[href*="/user/"], a[href*="?__tn"]');
-            for (const al of authorLinks) {
-              const txt = (al.textContent || '').trim();
-              if (txt.length > 2 && txt.length < 50) { authorName = txt; break; }
-            }
-          }
-          if (authorName === 'Unknown') {
-            const allLinks = el.querySelectorAll('a');
-            for (const al of allLinks) {
-              const txt = (al.textContent || '').trim();
-              if (txt.length > 2 && txt.length < 50
-                && !['Seguir', 'Invitar', 'Compartir', 'Miembro', 'Más', 'Like', 'Comment', 'Share', 'Me gusta', 'Comentar'].includes(txt)) {
-                authorName = txt;
-                break;
-              }
+            for (const a of el.querySelectorAll('a[role="link"]')) {
+              const t = (a.textContent || '').trim();
+              if (t.length > 2 && t.length < 50 && !uiTexts.has(t)) { authorName = t; break; }
             }
           }
 
-          const contentParts = [];
-          const dirDivs = el.querySelectorAll('div[dir="auto"]');
-          for (const dd of dirDivs) {
-            const txt = (dd.textContent || '').trim();
-            if (txt.length >= 10 && txt !== authorName) contentParts.push(txt);
+          if (authorName === 'Unknown') {
+            const imgs = el.querySelectorAll('img[alt]:not([alt=""])');
+            for (const img of imgs) {
+              const alt = (img.getAttribute('alt') || '').trim();
+              if (alt.length > 2 && alt.length < 50 && !alt.includes('profile')) { authorName = alt; break; }
+            }
           }
-          let content = contentParts.slice(0, 3).join('\n') || '';
+
+          if (authorName === 'Unknown') {
+            const strongInLink = el.querySelector('a strong, strong a, a[role="link"] strong');
+            if (strongInLink) {
+              const t = (strongInLink.textContent || '').trim();
+              if (t.length > 0 && t.length < 50) authorName = t;
+            }
+          }
+
+          if (authorName === 'Unknown') {
+            for (const a of el.querySelectorAll('a[href*="/user/"], a[href*="/profile/"], a[href*="?__tn"]')) {
+              const t = (a.textContent || '').trim();
+              if (t.length > 2 && t.length < 50 && !uiTexts.has(t)) { authorName = t; break; }
+            }
+          }
+
+          if (authorName === 'Unknown') {
+            const allLinks = el.querySelectorAll('a');
+            for (const a of allLinks) {
+              const t = (a.textContent || '').trim();
+              if (t.length > 2 && t.length < 50 && !uiTexts.has(t)) { authorName = t; break; }
+            }
+          }
+
+          let content = '';
+          const dirDivs = el.querySelectorAll('div[dir="auto"]');
+          const contentParts = [];
+          for (const dd of dirDivs) {
+            const t = (dd.textContent || '').trim();
+            if (t.length >= 10 && t !== authorName && !uiTexts.has(t)) contentParts.push(t);
+          }
+          content = contentParts.slice(0, 3).join('\n');
 
           if (!content || content.length < 5) {
             const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
             const filtered = lines.filter(l => {
-              if (l === authorName) return false;
-              if (l.length < 10) return false;
-              if (['Like', 'Comment', 'Share', '·', 'Reply', 'Me gusta', 'Comentar', 'Compartir'].includes(l)) return false;
+              if (l === authorName || l.length < 10) return false;
+              if (uiTexts.has(l) || /^\d+$/.test(l)) return false;
               return true;
             });
             content = filtered.slice(0, 3).join('\n');
@@ -600,6 +665,7 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
           }
 
           if (content.length < 5 && images.length === 0) continue;
+          if (postId && postId.length < 10 && !postId.includes('_')) continue;
 
           results.push({
             fb_post_id: postId || `${groupId}_dom_${scrollNum}_${results.length}`,
@@ -613,7 +679,7 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
           });
         }
         return results;
-      }, maxPosts - posts.length, scrollAttempts);
+      }, maxPosts - posts.length, scrollAttempts, [...UI_TEXTS]);
 
       console.log(`[Scraper] [Puppeteer] Scroll ${scrollAttempts + 1}: ${newPosts.length} candidates`);
 
@@ -627,8 +693,17 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
 
       if (posts.length >= maxPosts) break;
 
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      await sleep(6000 + randomInt(0, 3000));
+      await page.evaluate(() => { window.scrollBy(0, window.innerHeight * 0.8); });
+      await sleep(4000 + randomInt(0, 2000));
+
+      try {
+        await page.waitForFunction((prevCount) => {
+          const feed = document.querySelector('[role="feed"], [data-pagelet="GroupFeed"], [data-pagelet="Feed"]');
+          if (!feed) return false;
+          return feed.children.length > prevCount;
+        }, { timeout: 8000 }, currentCount);
+      } catch {}
+
       scrollAttempts++;
     }
 
@@ -929,6 +1004,100 @@ async function runDaemon() {
   }
 }
 
+// ==================== DEBUG PAGE MODE ====================
+
+async function debugPageMode() {
+  console.log('[Scraper] Modo DEBUG — capturando estructura del feed');
+  const session = loadSession();
+  if (!session || !session.cookies) {
+    console.error('[Scraper] Sin sesión. Ejecutá: node fb-graphql-scraper.js --login');
+    return;
+  }
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    executablePath: CHROMIUM_PATH,
+    args: ['--no-sandbox', '--disable-gpu'],
+  });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1366, height: 768 });
+  await page.setUserAgent(pickUA());
+
+  const fbCookies = (session.cookies || []).filter(c => c.domain?.includes('facebook'));
+  if (fbCookies.length > 0) {
+    await page.setCookie(...fbCookies.map(c => ({
+      name: c.name, value: c.value, domain: c.domain || '.facebook.com',
+      path: c.path || '/', secure: !!c.secure, httpOnly: !!c.httpOnly
+    })));
+  }
+
+  const groups = await getActiveGroups();
+  if (groups.length === 0) {
+    console.error('[Scraper] No hay grupos activos');
+    await browser.close();
+    return;
+  }
+
+  const group = groups[0];
+  const groupId = group.fb_group_id || group.url?.match(/groups\/(\d+)/)?.[1];
+
+  await page.goto(`https://www.facebook.com/groups/${groupId}/`, { waitUntil: 'networkidle2', timeout: 90000 });
+  await dismissOverlays(page);
+  await sleep(5000);
+
+  await page.screenshot({ path: 'debug-feed.png', fullPage: false });
+  console.log('[Debug] Screenshot guardado: debug-feed.png');
+
+  const structure = await page.evaluate(() => {
+    const r = {};
+    r.url = window.location.href;
+    r.title = document.title;
+    r.dialogs = document.querySelectorAll('div[role="dialog"]').length;
+    r.cookieBanner = !!document.querySelector('[data-cookiebanner]');
+    r.feed = !!document.querySelector('[role="feed"]');
+    r.articles = document.querySelectorAll('[role="article"]').length;
+    r.dataPageletFeed = !!document.querySelector('[data-pagelet="Feed"]');
+    r.dataPageletGroupFeed = !!document.querySelector('[data-pagelet="GroupFeed"]');
+    r.dataPagelet = [...document.querySelectorAll('[data-pagelet]')].map(e => e.getAttribute('data-pagelet'));
+    r.main = !!document.querySelector('[role="main"]');
+    const feed = document.querySelector('[role="feed"]');
+    if (feed) {
+      r.feedTag = feed.tagName;
+      r.feedChildCount = feed.children.length;
+      r.feedFirstChild = feed.children[0] ? { tag: feed.children[0].tagName, cls: (feed.children[0].className || '').substring(0, 200), role: feed.children[0].getAttribute('role') } : null;
+      r.feedHTML = feed.innerHTML.substring(0, 8000);
+    }
+    return r;
+  });
+
+  fs.writeFileSync('debug-feed-structure.json', JSON.stringify(structure, null, 2));
+  console.log('[Debug] Estructura guardada: debug-feed-structure.json');
+  console.log(JSON.stringify(structure, null, 2));
+
+  const feedChildren = await page.evaluate(() => {
+    const feed = document.querySelector('[role="feed"]');
+    if (!feed || feed.children.length === 0) return [];
+    return Array.from(feed.children).map((c, i) => ({
+      i, tag: c.tagName, cls: (c.className || '').substring(0, 120),
+      role: c.getAttribute('role'), len: (c.textContent || '').length,
+      hasPostLink: !!c.querySelector('a[href*="/posts/"]'),
+      text: (c.textContent || '').replace(/\s+/g, ' ').substring(0, 300),
+    })).filter(c => c.len > 20);
+  });
+
+  fs.writeFileSync('debug-feed-children.json', JSON.stringify(feedChildren, null, 2));
+  console.log(`[Debug] ${feedChildren.length} children en feed`);
+  if (feedChildren.length > 0) {
+    for (const ch of feedChildren.slice(0, 5)) {
+      console.log(`  #${ch.i} <${ch.tag}> role="${ch.role}" len=${ch.len} hasPostLink=${ch.hasPostLink}`);
+      console.log(`    text: ${ch.text.substring(0, 120)}`);
+    }
+  }
+
+  await browser.close();
+  console.log('[Debug] Modo DEBUG completado.');
+}
+
 // ==================== ENTRY POINT ====================
 
 const args = process.argv.slice(2);
@@ -937,6 +1106,8 @@ if (args.includes('--login')) {
   await doLogin();
 } else if (args.includes('--test')) {
   await testMode();
+} else if (args.includes('--debug-page')) {
+  await debugPageMode();
 } else {
   try { execSync('termux-wake-lock', { stdio: 'pipe' }); } catch {}
   await runDaemon();
