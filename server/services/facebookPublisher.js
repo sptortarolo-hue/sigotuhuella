@@ -145,25 +145,35 @@ export async function publishToPage(petId, instagramPostId) {
       return { success: true, pagePostId: postId, type: 'photo' };
     }
 
+    // Staging todas las fotos (published=false) para crear un carrusel
+    const stagedMedia = [];
+    for (const url of imageUrls) {
+      try {
+        const { data } = await axios.post(`${GRAPH_API}/${pageId}/photos`, null, {
+          params: { url, published: false, access_token: token },
+          timeout: 20000,
+        });
+        stagedMedia.push({ media_fbid: data.id });
+        console.log(`[FB Publisher] Foto staged: ${url} -> id ${data.id}`);
+      } catch (err) {
+        console.error(`[FB Publisher] Error staging ${url}:`, err.response?.data || err.message);
+      }
+    }
+
+    if (stagedMedia.length === 0) {
+      return { error: 'No se pudo staging ninguna foto' };
+    }
+
     const { data } = await axios.post(`${GRAPH_API}/${pageId}/feed`, {
       message,
+      attached_media: stagedMedia,
       access_token: token,
     }, {
       params: { access_token: token },
       timeout: 30000,
     });
-    const postId = data.id;
-    if (postId && imageUrls.length > 1) {
-      for (const url of imageUrls) {
-        try {
-          await axios.post(`${GRAPH_API}/${pageId}/photos`, null, {
-            params: { url, access_token: token },
-            timeout: 15000,
-          });
-        } catch { }
-      }
-    }
-    return { success: true, pagePostId: postId, type: 'feed' };
+    console.log(`[FB Publisher] Post publicado con ${stagedMedia.length} foto(s), id=${data.id}`);
+    return { success: true, pagePostId: data.id, type: 'feed' };
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
     return { error: `Error al publicar en Page: ${detail}` };
