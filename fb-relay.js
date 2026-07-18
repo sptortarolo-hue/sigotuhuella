@@ -35,7 +35,6 @@ const api = axios.create({
 
 let browser = null;
 let keepAliveActive = false;
-let sessionSource = 'scraper';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function randomInt(min, max) {
@@ -283,26 +282,6 @@ function loadCookies() {
   return false;
 }
 
-function loadScraperCookies() {
-  try {
-    const scraperPath = path.join(PROFILE_DIR, 'graphql-session.json');
-    if (!fs.existsSync(scraperPath)) return [];
-    const raw = JSON.parse(fs.readFileSync(scraperPath, 'utf-8'));
-    let cookies = raw.cookies || raw;
-    if (!Array.isArray(cookies) || cookies.length === 0) return [];
-    cookies = cookies.map(c => {
-      if (!c.domain) c.domain = '.facebook.com';
-      if (!c.path) c.path = '/';
-      return c;
-    });
-    console.log(`[FB Relay] ${cookies.length} cookies cargadas del scraper (${scraperPath})`);
-    return cookies;
-  } catch (e) {
-    console.error('[FB Relay] Error cargando cookies del scraper:', e.message);
-  }
-  return [];
-}
-
 function clearProfile() {
   try {
     if (fs.existsSync(PROFILE_DIR)) {
@@ -355,42 +334,35 @@ async function downloadCookiesFromServer() {
   return [];
 }
 
-async function setCookiesAndCheck(page, cookies) {
-  await page.setCookie(...cookies);
-  await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
-  await sleep(3000);
-  if (await checkSession(page)) {
-    await saveCookies(page);
-    return true;
-  }
-  return false;
-}
-
 async function ensureFacebookSession(page) {
-  let cookies = [];
-  if (sessionSource === 'scraper') {
-    cookies = loadScraperCookies();
-  } else {
-    cookies = await downloadCookiesFromServer();
-  }
+  await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
+  await sleep(3000);
 
+  if (await checkSession(page)) return true;
+
+  const cookies = await downloadCookiesFromServer();
   if (cookies.length > 0) {
-    await page.goto('https://facebook.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.setCookie(...cookies);
     await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
     await sleep(3000);
     if (await checkSession(page)) {
       await saveCookies(page);
-      console.log(`[FB Relay] Sesión iniciada desde fuente: ${sessionSource}`);
       return true;
     }
-  } else {
-    await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
-    await sleep(3000);
-    if (await checkSession(page)) return true;
   }
 
-  console.log(`[FB Relay] No se pudo iniciar sesión desde fuente: ${sessionSource}`);
+  const sessionData = await downloadSessionData();
+  if (sessionData) {
+    await restoreSessionData(page, sessionData);
+    await page.reload({ waitUntil: 'networkidle2', timeout: 30000 });
+    await sleep(3000);
+    if (await checkSession(page)) {
+      await saveCookies(page);
+      return true;
+    }
+  }
+
+  console.log(`[FB Relay] Sesión expirada. Ejecutá 'FB_SCRAPER_HEADED=true node fb-relay.js --login' en Termux con X11.`);
   return false;
 }
 
@@ -773,8 +745,6 @@ async function main() {
     try {
       const { data } = await api.get('/fb/pending?limit=5');
       const tasks = data?.tasks || [];
-      if (data?.sessionSource) sessionSource = data.sessionSource;
-
       if (tasks.length === 0) {
         await sleep(POLL_INTERVAL);
         continue;
@@ -800,8 +770,59 @@ async function main() {
   }
 }
 
-// Modo test: node fb-relay.mjs --test <groupId> "mensaje"
-if (process.argv.includes('--test')) {
+// Modo login: FB_SCRAPER_HEADED=true node fb-relay.js --login
+if (process.argv.includes('--login')) {
+  (async () => {
+    if (!TOKEN) { console.error('FATAL: RELAY_TOKEN no configurado'); process.exit(1); }
+    ensureProfileDir();
+    setWakeLock(true);
+    console.log('[FB Relay] Modo login. Abriendo Chromium...');
+    const b = await puppeteer.launch({
+      executablePath: CHROMIUM_PATH,
+      headless: false,
+      userDataDir: PROFILE_DIR,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-blink-features=AutomationControlled',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-features=IsolateOrigins,site-per-process,ChromeWhatsNewUI,OptimizationGuideModelDownloading,Translate',
+        '--disable-sync',
+        '--disable-field-trial-config',
+        '--window-size=1366,768',
+        '--lang=es-AR',
+        '--no-pings',
+        '--disable-crash-reporter',
+        '--disable-background-networking',
+      ],
+    });
+    const page = await b.newPage();
+    await page.setUserAgent(pickUA());
+    await page.setViewport({ width: 1366, height: 768 });
+    console.log('[FB Relay] Navegando a Facebook. Iniciá sesión en la ventana de Chromium.');
+    console.log('[FB Relay] Esperando hasta 5 minutos...');
+    await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 60000 });
+    for (let i = 0; i < 300; i++) {
+      await sleep(1000);
+      if (await checkSession(page)) {
+        console.log('[FB Relay] Sesión iniciada correctamente');
+        await saveCookies(page);
+        await uploadSessionData(page);
+        await uploadProfileBackup();
+        console.log('[FB Relay] Sesión guardada y respaldada en servidor');
+        await b.close();
+        process.exit(0);
+      }
+    }
+    console.error('[FB Relay] Timeout esperando login (5 min)');
+    await b.close();
+    process.exit(1);
+  })();
+} else if (process.argv.includes('--test')) {
+  // Modo test: node fb-relay.js --test <groupId> "mensaje"
   const idx = process.argv.indexOf('--test');
   const testGroup = process.argv[idx + 1];
   const testMsg = process.argv[idx + 2] || 'Test automático - ' + new Date().toISOString();

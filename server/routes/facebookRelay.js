@@ -20,16 +20,10 @@ function relayAuth(req, res, next) {
   return res.status(401).json({ error: 'Unauthorized' });
 }
 
-async function getSessionSource() {
-  const r = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_session_source'");
-  return r.rows[0]?.value || 'scraper';
-}
-
 router.get('/fb/pending', relayAuth, async (req, res) => {
   try {
     const tasks = await getPendingTasks(parseInt(req.query.limit) || 5);
-    const sessionSource = await getSessionSource();
-    res.json({ tasks, sessionSource });
+    res.json({ tasks });
   } catch (err) {
     console.error('[FB Relay] pending error:', err.message);
     res.status(500).json({ error: err.message });
@@ -78,37 +72,9 @@ router.get('/fb/status', requireAdmin, async (req, res) => {
     const hasSessionData = !!(await getSessionData());
     const adoptionSetting = await pool.query("SELECT value FROM settings WHERE key = 'fb_adoption_broadcast_enabled'");
     const adoptionBroadcastEnabled = adoptionSetting.rows[0]?.value === 'true';
-    const sessionSource = await getSessionSource();
-    res.json({ enabled, hasSession, hasProfile, hasSessionData, stats, adoptionBroadcastEnabled, sessionSource });
+    res.json({ enabled, hasSession, hasProfile, hasSessionData, stats, adoptionBroadcastEnabled });
   } catch (err) {
     console.error('[FB Relay] status error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.get('/fb/session-source', requireAdmin, async (req, res) => {
-  try {
-    const source = await getSessionSource();
-    res.json({ source });
-  } catch (err) {
-    console.error('[FB Relay] session-source error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/fb/session-source', requireAdmin, async (req, res) => {
-  try {
-    const { source } = req.body;
-    if (source !== 'scraper' && source !== 'uploaded') {
-      return res.status(400).json({ error: 'source must be "scraper" or "uploaded"' });
-    }
-    await pool.query(
-      "INSERT INTO settings (key, value) VALUES ('fb_relay_session_source', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
-      [source]
-    );
-    res.json({ source });
-  } catch (err) {
-    console.error('[FB Relay] session-source error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
