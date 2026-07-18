@@ -119,23 +119,28 @@ async function publishToFacebookPage(news) {
   return { platformPostId: data.id };
 }
 
-async function publishToFacebookGroups(news) {
-  const { enqueue } = await import('./phoneRelayService.js');
+async function publishToFacebookGroups(news, pagePostUrl) {
+  const { enqueuePublishTask } = await import('./facebookRelayService.js');
   const groups = await pool.query(
-    "SELECT fb_group_id FROM facebook_groups WHERE is_active = true AND fb_group_id IS NOT NULL AND fb_group_id != ''"
+    `SELECT id, name, fb_group_id FROM facebook_groups
+     WHERE is_active = true AND publish_on_create = true
+       AND fb_group_id IS NOT NULL AND fb_group_id != ''
+     ORDER BY name`
   );
+  if (groups.rows.length === 0) return { platformPostId: '' };
+
   const caption = buildCaption(news, 'facebook_groups');
   const imageUrl = getImageUrl(news.id, 'facebook_groups');
-  const ids = [];
+  const taskIds = [];
   for (const group of groups.rows) {
     try {
-      const id = await enqueue(group.fb_group_id, caption, imageUrl);
-      ids.push(id);
+      const { taskId } = await enqueuePublishTask(news.id, group.id, group.fb_group_id, caption, [imageUrl], pagePostUrl);
+      taskIds.push(taskId);
     } catch (err) {
       console.warn(`[NewsPublisher] FB group ${group.fb_group_id} enqueue error:`, err.message);
     }
   }
-  return { platformPostId: ids.join(',') };
+  return { platformPostId: taskIds.join(',') };
 }
 
 async function publishToWhatsApp(news) {
@@ -227,16 +232,47 @@ export async function publishNews(newsId, targetPlatforms) {
   }
 
   const results = [];
+  const hasFacebookPage = platforms.includes('facebook_page');
+  const hasFacebookGroups = platforms.includes('facebook_groups');
+  let pagePostUrl = null;
+
+  // facebook_page must run first so facebook_groups can use its URL
+  if (hasFacebookPage) {
+    try {
+      const { platformPostId } = await publishToFacebookPage(news);
+      await upsertPublication(newsId, 'facebook_page', 'published', platformPostId, null);
+      results.push({ platform: 'facebook_page', status: 'published', platformPostId });
+      console.log(`[NewsPublisher] Published ${newsId} to facebook_page: ${platformPostId}`);
+      const pageId = await getSetting('facebook_page_id');
+      if (pageId && platformPostId) {
+        pagePostUrl = `https://www.facebook.com/${pageId}/posts/${platformPostId}`;
+      }
+    } catch (err) {
+      console.error(`[NewsPublisher] Failed to publish ${newsId} to facebook_page:`, err.message);
+      await upsertPublication(newsId, 'facebook_page', 'failed', null, err.message);
+      results.push({ platform: 'facebook_page', status: 'failed', error: err.message });
+    }
+  }
+
   for (const platform of platforms) {
+    if (platform === 'facebook_page') continue;
     if (!PLATFORMS.includes(platform)) {
       console.warn(`[NewsPublisher] Unknown platform: ${platform}`);
       continue;
     }
-    const publisher = PUBLISHERS[platform];
+
+    let publisher = PUBLISHERS[platform];
     if (!publisher) continue;
 
     try {
-      const { platformPostId } = await publisher(news);
+      let platformPostId;
+      if (platform === 'facebook_groups') {
+        const r = await publishToFacebookGroups(news, pagePostUrl);
+        platformPostId = r.platformPostId;
+      } else {
+        const r = await publisher(news);
+        platformPostId = r.platformPostId;
+      }
       await upsertPublication(newsId, platform, 'published', platformPostId, null);
       results.push({ platform, status: 'published', platformPostId });
       console.log(`[NewsPublisher] Published ${newsId} to ${platform}: ${platformPostId}`);

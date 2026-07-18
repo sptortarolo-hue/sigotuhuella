@@ -1088,8 +1088,11 @@ export async function initDb() {
       INSERT INTO settings (key, value) VALUES ('news_auto_publish_enabled', 'true') ON CONFLICT (key) DO NOTHING
     `, 'news_auto_publish_enabled');
     await migrate(client, `
-      INSERT INTO settings (key, value) VALUES ('news_auto_publish_platforms', '["instagram","facebook_page","whatsapp","status"]') ON CONFLICT (key) DO NOTHING
+      INSERT INTO settings (key, value) VALUES ('news_auto_publish_platforms', '["instagram","facebook_page","facebook_groups","whatsapp","status"]') ON CONFLICT (key) DO NOTHING
     `, 'news_auto_publish_platforms');
+    await migrate(client, `
+      UPDATE settings SET value = '["instagram","facebook_page","facebook_groups","whatsapp","status"]' WHERE key = 'news_auto_publish_platforms' AND value NOT LIKE '%facebook_groups%'
+    `, 'news_auto_publish_platforms update');
     await migrate(client, `
       INSERT INTO settings (key, value) VALUES ('pexels_api_key', '') ON CONFLICT (key) DO NOTHING
     `, 'pexels_api_key');
