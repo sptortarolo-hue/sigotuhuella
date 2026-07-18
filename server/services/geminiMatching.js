@@ -537,7 +537,7 @@ export async function detectAndCropPetFace(imageBase64, mimeType) {
     const imgW = metadata.width || 1000;
     const imgH = metadata.height || 1000;
 
-    const padding = 0.5;
+    const padding = 1.0;
     const cx = (faceData.x + faceData.width / 2) * imgW;
     const cy = (faceData.y + faceData.height / 2) * imgH;
     let cw = faceData.width * imgW * (1 + padding);
