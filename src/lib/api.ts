@@ -271,6 +271,10 @@ export const api = {
     groups: () => request('/relay/fb/groups-ui'),
     broadcastAdoptions: () => request('/relay/fb/broadcast-adoptions', { method: 'POST' }),
     clearQueue: () => request('/relay/fb/clear-queue', { method: 'POST' }),
+    sessionSource: {
+      get: () => request('/relay/fb/session-source'),
+      set: (source: 'scraper' | 'uploaded') => request('/relay/fb/session-source', { method: 'POST', body: JSON.stringify({ source }) }),
+    },
   },
   phoneRelay: {
     scrapedMessages: {

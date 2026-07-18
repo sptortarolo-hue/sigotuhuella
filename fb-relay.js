@@ -35,6 +35,7 @@ const api = axios.create({
 
 let browser = null;
 let keepAliveActive = false;
+let sessionSource = 'scraper';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function randomInt(min, max) {
@@ -282,6 +283,26 @@ function loadCookies() {
   return false;
 }
 
+function loadScraperCookies() {
+  try {
+    const scraperPath = path.join(PROFILE_DIR, 'graphql-session.json');
+    if (!fs.existsSync(scraperPath)) return [];
+    const raw = JSON.parse(fs.readFileSync(scraperPath, 'utf-8'));
+    let cookies = raw.cookies || raw;
+    if (!Array.isArray(cookies) || cookies.length === 0) return [];
+    cookies = cookies.map(c => {
+      if (!c.domain) c.domain = '.facebook.com';
+      if (!c.path) c.path = '/';
+      return c;
+    });
+    console.log(`[FB Relay] ${cookies.length} cookies cargadas del scraper (${scraperPath})`);
+    return cookies;
+  } catch (e) {
+    console.error('[FB Relay] Error cargando cookies del scraper:', e.message);
+  }
+  return [];
+}
+
 function clearProfile() {
   try {
     if (fs.existsSync(PROFILE_DIR)) {
@@ -352,24 +373,21 @@ async function ensureFacebookSession(page) {
 
   if (await checkSession(page)) return true;
 
-  // Fallback 1: restaurar localStorage/sessionStorage desde backup
-  const sessionData = await downloadSessionData();
-  if (sessionData) {
-    await restoreSessionData(page, sessionData);
-    await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
-    await sleep(3000);
-    if (await checkSession(page)) {
-      await saveCookies(page);
+  let cookies = [];
+  if (sessionSource === 'scraper') {
+    cookies = loadScraperCookies();
+  } else {
+    cookies = await downloadCookiesFromServer();
+  }
+
+  if (cookies.length > 0) {
+    if (await setCookiesAndCheck(page, cookies)) {
+      console.log(`[FB Relay] Sesión iniciada desde fuente: ${sessionSource}`);
       return true;
     }
   }
 
-  // Fallback 2: descargar cookies del servidor (subidas por admin)
-  const cookies = await downloadCookiesFromServer();
-  if (cookies.length > 0) {
-    if (await setCookiesAndCheck(page, cookies)) return true;
-  }
-
+  console.log(`[FB Relay] No se pudo iniciar sesión desde fuente: ${sessionSource}`);
   return false;
 }
 
@@ -752,6 +770,7 @@ async function main() {
     try {
       const { data } = await api.get('/fb/pending?limit=5');
       const tasks = data?.tasks || [];
+      if (data?.sessionSource) sessionSource = data.sessionSource;
 
       if (tasks.length === 0) {
         await sleep(POLL_INTERVAL);
@@ -764,74 +783,11 @@ async function main() {
           await executeTask(task);
         } catch (err) {
           console.error(`[FB Relay] Tarea ${task.id} falló:`, err.message);
+          await api.post('/fb/failed', { task_id: task.id, error: err.message });
           if (err.message === 'session expired') {
-            await api.post('/fb/failed', { task_id: task.id, error: err.message });
-            console.log('[FB Relay] Sesión expirada. Intentando restaurar...');
-
-            // Estrategia de recuperación escalonada:
-            // 1. Limpiar perfil
-            // 2. Intentar restaurar desde backup de perfil
-            // 3. Si no hay backup, esperar admin
-            const b2 = await getBrowser();
-
-            // Primer intento: session data backup
-            const sessionData = await downloadSessionData();
-            if (sessionData) {
-              const testPage = await b2.newPage();
-              try {
-                await testPage.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
-                await sleep(2000);
-                await restoreSessionData(testPage, sessionData);
-                await testPage.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 });
-                await sleep(3000);
-                if (await checkSession(testPage)) {
-                  await saveCookies(testPage);
-                  console.log('[FB Relay] Sesión restaurada desde session data backup');
-                  await testPage.close();
-                  continue;
-                }
-                await testPage.close();
-              } catch { await testPage.close().catch(() => {}); }
-            }
-
-            // Segundo intento: perfil completo
-            console.log('[FB Relay] Session data no funcionó. Intentando perfil completo...');
-            clearProfile();
-            ensureProfileDir();
-            const profileRestored = await downloadProfileBackup();
-            if (profileRestored) {
-              // Re-lanzar browser con nuevo perfil
-              try { await browser.close(); } catch {}
-              browser = null;
-              const b3 = await getBrowser();
-              startKeepAlive(b3);
-              console.log('[FB Relay] Perfil restaurado, reintentando...');
-              continue;
-            }
-
-            // Tercer intento: cookies del servidor (subidas por admin)
-            console.log('[FB Relay] Perfil no disponible. Intentando cookies del servidor...');
-            const cookies = await downloadCookiesFromServer();
-            if (cookies.length > 0) {
-              const b4 = await getBrowser();
-              const testPage = await b4.newPage();
-              try {
-                await testPage.setUserAgent(pickUA());
-                await testPage.setViewport({ width: 1366, height: 768 });
-                if (await setCookiesAndCheck(testPage, cookies)) {
-                  console.log('[FB Relay] Sesión restaurada desde cookies del servidor');
-                  await testPage.close();
-                  continue;
-                }
-                await testPage.close();
-              } catch { await testPage.close().catch(() => {}); }
-            }
-
-            // Fallback final: esperar admin
-            console.log('[FB Relay] No se pudo restaurar sesión. Esperando intervención del admin.');
+            console.log(`[FB Relay] Sesión expirada. Fuente actual: ${sessionSource}. Esperando intervención del admin.`);
             break;
           }
-          await api.post('/fb/failed', { task_id: task.id, error: err.message });
         }
       }
     } catch (err) {

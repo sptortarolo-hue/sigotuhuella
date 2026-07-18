@@ -15,6 +15,7 @@ interface FbRelayStatus {
   hasProfile: boolean;
   hasSessionData: boolean;
   adoptionBroadcastEnabled: boolean;
+  sessionSource?: 'scraper' | 'uploaded';
   stats: {
     pending: number;
     completed: number;
@@ -88,6 +89,7 @@ function RelayContent() {
   const [fbAdoptionHours, setFbAdoptionHours] = useState('');
   const [fbAdoptionHoursSaving, setFbAdoptionHoursSaving] = useState(false);
   const [clearingQueue, setClearingQueue] = useState(false);
+  const [sessionSource, setSessionSource] = useState<'scraper' | 'uploaded'>('scraper');
 
   async function loadData() {
     let errMsg: string | null = null;
@@ -95,6 +97,7 @@ function RelayContent() {
     try {
       const statusData = await api.facebookRelay.status();
       setStatus(statusData);
+      if (statusData.sessionSource) setSessionSource(statusData.sessionSource);
     } catch (err: any) {
       errMsg = 'Error al cargar estado del relay';
       console.error('Error loading FB relay status:', err);
@@ -219,6 +222,16 @@ function RelayContent() {
     }
   }
 
+  const handleSessionSourceChange = async (source: 'scraper' | 'uploaded') => {
+    try {
+      await api.facebookRelay.sessionSource.set(source);
+      setSessionSource(source);
+      loadData();
+    } catch (err: any) {
+      console.error('Error setting session source:', err);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -289,6 +302,42 @@ function RelayContent() {
           >
             {clearingQueue ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
             Limpiar cola
+          </button>
+        </div>
+      </div>
+
+      {/* Session Source Selector */}
+      <div className="bg-white rounded-2xl border border-brand-accent p-6">
+        <h3 className="text-lg font-bold mb-4">Fuente de sesión</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Elegí de dónde el relay obtiene la sesión de Facebook cuando el perfil persistente no alcanza.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={() => handleSessionSourceChange('scraper')}
+            className={cn(
+              "flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left flex-1",
+              sessionSource === 'scraper' ? 'border-brand-primary bg-brand-primary/5' : 'border-brand-accent hover:border-brand-primary/50'
+            )}
+          >
+            <Smartphone className="w-5 h-5 shrink-0 text-brand-primary" />
+            <div>
+              <p className="font-bold text-sm">Usar cuenta del scraper</p>
+              <p className="text-xs text-gray-500">Toma las cookies del archivo local <code>graphql-session.json</code> generado por el scraper</p>
+            </div>
+          </button>
+          <button
+            onClick={() => handleSessionSourceChange('uploaded')}
+            className={cn(
+              "flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left flex-1",
+              sessionSource === 'uploaded' ? 'border-brand-primary bg-brand-primary/5' : 'border-brand-accent hover:border-brand-primary/50'
+            )}
+          >
+            <Upload className="w-5 h-5 shrink-0 text-brand-primary" />
+            <div>
+              <p className="font-bold text-sm">Usar cookies subidas</p>
+              <p className="text-xs text-gray-500">Descarga las cookies subidas manualmente al servidor</p>
+            </div>
           </button>
         </div>
       </div>
