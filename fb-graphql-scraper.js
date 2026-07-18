@@ -882,7 +882,9 @@ async function scrapeGroupGraphQL(session, groupId, groupName, maxPosts) {
     docId = await discoverDocIdWithPuppeteer(groupId, session.cookies);
     if (!docId) {
       console.error(`[Scraper] Rediscovery falló para ${groupName}`);
-      return [];
+      // Fallback: Puppeteer DOM scraping
+      console.log(`[Scraper] Cayendo a Puppeteer DOM scraping para ${groupName}...`);
+      return await scrapeGroupPuppeteer(groupId, groupName, maxPosts, session.cookies);
     }
     await sleep(2000);
   }
@@ -1069,10 +1071,137 @@ async function fetchConfig() {
   } catch {}
 }
 
+// ==================== PUPPETEER DOM SCRAPING (FALLBACK) ====================
+
+async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
+  console.log(`[Scraper] [Puppeteer] Scrapeando "${groupName}" (${groupId}) via DOM...`);
+  let browser = null;
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      executablePath: CHROMIUM_PATH,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+      defaultViewport: { width: 1366, height: 768 },
+    });
+    const page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(60000);
+    await page.setUserAgent(pickUA());
+
+    const fbCookies = cookies.filter(c => c.domain?.includes('facebook'));
+    if (fbCookies.length > 0) await page.setCookie(...fbCookies);
+
+    await page.goto(`https://www.facebook.com/groups/${groupId}/`, { waitUntil: 'networkidle2', timeout: 60000 });
+    await sleep(3000);
+
+    const urlAfter = page.url();
+    console.log(`[Scraper] [Puppeteer] URL after goto: ${urlAfter}`);
+
+    const posts = [];
+    let scrollAttempts = 0;
+    const maxScrolls = 5;
+
+    while (posts.length < maxPosts && scrollAttempts < maxScrolls) {
+      const newPosts = await page.evaluate((maxToCollect) => {
+        const articles = document.querySelectorAll('[role="article"]');
+        const results = [];
+        const BAD_PATTERNS = ['profile', 'p40x40', 'p50x50', 'p80x80', 'p100x100', 's40x40', 's50x50', 's80x80', 's100x100', 'rsrc.php', 'static.xx.fbcdn.net/rsrc', 'badge', 'emoji'];
+
+        for (const art of articles) {
+          if (results.length >= maxToCollect) break;
+          const fullText = art.textContent || '';
+
+          // Skip known non-post articles
+          if (fullText.includes('Escribe algo') || fullText.includes('Buscar amigos') || fullText.includes('Invitar') || fullText.includes('Miembro')) continue;
+
+          // Extract post ID from permalink
+          const link = art.querySelector('a[href*="/posts/"]');
+          const permalink = link ? link.getAttribute('href') : '';
+          const postId = (permalink.match(/\/posts\/(\d+)/) || [])[1] || '';
+
+          // Extract author
+          const authorEl = art.querySelector('a[href*="/user/"], a[href*="?__tn"]');
+          let authorName = 'Unknown';
+          if (authorEl) {
+            authorName = authorEl.textContent.trim() || authorEl.getAttribute('aria-label') || 'Unknown';
+          }
+
+          // Extract images
+          const imgs = [];
+          const imgEls = art.querySelectorAll('img:not([class*="profile"]):not([class*="avatar"]):not([class*="emoji"])');
+          for (const img of imgEls) {
+            const src = img.getAttribute('src') || '';
+            if (src && !BAD_PATTERNS.some(p => src.includes(p)) && !src.includes('40x40') && !src.includes('50x50') && !src.includes('80x80') && !src.includes('100x100')) {
+              if (src.includes('scontent') || src.includes('fbcdn')) {
+                if (!imgs.includes(src)) imgs.push(src);
+              }
+            }
+          }
+
+          // Remove header/footer noise from text
+          let content = fullText
+            .replace(/Animales perdidos y encontrados solo Sicardi, Villa Garibaldi y Correas\s*Grupo público\s*\d+ miembros/i, '')
+            .replace(/Seguir|Dejar de seguir|Invitar|Compartir|Miembro|Más|Información|Conversación|Personas|Eventos|Multimedia/i, '')
+            .replace(/Escribe algo.*|Publicación anónima|Sentimiento\/actividad.*|Estoy aquí.*|Destacados.*|Insignia.*/i, '')
+            .replace(/ordenar feed del grupo por.*/i, '')
+            .replace(/Facebook\s*/g, '')
+            .trim();
+
+          // Clean up repeated spaces/newlines
+          content = content.replace(/\s+/g, ' ').trim();
+
+          if (!content && imgs.length === 0) continue;
+
+          results.push({
+            fb_post_id: postId || `puppeteer_${Date.now()}_${results.length}`,
+            fb_post_url: permalink ? `https://www.facebook.com${permalink}` : '',
+            author_name: authorName,
+            content: content.substring(0, 5000),
+            image_urls: imgs,
+            reshare_url: null,
+            posted_at: '',
+            comments_count: 0,
+          });
+        }
+        return results;
+      }, maxPosts - posts.length);
+
+      for (const p of newPosts) {
+        if (!posts.find(ex => ex.fb_post_id === p.fb_post_id && p.fb_post_id)) {
+          posts.push(p);
+        }
+      }
+
+      console.log(`[Scraper] [Puppeteer] Scroll ${scrollAttempts + 1}: ${newPosts.length} new, ${posts.length} total`);
+
+      if (posts.length >= maxPosts) break;
+
+      // Scroll down for more
+      await page.evaluate(() => window.scrollBy(0, 1000));
+      await sleep(2000 + randomInt(0, 2000));
+      scrollAttempts++;
+    }
+
+    await browser.close();
+    browser = null;
+
+    if (posts.length > 0) {
+      console.log(`[Scraper] [Puppeteer] ${posts.length} posts extraídos de "${groupName}"`);
+    } else {
+      console.warn(`[Scraper] [Puppeteer] 0 posts para "${groupName}"`);
+    }
+
+    return posts;
+  } catch (err) {
+    console.error(`[Scraper] [Puppeteer] Error: ${err.message}`);
+    if (browser) await browser.close().catch(() => {});
+    return [];
+  }
+}
+
 // ==================== MAIN ====================
 
 async function testMode() {
-  console.log('[Scraper] Modo TEST (GraphQL, sin Chromium)');
+  console.log('[Scraper] Modo TEST (GraphQL + Puppeteer fallback)');
 
   const session = loadSession();
   if (!session || !session.cookies) {
@@ -1114,7 +1243,7 @@ async function testMode() {
 }
 
 async function runDaemon() {
-  console.log('[Scraper] Daemon GraphQL (sin Chromium)');
+  console.log('[Scraper] Daemon GraphQL + Puppeteer fallback');
   remoteLog('info', 'Daemon GraphQL iniciado');
 
   await fetchConfig();
