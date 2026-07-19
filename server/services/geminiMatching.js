@@ -439,16 +439,16 @@ export async function processImageCaption(caption, imageData, imageMime) {
       description: parsed.description || null,
     };
   } catch (err) {
-    console.error('processImageCaption error:', err);
+    console.error('processImageCaption error:', err.message);
     if (caption) {
       const lower = caption.toLowerCase();
       let intent = 'unclear';
-      if (/perdi|perdido|perd[ií]/.test(lower)) intent = 'lost';
-      else if (/encontr[eé]|encontrada/.test(lower)) intent = 'found';
-      else if (/avist|vist|vi\b/.test(lower)) intent = 'sighted';
+      if (/perdi[óo]|perd[ií]|se (me )?(fue|escap|perdi)|busco |busca |desapareci[óo]|extravi[oó]|no aparece|no vuelve|no regresa|se nos fue/.test(lower)) intent = 'lost';
+      else if (/encontr[eé]|encontrada|hall[ae]|rescata[dr]|recog[ií]|lo?[s]? encontr[eé]/.test(lower)) intent = 'found';
+      else if (/avist[ae]?|vist[ao]?|l[oae] vi\b|la vi\b|lo vi\b|vi a\b|and[aaiu] suelto?|and[aaiu] perdid/.test(lower)) intent = 'sighted';
       const phoneMatch = caption.match(/(\d{7,15})/);
       const phone = phoneMatch ? phoneMatch[1] : null;
-      const species = /gato|felino|mich/.test(lower) ? 'cat' : /perr|can|cachorr/.test(lower) ? 'dog' : null;
+      const species = /gato|felino|mich|minino|felix/.test(lower) ? 'cat' : /perr[oai]|can|canino|cachorr|perrito/.test(lower) ? 'dog' : null;
       return { intent, species, gender: null, breed: null, color: null, name: null, location: null, phone, phone2: null, description: caption.substring(0, 200) };
     }
     return { intent: 'unclear', species: null, gender: null, breed: null, color: null, name: null, location: null, phone: null, phone2: null, description: null };

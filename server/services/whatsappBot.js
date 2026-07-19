@@ -502,6 +502,7 @@ async function handleImageFromMenu(conv, parsed) {
   if (caption || parsed.imageData) {
     await sendMessage(conv.wa_from, `📸 *${conv.bot_name}:* Estoy analizando la imagen...`);
     const result = await processImageCaption(caption, parsed.imageData, parsed.imageMime);
+    console.log(`[handleImageFromMenu] result: intent=${result.intent}, species=${result.species}, location=${result.location}`);
     if (result.intent && result.intent !== 'unclear') {
       const labels = { found: 'encontraste', lost: 'se te perdió', sighted: 'viste' };
       await setFlow(conv, `image_confirm_${result.intent}`, {
