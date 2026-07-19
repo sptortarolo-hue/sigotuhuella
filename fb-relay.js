@@ -1,3 +1,4 @@
+import realPuppeteer from 'puppeteer';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import axios from 'axios';
@@ -120,7 +121,6 @@ async function getBrowser() {
     executablePath: CHROMIUM_PATH,
     headless: isHeadless ? 'new' : false,
     userDataDir: PROFILE_DIR,
-    env: { ...process.env, DISPLAY: process.env.DISPLAY || ':0' },
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -363,7 +363,7 @@ async function ensureFacebookSession(page) {
     }
   }
 
-  console.log(`[FB Relay] Sesión expirada. Ejecutá 'FB_SCRAPER_HEADED=true node fb-relay.js --login' en Termux con X11.`);
+  console.log(`[FB Relay] Sesión expirada. Ejecutá 'node fb-relay.js --login' en Termux con X11.`);
   return false;
 }
 
@@ -771,15 +771,28 @@ async function main() {
   }
 }
 
-// Modo login: FB_SCRAPER_HEADED=true node fb-relay.js --login
+// Modo login: node fb-relay.js --login
 if (process.argv.includes('--login')) {
   (async () => {
     if (!TOKEN) { console.error('FATAL: RELAY_TOKEN no configurado'); process.exit(1); }
     ensureProfileDir();
     setWakeLock(true);
-    // Forzar headed mode para --login
-    process.argv.push('--headed');
-    const b = await getBrowser();
+    console.log('[FB Relay] Modo login. Abriendo Chromium (igual que el scraper)...');
+    if (!fs.existsSync(CHROMIUM_PATH)) {
+      console.error(`[FB Relay] Chromium no encontrado en ${CHROMIUM_PATH}`);
+      console.error('[FB Relay] Ejecutá: pkg install x11-repo && pkg install chromium');
+      process.exit(1);
+    }
+    const b = await realPuppeteer.launch({
+      headless: false,
+      executablePath: CHROMIUM_PATH,
+      args: [
+        '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+        '--disable-gpu', '--window-size=1366,768',
+        `--user-data-dir=${PROFILE_DIR}`,
+      ],
+      defaultViewport: { width: 1366, height: 768 },
+    });
     const page = await b.newPage();
     await page.setUserAgent(pickUA());
     await page.setViewport({ width: 1366, height: 768 });
