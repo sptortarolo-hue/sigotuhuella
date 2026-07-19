@@ -1,6 +1,6 @@
 import sharp from 'sharp';
+import * as tf from '@tensorflow/tfjs';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
-import '@tensorflow/tfjs';
 
 const CONFIDENCE_THRESHOLD = 0.5;
 
@@ -26,6 +26,7 @@ async function getModel() {
 const TARGET_CLASSES = ['dog', 'cat'];
 
 export async function detectAnimal(base64Image, mimeType) {
+  let tensor;
   try {
     const m = await getModel();
     if (!m) {
@@ -35,21 +36,18 @@ export async function detectAnimal(base64Image, mimeType) {
     const buffer = Buffer.from(base64Image, 'base64');
     const inputImage = sharp(buffer);
 
-    const { width, height } = await inputImage.metadata();
-
     const rawBuf = await inputImage
-      .resize(640, 640, { fit: 'inside' })
+      .resize(640, 640, { fit: 'contain', background: { r: 0, g: 0, b: 0 } })
       .removeAlpha()
       .raw()
       .toBuffer();
 
-    const canvas = {
-      width: 640,
-      height: 640,
-      data: new Uint8Array(rawBuf.buffer, rawBuf.byteOffset, rawBuf.byteLength),
-    };
+    tensor = tf.tensor3d(
+      new Uint8Array(rawBuf.buffer, rawBuf.byteOffset, rawBuf.byteLength),
+      [640, 640, 3]
+    );
 
-    const predictions = await m.detect(canvas, 5, 0.3);
+    const predictions = await m.detect(tensor, 5, 0.3);
 
     let best = null;
     for (const pred of predictions) {
@@ -78,5 +76,7 @@ export async function detectAnimal(base64Image, mimeType) {
   } catch (err) {
     console.error('[animalDetector] Error:', err.message);
     return { detected: false, species: null, confidence: 0, bbox: null, error: err.message };
+  } finally {
+    if (tensor) tensor.dispose();
   }
 }
