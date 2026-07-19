@@ -366,7 +366,7 @@ async function ensureFacebookSession(page) {
     }
   }
 
-  console.log(`[FB Relay] Sesión expirada. Ejecutá 'node fb-relay.js --login' en Termux con X11.`);
+  console.log(`[FB Relay] Sesión expirada. Ejecutá 'node fb-relay.mjs --login' en Termux con X11.`);
   return false;
 }
 
@@ -762,7 +762,7 @@ async function main() {
           console.error(`[FB Relay] Tarea ${task.id} falló:`, err.message);
           await api.post('/fb/failed', { task_id: task.id, error: err.message });
           if (err.message === 'session expired') {
-            console.log(`[FB Relay] Sesión expirada. Ejecutá 'node fb-relay.js --login' en Termux con X11.`);
+            console.log(`[FB Relay] Sesión expirada. Ejecutá 'node fb-relay.mjs --login' en Termux con X11.`);
             break;
           }
         }
@@ -774,7 +774,7 @@ async function main() {
   }
 }
 
-// Modo login: node fb-relay.js --login
+// Modo login: node fb-relay.mjs --login
 if (process.argv.includes('--login')) {
   (async () => {
     if (!TOKEN) { console.error('FATAL: RELAY_TOKEN no configurado'); process.exit(1); }
@@ -805,7 +805,7 @@ if (process.argv.includes('--login')) {
     process.exit(1);
   })();
 } else if (process.argv.includes('--test')) {
-  // Modo test: node fb-relay.js --test <groupId> "mensaje"
+  // Modo test: node fb-relay.mjs --test <groupId> "mensaje"
   const idx = process.argv.indexOf('--test');
   const testGroup = process.argv[idx + 1];
   const testMsg = process.argv[idx + 2] || 'Test automático - ' + new Date().toISOString();
