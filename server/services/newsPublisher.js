@@ -267,8 +267,26 @@ export async function publishNews(newsId, targetPlatforms) {
     try {
       let platformPostId;
       if (platform === 'facebook_groups') {
-        const r = await publishToFacebookGroups(news, pagePostUrl);
-        platformPostId = r.platformPostId;
+        let url = pagePostUrl;
+        if (!url) {
+          const existing = await pool.query(
+            `SELECT platform_post_id FROM news_publications
+             WHERE news_id = $1 AND platform = 'facebook_page'
+             AND status = 'published' AND platform_post_id IS NOT NULL`,
+            [news.id]
+          );
+          if (existing.rows.length > 0) {
+            const pageId = await getSetting('facebook_page_id');
+            url = `https://www.facebook.com/${pageId}/posts/${existing.rows[0].platform_post_id}`;
+            console.log(`[NewsPublisher] Usando Page post existente: ${url}`);
+          }
+        }
+        if (url) {
+          const r = await publishToFacebookGroups(news, url);
+          platformPostId = r.platformPostId;
+        } else {
+          throw new Error('No hay post de Facebook Page para compartir');
+        }
       } else {
         const r = await publisher(news);
         platformPostId = r.platformPostId;
