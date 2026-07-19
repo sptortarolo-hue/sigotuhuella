@@ -14,7 +14,7 @@ const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api/re
 const TOKEN = process.env.RELAY_TOKEN || process.env.FB_RELAY_TOKEN;
 const POLL_INTERVAL = parseInt(process.env.FB_POLL_INTERVAL || '60000');
 
-const PROFILE_DIR = process.env.FB_PROFILE_DIR || process.env.FB_SCRAPER_PROFILE_DIR || path.join(__dirname, 'fb_scraper_profile');
+const PROFILE_DIR = process.env.FB_PROFILE_DIR || process.env.FB_RELAY_PROFILE_DIR || path.join(__dirname, 'fb_relay_profile');
 const COOKIES_PATH = path.join(PROFILE_DIR, 'cookies.json');
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const TMP_DIR = path.join(__dirname, '.fb_img_tmp');
@@ -106,7 +106,7 @@ async function getBrowser() {
     try { await browser.version(); return browser; }
     catch (e) { browser = null; }
   }
-  console.log('[FB Relay] Lanzando Chromium...');
+  console.log('[FB Relay] Lanzando Chromium (FB Relay)...');
   if (!fs.existsSync(CHROMIUM_PATH)) {
     console.error(`[FB Relay] Chromium no encontrado en ${CHROMIUM_PATH}`);
     console.error('[FB Relay] Ejecutá: pkg install x11-repo && pkg install chromium');
@@ -114,7 +114,7 @@ async function getBrowser() {
   }
   ensureProfileDir();
 
-  const isHeadless = !process.argv.includes('--headed') && process.env.FB_SCRAPER_HEADED !== 'true';
+  const isHeadless = !process.argv.includes('--headed') && process.env.FB_RELAY_HEADED !== 'true';
 
   if (!isHeadless && !process.env.DISPLAY) {
     process.env.DISPLAY = ':0';
@@ -780,7 +780,7 @@ if (process.argv.includes('--login')) {
     if (!TOKEN) { console.error('FATAL: RELAY_TOKEN no configurado'); process.exit(1); }
     ensureProfileDir();
     setWakeLock(true);
-    process.env.FB_SCRAPER_HEADED = 'true';
+    process.env.FB_RELAY_HEADED = 'true';
     const b = await getBrowser();
     const page = await b.newPage();
     await page.setUserAgent(pickUA());
