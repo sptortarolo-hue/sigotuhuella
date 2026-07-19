@@ -172,26 +172,26 @@ className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-96"
 - NO poner `overflow-hidden` en contenedores del body (excepto scroll lock del menú mobile)
 - Textos con suficiente contraste, hover/active states en elementos interactivos
 
-## Scraper Facebook (Termux — Puppeteer + Stealth)
+## Scraper Facebook (Termux — Puppeteer + Stealth + GraphQL)
 
-Scraper self-hosted que corre en un celular con Termux + X11. Usa Chromium real con `puppeteer-extra` + `puppeteer-extra-plugin-stealth` para evitar detección de bots.
+Scraper self-hosted que corre en un celular con Termux + X11. Usa Chromium real con `puppeteer-extra` + `puppeteer-extra-plugin-stealth` para evitar detección de bots, con fallback a GraphQL API.
 
 ### Cómo funciona
 
-- Se ejecuta en Termux como daemon via pm2 (`pm2 start fb-scraper.js --name fb-scraper`)
-- Abre Chromium real en X11, navega a cada grupo, extrae posts via DOM
-- Session management: guarda/carga cookies de Termux y las sincroniza con el VPS como backup
-- Login manual una vez via `FB_SCRAPER_HEADED=true node fb-scraper.js --login`
-- Los posts se envían al webhook interno (`POST /api/facebook/webhook`) para clasificación AI y matching
-- El VPS sirve las cookies via `GET /api/relay/fb/cookie-download?token=sihuella`
+- Se ejecuta en Termux como daemon via pm2 (`pm2 start fb-graphql-scraper.js --name fb-graphql-scraper`) o manual con flags
+- Híbrido: primero intenta GraphQL (rápido, sin Chromium); si da 0 posts, usa Puppeteer DOM
+- Session management: guarda cookies + `fb_dtsg` en `fb_scraper_profile/graphql-session.json`
+- Login manual una vez via `node fb-graphql-scraper.js --login`
+- Los posts se envían al webhook (`POST /api/facebook/webhook`) con imágenes en base64
+- El servidor puede hacer fallback descargando desde `image_urls` si `image_buffers` está vacío
 
 ### Archivos
 
 | Archivo | Descripción |
 |---------|-------------|
-| `fb-scraper.js` | Script principal (~450 líneas). Puppeteer + stealth, DOM extraction, session management, human scrolling |
-| `fb-scraper-setup.sh` | Script de setup en Termux (instala deps, configura env) |
-| `fb-relay.js` | Referencia: mismo patrón Puppeteer+stealth para publicar en grupos |
+| `fb-graphql-scraper.js` | Script principal. Hybrid GraphQL + Puppeteer DOM, session management, image download |
+| `fb-relay.js` | Publicador: mismo patrón Puppeteer+stealth para publicar en grupos |
+| `fb-pup-scraper.js` | Alternativa liviana: usa mbasic.facebook.com (HTML simplificado) |
 
 ### Configuración
 
@@ -202,26 +202,35 @@ Scraper self-hosted que corre en un celular con Termux + X11. Usa Chromium real 
 | `FB_SCRAPER_INTERVAL` | `4` | Horas entre scrapes |
 | `FB_SCRAPER_MAX_POSTS` | `20` | Máximo de posts por grupo por scrape |
 | `CHROMIUM_PATH` | auto-detect | Path al binario de Chromium |
+| `API_BASE_URL` | `https://sigotuhuella.online/api` | URL base del VPS |
 
 ### Session Restore Cascade
 
-1. Intenta cargar cookies de Termux local (`~/.fb-cookies.json`)
+1. Intenta cargar cookies de `fb_scraper_profile/graphql-session.json`
 2. Si no existen, descarga del VPS (`/api/relay/fb/cookie-download`)
 3. Si el VPS tampoco tiene, necesita login manual via X11
-
-### Costo
-
-$0 — todo corre local en el celular. Sin servicios cloud.
 
 ### Referencia
 
 | Comando | Descripción |
 |---------|-------------|
-| `FB_SCRAPER_HEADED=true node fb-scraper.js --login` | Login manual con X11 |
-| `FB_SCRAPER_HEADED=true node fb-scraper.js --test` | Test scrape (un grupo, 3 posts) |
-| `pm2 start fb-scraper.js --name fb-scraper` | Iniciar daemon |
-| `pm2 logs fb-scraper` | Ver logs |
-| `pm2 restart fb-scraper` | Reiniciar |
+| `node fb-graphql-scraper.js --login` | Login manual con X11 (headed) |
+| `node fb-graphql-scraper.js --test` | Test scrape (primer grupo, 5 posts via DOM) |
+| `node fb-graphql-scraper.js --debug-page` | Diagnóstico: screenshot + dump del DOM del feed |
+| `pm2 start fb-graphql-scraper.js --name fb-graphql-scraper` | Iniciar daemon |
+| `pm2 logs fb-graphql-scraper` | Ver logs |
+| `pm2 restart fb-graphql-scraper` | Reiniciar |
+
+### Troubleshooting: imágenes no se muestran en UI
+
+1. Verificar que `image_data` tenga datos en la DB:
+   ```sql
+   SELECT fb_post_id, image_data IS NOT NULL as has_image, octet_length(image_data) as bytes
+   FROM facebook_posts ORDER BY scraped_at DESC LIMIT 10;
+   ```
+2. Si `has_image = false`, el scraper no envió `image_buffers`. El webhook intenta descargar desde `image_urls` como fallback.
+3. Verificar logs del webhook en VPS: `journalctl -u sihuella | grep -i "webhook\|image_buffers\|descargar"`
+4. Usar `--debug-page` para diagnosticar la estructura del feed de Facebook.
 
 ## PostgreSQL (VPS)
 
