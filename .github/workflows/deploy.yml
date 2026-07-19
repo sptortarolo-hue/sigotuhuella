@@ -62,7 +62,7 @@ jobs:
         echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
         ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /var/www/sigotuhuella && rm -rf /var/www/sigotuhuella/dist"
-        tar czf - dist/ server/ relay.js fb-relay.mjs fb-scraper.js fb-graphql-scraper.js setup-scraper.sh package.json --exclude='public/generated/music' --exclude='public/generated/videos' public/ | ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf -"
+        tar czf - dist/ server/ relay.js fb-relay.mjs fb-graphql-scraper.js package.json --exclude='public/generated/music' --exclude='public/generated/videos' public/ | ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf -"
       shell: bash
 
     - name: Restart server
