@@ -1050,10 +1050,16 @@ async function runDaemon() {
             posts = await scrapeGroupPuppeteer(groupId, groupName, MAX_POSTS_PER_GROUP, session.cookies);
           }
 
-          const newPosts = [];
-          for (const post of posts) {
-            if (lastSeenId && post.fb_post_id === lastSeenId) break;
-            newPosts.push(post);
+          let newPosts;
+          if (lastSeenId) {
+            const seenIdx = posts.findIndex(p => p.fb_post_id === lastSeenId);
+            if (seenIdx >= 0) {
+              newPosts = posts.slice(0, seenIdx);
+            } else {
+              newPosts = posts;
+            }
+          } else {
+            newPosts = posts;
           }
 
           if (newPosts.length > 0) {
