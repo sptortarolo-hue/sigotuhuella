@@ -388,7 +388,11 @@ function extractPostFromNode(node) {
 
   return {
     fb_post_id: postId,
-    fb_post_url: permalink || `https://www.facebook.com/groups/${titleStory.to?.id || ''}/posts/${postId}`,
+    fb_post_url: permalink
+      ? (permalink.startsWith('http') ? permalink : `https://www.facebook.com${permalink}`)
+      : (titleStory.to?.id
+        ? `https://www.facebook.com/groups/${titleStory.to.id}/posts/${postId}`
+        : ''),
     author_name: authorName,
     content: message.substring(0, 5000),
     image_urls: images,
@@ -704,7 +708,9 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
 
           results.push({
             fb_post_id: postId || `${groupId}_dom_${scrollNum}_${results.length}`,
-            fb_post_url: permalink ? `https://www.facebook.com${permalink}` : '',
+            fb_post_url: permalink
+              ? (permalink.startsWith('http') ? permalink : `https://www.facebook.com${permalink}`)
+              : '',
             author_name: authorName,
             content: content.substring(0, 5000),
             image_urls: images,
