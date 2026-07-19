@@ -318,6 +318,20 @@ router.post('/webhook', async (req, res) => {
           }
         }
 
+        if ((!image_buffers || image_buffers.length === 0) && image_urls?.length > 0) {
+          try {
+            const resp = await fetch(image_urls[0]);
+            if (resp.ok) {
+              const buf = await resp.arrayBuffer();
+              const base64 = Buffer.from(buf).toString('base64');
+              const mime = resp.headers.get('content-type') || 'image/jpeg';
+              image_buffers = [{ data: base64, mimeType: mime }];
+            }
+          } catch (e) {
+            console.warn(`[Webhook] No se pudo descargar imagen desde URL para ${fb_post_id}: ${e.message}`);
+          }
+        }
+
         const existing = await pool.query('SELECT id FROM facebook_posts WHERE fb_post_id = $1', [fb_post_id]);
         const postResult = await pool.query(
           `INSERT INTO facebook_posts (group_id, fb_post_id, fb_post_url, author_name, content, image_urls, image_data, posted_at, classification, species, color, location_hint, phone, latitude, longitude, animal_detected, animal_species, animal_confidence)
