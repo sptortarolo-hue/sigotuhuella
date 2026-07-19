@@ -1112,7 +1112,7 @@ async function rfPhoto(conv, parsed) {
   if (caption) {
     await sendMessage(conv.wa_from, `📸 Foto recibida. Estoy leyendo la descripción... 🔍`);
     try {
-      const result = await processImageCaption(caption);
+      const result = await processImageCaption(caption, photoData, photoMime);
       const ctx = { photo_data: photoData, photo_mime: photoMime || 'image/jpeg' };
       if (result.species) ctx.species = result.species;
       if (result.gender) ctx.gender = result.gender;
