@@ -312,9 +312,7 @@ router.post('/webhook', async (req, res) => {
             console.warn(`[Webhook] detectAnimal error for ${fb_post_id}: ${e.message}`);
           }
           if (!animalDetection.detected) {
-            console.log(`[Webhook] ${fb_post_id} saltado: sin perro/gato en imagen`);
-            results.errors++;
-            continue;
+            console.log(`[Webhook] ${fb_post_id}: sin perro/gato en imagen (no bloqueante)`);
           }
         }
 

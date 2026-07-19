@@ -34,6 +34,9 @@ interface ScrapedItem {
   image_mime: string | null;
   author_jid: string | null;
   author_phone: string | null;
+  animal_detected: boolean | null;
+  animal_species: string | null;
+  animal_confidence: number | null;
 }
 
 interface MatchItem {
@@ -105,6 +108,7 @@ function PostsSection() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [imgIndices, setImgIndices] = useState<Record<string, number>>({});
+  const [animalDetected, setAnimalDetected] = useState('all');
 
   const fetchItems = async () => {
     setLoading(true);
@@ -112,6 +116,7 @@ function PostsSection() {
       const params = new URLSearchParams();
       if (classification !== 'all') params.set('classification', classification);
       if (species !== 'all') params.set('species', species);
+      if (animalDetected !== 'all') params.set('animal_detected', animalDetected);
       if (search) params.set('search', search);
       params.set('limit', '100');
       const resp = await fetch(`/api/relay/scraped-messages?${params}`, {
@@ -133,6 +138,14 @@ function PostsSection() {
   const filtered = items.filter(i => {
     if (classification !== 'all' && i.classification !== classification) return false;
     if (species !== 'all' && i.species !== species) return false;
+    if (animalDetected !== 'all') {
+      if (animalDetected === 'null') {
+        if (i.animal_detected !== null) return false;
+      } else {
+        const wantDetected = animalDetected === 'true';
+        if (i.animal_detected !== wantDetected) return false;
+      }
+    }
     if (search && !(i.content || '').toLowerCase().includes(search.toLowerCase()) && !(i.author_name || '').toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -214,6 +227,13 @@ function PostsSection() {
           <option value="cat">Gato</option>
           <option value="other">Otro</option>
         </select>
+        <select value={animalDetected} onChange={e => setAnimalDetected(e.target.value)}
+          className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm">
+          <option value="all">Todos los animales</option>
+          <option value="true">Mascota detectada</option>
+          <option value="false">Sin mascota</option>
+          <option value="null">Sin imagen</option>
+        </select>
         <button onClick={fetchItems}
           className="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors">
           <RefreshCw className="w-4 h-4" />
@@ -233,10 +253,19 @@ function PostsSection() {
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-400">{filtered.length} resultado(s)</p>
         {filtered.length > 0 && (
-          <button onClick={selectAll}
-            className="text-xs text-brand-primary font-bold hover:underline">
-            {selected.size === filtered.length ? 'Desseleccionar todo' : 'Seleccionar todo'}
-          </button>
+          <>
+            <button onClick={selectAll}
+              className="text-xs text-brand-primary font-bold hover:underline">
+              {selected.size === filtered.length ? 'Desseleccionar todo' : 'Seleccionar todo'}
+            </button>
+            <button onClick={() => {
+              const nonPet = new Set(filtered.filter(i => i.animal_detected !== true).map(i => i.id + i.source));
+              setSelected(nonPet);
+            }}
+              className="text-xs text-red-500 font-bold hover:underline">
+              Seleccionar no-mascotas
+            </button>
+          </>
         )}
       </div>
 
@@ -293,12 +322,27 @@ function PostsSection() {
                     )}>
                     {selected.has(key) && <Check className="w-3.5 h-3.5" />}
                   </button>
-                  <span className={cn(
-                    "absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full font-bold",
-                    item.source === 'fb' ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
-                  )}>
-                    {item.source === 'fb' ? 'FB' : 'WA'}
-                  </span>
+                  <div className="absolute top-2 right-2 flex flex-col gap-1">
+                    <span className={cn(
+                      "text-[10px] px-2 py-0.5 rounded-full font-bold",
+                      item.source === 'fb' ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
+                    )}>
+                      {item.source === 'fb' ? 'FB' : 'WA'}
+                    </span>
+                    {item.animal_detected === true ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-green-100 text-green-700">
+                        ✓ Mascota
+                      </span>
+                    ) : item.animal_detected === false ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-red-100 text-red-700">
+                        ✗ No mascota
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-gray-100 text-gray-400">
+                        — Sin imagen
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
@@ -356,6 +400,7 @@ function PostsSection() {
                 <th className="px-4 py-3">Contenido</th>
                 <th className="px-4 py-3">Clasificación</th>
                 <th className="px-4 py-3">Especie</th>
+                <th className="px-4 py-3">Animal</th>
                 <th className="px-4 py-3">Ubicación</th>
                 <th className="px-4 py-3">Match</th>
                 <th className="px-4 py-3">Fecha</th>
@@ -412,6 +457,21 @@ function PostsSection() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">{item.species || '—'}</td>
+                    <td className="px-4 py-3">
+                      {item.animal_detected === true ? (
+                        <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-green-100 text-green-700 whitespace-nowrap">
+                          ✓ {item.animal_species || 'mascota'}
+                        </span>
+                      ) : item.animal_detected === false ? (
+                        <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-red-100 text-red-700 whitespace-nowrap">
+                          ✗ No mascota
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2 py-1 rounded-full font-bold bg-gray-100 text-gray-400 whitespace-nowrap">
+                          — Sin img.
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-500 max-w-[120px] truncate">{item.location_hint || '—'}</td>
                     <td className="px-4 py-3">
                       {item.is_matched ? (
@@ -425,7 +485,7 @@ function PostsSection() {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-400">Sin resultados</td></tr>
+                <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-400">Sin resultados</td></tr>
               )}
             </tbody>
           </table>

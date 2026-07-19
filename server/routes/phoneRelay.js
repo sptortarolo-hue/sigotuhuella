@@ -358,7 +358,8 @@ router.get('/scraped-messages', (req, res, next) => {
           fp.image_urls, fp.fb_post_url,
           (fp.image_data IS NOT NULL) as has_image, 0 as image_count,
           null::text as wa_message_id, null::text as image_data, null::text as image_mime,
-          null::text as author_jid, null::text as author_phone
+          null::text as author_jid, null::text as author_phone,
+          fp.animal_detected, fp.animal_species, fp.animal_confidence
         FROM facebook_posts fp
         LEFT JOIN facebook_groups fg ON fg.id = fp.group_id
         WHERE fp.classification IS NOT NULL
@@ -371,7 +372,8 @@ router.get('/scraped-messages', (req, res, next) => {
           ((wsm.image_data IS NOT NULL) OR EXISTS(SELECT 1 FROM whatsapp_message_images WHERE message_id = wsm.id)) as has_image,
           (SELECT COUNT(*)::int FROM whatsapp_message_images WHERE message_id = wsm.id) as image_count,
           wsm.wa_message_id, null::text as image_data, wsm.image_mime,
-          wsm.author_jid, wsm.author_phone
+          wsm.author_jid, wsm.author_phone,
+          wsm.animal_detected, wsm.animal_species, wsm.animal_confidence
         FROM whatsapp_scraped_messages wsm
         JOIN whatsapp_groups wg ON wg.id = wsm.group_id
         WHERE wsm.classification IS NOT NULL
@@ -585,7 +587,8 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
     const PET_KEYWORDS = /\b(perro|gato|mascota|puppy|kitten|pet|encontrad[oa]|perdid[oa]|avist[eé]|lo vi|lo encontr|busc[aá]ndo|rewards|recompensa|collar|chucho|canino|felino|ave|loro|conejo|hamster|hurto|robo)\b/i;
     const trimmedContent = (mergedContent || '').trim();
     if (!isMerged && hasImage && trimmedContent && !PET_KEYWORDS.test(trimmedContent)) {
-      await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
+      await pool.query('UPDATE whatsapp_scraped_messages SET animal_detected = false WHERE id = $1', [messageId]);
+      console.log(`[Relay] ${messageId}: sin keywords de mascota (animal_detected=false)`);
       return;
     }
 
@@ -607,7 +610,8 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
     classifyWhatsAppMessage(mergedContent || '', classImage, classMime)
       .then(async (classification) => {
         if (classImage && classification.species === 'other' && (classification.confidence || 0) > 30) {
-          await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
+          await pool.query('UPDATE whatsapp_scraped_messages SET animal_detected = false WHERE id = $1', [messageId]);
+          console.log(`[Relay] ${messageId}: clasificado como 'other' (animal_detected=false)`);
           return;
         }
         await pool.query(
@@ -617,18 +621,14 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
           [classification.classification, classification.species, classification.color, classification.location_hint, classification.phone, messageId]
         );
 
-        // YOLO detection: confirm there's a dog or cat in the image
+        // YOLO detection: store result (non-blocking)
         if (classImage) {
           const detection = await detectAnimal(classImage, classMime || 'image/jpeg');
-          if (!detection.detected) {
-            await pool.query('DELETE FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
-            return;
-          }
           await pool.query(
             `UPDATE whatsapp_scraped_messages
-             SET animal_detected = true, animal_species = $1, animal_confidence = $2
-             WHERE id = $3`,
-            [detection.species, detection.confidence, messageId]
+             SET animal_detected = $1, animal_species = $2, animal_confidence = $3
+             WHERE id = $4`,
+            [detection.detected, detection.species, detection.confidence, messageId]
           );
         }
 
