@@ -893,17 +893,22 @@ if (process.argv.includes('--login')) {
     console.log('[FB Relay] Navegando a Facebook. Iniciá sesión en la ventana de Chromium.');
     console.log('[FB Relay] Esperando hasta 5 minutos...');
     await page.goto('https://facebook.com/', { waitUntil: 'networkidle2', timeout: 60000 });
+    await sleep(3000);
     for (let i = 0; i < 300; i++) {
       await sleep(1000);
-      if (await checkSession(page)) {
-        console.log('[FB Relay] Sesión iniciada correctamente');
-        await saveCookies(page);
-        await uploadSessionData(page);
-        await uploadProfileBackup();
-        console.log('[FB Relay] Sesión guardada y respaldada en servidor');
-        if (b._childProcess) b._childProcess.kill();
-        await b.close();
-        process.exit(0);
+      try {
+        if (await checkSession(page)) {
+          console.log('[FB Relay] Sesión iniciada correctamente');
+          await saveCookies(page);
+          await uploadSessionData(page);
+          await uploadProfileBackup();
+          console.log('[FB Relay] Sesión guardada y respaldada en servidor');
+          if (b._childProcess) b._childProcess.kill();
+          await b.close();
+          process.exit(0);
+        }
+      } catch (e) {
+        console.log(`[FB Relay] Navegación en curso, reintentando... (${e.message})`);
       }
     }
     console.error('[FB Relay] Timeout esperando login (5 min)');
