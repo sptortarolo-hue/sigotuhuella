@@ -1182,6 +1182,13 @@ export async function initDb() {
     `, 'facebook_posts image_data');
 
     await migrate(client, `
+      ALTER TABLE facebook_posts
+        ADD COLUMN IF NOT EXISTS animal_detected BOOLEAN DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS animal_species VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS animal_confidence REAL
+    `, 'facebook_posts animal_detect');
+
+    await migrate(client, `
       ALTER TABLE whatsapp_scraped_messages ADD COLUMN IF NOT EXISTS author_phone VARCHAR(50)
     `, 'whatsapp_scraped_messages author_phone');
 

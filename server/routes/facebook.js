@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
 import { classifyPost } from '../services/geminiClassifier.js';
+import { detectAnimal } from '../services/animalDetector.js';
 import { detectReunion, matchPostToPet, runFullMatching } from '../services/geminiMatching.js';
 import { getSessionFile } from '../services/facebookRelayService.js';
 import { enqueue } from '../services/phoneRelayService.js';
@@ -303,17 +304,34 @@ router.post('/webhook', async (req, res) => {
         }
         const cmtClassified = classification.comments || [];
 
+        let animalDetection = { detected: false, species: null, confidence: 0 };
+        if (image_buffers?.length > 0) {
+          try {
+            animalDetection = await detectAnimal(image_buffers[0].data, image_buffers[0].mimeType || 'image/jpeg');
+          } catch (e) {
+            console.warn(`[Webhook] detectAnimal error for ${fb_post_id}: ${e.message}`);
+          }
+          if (!animalDetection.detected) {
+            console.log(`[Webhook] ${fb_post_id} saltado: sin perro/gato en imagen`);
+            results.errors++;
+            continue;
+          }
+        }
+
         const existing = await pool.query('SELECT id FROM facebook_posts WHERE fb_post_id = $1', [fb_post_id]);
         const postResult = await pool.query(
-          `INSERT INTO facebook_posts (group_id, fb_post_id, fb_post_url, author_name, content, image_urls, image_data, posted_at, classification, species, color, location_hint, phone, latitude, longitude)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          `INSERT INTO facebook_posts (group_id, fb_post_id, fb_post_url, author_name, content, image_urls, image_data, posted_at, classification, species, color, location_hint, phone, latitude, longitude, animal_detected, animal_species, animal_confidence)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
            ON CONFLICT (fb_post_id) DO UPDATE SET
              group_id = COALESCE(EXCLUDED.group_id, facebook_posts.group_id),
              content = EXCLUDED.content,
              image_urls = EXCLUDED.image_urls,
              image_data = COALESCE(EXCLUDED.image_data, facebook_posts.image_data),
              author_name = EXCLUDED.author_name,
-             scraped_at = NOW()
+             scraped_at = NOW(),
+             animal_detected = COALESCE(EXCLUDED.animal_detected, facebook_posts.animal_detected),
+             animal_species = COALESCE(EXCLUDED.animal_species, facebook_posts.animal_species),
+             animal_confidence = COALESCE(EXCLUDED.animal_confidence, facebook_posts.animal_confidence)
            RETURNING id`,
           [
             resolvedGroupId, fb_post_id, fb_post_url || null, author_name || null,
@@ -322,6 +340,7 @@ router.post('/webhook', async (req, res) => {
             classification.classification, classification.species, classification.color,
             classification.location_hint, classification.phone,
             classification.location_lat, classification.location_lng,
+            animalDetection.detected, animalDetection.species, animalDetection.confidence || 0,
           ]
         );
         if (existing.rows.length > 0) results.updated++; else results.inserted++;
