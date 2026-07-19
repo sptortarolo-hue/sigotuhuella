@@ -538,6 +538,7 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
     }
 
     const UI_TEXTS = new Set(['Seguir', 'Follow', 'Invitar', 'Invite', 'Compartir', 'Share', 'Más', 'More', 'Like', 'Comment', 'Me gusta', 'Comentar', 'Reaccionar', 'React', 'Enviar', 'Send', 'Reply', 'Responder', 'Miembro', 'Member']);
+    const UI_PHRASES = ['Shared with Public group', 'Shared with', 'This content isn\'t available', 'LikeCommentShare', 'Just now', '· Shared', 'See more', 'Ver más', 'You and', 'Others', 'Comments', 'View more', 'Mostrar más'];
 
     const posts = [];
     let scrollAttempts = 0;
@@ -556,9 +557,10 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
       });
       await sleep(1500);
 
-      const newPosts = await page.evaluate((maxToCollect, scrollNum, uiTextsArr) => {
+      const newPosts = await page.evaluate((maxToCollect, scrollNum, uiTextsArr, uiPhrasesArr) => {
         const uiTexts = new Set(uiTextsArr);
         const results = [];
+        const contentSeen = new Set();
 
         const feed = document.querySelector('[role="feed"]') ||
                      document.querySelector('[data-pagelet="GroupFeed"]') ||
@@ -665,7 +667,9 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
           const contentParts = [];
           for (const dd of dirDivs) {
             const t = (dd.textContent || '').trim();
-            if (t.length >= 10 && t !== authorName && !uiTexts.has(t)) contentParts.push(t);
+            if (t.length < 10 || t === authorName || uiTexts.has(t)) continue;
+            if (uiPhrasesArr.some(p => t.includes(p)) || /^\d+[smhd]\s/.test(t)) continue;
+            contentParts.push(t);
           }
           content = contentParts.slice(0, 3).join('\n');
 
@@ -694,6 +698,10 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
           if (content.length < 5 && images.length === 0) continue;
           if (postId && postId.length < 10 && !postId.includes('_')) continue;
 
+          const contentKey = content.substring(0, 100).replace(/\s+/g, ' ').trim();
+          if (contentKey && contentSeen.has(contentKey)) continue;
+          if (contentKey) contentSeen.add(contentKey);
+
           results.push({
             fb_post_id: postId || `${groupId}_dom_${scrollNum}_${results.length}`,
             fb_post_url: permalink ? `https://www.facebook.com${permalink}` : '',
@@ -706,7 +714,7 @@ async function scrapeGroupPuppeteer(groupId, groupName, maxPosts, cookies) {
           });
         }
         return results;
-      }, maxPosts - posts.length, scrollAttempts, [...UI_TEXTS]);
+      }, maxPosts - posts.length, scrollAttempts, [...UI_TEXTS], UI_PHRASES);
 
       console.log(`[Scraper] [Puppeteer] Scroll ${scrollAttempts + 1}: ${newPosts.length} candidates`);
 
