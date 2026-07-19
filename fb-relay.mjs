@@ -5,7 +5,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { spawnSync } from 'child_process';
+import { spawnSync, spawn } from 'child_process';
 
 puppeteer.use(StealthPlugin());
 
@@ -89,6 +89,89 @@ function ensureProfileDir() {
   if (!fs.existsSync(PROFILE_DIR)) {
     fs.mkdirSync(PROFILE_DIR, { recursive: true });
   }
+}
+
+function checkDisplayAvailable() {
+  const display = process.env.DISPLAY || ':0';
+  const match = display.match(/:(\d+)/);
+  if (!match) return false;
+  const socketPath = path.join('/tmp/.X11-unix', `X${match[1]}`);
+  return fs.existsSync(socketPath);
+}
+
+async function launchHeadedLoginBrowser() {
+  if (!fs.existsSync(CHROMIUM_PATH)) {
+    console.error(`[FB Relay] Chromium no encontrado en ${CHROMIUM_PATH}`);
+    console.error('[FB Relay] Ejecutá: pkg install x11-repo && pkg install chromium');
+    process.exit(1);
+  }
+  if (!checkDisplayAvailable()) {
+    console.error('');
+    console.error('[FB Relay] ╔══════════════════════════════════════════════════╗');
+    console.error('[FB Relay] ║  No se detectó servidor X11                   ║');
+    console.error('[FB Relay] ║                                                ║');
+    console.error('[FB Relay] ║  Para usar --login necesitás:                  ║');
+    console.error('[FB Relay] ║                                                ║');
+    console.error('[FB Relay] ║  1. pkg install x11-repo && pkg install termux-x11  ║');
+    console.error('[FB Relay] ║  2. Abrí la app Termux:X11 en el celular       ║');
+    console.error('[FB Relay] ║  3. En Termux terminal:                        ║');
+    console.error('[FB Relay] ║     termux-x11 :0 &                            ║');
+    console.error('[FB Relay] ║     export DISPLAY=:0                          ║');
+    console.error('[FB Relay] ║  4. Recién ahí:                                ║');
+    console.error('[FB Relay] ║     node fb-relay.mjs --login                  ║');
+    console.error('[FB Relay] ╚══════════════════════════════════════════════════╝');
+    console.error('');
+    process.exit(1);
+  }
+  ensureProfileDir();
+  console.log('[FB Relay] Lanzando Chromium (headed, via spawn + CDP)...');
+  const debugPort = 9222;
+  const childArgs = [
+    `--remote-debugging-port=${debugPort}`,
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--disable-blink-features=AutomationControlled',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-features=IsolateOrigins,site-per-process,ChromeWhatsNewUI,OptimizationGuideModelDownloading,Translate',
+    '--disable-sync',
+    '--disable-field-trial-config',
+    '--window-size=1366,768',
+    '--lang=es-AR',
+    '--no-pings',
+    '--disable-crash-reporter',
+    '--disable-background-networking',
+    `--user-data-dir=${PROFILE_DIR}`,
+  ];
+  const child = spawn(CHROMIUM_PATH, childArgs, {
+    stdio: 'ignore',
+    env: { ...process.env, DISPLAY: process.env.DISPLAY || ':0' },
+  });
+  child.on('error', (err) => {
+    console.error('[FB Relay] Error al iniciar Chromium:', err.message);
+    process.exit(1);
+  });
+  child.unref();
+  const maxAttempts = 30;
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const resp = await fetch(`http://127.0.0.1:${debugPort}/json/version`);
+      if (resp.ok) {
+        console.log('[FB Relay] Chromium listo (conectando via CDP)');
+        browser = await puppeteer.connect({
+          browserURL: `http://127.0.0.1:${debugPort}`,
+        });
+        browser._childProcess = child;
+        return browser;
+      }
+    } catch {}
+    await sleep(1000);
+  }
+  console.error('[FB Relay] Timeout esperando que Chromium inicie');
+  child.kill();
+  process.exit(1);
 }
 
 function setWakeLock(acquire) {
@@ -778,10 +861,8 @@ async function main() {
 if (process.argv.includes('--login')) {
   (async () => {
     if (!TOKEN) { console.error('FATAL: RELAY_TOKEN no configurado'); process.exit(1); }
-    ensureProfileDir();
     setWakeLock(true);
-    process.env.FB_RELAY_HEADED = 'true';
-    const b = await getBrowser();
+    const b = await launchHeadedLoginBrowser();
     const page = await b.newPage();
     await page.setUserAgent(pickUA());
     await page.setViewport({ width: 1366, height: 768 });
@@ -796,11 +877,13 @@ if (process.argv.includes('--login')) {
         await uploadSessionData(page);
         await uploadProfileBackup();
         console.log('[FB Relay] Sesión guardada y respaldada en servidor');
+        if (b._childProcess) b._childProcess.kill();
         await b.close();
         process.exit(0);
       }
     }
     console.error('[FB Relay] Timeout esperando login (5 min)');
+    if (b._childProcess) b._childProcess.kill();
     await b.close();
     process.exit(1);
   })();
