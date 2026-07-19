@@ -92,11 +92,31 @@ function ensureProfileDir() {
 }
 
 function checkDisplayAvailable() {
+  if (process.env.FB_RELAY_SKIP_X11_CHECK === '1') {
+    console.log('[FB Relay] X11 check bypassed via FB_RELAY_SKIP_X11_CHECK=1');
+    return true;
+  }
   const display = process.env.DISPLAY || ':0';
   const match = display.match(/:(\d+)/);
-  if (!match) return false;
-  const socketPath = path.join('/tmp/.X11-unix', `X${match[1]}`);
-  return fs.existsSync(socketPath);
+  if (!match) {
+    console.error(`[FB Relay] DISPLAY mal formado: "${display}"`);
+    return false;
+  }
+  const displayNum = match[1];
+  const candidates = [
+    path.join('/tmp/.X11-unix', `X${displayNum}`),
+  ];
+  const tmpdir = process.env.TMPDIR || process.env.TMP || '';
+  if (tmpdir) {
+    candidates.push(path.join(tmpdir, '.X11-unix', `X${displayNum}`));
+  }
+  console.log(`[FB Relay] DISPLAY=${display}, revisando sockets X11...`);
+  for (const sock of candidates) {
+    const exists = fs.existsSync(sock);
+    console.log(`[FB Relay]   ${exists ? '✓' : '✗'} ${sock}`);
+    if (exists) return true;
+  }
+  return false;
 }
 
 async function launchHeadedLoginBrowser() {
@@ -119,6 +139,10 @@ async function launchHeadedLoginBrowser() {
     console.error('[FB Relay] ║     export DISPLAY=:0                          ║');
     console.error('[FB Relay] ║  4. Recién ahí:                                ║');
     console.error('[FB Relay] ║     node fb-relay.mjs --login                  ║');
+    console.error('[FB Relay] ║                                                ║');
+    console.error('[FB Relay] ║  Si X11 ya está corriendo y falla la           ║');
+    console.error('[FB Relay] ║  detección, usá:                               ║');
+    console.error('[FB Relay] ║     FB_RELAY_SKIP_X11_CHECK=1 node fb-relay.mjs --login  ║');
     console.error('[FB Relay] ╚══════════════════════════════════════════════════╝');
     console.error('');
     process.exit(1);
