@@ -1,4 +1,3 @@
-import realPuppeteer from 'puppeteer';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import axios from 'axios';
@@ -116,6 +115,10 @@ async function getBrowser() {
   ensureProfileDir();
 
   const isHeadless = !process.argv.includes('--headed') && process.env.FB_SCRAPER_HEADED !== 'true';
+
+  if (!isHeadless && !process.env.DISPLAY) {
+    process.env.DISPLAY = ':0';
+  }
 
   browser = await puppeteer.launch({
     executablePath: CHROMIUM_PATH,
@@ -759,7 +762,7 @@ async function main() {
           console.error(`[FB Relay] Tarea ${task.id} falló:`, err.message);
           await api.post('/fb/failed', { task_id: task.id, error: err.message });
           if (err.message === 'session expired') {
-            console.log(`[FB Relay] Sesión expirada. Fuente actual: ${sessionSource}. Esperando intervención del admin.`);
+            console.log(`[FB Relay] Sesión expirada. Ejecutá 'node fb-relay.js --login' en Termux con X11.`);
             break;
           }
         }
@@ -777,22 +780,8 @@ if (process.argv.includes('--login')) {
     if (!TOKEN) { console.error('FATAL: RELAY_TOKEN no configurado'); process.exit(1); }
     ensureProfileDir();
     setWakeLock(true);
-    console.log('[FB Relay] Modo login. Abriendo Chromium (igual que el scraper)...');
-    if (!fs.existsSync(CHROMIUM_PATH)) {
-      console.error(`[FB Relay] Chromium no encontrado en ${CHROMIUM_PATH}`);
-      console.error('[FB Relay] Ejecutá: pkg install x11-repo && pkg install chromium');
-      process.exit(1);
-    }
-    const b = await realPuppeteer.launch({
-      headless: false,
-      executablePath: CHROMIUM_PATH,
-      args: [
-        '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-        '--disable-gpu', '--window-size=1366,768',
-        `--user-data-dir=${PROFILE_DIR}`,
-      ],
-      defaultViewport: { width: 1366, height: 768 },
-    });
+    process.env.FB_SCRAPER_HEADED = 'true';
+    const b = await getBrowser();
     const page = await b.newPage();
     await page.setUserAgent(pickUA());
     await page.setViewport({ width: 1366, height: 768 });
