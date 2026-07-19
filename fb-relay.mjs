@@ -405,14 +405,18 @@ function clearProfile() {
 }
 
 async function checkSession(page) {
-  const hasLogin = await page.evaluate(() => {
-    return !!document.querySelector(
-      'input[name="email"], input[name="pass"], ' +
-      '[aria-label="Correo electrónico"], [aria-label="Contraseña"], ' +
-      'input[type="email"], input[type="password"]'
-    );
-  });
-  return !(page.url().includes('login') || page.url().includes('checkpoint') || hasLogin);
+  try {
+    const hasLogin = await page.evaluate(() => {
+      return !!document.querySelector(
+        'input[name="email"], input[name="pass"], ' +
+        '[aria-label="Correo electrónico"], [aria-label="Contraseña"], ' +
+        'input[type="email"], input[type="password"]'
+      );
+    });
+    return !(page.url().includes('login') || page.url().includes('checkpoint') || hasLogin);
+  } catch (e) {
+    return false;
+  }
 }
 
 async function downloadCookiesFromServer() {
