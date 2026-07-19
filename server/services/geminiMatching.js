@@ -70,10 +70,11 @@ export async function matchPostToPet(postId) {
     console.log(`[matching] matchPostToPet usó ${provider}`);
     const result = parseAIResponse(raw);
 
+    const fbMinScore = parseInt((await pool.query("SELECT value FROM settings WHERE key = 'fb_matching_min_score'")).rows[0]?.value || '50');
     const matches = [];
     if (result.matches) {
       for (const m of result.matches) {
-        if (m.match && m.score >= 50 && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
+        if (m.match && m.score >= fbMinScore && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
           const pet = candidates.rows[m.candidate_index];
           const insertRes = await pool.query(
             `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
@@ -131,10 +132,11 @@ export async function matchWhatsAppMessageToPet(messageId) {
     console.log(`[matching] matchWhatsAppMessageToPet usó ${provider}`);
     const result = parseAIResponse(raw);
 
+    const waMinScore = parseInt((await pool.query("SELECT value FROM settings WHERE key = 'fb_matching_min_score'")).rows[0]?.value || '50');
     const matches = [];
     if (result.matches) {
       for (const m of result.matches) {
-        if (m.match && m.score >= 50 && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
+        if (m.match && m.score >= waMinScore && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
           const pet = candidates.rows[m.candidate_index];
           const insertRes = await pool.query(
             `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
@@ -319,7 +321,7 @@ export async function matchWhatsAppToPets(newPetId) {
     if (!newPet) return [];
 
     const oppositeStatuses = newPet.status === 'lost' ? ['sighted', 'retained'] : ['lost'];
-    const minScore = parseInt((await pool.query("SELECT value FROM settings WHERE key = 'matching_min_score'")).rows[0]?.value || '50');
+    const minScore = parseInt((await pool.query("SELECT value FROM settings WHERE key = 'matching_min_score'")).rows[0]?.value || '70');
 
     const candidates = await pool.query(
       `SELECT * FROM pets WHERE status = ANY($1) AND id != $2

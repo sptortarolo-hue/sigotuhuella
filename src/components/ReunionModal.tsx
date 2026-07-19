@@ -7,11 +7,12 @@ interface ReunionModalProps {
   petId: string;
   petName: string;
   isAdoption?: boolean;
+  skipStatusChange?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function ReunionModal({ petId, petName, isAdoption, onClose, onSaved }: ReunionModalProps) {
+export default function ReunionModal({ petId, petName, isAdoption, skipStatusChange, onClose, onSaved }: ReunionModalProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [ownerName, setOwnerName] = useState('');
@@ -40,13 +41,16 @@ export default function ReunionModal({ petId, petName, isAdoption, onClose, onSa
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updatePet(petId, {
-        status: isAdoption ? PetStatus.ADOPTED : PetStatus.REUNITED,
+      const payload: any = {
         owner_name: ownerName || null,
         owner_phone: ownerPhone || null,
         owner_email: ownerEmail || null,
         owner_address: ownerAddress || null,
-      } as any);
+      };
+      if (!skipStatusChange) {
+        payload.status = isAdoption ? PetStatus.ADOPTED : PetStatus.REUNITED;
+      }
+      await updatePet(petId, payload);
       onSaved();
     } catch (e) {
       console.error(e);

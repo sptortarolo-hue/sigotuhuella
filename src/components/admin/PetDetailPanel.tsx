@@ -437,6 +437,7 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
           petId={pet.id}
           petName={pet.name || 'Mascota'}
           isAdoption={pet.status === 'for_adoption' || pet.status === 'for_adoption_simple'}
+          skipStatusChange
           onClose={() => setShowReunionModal(false)}
           onSaved={() => setShowReunionModal(false)}
         />
