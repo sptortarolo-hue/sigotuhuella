@@ -153,43 +153,88 @@ router.get('/pet/:petId/:index', async (req, res) => {
   }
 });
 
+function isInstaSafeExternalUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  if (!/^https:\/\//i.test(url)) return false;
+  if (/scontent[^.]*\.fbcdn\.net/i.test(url) || /fbcdn\.net/i.test(url)) return false;
+  if (/[?&](oe|oh|ohkey|__tn__)=/i.test(url)) return false;
+  return /\.(jpe?g|png)$/i.test(url);
+}
+
+function hasValidImageMagicBytes(buffer) {
+  if (!buffer || buffer.length < 12) return false;
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return true;
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) return true;
+  if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+      buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) return true;
+  return false;
+}
+
+function sendInstaError(res, status, message, ctx) {
+  console.error(`[Insta image] ${status} ${message}`, ctx || '');
+  res.set('Content-Type', 'text/plain; charset=utf-8');
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Access-Control-Allow-Origin', '*');
+  res.status(status).end(message);
+}
+
 // Instagram-safe version: resizes to 1080×1350 (4:5) with white padding, no status overlay
 router.get('/pet/:petId/:index/insta', async (req, res) => {
+  const ctx = { petId: req.params.petId, index: req.params.index };
   try {
     const result = await pool.query(
       'SELECT image_data, mime_type, external_url FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1 OFFSET $2',
       [req.params.petId, parseInt(req.params.index) || 0]
     );
-    if (result.rows.length === 0) return res.status(404).end();
+    if (result.rows.length === 0) {
+      return sendInstaError(res, 404, 'Not Found', { ...ctx, reason: 'no row' });
+    }
     const img = result.rows[0];
+
     if (img.image_data) {
       const buffer = Buffer.from(img.image_data, 'base64');
-      const bg = await sharp(buffer)
-        .resize(1080, 1350, { fit: 'cover' })
-        .blur(60)
-        .png()
-        .toBuffer();
-      const fg = await sharp(buffer)
-        .resize(1080, 1350, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-        .png()
-        .toBuffer();
-      const resized = await sharp(bg)
-        .composite([{ input: fg }])
-        .jpeg({ quality: 85 })
-        .toBuffer();
-      res.set('Content-Type', 'image/jpeg');
-      res.set('Content-Length', resized.length);
-      res.set('Cache-Control', 'public, max-age=31536000, immutable');
-      res.set('Access-Control-Allow-Origin', '*');
-      res.end(resized);
-    } else if (img.external_url) {
+      if (!hasValidImageMagicBytes(buffer)) {
+        return sendInstaError(res, 415, 'Unsupported Media Type', {
+          ...ctx, reason: 'bad magic bytes', mime: img.mime_type, bytes: buffer.length
+        });
+      }
+      try {
+        const bg = await sharp(buffer)
+          .resize(1080, 1350, { fit: 'cover' })
+          .blur(60)
+          .png()
+          .toBuffer();
+        const fg = await sharp(buffer)
+          .resize(1080, 1350, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+          .png()
+          .toBuffer();
+        const resized = await sharp(bg)
+          .composite([{ input: fg }])
+          .jpeg({ quality: 85 })
+          .toBuffer();
+        res.set('Content-Type', 'image/jpeg');
+        res.set('Content-Length', resized.length);
+        res.set('Cache-Control', 'public, max-age=31536000, immutable');
+        res.set('Access-Control-Allow-Origin', '*');
+        res.set('X-Content-Type-Options', 'nosniff');
+        res.end(resized);
+      } catch (sharpErr) {
+        return sendInstaError(res, 500, 'Image processing failed', {
+          ...ctx, reason: 'sharp error', mime: img.mime_type, bytes: buffer.length, err: sharpErr.message
+        });
+      }
+    } else if (isInstaSafeExternalUrl(img.external_url)) {
+      res.set('X-Content-Type-Options', 'nosniff');
       res.redirect(302, img.external_url);
     } else {
-      res.status(404).end();
+      return sendInstaError(res, 404, 'Not Found', {
+        ...ctx, reason: 'no image_data and unsafe external_url',
+        external: img.external_url ? String(img.external_url).slice(0, 120) : null
+      });
     }
   } catch (err) {
-    console.error('Image insta resize error:', err);
-    res.status(500).end();
+    return sendInstaError(res, 500, 'Internal Server Error', { ...ctx, err: err.message });
   }
 });
 
