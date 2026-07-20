@@ -156,6 +156,24 @@ app.use('/uploads', express.static(join(__dirname, '..', 'public', 'uploads')));
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Demasiados intentos. Intentá de nuevo en 15 minutos.' } });
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: 'Demasiados intentos de login. Intentá de nuevo en 15 minutos.' } });
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isValidUuid(value) {
+  return typeof value === 'string' && UUID_RE.test(value);
+}
+
+const ogLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests',
+});
+
+function logOgError(label, err) {
+  if (err?.code === '22P02') return;
+  console.error(label, err);
+}
+
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth/register', authLimiter);
@@ -217,7 +235,10 @@ function stripOgTags(html) {
 
 const indexHtml = readFileSync(join(__dirname, '..', 'dist', 'index.html'), 'utf-8');
 
-app.get('/pet/:id', async (req, res) => {
+app.get('/pet/:id', ogLimiter, async (req, res) => {
+  if (!isValidUuid(req.params.id)) {
+    return res.status(404).send(indexHtml);
+  }
   try {
     const result = await pool.query(
       `SELECT p.name, p.description, p.location, p.status, p.species,
@@ -255,12 +276,15 @@ ${pet && pet.mime_type ? `<meta property="og:image:type" content="${escapeHtml(p
 </head>`;
     res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
   } catch (err) {
-    console.error('OG error:', err);
+    logOgError('OG error:', err);
     res.send(indexHtml);
-   }
- });
+  }
+});
 
- app.get('/novedad/:id', async (req, res) => {
+ app.get('/novedad/:id', ogLimiter, async (req, res) => {
+  if (!isValidUuid(req.params.id)) {
+    return res.status(404).send(indexHtml);
+  }
   try {
     const result = await pool.query(
       'SELECT title, content, image_data, mime_type, type FROM news WHERE id = $1',
@@ -297,7 +321,7 @@ ${imageType ? `<meta property="og:image:type" content="${escapeHtml(imageType)}"
 </head>`;
     res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
   } catch (err) {
-    console.error('OG news error:', err);
+    logOgError('OG news error:', err);
     res.send(indexHtml);
   }
 });
