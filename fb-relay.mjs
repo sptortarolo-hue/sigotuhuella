@@ -910,34 +910,45 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
         if (cont) break;
       }
       if (!cont) return { ok: false, m: 'no-container' };
-      // Estrategia 1: buscar "grupo"/"Group" en todos los descendientes, climb ilimitado
-      const allIn = cont.querySelectorAll('*');
-      for (const el of allIn) {
-        if (el.offsetParent === null) continue;
+      const allEls = [...cont.querySelectorAll('*')].filter(c => c.offsetParent !== null);
+      // Estrategia 1: botones con ícono+texto corto, ordenados por left, clickear 5to
+      const withIcon = allEls
+        .filter(c => c.querySelector('svg, i, img') && (c.textContent || '').trim().length > 1 && (c.textContent || '').trim().length < 30)
+        .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+      if (withIcon.length >= 5) {
+        withIcon[4].click();
+        return { ok: true, m: 's1-5th' };
+      }
+      if (withIcon.length > 0) {
+        withIcon[withIcon.length - 1].click();
+        return { ok: true, m: 's1-last' };
+      }
+      // Estrategia 2: "grupo"/"Group" en elementos con ícono, climb ilimitado
+      for (const el of allEls) {
+        if (!el.querySelector('svg, i, img')) continue;
         const txt = (el.textContent || '').toLowerCase();
         const aria = (el.getAttribute('aria-label') || '').toLowerCase();
         if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
           let target = el;
           while (target && target !== document.body) {
-            try { target.click(); return { ok: true, m: 'strategy-1' }; } catch {}
+            try { target.click(); return { ok: true, m: 's2-icon-grupo' }; } catch {}
             target = target.parentElement;
           }
         }
       }
-      // Estrategia 2: botones con ícono+texto corto, ordenados por left, clickear 5to
-      const buttons = [...cont.querySelectorAll('*')]
-        .filter(c => c.offsetParent !== null && (c.textContent || '').trim().length < 30 && c.querySelector('svg, i, img'))
-        .filter(c => (c.textContent || '').trim().length > 1)
-        .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
-      if (buttons.length >= 5) {
-        buttons[4].click();
-        return { ok: true, m: 'strategy-2-5th' };
+      // Estrategia 3: "grupo"/"Group" en cualquier elemento, climb ilimitado
+      for (const el of allEls) {
+        const txt = (el.textContent || '').toLowerCase();
+        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+        if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
+          let target = el;
+          while (target && target !== document.body) {
+            try { target.click(); return { ok: true, m: 's3-any-grupo' }; } catch {}
+            target = target.parentElement;
+          }
+        }
       }
-      if (buttons.length > 0) {
-        buttons[buttons.length - 1].click();
-        return { ok: true, m: 'strategy-2-last' };
-      }
-      return { ok: false, m: 'no-buttons', n: buttons.length };
+      return { ok: false, m: 'no-match', iconCount: withIcon.length };
     });
     if (!clicked.ok) throw new Error('Share to group menu item not found (' + clicked.m + ')');
     console.log('[FB Relay] Share to group selected (method: ' + clicked.m + ')');
