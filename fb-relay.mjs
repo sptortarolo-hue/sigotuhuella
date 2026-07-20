@@ -967,6 +967,32 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     await page.keyboard.type(groupName || fbGroupId, { delay: randomInt(50, 100) });
     await sleep(3000);
 
+    // Diagnóstico: dump de elementos visibles dentro del dialog tras escribir nombre
+    try {
+      const ssBase64 = await page.screenshot({ encoding: 'base64', fullPage: false });
+      const diag4 = await page.evaluate(() => {
+        const dialogs = document.querySelectorAll('[role="dialog"]');
+        const active = dialogs[dialogs.length - 1];
+        if (!active) return { error: 'no dialog', totalDialogs: dialogs.length };
+        const all = [...active.querySelectorAll('*')]
+          .filter(el => el.offsetParent !== null && (el.textContent || '').trim().length > 0)
+          .slice(0, 50)
+          .map(el => ({
+            tag: el.tagName,
+            text: (el.textContent || '').trim().substring(0, 50),
+            role: el.getAttribute('role'),
+            ariaLabel: el.getAttribute('aria-label'),
+            tabIndex: el.getAttribute('tabindex'),
+            rect: (() => { try { const r = el.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), l: Math.round(r.left), t: Math.round(r.top) }; } catch { return null; } })(),
+          }));
+        return { totalDialogs: dialogs.length, dialogTag: active.tagName, dialogRole: active.getAttribute('role'), items: all };
+      });
+      await api.post('/fb-debug', { screenshot: ssBase64, ...diag4, label: 'post-group-search' });
+      console.log('[FB Relay] Diagnóstico post-búsqueda enviado al servidor');
+    } catch (e) {
+      console.error('[FB Relay] Error en diagnóstico:', e.message);
+    }
+
     // === Paso 4: Click en el primer resultado visible (ya filtrado por nombre) ===
     console.log('[FB Relay] Seleccionando grupo de resultados...');
     let groupFound = false;
