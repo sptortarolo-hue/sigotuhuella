@@ -814,27 +814,12 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
 
     // === Paso 1: Botón Compartir en el post ===
     console.log('[FB Relay] Click en Compartir...');
-    let clicked = false;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      clicked = await findAndClick(page, {
-        selectors: [
-          '[aria-label="Compartir"]', '[aria-label="Share"]',
-          'div[aria-label="Compartir"]', 'div[aria-label="Share"]',
-          'button[aria-label="Compartir"]', 'button[aria-label="Share"]',
-          'span[aria-label="Compartir"]', 'span[aria-label="Share"]',
-        ],
-        textMatch: ['compartir', 'share'],
-      });
-      if (clicked) break;
-      // Si no aparece, scrollear para que sea visible
-      await page.evaluate(() => window.scrollBy(0, 200));
-      await sleep(1000);
-    }
-    if (!clicked) {
-      throw new Error('Share button not found');
-    }
-    console.log('[FB Relay] Share button clicked');
-    await sleep(2000);
+    const shareBtn = await page.waitForSelector(
+      '[aria-label="Compartir"], [aria-label="Share"]',
+      { visible: true, timeout: 10000 }
+    ).catch(() => null);
+    if (!shareBtn) throw new Error('Share button not found');
+    await shareBtn.click();
 
     // === Paso 2: Menú "Compartir en grupo" ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
