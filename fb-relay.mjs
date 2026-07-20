@@ -858,105 +858,98 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     console.log('[FB Relay] Share button clicked');
     await sleep(2000);
 
-    // === Paso 2: Menú "Compartir en grupo" (encontrar popover, buscar "grupo" solo en el modal) ===
+    // === Paso 2: Menú "Compartir en grupo" (encontrar popover, detectar botonera real, click "Grupo") ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
     await sleep(3000);
-    const popoverInfo = await page.evaluate(() => {
-      const result = { container: null, items: [], kids: [] };
-      // 1. Encontrar el popover por texto "Compartir ahora" o "Share now"
-      const shareNow = document.evaluate(
-        '//*[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "compartir ahora") or contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "share now")]',
+    // Diagnóstico
+    const diag = await page.evaluate(() => {
+      const out = { cont: null, items: [] };
+      // Buscar contenedor del popover por texto "Compartir ahora (solo yo)"
+      const xp = document.evaluate(
+        '//*[contains(text(), "Compartir ahora") or contains(text(), "Share now")]',
         document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null
       );
-      for (let i = 0; i < shareNow.snapshotLength; i++) {
-        let el = shareNow.snapshotItem(i);
+      for (let i = 0; i < xp.snapshotLength; i++) {
+        let el = xp.snapshotItem(i);
         while (el && el !== document.body) {
-          const children = [...el.children].filter(c => c.offsetParent !== null);
-          if (children.length >= 4 && children.length <= 8) {
-            result.container = el.tagName;
-            result.items = children.map((c, idx) => ({
-              idx,
-              tag: c.tagName,
+          const vis = [...el.children].filter(c => c.offsetParent !== null);
+          if (vis.length >= 4 && vis.length <= 8) {
+            out.cont = el.tagName;
+            // Drilla si hay fila concatenada
+            const kw = ['messenger', 'whatsapp', 'historia', 'enlace', 'grupo', 'perfil'];
+            let row = null;
+            for (const ch of vis) {
+              const t = (ch.textContent || '').toLowerCase();
+              let n = 0;
+              for (const k of kw) { if (t.includes(k)) n++; }
+              if (n >= 3) { row = ch; break; }
+            }
+            const src = row || el;
+            out.items = [...src.children].filter(c => c.offsetParent !== null).map((c, idx) => ({
+              idx, tag: c.tagName,
               text: (c.textContent || '').trim().substring(0, 50),
               aria: (c.getAttribute('aria-label') || '').substring(0, 40),
               role: c.getAttribute('role') || '',
             }));
-            el = null;
-            break;
+            return out;
           }
           el = el.parentElement;
         }
       }
-      if (!result.container) {
-        // Fallback: buscar contenedores fixed/absolute visibles
-        const all = document.querySelectorAll('*');
-        for (const el of all) {
-          if (el.offsetParent === null) continue;
-          const cs = getComputedStyle(el);
-          if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
-          const children = [...el.children].filter(c => c.offsetParent !== null);
-          if (children.length >= 4 && children.length <= 8) {
-            const txt = (el.textContent || '').toLowerCase();
-            if (!txt.includes('grupo') && !txt.includes('group')) continue;
-            result.container = el.tagName + ' (fallback position)';
-            result.items = children.map((c, idx) => ({
-              idx,
-              tag: c.tagName,
-              text: (c.textContent || '').trim().substring(0, 50),
-              aria: (c.getAttribute('aria-label') || '').substring(0, 40),
-              role: c.getAttribute('role') || '',
-            }));
-            break;
-          }
-        }
-      }
-      result.kids = result.items.map(i => `[${i.idx}] <${i.tag}> role=${i.role} aria="${i.aria}" text="${i.text}"`);
-      return result;
+      return out;
     });
-    console.log('[FB Relay] Popover container:', popoverInfo.container);
-    for (const k of popoverInfo.kids) console.log('  ' + k);
-    // Clickear "grupo" dentro del popover
+    console.log('[FB Relay] Popover container:', diag.cont);
+    for (const it of diag.items) console.log(`  [${it.idx}] <${it.tag}> role=${it.role} aria="${it.aria}" text="${it.text}"`);
+    // Click
     clicked = await page.evaluate(() => {
-      // Encontrar popover otra vez (misma lógica)
-      let container = null;
-      const shareNow = document.evaluate(
-        '//*[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "compartir ahora") or contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "share now")]',
+      // Buscar contenedor (misma lógica)
+      let cont = null;
+      const xp = document.evaluate(
+        '//*[contains(text(), "Compartir ahora") or contains(text(), "Share now")]',
         document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null
       );
-      for (let i = 0; i < shareNow.snapshotLength; i++) {
-        let el = shareNow.snapshotItem(i);
+      for (let i = 0; i < xp.snapshotLength; i++) {
+        let el = xp.snapshotItem(i);
         while (el && el !== document.body) {
-          const children = [...el.children].filter(c => c.offsetParent !== null);
-          if (children.length >= 4 && children.length <= 8) { container = el; el = null; break; }
+          const vis = [...el.children].filter(c => c.offsetParent !== null);
+          if (vis.length >= 4 && vis.length <= 8) { cont = el; el = null; break; }
           el = el.parentElement;
         }
-        if (container) break;
+        if (cont) break;
       }
-      if (!container) {
-        // Fallback position
-        const all = document.querySelectorAll('*');
-        for (const el of all) {
-          if (el.offsetParent === null) continue;
-          const cs = getComputedStyle(el);
-          if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
-          const children = [...el.children].filter(c => c.offsetParent !== null);
-          if (children.length >= 4 && children.length <= 8) {
-            const txt = (el.textContent || '').toLowerCase();
-            if (!txt.includes('grupo') && !txt.includes('group')) continue;
-            container = el; break;
+      if (!cont) return false;
+      // Drillar a fila real si existe
+      const kw = ['messenger', 'whatsapp', 'historia', 'enlace', 'grupo', 'perfil'];
+      let row = null;
+      for (const ch of [...cont.children].filter(c => c.offsetParent !== null)) {
+        const t = (ch.textContent || '').toLowerCase();
+        let n = 0;
+        for (const k of kw) { if (t.includes(k)) n++; }
+        if (n >= 3) { row = ch; break; }
+      }
+      const source = row || cont;
+      const items = [...source.children].filter(c => c.offsetParent !== null);
+      // Buscar "grupo"/"Group" en los items directos
+      for (const el of items) {
+        const txt = (el.textContent || '').toLowerCase();
+        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+        if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
+          let target = el;
+          while (target && target !== source) {
+            try { target.click(); return true; } catch {}
+            target = target.parentElement;
           }
         }
       }
-      if (!container) return false;
-      // Buscar "grupo" dentro del contenedor (todos los descendientes)
-      const allIn = container.querySelectorAll('*');
+      // Fallback: buscar en toda la botonera (descendientes)
+      const allIn = source.querySelectorAll('*');
       for (const el of allIn) {
         if (el.offsetParent === null) continue;
+        const txt = (el.textContent || '').toLowerCase();
         const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-        const txt = (el.textContent || '').trim().toLowerCase();
-        if (aria.includes('grupo') || txt.includes('grupo') || aria.includes('group') || txt.includes('group')) {
+        if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
           let target = el;
-          while (target && target !== container) {
+          while (target && target !== source) {
             try { target.click(); return true; } catch {}
             target = target.parentElement;
           }
