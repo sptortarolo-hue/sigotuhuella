@@ -394,7 +394,7 @@ export default function Admin() {
 
   const fetchNews = async () => {
     try {
-      const data = await getNews();
+      const data = await api.news.listFull();
       setNewsList(data);
     } catch (e) { console.error(e); }
   };
@@ -594,8 +594,8 @@ export default function Admin() {
 
   const fetchPets = async () => {
     try {
-      const data = await getPets(undefined, true);
-      setPets(data);
+      const data = await api.pets.listFull(undefined, true);
+      setPets(data.pets || []);
     } catch (e) { console.error(e); }
   };
 

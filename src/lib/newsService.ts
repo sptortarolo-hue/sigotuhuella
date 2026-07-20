@@ -13,7 +13,7 @@ export interface News {
   id: string;
   title: string;
   content: string;
-  image_data: string | null;
+  image_data?: string | null;
   mime_type: string | null;
   video_url: string | null;
   source_url: string | null;
@@ -23,6 +23,7 @@ export interface News {
   author_name?: string;
   created_at: string;
   updated_at: string;
+  has_image?: boolean;
   publications?: NewsPublication[];
 }
 
@@ -59,9 +60,13 @@ export const publishNewsToPlatforms = async (id: string, platforms: string[]) =>
 };
 
 export function getNewsImageUrl(newsItem: News): string | null {
-  return newsItem.image_data && newsItem.mime_type
-    ? `data:${newsItem.mime_type};base64,${newsItem.image_data}`
-    : null;
+  if (newsItem.image_data && newsItem.mime_type) {
+    return `data:${newsItem.mime_type};base64,${newsItem.image_data}`;
+  }
+  if (newsItem.has_image) {
+    return `/api/images/news/${newsItem.id}`;
+  }
+  return null;
 }
 
 export function formatNewsDate(dateStr: string): string {

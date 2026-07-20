@@ -66,8 +66,9 @@ export const api = {
       request('/auth/link-google', { method: 'POST', body: JSON.stringify({ credential, password }) }),
   },
   pets: {
-    list: (status?: string, includeHidden?: boolean) => request(`/pets${status ? `?status=${status}` : ''}${includeHidden ? `${status ? '&' : '?'}include_hidden=true` : ''}`),
-    listPublic: () => request('/pets?public=true'),
+    list: (status?: string, includeHidden?: boolean) => request(`/pets${status ? `?status=${status}` : ''}${includeHidden ? `${status ? '&' : '?'}include_hidden=true` : ''}${status || includeHidden ? '&lite=1' : '?lite=1'}`),
+    listFull: (status?: string, includeHidden?: boolean) => request(`/pets${status ? `?status=${status}` : ''}${includeHidden ? `${status ? '&' : '?'}include_hidden=true` : ''}${status || includeHidden ? '&lite=0' : '?lite=0'}`),
+    listPublic: () => request('/pets?public=true&lite=1'),
     get: (id: string) => request(`/pets/${id}`),
     create: (data: any) => request('/pets', { method: 'POST', body: JSON.stringify(data) }),
     publicCreate: (data: any) => request('/pets/public', { method: 'POST', body: JSON.stringify(data) }),
@@ -146,7 +147,8 @@ export const api = {
     verify: (memberNumber: string) => request(`/members/verify/${memberNumber}`),
   },
   news: {
-    list: () => request('/news'),
+    list: () => request('/news?lite=1'),
+    listFull: () => request('/news?lite=0'),
     get: (id: string) => request(`/news/${id}`),
     create: (data: any) => request('/news', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => request(`/news/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

@@ -247,9 +247,13 @@ const router = Router();
 router.get('/', async (req, res) => {
   try {
     const { status, isPublic, limit, include_hidden } = req.query;
+    const lite = req.query.lite !== '0';
+    const imageFields = lite
+      ? `json_build_object('id', pi.id, 'has_image', pi.image_data IS NOT NULL, 'mime_type', pi.mime_type, 'external_url', pi.external_url)`
+      : `json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL)`;
     let query = `
       SELECT p.*, 
-        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+        COALESCE(json_agg(${imageFields} ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
       FROM pets p
       LEFT JOIN pet_images pi ON pi.pet_id = p.id
     `;

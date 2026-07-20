@@ -16,8 +16,12 @@ async function getPublications(newsId) {
 
 router.get('/', async (req, res) => {
   try {
+    const lite = req.query.lite !== '0';
+    const baseColumns = lite
+      ? `id, title, content, mime_type, video_url, source_url, type, related_pet_id, created_by, created_at, updated_at, (image_data IS NOT NULL) as has_image`
+      : `*`;
     const result = await pool.query(
-      `SELECT n.*, u.display_name as author_name
+      `SELECT ${baseColumns}, u.display_name as author_name
        FROM news n
        LEFT JOIN users u ON u.id = n.created_by
        ORDER BY n.created_at DESC`

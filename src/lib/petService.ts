@@ -14,10 +14,11 @@ export enum PetStatus {
 
 export interface PetImage {
   id: string;
-  image_data: string;
+  image_data?: string;
   mime_type: string;
   external_url?: string;
   has_original?: boolean;
+  has_image?: boolean;
 }
 
 export interface Pet {
@@ -60,13 +61,15 @@ export function getPetImageUrl(pet: Pet): string | undefined {
   const img = pet.images[0];
   if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
   if (img.external_url) return img.external_url;
+  if (img.has_image) return `/api/images/pet-thumb/${pet.id}/0`;
   return undefined;
 }
 
 export function getPetImageUrls(pet: Pet): string[] {
-  return pet.images?.map(img => {
+  return pet.images?.map((img, idx) => {
     if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
     if (img.external_url) return img.external_url;
+    if (img.has_image) return `/api/images/pet-thumb/${pet.id}/${idx}`;
     return '';
   }).filter(Boolean) || [];
 }
