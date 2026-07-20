@@ -395,7 +395,7 @@ export default function Admin() {
   const fetchNews = async () => {
     try {
       const data = await api.news.listFull();
-      setNewsList(data);
+      setNewsList(data.news || []);
     } catch (e) { console.error(e); }
   };
 
