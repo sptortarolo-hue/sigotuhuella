@@ -867,41 +867,32 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message) {
     console.log('[FB Relay] Share to group selected');
     await sleep(3000);
 
-    // === Paso 3: Input de búsqueda de grupo ===
+    // === Paso 3: Input de búsqueda de grupo (usar evaluate nativo, sin ElementHandle) ===
     console.log('[FB Relay] Buscando grupo...');
-    let searchSel = null;
+    let inputFocused = false;
     for (let attempt = 0; attempt < 5; attempt++) {
-      searchSel = await findDialogInput(page);
-      if (searchSel) break;
-      await sleep(1000);
-    }
-    if (!searchSel) {
-      // Fallback: clickear cualquier input visible en el DOM global
-      const clicked = await page.evaluate(() => {
-        const allInputs = document.querySelectorAll('input:not([type="hidden"])');
-        for (const el of allInputs) {
+      inputFocused = await page.evaluate(() => {
+        const inputs = document.querySelectorAll('input:not([type="hidden"])');
+        for (const el of inputs) {
           if (el.offsetParent !== null && el.offsetWidth > 0) {
-            try { el.click(); return true; } catch {}
+            el.focus();
+            el.value = '';
+            return true;
           }
         }
         return false;
       });
-      if (clicked) {
-        console.log('[FB Relay] Input encontrado via fallback global');
-        searchSel = 'fallback-input';
-      }
+      if (inputFocused) break;
+      await sleep(1000);
     }
-    if (!searchSel) {
+    if (!inputFocused) {
       await captureDebugDump(page, 'search-input-not-found');
       throw new Error('Group search input not found');
     }
-    const inputEl = await page.$(searchSel);
-    if (inputEl) {
-      await inputEl.click();
-      await sleep(500);
-      await page.keyboard.type(fbGroupId, { delay: randomInt(50, 100) });
-      await sleep(3000);
-    }
+    console.log('[FB Relay] Input encontrado, escribiendo...');
+    await sleep(500);
+    await page.keyboard.type(fbGroupId, { delay: randomInt(50, 100) });
+    await sleep(3000);
 
     // === Paso 4: Click en resultado del grupo ===
     console.log('[FB Relay] Seleccionando grupo de resultados...');
@@ -909,10 +900,14 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message) {
     for (let attempt = 0; attempt < 5; attempt++) {
       groupFound = await findAndClick(page, {
         selectors: [
+          'div[role="dialog"] [role="option"]',
+          'div[role="dialog"] [role="listbox"] div',
+          'div[role="dialog"] div[role="presentation"]',
+          'div[role="dialog"] li[role="option"]',
+          'div[role="dialog"] [role="listbox"] [role="option"]',
           'div[role="option"]',
           '[role="dialog"] [role="listbox"] li',
           '[role="dialog"] [role="listitem"]',
-          '[role="dialog"] [role="option"]',
           '[role="dialog"] a[href*="/groups/"]',
           '[role="dialog"] div[role="button"]',
         ],
