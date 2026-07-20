@@ -923,11 +923,22 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message) {
       console.log('[FB Relay] No se encontró el grupo en resultados, continuando...');
     }
 
-    // === Paso 5: Mensaje opcional ===
+    // === Paso 5: Mensaje opcional (usar evaluate nativo, sin ElementHandle) ===
     if (message) {
-      const editor = await page.$('div[role="dialog"] div[role="textbox"][contenteditable="true"]');
-      if (editor) {
-        await humanType(page, editor, message);
+      const focused = await page.evaluate(() => {
+        const editor = document.querySelector(
+          'div[role="dialog"] div[role="textbox"][contenteditable="true"]' +
+          ', [role="dialog"] div[role="textbox"][contenteditable="true"]'
+        );
+        if (editor && editor.offsetParent !== null) {
+          editor.focus();
+          return true;
+        }
+        return false;
+      });
+      if (focused) {
+        await sleep(500);
+        await page.keyboard.type(message, { delay: randomInt(70, 130) });
         await sleep(2000);
       }
     }
