@@ -883,14 +883,13 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
               if (n >= 3) { out.row = ch.tagName; el = ch; break; }
             }
             const src = el;
-            out.items = [...src.querySelectorAll('*')]
-              .filter(c => c.offsetParent !== null && (c.textContent || '').trim().length < 30 && c.querySelector('svg, i, img'))
+            out.items = [...src.children]
+              .filter(c => c.offsetParent !== null && c.querySelector('svg, i, img') && (c.textContent || '').trim().length > 1)
               .map((c, idx) => ({
                 idx, tag: c.tagName,
                 text: (c.textContent || '').trim().substring(0, 30),
                 left: Math.round(c.getBoundingClientRect().left),
               }))
-              .filter(c => c.text.length > 1)
               .sort((a, b) => a.left - b.left);
             return out;
           }
@@ -931,10 +930,9 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       }
       if (!cont) return { ok: false, m: 'no-container' };
       const scope = row || cont;
-      const allEls = [...scope.querySelectorAll('*')].filter(c => c.offsetParent !== null && c.getBoundingClientRect().width > 0);
+      const allEls = [...scope.children].filter(c => c.offsetParent !== null && c.getBoundingClientRect().width > 0 && c.querySelector('svg, i, img') && (c.textContent || '').trim().length > 1);
       // Estrategia 1: botones con ícono+texto corto, ordenados por left, clickear 5to
       const withIcon = allEls
-        .filter(c => c.querySelector('svg, i, img') && (c.textContent || '').trim().length > 1 && (c.textContent || '').trim().length < 30)
         .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
       if (withIcon.length >= 5) { withIcon[4].click(); return { ok: true, m: 's1-5th' }; }
       if (withIcon.length > 0) { withIcon[withIcon.length - 1].click(); return { ok: true, m: 's1-last' }; }
