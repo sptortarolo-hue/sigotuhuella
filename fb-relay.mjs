@@ -858,13 +858,12 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     console.log('[FB Relay] Share button clicked');
     await sleep(2000);
 
-    // === Paso 2: Menú "Compartir en grupo" (encontrar popover, detectar botonera real, click "Grupo") ===
+    // === Paso 2: Menú "Compartir en grupo" (buscar "grupo" en el modal, fallback al 5to botón) ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
     await sleep(3000);
-    // Diagnóstico
+    // Diagnóstico: encontrar contenedor y listar botones
     const diag = await page.evaluate(() => {
       const out = { cont: null, items: [] };
-      // Buscar contenedor del popover por texto "Compartir ahora (solo yo)"
       const xp = document.evaluate(
         '//*[contains(text(), "Compartir ahora") or contains(text(), "Share now")]',
         document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null
@@ -875,22 +874,15 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
           const vis = [...el.children].filter(c => c.offsetParent !== null);
           if (vis.length >= 4 && vis.length <= 8) {
             out.cont = el.tagName;
-            // Drilla si hay fila concatenada
-            const kw = ['messenger', 'whatsapp', 'historia', 'enlace', 'grupo', 'perfil'];
-            let row = null;
-            for (const ch of vis) {
-              const t = (ch.textContent || '').toLowerCase();
-              let n = 0;
-              for (const k of kw) { if (t.includes(k)) n++; }
-              if (n >= 3) { row = ch; break; }
-            }
-            const src = row || el;
-            out.items = [...src.children].filter(c => c.offsetParent !== null).map((c, idx) => ({
-              idx, tag: c.tagName,
-              text: (c.textContent || '').trim().substring(0, 50),
-              aria: (c.getAttribute('aria-label') || '').substring(0, 40),
-              role: c.getAttribute('role') || '',
-            }));
+            out.items = [...el.querySelectorAll('*')]
+              .filter(c => c.offsetParent !== null && (c.textContent || '').trim().length < 30 && c.querySelector('svg, i, img'))
+              .map((c, idx) => ({
+                idx, tag: c.tagName,
+                text: (c.textContent || '').trim().substring(0, 30),
+                left: Math.round(c.getBoundingClientRect().left),
+              }))
+              .filter(c => c.text.length > 1)
+              .sort((a, b) => a.left - b.left);
             return out;
           }
           el = el.parentElement;
@@ -899,10 +891,10 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       return out;
     });
     console.log('[FB Relay] Popover container:', diag.cont);
-    for (const it of diag.items) console.log(`  [${it.idx}] <${it.tag}> role=${it.role} aria="${it.aria}" text="${it.text}"`);
-    // Click
+    for (const it of diag.items) console.log(`  [${it.idx}] <${it.tag}> left=${it.left} text="${it.text}"`);
+    // Click: estrategias en cascada
     clicked = await page.evaluate(() => {
-      // Buscar contenedor (misma lógica)
+      // Encontrar contenedor del popover
       let cont = null;
       const xp = document.evaluate(
         '//*[contains(text(), "Compartir ahora") or contains(text(), "Share now")]',
@@ -912,54 +904,43 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
         let el = xp.snapshotItem(i);
         while (el && el !== document.body) {
           const vis = [...el.children].filter(c => c.offsetParent !== null);
-          if (vis.length >= 4 && vis.length <= 8) { cont = el; el = null; break; }
+          if (vis.length >= 4 && vis.length <= 8) { cont = el; break; }
           el = el.parentElement;
         }
         if (cont) break;
       }
-      if (!cont) return false;
-      // Drillar a fila real si existe
-      const kw = ['messenger', 'whatsapp', 'historia', 'enlace', 'grupo', 'perfil'];
-      let row = null;
-      for (const ch of [...cont.children].filter(c => c.offsetParent !== null)) {
-        const t = (ch.textContent || '').toLowerCase();
-        let n = 0;
-        for (const k of kw) { if (t.includes(k)) n++; }
-        if (n >= 3) { row = ch; break; }
-      }
-      const source = row || cont;
-      const items = [...source.children].filter(c => c.offsetParent !== null);
-      // Buscar "grupo"/"Group" en los items directos
-      for (const el of items) {
-        const txt = (el.textContent || '').toLowerCase();
-        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-        if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
-          let target = el;
-          while (target && target !== source) {
-            try { target.click(); return true; } catch {}
-            target = target.parentElement;
-          }
-        }
-      }
-      // Fallback: buscar en toda la botonera (descendientes)
-      const allIn = source.querySelectorAll('*');
+      if (!cont) return { ok: false, m: 'no-container' };
+      // Estrategia 1: buscar "grupo"/"Group" en todos los descendientes, climb ilimitado
+      const allIn = cont.querySelectorAll('*');
       for (const el of allIn) {
         if (el.offsetParent === null) continue;
         const txt = (el.textContent || '').toLowerCase();
         const aria = (el.getAttribute('aria-label') || '').toLowerCase();
         if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
           let target = el;
-          while (target && target !== source) {
-            try { target.click(); return true; } catch {}
+          while (target && target !== document.body) {
+            try { target.click(); return { ok: true, m: 'strategy-1' }; } catch {}
             target = target.parentElement;
           }
         }
       }
-      return false;
+      // Estrategia 2: botones con ícono+texto corto, ordenados por left, clickear 5to
+      const buttons = [...cont.querySelectorAll('*')]
+        .filter(c => c.offsetParent !== null && (c.textContent || '').trim().length < 30 && c.querySelector('svg, i, img'))
+        .filter(c => (c.textContent || '').trim().length > 1)
+        .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+      if (buttons.length >= 5) {
+        buttons[4].click();
+        return { ok: true, m: 'strategy-2-5th' };
+      }
+      if (buttons.length > 0) {
+        buttons[buttons.length - 1].click();
+        return { ok: true, m: 'strategy-2-last' };
+      }
+      return { ok: false, m: 'no-buttons', n: buttons.length };
     });
-    if (!clicked) throw new Error('Share to group menu item not found');
-    console.log('[FB Relay] Share to group selected');
-    await sleep(3000);
+    if (!clicked.ok) throw new Error('Share to group menu item not found (' + clicked.m + ')');
+    console.log('[FB Relay] Share to group selected (method: ' + clicked.m + ')');
 
     // === Paso 3: Input de búsqueda de grupo (usar evaluate nativo, sin ElementHandle) ===
     console.log('[FB Relay] Buscando grupo...');
