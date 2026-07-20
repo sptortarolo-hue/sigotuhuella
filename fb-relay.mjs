@@ -902,8 +902,8 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     });
     console.log('[FB Relay] Popover container:', diag.cont, '| Row:', diag.row);
     for (const it of diag.items) console.log(`  [${it.idx}] <${it.tag}> left=${it.left} text="${it.text}"`);
-    // Click: dedup por posición (aplanar todos los descendientes, dedup por left, click 4º = Grupo)
-    clicked = await page.evaluate(() => {
+    // Click: coordenadas del 4º botón (Grupo) en la fila del popover
+    const rowRect = await page.evaluate(() => {
       const rkw = ['messenger','whatsapp','historia','enlace','grupo','perfil'];
       const xp = document.evaluate(
         '//*[contains(text(), "Compartir ahora") or contains(text(), "Share now")]',
@@ -928,29 +928,18 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
         }
         if (cont) break;
       }
-      if (!cont) return { ok: false, m: 'no-container' };
+      if (!cont) return null;
       const _scope = row || cont;
-      const scopeKids = [..._scope.children].filter(c => c.offsetParent !== null);
-      const scope = scopeKids.length === 1 ? scopeKids[0] : _scope;
-      // Aplanar TODOS los descendientes visibles (ignora estructura anidada)
-      const all = [...scope.querySelectorAll('*')]
-        .filter(c => c.offsetParent !== null && (c.textContent || '').trim().length > 1);
-      // Dedup por left redondeado a nearest 10
-      const seen = new Set();
-      const unique = all
-        .map(c => ({ el: c, left: Math.round(c.getBoundingClientRect().left / 10) * 10 }))
-        .sort((a, b) => a.left - b.left)
-        .filter(item => {
-          if (seen.has(item.left)) return false;
-          seen.add(item.left);
-          return true;
-        });
-      if (unique.length >= 4) { unique[3].el.click(); return { ok: true, m: 'dedup-4th' }; }
-      if (unique.length > 0) { unique[unique.length - 1].el.click(); return { ok: true, m: 'dedup-last' }; }
-      return { ok: false, m: 'no-dedup-items' };
+      const rect = _scope.getBoundingClientRect();
+      return { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
     });
-    if (!clicked.ok) throw new Error('Share to group menu item not found (' + clicked.m + ')');
-    console.log('[FB Relay] Share to group selected (method: ' + clicked.m + ')');
+    if (!rowRect) throw new Error('Share to group popover not found');
+    const btnWidth = rowRect.width / 6;
+    const grupoX = rowRect.left + btnWidth * 3.5; // centro del 4º botón (Grupo)
+    const grupoY = rowRect.top + rowRect.height / 2;
+    console.log('[FB Relay] Coord click:', { x: Math.round(grupoX), y: Math.round(grupoY), w: Math.round(rowRect.width) });
+    await page.mouse.click(grupoX, grupoY);
+    console.log('[FB Relay] Share to group selected (method: coord-4th)');
 
     // === Paso 3: Input de búsqueda de grupo (usar evaluate nativo, sin ElementHandle) ===
     console.log('[FB Relay] Buscando grupo...');
