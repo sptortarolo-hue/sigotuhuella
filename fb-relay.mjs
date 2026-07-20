@@ -812,14 +812,32 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
 
     await prePostBehavior(page);
 
-    // === Paso 1: Botón Compartir en el post ===
+    // === Paso 1: Botón Compartir en el post (scraper-style) ===
     console.log('[FB Relay] Click en Compartir...');
-    const shareBtn = await page.waitForSelector(
-      '[aria-label="Compartir"], [aria-label="Share"]',
-      { visible: true, timeout: 10000 }
-    ).catch(() => null);
-    if (!shareBtn) throw new Error('Share button not found');
-    await shareBtn.click();
+    await page.waitForFunction(() => {
+      return document.querySelector('[aria-label="Compartir"], [aria-label="Share"]');
+    }, { timeout: 10000 }).catch(() => {});
+    await sleep(1000);
+    const shareClicked = await page.evaluate(() => {
+      const selectors = [
+        '[aria-label="Compartir"]', '[aria-label="Share"]',
+      ];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) { el.click(); return true; }
+      }
+      const buttons = document.querySelectorAll('[role="button"], button, a');
+      for (const btn of buttons) {
+        const text = (btn.textContent || '').toLowerCase().trim();
+        if ((text === 'compartir' || text === 'share') && btn.offsetParent !== null) {
+          btn.click(); return true;
+        }
+      }
+      return false;
+    });
+    if (!shareClicked) throw new Error('Share button not found');
+    console.log('[FB Relay] Share button clicked');
+    await sleep(2000);
 
     // === Paso 2: Menú "Compartir en grupo" ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
