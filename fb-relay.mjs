@@ -858,75 +858,108 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     console.log('[FB Relay] Share button clicked');
     await sleep(2000);
 
-    // === Paso 2: Menú "Compartir en grupo" (encontrar popover por SVG+texto, excluir sidebar) ===
+    // === Paso 2: Menú "Compartir en grupo" (encontrar popover, buscar "grupo" solo en el modal) ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
     await sleep(3000);
-    // Scrapeo diagnóstico de todos los elementos con SVG+texto fuera del sidebar/header
-    const popoverData = await page.evaluate(() => {
-      const candidates = [];
-      const all = document.querySelectorAll('*');
-      for (const el of all) {
-        if (el.offsetParent === null) continue;
-        const r = el.getBoundingClientRect();
-        if (r.left < 300 || r.top < 56) continue;
-        const hasIcon = el.querySelector('svg, i, img') !== null;
-        const txt = (el.textContent || '').trim();
-        if (!hasIcon || txt.length < 2 || txt.length > 80) continue;
-        candidates.push({
-          tag: el.tagName,
-          role: el.getAttribute('role') || '',
-          top: Math.round(r.top),
-          left: Math.round(r.left),
-          text: txt.substring(0, 50),
-          parentTag: el.parentElement ? el.parentElement.tagName : '',
-          parentRole: el.parentElement ? (el.parentElement.getAttribute('role') || '') : '',
-        });
-        if (candidates.length >= 40) break;
+    const popoverInfo = await page.evaluate(() => {
+      const result = { container: null, items: [], kids: [] };
+      // 1. Encontrar el popover por texto "Compartir ahora" o "Share now"
+      const shareNow = document.evaluate(
+        '//*[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "compartir ahora") or contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "share now")]',
+        document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null
+      );
+      for (let i = 0; i < shareNow.snapshotLength; i++) {
+        let el = shareNow.snapshotItem(i);
+        while (el && el !== document.body) {
+          const children = [...el.children].filter(c => c.offsetParent !== null);
+          if (children.length >= 4 && children.length <= 8) {
+            result.container = el.tagName;
+            result.items = children.map((c, idx) => ({
+              idx,
+              tag: c.tagName,
+              text: (c.textContent || '').trim().substring(0, 50),
+              aria: (c.getAttribute('aria-label') || '').substring(0, 40),
+              role: c.getAttribute('role') || '',
+            }));
+            el = null;
+            break;
+          }
+          el = el.parentElement;
+        }
       }
-      return candidates;
-    });
-    console.log('[FB Relay] Elementos con SVG+texto (excluyendo sidebar/header):');
-    for (const c of popoverData) {
-      console.log(`  <${c.tag}> role=${c.role} top=${c.top} left=${c.left} parent=<${c.parentTag}> role=${c.parentRole} text="${c.text}"`);
-    }
-    // Click: buscar popover por agrupación de padres, clickear "grupo" o 5to
-    clicked = await page.evaluate(() => {
-      const candidates = [];
-      const all = document.querySelectorAll('*');
-      for (const el of all) {
-        if (el.offsetParent === null) continue;
-        const r = el.getBoundingClientRect();
-        if (r.left < 300 || r.top < 56) continue;
-        const hasIcon = el.querySelector('svg, i, img') !== null;
-        const txt = (el.textContent || '').trim();
-        if (!hasIcon || txt.length < 2 || txt.length > 80) continue;
-        candidates.push({ el, text: txt.toLowerCase(), aria: (el.getAttribute('aria-label') || '').toLowerCase() });
-      }
-      // Agrupar por parentElement
-      const groups = new Map();
-      for (const c of candidates) {
-        const p = c.el.parentElement;
-        if (!p) continue;
-        if (!groups.has(p)) groups.set(p, []);
-        groups.get(p).push(c);
-      }
-      // Buscar grupo con 4-8 items (el popover de compartir tiene 6)
-      for (const [parent, children] of groups) {
-        if (children.length < 4 || children.length > 8) continue;
-        const parentRole = parent.getAttribute('role') || '';
-        // Buscar "grupo"/"group" en los hijos
-        for (let i = 0; i < children.length; i++) {
-          const txt = children[i].text;
-          const aria = children[i].aria;
-          if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
-            children[i].el.click();
-            return true;
+      if (!result.container) {
+        // Fallback: buscar contenedores fixed/absolute visibles
+        const all = document.querySelectorAll('*');
+        for (const el of all) {
+          if (el.offsetParent === null) continue;
+          const cs = getComputedStyle(el);
+          if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
+          const children = [...el.children].filter(c => c.offsetParent !== null);
+          if (children.length >= 4 && children.length <= 8) {
+            const txt = (el.textContent || '').toLowerCase();
+            if (!txt.includes('grupo') && !txt.includes('group')) continue;
+            result.container = el.tagName + ' (fallback position)';
+            result.items = children.map((c, idx) => ({
+              idx,
+              tag: c.tagName,
+              text: (c.textContent || '').trim().substring(0, 50),
+              aria: (c.getAttribute('aria-label') || '').substring(0, 40),
+              role: c.getAttribute('role') || '',
+            }));
+            break;
           }
         }
-        // Fallback: 5to item (índice 4)
-        if (children.length > 4) {
-          children[4].el.click();
-          return true;
+      }
+      result.kids = result.items.map(i => `[${i.idx}] <${i.tag}> role=${i.role} aria="${i.aria}" text="${i.text}"`);
+      return result;
+    });
+    console.log('[FB Relay] Popover container:', popoverInfo.container);
+    for (const k of popoverInfo.kids) console.log('  ' + k);
+    // Clickear "grupo" dentro del popover
+    clicked = await page.evaluate(() => {
+      // Encontrar popover otra vez (misma lógica)
+      let container = null;
+      const shareNow = document.evaluate(
+        '//*[contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "compartir ahora") or contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "share now")]',
+        document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null
+      );
+      for (let i = 0; i < shareNow.snapshotLength; i++) {
+        let el = shareNow.snapshotItem(i);
+        while (el && el !== document.body) {
+          const children = [...el.children].filter(c => c.offsetParent !== null);
+          if (children.length >= 4 && children.length <= 8) { container = el; el = null; break; }
+          el = el.parentElement;
+        }
+        if (container) break;
+      }
+      if (!container) {
+        // Fallback position
+        const all = document.querySelectorAll('*');
+        for (const el of all) {
+          if (el.offsetParent === null) continue;
+          const cs = getComputedStyle(el);
+          if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
+          const children = [...el.children].filter(c => c.offsetParent !== null);
+          if (children.length >= 4 && children.length <= 8) {
+            const txt = (el.textContent || '').toLowerCase();
+            if (!txt.includes('grupo') && !txt.includes('group')) continue;
+            container = el; break;
+          }
+        }
+      }
+      if (!container) return false;
+      // Buscar "grupo" dentro del contenedor (todos los descendientes)
+      const allIn = container.querySelectorAll('*');
+      for (const el of allIn) {
+        if (el.offsetParent === null) continue;
+        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+        const txt = (el.textContent || '').trim().toLowerCase();
+        if (aria.includes('grupo') || txt.includes('grupo') || aria.includes('group') || txt.includes('group')) {
+          let target = el;
+          while (target && target !== container) {
+            try { target.click(); return true; } catch {}
+            target = target.parentElement;
+          }
         }
       }
       return false;
