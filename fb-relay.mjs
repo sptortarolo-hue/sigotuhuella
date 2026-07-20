@@ -902,7 +902,7 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     });
     console.log('[FB Relay] Popover container:', diag.cont, '| Row:', diag.row);
     for (const it of diag.items) console.log(`  [${it.idx}] <${it.tag}> left=${it.left} text="${it.text}"`);
-    // Click: dedup por left + click por coordenadas (híbrido)
+    // Click: buscar texto "grupo" en descendientes + click por coordenadas
     const coord = await page.evaluate(() => {
       const rkw = ['messenger','whatsapp','historia','enlace','grupo','perfil'];
       const xp = document.evaluate(
@@ -932,26 +932,22 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       const _scope = row || cont;
       const scopeKids = [..._scope.children].filter(c => c.offsetParent !== null);
       const scope = scopeKids.length === 1 ? scopeKids[0] : _scope;
-      // Aplanar todos los descendientes, dedup por left
-      const all = [...scope.querySelectorAll('*')]
-        .filter(c => c.offsetParent !== null && (c.textContent || '').trim().length > 1);
-      const seen = new Set();
-      const unique = all
-        .map(c => ({ el: c, left: Math.round(c.getBoundingClientRect().left / 10) * 10 }))
-        .sort((a, b) => a.left - b.left)
-        .filter(item => {
-          if (seen.has(item.left)) return false;
-          seen.add(item.left);
-          return true;
-        });
-      if (unique.length < 4) return null;
-      const r = unique[3].el.getBoundingClientRect();
+      // Buscar el ultimo descendiente visible con texto "grupo" (deepest = mas cercano al btn real)
+      let target = null;
+      const all = scope.querySelectorAll('*');
+      for (const el of all) {
+        if (el.offsetParent === null) continue;
+        const txt = (el.textContent || '').toLowerCase();
+        if (txt.includes('grupo') || txt.includes('group')) target = el;
+      }
+      if (!target) return null;
+      const r = target.getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     });
     if (!coord) throw new Error('Share to group popover not found');
     console.log('[FB Relay] Coord click:', { x: Math.round(coord.x), y: Math.round(coord.y) });
     await page.mouse.click(coord.x, coord.y);
-    console.log('[FB Relay] Share to group selected (method: hybrid-dedup-4th)');
+    console.log('[FB Relay] Share to group selected (method: text-grupo)');
 
     // === Paso 3: Input de búsqueda de grupo (usar evaluate nativo, sin ElementHandle) ===
     console.log('[FB Relay] Buscando grupo...');
