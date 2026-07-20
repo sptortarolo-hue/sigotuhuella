@@ -858,12 +858,12 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     console.log('[FB Relay] Share button clicked');
     await sleep(2000);
 
-    // === Paso 2: Menú "Compartir en grupo" (buscar "grupo" en el modal, fallback al 5to botón) ===
+    // === Paso 2: Menú "Compartir en grupo" (detectar fila real del popover, buscar "grupo" solo allí) ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
     await sleep(3000);
-    // Diagnóstico: encontrar contenedor y listar botones
+    // Diagnóstico: encontrar contenedor, fila real, y botones
     const diag = await page.evaluate(() => {
-      const out = { cont: null, items: [] };
+      const out = { cont: null, row: null, items: [] };
       const xp = document.evaluate(
         '//*[contains(text(), "Compartir ahora") or contains(text(), "Share now")]',
         document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null
@@ -874,7 +874,16 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
           const vis = [...el.children].filter(c => c.offsetParent !== null);
           if (vis.length >= 4 && vis.length <= 8) {
             out.cont = el.tagName;
-            out.items = [...el.querySelectorAll('*')]
+            // Buscar fila real
+            const rkw = ['messenger','whatsapp','historia','enlace','grupo','perfil'];
+            for (const ch of vis) {
+              const t = (ch.textContent || '').toLowerCase();
+              let n = 0;
+              for (const k of rkw) { if (t.includes(k)) n++; }
+              if (n >= 3) { out.row = ch.tagName; el = ch; break; }
+            }
+            const src = el;
+            out.items = [...src.querySelectorAll('*')]
               .filter(c => c.offsetParent !== null && (c.textContent || '').trim().length < 30 && c.querySelector('svg, i, img'))
               .map((c, idx) => ({
                 idx, tag: c.tagName,
@@ -890,12 +899,13 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       }
       return out;
     });
-    console.log('[FB Relay] Popover container:', diag.cont);
+    console.log('[FB Relay] Popover container:', diag.cont, '| Row:', diag.row);
     for (const it of diag.items) console.log(`  [${it.idx}] <${it.tag}> left=${it.left} text="${it.text}"`);
-    // Click: estrategias en cascada
+    // Click: estrategias en cascada (scope = fila real o cont)
     clicked = await page.evaluate(() => {
-      // Encontrar contenedor del popover
       let cont = null;
+      let row = null;
+      const rkw = ['messenger','whatsapp','historia','enlace','grupo','perfil'];
       const xp = document.evaluate(
         '//*[contains(text(), "Compartir ahora") or contains(text(), "Share now")]',
         document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null
@@ -904,26 +914,31 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
         let el = xp.snapshotItem(i);
         while (el && el !== document.body) {
           const vis = [...el.children].filter(c => c.offsetParent !== null);
-          if (vis.length >= 4 && vis.length <= 8) { cont = el; break; }
+          if (vis.length >= 4 && vis.length <= 8) {
+            for (const ch of vis) {
+              const t = (ch.textContent || '').toLowerCase();
+              let n = 0;
+              for (const k of rkw) { if (t.includes(k)) n++; }
+              if (n >= 3) { row = ch; break; }
+            }
+            cont = el;
+            el = null;
+            break;
+          }
           el = el.parentElement;
         }
         if (cont) break;
       }
       if (!cont) return { ok: false, m: 'no-container' };
-      const allEls = [...cont.querySelectorAll('*')].filter(c => c.offsetParent !== null);
+      const scope = row || cont;
+      const allEls = [...scope.querySelectorAll('*')].filter(c => c.offsetParent !== null && c.getBoundingClientRect().width > 0);
       // Estrategia 1: botones con ícono+texto corto, ordenados por left, clickear 5to
       const withIcon = allEls
         .filter(c => c.querySelector('svg, i, img') && (c.textContent || '').trim().length > 1 && (c.textContent || '').trim().length < 30)
         .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
-      if (withIcon.length >= 5) {
-        withIcon[4].click();
-        return { ok: true, m: 's1-5th' };
-      }
-      if (withIcon.length > 0) {
-        withIcon[withIcon.length - 1].click();
-        return { ok: true, m: 's1-last' };
-      }
-      // Estrategia 2: "grupo"/"Group" en elementos con ícono, climb ilimitado
+      if (withIcon.length >= 5) { withIcon[4].click(); return { ok: true, m: 's1-5th' }; }
+      if (withIcon.length > 0) { withIcon[withIcon.length - 1].click(); return { ok: true, m: 's1-last' }; }
+      // Estrategia 2: "grupo"/"Group" en elementos con ícono
       for (const el of allEls) {
         if (!el.querySelector('svg, i, img')) continue;
         const txt = (el.textContent || '').toLowerCase();
@@ -936,7 +951,7 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
           }
         }
       }
-      // Estrategia 3: "grupo"/"Group" en cualquier elemento, climb ilimitado
+      // Estrategia 3: "grupo"/"Group" en cualquier elemento
       for (const el of allEls) {
         const txt = (el.textContent || '').toLowerCase();
         const aria = (el.getAttribute('aria-label') || '').toLowerCase();
@@ -948,7 +963,7 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
           }
         }
       }
-      return { ok: false, m: 'no-match', iconCount: withIcon.length };
+      return { ok: false, m: 'no-match' };
     });
     if (!clicked.ok) throw new Error('Share to group menu item not found (' + clicked.m + ')');
     console.log('[FB Relay] Share to group selected (method: ' + clicked.m + ')');
