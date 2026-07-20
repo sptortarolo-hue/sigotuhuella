@@ -807,6 +807,13 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     console.log(`[FB Relay] Navegando a post: ${targetUrl}`);
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await sleep(3000);
+    console.log(`[FB Relay] URL final: ${page.url()}`);
+    const postBlocked = await page.evaluate(() =>
+      document.body.innerText.includes('not available') ||
+      document.body.innerText.includes('no disponible') ||
+      document.body.innerText.includes('This content')
+    );
+    console.log(`[FB Relay] Post bloqueado: ${postBlocked}`);
 
     if (!(await checkSession(page))) throw new Error('session expired');
 

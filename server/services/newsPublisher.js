@@ -116,7 +116,10 @@ async function publishToFacebookPage(news) {
     params: { url: imageUrl, message, access_token: token },
     timeout: 30000,
   });
-  return { platformPostId: data.id };
+  const rawId = data.id;
+  const cleanId = rawId.includes('_') ? rawId.split('_')[1] : rawId;
+  console.log(`[NewsPublisher] Graph API id raw=${rawId} clean=${cleanId}`);
+  return { platformPostId: cleanId };
 }
 
 async function publishToFacebookGroups(news, pagePostUrl) {
@@ -246,6 +249,7 @@ export async function publishNews(newsId, targetPlatforms) {
       const pageId = await getSetting('facebook_page_id');
       if (pageId && platformPostId) {
         pagePostUrl = `https://www.facebook.com/${pageId}/posts/${platformPostId}`;
+        console.log(`[NewsPublisher] pagePostUrl=${pagePostUrl}`);
       }
     } catch (err) {
       console.error(`[NewsPublisher] Failed to publish ${newsId} to facebook_page:`, err.message);
