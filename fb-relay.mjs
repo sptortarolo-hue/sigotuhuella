@@ -745,12 +745,11 @@ async function findAndClick(page, { selectors = [], textMatch = [] } = {}) {
         const txt = (el.textContent || '').trim().toLowerCase();
         for (const m of textMatch) {
           if (aria.includes(m) || txt.includes(m)) {
+            // Intentar click desde el elemento hacia arriba hasta que funcione
             let target = el;
-            while (target && target !== document.body && !target.getAttribute('role') && target.tagName !== 'BUTTON' && target.tagName !== 'A' && target.tagName !== 'path') {
+            while (target && target !== document.body) {
+              try { target.click(); return true; } catch (e) {}
               target = target.parentElement;
-            }
-            if (target !== document.body) {
-              try { target.click(); return true; } catch {}
             }
           }
         }
