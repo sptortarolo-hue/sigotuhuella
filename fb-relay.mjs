@@ -831,7 +831,6 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       await sleep(1000);
     }
     if (!clicked) {
-      await captureDebugDump(page, 'share-button-not-found');
       throw new Error('Share button not found');
     }
     console.log('[FB Relay] Share button clicked');
@@ -861,7 +860,6 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       await sleep(1000);
     }
     if (!clicked) {
-      await captureDebugDump(page, 'share-menu-not-found');
       throw new Error('Share to group menu item not found');
     }
     console.log('[FB Relay] Share to group selected');
@@ -886,7 +884,6 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       await sleep(1000);
     }
     if (!inputFocused) {
-      await captureDebugDump(page, 'search-input-not-found');
       throw new Error('Group search input not found');
     }
     console.log('[FB Relay] Input encontrado, escribiendo...');
@@ -968,7 +965,6 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       await sleep(1000);
     }
     if (!clicked) {
-      await captureDebugDump(page, 'final-button-not-found');
       throw new Error('Final share button not found');
     }
     console.log('[FB Relay] Final button clicked');
