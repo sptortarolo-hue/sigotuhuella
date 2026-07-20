@@ -736,6 +736,26 @@ async function findAndClick(page, { selectors = [], textMatch = [] } = {}) {
         }
       }
     }
+    // 3. Fallback final: buscar texto en TODOS los elementos visibles (sin filtro de rol)
+    if (textMatch.length > 0) {
+      const all = document.querySelectorAll('body *');
+      for (const el of all) {
+        if (el.offsetParent === null) continue;
+        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+        const txt = (el.textContent || '').trim().toLowerCase();
+        for (const m of textMatch) {
+          if (aria.includes(m) || txt.includes(m)) {
+            let target = el;
+            while (target && target !== document.body && !target.getAttribute('role') && target.tagName !== 'BUTTON' && target.tagName !== 'A' && target.tagName !== 'path') {
+              target = target.parentElement;
+            }
+            if (target !== document.body) {
+              try { target.click(); return true; } catch {}
+            }
+          }
+        }
+      }
+    }
     return false;
   }, { selectors, textMatch });
 }
@@ -840,20 +860,8 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     clicked = false;
     for (let attempt = 0; attempt < 5; attempt++) {
       clicked = await findAndClick(page, {
-        selectors: [
-          '[role="menuitem"][aria-label*="Compartir"]',
-          '[role="menuitem"][aria-label*="compartir"]',
-          '[role="menuitem"][aria-label*="Share"]',
-          '[role="menuitem"][aria-label*="share"]',
-          '[aria-label*="Grupo"]', '[aria-label*="grupo"]',
-          '[aria-label*="Group"]', '[aria-label*="group"]',
-        ],
-        textMatch: [
-          'compartir en grupo', 'compartir en un grupo',
-          'share to group', 'share in group',
-          'compartir en', 'share to',
-          'grupo', 'group',
-        ],
+        selectors: ['[aria-label="Grupo"]', '[aria-label="Group"]'],
+        textMatch: ['grupo', 'group'],
       });
       if (clicked) break;
       await sleep(1000);
