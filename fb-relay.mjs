@@ -684,6 +684,87 @@ async function commentOnPost(b, targetUrl, text) {
   }
 }
 
+async function captureDebugDump(page, label) {
+  try {
+    const ssBase64 = await page.screenshot({ encoding: 'base64', fullPage: false });
+    const html = await page.evaluate(() => document.body.innerHTML.substring(0, 30000));
+    const ariaLabels = await page.evaluate(() =>
+      [...document.querySelectorAll('[aria-label]')].map(el =>
+        `${el.tagName} ${el.getAttribute('aria-label')}`
+      ).slice(0, 80)
+    );
+    const roles = await page.evaluate(() =>
+      [...document.querySelectorAll('[role]')].map(el =>
+        `#${el.id || ''} .${(el.className||'').substring(0,20)} [role="${el.getAttribute('role')}"] ${(el.textContent||'').trim().substring(0,60)}`
+      ).filter(r => !r.includes('article') && !r.includes('feed')).slice(0, 40)
+    );
+    await api.post('/fb-debug', { screenshot: ssBase64, ariaLabels, roles, url: page.url(), html, label });
+    console.log(`[FB Relay] Debug dump (${label}) enviado al servidor`);
+  } catch (e) {
+    console.error('[FB Relay] Error capturando debug:', e.message);
+  }
+}
+
+// Multi-fallback find + click: prueba selectores CSS, luego text matching en elementos clickeables
+async function findAndClick(page, { selectors = [], textMatch = [] } = {}) {
+  return page.evaluate(({ selectors, textMatch }) => {
+    // 1. Probar selectores CSS exactos
+    for (const sel of selectors) {
+      try {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null && el.offsetWidth > 0) {
+          el.click();
+          return true;
+        }
+      } catch {}
+    }
+    // 2. Probar text matching en elementos clickeables visibles
+    if (textMatch.length > 0) {
+      const clickable = document.querySelectorAll(
+        '[role="button"], button, a[role="link"], a[role="button"], ' +
+        'span[role="button"], div[role="button"], div[role="menuitem"], ' +
+        '[role="option"], [onclick]'
+      );
+      for (const el of clickable) {
+        if (el.offsetParent === null || el.offsetWidth === 0) continue;
+        const txt = (el.textContent || '').trim().toLowerCase();
+        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+        for (const m of textMatch) {
+          if (txt.includes(m) || aria.includes(m)) {
+            try { el.click(); return true; } catch {}
+          }
+        }
+      }
+    }
+    return false;
+  }, { selectors, textMatch });
+}
+
+// Multi-fallback para encontrar un input visible dentro de un role="dialog"
+async function findDialogInput(page) {
+  return page.evaluate(() => {
+    const selectors = [
+      'div[role="dialog"] input[type="text"]',
+      'div[role="dialog"] input[type="search"]',
+      'div[role="dialog"] input:not([type="hidden"])',
+      '[role="dialog"] input[aria-label*="Buscar"]',
+      '[role="dialog"] input[aria-label*="Search"]',
+      '[role="dialog"] input[aria-label*="search"]',
+      '[role="dialog"] input[aria-label*="buscar"]',
+      '[role="dialog"] [contenteditable="false"][role="combobox"]',
+    ];
+    for (const sel of selectors) {
+      try {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null && el.offsetWidth > 0) {
+          return sel;
+        }
+      } catch {}
+    }
+    return null;
+  });
+}
+
 async function sharePostToGroup(b, targetUrl, fbGroupId, message) {
   const page = await b.newPage();
 
@@ -701,58 +782,140 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message) {
 
     await prePostBehavior(page);
 
+    // === Paso 1: Botón Compartir en el post ===
     console.log('[FB Relay] Click en Compartir...');
-    const shareBtn = await page.waitForSelector('[aria-label="Compartir"], [aria-label="Share"]', { visible: true, timeout: 10000 }).catch(() => null);
-    if (!shareBtn) throw new Error('Share button not found');
-    await shareBtn.click();
+    let clicked = false;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      clicked = await findAndClick(page, {
+        selectors: [
+          '[aria-label="Compartir"]', '[aria-label="Share"]',
+          'div[aria-label="Compartir"]', 'div[aria-label="Share"]',
+          'button[aria-label="Compartir"]', 'button[aria-label="Share"]',
+          'span[aria-label="Compartir"]', 'span[aria-label="Share"]',
+        ],
+        textMatch: ['compartir', 'share'],
+      });
+      if (clicked) break;
+      // Si no aparece, scrollear para que sea visible
+      await page.evaluate(() => window.scrollBy(0, 200));
+      await sleep(1000);
+    }
+    if (!clicked) {
+      await captureDebugDump(page, 'share-button-not-found');
+      throw new Error('Share button not found');
+    }
+    console.log('[FB Relay] Share button clicked');
     await sleep(2000);
 
+    // === Paso 2: Menú "Compartir en grupo" ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
+    clicked = false;
     for (let attempt = 0; attempt < 5; attempt++) {
-      const clicked = await page.evaluate(() => {
-        const items = document.querySelectorAll('[role="menuitem"], [role="button"]');
-        for (const item of items) {
-          const text = item.textContent.toLowerCase();
-          if (text.includes('compartir en grupo') || text.includes('share to group')) {
-            item.click();
-            return true;
-          }
-        }
-        return false;
+      clicked = await findAndClick(page, {
+        selectors: [
+          '[role="menuitem"][aria-label*="Compartir"]',
+          '[role="menuitem"][aria-label*="compartir"]',
+          '[role="menuitem"][aria-label*="Share"]',
+          '[role="menuitem"][aria-label*="share"]',
+        ],
+        textMatch: [
+          'compartir en grupo', 'compartir en un grupo',
+          'share to group', 'share in group',
+          'compartir en', 'share to',
+        ],
       });
       if (clicked) break;
       await sleep(1000);
     }
+    if (!clicked) {
+      await captureDebugDump(page, 'share-menu-not-found');
+      throw new Error('Share to group menu item not found');
+    }
+    console.log('[FB Relay] Share to group selected');
     await sleep(3000);
 
-    const searchInput = await page.waitForSelector('div[role="dialog"] input', { visible: true, timeout: 15000 }).catch(() => null);
-    if (!searchInput) throw new Error('Group search input not found');
-    await searchInput.click();
-    await sleep(500);
-    await page.keyboard.type(fbGroupId, { delay: randomInt(50, 100) });
-    await sleep(2000);
-
-    const groupResult = await page.waitForSelector(
-      'div[role="option"], [role="dialog"] [role="listbox"] li, [role="dialog"] [role="listitem"]',
-      { visible: true, timeout: 10000 }
-    ).catch(() => null);
-    if (groupResult) {
-      await groupResult.click();
-      await sleep(2000);
+    // === Paso 3: Input de búsqueda de grupo ===
+    console.log('[FB Relay] Buscando grupo...');
+    let searchSel = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      searchSel = await findDialogInput(page);
+      if (searchSel) break;
+      await sleep(1000);
+    }
+    if (!searchSel) {
+      await captureDebugDump(page, 'search-input-not-found');
+      throw new Error('Group search input not found');
+    }
+    const inputEl = await page.$(searchSel);
+    if (inputEl) {
+      await inputEl.click();
+      await sleep(500);
+      await page.keyboard.type(fbGroupId, { delay: randomInt(50, 100) });
+      await sleep(3000);
     }
 
+    // === Paso 4: Click en resultado del grupo ===
+    console.log('[FB Relay] Seleccionando grupo de resultados...');
+    let groupFound = false;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      groupFound = await findAndClick(page, {
+        selectors: [
+          'div[role="option"]',
+          '[role="dialog"] [role="listbox"] li',
+          '[role="dialog"] [role="listitem"]',
+          '[role="dialog"] [role="option"]',
+          '[role="dialog"] a[href*="/groups/"]',
+          '[role="dialog"] div[role="button"]',
+        ],
+        textMatch: [fbGroupId.toLowerCase()],
+      });
+      if (groupFound) break;
+      await sleep(1000);
+    }
+    if (groupFound) {
+      console.log('[FB Relay] Grupo seleccionado');
+      await sleep(2000);
+    } else {
+      console.log('[FB Relay] No se encontró el grupo en resultados, continuando...');
+    }
+
+    // === Paso 5: Mensaje opcional ===
     if (message) {
       const editor = await page.$('div[role="dialog"] div[role="textbox"][contenteditable="true"]');
-      if (editor) await humanType(page, editor, message);
-      await sleep(2000);
+      if (editor) {
+        await humanType(page, editor, message);
+        await sleep(2000);
+      }
     }
 
-    const finalBtn = await page.waitForSelector(
-      'div[role="dialog"] [aria-label="Compartir ahora"], div[role="dialog"] [aria-label="Share Now"], div[role="dialog"] [aria-label="Compartir"], div[role="dialog"] [aria-label="Publicar"]',
-      { visible: true, timeout: 10000 }
-    );
-    if (!finalBtn) throw new Error('Final share button not found');
-    await finalBtn.click();
+    // === Paso 6: Botón final (Compartir ahora) ===
+    console.log('[FB Relay] Click en botón final...');
+    clicked = false;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      clicked = await findAndClick(page, {
+        selectors: [
+          'div[role="dialog"] [aria-label="Compartir ahora"]',
+          'div[role="dialog"] [aria-label="Share Now"]',
+          'div[role="dialog"] [aria-label="Compartir"]',
+          'div[role="dialog"] [aria-label="Publicar"]',
+          'div[role="dialog"] [aria-label="Post"]',
+          'div[role="dialog"] [aria-label="Done"]',
+          'div[role="dialog"] [aria-label="Listo"]',
+          'div[role="dialog"] button[type="submit"]',
+        ],
+        textMatch: [
+          'compartir ahora', 'share now', 'compartir', 'share',
+          'publicar', 'post', 'done', 'listo', 'enviar', 'send',
+        ],
+      });
+      if (clicked) break;
+      await sleep(1000);
+    }
+    if (!clicked) {
+      await captureDebugDump(page, 'final-button-not-found');
+      throw new Error('Final share button not found');
+    }
+    console.log('[FB Relay] Final button clicked');
 
     try {
       await page.waitForSelector('div[role="dialog"]', { hidden: true, timeout: 15000 });
