@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
-import { getPets, Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
+import { Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
+import { api } from '@/src/lib/api';
 import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -52,8 +53,8 @@ export default function PetDetail() {
   useEffect(() => {
     const fetchPet = async () => {
       try {
-        const data = await getPets();
-        const found = data.find(p => p.id === id);
+        const data = await api.pets.get(id);
+        const found = data.pet;
         setPet(found || null);
         if (found) {
           fetch(`/api/pets/${id}/view`, { method: 'POST' }).catch(() => {});
@@ -118,6 +119,7 @@ export default function PetDetail() {
     if (img.has_original) return `/og-image/${pet.id}/${idx}?full=1`;
     if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
     if (img.external_url) return img.external_url;
+    if (img.has_image) return `/api/images/pet-thumb/${pet.id}/${idx}`;
     return '';
   }).filter(Boolean) || [];
 

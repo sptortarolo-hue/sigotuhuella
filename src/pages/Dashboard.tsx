@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/src/lib/api';
+import { getPetImageUrl } from '@/src/lib/petService';
+import { getNewsImageUrl } from '@/src/lib/newsService';
 import {
   PawPrint, Plus, Eye, Heart, Trophy, Users,
   Loader2, Clock, ChevronRight, Search, Camera,
@@ -51,7 +53,7 @@ export default function Dashboard() {
           typeLabel: item.type,
           title: item.title,
           description: (item.content || '').replace(/<[^>]*>/g, '').slice(0, 80),
-          image: item.image_data || null,
+          image: getNewsImageUrl(item),
           created_at: item.created_at,
         }));
         const petItems = (petsData.pets || []).slice(0, 5).map((item: any) => {
@@ -65,7 +67,7 @@ export default function Dashboard() {
             typeLabel: item.status,
             title: petTitle,
             description: '',
-            image: item.images?.[0]?.image_data || null,
+            image: getPetImageUrl(item),
             created_at: item.created_at,
           };
         });

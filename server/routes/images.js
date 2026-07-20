@@ -246,16 +246,18 @@ router.get('/pet-thumb/:petId/:index', async (req, res) => {
     );
     if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).end();
     const img = result.rows[0];
-    const data = img.image_data.length > 50000
-      ? img.image_data.slice(0, 50000)
-      : img.image_data;
-    const buffer = Buffer.from(data, 'base64');
-    res.set('Content-Type', img.mime_type || 'image/jpeg');
+    const buffer = Buffer.from(img.image_data, 'base64');
+    const thumb = await sharp(buffer)
+      .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 75 })
+      .toBuffer();
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Content-Length', thumb.length);
     res.set('Cache-Control', 'public, max-age=86400');
     res.set('Access-Control-Allow-Origin', '*');
-    res.end(buffer);
+    res.end(thumb);
   } catch (err) {
-    console.error('Thumb serve error:', err);
+    console.error('Thumb serve error:', err.message);
     res.status(500).end();
   }
 });

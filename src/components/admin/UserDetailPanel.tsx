@@ -8,6 +8,16 @@ import { cn } from '@/src/lib/utils';
 import { BADGE_CONFIG } from '@/src/components/MemberCard';
 import ImageLightbox from './ImageLightbox';
 import { api } from '@/src/lib/api';
+import { getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
+
+function petThumbUrl(pet: any, idx = 0): string | undefined {
+  if (!pet?.images?.[idx]) return undefined;
+  const img = pet.images[idx];
+  if (img.image_data) return `data:${img.mime_type || 'image/jpeg'};base64,${img.image_data}`;
+  if (img.external_url) return img.external_url;
+  if (img.has_image) return `/api/images/pet-thumb/${pet.id}/${idx}`;
+  return undefined;
+}
 
 const BADGE_ICONS: Record<string, { label: string; icon: string }> = {
   volunteer: { label: 'Voluntario/a', icon: '🤝' },
@@ -385,14 +395,14 @@ export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMo
               >
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-brand-bg overflow-hidden shrink-0">
-                    {pet.images?.[0]?.image_data ? (
+                    {petThumbUrl(pet, 0) ? (
                       <img
-                        src={`data:${pet.images[0].mime_type || 'image/jpeg'};base64,${pet.images[0].image_data}`}
+                        src={petThumbUrl(pet, 0)}
                         alt=""
                         className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
                         onClick={(e) => {
                           e.stopPropagation();
-                          const imgs = (pet.images || []).filter((i: any) => i.image_data).map((i: any) => `data:${i.mime_type || 'image/jpeg'};base64,${i.image_data}`);
+                          const imgs = getPetImageUrls(pet);
                           if (imgs.length > 0) { setLightboxImages(imgs); setLightboxIndex(0); }
                         }}
                       />

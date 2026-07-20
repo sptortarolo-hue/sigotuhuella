@@ -6,6 +6,25 @@ import {
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import ReunionModal from '@/src/components/ReunionModal';
+import { getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
+
+function petImageAt(pet: any, idx: number): string | undefined {
+  if (!pet?.images?.[idx]) return undefined;
+  const img = pet.images[idx];
+  if (img.image_data) return `data:${img.mime_type || 'image/jpeg'};base64,${img.image_data}`;
+  if (img.external_url) return img.external_url;
+  if (img.has_image) return `/api/images/pet-thumb/${pet.id}/${idx}`;
+  return undefined;
+}
+
+function petAllImages(pet: any): string[] {
+  return pet?.images?.map((img: any, idx: number) => {
+    if (img.image_data) return `data:${img.mime_type || 'image/jpeg'};base64,${img.image_data}`;
+    if (img.external_url) return img.external_url;
+    if (img.has_image) return `/api/images/pet-thumb/${pet.id}/${idx}`;
+    return '';
+  }).filter(Boolean) || [];
+}
 
 function Section({ title, icon, children, defaultOpen = true }: { title: string; icon: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -67,9 +86,9 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          {pet.images?.[0]?.image_data || pet.images?.[0]?.external_url ? (
+          {pet.images?.[0]?.image_data || pet.images?.[0]?.external_url || pet.images?.[0]?.has_image ? (
             <img
-              src={pet.images[0].external_url || `data:${pet.images[0].mime_type || 'image/jpeg'};base64,${pet.images[0].image_data}`}
+              src={petImageAt(pet, 0)}
               alt=""
               className="w-14 h-14 rounded-2xl object-cover border-2 border-brand-accent shrink-0"
             />
@@ -218,7 +237,7 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
               {pet.images.map((img: any, i: number) => (
                 <div key={img.id} className="aspect-square rounded-xl overflow-hidden border border-brand-accent bg-brand-bg relative group">
                   <img
-                    src={img.external_url || `data:${img.mime_type || 'image/jpeg'};base64,${img.image_data}`}
+                    src={petImageAt(pet, i)}
                     alt=""
                     className="w-full h-full object-cover"
                   />
