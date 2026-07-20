@@ -865,18 +865,27 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       const dialogs = document.querySelectorAll('[role="dialog"]');
       const active = dialogs[dialogs.length - 1];
       if (!active) return [];
-      return [...active.querySelectorAll(':scope > *, :scope > div > div, :scope > div > div > div')].map((el, i) => ({
-        i, tag: el.tagName,
-        role: el.getAttribute('role'),
-        aria: el.getAttribute('aria-label'),
-        cls: (el.getAttribute('class') || '').substring(0, 40),
-        text: (el.textContent || '').trim().substring(0, 80),
-        hijos: el.children.length,
-        visible: el.offsetParent !== null,
-      }));
+      const result = [];
+      const walk = (el, depth) => {
+        if (depth > 6) return;
+        const text = (el.textContent || '').trim();
+        if (text && text.length < 60 && el.children.length <= 1) {
+          result.push({
+            depth, tag: el.tagName, role: el.getAttribute('role'),
+            aria: el.getAttribute('aria-label'),
+            cls: (el.getAttribute('class') || '').substring(0, 30),
+            text: text.substring(0, 50),
+            visible: el.offsetParent !== null,
+          });
+        }
+        for (const child of el.children) walk(child, depth + 1);
+      };
+      walk(active, 0);
+      return result;
     });
+    console.log('[FB Relay] Dump profundo del modal:');
     for (const item of dump) {
-      console.log(`  [#${item.i}] <${item.tag}> role="${item.role}" aria="${item.aria}" cls="${item.cls}" visible=${item.visible} hijos=${item.hijos} text="${item.text}"`);
+      console.log(`  [d=${item.depth}] <${item.tag}> role="${item.role}" aria="${item.aria}" cls="${item.cls}" visible=${item.visible} text="${item.text}"`);
     }
     clicked = false;
     for (let attempt = 0; attempt < 5; attempt++) {
