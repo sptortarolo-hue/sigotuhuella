@@ -29,7 +29,10 @@ export async function enqueuePublishTask(petId, groupId, fbGroupId, message, ima
 
 export async function getPendingTasks(limit = 5) {
   const result = await pool.query(
-    "SELECT id, pet_id, group_id, fb_group_id, message, image_urls, marker, action, target_url, comment_text, created_at FROM fb_relay_tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT $1",
+    `SELECT ft.id, ft.pet_id, ft.group_id, ft.fb_group_id, ft.message, ft.image_urls, ft.marker, ft.action, ft.target_url, ft.comment_text, ft.created_at, fg.name as group_name
+     FROM fb_relay_tasks ft
+     LEFT JOIN facebook_groups fg ON fg.id = ft.group_id
+     WHERE ft.status = 'pending' ORDER BY ft.created_at ASC LIMIT $1`,
     [limit]
   );
   return result.rows;

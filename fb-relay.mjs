@@ -795,7 +795,7 @@ async function findDialogInput(page) {
   });
 }
 
-async function sharePostToGroup(b, targetUrl, fbGroupId, message) {
+async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
   const page = await b.newPage();
 
   try {
@@ -891,7 +891,7 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message) {
     }
     console.log('[FB Relay] Input encontrado, escribiendo...');
     await sleep(500);
-    await page.keyboard.type(fbGroupId, { delay: randomInt(50, 100) });
+    await page.keyboard.type(groupName || fbGroupId, { delay: randomInt(50, 100) });
     await sleep(3000);
 
     // === Paso 4: Click en el primer resultado visible (ya filtrado por nombre) ===
@@ -996,7 +996,7 @@ async function executeTask(task) {
     const b = await getBrowser();
 
     if (task.action === 'share' && task.target_url) {
-      await sharePostToGroup(b, task.target_url, task.fb_group_id, task.message);
+      await sharePostToGroup(b, task.target_url, task.fb_group_id, task.message, task.group_name);
       await api.post('/fb/completed', { task_updates: [{ task_id: task.id }] });
       console.log(`[FB Relay] Tarea ${task.id} completada (share)`);
     } else if (task.action === 'comment' && task.target_url) {
