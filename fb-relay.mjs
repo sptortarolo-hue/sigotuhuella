@@ -695,7 +695,7 @@ async function captureDebugDump(page, label) {
     );
     const roles = await page.evaluate(() =>
       [...document.querySelectorAll('[role]')].map(el =>
-        `#${el.id || ''} .${(el.className||'').substring(0,20)} [role="${el.getAttribute('role')}"] ${(el.textContent||'').trim().substring(0,60)}`
+        `#${el.id || ''} .${(el.getAttribute('class')||'').substring(0,20)} [role="${el.getAttribute('role')}"] ${(el.textContent||'').trim().substring(0,60)}`
       ).filter(r => !r.includes('article') && !r.includes('feed')).slice(0, 40)
     );
     await api.post('/fb-debug', { screenshot: ssBase64, ariaLabels, roles, url: page.url(), html, label });
@@ -740,20 +740,49 @@ async function findAndClick(page, { selectors = [], textMatch = [] } = {}) {
   }, { selectors, textMatch });
 }
 
-// Multi-fallback para encontrar un input visible dentro de un role="dialog"
+// Multi-fallback para encontrar un input visible en el modal activo (el último abierto)
 async function findDialogInput(page) {
   return page.evaluate(() => {
-    const selectors = [
-      'div[role="dialog"] input[type="text"]',
-      'div[role="dialog"] input[type="search"]',
-      'div[role="dialog"] input:not([type="hidden"])',
-      '[role="dialog"] input[aria-label*="Buscar"]',
-      '[role="dialog"] input[aria-label*="Search"]',
-      '[role="dialog"] input[aria-label*="search"]',
-      '[role="dialog"] input[aria-label*="buscar"]',
-      '[role="dialog"] [contenteditable="false"][role="combobox"]',
+    // Buscar en el último role="dialog" primero (el de arriba)
+    const dialogs = document.querySelectorAll('div[role="dialog"]');
+    const activeDialog = dialogs.length > 0 ? dialogs[dialogs.length - 1] : null;
+
+    const inputSelectors = [
+      'input[type="text"]', 'input[type="search"]',
+      'input:not([type="hidden"])',
+      'input[aria-label*="Buscar"]', 'input[aria-label*="Search"]',
+      'input[aria-label*="search"]', 'input[aria-label*="buscar"]',
+      'input[placeholder*="grupo"]', 'input[placeholder*="group"]',
+      'input[placeholder*="Buscar"]', 'input[placeholder*="Search"]',
+      '[contenteditable="false"][role="combobox"]',
     ];
-    for (const sel of selectors) {
+
+    // 1. Buscar en el último dialog
+    if (activeDialog) {
+      for (const sel of inputSelectors) {
+        try {
+          const el = activeDialog.querySelector(sel);
+          if (el && el.offsetParent !== null && el.offsetWidth > 0) {
+            return sel;
+          }
+        } catch {}
+      }
+    }
+
+    // 2. Fallback: buscar en cualquier dialog
+    for (const sel of inputSelectors) {
+      try {
+        const els = document.querySelectorAll(sel);
+        for (const el of els) {
+          if (el.offsetParent !== null && el.offsetWidth > 0 && el.closest('[role="dialog"]')) {
+            return sel;
+          }
+        }
+      } catch {}
+    }
+
+    // 3. Fallback global: cualquier input search visible
+    for (const sel of inputSelectors) {
       try {
         const el = document.querySelector(sel);
         if (el && el.offsetParent !== null && el.offsetWidth > 0) {
@@ -761,6 +790,7 @@ async function findDialogInput(page) {
         }
       } catch {}
     }
+
     return null;
   });
 }
@@ -817,11 +847,14 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message) {
           '[role="menuitem"][aria-label*="compartir"]',
           '[role="menuitem"][aria-label*="Share"]',
           '[role="menuitem"][aria-label*="share"]',
+          '[aria-label*="Grupo"]', '[aria-label*="grupo"]',
+          '[aria-label*="Group"]', '[aria-label*="group"]',
         ],
         textMatch: [
           'compartir en grupo', 'compartir en un grupo',
           'share to group', 'share in group',
           'compartir en', 'share to',
+          'grupo', 'group',
         ],
       });
       if (clicked) break;
@@ -841,6 +874,22 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message) {
       searchSel = await findDialogInput(page);
       if (searchSel) break;
       await sleep(1000);
+    }
+    if (!searchSel) {
+      // Fallback: clickear cualquier input visible en el DOM global
+      const clicked = await page.evaluate(() => {
+        const allInputs = document.querySelectorAll('input:not([type="hidden"])');
+        for (const el of allInputs) {
+          if (el.offsetParent !== null && el.offsetWidth > 0) {
+            try { el.click(); return true; } catch {}
+          }
+        }
+        return false;
+      });
+      if (clicked) {
+        console.log('[FB Relay] Input encontrado via fallback global');
+        searchSel = 'fallback-input';
+      }
     }
     if (!searchSel) {
       await captureDebugDump(page, 'search-input-not-found');
