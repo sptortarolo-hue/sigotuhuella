@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
   try {
     const lite = req.query.lite !== '0';
     const baseColumns = lite
-      ? `id, title, content, mime_type, video_url, source_url, type, related_pet_id, created_by, created_at, updated_at, (image_data IS NOT NULL) as has_image`
+      ? `n.id, n.title, n.content, n.mime_type, n.video_url, n.source_url, n.type, n.related_pet_id, n.created_by, n.created_at, n.updated_at, (n.image_data IS NOT NULL) as has_image`
       : `n.*`;
     const result = await pool.query(
       `SELECT ${baseColumns}, u.display_name as author_name
