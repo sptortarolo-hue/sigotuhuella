@@ -738,18 +738,22 @@ async function findAndClick(page, { selectors = [], textMatch = [] } = {}) {
     }
     // 3. Fallback final: buscar texto en TODOS los elementos visibles (sin filtro de rol)
     if (textMatch.length > 0) {
-      const all = document.querySelectorAll('body *');
-      for (const el of all) {
-        if (el.offsetParent === null) continue;
-        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-        const txt = (el.textContent || '').trim().toLowerCase();
-        for (const m of textMatch) {
-          if (aria.includes(m) || txt.includes(m)) {
-            // Intentar click desde el elemento hacia arriba hasta que funcione
-            let target = el;
-            while (target && target !== document.body) {
-              try { target.click(); return true; } catch (e) {}
-              target = target.parentElement;
+      // Buscar primero dentro del modal activo, luego en todo el body
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      const scopes = dialogs.length > 0 ? [dialogs[dialogs.length - 1], document.body] : [document.body];
+      for (const scope of scopes) {
+        const all = scope.querySelectorAll('*');
+        for (const el of all) {
+          if (el.offsetParent === null) continue;
+          const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+          const txt = (el.textContent || '').trim().toLowerCase();
+          for (const m of textMatch) {
+            if (aria.includes(m) || txt.includes(m)) {
+              let target = el;
+              while (target && target !== document.body && target !== scope) {
+                try { target.click(); return true; } catch (e) {}
+                target = target.parentElement;
+              }
             }
           }
         }
@@ -876,9 +880,24 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     }
     clicked = false;
     for (let attempt = 0; attempt < 5; attempt++) {
-      clicked = await findAndClick(page, {
-        selectors: ['[aria-label="Grupo"]', '[aria-label="Group"]'],
-        textMatch: ['grupo', 'group'],
+      clicked = await page.evaluate(() => {
+        const dialogs = document.querySelectorAll('[role="dialog"]');
+        const active = dialogs[dialogs.length - 1];
+        if (!active) return false;
+        const all = active.querySelectorAll('*');
+        for (const el of all) {
+          if (el.offsetParent === null) continue;
+          const text = (el.textContent || '').trim().toLowerCase();
+          const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+          if (text.includes('grupo') || aria.includes('grupo') || text.includes('group') || aria.includes('group')) {
+            let target = el;
+            while (target && target !== active) {
+              try { target.click(); return true; } catch {}
+              target = target.parentElement;
+            }
+          }
+        }
+        return false;
       });
       if (clicked) break;
       await sleep(1000);
