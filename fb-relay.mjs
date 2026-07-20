@@ -894,24 +894,25 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message) {
     await page.keyboard.type(fbGroupId, { delay: randomInt(50, 100) });
     await sleep(3000);
 
-    // === Paso 4: Click en resultado del grupo ===
+    // === Paso 4: Click en el primer resultado visible (ya filtrado por nombre) ===
     console.log('[FB Relay] Seleccionando grupo de resultados...');
     let groupFound = false;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      groupFound = await findAndClick(page, {
-        selectors: [
-          'div[role="dialog"] [role="option"]',
-          'div[role="dialog"] [role="listbox"] div',
-          'div[role="dialog"] div[role="presentation"]',
-          'div[role="dialog"] li[role="option"]',
-          'div[role="dialog"] [role="listbox"] [role="option"]',
-          'div[role="option"]',
-          '[role="dialog"] [role="listbox"] li',
-          '[role="dialog"] [role="listitem"]',
-          '[role="dialog"] a[href*="/groups/"]',
-          '[role="dialog"] div[role="button"]',
-        ],
-        textMatch: [fbGroupId.toLowerCase()],
+    for (let attempt = 0; attempt < 8; attempt++) {
+      groupFound = await page.evaluate(() => {
+        const dialogs = document.querySelectorAll('[role="dialog"]');
+        const active = dialogs[dialogs.length - 1];
+        if (!active) return false;
+        const opts = active.querySelectorAll(
+          '[role="option"], [role="listitem"], li, ' +
+          'a[href*="/groups/"], div[role="button"]'
+        );
+        for (const el of opts) {
+          if (el.offsetParent !== null && el.offsetWidth > 0) {
+            el.click();
+            return true;
+          }
+        }
+        return false;
       });
       if (groupFound) break;
       await sleep(1000);
