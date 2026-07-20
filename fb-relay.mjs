@@ -858,54 +858,71 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     console.log('[FB Relay] Share button clicked');
     await sleep(2000);
 
-    // === Paso 2: Menú "Compartir en grupo" ===
+    // === Paso 2: Menú "Compartir en grupo" (scrapear modal y clasificar) ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
-    // DIAGNÓSTICO TEMPORAL
-    const dump = await page.evaluate(() => {
-      const lines = [];
-      const keywords = ['grupo', 'group', 'amigos', 'friends'];
-      for (const kw of keywords) {
-        const xpath = `//*[contains(text(), '${kw}')]`;
-        const nodes = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-        for (let i = 0; i < nodes.snapshotLength && i < 8; i++) {
-          const el = nodes.snapshotItem(i);
-          const role = el.getAttribute('role');
-          const onclick = !!el.getAttribute('onclick');
-          const tabindex = el.getAttribute('tabindex');
-          const cls = (el.getAttribute('class') || '').substring(0, 30);
-          lines.push(`"${kw}": <${el.tagName}> role="${role}" cls="${cls}" visible=${el.offsetParent !== null} onclick=${onclick} tabindex="${tabindex}" text="${el.textContent.trim().substring(0, 60)}"`);
+    await sleep(3000);
+    const modalData = await page.evaluate(() => {
+      const result = { items: [], cont: null };
+      // Encontrar contenedor del menú
+      const menus = document.querySelectorAll('[role="menu"]');
+      let container = menus.length ? menus[menus.length - 1] : null;
+      // Fallback: buscar menuitems y determinar su contenedor
+      if (!container) {
+        const menuitems = document.querySelectorAll('[role="menuitem"]');
+        let common = null;
+        for (const el of menuitems) {
+          if (el.offsetParent === null) continue;
+          const parent = el.closest('div[role="presentation"], div[class*="popover"], div[class*="menu"], div[style*="visible"]');
+          if (parent) { common = parent; break; }
+        }
+        container = common;
+      }
+      if (!container) return result;
+      result.cont = container.outerHTML.substring(0, 200);
+      for (const el of container.children) {
+        if (el.offsetParent === null) continue;
+        result.items.push({
+          tag: el.tagName,
+          role: el.getAttribute('role') || '',
+          aria: (el.getAttribute('aria-label') || '').substring(0, 40),
+          text: (el.textContent || '').trim().substring(0, 80),
+          hasSvg: el.querySelector('svg') !== null,
+          cls: (el.getAttribute('class') || '').substring(0, 50),
+        });
+      }
+      return result;
+    });
+    console.log('[FB Relay] Modal container:', modalData.cont);
+    console.log('[FB Relay] Items del modal:', modalData.items.map((m, i) => `[${i}] role=${m.role} aria="${m.aria}" text="${m.text}" svg=${m.hasSvg}`).join('\n'));
+    clicked = await page.evaluate(() => {
+      const menus = document.querySelectorAll('[role="menu"]');
+      let container = menus.length ? menus[menus.length - 1] : null;
+      if (!container) {
+        const menuitems = document.querySelectorAll('[role="menuitem"]');
+        for (const el of menuitems) {
+          if (el.offsetParent === null) continue;
+          const parent = el.closest('div[role="presentation"], div[class*="popover"], div[class*="menu"], div[style*="visible"]');
+          if (parent) { container = parent; break; }
         }
       }
-      return lines.join('\n');
-    });
-    console.log('[FB Relay] Búsqueda de textos:\n' + dump);
-    clicked = false;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      clicked = await page.evaluate(() => {
-        const dialogs = document.querySelectorAll('[role="dialog"]');
-        const active = dialogs[dialogs.length - 1];
-        if (!active) return false;
-        const all = active.querySelectorAll('*');
-        for (const el of all) {
-          if (el.offsetParent === null) continue;
-          const text = (el.textContent || '').trim().toLowerCase();
-          const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-          if (text.includes('grupo') || aria.includes('grupo') || text.includes('group') || aria.includes('group')) {
-            let target = el;
-            while (target && target !== active) {
-              try { target.click(); return true; } catch {}
-              target = target.parentElement;
-            }
-          }
+      if (!container) return false;
+      const children = [...container.children].filter(c => c.offsetParent !== null);
+      // Clasificar: buscar por texto "grupo" o "group"
+      for (let i = 0; i < children.length; i++) {
+        const text = (children[i].textContent || '').toLowerCase();
+        const aria = (children[i].getAttribute('aria-label') || '').toLowerCase();
+        if (text.includes('grupo') || aria.includes('grupo') || text.includes('group') || aria.includes('group')) {
+          children[i].click();
+          return true;
         }
-        return false;
-      });
-      if (clicked) break;
-      await sleep(1000);
-    }
-    if (!clicked) {
-      throw new Error('Share to group menu item not found');
-    }
+      }
+      // Fallback: clickear 5to item (índice 4)
+      const idx = 4;
+      if (children.length > idx) { children[idx].click(); return true; }
+      if (children.length > 0) { children[children.length - 1].click(); return true; }
+      return false;
+    });
+    if (!clicked) throw new Error('Share to group menu item not found');
     console.log('[FB Relay] Share to group selected');
     await sleep(3000);
 
