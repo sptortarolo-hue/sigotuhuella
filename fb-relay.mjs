@@ -902,15 +902,14 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     });
     console.log('[FB Relay] Popover container:', diag.cont, '| Row:', diag.row);
     for (const it of diag.items) console.log(`  [${it.idx}] <${it.tag}> left=${it.left} text="${it.text}"`);
-    // Click: estrategias en cascada (scope = fila real o cont)
+    // Click: dedup por posición (aplanar todos los descendientes, dedup por left, click 4º = Grupo)
     clicked = await page.evaluate(() => {
-      let cont = null;
-      let row = null;
       const rkw = ['messenger','whatsapp','historia','enlace','grupo','perfil'];
       const xp = document.evaluate(
         '//*[contains(text(), "Compartir ahora") or contains(text(), "Share now")]',
         document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null
       );
+      let cont = null, row = null;
       for (let i = 0; i < xp.snapshotLength; i++) {
         let el = xp.snapshotItem(i);
         while (el && el !== document.body) {
@@ -923,8 +922,7 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
               if (n >= 3) { row = ch; break; }
             }
             cont = el;
-            el = null;
-            break;
+            el = null; break;
           }
           el = el.parentElement;
         }
@@ -934,25 +932,22 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       const _scope = row || cont;
       const scopeKids = [..._scope.children].filter(c => c.offsetParent !== null);
       const scope = scopeKids.length === 1 ? scopeKids[0] : _scope;
-      const allEls = [...scope.children].filter(c => c.offsetParent !== null && (c.textContent || '').trim().length > 1);
-      // Estrategia 1: botones ordenados por left, clickear 5to
-      const items = allEls.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
-      if (items.length >= 5) { items[4].click(); return { ok: true, m: 's1-5th' }; }
-      if (items.length > 0) { items[items.length - 1].click(); return { ok: true, m: 's1-last' }; }
-      // Estrategia 2: "grupo"/"Group" en descendientes
-      const desc = [...scope.querySelectorAll('*')].filter(c => c.offsetParent !== null);
-      for (const el of desc) {
-        const txt = (el.textContent || '').toLowerCase();
-        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-        if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
-          let target = el;
-          while (target && target !== document.body) {
-            try { target.click(); return { ok: true, m: 's2-grupo-desc' }; } catch {}
-            target = target.parentElement;
-          }
-        }
-      }
-      return { ok: false, m: 'no-match' };
+      // Aplanar TODOS los descendientes visibles (ignora estructura anidada)
+      const all = [...scope.querySelectorAll('*')]
+        .filter(c => c.offsetParent !== null && (c.textContent || '').trim().length > 1);
+      // Dedup por left redondeado a nearest 10
+      const seen = new Set();
+      const unique = all
+        .map(c => ({ el: c, left: Math.round(c.getBoundingClientRect().left / 10) * 10 }))
+        .sort((a, b) => a.left - b.left)
+        .filter(item => {
+          if (seen.has(item.left)) return false;
+          seen.add(item.left);
+          return true;
+        });
+      if (unique.length >= 4) { unique[3].el.click(); return { ok: true, m: 'dedup-4th' }; }
+      if (unique.length > 0) { unique[unique.length - 1].el.click(); return { ok: true, m: 'dedup-last' }; }
+      return { ok: false, m: 'no-dedup-items' };
     });
     if (!clicked.ok) throw new Error('Share to group menu item not found (' + clicked.m + ')');
     console.log('[FB Relay] Share to group selected (method: ' + clicked.m + ')');
