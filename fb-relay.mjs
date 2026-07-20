@@ -862,31 +862,23 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
     // DIAGNÓSTICO TEMPORAL
     const dump = await page.evaluate(() => {
-      const dialogs = document.querySelectorAll('[role="dialog"]');
-      const active = dialogs[dialogs.length - 1];
-      if (!active) return [];
-      const result = [];
-      const walk = (el, depth) => {
-        if (depth > 6) return;
-        const text = (el.textContent || '').trim();
-        if (text && text.length < 60 && el.children.length <= 1) {
-          result.push({
-            depth, tag: el.tagName, role: el.getAttribute('role'),
-            aria: el.getAttribute('aria-label'),
-            cls: (el.getAttribute('class') || '').substring(0, 30),
-            text: text.substring(0, 50),
-            visible: el.offsetParent !== null,
-          });
+      const lines = [];
+      const keywords = ['grupo', 'group', 'amigos', 'friends'];
+      for (const kw of keywords) {
+        const xpath = `//*[contains(text(), '${kw}')]`;
+        const nodes = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        for (let i = 0; i < nodes.snapshotLength && i < 8; i++) {
+          const el = nodes.snapshotItem(i);
+          const role = el.getAttribute('role');
+          const onclick = !!el.getAttribute('onclick');
+          const tabindex = el.getAttribute('tabindex');
+          const cls = (el.getAttribute('class') || '').substring(0, 30);
+          lines.push(`"${kw}": <${el.tagName}> role="${role}" cls="${cls}" visible=${el.offsetParent !== null} onclick=${onclick} tabindex="${tabindex}" text="${el.textContent.trim().substring(0, 60)}"`);
         }
-        for (const child of el.children) walk(child, depth + 1);
-      };
-      walk(active, 0);
-      return result;
+      }
+      return lines.join('\n');
     });
-    console.log('[FB Relay] Dump profundo del modal:');
-    for (const item of dump) {
-      console.log(`  [d=${item.depth}] <${item.tag}> role="${item.role}" aria="${item.aria}" cls="${item.cls}" visible=${item.visible} text="${item.text}"`);
-    }
+    console.log('[FB Relay] Búsqueda de textos:\n' + dump);
     clicked = false;
     for (let attempt = 0; attempt < 5; attempt++) {
       clicked = await page.evaluate(() => {
