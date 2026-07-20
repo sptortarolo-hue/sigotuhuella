@@ -19,6 +19,7 @@ const COOKIES_PATH = path.join(PROFILE_DIR, 'cookies.json');
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const TMP_DIR = path.join(__dirname, '.fb_img_tmp');
 const LOCK_DIR = path.join(__dirname, '.fb_lock');
+const DEBUG_PAUSE = process.env.FB_RELAY_DEBUG_DELAY ? parseInt(process.env.FB_RELAY_DEBUG_DELAY, 10) : 0;
 
 const USER_AGENTS = [
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
@@ -1001,6 +1002,11 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       console.error('[FB Relay] Error en diagnóstico:', e.message);
     }
 
+    if (DEBUG_PAUSE) {
+      console.log(`[FB Relay] Debug pause: revisá resultados de búsqueda (${DEBUG_PAUSE/1000}s)...`);
+      await sleep(DEBUG_PAUSE);
+    }
+
     // === Paso 4: Click en el primer resultado (text match + coordenadas) ===
     console.log('[FB Relay] Seleccionando grupo de resultados...');
     let groupFound = false;
@@ -1038,6 +1044,10 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
         console.log('[FB Relay] Coord click resultado:', { x: Math.round(coord.x), y: Math.round(coord.y), source: coord.source });
         await page.mouse.click(coord.x, coord.y);
         groupFound = true;
+        if (DEBUG_PAUSE) {
+          console.log(`[FB Relay] Debug pause: grupo clickeado, revisá (${DEBUG_PAUSE/1000}s)...`);
+          await sleep(DEBUG_PAUSE);
+        }
         break;
       }
       await sleep(1000);
@@ -1067,6 +1077,11 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
         await page.keyboard.type(message, { delay: randomInt(70, 130) });
         await sleep(2000);
       }
+    }
+
+    if (DEBUG_PAUSE) {
+      console.log(`[FB Relay] Debug pause: revisá botón final antes de click (${DEBUG_PAUSE/1000}s)...`);
+      await sleep(DEBUG_PAUSE);
     }
 
     // === Paso 6: Botón final (Compartir ahora) ===
