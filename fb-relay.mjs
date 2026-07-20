@@ -882,7 +882,9 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
               for (const k of rkw) { if (t.includes(k)) n++; }
               if (n >= 3) { out.row = ch.tagName; el = ch; break; }
             }
-            const src = el;
+            const _src = el;
+            const srcKids = [..._src.children].filter(c => c.offsetParent !== null);
+            const src = srcKids.length === 1 ? srcKids[0] : _src;
             out.items = [...src.children]
               .filter(c => c.offsetParent !== null && (c.textContent || '').trim().length > 1)
               .map((c, idx) => ({
@@ -929,34 +931,23 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
         if (cont) break;
       }
       if (!cont) return { ok: false, m: 'no-container' };
-      const scope = row || cont;
+      const _scope = row || cont;
+      const scopeKids = [..._scope.children].filter(c => c.offsetParent !== null);
+      const scope = scopeKids.length === 1 ? scopeKids[0] : _scope;
       const allEls = [...scope.children].filter(c => c.offsetParent !== null && (c.textContent || '').trim().length > 1);
-      // Estrategia 1: botones con ícono+texto corto, ordenados por left, clickear 5to
-      const withIcon = allEls
-        .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
-      if (withIcon.length >= 5) { withIcon[4].click(); return { ok: true, m: 's1-5th' }; }
-      if (withIcon.length > 0) { withIcon[withIcon.length - 1].click(); return { ok: true, m: 's1-last' }; }
-      // Estrategia 2: "grupo"/"Group" en elementos con ícono
-      for (const el of allEls) {
-        if (!el.querySelector('svg, i, img')) continue;
+      // Estrategia 1: botones ordenados por left, clickear 5to
+      const items = allEls.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+      if (items.length >= 5) { items[4].click(); return { ok: true, m: 's1-5th' }; }
+      if (items.length > 0) { items[items.length - 1].click(); return { ok: true, m: 's1-last' }; }
+      // Estrategia 2: "grupo"/"Group" en descendientes
+      const desc = [...scope.querySelectorAll('*')].filter(c => c.offsetParent !== null);
+      for (const el of desc) {
         const txt = (el.textContent || '').toLowerCase();
         const aria = (el.getAttribute('aria-label') || '').toLowerCase();
         if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
           let target = el;
           while (target && target !== document.body) {
-            try { target.click(); return { ok: true, m: 's2-icon-grupo' }; } catch {}
-            target = target.parentElement;
-          }
-        }
-      }
-      // Estrategia 3: "grupo"/"Group" en cualquier elemento
-      for (const el of allEls) {
-        const txt = (el.textContent || '').toLowerCase();
-        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-        if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
-          let target = el;
-          while (target && target !== document.body) {
-            try { target.click(); return { ok: true, m: 's3-any-grupo' }; } catch {}
+            try { target.click(); return { ok: true, m: 's2-grupo-desc' }; } catch {}
             target = target.parentElement;
           }
         }
