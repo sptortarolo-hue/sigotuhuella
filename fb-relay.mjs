@@ -856,6 +856,24 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
 
     // === Paso 2: Menú "Compartir en grupo" ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
+    // DIAGNÓSTICO TEMPORAL
+    const dump = await page.evaluate(() => {
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      const active = dialogs[dialogs.length - 1];
+      if (!active) return [];
+      return [...active.querySelectorAll(':scope > *, :scope > div > div, :scope > div > div > div')].map((el, i) => ({
+        i, tag: el.tagName,
+        role: el.getAttribute('role'),
+        aria: el.getAttribute('aria-label'),
+        cls: (el.getAttribute('class') || '').substring(0, 40),
+        text: (el.textContent || '').trim().substring(0, 80),
+        hijos: el.children.length,
+        visible: el.offsetParent !== null,
+      }));
+    });
+    for (const item of dump) {
+      console.log(`  [#${item.i}] <${item.tag}> role="${item.role}" aria="${item.aria}" cls="${item.cls}" visible=${item.visible} hijos=${item.hijos} text="${item.text}"`);
+    }
     clicked = false;
     for (let attempt = 0; attempt < 5; attempt++) {
       clicked = await findAndClick(page, {
