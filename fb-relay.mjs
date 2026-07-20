@@ -884,7 +884,7 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
             }
             const src = el;
             out.items = [...src.children]
-              .filter(c => c.offsetParent !== null && c.querySelector('svg, i, img') && (c.textContent || '').trim().length > 1)
+              .filter(c => c.offsetParent !== null && (c.textContent || '').trim().length > 1)
               .map((c, idx) => ({
                 idx, tag: c.tagName,
                 text: (c.textContent || '').trim().substring(0, 30),
@@ -930,7 +930,7 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       }
       if (!cont) return { ok: false, m: 'no-container' };
       const scope = row || cont;
-      const allEls = [...scope.children].filter(c => c.offsetParent !== null && c.getBoundingClientRect().width > 0 && c.querySelector('svg, i, img') && (c.textContent || '').trim().length > 1);
+      const allEls = [...scope.children].filter(c => c.offsetParent !== null && (c.textContent || '').trim().length > 1);
       // Estrategia 1: botones con ícono+texto corto, ordenados por left, clickear 5to
       const withIcon = allEls
         .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
