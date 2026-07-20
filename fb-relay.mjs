@@ -1001,27 +1001,32 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       console.error('[FB Relay] Error en diagnóstico:', e.message);
     }
 
-    // === Paso 4: Click en el primer resultado visible (ya filtrado por nombre) ===
+    // === Paso 4: Click en el primer resultado (text match + coordenadas) ===
     console.log('[FB Relay] Seleccionando grupo de resultados...');
     let groupFound = false;
+    const searchText = groupName || fbGroupId;
+    const lowerSearch = searchText.toLowerCase();
     for (let attempt = 0; attempt < 8; attempt++) {
-      groupFound = await page.evaluate(() => {
+      const coord = await page.evaluate((searchLower) => {
         const dialogs = document.querySelectorAll('[role="dialog"]');
         const active = dialogs[dialogs.length - 1];
-        if (!active) return false;
-        const opts = active.querySelectorAll(
-          '[role="option"], [role="listitem"], li, ' +
-          'a[href*="/groups/"], div[role="button"]'
-        );
-        for (const el of opts) {
-          if (el.offsetParent !== null && el.offsetWidth > 0) {
-            el.click();
-            return true;
-          }
+        if (!active) return null;
+        const all = active.querySelectorAll('*');
+        let target = null;
+        for (const el of all) {
+          if (el.offsetParent === null) continue;
+          if ((el.textContent || '').toLowerCase().includes(searchLower)) target = el;
         }
-        return false;
-      });
-      if (groupFound) break;
+        if (!target) return null;
+        const r = target.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      }, lowerSearch);
+      if (coord) {
+        console.log('[FB Relay] Coord click resultado:', { x: Math.round(coord.x), y: Math.round(coord.y) });
+        await page.mouse.click(coord.x, coord.y);
+        groupFound = true;
+        break;
+      }
       await sleep(1000);
     }
     if (groupFound) {
