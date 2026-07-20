@@ -858,55 +858,75 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     console.log('[FB Relay] Share button clicked');
     await sleep(2000);
 
-    // === Paso 2: Menú "Compartir en grupo" (diagnóstico: todos los botones visibles) ===
+    // === Paso 2: Menú "Compartir en grupo" (encontrar popover por SVG+texto, excluir sidebar) ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
     await sleep(3000);
-    const buttonsData = await page.evaluate(() => {
-      const items = [];
-      const buttons = document.querySelectorAll('[role="button"], button, a[role="link"], [role="option"], [role="menuitem"]');
-      let idx = 0;
-      for (const el of buttons) {
-        if (el.offsetParent === null) continue;
-        const txt = (el.textContent || '').trim().substring(0, 60);
-        const aria = (el.getAttribute('aria-label') || '').substring(0, 40);
-        if (!txt && !aria) continue;
-        items.push({
-          idx: idx++,
-          tag: el.tagName,
-          role: el.getAttribute('role') || '',
-          aria,
-          text: txt,
-          hasSvg: el.querySelector('svg') !== null,
-          hasI: el.querySelector('i') !== null,
-          hasImg: el.querySelector('img') !== null,
-          top: el.getBoundingClientRect ? Math.round(el.getBoundingClientRect().top) : -1,
-          left: el.getBoundingClientRect ? Math.round(el.getBoundingClientRect().left) : -1,
-          w: el.getBoundingClientRect ? Math.round(el.getBoundingClientRect().width) : -1,
-          h: el.getBoundingClientRect ? Math.round(el.getBoundingClientRect().height) : -1,
-          cls: (el.getAttribute('class') || '').substring(0, 40),
-          html: el.outerHTML.substring(0, 150),
-        });
-        if (items.length >= 30) break;
-      }
-      return items;
-    });
-    console.log('[FB Relay] Todos los botones visibles:');
-    for (const b of buttonsData) {
-      console.log(`[${b.idx}] <${b.tag}> role=${b.role} top=${b.top} left=${b.left} ${b.w}x${b.h} svg=${b.hasSvg} i=${b.hasI} aria="${b.aria}" text="${b.text}"`);
-      console.log(`     html: ${b.html}`);
-    }
-    clicked = await page.evaluate(() => {
+    // Scrapeo diagnóstico de todos los elementos con SVG+texto fuera del sidebar/header
+    const popoverData = await page.evaluate(() => {
+      const candidates = [];
       const all = document.querySelectorAll('*');
       for (const el of all) {
         if (el.offsetParent === null) continue;
-        const txt = (el.textContent || '').trim().toLowerCase();
-        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-        if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
-          let target = el;
-          while (target && target !== document.body) {
-            try { target.click(); return true; } catch {}
-            target = target.parentElement;
+        const r = el.getBoundingClientRect();
+        if (r.left < 300 || r.top < 56) continue;
+        const hasIcon = el.querySelector('svg, i, img') !== null;
+        const txt = (el.textContent || '').trim();
+        if (!hasIcon || txt.length < 2 || txt.length > 80) continue;
+        candidates.push({
+          tag: el.tagName,
+          role: el.getAttribute('role') || '',
+          top: Math.round(r.top),
+          left: Math.round(r.left),
+          text: txt.substring(0, 50),
+          parentTag: el.parentElement ? el.parentElement.tagName : '',
+          parentRole: el.parentElement ? (el.parentElement.getAttribute('role') || '') : '',
+        });
+        if (candidates.length >= 40) break;
+      }
+      return candidates;
+    });
+    console.log('[FB Relay] Elementos con SVG+texto (excluyendo sidebar/header):');
+    for (const c of popoverData) {
+      console.log(`  <${c.tag}> role=${c.role} top=${c.top} left=${c.left} parent=<${c.parentTag}> role=${c.parentRole} text="${c.text}"`);
+    }
+    // Click: buscar popover por agrupación de padres, clickear "grupo" o 5to
+    clicked = await page.evaluate(() => {
+      const candidates = [];
+      const all = document.querySelectorAll('*');
+      for (const el of all) {
+        if (el.offsetParent === null) continue;
+        const r = el.getBoundingClientRect();
+        if (r.left < 300 || r.top < 56) continue;
+        const hasIcon = el.querySelector('svg, i, img') !== null;
+        const txt = (el.textContent || '').trim();
+        if (!hasIcon || txt.length < 2 || txt.length > 80) continue;
+        candidates.push({ el, text: txt.toLowerCase(), aria: (el.getAttribute('aria-label') || '').toLowerCase() });
+      }
+      // Agrupar por parentElement
+      const groups = new Map();
+      for (const c of candidates) {
+        const p = c.el.parentElement;
+        if (!p) continue;
+        if (!groups.has(p)) groups.set(p, []);
+        groups.get(p).push(c);
+      }
+      // Buscar grupo con 4-8 items (el popover de compartir tiene 6)
+      for (const [parent, children] of groups) {
+        if (children.length < 4 || children.length > 8) continue;
+        const parentRole = parent.getAttribute('role') || '';
+        // Buscar "grupo"/"group" en los hijos
+        for (let i = 0; i < children.length; i++) {
+          const txt = children[i].text;
+          const aria = children[i].aria;
+          if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
+            children[i].el.click();
+            return true;
           }
+        }
+        // Fallback: 5to item (índice 4)
+        if (children.length > 4) {
+          children[4].el.click();
+          return true;
         }
       }
       return false;
