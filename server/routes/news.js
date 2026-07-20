@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
     const lite = req.query.lite !== '0';
     const baseColumns = lite
       ? `id, title, content, mime_type, video_url, source_url, type, related_pet_id, created_by, created_at, updated_at, (image_data IS NOT NULL) as has_image`
-      : `*`;
+      : `n.*`;
     const result = await pool.query(
       `SELECT ${baseColumns}, u.display_name as author_name
        FROM news n
