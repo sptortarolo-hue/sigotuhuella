@@ -1053,8 +1053,8 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       await sleep(1000);
     }
     if (groupFound) {
-      console.log('[FB Relay] Grupo seleccionado');
-      await sleep(2000);
+      console.log('[FB Relay] Grupo seleccionado, esperando carga del modal (5s)...');
+      await sleep(5000);
     } else {
       console.log('[FB Relay] No se encontró el grupo en resultados, continuando...');
     }
