@@ -902,8 +902,8 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     });
     console.log('[FB Relay] Popover container:', diag.cont, '| Row:', diag.row);
     for (const it of diag.items) console.log(`  [${it.idx}] <${it.tag}> left=${it.left} text="${it.text}"`);
-    // Click: coordenadas del 4º botón (Grupo) en la fila del popover
-    const rowRect = await page.evaluate(() => {
+    // Click: dedup por left + click por coordenadas (híbrido)
+    const coord = await page.evaluate(() => {
       const rkw = ['messenger','whatsapp','historia','enlace','grupo','perfil'];
       const xp = document.evaluate(
         '//*[contains(text(), "Compartir ahora") or contains(text(), "Share now")]',
@@ -930,16 +930,28 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       }
       if (!cont) return null;
       const _scope = row || cont;
-      const rect = _scope.getBoundingClientRect();
-      return { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+      const scopeKids = [..._scope.children].filter(c => c.offsetParent !== null);
+      const scope = scopeKids.length === 1 ? scopeKids[0] : _scope;
+      // Aplanar todos los descendientes, dedup por left
+      const all = [...scope.querySelectorAll('*')]
+        .filter(c => c.offsetParent !== null && (c.textContent || '').trim().length > 1);
+      const seen = new Set();
+      const unique = all
+        .map(c => ({ el: c, left: Math.round(c.getBoundingClientRect().left / 10) * 10 }))
+        .sort((a, b) => a.left - b.left)
+        .filter(item => {
+          if (seen.has(item.left)) return false;
+          seen.add(item.left);
+          return true;
+        });
+      if (unique.length < 4) return null;
+      const r = unique[3].el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     });
-    if (!rowRect) throw new Error('Share to group popover not found');
-    const btnWidth = rowRect.width / 6;
-    const grupoX = rowRect.left + btnWidth * 3.5; // centro del 4º botón (Grupo)
-    const grupoY = rowRect.top + rowRect.height / 2;
-    console.log('[FB Relay] Coord click:', { x: Math.round(grupoX), y: Math.round(grupoY), w: Math.round(rowRect.width) });
-    await page.mouse.click(grupoX, grupoY);
-    console.log('[FB Relay] Share to group selected (method: coord-4th)');
+    if (!coord) throw new Error('Share to group popover not found');
+    console.log('[FB Relay] Coord click:', { x: Math.round(coord.x), y: Math.round(coord.y) });
+    await page.mouse.click(coord.x, coord.y);
+    console.log('[FB Relay] Share to group selected (method: hybrid-dedup-4th)');
 
     // === Paso 3: Input de búsqueda de grupo (usar evaluate nativo, sin ElementHandle) ===
     console.log('[FB Relay] Buscando grupo...');
