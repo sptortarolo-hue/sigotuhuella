@@ -858,46 +858,50 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     console.log('[FB Relay] Share button clicked');
     await sleep(2000);
 
-    // === Paso 2: Menú "Compartir en grupo" (scrapear DOM completo y clasificar) ===
+    // === Paso 2: Menú "Compartir en grupo" (diagnóstico: todos los botones visibles) ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
     await sleep(3000);
-    const modalData = await page.evaluate(() => {
-      const found = [];
-      // Buscar en TODO el DOM elementos visibles con texto relevante
-      const keywords = ['grupo', 'group', 'compartir', 'share'];
-      const all = document.querySelectorAll('*');
-      for (const el of all) {
+    const buttonsData = await page.evaluate(() => {
+      const items = [];
+      const buttons = document.querySelectorAll('[role="button"], button, a[role="link"], [role="option"], [role="menuitem"]');
+      let idx = 0;
+      for (const el of buttons) {
         if (el.offsetParent === null) continue;
-        const txt = (el.textContent || '').trim().toLowerCase();
-        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
-        for (const kw of keywords) {
-          if (txt.includes(kw) || aria.includes(kw)) {
-            if (found.length >= 15) break;
-            found.push({
-              tag: el.tagName,
-              role: el.getAttribute('role') || '',
-              aria: aria.substring(0, 40),
-              text: txt.substring(0, 60),
-              hasSvg: el.querySelector('svg') !== null,
-              cls: (el.getAttribute('class') || '').substring(0, 40),
-              parentRole: (el.parentElement && el.parentElement.getAttribute('role')) || '',
-              parentCls: (el.parentElement && (el.parentElement.getAttribute('class') || '')).substring(0, 30),
-            });
-            break;
-          }
-        }
+        const txt = (el.textContent || '').trim().substring(0, 60);
+        const aria = (el.getAttribute('aria-label') || '').substring(0, 40);
+        if (!txt && !aria) continue;
+        items.push({
+          idx: idx++,
+          tag: el.tagName,
+          role: el.getAttribute('role') || '',
+          aria,
+          text: txt,
+          hasSvg: el.querySelector('svg') !== null,
+          hasI: el.querySelector('i') !== null,
+          hasImg: el.querySelector('img') !== null,
+          top: el.getBoundingClientRect ? Math.round(el.getBoundingClientRect().top) : -1,
+          left: el.getBoundingClientRect ? Math.round(el.getBoundingClientRect().left) : -1,
+          w: el.getBoundingClientRect ? Math.round(el.getBoundingClientRect().width) : -1,
+          h: el.getBoundingClientRect ? Math.round(el.getBoundingClientRect().height) : -1,
+          cls: (el.getAttribute('class') || '').substring(0, 40),
+          html: el.outerHTML.substring(0, 150),
+        });
+        if (items.length >= 30) break;
       }
-      return { items: found, count: found.length };
+      return items;
     });
-    console.log('[FB Relay] Elementos con texto "grupo/group/compartir/share":', modalData.items.map((m, i) => `[${i}] <${m.tag}> role=${m.role} aria="${m.aria}" text="${m.text}" svg=${m.hasSvg} parentRole=${m.parentRole}`).join('\n'));
+    console.log('[FB Relay] Todos los botones visibles:');
+    for (const b of buttonsData) {
+      console.log(`[${b.idx}] <${b.tag}> role=${b.role} top=${b.top} left=${b.left} ${b.w}x${b.h} svg=${b.hasSvg} i=${b.hasI} aria="${b.aria}" text="${b.text}"`);
+      console.log(`     html: ${b.html}`);
+    }
     clicked = await page.evaluate(() => {
-      // 1. Buscar por texto en TODO el DOM con ancestor climbing (como findAndClick fallback #3)
       const all = document.querySelectorAll('*');
       for (const el of all) {
         if (el.offsetParent === null) continue;
-        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
         const txt = (el.textContent || '').trim().toLowerCase();
-        if (aria.includes('grupo') || txt.includes('grupo') || aria.includes('group') || txt.includes('group')) {
+        const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+        if (txt.includes('grupo') || aria.includes('grupo') || txt.includes('group') || aria.includes('group')) {
           let target = el;
           while (target && target !== document.body) {
             try { target.click(); return true; } catch {}
@@ -905,32 +909,6 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
           }
         }
       }
-      // 2. Fallback: buscar elementos con role="button" + SVG (icono) + texto relevante
-      const buttons = document.querySelectorAll('[role="button"], button, div[role="button"]');
-      const candidates = [];
-      for (const el of buttons) {
-        if (el.offsetParent === null) continue;
-        const txt = (el.textContent || '').trim().toLowerCase();
-        const hasIcon = el.querySelector('svg, i, img') !== null;
-        if (hasIcon && txt.length > 0) {
-          candidates.push({ el, txt: txt.substring(0, 30) });
-        }
-      }
-      if (candidates.length >= 5) {
-        // Intentar por texto "grupo" primero
-        for (const c of candidates) {
-          if (c.txt.includes('grupo') || c.txt.includes('group')) {
-            c.el.click(); return true;
-          }
-        }
-        // Fallback: 5to candidato con icono+texto
-        candidates[4].el.click();
-        return true;
-      }
-      // 3. Último recurso: cualquier visible role="button" que tenga texto, probar el 5to
-      const allButtons = [...buttons].filter(b => b.offsetParent !== null && (b.textContent || '').trim().length > 0);
-      if (allButtons.length > 4) { allButtons[4].click(); return true; }
-      if (allButtons.length > 0) { allButtons[0].click(); return true; }
       return false;
     });
     if (!clicked) throw new Error('Share to group menu item not found');
