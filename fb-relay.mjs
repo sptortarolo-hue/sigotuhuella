@@ -1158,21 +1158,41 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     console.log('[FB Relay] Click en botón final...');
     clicked = false;
     for (let attempt = 0; attempt < 5; attempt++) {
-      clicked = await findAndClick(page, {
-        selectors: [
-          'div[role="dialog"] [aria-label="Compartir ahora"]',
-          'div[role="dialog"] [aria-label="Share Now"]',
-          'div[role="dialog"] [aria-label="Compartir"]',
-          'div[role="dialog"] [aria-label="Publicar"]',
-          'div[role="dialog"] [aria-label="Post"]',
-          'div[role="dialog"] [aria-label="Done"]',
-          'div[role="dialog"] [aria-label="Listo"]',
-          'div[role="dialog"] button[type="submit"]',
-        ],
-        textMatch: [
-          'compartir ahora', 'share now', 'compartir', 'share',
-          'publicar', 'post', 'done', 'listo', 'enviar', 'send',
-        ],
+      clicked = await page.evaluate(() => {
+        const dialogs = document.querySelectorAll('[role="dialog"]');
+        const scope = dialogs.length > 0 ? dialogs[dialogs.length - 1] : document.body;
+        const labels = ['compartir ahora', 'share now', 'compartir', 'share', 'publicar', 'post', 'done', 'listo', 'enviar', 'send'];
+        const clickable = scope.querySelectorAll(
+          '[role="button"], button, a, span[role="button"], div[role="button"]'
+        );
+        for (const el of clickable) {
+          if (el.offsetParent === null || el.offsetWidth === 0) continue;
+          const txt = (el.textContent || '').trim().toLowerCase();
+          const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+          for (const label of labels) {
+            if (txt.includes(label) || aria.includes(label)) {
+              el.scrollIntoView({ block: 'center' });
+              el.click();
+              return true;
+            }
+          }
+        }
+        const all = scope.querySelectorAll('*');
+        for (const el of all) {
+          if (el.offsetParent === null) continue;
+          const txt = (el.textContent || '').trim().toLowerCase();
+          const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+          for (const label of labels) {
+            if (txt.includes(label) || aria.includes(label)) {
+              let target = el;
+              while (target && target !== document.body && target !== scope) {
+                try { target.scrollIntoView({ block: 'center' }); target.click(); return true; } catch {}
+                target = target.parentElement;
+              }
+            }
+          }
+        }
+        return false;
       });
       if (clicked) break;
       await sleep(1000);
