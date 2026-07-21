@@ -856,7 +856,10 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
         textMatch: ['compartir', 'share'],
       });
       if (clicked) break;
-      await page.evaluate(() => window.scrollBy(0, 200));
+      await page.evaluate(() => {
+        const d = document.querySelectorAll('[role="dialog"]');
+        if (d.length) d[d.length - 1].scrollBy(0, 300);
+      });
       await sleep(1000);
     }
     if (!clicked) throw new Error('Share button not found');
