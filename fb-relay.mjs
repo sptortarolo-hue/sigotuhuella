@@ -1000,7 +1000,7 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       const _scope = row || cont;
       const scopeKids = [..._scope.children].filter(c => c.offsetParent !== null);
       const scope = scopeKids.length === 1 ? scopeKids[0] : _scope;
-      // Buscar deepest con texto "grupo", subir a ancestro clickeable
+      // Buscar el ultimo descendiente visible con texto "grupo" (deepest = mas cercano al btn real)
       let target = null;
       const all = scope.querySelectorAll('*');
       for (const el of all) {
@@ -1009,16 +1009,7 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
         if (txt.includes('grupo') || txt.includes('group')) target = el;
       }
       if (!target) return null;
-      // Subir hasta un ancestro con rol de botón
-      let clickable = target;
-      while (clickable && clickable !== scope && clickable !== document.body) {
-        const role = clickable.getAttribute('role');
-        const tag = clickable.tagName;
-        if (role === 'button' || tag === 'BUTTON' || role === 'menuitem') break;
-        clickable = clickable.parentElement;
-      }
-      const el = (clickable !== scope && clickable !== document.body) ? clickable : target;
-      const r = el.getBoundingClientRect();
+      const r = target.getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     });
     if (!coord) throw new Error('Share to group popover not found');
