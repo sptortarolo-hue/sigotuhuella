@@ -1017,31 +1017,33 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     await page.mouse.click(coord.x, coord.y);
     console.log('[FB Relay] Share to group selected (method: text-grupo)');
 
-    // === Paso 3: Input de búsqueda de grupo (usar evaluate nativo, sin ElementHandle) ===
+    // === Paso 3: Input de búsqueda de grupo (click mouse + typing humano) ===
     console.log('[FB Relay] Buscando grupo...');
-    let inputFocused = false;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      inputFocused = await page.evaluate(() => {
-        const inputs = document.querySelectorAll('input:not([type="hidden"])');
-        for (const el of inputs) {
-          if (el.offsetParent !== null && el.offsetWidth > 0) {
-            el.focus();
-            el.value = '';
-            return true;
-          }
+    const inputRect = await page.evaluate(() => {
+      const inputs = document.querySelectorAll('input:not([type="hidden"])');
+      for (const el of inputs) {
+        if (el.offsetParent !== null && el.offsetWidth > 0) {
+          el.value = '';
+          const r = el.getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
         }
-        return false;
-      });
-      if (inputFocused) break;
-      await sleep(1000);
-    }
-    if (!inputFocused) {
+      }
+      return null;
+    });
+    if (!inputRect) {
       throw new Error('Group search input not found');
     }
-    console.log('[FB Relay] Input encontrado, escribiendo...');
-    await sleep(500);
-    await page.keyboard.type(groupName || fbGroupId, { delay: randomInt(50, 100) });
-    await sleep(3000);
+    await page.mouse.click(inputRect.x, inputRect.y);
+    await sleep(randomInt(200, 500));
+    const text = groupName || fbGroupId;
+    console.log('[FB Relay] Escribiendo grupo...');
+    for (let i = 0; i < text.length; i++) {
+      await page.keyboard.type(text[i], { delay: randomInt(60, 180) });
+      if (i > 0 && i % randomInt(3, 5) === 0) {
+        await sleep(randomInt(150, 400));
+      }
+    }
+    await sleep(randomInt(2000, 4000));
 
     // Diagnóstico: dump de elementos visibles dentro del dialog tras escribir nombre
     try {
