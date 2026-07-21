@@ -709,15 +709,19 @@ async function captureDebugDump(page, label) {
 // Multi-fallback find + click: prueba selectores CSS, luego text matching en elementos clickeables
 async function findAndClick(page, { selectors = [], textMatch = [] } = {}) {
   return page.evaluate(({ selectors, textMatch }) => {
-    // 1. Probar selectores CSS exactos
-    for (const sel of selectors) {
-      try {
-        const el = document.querySelector(sel);
-        if (el && el.offsetParent !== null && el.offsetWidth > 0) {
-          el.click();
-          return true;
-        }
-      } catch {}
+    // 1. Probar selectores CSS exactos (scope = dialog first)
+    const dialogs = document.querySelectorAll('[role="dialog"]');
+    const scopes = dialogs.length > 0 ? [dialogs[dialogs.length - 1], document.body] : [document.body];
+    for (const scope of scopes) {
+      for (const sel of selectors) {
+        try {
+          const el = scope.querySelector(sel);
+          if (el && el.offsetParent !== null && el.offsetWidth > 0) {
+            el.click();
+            return true;
+          }
+        } catch {}
+      }
     }
     // 2. Probar text matching en elementos clickeables visibles
     if (textMatch.length > 0) {
@@ -843,21 +847,13 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
 
     await prePostBehavior(page);
 
-    // === Paso 1: Botón Compartir en el post (scope = dialog primero) ===
+    // === Paso 1: Botón Compartir en el post ===
     console.log('[FB Relay] Click en Compartir...');
     let clicked = false;
     for (let attempt = 0; attempt < 5; attempt++) {
-      clicked = await page.evaluate(() => {
-        const dialogs = document.querySelectorAll('[role="dialog"]');
-        const scopes = dialogs.length > 0 ? [dialogs[dialogs.length - 1], document.body] : [document.body];
-        for (const scope of scopes) {
-          const sel = scope.querySelector('[aria-label="Compartir"], [aria-label="Share"]');
-          if (sel && sel.offsetParent !== null && sel.offsetWidth > 0) {
-            sel.click();
-            return true;
-          }
-        }
-        return false;
+      clicked = await findAndClick(page, {
+        selectors: ['[aria-label="Compartir"]', '[aria-label="Share"]'],
+        textMatch: ['compartir', 'share'],
       });
       if (clicked) break;
       await page.evaluate(() => window.scrollBy(0, 200));
