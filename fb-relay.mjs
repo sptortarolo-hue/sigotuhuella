@@ -843,13 +843,21 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
 
     await prePostBehavior(page);
 
-    // === Paso 1: Botón Compartir en el post ===
+    // === Paso 1: Botón Compartir en el post (scope = dialog primero) ===
     console.log('[FB Relay] Click en Compartir...');
     let clicked = false;
     for (let attempt = 0; attempt < 5; attempt++) {
-      clicked = await findAndClick(page, {
-        selectors: ['[aria-label="Compartir"]', '[aria-label="Share"]'],
-        textMatch: ['compartir', 'share'],
+      clicked = await page.evaluate(() => {
+        const dialogs = document.querySelectorAll('[role="dialog"]');
+        const scopes = dialogs.length > 0 ? [dialogs[dialogs.length - 1], document.body] : [document.body];
+        for (const scope of scopes) {
+          const sel = scope.querySelector('[aria-label="Compartir"], [aria-label="Share"]');
+          if (sel && sel.offsetParent !== null && sel.offsetWidth > 0) {
+            sel.click();
+            return true;
+          }
+        }
+        return false;
       });
       if (clicked) break;
       await page.evaluate(() => window.scrollBy(0, 200));
