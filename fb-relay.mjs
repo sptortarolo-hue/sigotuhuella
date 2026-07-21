@@ -848,7 +848,7 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     await prePostBehavior(page);
 
     // Diagnóstico: estructura del dialog y botón Compartir
-    const diag = await page.evaluate(() => {
+    const diag1 = await page.evaluate(() => {
       const dialogs = document.querySelectorAll('[role="dialog"]');
       const active = dialogs[dialogs.length - 1];
       const btn = active ? active.querySelector('[aria-label="Compartir"], [aria-label="Share"]') : null;
@@ -872,7 +872,7 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
         })() : null,
       };
     });
-    console.log('[FB Relay] Diagnóstico Step 1:', JSON.stringify(diag));
+    console.log('[FB Relay] Diagnóstico Step 1:', JSON.stringify(diag1));
 
     // === Paso 1: Botón Compartir en el post (scope + scrollIntoView en dialog) ===
     console.log('[FB Relay] Click en Compartir...');
