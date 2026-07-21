@@ -847,6 +847,33 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
 
     await prePostBehavior(page);
 
+    // Diagnóstico: estructura del dialog y botón Compartir
+    const diag = await page.evaluate(() => {
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      const active = dialogs[dialogs.length - 1];
+      const btn = active ? active.querySelector('[aria-label="Compartir"], [aria-label="Share"]') : null;
+      const bodyBtn = document.querySelector('[aria-label="Compartir"], [aria-label="Share"]');
+      return {
+        dialogCount: dialogs.length,
+        activeTag: active ? active.tagName : null,
+        activeScrollH: active ? active.scrollHeight : null,
+        activeClientH: active ? active.clientHeight : null,
+        btnInDialog: !!btn,
+        btnInDialogVisible: btn ? (btn.offsetParent !== null && btn.offsetWidth > 0) : null,
+        btnInBody: !!bodyBtn,
+        btnInBodyTag: bodyBtn ? bodyBtn.tagName : null,
+        btnInBodyParent: bodyBtn ? (() => {
+          const p = []; let el = bodyBtn.parentElement; let c = 0;
+          while (el && el !== document.body && c < 5) {
+            p.push(el.tagName + (el.id ? '#' + el.id : '') + (el.getAttribute('role') ? '[role=' + el.getAttribute('role') + ']' : ''));
+            el = el.parentElement; c++;
+          }
+          return p.join(' > ');
+        })() : null,
+      };
+    });
+    console.log('[FB Relay] Diagnóstico Step 1:', JSON.stringify(diag));
+
     // === Paso 1: Botón Compartir en el post (scope + scrollIntoView en dialog) ===
     console.log('[FB Relay] Click en Compartir...');
     let clicked = false;
