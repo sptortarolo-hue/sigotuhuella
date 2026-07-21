@@ -1000,13 +1000,17 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       const _scope = row || cont;
       const scopeKids = [..._scope.children].filter(c => c.offsetParent !== null);
       const scope = scopeKids.length === 1 ? scopeKids[0] : _scope;
-      // Buscar el ultimo descendiente visible con texto "grupo" (deepest = mas cercano al btn real)
+      // Buscar elemento con texto "grupo" de mayor área (el botón real)
       let target = null;
+      let maxArea = 0;
       const all = scope.querySelectorAll('*');
       for (const el of all) {
         if (el.offsetParent === null) continue;
         const txt = (el.textContent || '').toLowerCase();
-        if (txt.includes('grupo') || txt.includes('group')) target = el;
+        if (!txt.includes('grupo') && !txt.includes('group')) continue;
+        const r = el.getBoundingClientRect();
+        const area = r.width * r.height;
+        if (area > maxArea) { maxArea = area; target = el; }
       }
       if (!target) return null;
       const r = target.getBoundingClientRect();
