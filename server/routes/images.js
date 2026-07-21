@@ -139,7 +139,7 @@ router.get('/pet/:petId/:index', async (req, res) => {
       const buffer = Buffer.from(img.image_data, 'base64');
       res.set('Content-Type', img.mime_type || 'image/jpeg');
       res.set('Content-Length', buffer.length);
-      res.set('Cache-Control', 'public, max-age=31536000, immutable');
+      res.set('Cache-Control', 'no-cache');
       res.set('Access-Control-Allow-Origin', '*');
       res.end(buffer);
     } else if (img.external_url) {
@@ -215,7 +215,7 @@ router.get('/pet/:petId/:index/insta', async (req, res) => {
           .toBuffer();
         res.set('Content-Type', 'image/jpeg');
         res.set('Content-Length', resized.length);
-        res.set('Cache-Control', 'public, max-age=31536000, immutable');
+        res.set('Cache-Control', 'no-cache');
         res.set('Access-Control-Allow-Origin', '*');
         res.set('X-Content-Type-Options', 'nosniff');
         res.end(resized);
@@ -272,7 +272,7 @@ router.get('/my-pet-avatar/:petId', async (req, res) => {
     const img = result.rows[0];
     const buffer = Buffer.from(img.avatar_image, 'base64');
     res.set('Content-Type', img.avatar_mime_type || 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.set('Cache-Control', 'no-cache');
     res.set('Access-Control-Allow-Origin', '*');
     res.end(buffer);
   } catch (err) {

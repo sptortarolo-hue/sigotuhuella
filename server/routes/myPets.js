@@ -321,7 +321,7 @@ router.get('/:id/photo/:photoId', requireAuth, async (req, res) => {
     const img = result.rows[0];
     const buffer = Buffer.from(img.image_data, 'base64');
     res.set('Content-Type', img.mime_type);
-    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.set('Cache-Control', 'no-cache');
     res.end(buffer);
   } catch {
     res.status(500).end();
@@ -338,7 +338,7 @@ router.get('/:id/avatar', async (req, res) => {
     const img = result.rows[0];
     const buffer = Buffer.from(img.avatar_image, 'base64');
     res.set('Content-Type', img.avatar_mime_type || 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.set('Cache-Control', 'no-cache');
     res.end(buffer);
   } catch {
     res.status(500).end();
