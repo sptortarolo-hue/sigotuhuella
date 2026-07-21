@@ -874,33 +874,51 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     });
     console.log('[FB Relay] Diagnóstico Step 1:', JSON.stringify(diag1));
 
-    // === Paso 1: Botón Compartir en el post (scope + scrollIntoView en dialog) ===
+    // === Paso 1: Botón Compartir en el post (text match + scope dialog) ===
     console.log('[FB Relay] Click en Compartir...');
     let clicked = false;
     for (let attempt = 0; attempt < 5; attempt++) {
       clicked = await page.evaluate(() => {
         const dialogs = document.querySelectorAll('[role="dialog"]');
-        const scope = dialogs.length > 0 ? dialogs[dialogs.length - 1] : document.body;
-        const btn = scope.querySelector('[aria-label="Compartir"], [aria-label="Share"]');
-        if (btn && btn.offsetParent !== null && btn.offsetWidth > 0) {
-          btn.scrollIntoView({ block: 'center' });
-          btn.click();
-          return true;
+        const scopes = dialogs.length > 0 ? [dialogs[dialogs.length - 1], document.body] : [document.body];
+        for (const scope of scopes) {
+          const clickable = scope.querySelectorAll(
+            '[role="button"], button, a, span[role="button"], div[role="button"], div[role="menuitem"]'
+          );
+          for (const el of clickable) {
+            if (el.offsetParent === null || el.offsetWidth === 0) continue;
+            const txt = (el.textContent || '').trim().toLowerCase();
+            const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+            if (txt.includes('compartir') || aria.includes('compartir') || txt.includes('share') || aria.includes('share')) {
+              el.scrollIntoView({ block: 'center' });
+              el.click();
+              return true;
+            }
+          }
+          const all = scope.querySelectorAll('*');
+          for (const el of all) {
+            if (el.offsetParent === null) continue;
+            const txt = (el.textContent || '').trim().toLowerCase();
+            const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+            if (txt.includes('compartir') || aria.includes('compartir') || txt.includes('share') || aria.includes('share')) {
+              let target = el;
+              while (target && target !== document.body && target !== scope) {
+                try { target.scrollIntoView({ block: 'center' }); target.click(); return true; } catch {}
+                target = target.parentElement;
+              }
+            }
+          }
         }
         return false;
       });
       if (clicked) break;
       await page.evaluate(() => {
         const d = document.querySelectorAll('[role="dialog"]');
-        if (!d.length) return;
-        const walker = document.createTreeWalker(d[d.length - 1], NodeFilter.SHOW_ELEMENT);
-        while (walker.nextNode()) {
-          const el = walker.currentNode;
-          if (el.scrollHeight > el.clientHeight + 2 && el.offsetParent !== null) {
-            el.scrollBy(0, 500);
-            return;
-          }
+        if (d.length) {
+          const active = d[d.length - 1];
+          if (active.scrollHeight > active.clientHeight + 2) { active.scrollBy(0, 500); return; }
         }
+        window.scrollBy(0, 500);
       });
       await sleep(1000);
     }
