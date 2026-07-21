@@ -10,7 +10,13 @@ interface PetImageProps {
 export default function PetImage({ src, alt, className = '', onError }: PetImageProps) {
   const [error, setError] = useState(false);
 
-  if (!src || error) return null;
+  if (!src || error) {
+    return (
+      <div className="w-full h-full bg-brand-bg flex items-center justify-center">
+        <img src="/sigotuhuella.jpg" alt="" className="w-2/3 h-2/3 object-contain opacity-15" />
+      </div>
+    );
+  }
 
   return (
     <>

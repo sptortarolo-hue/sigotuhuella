@@ -247,13 +247,24 @@ router.get('/pet-thumb/:petId/:index', async (req, res) => {
     if (result.rows.length === 0 || !result.rows[0].image_data) return res.status(404).end();
     const img = result.rows[0];
     const buffer = Buffer.from(img.image_data, 'base64');
-    const thumb = await sharp(buffer)
-      .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 75 })
-      .toBuffer();
+    let thumb;
+    try {
+      thumb = await sharp(buffer)
+        .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 75 })
+        .toBuffer();
+    } catch (sharpErr) {
+      console.warn('[pet-thumb] sharp failed, serving raw:', sharpErr.message);
+      thumb = buffer;
+      res.set('Content-Type', img.mime_type || 'image/jpeg');
+      res.set('Content-Length', thumb.length);
+      res.set('Cache-Control', 'no-cache');
+      res.set('Access-Control-Allow-Origin', '*');
+      return res.end(thumb);
+    }
     res.set('Content-Type', 'image/jpeg');
     res.set('Content-Length', thumb.length);
-    res.set('Cache-Control', 'public, max-age=86400');
+    res.set('Cache-Control', 'no-cache');
     res.set('Access-Control-Allow-Origin', '*');
     res.end(thumb);
   } catch (err) {
