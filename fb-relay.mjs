@@ -1007,27 +1007,49 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       await sleep(DEBUG_PAUSE);
     }
 
-    // === Paso 4: Click en el primer resultado visible ===
+    // === Paso 4: Click en el primer resultado (text match + coordenadas) ===
     console.log('[FB Relay] Seleccionando grupo de resultados...');
     let groupFound = false;
+    const searchText = groupName || fbGroupId;
+    const lowerSearch = searchText.toLowerCase();
+    console.log('[FB Relay] SearchText:', JSON.stringify(searchText));
     for (let attempt = 0; attempt < 8; attempt++) {
-      groupFound = await page.evaluate(() => {
+      const coord = await page.evaluate((searchLower) => {
         const dialogs = document.querySelectorAll('[role="dialog"]');
         const active = dialogs[dialogs.length - 1];
-        if (!active) return false;
-        const opts = active.querySelectorAll(
-          '[role="option"], [role="listitem"], li, ' +
-          'a[href*="/groups/"], div[role="button"]'
-        );
-        for (const el of opts) {
-          if (el.offsetParent !== null && el.offsetWidth > 0) {
-            el.click();
-            return true;
+
+        function findDeepestInScope(scope) {
+          if (!scope) return null;
+          const all = scope.querySelectorAll('*');
+          let target = null;
+          for (const el of all) {
+            if (el.offsetParent === null) continue;
+            if ((el.textContent || '').toLowerCase().includes(searchLower)) target = el;
           }
+          return target;
         }
-        return false;
-      });
-      if (groupFound) break;
+
+        let target = findDeepestInScope(active);
+        let source = 'dialog';
+        if (!target) {
+          target = findDeepestInScope(document.body);
+          source = 'body';
+        }
+
+        if (!target) return null;
+        const r = target.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2, source };
+      }, lowerSearch);
+      if (coord) {
+        console.log('[FB Relay] Coord click resultado:', { x: Math.round(coord.x), y: Math.round(coord.y), source: coord.source });
+        await page.mouse.click(coord.x, coord.y);
+        groupFound = true;
+        if (DEBUG_PAUSE) {
+          console.log(`[FB Relay] Debug pause: grupo clickeado, revisá (${DEBUG_PAUSE/1000}s)...`);
+          await sleep(DEBUG_PAUSE);
+        }
+        break;
+      }
       await sleep(1000);
     }
     if (groupFound) {
