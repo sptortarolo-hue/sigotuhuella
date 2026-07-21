@@ -865,7 +865,15 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
       if (clicked) break;
       await page.evaluate(() => {
         const d = document.querySelectorAll('[role="dialog"]');
-        if (d.length) d[d.length - 1].scrollBy(0, 300);
+        if (!d.length) return;
+        const walker = document.createTreeWalker(d[d.length - 1], NodeFilter.SHOW_ELEMENT);
+        while (walker.nextNode()) {
+          const el = walker.currentNode;
+          if (el.scrollHeight > el.clientHeight + 2 && el.offsetParent !== null) {
+            el.scrollBy(0, 500);
+            return;
+          }
+        }
       });
       await sleep(1000);
     }
