@@ -100,6 +100,35 @@ function MatchingConfig({ settings, onChange }: { settings: Record<string, strin
             className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
         </Field>
       </div>
+      <div className="border-t border-brand-accent pt-4 mt-4">
+        <p className="text-xs font-semibold text-brand-secondary mb-3 uppercase tracking-wider">AI Matching (CLIP + pgvector)</p>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Score mínimo (%)">
+            <input type="number" value={settings.matching_min_score || '70'} onChange={e => onChange('matching_min_score', e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
+          </Field>
+          <Field label="Radio (km)">
+            <input type="number" value={settings.matching_radius_km || '20'} onChange={e => onChange('matching_radius_km', e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="1" max="500" />
+          </Field>
+          <Field label="Peso visual (%)">
+            <input type="number" value={settings.matching_weight_visual || '60'} onChange={e => onChange('matching_weight_visual', e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
+          </Field>
+          <Field label="Peso distancia (%)">
+            <input type="number" value={settings.matching_weight_distance || '25'} onChange={e => onChange('matching_weight_distance', e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
+          </Field>
+          <Field label="Peso base (%)">
+            <input type="number" value={settings.matching_weight_base || '15'} onChange={e => onChange('matching_weight_base', e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
+          </Field>
+          <Field label="Máx. candidatos">
+            <input type="number" value={settings.matching_max_candidates || '10'} onChange={e => onChange('matching_max_candidates', e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="1" max="50" />
+          </Field>
+        </div>
+      </div>
     </div>
   );
 }
@@ -161,16 +190,6 @@ function WhatsAppConfig({ settings, onChange }: { settings: Record<string, strin
         <input type="text" value={settings.whatsapp_waba_id || ''} onChange={e => onChange('whatsapp_waba_id', e.target.value)}
           className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary font-mono" />
       </Field>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Radio de matching (km)">
-          <input type="number" value={settings.matching_radius_km || '20'} onChange={e => onChange('matching_radius_km', e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="1" max="500" />
-        </Field>
-        <Field label="Score mínimo (%)">
-          <input type="number" value={settings.matching_min_score || '70'} onChange={e => onChange('matching_min_score', e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
-        </Field>
-      </div>
     </div>
   );
 }

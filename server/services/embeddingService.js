@@ -63,7 +63,7 @@ function targetConfig(sourceTable) {
 }
 
 async function searchTable(targetCfg, srcLat, srcLng, embedding, sourceStatus, opts = {}) {
-  const { radiusKm = 20, maxCandidates = 10 } = opts;
+  const { maxCandidates = 10 } = opts;
   const oppositeStatuses = STATUS_OPPOSITE[sourceStatus] || ['lost', 'found', 'sighted'];
   const { table, statusCol } = targetCfg;
   const vecStr = vecToString(embedding);
@@ -110,17 +110,27 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer })
 
   const targets = targetConfig(table);
 
-  const minScore = parseInt((await pool.query(
-    "SELECT value FROM settings WHERE key = 'matching_min_score'"
-  )).rows[0]?.value || '70');
+  const settingsRes = await pool.query(
+    "SELECT key, value FROM settings WHERE key = ANY($1::text[])",
+    [['matching_min_score', 'matching_radius_km', 'matching_weight_visual', 'matching_weight_distance', 'matching_weight_base', 'matching_max_candidates']]
+  );
+  const s = {};
+  for (const row of settingsRes.rows) s[row.key] = row.value;
+
+  const minScore = parseInt(s.matching_min_score || '70');
+  const radiusKm = parseFloat(s.matching_radius_km || '20');
+  const wVisual = parseFloat(s.matching_weight_visual || '60') / 100;
+  const wDist = parseFloat(s.matching_weight_distance || '25') / 100;
+  const wBase = parseFloat(s.matching_weight_base || '15') / 100;
+  const maxCandidates = parseInt(s.matching_max_candidates || '10');
 
   const allCandidates = [];
   for (const tgt of targets) {
     const rows = await searchTable(tgt, srcLat, srcLng, embedding, status);
     for (const r of rows) {
       const visual = r.visual_sim || 0;
-      const dist = r.distance_km !== null ? Math.max(0, 1 - r.distance_km / 20) : 0.5;
-      const score = Math.round((visual * 0.6 + dist * 0.25 + 0.5 * 0.15) * 100);
+      const dist = r.distance_km !== null ? Math.max(0, 1 - r.distance_km / radiusKm) : 0.5;
+      const score = Math.round((visual * wVisual + dist * wDist + 0.5 * wBase) * 100);
       if (score >= minScore) {
         allCandidates.push({ ...r, visual, distance_km: r.distance_km, score, targetType: tgt.targetType });
       }
@@ -128,7 +138,7 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer })
   }
 
   allCandidates.sort((a, b) => b.score - a.score);
-  const best = allCandidates.slice(0, 10);
+  const best = allCandidates.slice(0, maxCandidates);
 
   const sourceTypeMap = {
     pets: 'app_pet',
