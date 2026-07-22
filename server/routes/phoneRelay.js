@@ -584,14 +584,6 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
       hasImage = imgCheck.rows[0]?.has_img || false;
     }
 
-    const PET_KEYWORDS = /\b(perro|gato|mascota|puppy|kitten|pet|encontrad[oa]|perdid[oa]|avist[eé]|lo vi|lo encontr|busc[aá]ndo|rewards|recompensa|collar|chucho|canino|felino|ave|loro|conejo|hamster|hurto|robo)\b/i;
-    const trimmedContent = (mergedContent || '').trim();
-    if (!isMerged && hasImage && trimmedContent && !PET_KEYWORDS.test(trimmedContent)) {
-      await pool.query('UPDATE whatsapp_scraped_messages SET animal_detected = false WHERE id = $1', [messageId]);
-      console.log(`[Relay] ${messageId}: sin keywords de mascota (animal_detected=false)`);
-      return;
-    }
-
     // Get best image for classification: prefer the new image, fallback to first image in table
     let classImage = image_data || null;
     let classMime = image_mime || null;
@@ -606,31 +598,34 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
       }
     }
 
-    // Classify in background (non-blocking)
+    // Detect animal via CLIP (fast, local) — always run if image exists
+    if (classImage) {
+      const detection = await detectAnimal(classImage, classMime || 'image/jpeg');
+      await pool.query(
+        `UPDATE whatsapp_scraped_messages
+         SET animal_detected = $1, animal_species = $2, animal_confidence = $3
+         WHERE id = $4`,
+        [detection.detected, detection.species, detection.confidence, messageId]
+      );
+    }
+
+    // Classify in background (non-blocking) — skip LLM if no pet keywords
+    const PET_KEYWORDS = /\b(perro|gato|mascota|puppy|kitten|pet|encontrad[oa]|perdid[oa]|avist[eé]|lo vi|lo encontr|busc[aá]ndo|rewards|recompensa|collar|chucho|canino|felino|ave|loro|conejo|hamster)\b/i;
+    const trimmedContent = (mergedContent || '').trim();
+    const hasPetKeywords = !trimmedContent || PET_KEYWORDS.test(trimmedContent);
+    if (!hasPetKeywords) {
+      console.log(`[Relay] ${messageId}: sin keywords de mascota (skip LLM, CLIP detection done)`);
+      return;
+    }
+
     classifyWhatsAppMessage(mergedContent || '', classImage, classMime)
       .then(async (classification) => {
-        if (classImage && classification.species === 'other' && (classification.confidence || 0) > 30) {
-          await pool.query('UPDATE whatsapp_scraped_messages SET animal_detected = false WHERE id = $1', [messageId]);
-          console.log(`[Relay] ${messageId}: clasificado como 'other' (animal_detected=false)`);
-          return;
-        }
         await pool.query(
           `UPDATE whatsapp_scraped_messages
            SET classification = $1, species = $2, color = $3, location_hint = $4, phone = $5
            WHERE id = $6`,
           [classification.classification, classification.species, classification.color, classification.location_hint, classification.phone, messageId]
         );
-
-        // YOLO detection: store result (non-blocking)
-        if (classImage) {
-          const detection = await detectAnimal(classImage, classMime || 'image/jpeg');
-          await pool.query(
-            `UPDATE whatsapp_scraped_messages
-             SET animal_detected = $1, animal_species = $2, animal_confidence = $3
-             WHERE id = $4`,
-            [detection.detected, detection.species, detection.confidence, messageId]
-          );
-        }
 
         // Run matching only if classified as lost/found/sighting
         if (['lost', 'found', 'sighting'].includes(classification.classification)) {

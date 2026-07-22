@@ -45,11 +45,10 @@ async function processRows(label, rows, updateSql, paramsFn) {
 async function main() {
   console.log('=== Re-detección de animales en posts existentes ===\n');
 
-  // Facebook posts
+  // Facebook posts — re-process all with images (previous detections may be wrong)
   const fbRows = (await pool.query(
     `SELECT id, image_data FROM facebook_posts
-     WHERE image_data IS NOT NULL
-       AND (animal_detected IS NULL OR animal_detected != true)`
+     WHERE image_data IS NOT NULL`
   )).rows;
   console.log(`Facebook: ${fbRows.length} posts para re-procesar\n`);
 
@@ -60,8 +59,7 @@ async function main() {
   // WhatsApp messages with image_data directly in the row
   const waRows = (await pool.query(
     `SELECT id, image_data, image_mime FROM whatsapp_scraped_messages
-     WHERE image_data IS NOT NULL
-       AND (animal_detected IS NULL OR animal_detected != true)`
+     WHERE image_data IS NOT NULL`
   )).rows;
   console.log(`\nWhatsApp (image_data directo): ${waRows.length} mensajes\n`);
 
@@ -75,7 +73,6 @@ async function main() {
      FROM whatsapp_scraped_messages wsm
      JOIN whatsapp_message_images wmi ON wmi.message_id = wsm.id
      WHERE wsm.image_data IS NULL
-       AND (wsm.animal_detected IS NULL OR wsm.animal_detected != true)
      GROUP BY wsm.id`
   )).rows;
   console.log(`\nWhatsApp (tabla imágenes): ${waImgRows.length} mensajes\n`);

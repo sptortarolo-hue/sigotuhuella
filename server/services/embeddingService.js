@@ -73,7 +73,7 @@ const BREED_CANDIDATES = {
   cat: ['siames', 'persa', 'maine coon', 'bengala', 'british shorthair', 'fold escoces', 'siberiano', 'criollo', 'otro'],
 };
 const COLOR_CANDIDATES = ['negro', 'blanco', 'marron', 'gris', 'dorado', 'rojo', 'crema', 'atigrado', 'bicolor', 'tricolor', 'manchado', 'otro'];
-const SPECIES_CANDIDATES = ['perro', 'gato'];
+const SPECIES_CANDIDATES = ['dog', 'cat', 'none'];
 
 export async function classifyPetAttributes(imageBuffer) {
   try {
@@ -81,15 +81,19 @@ export async function classifyPetAttributes(imageBuffer) {
     const image = await imageToRawImage(imageBuffer);
 
     const speciesRes = await fn(image, SPECIES_CANDIDATES);
-    const speciesLabel = speciesRes[0].label;
-    const speciesScore = speciesRes[0].score;
-    const breedList = BREED_CANDIDATES[speciesLabel] || BREED_CANDIDATES.dog;
+    const best = speciesRes[0];
+    if (!best || best.label === 'none' || best.score < 0.55) {
+      return { detected: false, species: null, speciesScore: best?.score || 0, breed: null, breedScore: null, color: null, colorScore: null };
+    }
+
+    const breedList = BREED_CANDIDATES[best.label] || BREED_CANDIDATES.dog;
     const breedRes = await fn(image, breedList);
     const colorRes = await fn(image, COLOR_CANDIDATES);
 
     return {
-      species: speciesLabel,
-      speciesScore,
+      detected: true,
+      species: best.label,
+      speciesScore: best.score,
       breed: breedRes[0].label,
       breedScore: breedRes[0].score,
       color: colorRes[0].label,
@@ -99,6 +103,14 @@ export async function classifyPetAttributes(imageBuffer) {
     console.error('classifyPetAttributes error:', err);
     return null;
   }
+}
+
+async function saveAnimalDetection(table, id, attrs) {
+  if (!attrs) return;
+  await pool.query(
+    `UPDATE ${table} SET animal_detected = $1, animal_species = $2, animal_confidence = $3 WHERE id = $4`,
+    [attrs.detected, attrs.species, attrs.speciesScore, id]
+  );
 }
 
 async function saveEmbedding(table, id, embedding) {
@@ -223,7 +235,8 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
   try {
     srcAttrs = await classifyPetAttributes(faceBuffer);
     if (srcAttrs) {
-      console.log(`[embedAndMatch] CLIP: ${srcAttrs.species} (${(srcAttrs.speciesScore * 100).toFixed(0)}%), raza: ${srcAttrs.breed}, color: ${srcAttrs.color}`);
+      console.log(`[embedAndMatch] CLIP: ${srcAttrs.detected ? (srcAttrs.species + ' ' + (srcAttrs.speciesScore * 100).toFixed(0) + '%') : 'no animal'}, raza: ${srcAttrs.breed}, color: ${srcAttrs.color}`);
+      await saveAnimalDetection(table, id, srcAttrs);
     }
   } catch (err) {
     console.warn('[embedAndMatch] classifyPetAttributes error:', err.message);
