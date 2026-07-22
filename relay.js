@@ -6,7 +6,7 @@ const axios = require('axios');
 const QR = require('qrcode-terminal');
 const QRCode = require('qrcode');
 
-const VPS_URL = 'https://sigotuhuella.online';
+const VPS_URL = 'https://sigotuhuella.com.ar';
 const TOKEN = process.env.RELAY_TOKEN || 'RELAY_TOKEN';
 const BOT_NUMBER = '5492212025190';
 const POLL_INTERVAL = 180000;
