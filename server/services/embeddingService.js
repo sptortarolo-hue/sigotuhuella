@@ -18,7 +18,7 @@ function vecToString(arr) {
 
 export async function generateImageEmbedding(imageBuffer) {
   const { fn, RawImage } = await getExtractor();
-  const image = await RawImage.from(imageBuffer);
+  const image = await RawImage.read(imageBuffer);
   const result = await fn(image);
   return Array.from(result.data);
 }
