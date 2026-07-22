@@ -88,20 +88,7 @@ function ScrapingConfig({ settings, onChange }: { settings: Record<string, strin
 function MatchingConfig({ settings, onChange }: { settings: Record<string, string>; onChange: (k: string, v: string) => void }) {
   return (
     <div className="space-y-4">
-      <Toggle checked={settings.fb_matching_enabled === 'true'} onChange={v => onChange('fb_matching_enabled', String(v))} label="Activar matching automático" id="d_fb_matching_enabled" />
-      <Toggle checked={settings.fb_image_matching_enabled === 'true'} onChange={v => onChange('fb_image_matching_enabled', String(v))} label="Matching por imagen (AI/vision)" id="d_fb_image_matching_enabled" />
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Score mínimo (%)">
-          <input type="number" value={settings.fb_matching_min_score || '50'} onChange={e => onChange('fb_matching_min_score', e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
-        </Field>
-        <Field label="Peso imagen (%)">
-          <input type="number" value={settings.fb_image_matching_weight || '20'} onChange={e => onChange('fb_image_matching_weight', e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
-        </Field>
-      </div>
-      <div className="border-t border-brand-accent pt-4 mt-4">
-        <p className="text-xs font-semibold text-brand-secondary mb-3 uppercase tracking-wider">AI Matching (CLIP + pgvector)</p>
+      <p className="text-xs font-semibold text-brand-secondary mb-1 uppercase tracking-wider">AI Matching (CLIP + pgvector)</p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Score mínimo (%)">
             <input type="number" value={settings.matching_min_score || '70'} onChange={e => onChange('matching_min_score', e.target.value)}
