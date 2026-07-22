@@ -216,7 +216,7 @@ const APP_VERSION = process.env.APP_VERSION || '1.0.0';
 app.get('/api/app/version', (_req, res) => {
   res.json({
     version: APP_VERSION,
-    bundleUrl: `${process.env.APP_BASE_URL || 'https://sigotuhuella.online'}/bundles/bundle-v${APP_VERSION}.zip`,
+    bundleUrl: `${process.env.APP_BASE_URL || 'https://sigotuhuella.com.ar'}/bundles/bundle-v${APP_VERSION}.zip`,
     changelog: '',
     mandatory: false,
   });
@@ -543,7 +543,7 @@ async function seedAdmin() {
 }
 
 async function seedTestUser() {
-  const email = 'test@sigotuhuella.online';
+  const email = 'test@sigotuhuella.com.ar';
   const password = 'sihuella2024';
   try {
     const passwordHash = await hashPassword(password);

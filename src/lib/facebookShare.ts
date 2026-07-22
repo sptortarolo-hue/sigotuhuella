@@ -1,5 +1,5 @@
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1224768922970900';
-const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://sigotuhuella.online';
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
 function getFBShareUrl(pet) {
   const petUrl = `${FRONTEND_URL}/pet/${pet.id}`;

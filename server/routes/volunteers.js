@@ -86,7 +86,7 @@ router.post('/', requireAuth, async (req, res) => {
         ${areasList}
       </table>
       <div style="text-align: center; margin-top: 25px;">
-        <a href="https://sigotuhuella.online/admin" 
+        <a href="https://sigotuhuella.com.ar/admin" 
            style="background-color: #3b82f6; color: white; padding: 12px 24px; 
                   text-decoration: none; border-radius: 10px; font-weight: bold; 
                   display: inline-block;">
@@ -99,7 +99,7 @@ router.post('/', requireAuth, async (req, res) => {
     sendPushToAdmins({
       title: '📢 Nueva solicitud de socio',
       body: `Solicitud de ${req.body.fullName || 'un vecino'}`,
-      url: 'https://sigotuhuella.online/admin',
+      url: 'https://sigotuhuella.com.ar/admin',
     }).catch(err => console.error('Push error:', err));
 
     res.status(201).json({ request: result.rows[0] });
@@ -195,7 +195,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
         sendPushToUser(volunteer.user_id, {
           title: '🎉 ¡Tu solicitud de socio fue aprobada!',
           body: `Tu número de socio: ${dbUser.member_number || finalMemberNumber}`,
-          url: 'https://sigotuhuella.online/sumate',
+          url: 'https://sigotuhuella.com.ar/sumate',
         }).catch(err => console.error('Push error:', err));
       }
 

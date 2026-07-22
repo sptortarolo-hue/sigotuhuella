@@ -3,7 +3,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const VPS_URL = 'sigotuhuella.online';
+const VPS_URL = 'sigotuhuella.com.ar';
 const TOKEN = process.env.RELAY_TOKEN;
 const COOKIES_PATH = path.join(__dirname, 'fb_scraper_cookies.json');
 const BATCH_SIZE = 10;

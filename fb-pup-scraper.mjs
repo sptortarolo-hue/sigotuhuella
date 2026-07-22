@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 puppeteer.use(StealthPlugin());
 
-const VPS_URL = 'https://sigotuhuella.online';
+const VPS_URL = 'https://sigotuhuella.com.ar';
 const TOKEN = process.env.RELAY_TOKEN;
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const COOKIES_PATH = path.join(__dirname, 'fb_scraper_cookies.json');

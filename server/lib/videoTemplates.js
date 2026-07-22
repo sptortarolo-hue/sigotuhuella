@@ -92,7 +92,7 @@ const TEMPLATES = {
     generateScript: (stats) =>
       `La chapita QR de Sigo Tu Huella es la identidad digital de tu mascota. ` +
       `Más de ${stats.users} vecinos ya la usan. Escaneá con tu celular y accedé al perfil completo ` +
-      `con datos, fotos y contacto del dueño. Pedí la tuya en sigotuhuella.online.`,
+      `con datos, fotos y contacto del dueño. Pedí la tuya en sigotuhuella.com.ar.`,
   },
   'app-adoption': {
     name: 'Adopción Responsable',
@@ -108,7 +108,7 @@ const TEMPLATES = {
     generateScript: (stats) =>
       `Más de ${stats.total_pets} mascotas están registradas en Sigo Tu Huella, y muchas esperan un hogar. ` +
       `Visitá nuestra galería de adopción, conocé sus historias y animate a abrir tu corazón. ` +
-      `Adoptar transforma dos vidas: la de ellxs y la tuya. Ingresá en sigotuhuella.online.`,
+      `Adoptar transforma dos vidas: la de ellxs y la tuya. Ingresá en sigotuhuella.com.ar.`,
   },
   'app-lost': {
     name: 'Mascotas Perdidas',
@@ -124,7 +124,7 @@ const TEMPLATES = {
     generateScript: (stats) =>
       `Si perdiste o encontraste una mascota, reportalo al instante en Sigo Tu Huella. ` +
       `Con más de ${stats.users} vecinos conectados, las chances de reencontrarse crecen. ` +
-      `Ya logramos ${stats.reunited} reencuentros. Descargá la app desde sigotuhuella.online.`,
+      `Ya logramos ${stats.reunited} reencuentros. Descargá la app desde sigotuhuella.com.ar.`,
   },
 };
 

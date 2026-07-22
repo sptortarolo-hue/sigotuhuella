@@ -318,7 +318,7 @@ export async function buildPetBroadcastCaption(pet) {
   const label = statusLabels[pet.status] || '🐾 MASCOTA';
   const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species || 'Mascota';
   const genderLabel = pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : '';
-  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
   const isCelebration = pet.status === 'reunited' || pet.status === 'adopted';
 
@@ -383,7 +383,7 @@ export async function broadcastPetToGroups(petId) {
     console.log('[Broadcast] Pet encontrado, status:', pet.status, 'species:', pet.species);
 
     const caption = await buildPetBroadcastCaption(pet);
-    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
     let coverUrl = pet.image_data
       ? `${frontendUrl}/api/images/pet/${petId}/cover`
@@ -449,7 +449,7 @@ export async function broadcastNextAdoptionPet(existingPet = null) {
       console.log('[AdoptionBroadcast] No hay grupos con broadcast_adoptions activado');
       return;
     }
-    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
     const speciesLabel = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : (pet.species || 'mascota');
     const desc = pet.description ? pet.description.substring(0, 200) : '';
@@ -529,7 +529,7 @@ export async function broadcastFbAdoptionPets(existingPet = null) {
       return;
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
     const hashtags = '#SigoTuHuella #AdoptaNoCompres';
 
     const speciesLabel = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : (pet.species || 'mascota');

@@ -446,7 +446,7 @@ export default function WhatsAppTab() {
               <li>Andá a <strong>developers.facebook.com</strong> → WhatsApp Cloud API</li>
               <li>Copiá <strong>Phone Number ID</strong> y generá un <strong>Access Token</strong> permanente</li>
               <li>Inventá un <strong>Verify Token</strong> y configuralo en Webhook</li>
-              <li>URL del Webhook: <code className="bg-blue-100 px-1 rounded">https://sigotuhuella.online/api/whatsapp/webhook</code></li>
+              <li>URL del Webhook: <code className="bg-blue-100 px-1 rounded">https://sigotuhuella.com.ar/api/whatsapp/webhook</code></li>
               <li>Suscribí al evento <strong>messages</strong></li>
             </ol>
           </div>

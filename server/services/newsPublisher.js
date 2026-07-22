@@ -1,7 +1,7 @@
 import sharp from 'sharp';
 import pool from '../db.js';
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
 const PLATFORMS = ['instagram', 'instagram_stories', 'facebook_page', 'facebook_groups', 'whatsapp', 'whatsapp_channel', 'status'];
 

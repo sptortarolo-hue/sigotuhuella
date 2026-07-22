@@ -288,7 +288,7 @@ export async function detectReunion(postId) {
     sendPushToAdmins({
       title: '🔄 Posible reencuentro',
       body: matched ? `Reencuentro: "${matched}"` : 'Revisar publicación',
-      url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/admin/facebook/posts`,
+      url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar'}/admin/facebook/posts`,
     }).catch(err => console.error('Push error:', err));
 
     return { reunited: true, keyword: matched };
@@ -458,8 +458,8 @@ export async function processImageCaption(caption, imageData, imageMime) {
 async function notifyAdminMatch(type, source, matches) {
   const top = matches.slice(0, 3);
   const url = type === 'post'
-    ? `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/admin/facebook/posts`
-    : `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/pet/${source.id}`;
+    ? `${process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar'}/admin/facebook/posts`
+    : `${process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar'}/pet/${source.id}`;
 
   const matchRows = top.map(m => {
     const label = type === 'post'

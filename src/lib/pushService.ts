@@ -4,7 +4,7 @@ const API_BASE = '/api/push';
 
 function getApiBase(): string {
   if (isNative()) {
-    return `${import.meta.env.VITE_API_URL || 'https://sigotuhuella.online'}/api/push`;
+    return `${import.meta.env.VITE_API_URL || 'https://sigotuhuella.com.ar'}/api/push`;
   }
   return API_BASE;
 }

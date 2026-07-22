@@ -119,7 +119,7 @@ export function generateVerificationToken() {
 }
 
 export async function sendVerificationEmail(email, displayName, verificationToken) {
-  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
   const verifyUrl = `${frontendUrl}/verificar-email?token=${verificationToken}`;
 
   try {
@@ -161,7 +161,7 @@ export async function sendVerificationEmail(email, displayName, verificationToke
 }
 
 export async function sendWhatsAppRegistrationEmail(email, displayName, token) {
-  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
   const completeUrl = `${frontendUrl}/completar-registro?token=${token}`;
 
   try {
@@ -203,7 +203,7 @@ export async function sendWhatsAppRegistrationEmail(email, displayName, token) {
 }
 
 export async function sendWelcomeEmail(email, displayName) {
-  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
   
   try {
     await transporter.sendMail({
@@ -251,7 +251,7 @@ export async function sendWelcomeEmail(email, displayName) {
 }
 
 export async function sendMemberApprovalEmail(email, displayName, memberNumber) {
-  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
   
   try {
     await transporter.sendMail({
@@ -301,7 +301,7 @@ export async function sendMemberApprovalEmail(email, displayName, memberNumber) 
 }
 
 export async function sendLostPetConfirmationEmail(email, petData, registrationToken) {
-  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
   const completeUrl = registrationToken ? `${frontendUrl}/completar-registro?token=${registrationToken}` : null;
 
   try {

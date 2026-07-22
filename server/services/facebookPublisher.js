@@ -2,7 +2,7 @@ import axios from 'axios';
 import pool from '../db.js';
 
 const GRAPH_API = 'https://graph.facebook.com/v22.0';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
 const statusLabels = {
   lost: '🐾 PERDIDO',

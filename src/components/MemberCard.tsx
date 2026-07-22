@@ -348,7 +348,7 @@ export default function MemberCard({
     const qrY = qrBoxY + 10;
 
     if (!isSuspended) {
-      const verifyUrl = `https://sigotuhuella.online/verificar/${memberNumber}`;
+      const verifyUrl = `https://sigotuhuella.com.ar/verificar/${memberNumber}`;
       try {
         const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
           width: QR_SIZE, margin: 1,

@@ -10,7 +10,7 @@ import { normalizePhone } from '../services/phoneUtils.js';
 
 const router = Router();
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
 function generateToken() {
   return crypto.randomBytes(32).toString('hex');

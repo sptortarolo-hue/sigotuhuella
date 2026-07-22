@@ -849,7 +849,7 @@ async function rlConfirm(conv, parsed, intent) {
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     try {
       await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte creado con éxito! Ya lo publicamos en nuestra red.`);
-      await sendMessage(conv.wa_from, `📌 Recordá que también podés pedir una *chapita QR* para tu mascota en:\nhttps://sigotuhuella.online/solicitar-chapita`);
+      await sendMessage(conv.wa_from, `📌 Recordá que también podés pedir una *chapita QR* para tu mascota en:\nhttps://sigotuhuella.com.ar/solicitar-chapita`);
     } catch (e) {
       console.error('Error sending confirm message:', e.message);
     }
@@ -1336,7 +1336,7 @@ Te vamos a pedir los datos de tu mascota. ¿Preferís continuar por *acá* o des
 
 async function chapitaChannel(conv, parsed) {
   if (parsed.buttonId === 'chapita_web') {
-    await sendMessage(conv.wa_from, `${conv.bot_name}: Ingresá a este link para solicitar la chapita:\nhttps://sigotuhuella.online/solicitar-chapita`);
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Ingresá a este link para solicitar la chapita:\nhttps://sigotuhuella.com.ar/solicitar-chapita`);
     return endFlow(conv);
   }
   if (parsed.buttonId === 'chapita_no') {
@@ -1636,7 +1636,7 @@ async function adoptSpecies(conv, parsed) {
   for (const pet of pets) {
     let info = `🐾 *${pet.name || 'Sin nombre'}*`;
     if (pet.description) info += `\n📝 ${pet.description}`;
-    info += `\n🔗 Ver más: https://sigotuhuella.online/pet/${pet.id}`;
+    info += `\n🔗 Ver más: https://sigotuhuella.com.ar/pet/${pet.id}`;
 
     if (pet.image_data) {
       try {
@@ -1655,7 +1655,7 @@ async function adoptSpecies(conv, parsed) {
   )).rows[0].count;
 
   if (Number(more) > 3) {
-    await sendMessage(conv.wa_from, `Hay más mascotas disponibles. Visitá nuestra web para verlas todas: https://sigotuhuella.online`);
+    await sendMessage(conv.wa_from, `Hay más mascotas disponibles. Visitá nuestra web para verlas todas: https://sigotuhuella.com.ar`);
   }
 
   await sendMessage(conv.wa_from, `${conv.bot_name}: Si te interesa alguna, pedila desde la web o hablá con nuestro equipo. 🐾`);
@@ -1683,7 +1683,7 @@ async function dMethod(conv, parsed) {
   const method = parsed.buttonId || '';
   if (method === 'd_method_share') {
     const shareText = encodeURIComponent(
-      '🐾 Ayudame a ayudar a Sigo Tu Huella!\nCualquier donación ayuda para alimentos, atención veterinaria y refugio.\n\nhttps://sigotuhuella.online/donar'
+      '🐾 Ayudame a ayudar a Sigo Tu Huella!\nCualquier donación ayuda para alimentos, atención veterinaria y refugio.\n\nhttps://sigotuhuella.com.ar/donar'
     );
     await sendMessage(conv.wa_from,
       `${conv.bot_name}: Compartí este mensaje con tus contactos 📲\n\nhttps://wa.me/?text=${shareText}`);

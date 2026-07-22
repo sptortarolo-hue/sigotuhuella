@@ -2614,7 +2614,7 @@ export default function Admin() {
       <div className="flex flex-col sm:flex-row gap-2 mb-2">
         <input value={reactivateToken} onChange={e => { setReactivateToken(e.target.value); setReactivateResult(null); }}
           className="flex-1 px-4 py-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
-          placeholder="https://sigotuhuella.online/mascota/... o solo el token"
+          placeholder="https://sigotuhuella.com.ar/mascota/... o solo el token"
         />
         <input value={reactivateCode} onChange={e => { setReactivateCode(e.target.value.toUpperCase()); setReactivateResult(null); }}
           className="sm:w-40 px-4 py-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm font-mono"

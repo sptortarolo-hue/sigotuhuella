@@ -3,7 +3,7 @@ import { sendMessage } from './whatsappService.js';
 import { sendPushToUser } from './pushService.js';
 import { normalizePhone } from './phoneUtils.js';
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
 const REMINDER_INTERVALS = [
   { after: 24 * 60 * 60 * 1000, label: '1 día' },

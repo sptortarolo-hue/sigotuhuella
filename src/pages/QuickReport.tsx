@@ -203,7 +203,7 @@ export default function QuickReport() {
           </p>
           <button onClick={() => {
               const msg = encodeURIComponent(
-                `🐾 Se reportó un ${createdSpecies} ${createdStatus === 'sighted' ? 'avistado' : 'retenido'} en ${createdLocation}.\n\nMás info: https://sigotuhuella.online/pet/${createdId}\n\nAyudanos a difundir 🙏`
+                `🐾 Se reportó un ${createdSpecies} ${createdStatus === 'sighted' ? 'avistado' : 'retenido'} en ${createdLocation}.\n\nMás info: https://sigotuhuella.com.ar/pet/${createdId}\n\nAyudanos a difundir 🙏`
               );
               window.open(`https://wa.me/?text=${msg}`, '_blank');
             }} className="w-full sm:w-auto mb-3 px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2">

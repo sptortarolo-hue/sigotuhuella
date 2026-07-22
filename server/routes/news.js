@@ -78,7 +78,7 @@ router.post('/', requireAdmin, async (req, res) => {
     sendPushToAll({
       title: `📰 ${typeLabels[newsItem.type] || 'Novedad'}: ${newsItem.title}`,
       body: newsItem.content.substring(0, 100),
-      url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/novedad/${newsItem.id}`,
+      url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar'}/novedad/${newsItem.id}`,
     }).catch(err => console.error('Push error:', err));
 
     if (newsItem.type === 'manual' && newsItem.image_data) {

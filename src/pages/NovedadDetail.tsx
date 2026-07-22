@@ -214,7 +214,7 @@ export default function NovedadDetail() {
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '18px system-ui, -apple-system, sans-serif';
       ctx.textBaseline = 'middle';
-      ctx.fillText('www.sigotuhuella.online', W / 2 - ctx.measureText('www.sigotuhuella.online').width / 2, H - FOOTER_H / 2);
+      ctx.fillText('www.sigotuhuella.com.ar', W / 2 - ctx.measureText('www.sigotuhuella.com.ar').width / 2, H - FOOTER_H / 2);
 
       // ── Export & share ──
       const blob = await new Promise<Blob>((resolve, reject) => {

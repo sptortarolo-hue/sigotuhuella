@@ -202,7 +202,7 @@ Scraper self-hosted que corre en un celular con Termux + X11. Usa Chromium real 
 | `FB_SCRAPER_INTERVAL` | `4` | Horas entre scrapes |
 | `FB_SCRAPER_MAX_POSTS` | `20` | Máximo de posts por grupo por scrape |
 | `CHROMIUM_PATH` | auto-detect | Path al binario de Chromium |
-| `API_BASE_URL` | `https://sigotuhuella.online/api` | URL base del VPS |
+| `API_BASE_URL` | `https://sigotuhuella.com.ar/api` | URL base del VPS |
 
 ### Session Restore Cascade
 

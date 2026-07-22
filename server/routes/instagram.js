@@ -203,7 +203,7 @@ router.post('/publish-story', requireAdmin, async (req, res) => {
       const vid = await pool.query('SELECT video_data FROM promotional_videos WHERE id = $1', [videoId]);
       if (vid.rows.length === 0) return res.status(404).json({ error: 'Video no encontrado' });
       const filename = vid.rows[0].video_data;
-      const FRONTEND = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+      const FRONTEND = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
       publicUrl = `${FRONTEND}/generated/videos/${filename}`;
 
       // Trim to max 15s via ffmpeg and serve from a temp URL

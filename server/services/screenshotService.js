@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import pool from '../db.js';
 
-const APP_URL = process.env.APP_URL || 'https://sigotuhuella.online';
+const APP_URL = process.env.APP_URL || 'https://sigotuhuella.com.ar';
 const OUTPUT_DIR = path.join(process.env.PUBLIC_DIR || 'public', 'generated', 'screenshots');
 
 const VIEWPORT = { width: 375, height: 812, isMobile: true, hasTouch: true };
@@ -39,7 +39,7 @@ async function ensureOutputDir() {
 }
 
 async function getTestUser() {
-  const result = await pool.query("SELECT email, password_hash FROM users WHERE email = 'test@sigotuhuella.online'");
+  const result = await pool.query("SELECT email, password_hash FROM users WHERE email = 'test@sigotuhuella.com.ar'");
   if (result.rows.length === 0) return null;
 
   const pwdResult = await pool.query("SELECT value FROM settings WHERE key = 'screenshot_test_password'");

@@ -1013,7 +1013,7 @@ router.post('/public', async (req, res) => {
     await client.query('COMMIT');
     pet.images = imagesResult.rows[0]?.images || [];
 
-    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
     sendAdminNotificationEmail(
       `🐾 Nuevo reporte público (${caseNumber})`,
       `<p style="font-size:16px;margin-bottom:16px;">Se recibió un nuevo reporte a través del formulario público.</p>
@@ -1134,7 +1134,7 @@ router.post('/lost-report', async (req, res) => {
       .catch(err => console.error('Failed to send lost pet confirmation email:', err));
 
     // Notify admin
-    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
     sendAdminNotificationEmail(
       '😢 Reporte de mascota perdida (dueño)',
       `<p style="font-size:16px;margin-bottom:16px;">Una persona reportó su propia mascota como perdida.</p>
@@ -1255,7 +1255,7 @@ router.put('/:id/share', requireAuth, async (req, res) => {
     // No existe — crear invitación
     const crypto = await import('crypto');
     const token = crypto.default.randomBytes(32).toString('hex');
-    const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
     const inviteLink = `${FRONTEND_URL}/login?invite=${token}`;
     const petName = pet.rows[0].name || (pet.rows[0].species === 'dog' ? 'perro' : pet.rows[0].species === 'cat' ? 'gato' : 'mascota');
     const inviter = await pool.query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);

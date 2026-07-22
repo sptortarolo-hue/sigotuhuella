@@ -5,7 +5,7 @@ import {
 } from './instagramService.js';
 import { enqueue } from './phoneRelayService.js';
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
 const STORY_STATUSES = ['lost', 'adopted', 'reunited'];
 const RELAY_PHONE = '5492213144558';

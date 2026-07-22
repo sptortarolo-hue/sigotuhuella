@@ -10,7 +10,7 @@ import { spawnSync, spawn } from 'child_process';
 puppeteer.use(StealthPlugin());
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api/relay';
+const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.com.ar/api/relay';
 const TOKEN = process.env.RELAY_TOKEN || process.env.FB_RELAY_TOKEN;
 const POLL_INTERVAL = parseInt(process.env.FB_POLL_INTERVAL || '60000');
 

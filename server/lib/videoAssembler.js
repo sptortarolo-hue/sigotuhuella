@@ -449,7 +449,7 @@ async function generateClosingClip(dims, style, workDir, lastPhotoPath) {
   const cream = '0xF5F5F0';
 
   const titleText = escDrawText('SIGO TU HUELLA');
-  const urlText = escDrawText('sigotuhuella.online');
+  const urlText = escDrawText('sigotuhuella.com.ar');
 
   const titleFontSize = isVertical ? 60 : 48;
   const urlFontSize = isVertical ? 44 : 32;

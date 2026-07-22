@@ -87,7 +87,7 @@ router.post('/register', async (req, res) => {
     sendPushToAdmins({
       title: '🔔 Nuevo usuario registrado',
       body: `${user.display_name} se registró en la plataforma (pendiente verificación)`,
-      url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.online'}/admin`,
+      url: `${process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar'}/admin`,
     }).catch(err => console.error('Push error:', err));
 
     res.status(201).json({ message: 'Registro exitoso. Revisá tu email para verificar tu cuenta.', requiresVerification: true, email: user.email });
@@ -311,7 +311,7 @@ router.post('/complete-registration', async (req, res) => {
     sendWelcomeEmail(user.email, user.display_name).catch(err => console.error('Welcome email error:', err));
     notifyUser(user, {
       subject: '¡Te damos la bienvenida! 🐾',
-      textMessage: `🐾 ¡Bienvenido a Sigo Tu Huella, ${user.display_name}! Ya podés reportar mascotas perdidas, avistajes y colaborar con la red de vecinos. Ingresá en sigotuhuella.online para empezar.`,
+      textMessage: `🐾 ¡Bienvenido a Sigo Tu Huella, ${user.display_name}! Ya podés reportar mascotas perdidas, avistajes y colaborar con la red de vecinos. Ingresá en sigotuhuella.com.ar para empezar.`,
       sendEmailFn: null,
     }).catch(err => console.error('WhatsApp welcome notify error:', err));
 

@@ -621,7 +621,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
                 <textarea
                   value={ruleForm.reply_template}
                   onChange={e => setRuleForm(prev => ({ ...prev, reply_template: e.target.value }))}
-                  placeholder="Gracias por tu interés {username}! Más info en sigotuhuella.online 🐾"
+                  placeholder="Gracias por tu interés {username}! Más info en sigotuhuella.com.ar 🐾"
                   rows={3}
                   className="w-full bg-gray-50 border border-brand-accent rounded-xl px-4 py-3 text-sm outline-none resize-none"
                 />
@@ -633,7 +633,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
                   <textarea
                     value={ruleForm.dm_template}
                     onChange={e => setRuleForm(prev => ({ ...prev, dm_template: e.target.value }))}
-                    placeholder="Hola! Gracias por tu interés. Adoptalo en sigotuhuella.online/pet/..."
+                    placeholder="Hola! Gracias por tu interés. Adoptalo en sigotuhuella.com.ar/pet/..."
                     rows={3}
                     className="w-full bg-gray-50 border border-brand-accent rounded-xl px-4 py-3 text-sm outline-none resize-none"
                   />

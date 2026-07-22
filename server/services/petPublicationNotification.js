@@ -16,7 +16,7 @@ export async function notifyPetPublication(petId, phone) {
   `, [petId])).rows[0];
   if (!pet) return;
 
-  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
   const coverUrl = pet.image_data ? `${frontendUrl}/api/images/pet/${petId}/cover` : null;
   const caption = await buildPetBroadcastCaption(pet);
 

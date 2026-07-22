@@ -4,7 +4,7 @@ import sharp from 'sharp';
 const FLYER_PATH = 'flyers/difusion.jpeg';
 const OUTPUT_PATH = 'public/difusion.jpeg';
 
-const APP_URL = 'https://sigotuhuella.online';
+const APP_URL = 'https://sigotuhuella.com.ar';
 const WA_URL = 'https://wa.me/5492212025190?text=Hola%21+Quiero+reportar+una+mascota';
 
 const QR_SIZE = 270;

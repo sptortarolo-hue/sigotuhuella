@@ -141,7 +141,7 @@ export function generateBroadcastCaption(pet) {
   const label = statusLabels[pet.status] || '🐾 MASCOTA';
   const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species || 'Mascota';
   const genderLabel = pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : '';
-  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
   const coverUrl = pet.image_data
     ? `${frontendUrl}/api/images/pet/${pet.id}/cover`

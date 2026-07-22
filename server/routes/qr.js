@@ -44,7 +44,7 @@ async function getNextCodes(count) {
   return codes;
 }
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.online';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
 async function notifyChapitaReady(qrId, shareToken, code, petName, user) {
   const userName = user.display_name || user.email.split('@')[0];
@@ -64,7 +64,7 @@ Hola ${userName}, la chapita QR de *${petName}* ya fue asignada.
    • Sábado: 10hs a 13:30hs
    https://maps.app.goo.gl/fAdBkJwTiqy3Ncos9
 
-🔧 Estamos probando distintos materiales, diseños y costos para mejorar las chapitas. ¡Tu opinión cuenta! Si tenés alguna sugerencia, escribila respondiendo a este mensaje o a info@sigotuhuella.online
+🔧 Estamos probando distintos materiales, diseños y costos para mejorar las chapitas. ¡Tu opinión cuenta! Si tenés alguna sugerencia, escribila respondiendo a este mensaje o a info@sigotuhuella.com.ar
 
 Ver perfil de ${petName}:
 ${petProfileUrl}
@@ -86,7 +86,7 @@ Sigo Tu Huella 🐾`;
       subject,
       html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <img src="https://sigotuhuella.online/favicon.svg" alt="Sigo Tu Huella" width="64" height="64" style="border-radius:16px;"/>
+          <img src="https://sigotuhuella.com.ar/favicon.svg" alt="Sigo Tu Huella" width="64" height="64" style="border-radius:16px;"/>
         </div>
         <h2 style="color:#5A5A40;text-align:center;">¡Chapita QR lista para retiro! 🐾</h2>
         <p style="font-size:16px;color:#334155;">Hola <strong>${userName}</strong>,</p>
@@ -109,7 +109,7 @@ Sigo Tu Huella 🐾`;
         </div>
         <div style="background:#f0fdf4;border-radius:12px;padding:20px;margin:24px 0;">
           <p style="margin:0;font-size:16px;color:#334155;">🔧 <strong>Estamos mejorando las chapitas</strong></p>
-          <p style="margin:8px 0 0;font-size:15px;color:#334155;">Estamos probando distintos materiales, diseños y costos. ¡Tu opinión es valiosa! Si tenés alguna sugerencia, respondé este email o escribinos a <a href="mailto:info@sigotuhuella.online" style="color:#5A5A40;">info@sigotuhuella.online</a></p>
+          <p style="margin:8px 0 0;font-size:15px;color:#334155;">Estamos probando distintos materiales, diseños y costos. ¡Tu opinión es valiosa! Si tenés alguna sugerencia, respondé este email o escribinos a <a href="mailto:info@sigotuhuella.com.ar" style="color:#5A5A40;">info@sigotuhuella.com.ar</a></p>
         </div>
         <div style="text-align:center;margin:28px 0;">
           <a href="${petProfileUrl}" style="background:#5A5A40;color:#fff;padding:12px 28px;border-radius:12px;text-decoration:none;font-weight:bold;display:inline-block;">Ver perfil de ${petName}</a>
