@@ -93,11 +93,19 @@ export async function matchPostToPet(postId) {
       return [];
     }
 
+    let croppedFaceBuffer = null;
+    if (imageBuffer) {
+      const cropped = await detectAndCropPetFace(imageBuffer.toString('base64'), 'image/jpeg');
+      if (cropped) croppedFaceBuffer = Buffer.from(cropped.cropped, 'base64');
+    }
+
     const status = post.classification === 'unclassified' ? 'lost' : post.classification;
     return await embedAndMatch('facebook_posts', postId, {
       species: post.species || undefined,
       status,
       imageBuffer,
+      croppedFaceBuffer,
+      content: post.content,
     });
   } catch (err) {
     console.error('matchPostToPet error:', err);
@@ -108,19 +116,27 @@ export async function matchPostToPet(postId) {
 export async function matchPetToPosts(pet) {
   try {
     const imgRes = await pool.query(
-      'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1',
+      "SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1",
       [pet.id]
     );
     let imageBuffer = null;
+    let mimeType = 'image/jpeg';
     if (imgRes.rows.length > 0 && imgRes.rows[0].image_data) {
       imageBuffer = Buffer.from(imgRes.rows[0].image_data, 'base64');
+      mimeType = imgRes.rows[0].mime_type || 'image/jpeg';
     }
     if (!imageBuffer) return [];
+
+    let croppedFaceBuffer = null;
+    const cropped = await detectAndCropPetFace(imageBuffer.toString('base64'), mimeType);
+    if (cropped) croppedFaceBuffer = Buffer.from(cropped.cropped, 'base64');
 
     return await embedAndMatch('pets', pet.id, {
       species: pet.species,
       status: pet.status,
       imageBuffer,
+      croppedFaceBuffer,
+      content: pet.description,
     });
   } catch (err) {
     console.error('matchPetToPosts error:', err);
@@ -168,10 +184,16 @@ export async function matchScrapedToAppPets(scrapedMessageId) {
     }
     if (!imageBuffer) return [];
 
+    let croppedFaceBuffer = null;
+    const cropped = await detectAndCropPetFace(msg.image_data, msg.image_mime || 'image/jpeg');
+    if (cropped) croppedFaceBuffer = Buffer.from(cropped.cropped, 'base64');
+
     return await embedAndMatch('whatsapp_scraped_messages', scrapedMessageId, {
       species: msg.animal_species || msg.species || undefined,
       status: msg.classification === 'unclassified' ? 'lost' : msg.classification,
       imageBuffer,
+      croppedFaceBuffer,
+      content: msg.content,
     });
   } catch (err) {
     console.error('matchScrapedToAppPets error:', err);
@@ -190,10 +212,16 @@ export async function matchScrapedToScraped(messageId) {
     }
     if (!imageBuffer) return [];
 
+    let croppedFaceBuffer = null;
+    const cropped = await detectAndCropPetFace(msg.image_data, msg.image_mime || 'image/jpeg');
+    if (cropped) croppedFaceBuffer = Buffer.from(cropped.cropped, 'base64');
+
     const matches = await embedAndMatch('whatsapp_scraped_messages', messageId, {
       species: msg.animal_species || msg.species || undefined,
       status: msg.classification === 'unclassified' ? 'lost' : msg.classification,
       imageBuffer,
+      croppedFaceBuffer,
+      content: msg.content,
     });
 
     if (matches.length > 0) {

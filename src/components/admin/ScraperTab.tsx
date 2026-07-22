@@ -706,7 +706,7 @@ function SettingsSection() {
   const handleSaveMatching = async () => {
     setSaving(true);
     try {
-      const keys = ['matching_min_score', 'matching_radius_km', 'matching_weight_visual', 'matching_weight_distance', 'matching_weight_base', 'matching_max_candidates'];
+      const keys = ['matching_min_score', 'matching_radius_km', 'matching_weight_visual', 'matching_weight_distance', 'matching_weight_breed_color', 'matching_weight_text', 'matching_weight_recency', 'matching_max_candidates'];
       for (const key of keys) await api.settings.update(key, settings[key] || '');
       setSavedMatching(true);
       setTimeout(() => setSavedMatching(false), 2000);
@@ -820,20 +820,32 @@ function SettingsSection() {
           </div>
           <div>
             <label className="block text-sm font-bold text-gray-600 mb-1">Peso visual (%)</label>
-            <input type="number" value={settings.matching_weight_visual || '60'}
+            <input type="number" value={settings.matching_weight_visual || '50'}
               onChange={(e) => setSettings(p => ({ ...p, matching_weight_visual: e.target.value }))}
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
           </div>
           <div>
             <label className="block text-sm font-bold text-gray-600 mb-1">Peso distancia (%)</label>
-            <input type="number" value={settings.matching_weight_distance || '25'}
+            <input type="number" value={settings.matching_weight_distance || '10'}
               onChange={(e) => setSettings(p => ({ ...p, matching_weight_distance: e.target.value }))}
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-600 mb-1">Peso base (%)</label>
-            <input type="number" value={settings.matching_weight_base || '15'}
-              onChange={(e) => setSettings(p => ({ ...p, matching_weight_base: e.target.value }))}
+            <label className="block text-sm font-bold text-gray-600 mb-1">Peso raza/color (%)</label>
+            <input type="number" value={settings.matching_weight_breed_color || '20'}
+              onChange={(e) => setSettings(p => ({ ...p, matching_weight_breed_color: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Peso texto (%)</label>
+            <input type="number" value={settings.matching_weight_text || '15'}
+              onChange={(e) => setSettings(p => ({ ...p, matching_weight_text: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Peso recencia (%)</label>
+            <input type="number" value={settings.matching_weight_recency || '5'}
+              onChange={(e) => setSettings(p => ({ ...p, matching_weight_recency: e.target.value }))}
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
           </div>
           <div>

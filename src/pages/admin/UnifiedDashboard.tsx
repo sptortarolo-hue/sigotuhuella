@@ -99,15 +99,23 @@ function MatchingConfig({ settings, onChange }: { settings: Record<string, strin
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="1" max="500" />
           </Field>
           <Field label="Peso visual (%)">
-            <input type="number" value={settings.matching_weight_visual || '60'} onChange={e => onChange('matching_weight_visual', e.target.value)}
+            <input type="number" value={settings.matching_weight_visual || '50'} onChange={e => onChange('matching_weight_visual', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
           </Field>
           <Field label="Peso distancia (%)">
-            <input type="number" value={settings.matching_weight_distance || '25'} onChange={e => onChange('matching_weight_distance', e.target.value)}
+            <input type="number" value={settings.matching_weight_distance || '10'} onChange={e => onChange('matching_weight_distance', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
           </Field>
-          <Field label="Peso base (%)">
-            <input type="number" value={settings.matching_weight_base || '15'} onChange={e => onChange('matching_weight_base', e.target.value)}
+          <Field label="Peso raza/color (%)">
+            <input type="number" value={settings.matching_weight_breed_color || '20'} onChange={e => onChange('matching_weight_breed_color', e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
+          </Field>
+          <Field label="Peso texto (%)">
+            <input type="number" value={settings.matching_weight_text || '15'} onChange={e => onChange('matching_weight_text', e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
+          </Field>
+          <Field label="Peso recencia (%)">
+            <input type="number" value={settings.matching_weight_recency || '5'} onChange={e => onChange('matching_weight_recency', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
           </Field>
           <Field label="Máx. candidatos">

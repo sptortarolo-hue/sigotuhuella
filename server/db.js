@@ -146,9 +146,11 @@ INSERT INTO settings (key, value) VALUES
   ('whatsapp_broadcast_enabled', 'false'),
   ('matching_radius_km', '20'),
   ('matching_min_score', '70'),
-  ('matching_weight_visual', '60'),
-  ('matching_weight_distance', '25'),
-  ('matching_weight_base', '15'),
+  ('matching_weight_visual', '50'),
+  ('matching_weight_distance', '10'),
+  ('matching_weight_breed_color', '20'),
+  ('matching_weight_text', '15'),
+  ('matching_weight_recency', '5'),
   ('matching_max_candidates', '10'),
   ('whatsapp_greeting', '🐾 ¡Gracias por contactar a Sigo Tu Huella! ¿Qué querés reportar?\n1️⃣ Avistaje (viste una mascota)\n2️⃣ Necesita atención (mascota herida/en riesgo)\n3️⃣ Accidentada'),
   ('banner_chapita_visible', 'true'),
@@ -1247,6 +1249,34 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_wa_scraped_embedding
       ON whatsapp_scraped_messages USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
     `, 'wa_scraped embedding index');
+
+    // --- Text embeddings (sentence-transformers, 384-dim) ---
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS text_embedding vector(384)
+    `, 'pets text_embedding column');
+
+    await migrate(client, `
+      ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS text_embedding vector(384)
+    `, 'fb_posts text_embedding column');
+
+    await migrate(client, `
+      ALTER TABLE whatsapp_scraped_messages ADD COLUMN IF NOT EXISTS text_embedding vector(384)
+    `, 'wa_scraped text_embedding column');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_pets_text_embedding
+      ON pets USING ivfflat (text_embedding vector_cosine_ops) WITH (lists = 100)
+    `, 'pets text_embedding index');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_fb_posts_text_embedding
+      ON facebook_posts USING ivfflat (text_embedding vector_cosine_ops) WITH (lists = 100)
+    `, 'fb_posts text_embedding index');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_wa_scraped_text_embedding
+      ON whatsapp_scraped_messages USING ivfflat (text_embedding vector_cosine_ops) WITH (lists = 100)
+    `, 'wa_scraped text_embedding index');
 
     console.log('Database migrations complete');
   } finally {
