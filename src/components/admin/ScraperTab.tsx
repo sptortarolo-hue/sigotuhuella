@@ -706,7 +706,7 @@ function SettingsSection() {
   const handleSaveMatching = async () => {
     setSaving(true);
     try {
-      const keys = ['fb_matching_enabled', 'fb_image_matching_enabled', 'fb_matching_min_score', 'fb_image_matching_weight'];
+      const keys = ['matching_min_score', 'matching_radius_km', 'matching_weight_visual', 'matching_weight_distance', 'matching_weight_base', 'matching_max_candidates'];
       for (const key of keys) await api.settings.update(key, settings[key] || '');
       setSavedMatching(true);
       setTimeout(() => setSavedMatching(false), 2000);
@@ -800,41 +800,51 @@ function SettingsSection() {
         </div>
       </div>
 
-      {/* Matching */}
+      {/* Matching config */}
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
         <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
-          <FlaskConical className="w-6 h-6" /> Configuración de Matching
+          <FlaskConical className="w-6 h-6" /> Configuración de Matching (CLIP + pgvector)
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
-            <input type="checkbox" id="fb_matching_enabled"
-              checked={settings.fb_matching_enabled === 'true'}
-              onChange={(e) => setSettings(p => ({ ...p, fb_matching_enabled: e.target.checked ? 'true' : 'false' }))}
-              className="w-5 h-5 rounded accent-brand-primary" />
-            <label htmlFor="fb_matching_enabled" className="font-bold text-brand-primary">Activar matching automático</label>
-          </div>
-          <div className="flex items-center gap-3 p-4 bg-brand-bg rounded-2xl col-span-full">
-            <input type="checkbox" id="fb_image_matching_enabled"
-              checked={settings.fb_image_matching_enabled === 'true'}
-              onChange={(e) => setSettings(p => ({ ...p, fb_image_matching_enabled: e.target.checked ? 'true' : 'false' }))}
-              className="w-5 h-5 rounded accent-brand-primary" />
-            <label htmlFor="fb_image_matching_enabled" className="font-bold text-brand-primary">Activar matching por imágenes</label>
-          </div>
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-bold text-gray-600 mb-1">Score mínimo (%)</label>
-            <input type="number" value={settings.fb_matching_min_score || '50'}
-              onChange={(e) => setSettings(p => ({ ...p, fb_matching_min_score: e.target.value }))}
+            <input type="number" value={settings.matching_min_score || '70'}
+              onChange={(e) => setSettings(p => ({ ...p, matching_min_score: e.target.value }))}
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-600 mb-1">Peso imagen (%)</label>
-            <input type="number" value={settings.fb_image_matching_weight || '20'}
-              onChange={(e) => setSettings(p => ({ ...p, fb_image_matching_weight: e.target.value }))}
+            <label className="block text-sm font-bold text-gray-600 mb-1">Radio (km)</label>
+            <input type="number" value={settings.matching_radius_km || '20'}
+              onChange={(e) => setSettings(p => ({ ...p, matching_radius_km: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="1" max="500" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Peso visual (%)</label>
+            <input type="number" value={settings.matching_weight_visual || '60'}
+              onChange={(e) => setSettings(p => ({ ...p, matching_weight_visual: e.target.value }))}
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Peso distancia (%)</label>
+            <input type="number" value={settings.matching_weight_distance || '25'}
+              onChange={(e) => setSettings(p => ({ ...p, matching_weight_distance: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Peso base (%)</label>
+            <input type="number" value={settings.matching_weight_base || '15'}
+              onChange={(e) => setSettings(p => ({ ...p, matching_weight_base: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-600 mb-1">Máx. candidatos</label>
+            <input type="number" value={settings.matching_max_candidates || '10'}
+              onChange={(e) => setSettings(p => ({ ...p, matching_max_candidates: e.target.value }))}
+              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="1" max="50" />
           </div>
         </div>
         <button onClick={handleSaveMatching} disabled={saving}
-          className="mt-6 px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all disabled:opacity-50 flex items-center gap-2">
+          className="mt-6 px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
           {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
           {saving ? 'Guardando...' : savedMatching ? '✅ Guardado' : 'Guardar'}
         </button>

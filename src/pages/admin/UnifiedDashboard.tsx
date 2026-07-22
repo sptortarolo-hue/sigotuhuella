@@ -116,7 +116,6 @@ function MatchingConfig({ settings, onChange }: { settings: Record<string, strin
           </Field>
         </div>
       </div>
-    </div>
   );
 }
 
