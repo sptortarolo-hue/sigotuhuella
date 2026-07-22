@@ -19,7 +19,7 @@ const transporter = nodemailer.createTransport({
   greetingTimeout: 30000,
   socketTimeout: 30000,
   auth: {
-    user: process.env.SMTP_USER,
+    user: process.env.SMTP_FROM,
     pass: process.env.SMTP_PASS,
   },
 });
@@ -28,14 +28,14 @@ export async function sendPasswordResetEmail(email, resetToken) {
   console.log('SMTP Config:', {
     host: process.env.SMTP_HOST,
     port: process.env.SMTP_PORT,
-    user: process.env.SMTP_USER,
+    user: process.env.SMTP_FROM,
   });
   
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
   return transporter.sendMail({
-    from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+    from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
     to: email,
     subject: 'Recuperá tu contraseña - Sigo Tu Huella',
     html: `
@@ -124,7 +124,7 @@ export async function sendVerificationEmail(email, displayName, verificationToke
 
   try {
     await transporter.sendMail({
-      from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+      from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
       to: email,
       subject: 'Confirmá tu email — Sigo Tu Huella',
       html: `
@@ -166,7 +166,7 @@ export async function sendWhatsAppRegistrationEmail(email, displayName, token) {
 
   try {
     await transporter.sendMail({
-      from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+      from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
       to: email,
       subject: 'Completá tu registro — Sigo Tu Huella',
       html: `
@@ -207,7 +207,7 @@ export async function sendWelcomeEmail(email, displayName) {
   
   try {
     await transporter.sendMail({
-      from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+      from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
       to: email,
       subject: '¡Te damos la bienvenida a Sigo Tu Huella! 🐾',
       html: `
@@ -255,7 +255,7 @@ export async function sendMemberApprovalEmail(email, displayName, memberNumber) 
   
   try {
     await transporter.sendMail({
-      from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+      from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
       to: email,
       subject: '¡Tu solicitud de socio ha sido aceptada! 🎉💳 Sigo Tu Huella',
       html: `
@@ -306,7 +306,7 @@ export async function sendLostPetConfirmationEmail(email, petData, registrationT
 
   try {
     await transporter.sendMail({
-      from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+      from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
       to: email,
       subject: '🐾 Reporte de mascota perdida recibido - Sigo Tu Huella',
       html: `
@@ -376,7 +376,7 @@ export async function sendAdminNotificationEmail(subject, htmlContent) {
     }
     
     await transporter.sendMail({
-      from: `"Sigo Tu Huella (Alertas)" <${process.env.SMTP_USER}>`,
+      from: `"Sigo Tu Huella (Alertas)" <${process.env.SMTP_FROM}>`,
       to: adminEmails.join(','),
       subject: subject,
       html: `

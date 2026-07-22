@@ -40,6 +40,7 @@ jobs:
         echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" >> server/.env
         echo "APP_BASE_URL=${{ secrets.APP_BASE_URL }}" >> server/.env
         echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" >> server/.env
+        echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> server/.env
 
     - name: Check disk space on VPS
       continue-on-error: true
@@ -90,6 +91,10 @@ jobs:
           # Restore DATABASE_URL (never overwritten by deploy)
           if [ -f /root/.sihuella-db.env ]; then
             grep -q 'DATABASE_URL' server/.env 2>/dev/null || cat /root/.sihuella-db.env >> server/.env
+          fi
+          # Restore SMTP settings (never overwritten by deploy)
+          if [ -f /root/.sihuella-mail.env ]; then
+            grep -q 'SMTP_HOST' server/.env 2>/dev/null || cat /root/.sihuella-mail.env >> server/.env
           fi
           # Start our app with PM2
           pm2 delete sigotuhuella 2>/dev/null || true

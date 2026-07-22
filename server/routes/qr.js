@@ -78,10 +78,10 @@ Sigo Tu Huella 🐾`;
       port: parseInt(process.env.SMTP_PORT) || 587,
       secure: false,
       tls: { rejectUnauthorized: false },
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      auth: { user: process.env.SMTP_FROM, pass: process.env.SMTP_PASS },
     });
     await t.sendMail({
-      from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+      from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
       to: user.email,
       subject,
       html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
@@ -434,10 +434,10 @@ router.post('/public/:shareToken/scan', async (req, res) => {
           port: parseInt(process.env.SMTP_PORT) || 587,
           secure: false,
           tls: { rejectUnauthorized: false },
-          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+          auth: { user: process.env.SMTP_FROM, pass: process.env.SMTP_PASS },
         });
         await transporter.sendMail({
-          from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+          from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
           to: row.owner_email,
           subject: `📍 Escanearon el QR de ${row.pet_name}`,
           html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
@@ -505,10 +505,10 @@ router.post('/public/:shareToken/found', async (req, res) => {
         port: parseInt(process.env.SMTP_PORT) || 587,
         secure: false,
         tls: { rejectUnauthorized: false },
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+        auth: { user: process.env.SMTP_FROM, pass: process.env.SMTP_PASS },
       });
       await transporter.sendMail({
-        from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+        from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
         to: row.owner_email,
         subject: `¡Encontraron a ${row.pet_name}!`,
         html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">

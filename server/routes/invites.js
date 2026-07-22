@@ -139,10 +139,10 @@ router.post('/', requireAuth, async (req, res) => {
           port: parseInt(process.env.SMTP_PORT) || 587,
           secure: false,
           tls: { rejectUnauthorized: false },
-          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+          auth: { user: process.env.SMTP_FROM, pass: process.env.SMTP_PASS },
         });
         t.sendMail({
-          from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+          from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
           to: email,
           subject: `${inviterName} te compartió mascotas en Sigo Tu Huella`,
           html: `

@@ -151,10 +151,10 @@ router.post('/', async (req, res) => {
             port: parseInt(process.env.SMTP_PORT) || 587,
             secure: false,
             tls: { rejectUnauthorized: false },
-            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+            auth: { user: process.env.SMTP_FROM, pass: process.env.SMTP_PASS },
           });
           await t.sendMail({
-            from: `"Sigo Tu Huella" <${process.env.SMTP_USER}>`,
+            from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
             to: userEmailToUse,
             subject: `Recibimos tu solicitud de chapita QR para ${myPet.name}`,
             html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;">
