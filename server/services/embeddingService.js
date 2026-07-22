@@ -1,7 +1,5 @@
 import sharp from 'sharp';
-import { tmpdir } from 'os';
-import { writeFileSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import jpeg from 'jpeg-js';
 import pool from '../db.js';
 import { sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from './pushService.js';
@@ -23,18 +21,20 @@ function vecToString(arr) {
 export async function generateImageEmbedding(imageBuffer) {
   const { fn, RawImage } = await getExtractor();
 
-  // Resize to a reasonable size and save to a temp file,
-  // then read via RawImage.read (which only accepts string/URL).
-  // Avoid sharp.raw() which triggers heap corruption on some systems.
-  const tmpPath = join(tmpdir(), `clip-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
-  try {
-    await sharp(imageBuffer).resize(512, 512, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toFile(tmpPath);
-    const image = await RawImage.read(tmpPath);
-    const result = await fn(image);
-    return Array.from(result.data);
-  } finally {
-    try { unlinkSync(tmpPath); } catch {}
-  }
+  // Use sharp only for resize+JPEG encode (works fine on this VPS),
+  // then decode to raw pixels with jpeg-js (pure JS, no native deps).
+  // This avoids sharp.raw().toBuffer() which crashes on some systems.
+  const jpegBuf = await sharp(imageBuffer).resize(224, 224, { fit: 'cover' }).jpeg({ quality: 85 }).toBuffer();
+  const decoded = jpeg.decode(jpegBuf, { formatAsRGBA: false, useTArray: true });
+  const image = new RawImage(new Uint8ClampedArray(decoded.data), decoded.width, decoded.height, 3);
+
+  // Monkey-patch to prevent Xenova from calling toSharp() internally
+  // (the image is already the correct size for CLIP).
+  image.resize = async () => image;
+  image.center_crop = async () => image;
+
+  const result = await fn(image);
+  return Array.from(result.data);
 }
 
 async function saveEmbedding(table, id, embedding) {
