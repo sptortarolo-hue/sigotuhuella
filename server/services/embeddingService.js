@@ -1,4 +1,3 @@
-import sharp from 'sharp';
 import pool from '../db.js';
 import { sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from './pushService.js';
@@ -7,8 +6,8 @@ let extractor = null;
 
 async function getExtractor() {
   if (!extractor) {
-    const { pipeline } = await import('@xenova/transformers');
-    extractor = await pipeline('image-feature-extraction', 'Xenova/clip-vit-base-patch32');
+    const { pipeline, RawImage } = await import('@xenova/transformers');
+    extractor = { fn: await pipeline('image-feature-extraction', 'Xenova/clip-vit-base-patch32'), RawImage };
   }
   return extractor;
 }
@@ -18,9 +17,9 @@ function vecToString(arr) {
 }
 
 export async function generateImageEmbedding(imageBuffer) {
-  const model = await getExtractor();
-  const processed = await sharp(imageBuffer).resize(224, 224).toBuffer();
-  const result = await model(processed);
+  const { fn, RawImage } = await getExtractor();
+  const image = await RawImage.from(imageBuffer);
+  const result = await fn(image);
   return Array.from(result.data);
 }
 
