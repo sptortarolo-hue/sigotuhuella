@@ -99,19 +99,19 @@ function MatchingConfig({ settings, onChange }: { settings: Record<string, strin
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="1" max="500" />
           </Field>
           <Field label="Peso visual (%)">
-            <input type="number" value={settings.matching_weight_visual || '50'} onChange={e => onChange('matching_weight_visual', e.target.value)}
+            <input type="number" value={settings.matching_weight_visual || '55'} onChange={e => onChange('matching_weight_visual', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
           </Field>
           <Field label="Peso distancia (%)">
-            <input type="number" value={settings.matching_weight_distance || '10'} onChange={e => onChange('matching_weight_distance', e.target.value)}
+            <input type="number" value={settings.matching_weight_distance || '15'} onChange={e => onChange('matching_weight_distance', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
           </Field>
           <Field label="Peso raza/color (%)">
-            <input type="number" value={settings.matching_weight_breed_color || '20'} onChange={e => onChange('matching_weight_breed_color', e.target.value)}
+            <input type="number" value={settings.matching_weight_breed_color || '15'} onChange={e => onChange('matching_weight_breed_color', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
           </Field>
           <Field label="Peso texto (%)">
-            <input type="number" value={settings.matching_weight_text || '15'} onChange={e => onChange('matching_weight_text', e.target.value)}
+            <input type="number" value={settings.matching_weight_text || '10'} onChange={e => onChange('matching_weight_text', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="0" max="100" />
           </Field>
           <Field label="Peso recencia (%)">
@@ -123,6 +123,20 @@ function MatchingConfig({ settings, onChange }: { settings: Record<string, strin
               className="w-full px-3 py-2 rounded-xl border border-brand-accent text-sm bg-white outline-none focus:border-brand-primary" min="1" max="50" />
           </Field>
         </div>
+        {(() => {
+          const v = parseFloat(settings.matching_weight_visual || '55') || 0;
+          const d = parseFloat(settings.matching_weight_distance || '15') || 0;
+          const b = parseFloat(settings.matching_weight_breed_color || '15') || 0;
+          const t = parseFloat(settings.matching_weight_text || '10') || 0;
+          const r = parseFloat(settings.matching_weight_recency || '5') || 0;
+          const sum = v + d + b + t + r;
+          const ok = sum === 100;
+          return (
+            <p className={cn("text-xs font-bold mt-3", ok ? "text-green-600" : "text-red-500")}>
+              {ok ? '✅' : '⚠️'} Pesos: {v} + {d} + {b} + {t} + {r} = {sum}%{ok ? ' ✓' : ' (debe sumar 100%)'}
+            </p>
+          );
+        })()}
       </div>
   );
 }

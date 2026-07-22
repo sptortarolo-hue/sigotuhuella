@@ -251,11 +251,19 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
 
   const minScore = parseInt(s.matching_min_score || '70');
   const radiusKm = parseFloat(s.matching_radius_km || '20');
-  const wVisual = parseFloat(s.matching_weight_visual || '50') / 100;
-  const wDist = parseFloat(s.matching_weight_distance || '10') / 100;
-  const wBreedColor = parseFloat(s.matching_weight_breed_color || '20') / 100;
-  const wText = parseFloat(s.matching_weight_text || '15') / 100;
-  const wRecency = parseFloat(s.matching_weight_recency || '5') / 100;
+  let wVisual = parseFloat(s.matching_weight_visual || '55');
+  let wDist = parseFloat(s.matching_weight_distance || '15');
+  let wBreedColor = parseFloat(s.matching_weight_breed_color || '15');
+  let wText = parseFloat(s.matching_weight_text || '10');
+  let wRecency = parseFloat(s.matching_weight_recency || '5');
+  const total = wVisual + wDist + wBreedColor + wText + wRecency;
+  if (total > 0) {
+    wVisual /= total;
+    wDist /= total;
+    wBreedColor /= total;
+    wText /= total;
+    wRecency /= total;
+  }
   const maxCandidates = parseInt(s.matching_max_candidates || '10');
 
   const allCandidates = [];
