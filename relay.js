@@ -329,7 +329,7 @@ async function start() {
       console.log(`[Entrante] ${from}: ${text.substring(0, 80)}`);
 
       await sock.sendMessage(from, {
-        text: `🐾 ¡Gracias por contactarte con Sigo Tu Huella!\nEste número es solo para notificaciones automáticas.\nPara reportar una mascota, ver adopciones, y mucho más, escribinos a:\n\n📱 wa.me/${BOT_NUMBER}\n\n🔗 sigotuhuella.online`
+        text: `🐾 ¡Gracias por contactarte con Sigo Tu Huella!\nEste número es solo para notificaciones automáticas.\nPara reportar una mascota, ver adopciones, y mucho más, escribinos a:\n\n📱 wa.me/${BOT_NUMBER}\n\n🔗 sigotuhuella.com.ar`
       });
 
       replyCooldowns.set(from, Date.now());

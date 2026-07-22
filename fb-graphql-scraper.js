@@ -9,7 +9,7 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 puppeteer.use(StealthPlugin());
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.online/api';
+const API_BASE = process.env.API_BASE_URL || 'https://sigotuhuella.com.ar/api';
 const TOKEN = process.env.SCRAPER_TOKEN || 'sihuella';
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser';
 const PROFILE_DIR = process.env.FB_SCRAPER_PROFILE_DIR || path.join(__dirname, 'fb_scraper_profile');
