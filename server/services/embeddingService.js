@@ -1,4 +1,7 @@
 import sharp from 'sharp';
+import { tmpdir } from 'os';
+import { writeFileSync, unlinkSync } from 'fs';
+import { join } from 'path';
 import pool from '../db.js';
 import { sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from './pushService.js';
@@ -20,12 +23,18 @@ function vecToString(arr) {
 export async function generateImageEmbedding(imageBuffer) {
   const { fn, RawImage } = await getExtractor();
 
-  // Decode buffer to raw pixels with sharp, then wrap in RawImage
-  const { data, info } = await sharp(imageBuffer).rotate().raw().toBuffer({ resolveWithObject: true });
-  const image = new RawImage(new Uint8ClampedArray(data), info.width, info.height, info.channels);
-
-  const result = await fn(image);
-  return Array.from(result.data);
+  // Resize to a reasonable size and save to a temp file,
+  // then read via RawImage.read (which only accepts string/URL).
+  // Avoid sharp.raw() which triggers heap corruption on some systems.
+  const tmpPath = join(tmpdir(), `clip-${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
+  try {
+    await sharp(imageBuffer).resize(512, 512, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).toFile(tmpPath);
+    const image = await RawImage.read(tmpPath);
+    const result = await fn(image);
+    return Array.from(result.data);
+  } finally {
+    try { unlinkSync(tmpPath); } catch {}
+  }
 }
 
 async function saveEmbedding(table, id, embedding) {
