@@ -74,7 +74,7 @@ async function searchTable(targetCfg, srcLat, srcLng, embedding, sourceStatus, o
     SELECT
       t.id, t.name, t.species, t.color, t.description,
       t.location, t.latitude, t.longitude,
-      CASE WHEN t.status IS NOT NULL THEN t.status ELSE t.classification END AS status,
+      t.${statusCol} AS status,
       1 - (t.embedding <=> $1::vector) AS visual_sim,
       ${hasSrcCoords ? `
       CASE
