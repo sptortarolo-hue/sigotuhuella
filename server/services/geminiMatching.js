@@ -1,225 +1,11 @@
-import Groq from 'groq-sdk';
 import sharp from 'sharp';
 import pool from '../db.js';
 import { sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from './pushService.js';
-import { matchingAI, imageCaptionAI, textIntentAI, faceCropAI } from './aiProvider.js';
+import { embedAndMatch } from './embeddingService.js';
+import { textIntentAI, imageCaptionAI, faceCropAI } from './aiProvider.js';
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const groq = GROQ_API_KEY ? new Groq({ apiKey: GROQ_API_KEY }) : null;
-
-function parseAIResponse(raw) {
-  const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-  return JSON.parse(cleaned);
-}
-
-const BATCH_MATCH_PROMPT = `Sos un sistema de matching para mascotas perdidas de la app "Sigo Tu Huella".
-Te voy a dar 1 nuevo reporte y una lista de CANDIDATOS numerados.
-Determiná cuáles de los candidatos podrían ser el MISMO animal.
-
-Devuelve SOLO un JSON:
-{
-  "matches": [
-    {
-      "candidate_index": 0-19,
-      "match": true|false,
-      "score": 0-100,
-      "reasons": ["razón clara 1", "razón clara 2"]
-    }
-  ]
-}
-
-Reglas:
-- Score > 70 significa MUY probable que sea el mismo animal
-- Score 50-70 significa posible match
-- Score < 50 significa que probablemente no es el mismo
-- Considerá: especie, color, ubicacion, tamaño, descripcion fisica
-- La ubicacion aproximada suma si es cercana
-- Si la especie no coincide, score debe ser < 20
-- Si un reporte dice "encontrado" y el otro "perdido" y coinciden especie+color+ubicacion -> high score
-- Incluí SOLO los que tengan match true con score >= 50
-- Si ningún candidato coincide, devolvé matches: []`;
-
-export async function matchPostToPet(postId) {
-  try {
-    const postRes = await pool.query('SELECT * FROM facebook_posts WHERE id = $1', [postId]);
-    if (postRes.rows.length === 0) return [];
-    const post = postRes.rows[0];
-    if (post.is_matched) return [];
-
-    const candidates = await pool.query(
-      `SELECT id, name, species, color, description, location, latitude, longitude, status
-       FROM pets
-       WHERE status IN ('lost', 'sighted') AND (
-         $1::text IS NULL OR species = $1::text
-       )
-       ORDER BY created_at DESC LIMIT 20`,
-      [post.species]
-    );
-    if (candidates.rows.length === 0) return [];
-
-    const sourceText = `Publicación de Facebook:\n${post.content || '(sin texto)'}`;
-    const candidatesText = candidates.rows.map((c, i) =>
-      `[${i}] ${c.name ? 'Nombre: ' + c.name + ', ' : ''}Especie: ${c.species}, Color: ${c.color || 'no especificado'}, Ubicación: ${c.location || 'no especificada'}, Estado: ${c.status}, Descripción: ${c.description || 'N/A'}`
-    ).join('\n');
-
-    const { text: raw, provider } = await matchingAI(
-      BATCH_MATCH_PROMPT,
-      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
-    );
-    console.log(`[matching] matchPostToPet usó ${provider}`);
-    const result = parseAIResponse(raw);
-
-    const fbMinScore = parseInt((await pool.query("SELECT value FROM settings WHERE key = 'fb_matching_min_score'")).rows[0]?.value || '50');
-    const matches = [];
-    if (result.matches) {
-      for (const m of result.matches) {
-        if (m.match && m.score >= fbMinScore && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
-          const pet = candidates.rows[m.candidate_index];
-          const insertRes = await pool.query(
-            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
-             VALUES ('fb_post', $1, 'app_pet', $2, $3, $4, 'ai')
-             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING
-             RETURNING id`,
-            [postId, pet.id, m.score, m.reasons || []]
-          );
-          if (insertRes.rows.length > 0) {
-            matches.push({ pet, score: m.score, reasons: m.reasons || [] });
-          }
-        }
-      }
-    }
-
-    if (matches.length > 0) {
-      await pool.query('UPDATE facebook_posts SET is_matched = true WHERE id = $1', [postId]);
-      await notifyAdminMatch('post', post, matches);
-    }
-
-    return matches;
-  } catch (err) {
-    console.error('matchPostToPet error:', err);
-    return [];
-  }
-}
-
-export async function matchWhatsAppMessageToPet(messageId) {
-  try {
-    const msgRes = await pool.query('SELECT * FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
-    if (msgRes.rows.length === 0) return [];
-    const msg = msgRes.rows[0];
-    if (msg.is_matched) return [];
-
-    const candidates = await pool.query(
-      `SELECT id, name, species, color, description, location, latitude, longitude, status
-       FROM pets
-       WHERE status IN ('lost', 'sighted') AND (
-         $1::text IS NULL OR species = $1::text
-       )
-       ORDER BY created_at DESC LIMIT 20`,
-      [msg.species]
-    );
-    if (candidates.rows.length === 0) return [];
-
-    const sourceText = `Mensaje de WhatsApp:\n${msg.content || '(sin texto)'}`;
-    const candidatesText = candidates.rows.map((c, i) =>
-      `[${i}] ${c.name ? 'Nombre: ' + c.name + ', ' : ''}Especie: ${c.species}, Color: ${c.color || 'no especificado'}, Ubicación: ${c.location || 'no especificada'}, Estado: ${c.status}, Descripción: ${c.description || 'N/A'}`
-    ).join('\n');
-
-    const { text: raw, provider } = await matchingAI(
-      BATCH_MATCH_PROMPT,
-      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
-    );
-    console.log(`[matching] matchWhatsAppMessageToPet usó ${provider}`);
-    const result = parseAIResponse(raw);
-
-    const waMinScore = parseInt((await pool.query("SELECT value FROM settings WHERE key = 'fb_matching_min_score'")).rows[0]?.value || '50');
-    const matches = [];
-    if (result.matches) {
-      for (const m of result.matches) {
-        if (m.match && m.score >= waMinScore && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
-          const pet = candidates.rows[m.candidate_index];
-          const insertRes = await pool.query(
-            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
-             VALUES ('wa_group', $1, 'app_pet', $2, $3, $4, 'ai')
-             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING
-             RETURNING id`,
-            [messageId, pet.id, m.score, m.reasons || []]
-          );
-          if (insertRes.rows.length > 0) {
-            matches.push({ pet, score: m.score, reasons: m.reasons || [] });
-          }
-        }
-      }
-    }
-
-    if (matches.length > 0) {
-      await pool.query('UPDATE whatsapp_scraped_messages SET is_matched = true WHERE id = $1', [messageId]);
-      console.log(`[matching] WhatsApp message ${messageId} matched ${matches.length} pets`);
-    }
-
-    return matches;
-  } catch (err) {
-    console.error('matchWhatsAppMessageToPet error:', err);
-    return [];
-  }
-}
-
-export async function matchPetToPosts(pet) {
-  try {
-    const fbPosts = await pool.query(
-      `SELECT * FROM facebook_posts
-       WHERE classification IN ('found', 'lost')
-       AND is_matched = false
-       AND (species IS NULL OR species = $1)
-       ORDER BY scraped_at DESC LIMIT 20`,
-      [pet.species]
-    );
-    if (fbPosts.rows.length === 0) return [];
-
-    const sourceText = `${pet.name ? 'Nombre: ' + pet.name + '\n' : ''}Especie: ${pet.species}\nColor: ${pet.color || 'no especificado'}\nUbicación: ${pet.location || 'no especificada'}\nDescripción: ${pet.description || 'N/A'}`;
-    const candidatesText = fbPosts.rows.map((p, i) =>
-      `[${i}] Publicación FB: ${p.content ? p.content.substring(0, 200) : '(sin texto)'}`
-    ).join('\n');
-
-    const { text: raw, provider } = await matchingAI(
-      BATCH_MATCH_PROMPT,
-      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
-    );
-    console.log(`[matching] matchPetToPosts usó ${provider}`);
-    const result = parseAIResponse(raw);
-
-    const matches = [];
-    if (result.matches) {
-      for (const m of result.matches) {
-        if (m.match && m.score >= 50 && m.candidate_index >= 0 && m.candidate_index < fbPosts.rows.length) {
-          const post = fbPosts.rows[m.candidate_index];
-          matches.push({ post, score: m.score, reasons: m.reasons || [] });
-
-          await pool.query(
-            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
-             VALUES ('app_pet', $1, 'fb_post', $2, $3, $4, 'ai')
-             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING`,
-            [pet.id, post.id, m.score, m.reasons || []]
-          );
-        }
-      }
-    }
-
-    if (matches.length > 0) {
-      const matchedIds = matches.map(m => m.post.id);
-      await pool.query(
-        `UPDATE facebook_posts SET is_matched = true WHERE id = ANY($1::uuid[])`,
-        [matchedIds]
-      );
-      notifyAdminMatch('pet', pet, matches);
-    }
-
-    return matches;
-  } catch (err) {
-    console.error('matchPetToPosts error:', err);
-    return [];
-  }
-}
+// ─── Reunion detection (keyword-based, no AI) ───
 
 const RESOLUTION_KEYWORDS = [
   'ya apareció', 'ya lo encontré', 'ya lo encontramos', 'apareció',
@@ -235,7 +21,6 @@ function checkTextForResolution(text) {
 
 export async function detectReunion(postId) {
   try {
-    // GUARD: skip if already classified as reunion or already matched
     const existing = await pool.query(
       'SELECT classification, is_matched FROM facebook_posts WHERE id = $1',
       [postId]
@@ -247,8 +32,7 @@ export async function detectReunion(postId) {
       `SELECT fp.*, json_agg(json_build_object('text', fc.text, 'author', fc.author_name)) as comments
        FROM facebook_posts fp
        LEFT JOIN facebook_comments fc ON fc.post_id = fp.id
-       WHERE fp.id = $1
-       GROUP BY fp.id`,
+       WHERE fp.id = $1 GROUP BY fp.id`,
       [postId]
     );
     if (postRes.rows.length === 0) return null;
@@ -263,17 +47,13 @@ export async function detectReunion(postId) {
       [`Detectado por keyword: "${matched}"`, postId]
     );
 
-    // Update linked pet if exists
     const petRes = await pool.query(
       `SELECT id, status FROM pets WHERE source_facebook_post_id = $1 AND status IN ('lost', 'sighted', 'retained')`,
       [postId]
     );
     if (petRes.rows.length > 0) {
       for (const pet of petRes.rows) {
-        await pool.query(
-          `UPDATE pets SET status = 'reunited', updated_at = NOW() WHERE id = $1`,
-          [pet.id]
-        );
+        await pool.query(`UPDATE pets SET status = 'reunited', updated_at = NOW() WHERE id = $1`, [pet.id]);
         console.log(`Pet ${pet.id} → reunited via FB post ${postId} (keyword: "${matched}")`);
       }
     }
@@ -284,7 +64,6 @@ export async function detectReunion(postId) {
        <p><strong>Keyword:</strong> ${matched}</p>
        <p><strong>Post:</strong> ${post.fb_post_url || postId}</p>`
     );
-
     sendPushToAdmins({
       title: '🔄 Posible reencuentro',
       body: matched ? `Reencuentro: "${matched}"` : 'Revisar publicación',
@@ -295,6 +74,69 @@ export async function detectReunion(postId) {
   } catch (err) {
     console.error('detectReunion error:', err);
     return null;
+  }
+}
+
+// ─── Wrappers that use embeddingService.embedAndMatch ───
+
+export async function matchPostToPet(postId) {
+  try {
+    const post = (await pool.query('SELECT * FROM facebook_posts WHERE id = $1', [postId])).rows[0];
+    if (!post || post.is_matched) return [];
+
+    let imageBuffer = null;
+    if (post.image_data) {
+      imageBuffer = Buffer.from(post.image_data, 'base64');
+    }
+    if (!imageBuffer && post.image_urls?.length > 0) {
+      console.log(`[matchPostToPet] No image_data, skipping (would need URL download for ${postId})`);
+      return [];
+    }
+
+    const status = post.classification === 'unclassified' ? 'lost' : post.classification;
+    return await embedAndMatch('facebook_posts', postId, {
+      species: post.species || undefined,
+      status,
+      imageBuffer,
+    });
+  } catch (err) {
+    console.error('matchPostToPet error:', err);
+    return [];
+  }
+}
+
+export async function matchPetToPosts(pet) {
+  try {
+    const imgRes = await pool.query(
+      'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1',
+      [pet.id]
+    );
+    let imageBuffer = null;
+    if (imgRes.rows.length > 0 && imgRes.rows[0].image_data) {
+      imageBuffer = Buffer.from(imgRes.rows[0].image_data, 'base64');
+    }
+    if (!imageBuffer) return [];
+
+    return await embedAndMatch('pets', pet.id, {
+      species: pet.species,
+      status: pet.status,
+      imageBuffer,
+    });
+  } catch (err) {
+    console.error('matchPetToPosts error:', err);
+    return [];
+  }
+}
+
+export async function matchWhatsAppToPets(newPetId) {
+  try {
+    const pet = (await pool.query('SELECT * FROM pets WHERE id = $1', [newPetId])).rows[0];
+    if (!pet) return [];
+
+    return await matchPetToPosts(pet);
+  } catch (err) {
+    console.error('matchWhatsAppToPets error:', err);
+    return [];
   }
 }
 
@@ -315,58 +157,88 @@ export async function runFullMatching() {
   }
 }
 
-export async function matchWhatsAppToPets(newPetId) {
+export async function matchScrapedToAppPets(scrapedMessageId) {
   try {
-    const newPet = (await pool.query('SELECT * FROM pets WHERE id = $1', [newPetId])).rows[0];
-    if (!newPet) return [];
+    const msg = (await pool.query('SELECT * FROM whatsapp_scraped_messages WHERE id = $1', [scrapedMessageId])).rows[0];
+    if (!msg || msg.is_matched) return [];
 
-    const oppositeStatuses = newPet.status === 'lost' ? ['sighted', 'retained'] : ['lost'];
-    const minScore = parseInt((await pool.query("SELECT value FROM settings WHERE key = 'matching_min_score'")).rows[0]?.value || '70');
-
-    const candidates = await pool.query(
-      `SELECT * FROM pets WHERE status = ANY($1) AND id != $2
-       ORDER BY created_at DESC LIMIT 20`,
-      [oppositeStatuses, newPetId]
-    );
-    if (candidates.rows.length === 0) return [];
-
-    const sourceText = `Nuevo reporte (${newPet.status}):\nEspecie: ${newPet.species}\nColor: ${newPet.color || 'no especificado'}\nUbicación: ${newPet.location || 'no especificada'}\nDescripción: ${newPet.description || 'N/A'}`;
-    const candidatesText = candidates.rows.map((c, i) =>
-      `[${i}] ${c.status === 'lost' ? 'Perdido' : c.status === 'retained' ? 'Encontrado' : 'Avistaje'}: Especie: ${c.species}, Color: ${c.color || 'no especificado'}, Ubicación: ${c.location || 'no especificada'}, Descripción: ${c.description || 'N/A'}`
-    ).join('\n');
-
-    const { text: raw, provider } = await matchingAI(
-      BATCH_MATCH_PROMPT,
-      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
-    );
-    console.log(`[matching] matchWhatsAppToPets usó ${provider}`);
-    const result = parseAIResponse(raw);
-
-    const matches = [];
-    if (result.matches) {
-      for (const m of result.matches) {
-        if (m.match && m.score >= minScore && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
-          const candidate = candidates.rows[m.candidate_index];
-          matches.push({ pet: candidate, score: m.score, reasons: m.reasons || [] });
-
-          await pool.query(
-            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
-             VALUES ('wa_report', $1, 'app_pet', $2, $3, $4, 'ai')
-             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING`,
-            [newPetId, candidate.id, m.score, m.reasons || []]
-          );
-        }
-      }
+    let imageBuffer = null;
+    if (msg.image_data) {
+      imageBuffer = Buffer.from(msg.image_data, 'base64');
     }
+    if (!imageBuffer) return [];
+
+    return await embedAndMatch('whatsapp_scraped_messages', scrapedMessageId, {
+      species: msg.animal_species || msg.species || undefined,
+      status: msg.classification === 'unclassified' ? 'lost' : msg.classification,
+      imageBuffer,
+    });
+  } catch (err) {
+    console.error('matchScrapedToAppPets error:', err);
+    return [];
+  }
+}
+
+export async function matchScrapedToScraped(messageId) {
+  try {
+    const msg = (await pool.query('SELECT * FROM whatsapp_scraped_messages WHERE id = $1', [messageId])).rows[0];
+    if (!msg || msg.is_matched) return [];
+
+    let imageBuffer = null;
+    if (msg.image_data) {
+      imageBuffer = Buffer.from(msg.image_data, 'base64');
+    }
+    if (!imageBuffer) return [];
+
+    const matches = await embedAndMatch('whatsapp_scraped_messages', messageId, {
+      species: msg.animal_species || msg.species || undefined,
+      status: msg.classification === 'unclassified' ? 'lost' : msg.classification,
+      imageBuffer,
+    });
 
     if (matches.length > 0) {
-      notifyAdminMatch('wa_report', newPet, matches);
+      await pool.query(
+        'UPDATE whatsapp_scraped_messages SET is_matched = true WHERE id = ANY($1::uuid[])',
+        [matches.map(m => m.id)]
+      );
     }
-
     return matches;
   } catch (err) {
-    console.error('matchWhatsAppToPets error:', err);
+    console.error('matchScrapedToScraped error:', err);
     return [];
+  }
+}
+
+// ─── AI helpers kept as-is (not matching-related) ───
+
+const CLASSIFY_PROMPT = `Classify this message from a pet rescue app user. Return ONLY a single word:
+- "lost" if they lost their pet
+- "found" if they found a pet
+- "sighted" if they saw a stray/sighting
+- "adopt" if they want to adopt
+- "volunteer" if they want to volunteer
+- "donate" if they want to donate
+- "info_qr" if they ask about QR tags
+- "report_from_fb" if they want to report a Facebook post or link their Facebook
+- "human" if they want to talk to a person
+- "greeting" if they just say hello/hi
+- "other" for anything else
+
+Message:`;
+
+export async function classifyTextIntent(text) {
+  try {
+    const { text: raw, provider } = await textIntentAI([
+      { role: 'system', content: CLASSIFY_PROMPT },
+      { role: 'user', content: text },
+    ]);
+    console.log(`[classifyTextIntent] Usó ${provider}`);
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim().toLowerCase();
+    const valid = ['lost', 'found', 'sighted', 'adopt', 'volunteer', 'donate', 'info_qr', 'report_from_fb', 'human', 'greeting', 'other'];
+    return valid.includes(cleaned) ? cleaned : null;
+  } catch (err) {
+    console.error('classifyTextIntent error:', err);
+    return null;
   }
 }
 
@@ -455,68 +327,6 @@ export async function processImageCaption(caption, imageData, imageMime) {
   }
 }
 
-async function notifyAdminMatch(type, source, matches) {
-  const top = matches.slice(0, 3);
-  const url = type === 'post'
-    ? `${process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar'}/admin/facebook/posts`
-    : `${process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar'}/pet/${source.id}`;
-
-  const matchRows = top.map(m => {
-    const label = type === 'post'
-      ? `${m.pet.name || m.pet.species || 'Sin nombre'} (${m.score}%)`
-      : `Post ID: ${m.post.id?.substring(0, 8) || ''} (${m.score}%)`;
-    return `<tr><td style="padding:6px;border:1px solid #e2e8f0;">${label}</td>
-                <td style="padding:6px;border:1px solid #e2e8f0;">${(m.reasons || []).join(', ')}</td></tr>`;
-  }).join('');
-
-  await sendAdminNotificationEmail(
-    '🎯 Match detectado por IA',
-    `<p>Se detectaron matches entre ${type === 'post' ? 'un post de Facebook' : 'una mascota reportada'} y las siguientes entradas:</p>
-     <table style="width:100%;border-collapse:collapse;"><tr><th style="padding:6px;border:1px solid #e2e8f0;text-align:left;">Match</th>
-     <th style="padding:6px;border:1px solid #e2e8f0;text-align:left;">Razones</th></tr>${matchRows}</table>
-     <p><a href="${url}">Ver en el panel</a></p>`
-  );
-
-  sendPushToAdmins({
-    title: '🎯 Match detectado',
-    body: `${matches.length} match(es) encontrado(s) por IA`,
-    url,
-  }).catch(err => console.error('Push error:', err));
-}
-
-// ─── Text intent classification (Groq-powered for WhatsApp bot) ───
-
-const CLASSIFY_PROMPT = `Classify this message from a pet rescue app user. Return ONLY a single word:
-- "lost" if they lost their pet
-- "found" if they found a pet
-- "sighted" if they saw a stray/sighting
-- "adopt" if they want to adopt
-- "volunteer" if they want to volunteer
-- "donate" if they want to donate
-- "info_qr" if they ask about QR tags
-- "report_from_fb" if they want to report a Facebook post or link their Facebook
-- "human" if they want to talk to a person
-- "greeting" if they just say hello/hi
-- "other" for anything else
-
-Message:`;
-
-export async function classifyTextIntent(text) {
-  try {
-    const { text: raw, provider } = await textIntentAI([
-      { role: 'system', content: CLASSIFY_PROMPT },
-      { role: 'user', content: text },
-    ]);
-    console.log(`[classifyTextIntent] Usó ${provider}`);
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim().toLowerCase();
-    const valid = ['lost', 'found', 'sighted', 'adopt', 'volunteer', 'donate', 'info_qr', 'report_from_fb', 'human', 'greeting', 'other'];
-    return valid.includes(cleaned) ? cleaned : null;
-  } catch (err) {
-    console.error('classifyTextIntent error:', err);
-    return null;
-  }
-}
-
 export async function detectAndCropPetFace(imageBase64, mimeType) {
   if (!imageBase64) return null;
   try {
@@ -560,158 +370,5 @@ export async function detectAndCropPetFace(imageBase64, mimeType) {
   } catch (err) {
     console.error('detectAndCropPetFace error:', err);
     return null;
-  }
-}
-
-const VISUAL_MATCH_PROMPT = `Sos un sistema de matching visual para mascotas perdidas.
-Te doy DOS reportes, cada uno con imagen y texto.
-Determiná si se trata del MISMO animal.
-
-Devuelve SOLO un JSON:
-{
-  "match": true|false,
-  "score": 0-100,
-  "reasons": ["razón clara 1", "razón clara 2"]
-}
-
-Reglas:
-- Score > 70 = muy probable que sea el mismo
-- Score 50-70 = posible match
-- Score < 50 = probablemente no es el mismo
-- Considerá: especie, color, tamaño, ubicación
-- Si la especie NO coincide → score < 20
-- Si están en ubicaciones muy distantes → score bajo`;
-
-export async function matchScrapedToAppPets(scrapedMessageId) {
-  try {
-    const msgRes = await pool.query('SELECT * FROM whatsapp_scraped_messages WHERE id = $1', [scrapedMessageId]);
-    if (msgRes.rows.length === 0) return [];
-    const msg = msgRes.rows[0];
-    if (msg.is_matched) return [];
-
-    const speciesFilter = msg.animal_species || msg.species;
-    const candidates = await pool.query(
-      `SELECT p.id, p.name, p.species, p.color, p.description, p.location, p.latitude, p.longitude, p.status,
-              pi.image_data as pet_image, pi.mime_type as pet_image_mime
-       FROM pets p
-       LEFT JOIN pet_images pi ON pi.pet_id = p.id AND pi.sort_order = 0
-       WHERE p.status IN ('lost', 'sighted')
-         AND ($1::text IS NULL OR p.species = $1)
-       ORDER BY p.created_at DESC LIMIT 20`,
-      [speciesFilter]
-    );
-    if (candidates.rows.length === 0) return [];
-
-    const sourceText = `Mensaje de WhatsApp:\n${msg.content || '(sin texto)'}`;
-    const candidatesText = candidates.rows.map((c, i) =>
-      `[${i}] ${c.name ? 'Nombre: ' + c.name + ', ' : ''}Especie: ${c.species}, Color: ${c.color || 'no especificado'}, Ubicación: ${c.location || 'no especificada'}, Estado: ${c.status}, Descripción: ${c.description || 'N/A'}`
-    ).join('\n');
-
-    const { text: raw, provider } = await matchingAI(
-      BATCH_MATCH_PROMPT,
-      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
-    );
-    console.log(`[matching] matchScrapedToAppPets usó ${provider}`);
-    const result = parseAIResponse(raw);
-
-    const matches = [];
-    if (result.matches) {
-      for (const m of result.matches) {
-        if (m.match && m.score >= 50 && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
-          const pet = candidates.rows[m.candidate_index];
-          const insertRes = await pool.query(
-            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
-             VALUES ('wa_group', $1, 'app_pet', $2, $3, $4, 'visual')
-             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING
-             RETURNING id`,
-            [scrapedMessageId, pet.id, m.score, m.reasons || []]
-          );
-          if (insertRes.rows.length > 0) {
-            matches.push({ pet, score: m.score, reasons: m.reasons || [] });
-          }
-        }
-      }
-    }
-
-    if (matches.length > 0) {
-      await pool.query('UPDATE whatsapp_scraped_messages SET is_matched = true WHERE id = $1', [scrapedMessageId]);
-      console.log(`[matching] WA message ${scrapedMessageId} matched ${matches.length} app pets`);
-    }
-
-    return matches;
-  } catch (err) {
-    console.error('matchScrapedToAppPets error:', err);
-    return [];
-  }
-}
-
-export async function matchScrapedToScraped(messageId) {
-  try {
-    const msgRes = await pool.query('SELECT * FROM whatsapp_scraped_messages WHERE id = $1', [messageId]);
-    if (msgRes.rows.length === 0) return [];
-    const msg = msgRes.rows[0];
-    if (msg.is_matched) return [];
-
-    const oppositeStatuses = msg.classification === 'lost' ? ['found', 'sighting'] : ['lost'];
-    const speciesFilter = msg.animal_species || msg.species;
-
-    const candidates = await pool.query(
-      `SELECT id, content, image_data, image_mime, classification, animal_detected, animal_species, animal_confidence, location_hint, created_at
-       FROM whatsapp_scraped_messages
-       WHERE id != $1
-         AND classification = ANY($2)
-         AND animal_detected = true
-         AND is_matched = false
-         AND ($3::text IS NULL OR animal_species = $3)
-       ORDER BY created_at DESC LIMIT 10`,
-      [messageId, oppositeStatuses, speciesFilter]
-    );
-    if (candidates.rows.length === 0) return [];
-
-    const sourceText = `Reporte ${msg.classification}:\n${msg.content || '(sin texto)'}\nUbicación: ${msg.location_hint || 'no especificada'}`;
-    const candidatesText = candidates.rows.map((c, i) =>
-      `[${i}] ${c.classification}: ${(c.content || '').substring(0, 150)}${c.image_data ? ' [con imagen]' : ''}`
-    ).join('\n');
-
-    const { text: raw, provider } = await matchingAI(
-      `Sos un sistema de matching entre reportes de WhatsApp para mascotas perdidas. Determiná si reportes con estados opuestos (perdido vs encontrado) podrían referirse al MISMO animal.
-${BATCH_MATCH_PROMPT.split('\n').slice(1).join('\n')}`,
-      `NUEVO REPORTE:\n${sourceText}\n\nCANDIDATOS:\n${candidatesText}`
-    );
-    console.log(`[matching] matchScrapedToScraped usó ${provider}`);
-    const result = parseAIResponse(raw);
-
-    const matches = [];
-    if (result.matches) {
-      for (const m of result.matches) {
-        if (m.match && m.score >= 50 && m.candidate_index >= 0 && m.candidate_index < candidates.rows.length) {
-          const candidate = candidates.rows[m.candidate_index];
-          const insertRes = await pool.query(
-            `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
-             VALUES ('wa_scraped', $1, 'wa_scraped', $2, $3, $4, 'visual')
-             ON CONFLICT (source_type, source_id, target_type, target_id) DO NOTHING
-             RETURNING id`,
-            [messageId, candidate.id, m.score, m.reasons || []]
-          );
-          if (insertRes.rows.length > 0) {
-            matches.push({ candidate, score: m.score, reasons: m.reasons || [] });
-          }
-        }
-      }
-    }
-
-    if (matches.length > 0) {
-      await pool.query('UPDATE whatsapp_scraped_messages SET is_matched = true WHERE id = $1', [messageId]);
-      await pool.query(
-        'UPDATE whatsapp_scraped_messages SET is_matched = true WHERE id = ANY($1::uuid[])',
-        [matches.map(m => m.candidate.id)]
-      );
-      console.log(`[matching] WA message ${messageId} matched ${matches.length} other scraped messages`);
-    }
-
-    return matches;
-  } catch (err) {
-    console.error('matchScrapedToScraped error:', err);
-    return [];
   }
 }

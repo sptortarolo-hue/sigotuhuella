@@ -1218,6 +1218,36 @@ export async function initDb() {
       ALTER TABLE pets ADD COLUMN IF NOT EXISTS reunited_at TIMESTAMP
     `, 'pets_owner_fields');
 
+    // --- Embeddings (pgvector) ---
+    await migrate(client, 'CREATE EXTENSION IF NOT EXISTS vector', 'pgvector extension');
+
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS embedding vector(512)
+    `, 'pets embedding column');
+
+    await migrate(client, `
+      ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS embedding vector(512)
+    `, 'fb_posts embedding column');
+
+    await migrate(client, `
+      ALTER TABLE whatsapp_scraped_messages ADD COLUMN IF NOT EXISTS embedding vector(512)
+    `, 'wa_scraped embedding column');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_pets_embedding
+      ON pets USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
+    `, 'pets embedding index');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_fb_posts_embedding
+      ON facebook_posts USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
+    `, 'fb_posts embedding index');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_wa_scraped_embedding
+      ON whatsapp_scraped_messages USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
+    `, 'wa_scraped embedding index');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

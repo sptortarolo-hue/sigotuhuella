@@ -238,14 +238,6 @@ const CLASSIFICATION_CHAIN_TEXT = chain([
   { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
 ]);
 
-const MATCHING_CHAIN = chain([
-  { name: 'Gemini', call: (sys, p) => callGeminiDirect(sys, p) },
-  { name: 'NVIDIA 70B', call: (sys, p) => callNVIDIA('meta/llama-3.3-70b-instruct', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
-  { name: 'Groq Llama 3.3-70B', call: (sys, p) => callGroqDirect('llama-3.3-70b-versatile', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
-  { name: 'OpenRouter GPT-OSS-120B', call: (sys, p) => callOpenRouter('openai/gpt-oss-120b', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
-  { name: 'Groq GPT-OSS-20B', call: (sys, p) => callGroqDirect('openai/gpt-oss-20b', [{ role: 'user', content: sys + '\n\n' + p }], { max_tokens: 1000 }) },
-]);
-
 const IMAGE_CAPTION_CHAIN = chain([
   { name: 'Groq Llama Vision', call: (m) => callGroqDirect('llama-3.2-11b-vision-preview', m, { max_tokens: 1000, timeout: 15000 }) },
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
@@ -269,10 +261,6 @@ const FACE_CROP_CHAIN = chain([
 export async function classificationAI(messages, hasImages) {
   const fn = hasImages ? CLASSIFICATION_CHAIN_WITH_IMAGES : CLASSIFICATION_CHAIN_TEXT;
   return fn(messages);
-}
-
-export async function matchingAI(systemPrompt, prompt) {
-  return MATCHING_CHAIN(systemPrompt, prompt);
 }
 
 export async function imageCaptionAI(messages) {
