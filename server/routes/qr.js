@@ -78,7 +78,7 @@ Sigo Tu Huella 🐾`;
       port: parseInt(process.env.SMTP_PORT) || 587,
       secure: false,
       tls: { rejectUnauthorized: false },
-      auth: { user: process.env.SMTP_FROM, pass: process.env.SMTP_PASS },
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     });
     await t.sendMail({
       from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
@@ -434,7 +434,7 @@ router.post('/public/:shareToken/scan', async (req, res) => {
           port: parseInt(process.env.SMTP_PORT) || 587,
           secure: false,
           tls: { rejectUnauthorized: false },
-          auth: { user: process.env.SMTP_FROM, pass: process.env.SMTP_PASS },
+          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
         });
         await transporter.sendMail({
           from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
@@ -505,7 +505,7 @@ router.post('/public/:shareToken/found', async (req, res) => {
         port: parseInt(process.env.SMTP_PORT) || 587,
         secure: false,
         tls: { rejectUnauthorized: false },
-        auth: { user: process.env.SMTP_FROM, pass: process.env.SMTP_PASS },
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
       });
       await transporter.sendMail({
         from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,

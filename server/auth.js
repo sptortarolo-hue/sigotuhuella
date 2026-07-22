@@ -19,7 +19,7 @@ const transporter = nodemailer.createTransport({
   greetingTimeout: 30000,
   socketTimeout: 30000,
   auth: {
-    user: process.env.SMTP_FROM,
+    user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
@@ -28,7 +28,7 @@ export async function sendPasswordResetEmail(email, resetToken) {
   console.log('SMTP Config:', {
     host: process.env.SMTP_HOST,
     port: process.env.SMTP_PORT,
-    user: process.env.SMTP_FROM,
+    user: process.env.SMTP_USER,
   });
   
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
