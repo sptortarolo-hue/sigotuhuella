@@ -37,8 +37,10 @@ jobs:
         echo "NVIDIA_API_KEY=${{ secrets.NVIDIA_API_KEY }}" >> server/.env
         echo "WHATSAPP_AI_PRIMARY=${{ secrets.WHATSAPP_AI_PRIMARY }}" >> server/.env
         echo "RELAY_TOKEN=${{ secrets.RELAY_TOKEN }}" >> server/.env
-        echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" >> server/.env
-        echo "APP_BASE_URL=${{ secrets.APP_BASE_URL }}" >> server/.env
+        fend="${{ secrets.FRONTEND_URL }}"
+        echo "FRONTEND_URL=${fend:-https://sigotuhuella.com.ar}" >> server/.env
+        aburl="${{ secrets.APP_BASE_URL }}"
+        echo "APP_BASE_URL=${aburl:-https://sigotuhuella.com.ar}" >> server/.env
         echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" >> server/.env
         echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> server/.env
 
