@@ -17,6 +17,8 @@ jobs:
     - run: npm run build
       env:
         VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+        VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        VITE_FRONTEND_URL: ${{ secrets.VITE_FRONTEND_URL }}
     - name: Prep env file
       run: |
         echo "AZURE_TTS_KEY=${{ secrets.AZURE_TTS_KEY }}" >> server/.env
@@ -35,6 +37,9 @@ jobs:
         echo "NVIDIA_API_KEY=${{ secrets.NVIDIA_API_KEY }}" >> server/.env
         echo "WHATSAPP_AI_PRIMARY=${{ secrets.WHATSAPP_AI_PRIMARY }}" >> server/.env
         echo "RELAY_TOKEN=${{ secrets.RELAY_TOKEN }}" >> server/.env
+        echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" >> server/.env
+        echo "APP_BASE_URL=${{ secrets.APP_BASE_URL }}" >> server/.env
+        echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" >> server/.env
 
     - name: Check disk space on VPS
       continue-on-error: true
