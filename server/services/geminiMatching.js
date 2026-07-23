@@ -366,7 +366,7 @@ export async function detectAndCropPetFace(imageBase64, mimeType) {
       ],
     }]);
     console.log(`[detectAndCropPetFace] Usó ${provider}`);
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const cleaned = raw.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
     const faceData = JSON.parse(cleaned);
     if (faceData.error === 'no_face') return null;
     if (typeof faceData.x !== 'number' || typeof faceData.y !== 'number' || typeof faceData.width !== 'number' || typeof faceData.height !== 'number') return null;
