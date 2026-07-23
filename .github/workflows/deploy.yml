@@ -64,6 +64,9 @@ jobs:
         ssh -vvv -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo OK" 2>&1
       shell: bash
 
+    - name: Write version.txt
+      run: echo "${{ github.sha }}" > dist/version.txt
+
     - name: Transfer files to VPS
       run: |
         mkdir -p ~/.ssh
