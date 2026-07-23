@@ -163,9 +163,10 @@ async function searchTable(targetCfg, srcLat, srcLng, embedding, sourceStatus, o
 export async function embedAndMatch(table, id, { species, status, imageBuffer, croppedFaceBuffer }) {
   if (!imageBuffer) return [];
 
-  const faceBuffer = croppedFaceBuffer || imageBuffer;
-  const embedding = await generateImageEmbedding(faceBuffer);
+  const embedding = await generateImageEmbedding(imageBuffer);
   await saveEmbedding(table, id, embedding);
+
+  const faceBuffer = croppedFaceBuffer || imageBuffer;
 
   let srcAttrs = null;
   try {
