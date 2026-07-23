@@ -250,6 +250,17 @@ pm2 delete sihuella
 kill -9 $(lsof -ti :3000)
 ```
 
+## VPS y deploy
+
+- **VPS:** `45.7.230.84:28221`
+- **Deploy:** GitHub Actions via `tar | ssh` (NO usa `git pull`). Ver commit deployado con `cat /var/www/sigotuhuella/version.txt`
+- **DB:** `psql -U sigotuhuella -h localhost -d sigotuhuella` (peer auth falla, usar `-h localhost`)
+
+### Columnas de coordenadas en `pets`
+- `latitude` (double precision)
+- `longitude` (double precision)
+```
+
 ## Checklist al agregar una nueva página/componente
 
 - [ ] Mobile first: ¿se ve bien en 375px de ancho?
