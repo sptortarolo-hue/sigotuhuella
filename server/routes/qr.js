@@ -852,6 +852,47 @@ router.get('/preview-logo', requireAdmin, async (_req, res) => {
   }
 });
 
+router.get('/preview-pdf', requireAdmin, async (_req, res) => {
+  try {
+    logoPngPromise = null;
+    const qrPng = await generateQrPng('AAA-0001', '00000000-0000-0000-0000-000000000000');
+    const logoPng = await generateLogoPng();
+
+    const MM_TO_PT = 72 / 25.4;
+    const A4_W_MM = 297;
+    const A4_H_MM = 210;
+    const TAG_MM = 37;
+    const GAP_MM = 1;
+    const TAG_PT = TAG_MM * MM_TO_PT;
+    const totalW = TAG_MM * 2 + GAP_MM;
+    const startX = (A4_W_MM - totalW) / 2;
+    const startY = (A4_H_MM - TAG_MM) / 2;
+
+    const doc = new PDFDocument({ size: [A4_W_MM * MM_TO_PT, A4_H_MM * MM_TO_PT], margin: 0 });
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', 'attachment; filename="chapita-preview.pdf"');
+    doc.pipe(res);
+
+    const QR_X = startX * MM_TO_PT;
+    const LOGO_X = (startX + TAG_MM + GAP_MM) * MM_TO_PT;
+    const Y = startY * MM_TO_PT;
+
+    doc.image(qrPng, QR_X, Y, { width: TAG_PT });
+    doc.image(logoPng, LOGO_X, Y, { width: TAG_PT });
+
+    doc.fontSize(7).fillColor('#888888');
+    doc.text('Cara QR', QR_X, Y + TAG_PT + 4, { width: TAG_PT, align: 'center' });
+    doc.text('Cara Logo', LOGO_X, Y + TAG_PT + 4, { width: TAG_PT, align: 'center' });
+
+    doc.fontSize(6).fillColor('#aaaaaa');
+    doc.text('Preview a tamaño real (37mm × 37mm)', 0, A4_H_MM * MM_TO_PT - 16, { width: A4_W_MM * MM_TO_PT, align: 'center' });
+
+    doc.end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 function drawArcTextSvg(text, cx, cy, r, startDeg, endDeg, fontSize, color) {
   const sr = (startDeg * Math.PI) / 180;
   const er = (endDeg * Math.PI) / 180;

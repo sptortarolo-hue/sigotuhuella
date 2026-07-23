@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/src/lib/api';
-import { Save, RotateCcw, Loader2 } from 'lucide-react';
+import { Save, RotateCcw, Loader2, FileText } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 const TAG_PX = 437;
@@ -96,6 +96,25 @@ export default function ChapitaEditor({ className }: Props) {
 
   const handleReset = () => { setS({ ...DEFAULTS }); setSaved(false); };
 
+  const handlePreviewPdf = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch('/api/qr/preview-pdf', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) { const err = await res.json(); alert(err.error || 'Error al descargar PDF'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'chapita-preview.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch { alert('Error al descargar PDF'); }
+  };
+
   const qrSizePx = useMemo(() => Math.round(s.qr_size_mm * 300 / 25.4), [s.qr_size_mm]);
   const qrX = useMemo(() => Math.round((TAG_PX - qrSizePx) / 2), [qrSizePx]);
   const codeY = useMemo(() => Math.round(TAG_PX * 0.95), []);
@@ -162,6 +181,10 @@ export default function ChapitaEditor({ className }: Props) {
               className="px-5 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saved ? 'Guardado ✓' : 'Guardar'}
+            </button>
+            <button onClick={handlePreviewPdf}
+              className="px-5 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl font-bold text-sm hover:bg-brand-primary/20 transition-all flex items-center gap-2">
+              <FileText className="w-4 h-4" /> PDF preview A4
             </button>
             <button onClick={handleReset}
               className="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-200 transition-all flex items-center gap-2">
