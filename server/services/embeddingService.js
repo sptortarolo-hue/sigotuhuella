@@ -202,16 +202,19 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
   const allCandidates = [];
   for (const tgt of targets) {
     const rows = await searchTable(tgt, srcLat, srcLng, embedding, status, { maxCandidates });
+    console.log(`[embedAndMatch DEBUG] target=${tgt.table} rows=${rows.length} minScore=${minScore} radiusKm=${radiusKm} srcAttrs?.species=${srcAttrs?.species}`);
     for (const r of rows) {
       const visual = r.visual_sim || 0;
-      if (r.distance_km !== null && r.distance_km > radiusKm) continue;
-      if (r.species && srcAttrs?.species && r.species !== srcAttrs.species) continue;
+      if (r.distance_km !== null && r.distance_km > radiusKm) { console.log(`[embedAndMatch DEBUG] skip dist: ${r.name||r.id} dist=${r.distance_km} > ${radiusKm}`); continue; }
+      if (r.species && srcAttrs?.species && r.species !== srcAttrs.species) { console.log(`[embedAndMatch DEBUG] skip species: ${r.name||r.id} r.species=${r.species} src.species=${srcAttrs.species}`); continue; }
       const score = Math.round(visual * 100);
       if (score >= minScore) {
         allCandidates.push({
           ...r, visual, distance_km: r.distance_km,
           score, targetType: tgt.targetType,
         });
+      } else {
+        console.log(`[embedAndMatch DEBUG] skip score: ${r.name||r.id} score=${score} < ${minScore}`);
       }
     }
   }
