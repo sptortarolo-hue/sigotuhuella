@@ -706,7 +706,7 @@ function SettingsSection() {
   const handleSaveMatching = async () => {
     setSaving(true);
     try {
-      const keys = ['matching_min_score', 'matching_radius_km', 'matching_weight_visual', 'matching_weight_distance', 'matching_weight_breed_color', 'matching_weight_text', 'matching_weight_recency', 'matching_max_candidates'];
+      const keys = ['matching_min_score', 'matching_radius_km', 'matching_max_candidates'];
       for (const key of keys) await api.settings.update(key, settings[key] || '');
       setSavedMatching(true);
       setTimeout(() => setSavedMatching(false), 2000);
@@ -803,9 +803,9 @@ function SettingsSection() {
       {/* Matching config */}
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
         <h2 className="text-xl font-serif font-bold text-brand-primary mb-6 flex items-center gap-3">
-          <FlaskConical className="w-6 h-6" /> Configuración de Matching (CLIP + pgvector)
+          <FlaskConical className="w-6 h-6" /> Configuración de Matching (CLIP)
         </h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-bold text-gray-600 mb-1">Score mínimo (%)</label>
             <input type="number" value={settings.matching_min_score || '70'}
@@ -819,59 +819,15 @@ function SettingsSection() {
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="1" max="500" />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-600 mb-1">Peso visual (%)</label>
-            <input type="number" value={settings.matching_weight_visual || '55'}
-              onChange={(e) => setSettings(p => ({ ...p, matching_weight_visual: e.target.value }))}
-              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-1">Peso distancia (%)</label>
-            <input type="number" value={settings.matching_weight_distance || '15'}
-              onChange={(e) => setSettings(p => ({ ...p, matching_weight_distance: e.target.value }))}
-              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-1">Peso raza/color (%)</label>
-            <input type="number" value={settings.matching_weight_breed_color || '15'}
-              onChange={(e) => setSettings(p => ({ ...p, matching_weight_breed_color: e.target.value }))}
-              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-1">Peso texto (%)</label>
-            <input type="number" value={settings.matching_weight_text || '10'}
-              onChange={(e) => setSettings(p => ({ ...p, matching_weight_text: e.target.value }))}
-              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-600 mb-1">Peso recencia (%)</label>
-            <input type="number" value={settings.matching_weight_recency || '5'}
-              onChange={(e) => setSettings(p => ({ ...p, matching_weight_recency: e.target.value }))}
-              className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="0" max="100" />
-          </div>
-          <div>
             <label className="block text-sm font-bold text-gray-600 mb-1">Máx. candidatos</label>
             <input type="number" value={settings.matching_max_candidates || '10'}
               onChange={(e) => setSettings(p => ({ ...p, matching_max_candidates: e.target.value }))}
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="1" max="50" />
           </div>
         </div>
-        {(() => {
-          const v = parseFloat(settings.matching_weight_visual || '55') || 0;
-          const d = parseFloat(settings.matching_weight_distance || '15') || 0;
-          const b = parseFloat(settings.matching_weight_breed_color || '15') || 0;
-          const t = parseFloat(settings.matching_weight_text || '10') || 0;
-          const r = parseFloat(settings.matching_weight_recency || '5') || 0;
-          const sum = v + d + b + t + r;
-          const ok = sum === 100;
-          return (
-            <div className={cn("flex items-center gap-2 mt-4 text-sm font-bold", ok ? "text-green-600" : "text-red-500")}>
-              <span className={ok ? "text-green-600" : "text-red-500"}>{ok ? '✅' : '⚠️'}</span>
-              <span>Pesos: {v} + {d} + {b} + {t} + {r} = <span className={ok ? "text-green-600" : "text-red-500"}>{sum}%</span>{ok ? ' ✓' : ' (debe sumar 100%)'}</span>
-            </div>
-          );
-        })()}
+        <p className="text-xs text-gray-400 mt-3">Score basado en similitud visual (CLIP) + filtro geográfico por radio.</p>
         <button onClick={handleSaveMatching} disabled={saving}
-          className="mt-6 px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
+          className="mt-4 px-8 py-3.5 bg-brand-primary text-white text-base font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
           {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
           {saving ? 'Guardando...' : savedMatching ? '✅ Guardado' : 'Guardar'}
         </button>
