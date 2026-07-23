@@ -1117,6 +1117,22 @@ export async function initDb() {
       INSERT INTO settings (key, value) VALUES ('auto_reels_enabled', 'false') ON CONFLICT (key) DO NOTHING
     `, 'auto_reels_enabled');
 
+    // Chapita QR design defaults
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_qr_size_mm', '23') ON CONFLICT (key) DO NOTHING`, 'chapita_qr_size_mm');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_qr_color', '#000000') ON CONFLICT (key) DO NOTHING`, 'chapita_qr_color');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_qr_bg', '#ffffff') ON CONFLICT (key) DO NOTHING`, 'chapita_qr_bg');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_code_font_size', '35') ON CONFLICT (key) DO NOTHING`, 'chapita_code_font_size');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_code_color', '#000000') ON CONFLICT (key) DO NOTHING`, 'chapita_code_color');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_arc_font_size', '37') ON CONFLICT (key) DO NOTHING`, 'chapita_arc_font_size');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_arc_color', '#000000') ON CONFLICT (key) DO NOTHING`, 'chapita_arc_color');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_arc_radius', '0.38') ON CONFLICT (key) DO NOTHING`, 'chapita_arc_radius');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_arc_start_deg', '200') ON CONFLICT (key) DO NOTHING`, 'chapita_arc_start_deg');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_arc_end_deg', '340') ON CONFLICT (key) DO NOTHING`, 'chapita_arc_end_deg');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_bottom_font_size', '35') ON CONFLICT (key) DO NOTHING`, 'chapita_bottom_font_size');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_bottom_color', '#000000') ON CONFLICT (key) DO NOTHING`, 'chapita_bottom_color');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_logo_scale', '0.55') ON CONFLICT (key) DO NOTHING`, 'chapita_logo_scale');
+    await migrate(client, `INSERT INTO settings (key, value) VALUES ('chapita_logo_fade', '8') ON CONFLICT (key) DO NOTHING`, 'chapita_logo_fade');
+
     await migrate(client, `
       ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS type VARCHAR(20) DEFAULT 'group'
     `, 'whatsapp_groups type');

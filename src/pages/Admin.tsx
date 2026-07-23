@@ -27,6 +27,7 @@ import InstagramTab from '@/src/components/admin/InstagramTab';
 import WhatsAppTab from '@/src/components/admin/WhatsAppTab';
 import RelayWhatsAppTab from '@/src/components/admin/RelayWhatsAppTab';
 import FacebookRelayTab from '@/src/components/admin/FacebookRelayTab';
+import ChapitaEditor from '@/src/components/ChapitaEditor';
 import UnifiedDashboard from '@/src/pages/admin/UnifiedDashboard';
 import AnalyticsTab from '@/src/pages/admin/AnalyticsTab';
 import {
@@ -2116,6 +2117,9 @@ export default function Admin() {
         </button>
       </div>
     </div>
+
+    {/* ───── Chapita Design Editor ───── */}
+    <ChapitaEditor />
 
     {/* ───── PDF Config ───── */}
     <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">

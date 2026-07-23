@@ -695,6 +695,46 @@ const TAG_SIZE_MM = 37;
 const GAP_MM = 1;
 const TAG_SIZE_PX = Math.round(TAG_SIZE_MM * 300 / 25.4); // ~437px
 
+const CHAPITA_DEFAULTS = {
+  qr_size_mm: 23, qr_color: '#000000', qr_bg: '#ffffff',
+  code_font_size: 35, code_color: '#000000',
+  arc_font_size: 37, arc_color: '#000000', arc_radius: 0.38, arc_start_deg: 200, arc_end_deg: 340,
+  bottom_font_size: 35, bottom_color: '#000000',
+  logo_scale: 0.55, logo_fade: 8,
+};
+
+let _chapitaSettingsCache = null;
+let _chapitaSettingsTs = 0;
+
+async function getChapitaSettings() {
+  const now = Date.now();
+  if (_chapitaSettingsCache && now - _chapitaSettingsTs < 30000) return _chapitaSettingsCache;
+  try {
+    const keys = Object.keys(CHAPITA_DEFAULTS).map(k => `chapita_${k}`);
+    const result = await pool.query('SELECT key, value FROM settings WHERE key = ANY($1)', [keys]);
+    const map = {};
+    result.rows.forEach(r => { map[r.key] = r.value; });
+    _chapitaSettingsCache = {
+      qr_size_mm: parseFloat(map.chapita_qr_size_mm) || CHAPITA_DEFAULTS.qr_size_mm,
+      qr_color: map.chapita_qr_color || CHAPITA_DEFAULTS.qr_color,
+      qr_bg: map.chapita_qr_bg || CHAPITA_DEFAULTS.qr_bg,
+      code_font_size: parseInt(map.chapita_code_font_size) || CHAPITA_DEFAULTS.code_font_size,
+      code_color: map.chapita_code_color || CHAPITA_DEFAULTS.code_color,
+      arc_font_size: parseInt(map.chapita_arc_font_size) || CHAPITA_DEFAULTS.arc_font_size,
+      arc_color: map.chapita_arc_color || CHAPITA_DEFAULTS.arc_color,
+      arc_radius: parseFloat(map.chapita_arc_radius) || CHAPITA_DEFAULTS.arc_radius,
+      arc_start_deg: parseInt(map.chapita_arc_start_deg) || CHAPITA_DEFAULTS.arc_start_deg,
+      arc_end_deg: parseInt(map.chapita_arc_end_deg) || CHAPITA_DEFAULTS.arc_end_deg,
+      bottom_font_size: parseInt(map.chapita_bottom_font_size) || CHAPITA_DEFAULTS.bottom_font_size,
+      bottom_color: map.chapita_bottom_color || CHAPITA_DEFAULTS.bottom_color,
+      logo_scale: parseFloat(map.chapita_logo_scale) || CHAPITA_DEFAULTS.logo_scale,
+      logo_fade: parseInt(map.chapita_logo_fade) || CHAPITA_DEFAULTS.logo_fade,
+    };
+    _chapitaSettingsTs = now;
+  } catch { _chapitaSettingsCache = { ...CHAPITA_DEFAULTS }; }
+  return _chapitaSettingsCache;
+}
+
 function calculateLayout(pageW_MM, pageH_MM) {
   const pairW = TAG_SIZE_MM * 2 + GAP_MM;
   const pairsPerRow = Math.floor((pageW_MM + GAP_MM) / (pairW + GAP_MM));
@@ -757,6 +797,56 @@ router.get('/layout', requireAdmin, async (req, res) => {
   try {
     const layout = await getLayout(req.query.page_w, req.query.page_h);
     res.json(layout);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/design-settings', requireAdmin, async (_req, res) => {
+  try {
+    const settings = await getChapitaSettings();
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/design-settings', requireAdmin, async (req, res) => {
+  try {
+    const updates = req.body;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const [key, value] of Object.entries(updates)) {
+        const dbKey = key.startsWith('chapita_') ? key : `chapita_${key}`;
+        await client.query(
+          'INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()',
+          [dbKey, String(value)]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    _chapitaSettingsCache = null;
+    _chapitaSettingsTs = 0;
+    logoPngPromise = null;
+    const settings = await getChapitaSettings();
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/preview-logo', requireAdmin, async (_req, res) => {
+  try {
+    logoPngPromise = null;
+    const png = await generateLogoPng();
+    res.set('Content-Type', 'image/png');
+    res.send(png);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -853,21 +943,22 @@ async function processLogoPng() {
 async function generateLogoPng() {
   if (!logoPngPromise) {
     logoPngPromise = (async () => {
+      const s = await getChapitaSettings();
       const processedLogo = await processLogoPng();
       const logoB64 = processedLogo.toString('base64');
       const cx = TAG_SIZE_PX / 2;
-      const arcR = Math.round(TAG_SIZE_PX * 0.38);
-      const arcSize = Math.round(TAG_SIZE_PX * 0.065);
-      const logoSize = Math.round(TAG_SIZE_PX * 0.55);
+      const arcR = Math.round(TAG_SIZE_PX * s.arc_radius);
+      const arcSize = s.arc_font_size;
+      const logoSize = Math.round(TAG_SIZE_PX * s.logo_scale);
       const logoX = Math.round((TAG_SIZE_PX - logoSize) / 2);
       const logoY = Math.round(cx - logoSize / 2 + TAG_SIZE_PX * 0.03);
-      const bottomSize = Math.round(TAG_SIZE_PX * 0.06);
-      const bottomY = Math.round(TAG_SIZE_PX * 0.92);
+      const bottomSize = s.bottom_font_size;
+      const bottomY = Math.round(TAG_SIZE_PX * 0.93);
 
       const svg = `<svg width="${TAG_SIZE_PX}" height="${TAG_SIZE_PX}" xmlns="http://www.w3.org/2000/svg">
-${drawArcTextSvg('SI ME VES PERDIDO', cx, cx, arcR, 200, 340, arcSize, '#5A5A40')}
+${drawArcTextSvg('SI ME VES PERDIDO', cx, cx, arcR, s.arc_start_deg, s.arc_end_deg, arcSize, s.arc_color)}
 <image href="data:image/png;base64,${logoB64}" x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}"/>
-<text x="${cx}" y="${bottomY}" text-anchor="middle" font-family="sans-serif" font-size="${bottomSize}" font-weight="bold" fill="#5A5A40">ESCANEÁ EL QR</text>
+<text x="${cx}" y="${bottomY}" text-anchor="middle" font-family="sans-serif" font-size="${bottomSize}" font-weight="bold" fill="${s.bottom_color}">ESCANEÁ EL QR</text>
 </svg>`;
       return sharp(Buffer.from(svg)).png().toBuffer();
     })();
@@ -876,17 +967,23 @@ ${drawArcTextSvg('SI ME VES PERDIDO', cx, cx, arcR, 200, 340, arcSize, '#5A5A40'
 }
 
 async function generateQrPng(code, shareToken) {
+  const s = await getChapitaSettings();
+  const qrColor = s.qr_color;
+  const qrBg = s.qr_bg;
+  const qrSizeMm = s.qr_size_mm;
+  const qrSize = Math.round(qrSizeMm * 300 / 25.4);
+  const fontSize = s.code_font_size;
+  const codeColor = s.code_color;
+
   const qrSvg = await QRCode.toString(`${FRONTEND_URL}/mascota/${shareToken}`, {
     type: 'svg',
     margin: 1,
-    color: { dark: '#5A5A40', light: '#ffffff' },
+    color: { dark: qrColor, light: qrBg },
   });
   const cx = TAG_SIZE_PX / 2;
-  const qrSize = Math.round(TAG_SIZE_PX * 0.82);
   const qrX = Math.round((TAG_SIZE_PX - qrSize) / 2);
-  const qrY = Math.round(TAG_SIZE_PX * 0.04);
-  const fontSize = Math.round(TAG_SIZE_PX * 0.06);
-  const textY = Math.round(TAG_SIZE_PX * 0.94);
+  const qrY = Math.round((TAG_SIZE_PX - qrSize) / 2);
+  const textY = Math.round(TAG_SIZE_PX * 0.95);
 
   const vb = qrSvg.match(/viewBox="([^"]*)"/);
   const vbStr = (vb && vb[1]) || '0 0 33 33';
@@ -899,7 +996,7 @@ async function generateQrPng(code, shareToken) {
 <g transform="translate(${qrX}, ${qrY}) scale(${scaleX}, ${scaleY})">
 ${inner}
 </g>
-<text x="${cx}" y="${textY}" text-anchor="middle" font-family="monospace" font-size="${fontSize}" font-weight="bold" fill="#5A5A40">${code}</text>
+<text x="${cx}" y="${textY}" text-anchor="middle" font-family="monospace" font-size="${fontSize}" font-weight="bold" fill="${codeColor}">${code}</text>
 </svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
 }

@@ -333,6 +333,12 @@ export const api = {
     notifyAssigned: (id: string) => request(`/qr/assigned/${id}/notify`, { method: 'POST' }),
     lastCode: () => request('/qr/last-code'),
     layout: (page_w: string, page_h: string) => request(`/qr/layout?page_w=${page_w}&page_h=${page_h}`),
+    designSettings: () => request('/qr/design-settings'),
+    saveDesignSettings: (data: Record<string, string | number>) => request('/qr/design-settings', { method: 'PUT', body: JSON.stringify(data) }),
+    previewLogoUrl: () => {
+      const token = getToken();
+      return `/api/qr/preview-logo${token ? `?token=${token}` : ''}`;
+    },
     batchPdf: (batchId: string, opts?: { from?: string; to?: string; page_w?: string; page_h?: string }) => {
       const token = getToken();
       const params = new URLSearchParams();
