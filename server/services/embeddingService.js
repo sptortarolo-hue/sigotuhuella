@@ -202,24 +202,20 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
   const allCandidates = [];
   for (const tgt of targets) {
     const rows = await searchTable(tgt, srcLat, srcLng, embedding, status, { maxCandidates });
-    console.log(`[embedAndMatch DEBUG] target=${tgt.table} rows=${rows.length} minScore=${minScore} radiusKm=${radiusKm} srcAttrs?.species=${srcAttrs?.species}`);
     for (const r of rows) {
       const visual = r.visual_sim || 0;
-      if (r.distance_km !== null && r.distance_km > radiusKm) { console.log(`[embedAndMatch DEBUG] skip dist: ${r.name||r.id} dist=${r.distance_km} > ${radiusKm}`); continue; }
-      if (r.species && srcAttrs?.species && r.species !== srcAttrs.species) { console.log(`[embedAndMatch DEBUG] skip species: ${r.name||r.id} r.species=${r.species} src.species=${srcAttrs.species}`); continue; }
+      if (r.distance_km !== null && r.distance_km > radiusKm) continue;
+      if (r.species && srcAttrs?.species && r.species !== srcAttrs.species) continue;
       const score = Math.round(visual * 100);
       if (score >= minScore) {
         allCandidates.push({
           ...r, visual, distance_km: r.distance_km,
           score, targetType: tgt.targetType,
         });
-      } else {
-        console.log(`[embedAndMatch DEBUG] skip score: ${r.name||r.id} score=${score} < ${minScore}`);
       }
     }
   }
 
-  console.log(`[embedAndMatch DEBUG2] allCandidates=${allCandidates.length} best=${Math.min(maxCandidates, allCandidates.length)}`);
   allCandidates.sort((a, b) => b.score - a.score);
   const best = allCandidates.slice(0, maxCandidates);
 
@@ -238,20 +234,15 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
     if (c.color) reasons.push(`Color: ${c.color}`);
     if (c.distance_km !== null) reasons.push(`Distancia: ${Math.round(c.distance_km)}km`);
 
-    console.log(`[embedAndMatch DEBUG2] trying match: src=${id} tgt=${c.id} score=${c.score} exists?`);
-    const existing = await pool.query(
-      `SELECT id FROM facebook_matches WHERE source_type=$1 AND source_id=$2 AND target_type=$3 AND target_id=$4`,
-      [sourceType, id, c.targetType, c.id]
-    );
-    if (existing.rows.length > 0) { console.log(`[embedAndMatch DEBUG2] already exists, skip`); continue; }
-
     const res = await pool.query(
       `INSERT INTO facebook_matches (source_type, source_id, target_type, target_id, score, reasons, method)
        VALUES ($1, $2, $3, $4, $5, $6, 'ai')
+       ON CONFLICT (source_type, source_id, target_type, target_id)
+       DO UPDATE SET score = $5, reasons = $6, method = 'ai'
        RETURNING id`,
       [sourceType, id, c.targetType, c.id, c.score, reasons]
     );
-    if (res.rows.length > 0) { console.log(`[embedAndMatch DEBUG2] INSERTED`); matches.push(c); }
+    if (res.rows.length > 0) matches.push(c);
   }
 
   if (matches.length > 0) {
