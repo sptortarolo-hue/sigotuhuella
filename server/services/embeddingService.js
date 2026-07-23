@@ -204,6 +204,7 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
     for (const r of rows) {
       const visual = r.visual_sim || 0;
       if (r.distance_km !== null && r.distance_km > radiusKm) continue;
+      if (r.species && srcAttrs?.species && r.species !== srcAttrs.species) continue;
       const score = Math.round(visual * 100);
       if (score >= minScore) {
         allCandidates.push({
