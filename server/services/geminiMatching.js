@@ -369,9 +369,18 @@ export async function detectAndCropPetFace(imageBase64, mimeType) {
     const noThink = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<think>[\s\S]*/gi, '');
     const jsonStart = noThink.indexOf('{');
     if (jsonStart < 0) return null;
-    const base = noThink.slice(jsonStart);
+    const jsonEnd = noThink.lastIndexOf('}');
+    if (jsonEnd < 0) return null;
+    const base = noThink.slice(jsonStart, jsonEnd + 1);
     const cleaned = base.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
-    const faceData = JSON.parse(cleaned);
+    let faceData;
+    try {
+      faceData = JSON.parse(cleaned);
+    } catch {
+      const match = cleaned.match(/\{[^{}]*"x"\s*:\s*[\d.]+[^{}]*\}/);
+      if (!match) return null;
+      faceData = JSON.parse(match[0]);
+    }
     if (faceData.error === 'no_face') return null;
     if (typeof faceData.x !== 'number' || typeof faceData.y !== 'number' || typeof faceData.width !== 'number' || typeof faceData.height !== 'number') return null;
 
