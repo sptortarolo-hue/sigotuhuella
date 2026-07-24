@@ -96,10 +96,10 @@ async function saveAnimalDetection(table, id, attrs) {
   );
 }
 
-async function saveEmbedding(table, id, embedding) {
+async function saveEmbedding(table, id, embedding, embeddingType = 'full') {
   await pool.query(
-    `UPDATE ${table} SET embedding = $1 WHERE id = $2`,
-    [vecToString(embedding), id]
+    `UPDATE ${table} SET embedding = $1, embedding_type = $2 WHERE id = $3`,
+    [vecToString(embedding), embeddingType, id]
   );
 }
 
@@ -163,8 +163,10 @@ async function searchTable(targetCfg, srcLat, srcLng, embedding, sourceStatus, o
 export async function embedAndMatch(table, id, { species, status, imageBuffer, croppedFaceBuffer }) {
   if (!imageBuffer) return [];
 
-  const embedding = await generateImageEmbedding(imageBuffer);
-  await saveEmbedding(table, id, embedding);
+  const embeddingBuffer = croppedFaceBuffer || imageBuffer;
+  const embeddingType = croppedFaceBuffer ? 'face' : 'full';
+  const embedding = await generateImageEmbedding(embeddingBuffer);
+  await saveEmbedding(table, id, embedding, embeddingType);
 
   const faceBuffer = croppedFaceBuffer || imageBuffer;
 
