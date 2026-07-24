@@ -206,11 +206,17 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
       const visual = r.visual_sim || 0;
       if (r.distance_km !== null && r.distance_km > radiusKm) continue;
       if (r.species && srcAttrs?.species && r.species !== srcAttrs.species) continue;
-      const score = Math.round(visual * 100);
+
+      const visualScore = Math.round(visual * 100);
+      let bonus = 0;
+      if (srcAttrs?.breed && r.breed && srcAttrs.breed.toLowerCase() === r.breed.toLowerCase()) bonus += 5;
+      if (srcAttrs?.color && r.color && srcAttrs.color.toLowerCase() === r.color.toLowerCase()) bonus += 3;
+      const score = visualScore + bonus;
+
       if (score >= minScore) {
         allCandidates.push({
           ...r, visual, distance_km: r.distance_km,
-          score, targetType: tgt.targetType,
+          score, visualScore, bonus, targetType: tgt.targetType,
         });
       }
     }
@@ -230,6 +236,7 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
   const matches = [];
   for (const c of best) {
     const reasons = [`Similitud visual: ${Math.round(c.visual * 100)}%`];
+    if (c.bonus > 0) reasons.push(`+${c.bonus}% raza/color`);
     if (c.breed) reasons.push(`Raza: ${c.breed}`);
     if (c.color) reasons.push(`Color: ${c.color}`);
     if (c.distance_km !== null) reasons.push(`Distancia: ${Math.round(c.distance_km)}km`);
@@ -249,7 +256,7 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
     const names = matches.map(m => m.name || `#${m.id.slice(0, 8)}`).join(', ');
     await sendAdminNotificationEmail(
       `🔗 Match detectado: ${label} coincide con ${matches.length} mascota(s)`,
-      `Se detectó un match automático entre un ${label} y:\n\n${matches.map(m => `- ${m.name || 'Sin nombre'} (${m.species}) — ${m.score}%`).join('\n')}`
+      `Se detectó un match automático entre un ${label} y:\n\n${matches.map(m => `- ${m.name || 'Sin nombre'} (${m.species}) — ${m.score}%${m.bonus > 0 ? ' (visual ' + m.visualScore + '% + ' + m.bonus + '% bonus)' : ''}`).join('\n')}`
     );
     sendPushToAdmins({ title: `🔗 Match: ${matches.length} coincidencia(s)`, body: `${label} vinculado a ${names}` });
   }
