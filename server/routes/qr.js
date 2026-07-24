@@ -844,7 +844,7 @@ router.put('/design-settings', requireAdmin, async (req, res) => {
 router.get('/preview-logo', requireAdmin, async (_req, res) => {
   try {
     logoPngPromise = null;
-    const png = await generateLogoPng();
+    const png = await processLogoPng();
     res.set('Content-Type', 'image/png');
     res.send(png);
   } catch (err) {
