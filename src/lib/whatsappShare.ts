@@ -8,7 +8,7 @@ function getSpeciesLabel(species: string): string {
 
 function getWhatsAppShareText(pet: Pet): string {
   const species = getSpeciesLabel(pet.species);
-  const name = pet.name || species;
+  const name = pet.name || 'una mascota';
   const location = pet.location || 'una zona del barrio';
   const link = `https://sigotuhuella.com.ar/pet/${pet.id}`;
   let body: string;

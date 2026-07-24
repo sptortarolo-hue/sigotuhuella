@@ -414,6 +414,23 @@ export async function broadcastPetToGroups(petId) {
   }
 }
 
+function buildShareButtonText(pet) {
+  const species = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : 'mascota';
+  const name = pet.name || 'una mascota';
+  const location = pet.location || 'una zona del barrio';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+  const link = `${frontendUrl}/pet/${pet.id}`;
+
+  let body;
+  if (pet.status === 'for_adoption') {
+    body = `🐾 ${name} busca un hogar amoroso en ${location}. Dale una chance 🙏`;
+  } else {
+    body = `🐾 ${name} busca un hogar amoroso en ${location}. Sólo difusión 🙏`;
+  }
+
+  return `${body}\n\n${link}`;
+}
+
 export async function getNextAdoptionPet() {
   const pets = (await pool.query(`
     SELECT p.*,
@@ -452,25 +469,7 @@ export async function broadcastNextAdoptionPet(existingPet = null) {
     }
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
-    const speciesLabel = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : (pet.species || 'mascota');
-    const desc = pet.description ? pet.description.substring(0, 200) : '';
-    const edadInfo = pet.age ? ` de ${pet.age}` : '';
-
-    const caption = [
-      `🏡 *Buscamos hogar para ${pet.name || 'una mascota'}*`,
-      '',
-      'En Sigo Tu Huella conectamos mascotas con familias.',
-      '',
-      `Hoy te presentamos a *${pet.name || 'una mascota'}*, ${speciesLabel}${edadInfo} que está buscando un hogar.`,
-      desc ? `\n${desc}` : '',
-      '',
-      `📍 ${pet.location || 'Sin ubicación'}`,
-      pet.contact_info ? `📞 ${pet.contact_info}` : '',
-      '',
-      `👉 ${frontendUrl}/pet/${pet.id}`,
-      '',
-      'Si no podés adoptar, compartir también ayuda 🐾',
-    ].filter(Boolean).join('\n');
+    const caption = buildShareButtonText(pet);
 
     const coverUrl = pet.image_data
       ? `${frontendUrl}/api/images/pet/${pet.id}/cover`
