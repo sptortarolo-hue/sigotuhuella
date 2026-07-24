@@ -97,10 +97,19 @@ async function saveAnimalDetection(table, id, attrs) {
 }
 
 async function saveEmbedding(table, id, embedding, embeddingType = 'full') {
-  await pool.query(
-    `UPDATE ${table} SET embedding = $1, embedding_type = $2 WHERE id = $3`,
-    [vecToString(embedding), embeddingType, id]
-  );
+  try {
+    await pool.query(
+      `UPDATE ${table} SET embedding = $1, embedding_type = $2 WHERE id = $3`,
+      [vecToString(embedding), embeddingType, id]
+    );
+  } catch (err) {
+    if (err.code === '42703') {
+      await pool.query(
+        `UPDATE ${table} SET embedding = $1 WHERE id = $2`,
+        [vecToString(embedding), id]
+      );
+    } else throw err;
+  }
 }
 
 const STATUS_OPPOSITE = {
