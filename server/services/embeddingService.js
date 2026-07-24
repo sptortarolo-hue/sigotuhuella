@@ -10,7 +10,7 @@ let clipRawImage = null;
 async function getClipModel() {
   if (!clipModel) {
     const { pipeline, RawImage } = await import('@xenova/transformers');
-    clipModel = { fn: await pipeline('image-feature-extraction', 'Xenova/clip-vit-base-patch32'), RawImage };
+    clipModel = { fn: await pipeline('image-feature-extraction', 'Xenova/clip-vit-large-patch14'), RawImage };
     clipRawImage = RawImage;
   }
   return { ...clipModel, RawImage: clipRawImage };

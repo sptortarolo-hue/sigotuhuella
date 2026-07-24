@@ -1240,15 +1240,15 @@ export async function initDb() {
     await migrate(client, 'CREATE EXTENSION IF NOT EXISTS vector', 'pgvector extension');
 
     await migrate(client, `
-      ALTER TABLE pets ADD COLUMN IF NOT EXISTS embedding vector(512)
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS embedding vector(768)
     `, 'pets embedding column');
 
     await migrate(client, `
-      ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS embedding vector(512)
+      ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS embedding vector(768)
     `, 'fb_posts embedding column');
 
     await migrate(client, `
-      ALTER TABLE whatsapp_scraped_messages ADD COLUMN IF NOT EXISTS embedding vector(512)
+      ALTER TABLE whatsapp_scraped_messages ADD COLUMN IF NOT EXISTS embedding vector(768)
     `, 'wa_scraped embedding column');
 
     await migrate(client, `
