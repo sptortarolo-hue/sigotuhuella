@@ -382,16 +382,17 @@ async function start() {
           sentIds.push(msg.id);
           knownContacts.add(jid);
         } catch (e) {
-          if (e.code === 463) {
+          const is463 = e.code === 463 || e.message?.includes('463');
+          if (is463) {
             const isUnknownContact = e.message?.includes('no conocido');
             console.error(`463 a ${msg.wa_to}: ${isUnknownContact ? 'timelock + contacto desconocido' : 'persistente'}`);
-            await axios.post(`${VPS_URL}/api/relay/failed`, { ids: [msg.id] }, {
-              headers: { Authorization: `Bearer ${TOKEN}` },
-              timeout: 10000,
-            }).catch(() => {});
           } else {
             console.error(`Error a ${msg.wa_to}:`, e.message);
           }
+          await axios.post(`${VPS_URL}/api/relay/failed`, { ids: [msg.id] }, {
+            headers: { Authorization: `Bearer ${TOKEN}` },
+            timeout: 10000,
+          }).catch(() => {});
         }
       }
       if (sentIds.length) await axios.post(`${VPS_URL}/api/relay/sent`, { ids: sentIds }, {

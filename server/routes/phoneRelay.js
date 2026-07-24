@@ -212,7 +212,8 @@ router.post('/groups-broadcast', requireAdmin, async (req, res) => {
     const results = [];
     for (const group of groups) {
       try {
-        const id = await enqueue(group.group_id, text || '', image_url || null);
+        const type = group.group_id.includes('@newsletter') ? 'channel' : 'message';
+        const id = await enqueue(group.group_id, text || '', image_url || null, type);
         results.push({ group: group.name, status: 'queued', id });
       } catch (err) {
         results.push({ group: group.name, status: 'error', error: err.message });
@@ -234,7 +235,8 @@ router.post('/test-broadcast', requireAdmin, async (req, res) => {
     if (!pet) return res.status(404).json({ error: 'No hay mascotas disponibles' });
 
     const { caption, coverUrl } = generateBroadcastCaption(pet);
-    const id = await enqueue(to, caption, coverUrl);
+    const type = to.includes('@newsletter') ? 'channel' : 'message';
+    const id = await enqueue(to, caption, coverUrl, type);
 
     res.json({ success: true, id, petId: pet.id, petName: pet.name, caption, coverUrl });
   } catch (err) {
@@ -269,7 +271,8 @@ router.post('/broadcast-pet', requireAdmin, async (req, res) => {
 
     for (const groupId of groupIds) {
       try {
-        const id = await enqueue(groupId, caption, coverUrl);
+        const type = groupId.includes('@newsletter') ? 'channel' : 'message';
+        const id = await enqueue(groupId, caption, coverUrl, type);
         results.push({ groupId, status: 'queued', id });
       } catch (err) {
         results.push({ groupId, status: 'error', error: err.message });

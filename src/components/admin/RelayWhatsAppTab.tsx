@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode, Search, CheckSquare, Square, Plus, Trash2, Bell, Check, Save, Heart } from 'lucide-react';
+import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode, Search, CheckSquare, Square, Plus, Trash2, Bell, Check, Save, Heart, Radio } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { cn } from '@/src/lib/utils';
 
@@ -1042,10 +1042,10 @@ export default function RelayWhatsAppTab() {
         </div>
       </div>
 
-      {/* Publicar mascota en grupos */}
+      {/* Publicar mascota en grupos/canales */}
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 space-y-6">
         <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
-          <Globe className="w-6 h-6" /> Publicar mascota en grupos
+          <Globe className="w-6 h-6" /> Publicar mascota en grupos y canales
         </h2>
 
         {/* Category + Search */}
@@ -1092,19 +1092,21 @@ export default function RelayWhatsAppTab() {
         {/* Groups list */}
         {selectedPetId && (
           <div className="space-y-3">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Seleccionar grupos</p>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Seleccionar grupos y canales</p>
             {groupsLoading ? (
               <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-brand-primary" /></div>
             ) : groups.length === 0 ? (
-              <p className="text-sm text-gray-400">No hay grupos activos. Agregalos en la sección "Grupos de WhatsApp" arriba.</p>
+              <p className="text-sm text-gray-400">No hay grupos ni canales activos. Agregalos en las secciones superiores.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {groups.map(g => {
                   const checked = selectedGroupIds.has(g.group_id);
+                  const isChannel = g.type === 'channel';
                   return (
                     <button key={g.id} onClick={() => toggleGroupSelection(g.group_id)} className="flex items-center gap-3 p-3 rounded-xl border border-brand-accent hover:bg-brand-bg/50 transition-all text-left">
                       {checked ? <CheckSquare className="w-5 h-5 text-brand-primary shrink-0" /> : <Square className="w-5 h-5 text-gray-300 shrink-0" />}
-                      <span className="text-sm font-medium truncate">{g.name}</span>
+                      <span className="text-sm font-medium truncate flex-1">{g.name}</span>
+                      {isChannel && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 shrink-0 flex items-center gap-1"><Radio className="w-3 h-3" />Canal</span>}
                     </button>
                   );
                 })}
@@ -1115,7 +1117,7 @@ export default function RelayWhatsAppTab() {
             <div className="flex items-center gap-4 pt-2">
               <button onClick={handleBroadcastPet} disabled={broadcastPetLoading || selectedGroupIds.size === 0} className="px-8 py-3.5 bg-brand-primary text-white font-bold rounded-2xl hover:shadow-xl hover:shadow-brand-primary/20 transition-all duration-300 disabled:opacity-50 flex items-center gap-2">
                 {broadcastPetLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                {broadcastPetLoading ? 'Publicando...' : `Publicar en ${selectedGroupIds.size} grupo${selectedGroupIds.size !== 1 ? 's' : ''}`}
+                {broadcastPetLoading ? 'Publicando...' : `Publicar en ${selectedGroupIds.size} destino${selectedGroupIds.size !== 1 ? 's' : ''}`}
               </button>
             </div>
           </div>

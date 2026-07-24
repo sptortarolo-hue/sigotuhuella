@@ -392,8 +392,9 @@ export async function broadcastPetToGroups(petId) {
     console.log('[Broadcast] >>> ENCOLANDO para', groups.rows.length, 'grupo(s)');
     for (const group of groups.rows) {
       try {
-        console.log('[Broadcast] Encolando a grupo:', group.name, 'group_id:', group.group_id);
-        await enqueue(group.group_id, caption, coverUrl);
+        const msgType = group.type === 'channel' ? 'channel' : 'message';
+        console.log('[Broadcast] Encolando a', msgType === 'channel' ? 'canal' : 'grupo:', group.name, 'group_id:', group.group_id);
+        await enqueue(group.group_id, caption, coverUrl, msgType);
         console.log('[Broadcast] Encolado OK:', group.name);
       } catch (relayErr) {
         console.warn(`[Broadcast] Relay error to ${group.name}, fallback to Meta:`, relayErr.message);
@@ -477,7 +478,8 @@ export async function broadcastNextAdoptionPet(existingPet = null) {
 
     for (const group of groups) {
       try {
-        await enqueue(group.group_id, caption, coverUrl);
+        const msgType = group.type === 'channel' ? 'channel' : 'message';
+        await enqueue(group.group_id, caption, coverUrl, msgType);
       } catch (relayErr) {
         console.warn(`[AdoptionBroadcast] Relay error to ${group.name}, fallback to Meta:`, relayErr.message);
         try {
