@@ -2,7 +2,7 @@ import './env-loader.js';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { dirname, join } from 'path';
-import { readFileSync } from 'fs';
+import { readFileSync, mkdirSync } from 'fs';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
 import pool, { initDb } from './db.js';
@@ -481,6 +481,8 @@ app.get('/buscar-facebook', (_req, res) => {
 });
 
 // Sponsor logo upload
+const sponsorsUploadDir = join(__dirname, '..', 'public', 'uploads', 'sponsors');
+mkdirSync(sponsorsUploadDir, { recursive: true });
 const sponsorUpload = multer({
   storage: multer.diskStorage({
     destination: join(__dirname, '..', 'public', 'uploads', 'sponsors'),

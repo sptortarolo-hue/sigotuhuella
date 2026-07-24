@@ -62,7 +62,21 @@ export default function ChapitaEditor({ className }: Props) {
     })();
   }, []);
 
-  useEffect(() => { setLogoUrl(api.qr.previewLogoUrl()); }, [s]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(api.qr.previewLogoUrl(), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) throw new Error();
+        const blob = await res.blob();
+        if (!cancelled) setLogoUrl(URL.createObjectURL(blob));
+      } catch { if (!cancelled) setLogoUrl(''); }
+    })();
+    return () => { cancelled = true; };
+  }, [s]);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,7 +103,13 @@ export default function ChapitaEditor({ className }: Props) {
       const data = await api.qr.saveDesignSettings(s as any);
       setS(data);
       setSaved(true);
-      setLogoUrl(api.qr.previewLogoUrl() + '&t=' + Date.now());
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(api.qr.previewLogoUrl() + '&t=' + Date.now(), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) { const b = await res.blob(); setLogoUrl(URL.createObjectURL(b)); }
+      } catch {}
     } catch (e: any) { alert(e.message || 'Error al guardar'); }
     setSaving(false);
   };
