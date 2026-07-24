@@ -226,8 +226,8 @@ function chain(providers) {
 }
 
 const CLASSIFICATION_CHAIN_WITH_IMAGES = chain([
-  { name: 'Groq Llama Vision', call: (m) => callGroqDirect('qwen/qwen3.6-27b', m, { max_tokens: 1000, timeout: 15000 }) },
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
+  { name: 'Groq Llama Vision', call: (m) => callGroqDirect('qwen/qwen3.6-27b', m, { max_tokens: 1000, timeout: 15000 }) },
   { name: 'NVIDIA Llama Vision', call: (m) => callNVIDIA('meta/llama-3.2-11b-vision-instruct', m, { max_tokens: 1000, timeout: 20000 }) },
   { name: 'OpenRouter Qwen VL Plus', call: (m) => callOpenRouter('nvidia/nemotron-nano-12b-v2-vl:free', m, { max_tokens: 1000, timeout: 20000 }) },
 ]);
@@ -241,8 +241,8 @@ const CLASSIFICATION_CHAIN_TEXT = chain([
 ]);
 
 const IMAGE_CAPTION_CHAIN = chain([
-  { name: 'Groq Llama Vision', call: (m) => callGroqDirect('qwen/qwen3.6-27b', m, { max_tokens: 1000, timeout: 15000 }) },
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
+  { name: 'Groq Llama Vision', call: (m) => callGroqDirect('qwen/qwen3.6-27b', m, { max_tokens: 1000, timeout: 15000 }) },
   { name: 'NVIDIA Llama Vision', call: (m) => callNVIDIA('meta/llama-3.2-11b-vision-instruct', m, { max_tokens: 1000, timeout: 20000 }) },
   { name: 'OpenRouter Qwen VL Plus', call: (m) => callOpenRouter('nvidia/nemotron-nano-12b-v2-vl:free', m, { max_tokens: 1000, timeout: 20000 }) },
 ]);
@@ -256,8 +256,8 @@ const TEXT_INTENT_CHAIN = chain([
 ]);
 
 const FACE_CROP_CHAIN = chain([
-  { name: 'Groq Llama Vision', call: (m) => callGroqDirect('qwen/qwen3.6-27b', m, { max_tokens: 200, timeout: 15000 }) },
   { name: 'Gemini Vision', call: (m) => callGeminiVisionMessages(m) },
+  { name: 'Groq Llama Vision', call: (m) => callGroqDirect('qwen/qwen3.6-27b', m, { max_tokens: 200, timeout: 15000 }) },
   { name: 'NVIDIA Llama Vision', call: (m) => callNVIDIA('meta/llama-3.2-11b-vision-instruct', m, { max_tokens: 200, timeout: 20000 }) },
   { name: 'OpenRouter Qwen VL Plus', call: (m) => callOpenRouter('nvidia/nemotron-nano-12b-v2-vl:free', m, { max_tokens: 200, timeout: 20000 }) },
 ]);
