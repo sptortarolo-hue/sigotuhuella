@@ -381,4 +381,16 @@ export const api = {
       delete: (postId: string, commentId: string) => request(`/feed/${postId}/comments/${commentId}`, { method: 'DELETE' }),
     },
   },
+  raffles: {
+    list: () => request('/raffles'),
+    get: (id: string) => request(`/raffles/${id}`),
+    create: (data: any) => request('/raffles', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) => request(`/raffles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/raffles/${id}`, { method: 'DELETE' }),
+    reserve: (id: string, data: { numbers: number[]; name: string; email: string; phone?: string }) =>
+      request(`/raffles/${id}/reserve`, { method: 'POST', body: JSON.stringify(data) }),
+    ticketStatus: (id: string, ticketGroupId: string) => request(`/raffles/${id}/ticket-status/${ticketGroupId}`),
+    draw: (id: string) => request(`/raffles/${id}/draw`, { method: 'POST' }),
+    cleanup: () => request('/raffles/cleanup', { method: 'POST' }),
+  },
 };

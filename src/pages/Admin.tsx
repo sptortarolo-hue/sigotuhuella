@@ -30,10 +30,11 @@ import FacebookRelayTab from '@/src/components/admin/FacebookRelayTab';
 import ChapitaEditor from '@/src/components/ChapitaEditor';
 import UnifiedDashboard from '@/src/pages/admin/UnifiedDashboard';
 import AnalyticsTab from '@/src/pages/admin/AnalyticsTab';
+import RafflesTab from '@/src/components/admin/RafflesTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, BarChart3
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, BarChart3, Ticket
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -46,7 +47,7 @@ import ReunionModal from '@/src/components/ReunionModal';
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles'>('pets');
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -949,6 +950,7 @@ export default function Admin() {
           { id: 'videos', label: 'Videos', icon: Film },
   { id: 'qr', label: 'QR', icon: QrCode },
   { id: 'sponsors', label: 'Colaboradores', icon: Heart },
+  { id: 'raffles', label: 'Rifas', icon: Ticket },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
         ].map(tab => (
           <button
@@ -2027,6 +2029,9 @@ export default function Admin() {
 
           {/* ====== ANALYTICS ====== */}
           {activeTab === 'analytics' && <AnalyticsTab />}
+
+          {/* ====== RIFAS ====== */}
+          {activeTab === 'raffles' && <RafflesTab />}
 
           {/* ====== WHATSAPP RELAY ====== */}
           {activeTab === 'relay-whatsapp' && <RelayWhatsAppTab />}

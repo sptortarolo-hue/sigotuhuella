@@ -32,6 +32,7 @@ import phoneRelayRoutes from './routes/phoneRelay.js';
 import facebookRelayRoutes from './routes/facebookRelay.js';
 import invitesRoutes from './routes/invites.js';
 import adminDashboardRoutes from './routes/adminDashboard.js';
+import rafflesRoutes from './routes/raffles.js';
 // import { startSyncTimer } from './services/vpsSyncService.js';
 import { startScreenshotScheduler } from './services/autoScreenshots.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
@@ -209,6 +210,7 @@ app.use('/api/facebook', facebookRoutes);
 app.use('/api/instagram', instagramRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
+app.use('/api/raffles', rafflesRoutes);
 app.use('/api/relay', phoneRelayRoutes);
 app.use('/api/relay', facebookRelayRoutes);
 

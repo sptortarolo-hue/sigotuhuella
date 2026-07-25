@@ -42,6 +42,10 @@ const Contests = lazy(() => import('@/src/pages/Contests'));
 const SolicitarChapita = lazy(() => import('@/src/pages/SolicitarChapita'));
 const VerifyEmail = lazy(() => import('@/src/pages/VerifyEmail'));
 const FlyerPage = lazy(() => import('@/src/pages/FlyerPage'));
+const Rifas = lazy(() => import('@/src/pages/Rifas'));
+const RifaDetail = lazy(() => import('@/src/pages/RifaDetail'));
+const RifaPagoExito = lazy(() => import('@/src/pages/RifaPagoExito'));
+const RifaPagoResultado = lazy(() => import('@/src/pages/RifaPagoResultado'));
 
 const fallback = (
   <div className="h-[60vh] flex items-center justify-center text-brand-primary">
@@ -75,6 +79,11 @@ export default function App() {
               <Route path="/flyer" element={<FlyerPage />} />
               <Route path="/compartir-qr" element={<DiffusionPage />} />
               <Route path="/colaborar" element={<Collaborate />} />
+              <Route path="/rifas" element={<Rifas />} />
+              <Route path="/rifas/pago-exitoso" element={<RifaPagoExito />} />
+              <Route path="/rifas/pago-fallido" element={<RifaPagoResultado />} />
+              <Route path="/rifas/pago-pendiente" element={<RifaPagoResultado />} />
+              <Route path="/rifas/:id" element={<RifaDetail />} />
               <Route path="/solicitar-chapita" element={<SolicitarChapita />} />
               <Route path="/verificar-email" element={<VerifyEmail />} />
               <Route path="/sumate" element={<Join />} />

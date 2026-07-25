@@ -1318,6 +1318,83 @@ export async function initDb() {
       ALTER TABLE whatsapp_scraped_messages ADD COLUMN IF NOT EXISTS gender VARCHAR(20)
     `, 'wa_scraped gender column');
 
+    // ─── Rifas / Sorteos ───
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS raffles (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        modality VARCHAR(50) DEFAULT 'raffle',
+        total_numbers INTEGER NOT NULL,
+        price_per_number DECIMAL(10,2) NOT NULL,
+        status VARCHAR(20) DEFAULT 'active',
+        draw_date TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `, 'raffles table');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS raffle_prizes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        raffle_id UUID REFERENCES raffles(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        amount DECIMAL(10,2),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `, 'raffle_prizes table');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS raffle_tickets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        raffle_id UUID REFERENCES raffles(id) ON DELETE CASCADE,
+        number INTEGER NOT NULL,
+        buyer_name VARCHAR(255),
+        buyer_email VARCHAR(255),
+        buyer_phone VARCHAR(50),
+        buyer_user_id UUID REFERENCES users(id),
+        mp_payment_id VARCHAR(255),
+        mp_external_reference VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'reserved',
+        paid_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(raffle_id, number)
+      )
+    `, 'raffle_tickets table');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS raffle_payments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        raffle_id UUID REFERENCES raffles(id) ON DELETE CASCADE,
+        ticket_id UUID REFERENCES raffle_tickets(id),
+        mp_payment_id VARCHAR(255) UNIQUE,
+        mp_status VARCHAR(50),
+        amount DECIMAL(10,2),
+        payer_email VARCHAR(255),
+        raw_webhook JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `, 'raffle_payments table');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_raffle_tickets_raffle_id
+      ON raffle_tickets(raffle_id)
+    `, 'raffle_tickets raffle_id index');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_raffle_payments_raffle_id
+      ON raffle_payments(raffle_id)
+    `, 'raffle_payments raffle_id index');
+
+    await migrate(client, `
+      INSERT INTO settings (key, value) VALUES
+        ('mp_access_token', ''),
+        ('mp_webhook_secret', '')
+      ON CONFLICT (key) DO NOTHING
+    `, 'mp settings defaults');
+
     console.log('Database migrations complete');
   } finally {
     client.release();
