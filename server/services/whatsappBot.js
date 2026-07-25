@@ -1857,8 +1857,8 @@ async function fbContinue(conv) {
           if (!post.phone && gemini.phone) post.phone = gemini.phone;
           if (post.id) {
             await pool.query(
-              `UPDATE facebook_posts SET classification = COALESCE(NULLIF(classification, 'unclassified'), $1), species = COALESCE(NULLIF(species, ''), $2), location_hint = COALESCE(NULLIF(location_hint, ''), $3), color = COALESCE(NULLIF(color, ''), $4), phone = COALESCE(NULLIF(phone, ''), $5) WHERE id = $6`,
-              [petStatus, gemini.species || '', gemini.location_hint || '', gemini.color || '', gemini.phone || '', post.id]
+              `UPDATE facebook_posts SET classification = COALESCE(NULLIF(classification, 'unclassified'), $1), species = COALESCE(NULLIF(species, ''), $2), location_hint = COALESCE(NULLIF(location_hint, ''), $3), color = COALESCE(NULLIF(color, ''), $4), phone = COALESCE(NULLIF(phone, ''), $5), breed = COALESCE(breed, $6), pet_name = COALESCE(pet_name, $7), gender = COALESCE(gender, $8) WHERE id = $9`,
+              [petStatus, gemini.species || '', gemini.location_hint || '', gemini.color || '', gemini.phone || '', gemini.breed || null, gemini.name || null, gemini.gender || null, post.id]
             ).catch(e => console.error('fbContinue: DB update error:', e.message));
           }
         }

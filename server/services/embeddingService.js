@@ -177,8 +177,11 @@ async function searchTable(targetCfg, srcLat, srcLng, embedding, sourceStatus, o
   const vecStr = vecToString(embedding);
   const hasSrcCoords = srcLat != null && srcLng != null;
 
-  const selectCols = `t.id, t.name, t.species, t.breed, t.color, t.description,
-    t.location, t.latitude, t.longitude, t.created_at, t.text_embedding`;
+  const selectCols = table === 'pets'
+    ? `t.id, t.name, t.species, t.breed, t.color, t.description,
+       t.location, t.latitude, t.longitude, t.created_at, t.text_embedding, t.name AS pet_name, t.gender`
+    : `t.id, t.name, t.species, t.breed, t.color, t.description,
+       t.location, t.latitude, t.longitude, t.created_at, t.text_embedding, t.pet_name, t.gender`;
 
   const distExpr = hasSrcCoords ? `
     CASE
@@ -209,7 +212,7 @@ async function searchTable(targetCfg, srcLat, srcLng, embedding, sourceStatus, o
 
 
 
-export async function embedAndMatch(table, id, { species, status, imageBuffer, croppedFaceBuffer, content }) {
+export async function embedAndMatch(table, id, { species, status, imageBuffer, croppedFaceBuffer, content, petName, breed, color, gender }) {
   if (!imageBuffer) return [];
 
   const embeddingBuffer = croppedFaceBuffer || imageBuffer;
@@ -217,9 +220,12 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
   const embedding = await generateImageEmbedding(embeddingBuffer);
   await saveEmbedding(table, id, embedding, embeddingType);
 
+  const petInfo = { petName: petName || null, breed: breed || null, color: color || null, gender: gender || null };
+
+  const enrichedText = [petName, breed, color, species, gender, content].filter(Boolean).join('. ');
   let srcTextEmbedding = null;
-  if (content && content.trim().length > 3) {
-    srcTextEmbedding = await generateTextEmbedding(content);
+  if (enrichedText.length > 3) {
+    srcTextEmbedding = await generateTextEmbedding(enrichedText);
     if (srcTextEmbedding) await saveTextEmbedding(table, id, srcTextEmbedding);
   }
 
@@ -279,7 +285,8 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
           } catch { targetTextEmb = null; }
         }
         if (!targetTextEmb && r.description) {
-          targetTextEmb = await generateTextEmbedding(r.description);
+          const tgtEnrichedText = [r.pet_name, r.breed, r.color, r.species, r.gender, r.description].filter(Boolean).join('. ');
+          targetTextEmb = await generateTextEmbedding(tgtEnrichedText);
         }
         if (targetTextEmb) {
           textScore = Math.round(cosineSimilarity(srcTextEmbedding, targetTextEmb) * 100);
@@ -287,8 +294,10 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
       }
 
       let breedColorBonus = 0;
-      if (srcAttrs?.breed && r.breed && srcAttrs.breed.toLowerCase() === r.breed.toLowerCase()) breedColorBonus += 5;
-      if (srcAttrs?.color && r.color && srcAttrs.color.toLowerCase() === r.color.toLowerCase()) breedColorBonus += 3;
+      if (petInfo.petName && r.pet_name && petInfo.petName.toLowerCase() === r.pet_name.toLowerCase()) breedColorBonus += 15;
+      if (petInfo.breed && r.breed && petInfo.breed.toLowerCase() === r.breed.toLowerCase()) breedColorBonus += 5;
+      if (petInfo.color && r.color && petInfo.color.toLowerCase() === r.color.toLowerCase()) breedColorBonus += 3;
+      if (petInfo.gender && r.gender && petInfo.gender.toLowerCase() === r.gender.toLowerCase()) breedColorBonus += 2;
 
       const imgTextTotal = wVisual + wText;
       const score = imgTextTotal > 0

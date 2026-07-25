@@ -106,6 +106,10 @@ export async function matchPostToPet(postId) {
       imageBuffer,
       croppedFaceBuffer,
       content: post.content,
+      petName: post.pet_name || null,
+      breed: post.breed || null,
+      color: post.color || null,
+      gender: post.gender || null,
     });
   } catch (err) {
     console.error('matchPostToPet error:', err);
@@ -137,6 +141,10 @@ export async function matchPetToPosts(pet) {
       imageBuffer,
       croppedFaceBuffer,
       content: pet.description,
+      petName: pet.name || null,
+      breed: pet.breed || null,
+      color: pet.color || null,
+      gender: pet.gender || null,
     });
   } catch (err) {
     console.error('matchPetToPosts error:', err);
@@ -194,6 +202,10 @@ export async function matchScrapedToAppPets(scrapedMessageId) {
       imageBuffer,
       croppedFaceBuffer,
       content: msg.content,
+      petName: msg.pet_name || null,
+      breed: msg.breed || null,
+      color: msg.color || null,
+      gender: msg.gender || null,
     });
   } catch (err) {
     console.error('matchScrapedToAppPets error:', err);
@@ -222,6 +234,10 @@ export async function matchScrapedToScraped(messageId) {
       imageBuffer,
       croppedFaceBuffer,
       content: msg.content,
+      petName: msg.pet_name || null,
+      breed: msg.breed || null,
+      color: msg.color || null,
+      gender: msg.gender || null,
     });
 
     if (matches.length > 0) {

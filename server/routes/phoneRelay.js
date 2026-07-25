@@ -625,9 +625,10 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
       .then(async (classification) => {
         await pool.query(
           `UPDATE whatsapp_scraped_messages
-           SET classification = $1, species = $2, color = $3, location_hint = $4, phone = $5
-           WHERE id = $6`,
-          [classification.classification, classification.species, classification.color, classification.location_hint, classification.phone, messageId]
+           SET classification = $1, species = $2, color = $3, location_hint = $4, phone = $5, breed = $6, pet_name = $7, gender = $8
+           WHERE id = $9`,
+          [classification.classification, classification.species, classification.color, classification.location_hint, classification.phone,
+           classification.breed || null, classification.name || null, classification.gender || null, messageId]
         );
 
         // Run matching only if classified as lost/found/sighting

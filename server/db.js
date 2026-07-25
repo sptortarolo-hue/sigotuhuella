@@ -1294,6 +1294,30 @@ export async function initDb() {
       ON whatsapp_scraped_messages USING ivfflat (text_embedding vector_cosine_ops) WITH (lists = 100)
     `, 'wa_scraped text_embedding index');
 
+    await migrate(client, `
+      ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS breed VARCHAR(255)
+    `, 'fb_posts breed column');
+
+    await migrate(client, `
+      ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS pet_name VARCHAR(255)
+    `, 'fb_posts pet_name column');
+
+    await migrate(client, `
+      ALTER TABLE facebook_posts ADD COLUMN IF NOT EXISTS gender VARCHAR(20)
+    `, 'fb_posts gender column');
+
+    await migrate(client, `
+      ALTER TABLE whatsapp_scraped_messages ADD COLUMN IF NOT EXISTS breed VARCHAR(255)
+    `, 'wa_scraped breed column');
+
+    await migrate(client, `
+      ALTER TABLE whatsapp_scraped_messages ADD COLUMN IF NOT EXISTS pet_name VARCHAR(255)
+    `, 'wa_scraped pet_name column');
+
+    await migrate(client, `
+      ALTER TABLE whatsapp_scraped_messages ADD COLUMN IF NOT EXISTS gender VARCHAR(20)
+    `, 'wa_scraped gender column');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

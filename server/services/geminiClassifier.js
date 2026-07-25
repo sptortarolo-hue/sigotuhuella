@@ -107,6 +107,9 @@ function formatWAResult(result) {
   return {
     classification: ['lost', 'found', 'sighting', 'reunion', 'other'].includes(result.classification) ? result.classification : 'other',
     species: ['dog', 'cat', 'other', null].includes(result.species) ? result.species : null,
+    breed: result.breed || null,
+    name: result.name || null,
+    gender: result.gender || null,
     color: Array.isArray(result.colors) ? result.colors.join(', ') : null,
     location_hint: result.location || null,
     phone: result.phone || null,
