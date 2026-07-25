@@ -91,12 +91,12 @@ async function run() {
     totalFace += pets.faceCount; totalFull += pets.fullCount; totalErrors += pets.errors;
 
     const fb = await migrateTable(client, 'facebook_posts',
-      `SELECT id, image_data, mime_type FROM facebook_posts WHERE image_data IS NOT NULL`
+      `SELECT id, image_data FROM facebook_posts WHERE image_data IS NOT NULL`
     );
     totalFace += fb.faceCount; totalFull += fb.fullCount; totalErrors += fb.errors;
 
     const wa = await migrateTable(client, 'whatsapp_scraped_messages',
-      `SELECT id, image_data, mime_type FROM whatsapp_scraped_messages WHERE image_data IS NOT NULL`
+      `SELECT id, image_data FROM whatsapp_scraped_messages WHERE image_data IS NOT NULL`
     );
     totalFace += wa.faceCount; totalFull += wa.fullCount; totalErrors += wa.errors;
 
