@@ -16,6 +16,34 @@ async function getClipModel() {
   return { ...clipModel, RawImage: clipRawImage };
 }
 
+let textModel = null;
+async function getTextModel() {
+  if (!textModel) {
+    const { pipeline } = await import('@xenova/transformers');
+    textModel = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+  }
+  return textModel;
+}
+
+export async function generateTextEmbedding(text) {
+  if (!text || text.trim().length < 3) return null;
+  const fn = await getTextModel();
+  const result = await fn(text, { pooling: 'mean', normalize: true });
+  return normalize(Array.from(result.data));
+}
+
+function cosineSimilarity(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dot / denom;
+}
+
 function vecToString(arr) {
   return '[' + arr.map(v => String(v)).join(',') + ']';
 }
@@ -112,6 +140,18 @@ async function saveEmbedding(table, id, embedding, embeddingType = 'full') {
   }
 }
 
+async function saveTextEmbedding(table, id, textEmbedding) {
+  if (!textEmbedding) return;
+  try {
+    await pool.query(
+      `UPDATE ${table} SET text_embedding = $1 WHERE id = $2`,
+      [vecToString(textEmbedding), id]
+    );
+  } catch (err) {
+    if (err.code !== '42703') throw err;
+  }
+}
+
 const STATUS_OPPOSITE = {
   lost: ['found', 'sighted'],
   found: ['lost', 'sighted'],
@@ -138,7 +178,7 @@ async function searchTable(targetCfg, srcLat, srcLng, embedding, sourceStatus, o
   const hasSrcCoords = srcLat != null && srcLng != null;
 
   const selectCols = `t.id, t.name, t.species, t.breed, t.color, t.description,
-    t.location, t.latitude, t.longitude, t.created_at`;
+    t.location, t.latitude, t.longitude, t.created_at, t.text_embedding`;
 
   const distExpr = hasSrcCoords ? `
     CASE
@@ -169,13 +209,19 @@ async function searchTable(targetCfg, srcLat, srcLng, embedding, sourceStatus, o
 
 
 
-export async function embedAndMatch(table, id, { species, status, imageBuffer, croppedFaceBuffer }) {
+export async function embedAndMatch(table, id, { species, status, imageBuffer, croppedFaceBuffer, content }) {
   if (!imageBuffer) return [];
 
   const embeddingBuffer = croppedFaceBuffer || imageBuffer;
   const embeddingType = croppedFaceBuffer ? 'face' : 'full';
   const embedding = await generateImageEmbedding(embeddingBuffer);
   await saveEmbedding(table, id, embedding, embeddingType);
+
+  let srcTextEmbedding = null;
+  if (content && content.trim().length > 3) {
+    srcTextEmbedding = await generateTextEmbedding(content);
+    if (srcTextEmbedding) await saveTextEmbedding(table, id, srcTextEmbedding);
+  }
 
   const faceBuffer = croppedFaceBuffer || imageBuffer;
 
@@ -201,7 +247,8 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
 
   const settingsRes = await pool.query(
     "SELECT key, value FROM settings WHERE key = ANY($1::text[])",
-    [['matching_min_score', 'matching_radius_km', 'matching_max_candidates']]
+    [['matching_min_score', 'matching_radius_km', 'matching_max_candidates',
+      'matching_weight_visual', 'matching_weight_text', 'matching_weight_breed_color']]
   );
   const s = {};
   for (const row of settingsRes.rows) s[row.key] = row.value;
@@ -209,6 +256,9 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
   const minScore = parseInt(s.matching_min_score || '70');
   const radiusKm = parseFloat(s.matching_radius_km || '20');
   const maxCandidates = parseInt(s.matching_max_candidates || '20');
+  const wVisual = parseInt(s.matching_weight_visual || '55');
+  const wText = parseInt(s.matching_weight_text || '10');
+  const wBreedColor = parseInt(s.matching_weight_breed_color || '15');
 
   const allCandidates = [];
   for (const tgt of targets) {
@@ -219,15 +269,37 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
       if (r.species && srcAttrs?.species && r.species !== srcAttrs.species) continue;
 
       const visualScore = Math.round(visual * 100);
-      let bonus = 0;
-      if (srcAttrs?.breed && r.breed && srcAttrs.breed.toLowerCase() === r.breed.toLowerCase()) bonus += 5;
-      if (srcAttrs?.color && r.color && srcAttrs.color.toLowerCase() === r.color.toLowerCase()) bonus += 3;
-      const score = visualScore + bonus;
+
+      let textScore = 0;
+      if (srcTextEmbedding) {
+        let targetTextEmb = null;
+        if (r.text_embedding) {
+          try {
+            const tVec = r.text_embedding;
+            targetTextEmb = typeof tVec === 'string' ? JSON.parse(tVec) : tVec;
+          } catch { targetTextEmb = null; }
+        }
+        if (!targetTextEmb && r.description) {
+          targetTextEmb = await generateTextEmbedding(r.description);
+        }
+        if (targetTextEmb) {
+          textScore = Math.round(cosineSimilarity(srcTextEmbedding, targetTextEmb) * 100);
+        }
+      }
+
+      let breedColorBonus = 0;
+      if (srcAttrs?.breed && r.breed && srcAttrs.breed.toLowerCase() === r.breed.toLowerCase()) breedColorBonus += 5;
+      if (srcAttrs?.color && r.color && srcAttrs.color.toLowerCase() === r.color.toLowerCase()) breedColorBonus += 3;
+
+      const imgTextTotal = wVisual + wText;
+      const score = imgTextTotal > 0
+        ? Math.round((visualScore * wVisual + textScore * wText) / imgTextTotal + breedColorBonus)
+        : visualScore + breedColorBonus;
 
       if (score >= minScore) {
         allCandidates.push({
           ...r, visual, distance_km: r.distance_km,
-          score, visualScore, bonus, targetType: tgt.targetType,
+          score, visualScore, textScore, breedColorBonus, targetType: tgt.targetType,
         });
       }
     }
@@ -246,8 +318,9 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
 
   const matches = [];
   for (const c of best) {
-    const reasons = [`Similitud visual: ${Math.round(c.visual * 100)}%`];
-    if (c.bonus > 0) reasons.push(`+${c.bonus}% raza/color`);
+    const reasons = [`Visual: ${c.visualScore}%`];
+    if (c.textScore > 0) reasons.push(`Texto: ${c.textScore}%`);
+    if (c.breedColorBonus > 0) reasons.push(`+${c.breedColorBonus}% raza/color`);
     if (c.breed) reasons.push(`Raza: ${c.breed}`);
     if (c.color) reasons.push(`Color: ${c.color}`);
     if (c.distance_km !== null) reasons.push(`Distancia: ${Math.round(c.distance_km)}km`);
@@ -267,7 +340,7 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
     const names = matches.map(m => m.name || `#${m.id.slice(0, 8)}`).join(', ');
     await sendAdminNotificationEmail(
       `🔗 Match detectado: ${label} coincide con ${matches.length} mascota(s)`,
-      `Se detectó un match automático entre un ${label} y:\n\n${matches.map(m => `- ${m.name || 'Sin nombre'} (${m.species}) — ${m.score}%${m.bonus > 0 ? ' (visual ' + m.visualScore + '% + ' + m.bonus + '% bonus)' : ''}`).join('\n')}`
+      `Se detectó un match automático entre un ${label} y:\n\n${matches.map(m => `- ${m.name || 'Sin nombre'} (${m.species}) — ${m.score}% (V:${m.visualScore}% T:${m.textScore || 0}%${m.breedColorBonus > 0 ? ' +' + m.breedColorBonus + '%' : ''})`).join('\n')}`
     );
     sendPushToAdmins({ title: `🔗 Match: ${matches.length} coincidencia(s)`, body: `${label} vinculado a ${names}` });
   }
