@@ -248,7 +248,7 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
   const settingsRes = await pool.query(
     "SELECT key, value FROM settings WHERE key = ANY($1::text[])",
     [['matching_min_score', 'matching_radius_km', 'matching_max_candidates',
-      'matching_weight_visual', 'matching_weight_text', 'matching_weight_breed_color']]
+      'matching_weight_visual', 'matching_weight_text']]
   );
   const s = {};
   for (const row of settingsRes.rows) s[row.key] = row.value;
@@ -258,7 +258,6 @@ export async function embedAndMatch(table, id, { species, status, imageBuffer, c
   const maxCandidates = parseInt(s.matching_max_candidates || '20');
   const wVisual = parseInt(s.matching_weight_visual || '55');
   const wText = parseInt(s.matching_weight_text || '10');
-  const wBreedColor = parseInt(s.matching_weight_breed_color || '15');
 
   const allCandidates = [];
   for (const tgt of targets) {
