@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Search, Heart, HandCoins, Sparkles, X, PawPrint, Users, User, Share2, Camera, LogIn, LogOut } from 'lucide-react';
+import { Home, Search, Heart, HandCoins, Sparkles, X, PawPrint, Users, User, Share2, Camera, LogIn, LogOut, Ticket } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
@@ -10,6 +10,7 @@ const publicTabs = [
   { label: 'Inicio', icon: Home, path: '/' },
   { label: 'Reportados', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
+  { label: 'Rifas', icon: Ticket, path: '/rifas' },
   { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
   { label: 'Más', icon: Sparkles, path: null },
 ];
@@ -27,6 +28,7 @@ const publicMoreOptions = [
   { label: 'Sumate', icon: Users, path: '/sumate' },
   { label: 'Difusión', icon: Share2, path: '/difusion' },
   { label: 'Generar Flyer', icon: Camera, path: '/flyer' },
+  { label: 'Rifas', icon: Ticket, path: '/rifas' },
   { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
 ];
 

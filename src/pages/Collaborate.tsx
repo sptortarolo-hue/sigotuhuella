@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { getCollaborationAccounts, CollaborationAccount } from '@/src/lib/collaborationService';
-import { CreditCard, Copy, Check, Loader2, Heart, Info, ExternalLink, ShieldCheck } from 'lucide-react';
+import { CreditCard, Copy, Check, Loader2, Heart, Info, ExternalLink, ShieldCheck, Ticket } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Collaborate() {
@@ -41,9 +42,22 @@ export default function Collaborate() {
         <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
           Tu ayuda económica es fundamental para sostener nuestra labor. Todo lo recaudado se destina a asistencia veterinaria, pensionado, manutención y compra de alimento.
         </p>
-      </header>
+        </header>
 
-      {loading ? (
+        <div className="bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border border-brand-primary/20 rounded-2xl p-6 sm:p-8 mb-10 flex flex-col sm:flex-row items-center gap-6">
+          <div className="w-14 h-14 bg-gradient-to-br from-brand-primary to-brand-secondary/80 rounded-2xl flex items-center justify-center shrink-0">
+            <Ticket className="w-7 h-7 text-white" />
+          </div>
+          <div className="text-center sm:text-left">
+            <h3 className="text-xl font-bold text-brand-primary">🎟️ Rifas y Sorteos</h3>
+            <p className="text-gray-500 text-sm mt-1">Todo lo recaudado va en ayuda de mascotas rescatadas.</p>
+          </div>
+          <Link to="/rifas" className="w-full sm:w-auto py-3 px-6 bg-brand-primary text-white rounded-xl font-bold text-sm hover:bg-brand-primary/90 transition-colors text-center shrink-0">
+            Ver rifas →
+          </Link>
+        </div>
+
+        {loading ? (
         <div className="flex justify-center py-20">
           <Loader2 className="w-10 h-10 animate-spin text-brand-primary" />
         </div>

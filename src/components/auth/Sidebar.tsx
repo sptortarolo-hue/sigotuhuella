@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, PawPrint, User, Plus, Sparkles, Share2, Camera, HandCoins, LogOut, Heart, Search, LogIn, LayoutDashboard, Bell, BellOff, Settings } from 'lucide-react';
+import { Home, PawPrint, User, Plus, Sparkles, Share2, Camera, HandCoins, LogOut, Heart, Search, LogIn, LayoutDashboard, Bell, BellOff, Settings, Ticket } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useEffect, useState } from 'react';
@@ -9,6 +9,7 @@ const publicItems = [
   { label: 'Inicio', icon: Home, path: '/' },
   { label: 'Mascotas Reportadas', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
+  { label: 'Rifas', icon: Ticket, path: '/rifas' },
   { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
   { label: 'Difusión', icon: Share2, path: '/difusion' },
   { label: 'Sumate', icon: User, path: '/sumate' },
@@ -25,6 +26,7 @@ const portalItems = [
 const moreItems = [
   { label: 'Mascotas Reportadas', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
+  { label: 'Rifas', icon: Ticket, path: '/rifas' },
   { label: 'Novedades', icon: Sparkles, path: '/novedades' },
   { label: 'Sumate', icon: User, path: '/sumate' },
   { label: 'Difusión', icon: Share2, path: '/difusion' },

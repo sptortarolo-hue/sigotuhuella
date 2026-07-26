@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Heart, Search, ShieldCheck, Share2, PawPrint, X, Camera, HeartHandshake } from 'lucide-react';
+import { Heart, Search, ShieldCheck, Share2, PawPrint, X, Camera, HeartHandshake, Ticket } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
 import NewsCarousel from '@/src/components/NewsCarousel';
@@ -121,9 +121,21 @@ export default function Home() {
                 <div className="font-bold text-brand-primary text-sm sm:text-base">Colaborá con el rescate</div>
                 <div className="text-xs text-gray-500 mt-0.5">Con tu ayuda, más mascotas reciben atención veterinaria, alimento y el cuidado que necesitan.</div>
               </div>
-              <span className="shrink-0 text-brand-secondary font-bold text-sm group-hover:translate-x-1 transition-transform">Quiero colaborar →</span>
-            </Link>
-          </motion.div>
+               <span className="shrink-0 text-brand-secondary font-bold text-sm group-hover:translate-x-1 transition-transform">Quiero colaborar →</span>
+             </Link>
+
+             <Link to="/rifas"
+               className="w-full bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border border-brand-primary/30 rounded-2xl p-4 sm:p-5 md:p-6 mt-6 md:mt-8 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
+               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-brand-primary to-brand-secondary/80 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                 <Ticket className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+               </div>
+               <div className="text-left flex-1 min-w-0">
+                 <div className="font-bold text-brand-primary text-sm sm:text-base">🎟️ Rifas y Sorteos</div>
+                 <div className="text-xs text-gray-500 mt-0.5">Todo lo recaudado va en ayuda de mascotas rescatadas.</div>
+               </div>
+               <span className="shrink-0 text-brand-primary font-bold text-sm group-hover:translate-x-1 transition-transform">Ver rifas →</span>
+             </Link>
+           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
