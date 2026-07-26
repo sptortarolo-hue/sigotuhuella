@@ -1,16 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, Search, Heart, HandCoins, Sparkles, X, PawPrint, Users, User, Share2, Camera, LogIn, LogOut, Ticket } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 import SocialLinks from '@/src/components/SocialLinks';
+import { api } from '@/src/lib/api';
 
-const publicTabs = [
+const publicTabBase = [
   { label: 'Inicio', icon: Home, path: '/' },
   { label: 'Reportados', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
-  { label: 'Rifas', icon: Ticket, path: '/rifas' },
   { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
   { label: 'Más', icon: Sparkles, path: null },
 ];
@@ -23,12 +23,11 @@ const authTabs = [
   { label: 'Más', icon: Sparkles, path: null },
 ];
 
-const publicMoreOptions = [
+const publicMoreBase = [
   { label: 'Novedades', icon: Sparkles, path: '/novedades' },
   { label: 'Sumate', icon: Users, path: '/sumate' },
   { label: 'Difusión', icon: Share2, path: '/difusion' },
   { label: 'Generar Flyer', icon: Camera, path: '/flyer' },
-  { label: 'Rifas', icon: Ticket, path: '/rifas' },
   { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
 ];
 
@@ -38,12 +37,27 @@ const authMorePortal = [
   { label: 'Mi Portal', icon: Home, path: '/dashboard' },
 ];
 
+const rifaTabItem = { label: 'Rifas', icon: Ticket, path: '/rifas' };
+
 export default function PublicMobileNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [rafflesVisible, setRafflesVisible] = useState(true);
 
+  useEffect(() => {
+    api.settings.getPublic().then((data: any) => {
+      if (data.raffles_visible !== undefined) setRafflesVisible(data.raffles_visible !== 'false');
+    }).catch(() => {});
+  }, []);
+
+  const publicTabs = rafflesVisible
+    ? [...publicTabBase.slice(0, 3), rifaTabItem, ...publicTabBase.slice(3)]
+    : publicTabBase;
+  const publicMoreOptions = rafflesVisible
+    ? [...publicMoreBase.slice(0, 2), rifaTabItem, ...publicMoreBase.slice(2)]
+    : publicMoreBase;
   const tabs = user ? authTabs : publicTabs;
 
   const isActive = (path: string | null) => {

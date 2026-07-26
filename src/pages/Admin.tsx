@@ -184,6 +184,10 @@ export default function Admin() {
   const [bannerChapitaIsFree, setBannerChapitaIsFree] = useState(true);
   const [settingsLoading, setSettingsLoading] = useState(false);
 
+  // Raffles visibility state
+  const [rafflesVisible, setRafflesVisible] = useState(true);
+  const [rafflesSettingsLoading, setRafflesSettingsLoading] = useState(false);
+
   // QR State
   const [qrUnassigned, setQrUnassigned] = useState<any[]>([]);
   const [qrRequests, setQrRequests] = useState<any[]>([]);
@@ -247,6 +251,7 @@ export default function Admin() {
       if (map.banner_chapita_visible !== undefined) setBannerChapitaVisible(map.banner_chapita_visible !== 'false');
       if (map.banner_chapita_price !== undefined) setBannerChapitaPrice(map.banner_chapita_price);
       if (map.banner_chapita_is_free !== undefined) setBannerChapitaIsFree(map.banner_chapita_is_free === 'true');
+      if (map.raffles_visible !== undefined) setRafflesVisible(map.raffles_visible !== 'false');
       if (map.pdf_page_width !== undefined) setPdfPageWidth(map.pdf_page_width);
       if (map.pdf_page_height !== undefined) setPdfPageHeight(map.pdf_page_height);
       if (map.sponsors !== undefined) {
@@ -2031,7 +2036,47 @@ export default function Admin() {
           {activeTab === 'analytics' && <AnalyticsTab />}
 
           {/* ====== RIFAS ====== */}
-          {activeTab === 'raffles' && <RafflesTab />}
+          {activeTab === 'raffles' && (
+            <>
+              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 mb-6">
+                <h3 className="text-lg font-bold text-brand-primary mb-4 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5" /> Rifas — Visibilidad en la app pública
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Mostrar rifas en la página pública</span>
+                      <p className="text-xs text-gray-400 mt-0.5">Controla la visibilidad de las secciones de rifas en Home, Sidebar, Footer, Nav y Colaborar</p>
+                    </div>
+                    <button
+                      onClick={() => setRafflesVisible(!rafflesVisible)}
+                      className={cn("w-12 h-7 rounded-full transition-colors relative shrink-0", rafflesVisible ? "bg-brand-primary" : "bg-gray-300")}
+                    >
+                      <div className={cn("w-5 h-5 bg-white rounded-full absolute top-1 transition-transform shadow-sm", rafflesVisible ? "left-[26px]" : "left-1")} />
+                    </button>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setRafflesSettingsLoading(true);
+                      try {
+                        await api.settings.update('raffles_visible', String(rafflesVisible));
+                        alert('Configuración guardada');
+                      } catch (e) {
+                        alert('Error al guardar');
+                      }
+                      setRafflesSettingsLoading(false);
+                    }}
+                    disabled={rafflesSettingsLoading}
+                    className="px-6 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {rafflesSettingsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Guardar
+                  </button>
+                </div>
+              </div>
+              <RafflesTab />
+            </>
+          )}
 
           {/* ====== WHATSAPP RELAY ====== */}
           {activeTab === 'relay-whatsapp' && <RelayWhatsAppTab />}

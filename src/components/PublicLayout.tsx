@@ -1,5 +1,7 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
+import { useEffect, useState } from 'react';
+import { api } from '@/src/lib/api';
 import PublicMobileTopBar from '@/src/components/PublicMobileTopBar';
 import Sidebar from '@/src/components/auth/Sidebar';
 import SocialLinks from '@/src/components/SocialLinks';
@@ -7,6 +9,13 @@ import SocialLinks from '@/src/components/SocialLinks';
 export default function PublicLayout() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [rafflesVisible, setRafflesVisible] = useState(true);
+
+  useEffect(() => {
+    api.settings.getPublic().then((data: any) => {
+      if (data.raffles_visible !== undefined) setRafflesVisible(data.raffles_visible !== 'false');
+    }).catch(() => {});
+  }, []);
 
   return (
     <>
@@ -27,7 +36,7 @@ export default function PublicLayout() {
             <div>
               <h4 className="font-bold text-gray-800 mb-4 uppercase text-xs tracking-widest">Navegación</h4>
               <ul className="space-y-2 text-gray-600 text-sm">
-                <li><Link to="/rifas" className="hover:text-brand-primary">Rifas y Sorteos</Link></li>
+                {rafflesVisible && <li><Link to="/rifas" className="hover:text-brand-primary">Rifas y Sorteos</Link></li>}
                 <li><Link to="/perdidos" className="hover:text-brand-primary">Mascotas Reportadas</Link></li>
                 <li><Link to="/adopcion" className="hover:text-brand-primary">Adopción</Link></li>
                 <li><Link to="/reportar" className="hover:text-brand-primary">Publicar</Link></li>

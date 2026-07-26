@@ -17,6 +17,7 @@ export default function Home() {
   const [bannerIsFree, setBannerIsFree] = useState(true);
   const [showChapitaModal, setShowChapitaModal] = useState(false);
   const [sponsors, setSponsors] = useState<{ name: string; logo: string; website: string }[]>([]);
+  const [rafflesVisible, setRafflesVisible] = useState(true);
 
 
   useEffect(() => {
@@ -25,6 +26,7 @@ export default function Home() {
       if (data.banner_chapita_visible !== undefined) setBannerVisible(data.banner_chapita_visible !== 'false');
       if (data.banner_chapita_price !== undefined) setBannerPrice(data.banner_chapita_price);
       if (data.banner_chapita_is_free !== undefined) setBannerIsFree(data.banner_chapita_is_free === 'true');
+      if (data.raffles_visible !== undefined) setRafflesVisible(data.raffles_visible !== 'false');
       if (data.sponsors) {
         try { setSponsors(JSON.parse(data.sponsors)); } catch (e) { /* ignore */ }
       }
@@ -124,17 +126,19 @@ export default function Home() {
                <span className="shrink-0 text-brand-secondary font-bold text-sm group-hover:translate-x-1 transition-transform">Quiero colaborar →</span>
              </Link>
 
-             <Link to="/rifas"
-               className="w-full bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border border-brand-primary/30 rounded-2xl p-4 sm:p-5 md:p-6 mt-6 md:mt-8 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
-               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-brand-primary to-brand-secondary/80 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                 <Ticket className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-               </div>
-               <div className="text-left flex-1 min-w-0">
-                 <div className="font-bold text-brand-primary text-sm sm:text-base">🎟️ Rifas y Sorteos</div>
-                 <div className="text-xs text-gray-500 mt-0.5">Todo lo recaudado va en ayuda de mascotas rescatadas.</div>
-               </div>
-               <span className="shrink-0 text-brand-primary font-bold text-sm group-hover:translate-x-1 transition-transform">Ver rifas →</span>
-             </Link>
+             {rafflesVisible && (
+               <Link to="/rifas"
+                 className="w-full bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300/50 rounded-2xl p-4 sm:p-5 md:p-6 mt-6 md:mt-8 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
+                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-amber-400 to-orange-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                   <Ticket className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                 </div>
+                 <div className="text-left flex-1 min-w-0">
+                   <div className="font-bold text-amber-700 text-sm sm:text-base">🎟️ Sumate a la rifa</div>
+                   <div className="text-xs text-gray-500 mt-0.5">Comprá un número y ayudá a una mascota rescatada.</div>
+                 </div>
+                 <span className="shrink-0 text-amber-600 font-bold text-sm group-hover:translate-x-1 transition-transform">Comprar número →</span>
+               </Link>
+             )}
            </motion.div>
 
           <motion.div

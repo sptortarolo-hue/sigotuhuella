@@ -156,6 +156,7 @@ INSERT INTO settings (key, value) VALUES
   ('banner_chapita_visible', 'true'),
   ('banner_chapita_price', '500'),
   ('banner_chapita_is_free', 'true'),
+  ('raffles_visible', 'true'),
   ('pdf_page_width', '570'),
   ('pdf_page_height', '300')
 ON CONFLICT (key) DO NOTHING;

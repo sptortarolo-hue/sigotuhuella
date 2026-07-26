@@ -3,14 +3,19 @@ import { Link } from 'react-router-dom';
 import { getCollaborationAccounts, CollaborationAccount } from '@/src/lib/collaborationService';
 import { CreditCard, Copy, Check, Loader2, Heart, Info, ExternalLink, ShieldCheck, Ticket } from 'lucide-react';
 import { motion } from 'motion/react';
+import { api } from '@/src/lib/api';
 
 export default function Collaborate() {
   const [accounts, setAccounts] = useState<CollaborationAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [rafflesVisible, setRafflesVisible] = useState(true);
 
   useEffect(() => {
     fetchAccounts();
+    api.settings.getPublic().then((data: any) => {
+      if (data.raffles_visible !== undefined) setRafflesVisible(data.raffles_visible !== 'false');
+    }).catch(() => {});
   }, []);
 
   const fetchAccounts = async () => {
@@ -44,18 +49,20 @@ export default function Collaborate() {
         </p>
         </header>
 
-        <div className="bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border border-brand-primary/20 rounded-2xl p-6 sm:p-8 mb-10 flex flex-col sm:flex-row items-center gap-6">
-          <div className="w-14 h-14 bg-gradient-to-br from-brand-primary to-brand-secondary/80 rounded-2xl flex items-center justify-center shrink-0">
-            <Ticket className="w-7 h-7 text-white" />
+        {rafflesVisible && (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300/50 rounded-2xl p-6 sm:p-8 mb-10 flex flex-col sm:flex-row items-center gap-6">
+            <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-400 rounded-2xl flex items-center justify-center shrink-0">
+              <Ticket className="w-7 h-7 text-white" />
+            </div>
+            <div className="text-center sm:text-left">
+              <h3 className="text-xl font-bold text-amber-700">🎟️ Sumate a la rifa</h3>
+              <p className="text-gray-500 text-sm mt-1">Comprá un número y ayudá a una mascota rescatada.</p>
+            </div>
+            <Link to="/rifas" className="w-full sm:w-auto py-3 px-6 bg-gradient-to-r from-amber-400 to-orange-400 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all text-center shrink-0">
+              Comprar número →
+            </Link>
           </div>
-          <div className="text-center sm:text-left">
-            <h3 className="text-xl font-bold text-brand-primary">🎟️ Rifas y Sorteos</h3>
-            <p className="text-gray-500 text-sm mt-1">Todo lo recaudado va en ayuda de mascotas rescatadas.</p>
-          </div>
-          <Link to="/rifas" className="w-full sm:w-auto py-3 px-6 bg-brand-primary text-white rounded-xl font-bold text-sm hover:bg-brand-primary/90 transition-colors text-center shrink-0">
-            Ver rifas →
-          </Link>
-        </div>
+        )}
 
         {loading ? (
         <div className="flex justify-center py-20">

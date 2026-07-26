@@ -4,12 +4,12 @@ import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
+import { api } from '@/src/lib/api';
 
-const publicItems = [
+const publicBase = [
   { label: 'Inicio', icon: Home, path: '/' },
   { label: 'Mascotas Reportadas', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
-  { label: 'Rifas', icon: Ticket, path: '/rifas' },
   { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
   { label: 'Difusión', icon: Share2, path: '/difusion' },
   { label: 'Sumate', icon: User, path: '/sumate' },
@@ -23,10 +23,9 @@ const portalItems = [
   { label: 'Mi Perfil', icon: User, path: '/perfil' },
 ];
 
-const moreItems = [
+const moreBase = [
   { label: 'Mascotas Reportadas', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
-  { label: 'Rifas', icon: Ticket, path: '/rifas' },
   { label: 'Novedades', icon: Sparkles, path: '/novedades' },
   { label: 'Sumate', icon: User, path: '/sumate' },
   { label: 'Difusión', icon: Share2, path: '/difusion' },
@@ -34,11 +33,14 @@ const moreItems = [
   { label: 'Colaborar', icon: HandCoins, path: '/colaborar' },
 ];
 
+const rifaItem = { label: 'Rifas', icon: Ticket, path: '/rifas' };
+
 export default function Sidebar({ onReportClick }: { onReportClick?: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, isAdmin } = useAuth();
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
+  const [rafflesVisible, setRafflesVisible] = useState(true);
 
   useEffect(() => {
     isSupported().then(async (ok) => {
@@ -46,7 +48,13 @@ export default function Sidebar({ onReportClick }: { onReportClick?: () => void 
       const sub = await isSubscribed();
       setPushEnabled(sub);
     });
+    api.settings.getPublic().then((data: any) => {
+      if (data.raffles_visible !== undefined) setRafflesVisible(data.raffles_visible !== 'false');
+    }).catch(() => {});
   }, []);
+
+  const publicItems = rafflesVisible ? [...publicBase.slice(0, 3), rifaItem, ...publicBase.slice(3)] : publicBase;
+  const moreItems = rafflesVisible ? [...moreBase.slice(0, 2), rifaItem, ...moreBase.slice(2)] : moreBase;
 
   const handleBellClick = async () => {
     if (pushEnabled) {
