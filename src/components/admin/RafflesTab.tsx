@@ -10,7 +10,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Prize {
-  id?: string;
   position: number;
   title: string;
   description: string;
@@ -29,8 +28,9 @@ interface Raffle {
   created_at: string;
   prizes: Prize[];
   sold_count?: number;
-  stats?: { sold: number; reserved: number; available: number };
-  tickets?: { number: number; status: string; buyer_name: string }[];
+  stats?: { sold: number; reservedMp: number; pendingTransfer: number; pendingManual: number; available: number };
+  tickets?: { number: number; status: string; buyer_name: string; payment_method: string; payment_status: string }[];
+  receipts?: any[];
 }
 
 export default function RafflesTab() {
@@ -44,30 +44,14 @@ export default function RafflesTab() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [drawResult, setDrawResult] = useState<any>(null);
 
-  // Manual assignment state
   const [showManualForm, setShowManualForm] = useState(false);
   const [manualFormData, setManualFormData] = useState({ count: 1, name: '', phone: '', paymentMethod: 'manual' });
   const [manualLoading, setManualLoading] = useState(false);
   const [manualResult, setManualResult] = useState<any>(null);
-
-  // Receipts state
   const [showReceipts, setShowReceipts] = useState(false);
-  const [receiptImage, setReceiptImage] = useState<string>('');
+  const [receiptImage, setReceiptImage] = useState('');
   const [receiptNote, setReceiptNote] = useState('');
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
-  const [uploadReceiptResult, setUploadReceiptResult] = useState<any>(null);
-
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    modality: 'raffle',
-    total_numbers: 100,
-    price_per_number: 1000,
-    draw_date: '',
-  });
-  const [prizes, setPrizes] = useState<Prize[]>([
-    { position: 1, title: '1er Premio', description: '', amount: null },
-  ]);
 
   useEffect(() => { fetchRaffles(); }, []);
 
@@ -163,13 +147,10 @@ export default function RafflesTab() {
       alert('Nombre y teléfono son obligatorios');
       return;
     }
-    if (manualFormData.count < 1) {
-      alert('La cantidad debe ser al menos 1');
-      return;
-    }
+    if (manualFormData.count < 1) return;
     try {
       setManualLoading(true);
-      const data = await api.raffles.reserve(raffleId, {
+      const data = await api.raffles.reserveManual(raffleId, {
         count: manualFormData.count,
         name: manualFormData.name,
         phone: manualFormData.phone,
@@ -187,19 +168,18 @@ export default function RafflesTab() {
     }
   }
 
-  async function handleReceiptUpload(receiptRaffleId: string, ticketGroupId: string) {
+  async function handleReceiptUpload(raffleId: string, ticketGroupId: string) {
     if (!receiptImage) { alert('Seleccioná una imagen'); return; }
     try {
       setUploadingReceipt(true);
-      const data = await api.raffles.uploadReceipt(receiptRaffleId, {
+      await api.raffles.uploadReceipt(raffleId, {
         ticketGroupId,
         buyerName: manualFormData.name,
         buyerPhone: manualFormData.phone,
         imageData: receiptImage,
         imageMime: 'image/jpeg',
-        amountExpected: detailRaffle ? detailRaffle.price_per_number * detailRaffle.tickets.filter(t => t.status === 'paid').length : 0,
+        amountExpected: detailRaffle ? detailRaffle.price_per_number * detailRaffle.tickets!.filter(t => t.status === 'paid').length : 0,
       });
-      setUploadReceiptResult(data);
       setShowReceipts(false);
       setReceiptImage('');
       openDetail(detailRaffle!);
@@ -266,6 +246,9 @@ export default function RafflesTab() {
       </span>
     );
   }
+
+  const [formData, setFormData] = useState({ title: '', description: '', modality: 'raffle', total_numbers: 100, price_per_number: 1000, draw_date: '' });
+  const [prizes, setPrizes] = useState<Prize[]>([{ position: 1, title: '1er Premio', description: '', amount: null }]);
 
   if (loading) {
     return (
@@ -336,10 +319,35 @@ export default function RafflesTab() {
                   <Calendar className="w-3 h-3" /> {new Date(raffle.draw_date).toLocaleDateString('es-AR')}
                 </span>
               )}
-              </div>
+            </div>
 
-              <div className="mt-auto flex flex-wrap gap-2">
-                <button onClick={() => openDetail(raffle)}
+            <div className="mt-auto flex flex-wrap gap-2">
+              <button onClick={() => openDetail(raffle)}
+                className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
+                <Eye className="w-3 h-3" /> Ver
+              </button>
+              {raffle.status !== 'drawn' && (
+                <>
+                  <button onClick={() => openEdit(raffle)}
+                    className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
+                    <Edit2 className="w-3 h-3" /> Editar
+                  </button>
+                  <button onClick={() => handleStatusToggle(raffle)}
+                    className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
+                    {raffle.status === 'active' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                    {raffle.status === 'active' ? 'Pausar' : 'Reanudar'}
+                  </button>
+                </>
+              )}
+              <button onClick={() => setShowManualForm(true)}
+                className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
+                <HandCoins className="w-3 h-3" /> Carga manual
+              </button>
+              <button onClick={() => handleDelete(raffle.id)}
+                className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50">
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -413,7 +421,7 @@ export default function RafflesTab() {
                           <input type="text" value={prize.title} placeholder="Título"
                             onChange={e => updatePrize(idx, 'title', e.target.value)}
                             className="px-3 py-2 bg-white rounded-lg border border-brand-accent outline-none text-sm focus:border-brand-primary" />
-                          <input type="text" value={prize.description || ''} placeholder="Descripción"
+                          <input type="text" value={prize.description} placeholder="Descripción"
                             onChange={e => updatePrize(idx, 'description', e.target.value)}
                             className="px-3 py-2 bg-white rounded-lg border border-brand-accent outline-none text-sm focus:border-brand-primary" />
                           <input type="number" value={prize.amount || ''} placeholder="Monto ($)" min={0}
@@ -444,6 +452,69 @@ export default function RafflesTab() {
         )}
       </AnimatePresence>
 
+      {/* Manual Assignment Modal */}
+      <AnimatePresence>
+        {showManualForm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={() => !manualLoading && setShowManualForm(false)} />
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              className="relative w-full max-w-md bg-white rounded-[2.5rem] p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-serif font-bold text-brand-primary">Carga Manual de Compradores</h3>
+                <button onClick={() => setShowManualForm(false)} className="p-2 hover:bg-brand-accent/20 rounded-full"><X className="w-5 h-5" /></button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Cantidad de números *</label>
+                  <input type="number" required min={1} value={manualFormData.count}
+                    onChange={e => setManualFormData({ ...manualFormData, count: parseInt(e.target.value) || 1 })}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Nombre del comprador *</label>
+                  <input type="text" required value={manualFormData.name}
+                    onChange={e => setManualFormData({ ...manualFormData, name: e.target.value })}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Teléfono *</label>
+                  <input type="tel" required value={manualFormData.phone}
+                    onChange={e => setManualFormData({ ...manualFormData, phone: e.target.value })}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Método de pago</label>
+                  <select value={manualFormData.paymentMethod}
+                    onChange={e => setManualFormData({ ...manualFormData, paymentMethod: e.target.value })}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1">
+                    <option value="manual">Manual (transferencia en efectivo)</option>
+                    <option value="transfer">Transferencia bancaria</option>
+                  </select>
+                </div>
+
+                {manualResult && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
+                    ✓ {manualResult.tickets?.length || 0} número(s) asignado(s) — Código de referencia: {manualResult.ticketGroupId}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setShowManualForm(false)} disabled={manualLoading}
+                    className="px-4 py-2 border border-brand-accent rounded-xl font-bold text-sm hover:bg-brand-accent/20">Cancelar</button>
+                  <button onClick={() => detailRaffle && handleManualAssign(detailRaffle.id)} disabled={manualLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm hover:opacity-90">
+                    {manualLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    Asignar
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Detail Modal */}
       <AnimatePresence>
         {detailRaffle && (
@@ -465,11 +536,11 @@ export default function RafflesTab() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="bg-green-50 rounded-xl p-3 text-center">
                       <p className="text-2xl font-bold text-green-700">{detailRaffle.stats.sold}</p>
-                      <p className="text-xs text-green-600 font-bold">Vendidos</p>
+                      <p className="text-xs text-green-600 font-bold">Pagados</p>
                     </div>
                     <div className="bg-yellow-50 rounded-xl p-3 text-center">
-                      <p className="text-2xl font-bold text-yellow-700">{detailRaffle.stats.reserved}</p>
-                      <p className="text-xs text-yellow-600 font-bold">Reservados</p>
+                      <p className="text-2xl font-bold text-yellow-700">{detailRaffle.stats.reservedMp + detailRaffle.stats.pendingTransfer + detailRaffle.stats.pendingManual}</p>
+                      <p className="text-xs text-yellow-600 font-bold">Pendientes</p>
                     </div>
                     <div className="bg-gray-50 rounded-xl p-3 text-center">
                       <p className="text-2xl font-bold text-gray-700">{detailRaffle.stats.available}</p>
@@ -499,7 +570,7 @@ export default function RafflesTab() {
                 {detailRaffle.tickets && detailRaffle.tickets.length > 0 && (
                   <div>
                     <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">
-                      Números vendidos ({detailRaffle.tickets.length})
+                      Números ({detailRaffle.tickets.length})
                     </h4>
                     <div className="flex flex-wrap gap-1.5">
                       {detailRaffle.tickets.map(t => (
@@ -514,10 +585,72 @@ export default function RafflesTab() {
                   </div>
                 )}
 
+                {/* Receipts Section */}
+                {detailRaffle.receipts && detailRaffle.receipts.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-bold text-gray-500 uppercase">Comprobantes</h4>
+                      <button onClick={() => setShowReceipts(true)}
+                        className="flex items-center gap-1 text-xs font-bold text-brand-primary hover:underline">
+                        <Upload className="w-3 h-3" /> Subir comprobante
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {detailRaffle.receipts.map((r: any, i: number) => (
+                        <div key={i} className="flex items-center gap-3 bg-brand-bg/50 p-3 rounded-xl">
+                          <img src={r.image_data} alt="receipt" className="w-12 h-12 object-cover rounded-lg" />
+                          <div className="flex-1 text-xs">
+                            <p className="font-bold">{r.buyer_name} — {r.buyer_phone}</p>
+                            <p className="text-gray-500">Esperado: ${r.amount_expected?.toLocaleString('es-AR')}</p>
+                            <span className={cn(
+                              'text-[10px] px-2 py-1 rounded-full font-bold',
+                              r.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                              r.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                              'bg-yellow-100 text-yellow-700'
+                            )}>
+                              {r.status === 'confirmed' ? 'Confirmado' : r.status === 'rejected' ? 'Rechazado' : 'Pendiente'}
+                            </span>
+                          </div>
+                          {r.status === 'pending' && (
+                            <div className="flex gap-1">
+                              <button onClick={() => handleReceiptConfirm(r.id, detailRaffle.id)}
+                                className="p-1 text-green-600 hover:bg-green-50 rounded"><CheckCircle className="w-4 h-4" /></button>
+                              <button onClick={() => handleReceiptReject(r.id, detailRaffle.id)}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded"><XCircle className="w-4 h-4" /></button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Upload Receipt Modal */}
+                {showReceipts && (
+                  <div className="bg-brand-bg/50 rounded-xl p-4 space-y-3">
+                    <h4 className="text-sm font-bold">Subir comprobante</h4>
+                    <input type="text" placeholder="Ticket Group ID o Número del ticket"
+                      value={receiptImage} onChange={e => setReceiptImage(e.target.value)}
+                      className="w-full px-3 py-2 bg-white rounded-lg border border-brand-accent outline-none text-sm" />
+                    <textarea placeholder="Nota del admin (opcional)" value={receiptNote}
+                      onChange={e => setReceiptNote(e.target.value)}
+                      className="w-full px-3 py-2 bg-white rounded-lg border border-brand-accent outline-none text-sm" rows={2} />
+                    <div className="flex gap-2">
+                      <button onClick={() => detailRaffle && handleReceiptUpload(detailRaffle.id, receiptImage)}
+                        disabled={uploadingReceipt}
+                        className="px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm">
+                        {uploadingReceipt ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Subir'}
+                      </button>
+                      <button onClick={() => setShowReceipts(false)}
+                        className="px-4 py-2 border border-brand-accent rounded-xl font-bold text-sm hover:bg-brand-accent/20">Cancelar</button>
+                    </div>
+                  </div>
+                )}
+
                 {drawResult && (
                   <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
                     <h4 className="font-bold text-purple-800 mb-2 flex items-center gap-2"><Trophy className="w-4 h-4" /> Resultado del sorteo</h4>
-                    {drawResult.winners.map((w: any, i: number) => (
+                    {drawResult.winners && drawResult.winners.map((w: any, i: number) => (
                       <div key={i} className="text-sm text-purple-700 mb-1">
                         <span className="font-bold">{w.prize}:</span> N° {w.ticketNumber} - {w.buyerName || 'Anónimo'}
                         {w.prizeAmount && <span className="text-purple-500 ml-1">(${w.prizeAmount.toLocaleString('es-AR')})</span>}
