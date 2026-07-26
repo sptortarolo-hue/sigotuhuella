@@ -1395,6 +1395,43 @@ export async function initDb() {
       ON CONFLICT (key) DO NOTHING
     `, 'mp settings defaults');
 
+    // ─── Columns para transferencia y carga manual ───
+    await migrate(client, `
+      ALTER TABLE raffle_tickets ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20) DEFAULT 'mp'
+    `, 'raffle_tickets payment_method column');
+
+    await migrate(client, `
+      ALTER TABLE raffle_tickets ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'pending_transfer'
+    `, 'raffle_tickets payment_status column');
+
+    // ─── Tabla de comprobantes ───
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS raffle_receipts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        raffle_id UUID REFERENCES raffles(id) ON DELETE CASCADE,
+        ticket_id UUID REFERENCES raffle_tickets(id),
+        image_data TEXT,
+        image_mime VARCHAR(50),
+        buyer_name VARCHAR(255),
+        buyer_phone VARCHAR(50),
+        amount_expected DECIMAL(10,2),
+        amount_received DECIMAL(10,2),
+        status VARCHAR(20) DEFAULT 'pending',
+        admin_note TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `, 'raffle_receipts table');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_raffle_receipts_raffle_id
+      ON raffle_receipts(raffle_id)
+    `, 'raffle_receipts raffle_id index');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_raffle_receipts_ticket_id
+      ON raffle_receipts(ticket_id)
+    `, 'raffle_receipts ticket_id index');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

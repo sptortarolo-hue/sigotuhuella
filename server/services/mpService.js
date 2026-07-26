@@ -71,7 +71,7 @@ export function verifyWebhookSignature({ headers, body }) {
   return true;
 }
 
-export async function reserveTickets(raffleId, numbers, buyerInfo) {
+export async function reserveTickets(raffleId, numbers, buyerInfo, paymentMethod = 'mp') {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -84,7 +84,7 @@ export async function reserveTickets(raffleId, numbers, buyerInfo) {
     const raffle = raffleRes.rows[0];
 
     const existingRes = await client.query(
-      'SELECT number FROM raffle_tickets WHERE raffle_id = $1 AND number = ANY($2::int[]) AND status != $3',
+      'SELECT number FROM raffle_tickets WHERE raffle_id = $1 AND number = ANY($2::int[]) AND status NOT IN ($3)',
       [raffleId, numbers, 'cancelled']
     );
     if (existingRes.rows.length > 0) {
@@ -94,7 +94,7 @@ export async function reserveTickets(raffleId, numbers, buyerInfo) {
 
     const reservedRes = await client.query(
       `SELECT COUNT(*) FROM raffle_tickets
-       WHERE raffle_id = $1 AND status IN ('reserved', 'paid')`,
+       WHERE raffle_id = $1 AND status IN ('reserved', 'paid', 'pending_transfer', 'pending_manual')`,
       [raffleId]
     );
     const totalReserved = parseInt(reservedRes.rows[0].count);
@@ -103,28 +103,104 @@ export async function reserveTickets(raffleId, numbers, buyerInfo) {
     }
 
     const ticketGroupId = `tg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const ticketStatus = paymentMethod === 'mp' ? 'reserved'
+      : paymentMethod === 'transfer' ? 'pending_transfer'
+      : 'pending_manual';
 
     const tickets = [];
     for (const num of numbers) {
       const res = await client.query(
-        `INSERT INTO raffle_tickets (raffle_id, number, buyer_name, buyer_email, buyer_phone, mp_external_reference, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'reserved')
+        `INSERT INTO raffle_tickets
+           (raffle_id, number, buyer_name, buyer_phone, mp_external_reference, status, payment_method, payment_status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id, number`,
-        [raffleId, num, buyerInfo.name, buyerInfo.email, buyerInfo.phone, ticketGroupId]
+        [raffleId, num, buyerInfo.name, buyerInfo.phone, ticketGroupId, ticketStatus, paymentMethod, ticketStatus]
       );
       tickets.push(res.rows[0]);
     }
 
     await client.query('COMMIT');
 
-    const mpResult = await createRafflePreference({ raffle, tickets, ticketGroupId, buyerEmail: buyerInfo.email });
+    if (paymentMethod === 'mp') {
+      const mpResult = await createRafflePreference({ raffle, tickets, ticketGroupId, buyerEmail: buyerInfo.email });
+      await client.query(
+        `UPDATE raffle_tickets SET mp_payment_id = $1 WHERE mp_external_reference = $2`,
+        [mpResult.preferenceId, ticketGroupId]
+      );
+      client.release();
+      return { tickets, ticketGroupId, ...mpResult };
+    }
+
+    client.release();
+    return { tickets, ticketGroupId, paymentMethod };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    client.release();
+    throw err;
+  }
+}
+
+export async function confirmManualPayment(receiptId, adminNote = '') {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const receiptRes = await client.query(
+      'SELECT * FROM raffle_receipts WHERE id = $1 FOR UPDATE',
+      [receiptId]
+    );
+    if (receiptRes.rows.length === 0) { await client.query('ROLLBACK'); return null; }
+    const receipt = receiptRes.rows[0];
 
     await client.query(
-      `UPDATE raffle_tickets SET mp_payment_id = $1 WHERE mp_external_reference = $2`,
-      [mpResult.preferenceId, ticketGroupId]
+      `UPDATE raffle_receipts SET status = 'confirmed', admin_note = $1 WHERE id = $2`,
+      [adminNote, receiptId]
     );
 
-    return { tickets, ticketGroupId, ...mpResult };
+    const ticketsRes = await client.query(
+      'SELECT id FROM raffle_tickets WHERE raffle_id = $1 AND mp_external_reference = $2 AND status IN ($3, $4)',
+      [receipt.raffle_id, receipt.ticket_id, 'pending_transfer', 'pending_manual']
+    );
+    for (const t of ticketsRes.rows) {
+      await client.query(
+        `UPDATE raffle_tickets SET status = 'paid', payment_status = 'paid', paid_at = NOW() WHERE id = $1`,
+        [t.id]
+      );
+    }
+
+    await client.query('COMMIT');
+    return { success: true, raffleId: receipt.raffle_id, ticketsConfirmed: ticketsRes.rows.length };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function rejectManualPayment(receiptId, adminNote = '') {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const receiptRes = await client.query(
+      'SELECT * FROM raffle_receipts WHERE id = $1 FOR UPDATE',
+      [receiptId]
+    );
+    if (receiptRes.rows.length === 0) { await client.query('ROLLBACK'); return null; }
+    const receipt = receiptRes.rows[0];
+
+    await client.query(
+      `UPDATE raffle_receipts SET status = 'rejected', admin_note = $1 WHERE id = $2`,
+      [adminNote, receiptId]
+    );
+
+    await client.query(
+      `UPDATE raffle_tickets SET status = 'cancelled', payment_status = 'cancelled'
+       WHERE raffle_id = $1 AND mp_external_reference = $2 AND status IN ('pending_transfer', 'pending_manual')`,
+      [receipt.raffle_id, receipt.ticket_id]
+    );
+
+    await client.query('COMMIT');
+    return { success: true, raffleId: receipt.raffle_id };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

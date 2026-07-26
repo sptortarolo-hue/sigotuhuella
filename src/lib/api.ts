@@ -387,10 +387,18 @@ export const api = {
     create: (data: any) => request('/raffles', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => request(`/raffles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/raffles/${id}`, { method: 'DELETE' }),
-    reserve: (id: string, data: { numbers: number[]; name: string; email: string; phone?: string }) =>
+    reserve: (id: string, data: { numbers?: number[]; name: string; email?: string; phone: string; paymentMethod: string }) =>
+      request(`/raffles/${id}/reserve`, { method: 'POST', body: JSON.stringify(data) }),
+    reserveManual: (id: string, data: { count: number; name: string; phone: string; paymentMethod: string }) =>
       request(`/raffles/${id}/reserve`, { method: 'POST', body: JSON.stringify(data) }),
     ticketStatus: (id: string, ticketGroupId: string) => request(`/raffles/${id}/ticket-status/${ticketGroupId}`),
     draw: (id: string) => request(`/raffles/${id}/draw`, { method: 'POST' }),
+    uploadReceipt: (id: string, data: { ticketGroupId: string; buyerName: string; buyerPhone: string; imageData: string; imageMime: string; amountExpected: number }) =>
+      request(`/raffles/${id}/receipt`, { method: 'POST', body: JSON.stringify(data) }),
+    confirmReceipt: (raffleId: string, receiptId: string, note: string) =>
+      request(`/raffles/${raffleId}/receipt/${receiptId}/confirm`, { method: 'POST', body: JSON.stringify({ adminNote: note }) }),
+    rejectReceipt: (raffleId: string, receiptId: string, note: string) =>
+      request(`/raffles/${raffleId}/receipt/${receiptId}/reject`, { method: 'POST', body: JSON.stringify({ adminNote: note }) }),
     cleanup: () => request('/raffles/cleanup', { method: 'POST' }),
   },
 };

@@ -4,7 +4,8 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { cn } from '@/src/lib/utils';
 import {
   Plus, X, Loader2, Trash2, Edit2, Eye, Trophy, Calendar, Ticket,
-  ChevronDown, ChevronUp, AlertCircle, Check, Pause, Play, Award, Users
+  ChevronDown, ChevronUp, AlertCircle, Check, Pause, Play, Award, Users,
+  HandCoins, Upload, CheckCircle, XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -42,6 +43,19 @@ export default function RafflesTab() {
   const [detailRaffle, setDetailRaffle] = useState<Raffle | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [drawResult, setDrawResult] = useState<any>(null);
+
+  // Manual assignment state
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualFormData, setManualFormData] = useState({ count: 1, name: '', phone: '', paymentMethod: 'manual' });
+  const [manualLoading, setManualLoading] = useState(false);
+  const [manualResult, setManualResult] = useState<any>(null);
+
+  // Receipts state
+  const [showReceipts, setShowReceipts] = useState(false);
+  const [receiptImage, setReceiptImage] = useState<string>('');
+  const [receiptNote, setReceiptNote] = useState('');
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [uploadReceiptResult, setUploadReceiptResult] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -141,6 +155,82 @@ export default function RafflesTab() {
       fetchRaffles();
     } catch (err: any) {
       alert(err.message || 'Error al sortear');
+    }
+  }
+
+  async function handleManualAssign(raffleId: string) {
+    if (!manualFormData.name || !manualFormData.phone) {
+      alert('Nombre y teléfono son obligatorios');
+      return;
+    }
+    if (manualFormData.count < 1) {
+      alert('La cantidad debe ser al menos 1');
+      return;
+    }
+    try {
+      setManualLoading(true);
+      const data = await api.raffles.reserve(raffleId, {
+        count: manualFormData.count,
+        name: manualFormData.name,
+        phone: manualFormData.phone,
+        paymentMethod: manualFormData.paymentMethod,
+      });
+      setManualResult(data);
+      setShowManualForm(false);
+      setManualFormData({ count: 1, name: '', phone: '', paymentMethod: 'manual' });
+      openDetail(detailRaffle!);
+      fetchRaffles();
+    } catch (err: any) {
+      alert(err.message || 'Error en la asignación manual');
+    } finally {
+      setManualLoading(false);
+    }
+  }
+
+  async function handleReceiptUpload(receiptRaffleId: string, ticketGroupId: string) {
+    if (!receiptImage) { alert('Seleccioná una imagen'); return; }
+    try {
+      setUploadingReceipt(true);
+      const data = await api.raffles.uploadReceipt(receiptRaffleId, {
+        ticketGroupId,
+        buyerName: manualFormData.name,
+        buyerPhone: manualFormData.phone,
+        imageData: receiptImage,
+        imageMime: 'image/jpeg',
+        amountExpected: detailRaffle ? detailRaffle.price_per_number * detailRaffle.tickets.filter(t => t.status === 'paid').length : 0,
+      });
+      setUploadReceiptResult(data);
+      setShowReceipts(false);
+      setReceiptImage('');
+      openDetail(detailRaffle!);
+    } catch (err: any) {
+      alert(err.message || 'Error al subir comprobante');
+    } finally {
+      setUploadingReceipt(false);
+    }
+  }
+
+  async function handleReceiptConfirm(receiptId: string, raffleId: string) {
+    if (!confirm('¿Confirmar pago de este comprobante?')) return;
+    try {
+      await api.raffles.confirmReceipt(raffleId, receiptId, receiptNote);
+      setReceiptNote('');
+      openDetail(detailRaffle!);
+      fetchRaffles();
+    } catch (err: any) {
+      alert(err.message || 'Error al confirmar');
+    }
+  }
+
+  async function handleReceiptReject(receiptId: string, raffleId: string) {
+    if (!confirm('¿Rechazar este comprobante?')) return;
+    try {
+      await api.raffles.rejectReceipt(raffleId, receiptId, receiptNote);
+      setReceiptNote('');
+      openDetail(detailRaffle!);
+      fetchRaffles();
+    } catch (err: any) {
+      alert(err.message || 'Error al rechazar');
     }
   }
 
@@ -246,31 +336,10 @@ export default function RafflesTab() {
                   <Calendar className="w-3 h-3" /> {new Date(raffle.draw_date).toLocaleDateString('es-AR')}
                 </span>
               )}
-            </div>
+              </div>
 
-            <div className="mt-auto flex flex-wrap gap-2">
-              <button onClick={() => openDetail(raffle)}
-                className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
-                <Eye className="w-3 h-3" /> Ver
-              </button>
-              {raffle.status !== 'drawn' && (
-                <>
-                  <button onClick={() => openEdit(raffle)}
-                    className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
-                    <Edit2 className="w-3 h-3" /> Editar
-                  </button>
-                  <button onClick={() => handleStatusToggle(raffle)}
-                    className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
-                    {raffle.status === 'active' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                    {raffle.status === 'active' ? 'Pausar' : 'Reanudar'}
-                  </button>
-                </>
-              )}
-              <button onClick={() => handleDelete(raffle.id)}
-                className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50">
-                <Trash2 className="w-3 h-3" />
-              </button>
-            </div>
+              <div className="mt-auto flex flex-wrap gap-2">
+                <button onClick={() => openDetail(raffle)}
           </div>
         ))}
       </div>
