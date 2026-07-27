@@ -10,7 +10,6 @@ const COLS = 10;
 const BRAND_BAR_H = 70;
 const BRAND_BAR_Y = H - BRAND_BAR_H;
 const TOP_PAD = 50;
-const BOTTOM_PAD = 20;
 const MAX_CELL_SIZE = 80;
 let _canvasModule = null;
 
@@ -212,8 +211,8 @@ export async function renderRaffleFlyer({
 
   drawBgDecorations(ctx, colorStart, colorEnd);
 
-  const availableH = BRAND_BAR_Y - TOP_PAD - BOTTOM_PAD;
-  const gridH = Math.floor(availableH * 0.70);
+  const remaining = BRAND_BAR_Y - y;
+  const gridH = Math.floor(remaining * 0.70);
 
   let y = TOP_PAD;
 
