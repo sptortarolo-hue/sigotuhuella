@@ -46,7 +46,15 @@ export default function RafflesTab() {
 
   const [showManualForm, setShowManualForm] = useState(false);
   const [manualRaffleId, setManualRaffleId] = useState<string | null>(null);
-  const [manualFormData, setManualFormData] = useState({ count: 1, name: '', phone: '', paymentMethod: 'manual' });
+  const [manualFormName, setManualFormName] = useState('');
+  const [manualFormPhone, setManualFormPhone] = useState('');
+  const [manualFormPayment, setManualFormPayment] = useState('manual');
+  const [manualSelectedNumbers, setManualSelectedNumbers] = useState<number[]>([]);
+  const [manualReceiptFile, setManualReceiptFile] = useState<File | null>(null);
+  const [manualReceiptPreview, setManualReceiptPreview] = useState<string | null>(null);
+  const [manualRaffleTickets, setManualRaffleTickets] = useState<any[] | null>(null);
+  const [manualRaffleTotal, setManualRaffleTotal] = useState(0);
+  const [manualRafflePrice, setManualRafflePrice] = useState(0);
   const [manualLoading, setManualLoading] = useState(false);
   const [manualResult, setManualResult] = useState<any>(null);
   const [showReceipts, setShowReceipts] = useState(false);
@@ -159,22 +167,49 @@ export default function RafflesTab() {
   }
 
   async function handleManualAssign(raffleId: string) {
-    if (!manualFormData.name || !manualFormData.phone) {
+    if (!manualFormName || !manualFormPhone) {
       alert('Nombre y teléfono son obligatorios');
       return;
     }
-    if (manualFormData.count < 1) return;
+    if (manualSelectedNumbers.length === 0) {
+      alert('Seleccioná al menos un número');
+      return;
+    }
     try {
       setManualLoading(true);
-      const data = await api.raffles.reserveManual(raffleId, {
-        count: manualFormData.count,
-        name: manualFormData.name,
-        phone: manualFormData.phone,
-        paymentMethod: manualFormData.paymentMethod,
+
+      // Step 1: reserve numbers with autoConfirm (si no hay comprobante)
+      const data = await api.raffles.reserve(raffleId, {
+        numbers: manualSelectedNumbers,
+        name: manualFormName,
+        phone: manualFormPhone,
+        paymentMethod: manualFormPayment,
+        autoConfirm: !manualReceiptFile,
       });
+
+      // Step 2: if receipt provided, upload as confirmed
+      if (manualReceiptFile && manualReceiptPreview) {
+        const base64 = manualReceiptPreview.split(',')[1];
+        await api.raffles.uploadReceipt(raffleId, {
+          ticketGroupId: data.ticketGroupId,
+          buyerName: manualFormName,
+          buyerPhone: manualFormPhone,
+          imageData: base64,
+          imageMime: manualReceiptFile.type || 'image/jpeg',
+          amountExpected: manualSelectedNumbers.length * manualRafflePrice,
+          status: 'confirmed',
+        });
+      }
+
       setManualResult(data);
       setShowManualForm(false);
-      setManualFormData({ count: 1, name: '', phone: '', paymentMethod: 'manual' });
+      setManualFormName('');
+      setManualFormPhone('');
+      setManualFormPayment('manual');
+      setManualSelectedNumbers([]);
+      setManualReceiptFile(null);
+      setManualReceiptPreview(null);
+      setManualRaffleTickets(null);
       openDetail({ id: raffleId } as Raffle);
       fetchRaffles();
     } catch (err: any) {
@@ -190,8 +225,8 @@ export default function RafflesTab() {
       setUploadingReceipt(true);
       await api.raffles.uploadReceipt(raffleId, {
         ticketGroupId,
-        buyerName: manualFormData.name,
-        buyerPhone: manualFormData.phone,
+        buyerName: '',
+        buyerPhone: '',
         imageData: receiptImage,
         imageMime: 'image/jpeg',
         amountExpected: detailRaffle ? detailRaffle.price_per_number * detailRaffle.tickets!.filter(t => t.status === 'paid').length : 0,
@@ -354,9 +389,13 @@ export default function RafflesTab() {
               <span className="flex items-center gap-1">
                 <Users className="w-3 h-3" /> {raffle.sold_count || 0}/{raffle.total_numbers} vendidos
               </span>
-              {raffle.draw_date && (
+              {raffle.draw_date ? (
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3 h-3" /> {new Date(raffle.draw_date).toLocaleDateString('es-AR')}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-green-600">
+                  <Ticket className="w-3 h-3" /> Sin fecha
                 </span>
               )}
             </div>
@@ -379,7 +418,16 @@ export default function RafflesTab() {
                   </button>
                 </>
               )}
-              <button onClick={() => { setManualRaffleId(raffle.id); setShowManualForm(true); }}
+              <button onClick={async () => {
+                  setManualRaffleId(raffle.id);
+                  try {
+                    const data = await api.raffles.get(raffle.id);
+                    setManualRaffleTickets(data.tickets || []);
+                    setManualRaffleTotal(data.total_numbers);
+                    setManualRafflePrice(data.price_per_number);
+                  } catch (_) {}
+                  setShowManualForm(true);
+                }}
                 className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
                 <HandCoins className="w-3 h-3" /> Carga manual
               </button>
@@ -499,54 +547,124 @@ export default function RafflesTab() {
             className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={() => !manualLoading && setShowManualForm(false)} />
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-              className="relative w-full max-w-md bg-white rounded-[2.5rem] p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-serif font-bold text-brand-primary">Carga Manual de Compradores</h3>
+              className="relative w-full max-w-lg bg-white rounded-[2.5rem] max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between p-6 sm:p-8 border-b border-brand-accent shrink-0">
+                <h3 className="text-lg font-serif font-bold text-brand-primary">Carga manual</h3>
                 <button onClick={() => setShowManualForm(false)} className="p-2 hover:bg-brand-accent/20 rounded-full"><X className="w-5 h-5" /></button>
               </div>
+              <div className="p-6 sm:p-8 overflow-y-auto space-y-4">
+                {/* Number Grid */}
+                {manualRaffleTotal > 0 && (
+                  <div>
+                    <label className="text-xs font-bold uppercase text-gray-500 mb-2 block">
+                      Números ({manualSelectedNumbers.length} seleccionados)
+                    </label>
+                    <div className="flex flex-wrap gap-1">
+                      {(() => {
+                        const ticketMap = new Map((manualRaffleTickets || []).map((t: any) => [t.number, t]));
+                        const nums = [];
+                        for (let i = 1; i <= manualRaffleTotal; i++) nums.push(i);
+                        return nums.map(n => {
+                          const t = ticketMap.get(n);
+                          const isSelected = manualSelectedNumbers.includes(n);
+                          if (t) {
+                            return (
+                              <div key={n} className={cn(
+                                'w-10 h-10 rounded-lg flex flex-col items-center justify-center text-[9px] font-bold relative cursor-default border',
+                                t.status === 'paid' ? 'bg-green-100 text-green-800 border-green-300' :
+                                t.status === 'pending_transfer' ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                                'bg-blue-100 text-blue-800 border-blue-300'
+                              )} title={`${t.buyer_name || 'Anónimo'} · ${t.status === 'paid' ? 'Pagado' : t.status === 'pending_transfer' ? 'Pendiente' : 'Reservado'}`}>
+                                <span>{n}</span>
+                                {t.buyer_name && <span className="text-[7px] leading-none opacity-70">{t.buyer_name.charAt(0).toUpperCase()}</span>}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div key={n} onClick={() => {
+                              setManualSelectedNumbers(prev =>
+                                prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n]
+                              );
+                            }} className={cn(
+                              'w-10 h-10 rounded-lg flex items-center justify-center text-[9px] font-bold border cursor-pointer transition-colors',
+                              isSelected ? 'bg-indigo-100 text-indigo-700 border-indigo-300' :
+                              'bg-gray-50 text-gray-300 border-dashed border-gray-200 hover:border-indigo-300 hover:text-indigo-500'
+                            )}>
+                              {n}
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                    <div className="flex flex-wrap gap-3 mt-2 text-[9px]">
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-100 border border-green-300" /> Pagado</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-orange-100 border border-orange-300" /> Pendiente</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-blue-100 border border-blue-300" /> Reservado</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-indigo-100 border border-indigo-300" /> Seleccionado</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-gray-50 border border-dashed border-gray-200" /> Disponible</span>
+                    </div>
+                  </div>
+                )}
 
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold uppercase text-gray-500">Cantidad de números *</label>
-                  <input type="number" required min={1} value={manualFormData.count}
-                    onChange={e => setManualFormData({ ...manualFormData, count: parseInt(e.target.value) || 1 })}
-                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1" />
-                </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Nombre del comprador *</label>
-                  <input type="text" required value={manualFormData.name}
-                    onChange={e => setManualFormData({ ...manualFormData, name: e.target.value })}
+                  <input type="text" required value={manualFormName}
+                    onChange={e => setManualFormName(e.target.value)}
                     className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1" />
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Teléfono *</label>
-                  <input type="tel" required value={manualFormData.phone}
-                    onChange={e => setManualFormData({ ...manualFormData, phone: e.target.value })}
+                  <input type="tel" required value={manualFormPhone}
+                    onChange={e => setManualFormPhone(e.target.value)}
                     className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1" />
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Método de pago</label>
-                  <select value={manualFormData.paymentMethod}
-                    onChange={e => setManualFormData({ ...manualFormData, paymentMethod: e.target.value })}
+                  <select value={manualFormPayment}
+                    onChange={e => setManualFormPayment(e.target.value)}
                     className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1">
-                    <option value="manual">Manual (transferencia en efectivo)</option>
+                    <option value="manual">Manual (efectivo / transferencia)</option>
                     <option value="transfer">Transferencia bancaria</option>
                   </select>
                 </div>
 
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Comprobante <span className="text-gray-300 normal-case">(opcional)</span></label>
+                  <input type="file" accept="image/*"
+                    onChange={e => {
+                      const file = e.target.files?.[0] || null;
+                      setManualReceiptFile(file);
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = () => setManualReceiptPreview(reader.result as string);
+                        reader.readAsDataURL(file);
+                      } else {
+                        setManualReceiptPreview(null);
+                      }
+                    }}
+                    className="w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-primary file:text-white hover:file:opacity-90 mt-1" />
+                  {manualReceiptPreview && (
+                    <div className="mt-2 relative inline-block">
+                      <img src={manualReceiptPreview} alt="preview" className="w-20 h-20 object-cover rounded-xl border border-brand-accent" />
+                      <button onClick={() => { setManualReceiptFile(null); setManualReceiptPreview(null); }}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5"><X className="w-3 h-3" /></button>
+                    </div>
+                  )}
+                </div>
+
                 {manualResult && (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
-                    ✓ {manualResult.tickets?.length || 0} número(s) asignado(s) — Código de referencia: {manualResult.ticketGroupId}
+                    ✓ {manualSelectedNumbers.length} número(s) asignado(s)
                   </div>
                 )}
 
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-3 pt-2">
                   <button onClick={() => setShowManualForm(false)} disabled={manualLoading}
                     className="px-4 py-2 border border-brand-accent rounded-xl font-bold text-sm hover:bg-brand-accent/20">Cancelar</button>
-                  <button onClick={() => manualRaffleId && handleManualAssign(manualRaffleId)} disabled={manualLoading}
-                    className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm hover:opacity-90">
+                  <button onClick={() => manualRaffleId && handleManualAssign(manualRaffleId)} disabled={manualLoading || manualSelectedNumbers.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm hover:opacity-90 disabled:opacity-50">
                     {manualLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    Asignar
+                    Asignar {manualSelectedNumbers.length > 0 ? `${manualSelectedNumbers.length} número${manualSelectedNumbers.length > 1 ? 's' : ''}` : ''}
                   </button>
                 </div>
               </div>

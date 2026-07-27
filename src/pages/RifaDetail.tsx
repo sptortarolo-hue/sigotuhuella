@@ -275,12 +275,20 @@ export default function RifaDetail() {
                     <div className="font-bold text-brand-primary">${raffle.price_per_number.toLocaleString('es-AR')}<span className="text-xs font-normal text-gray-500"> /número</span></div>
                   </div>
                 </div>
-                {raffle.draw_date && (
+                {raffle.draw_date ? (
                   <div className="bg-white/80 backdrop-blur-sm border border-amber-200/50 rounded-2xl px-4 py-2.5 flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-amber-600" />
                     <div>
                       <div className="text-xs text-gray-500">Sorteo</div>
                       <div className="font-bold text-brand-primary">{new Date(raffle.draw_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white/80 backdrop-blur-sm border border-green-200/50 rounded-2xl px-4 py-2.5 flex items-center gap-2">
+                    <Ticket className="w-5 h-5 text-green-600" />
+                    <div>
+                      <div className="text-xs text-gray-500">Sorteo</div>
+                      <div className="font-bold text-green-700 text-sm">Se sorteará cuando se vendan todos los números</div>
                     </div>
                   </div>
                 )}

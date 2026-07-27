@@ -159,10 +159,14 @@ export default function Rifas() {
                         {countdown.days > 0 ? `${countdown.days}d ${countdown.hours}h` : `${countdown.hours}h`}
                       </span>
                     )}
-                    {raffle.draw_date && (
+                    {raffle.draw_date ? (
                       <span className="flex items-center gap-1 bg-brand-bg rounded-lg px-2 py-1">
                         <Calendar className="w-3.5 h-3.5 text-amber-600" />
                         {new Date(raffle.draw_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 bg-green-50 rounded-lg px-2 py-1 text-green-700">
+                        <Ticket className="w-3.5 h-3.5" /> Sin fecha
                       </span>
                     )}
                   </div>

@@ -215,7 +215,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 // Public: reserve numbers with payment method selection
 router.post('/:id/reserve', async (req, res) => {
   try {
-    let { numbers, count, name, phone, paymentMethod } = req.body;
+    let { numbers, count, name, phone, paymentMethod, autoConfirm } = req.body;
     if (!name || !phone) {
       return res.status(400).json({ error: 'Nombre y WhatsApp son obligatorios' });
     }
@@ -249,6 +249,15 @@ router.post('/:id/reserve', async (req, res) => {
     }
 
     const result = await reserveTickets(req.params.id, numbers, { name, phone }, paymentMethod);
+
+    // Admin manual carga: auto-confirm as paid
+    if (autoConfirm && result.ticketGroupId) {
+      await pool.query(
+        `UPDATE raffle_tickets SET status = 'paid', payment_status = 'paid', paid_at = NOW()
+         WHERE mp_external_reference = $1 AND raffle_id = $2`,
+        [result.ticketGroupId, req.params.id]
+      );
+    }
 
     if (paymentMethod === 'transfer') {
       const accountRes = await pool.query('SELECT * FROM collaboration_accounts ORDER BY display_order ASC LIMIT 1');
@@ -309,7 +318,7 @@ router.get('/:id/ticket-status/:ticketGroupId', async (req, res) => {
 router.post('/:id/receipt', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { ticketGroupId, buyerName, buyerPhone, imageData, imageMime, amountExpected } = req.body;
+    const { ticketGroupId, buyerName, buyerPhone, imageData, imageMime, amountExpected, status } = req.body;
     if (!ticketGroupId || !buyerName || !buyerPhone || !imageData) {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
@@ -318,15 +327,17 @@ router.post('/:id/receipt', requireAdmin, async (req, res) => {
     if (raffleRes.rows.length === 0) return res.status(404).json({ error: 'Rifa no encontrada' });
     const raffle = raffleRes.rows[0];
 
+    const receiptStatus = status || 'pending';
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
       const receiptRes = await client.query(
         `INSERT INTO raffle_receipts (raffle_id, ticket_group_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING *`,
-        [id, ticketGroupId, imageData, imageMime, buyerName, buyerPhone, amountExpected]
+        [id, ticketGroupId, imageData, imageMime, buyerName, buyerPhone, amountExpected, receiptStatus]
       );
 
       const receipt = receiptRes.rows[0];
