@@ -1433,6 +1433,13 @@ export async function initDb() {
       ON raffle_receipts(ticket_id)
     `, 'raffle_receipts ticket_id index');
 
+    await migrate(client, `
+      ALTER TABLE raffle_receipts ADD COLUMN IF NOT EXISTS lid_jid VARCHAR(255)
+    `, 'raffle_receipts lid_jid');
+    await migrate(client, `
+      ALTER TABLE raffle_receipts ADD COLUMN IF NOT EXISTS push_name VARCHAR(255)
+    `, 'raffle_receipts push_name');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

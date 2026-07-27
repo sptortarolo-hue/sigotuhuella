@@ -348,16 +348,15 @@ async function start() {
             const imageData = buf.toString('base64');
             const imageMime = imgMsg.mimetype || 'image/jpeg';
             const phone = getPhoneFromJid(msg);
-            if (!phone) { console.log(`[Raffle Receipt] No se pudo resolver phone para ${from}`); }
-            else {
-              await axios.post(`${VPS_URL}/api/relay/raffle-receipt`, {
-                phone,
-                image_data: imageData,
-                image_mime: imageMime,
-                wa_message_id: msg.key.id,
-              }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 30000 });
-              console.log(`[Raffle Receipt] Imagen capturada (cooldown bypass) desde ${from} -> ${phone}`);
-            }
+            await axios.post(`${VPS_URL}/api/relay/raffle-receipt`, {
+              phone,
+              lid_jid: from,
+              push_name: msg.pushName || null,
+              image_data: imageData,
+              image_mime: imageMime,
+              wa_message_id: msg.key.id,
+            }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 30000 });
+            console.log(`[Raffle Receipt] Imagen capturada (cooldown bypass) desde ${from} -> ${phone || 'sin resolver'}`);
           } catch (e) {
             console.log(`[Raffle Receipt] Error: ${e.message}`);
           }
@@ -376,16 +375,15 @@ async function start() {
           const imageData = buf.toString('base64');
           const imageMime = imgMsg.mimetype || 'image/jpeg';
           const phone = getPhoneFromJid(msg);
-          if (!phone) { console.log(`[Raffle Receipt] No se pudo resolver phone para ${from}`); }
-          else {
-            await axios.post(`${VPS_URL}/api/relay/raffle-receipt`, {
-              phone,
-              image_data: imageData,
-              image_mime: imageMime,
-              wa_message_id: msg.key.id,
-            }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 30000 });
-            console.log(`[Raffle Receipt] Imagen enviada al server desde ${from} -> ${phone}`);
-          }
+          await axios.post(`${VPS_URL}/api/relay/raffle-receipt`, {
+            phone,
+            lid_jid: from,
+            push_name: msg.pushName || null,
+            image_data: imageData,
+            image_mime: imageMime,
+            wa_message_id: msg.key.id,
+          }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 30000 });
+          console.log(`[Raffle Receipt] Imagen enviada al server desde ${from} -> ${phone || 'sin resolver'}`);
         } catch (e) {
           console.log(`[Raffle Receipt] Error: ${e.message}`);
         }

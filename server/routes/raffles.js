@@ -422,4 +422,35 @@ router.post('/cleanup', requireAdmin, async (_req, res) => {
   }
 });
 
+// Admin: get unmatched raffle receipts (no raffle_id)
+router.get('/unmatched-receipts', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM raffle_receipts WHERE raffle_id IS NULL ORDER BY created_at DESC LIMIT 50`
+    );
+    res.json({ receipts: result.rows });
+  } catch (err) {
+    console.error('GET /raffles/unmatched-receipts error:', err);
+    res.status(500).json({ error: 'Error al obtener recibos sin asignar' });
+  }
+});
+
+// Admin: assign unmatched receipt to a raffle
+router.post('/receipts/:id/assign', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { raffleId, ticketGroupId, buyerName, buyerPhone, amountExpected } = req.body;
+    if (!raffleId || !ticketGroupId) return res.status(400).json({ error: 'raffleId y ticketGroupId requeridos' });
+
+    await pool.query(
+      `UPDATE raffle_receipts SET raffle_id = $1, ticket_id = $2, buyer_name = COALESCE($3, buyer_name), buyer_phone = COALESCE($4, buyer_phone), amount_expected = $5 WHERE id = $6`,
+      [raffleId, ticketGroupId, buyerName || null, buyerPhone || null, amountExpected || null, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /raffles/receipts/:id/assign error:', err);
+    res.status(500).json({ error: 'Error al asignar recibo' });
+  }
+});
+
 export default router;

@@ -52,6 +52,18 @@ export default function RafflesTab() {
   const [receiptImage, setReceiptImage] = useState('');
   const [receiptNote, setReceiptNote] = useState('');
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [showUnmatched, setShowUnmatched] = useState(false);
+  const [unmatchedReceipts, setUnmatchedReceipts] = useState<any[]>([]);
+  const [unmatchedLoading, setUnmatchedLoading] = useState(false);
+
+  async function fetchUnmatchedReceipts() {
+    try {
+      setUnmatchedLoading(true);
+      const data = await api.raffles.unmatchedReceipts();
+      setUnmatchedReceipts(data.receipts || []);
+    } catch (err) { console.error(err); }
+    finally { setUnmatchedLoading(false); }
+  }
 
   useEffect(() => { fetchRaffles(); }, []);
 
@@ -269,6 +281,10 @@ export default function RafflesTab() {
           <button onClick={async () => { await api.raffles.cleanup(); fetchRaffles(); }}
             className="px-4 py-2 border border-brand-accent rounded-xl text-sm font-bold hover:bg-brand-accent/20">
             Limpiar reservas
+          </button>
+          <button onClick={() => { fetchUnmatchedReceipts(); setShowUnmatched(true); }}
+            className="px-4 py-2 border border-brand-accent rounded-xl text-sm font-bold hover:bg-brand-accent/20">
+            Recibos sin asignar
           </button>
           <button onClick={openNew}
             className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-bold hover:opacity-90">
@@ -686,6 +702,35 @@ export default function RafflesTab() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Unmatched Receipts Modal */}
+      {showUnmatched && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center p-4" onClick={() => setShowUnmatched(false)}>
+          <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+          <div className="relative w-full max-w-2xl bg-white rounded-[2.5rem] max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 sm:p-8 border-b border-brand-accent shrink-0">
+              <h3 className="text-lg font-bold">Recibos sin asignar</h3>
+              <button onClick={() => setShowUnmatched(false)} className="p-2 hover:bg-brand-accent/20 rounded-xl"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 sm:p-8 overflow-y-auto space-y-4">
+              {unmatchedLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-brand-primary" /></div>
+              ) : unmatchedReceipts.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No hay recibos sin asignar</p>
+              ) : unmatchedReceipts.map((r: any) => (
+                <div key={r.id} className="flex items-start gap-4 bg-brand-bg/50 p-4 rounded-xl">
+                  <img src={r.image_data} alt="receipt" className="w-20 h-20 object-cover rounded-xl shrink-0" />
+                  <div className="flex-1 min-w-0 text-sm">
+                    <p className="font-bold">{r.push_name || r.buyer_name || 'Desconocido'}</p>
+                    <p className="text-gray-500 text-xs break-words">{r.lid_jid || r.buyer_phone || 'Sin ID'}</p>
+                    <p className="text-gray-400 text-xs mt-1">{new Date(r.created_at).toLocaleString('es-AR')}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {detailLoading && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center">
