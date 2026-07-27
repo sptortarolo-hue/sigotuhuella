@@ -630,7 +630,7 @@ router.post('/:id/receipt/:receiptId/resend-bank', requireAdmin, async (req, res
 });
 
 // Admin: render raffle flyer image
-router.get('/:id/flyer', requireAdmin, async (req, res) => {
+router.get('/:id/flyer', async (req, res) => {
   try {
     const { id } = req.params;
     const raffleRes = await pool.query('SELECT * FROM raffles WHERE id = $1', [id]);
