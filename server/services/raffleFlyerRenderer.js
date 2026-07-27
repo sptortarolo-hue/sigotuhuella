@@ -11,7 +11,7 @@ const BRAND_BAR_H = 70;
 const BRAND_BAR_Y = H - BRAND_BAR_H;
 const TOP_PAD = 50;
 const BOTTOM_PAD = 20;
-const MAX_CELL_SIZE = 60;
+const MAX_CELL_SIZE = 80;
 let _canvasModule = null;
 
 async function getCanvas() {
@@ -132,6 +132,11 @@ function drawNumberGrid(ctx, startY, gridHeight, tickets, totalNumbers) {
     roundRect(ctx, x, cellY, cellSize, cellSize, Math.max(3, cellSize * 0.12));
     ctx.fill();
     ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `700 ${Math.floor(cellSize * 0.45)}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(i), x + cellSize / 2, cellY + cellSize / 2);
   }
 
   if (totalNumbers > totalCells) {
@@ -247,33 +252,69 @@ export async function renderRaffleFlyer({
 
   const gridTop = y;
   const gridBottom = drawNumberGrid(ctx, gridTop, gridH, tickets, totalNumbers);
-  y = gridBottom + 5;
+  y = gridBottom + 15;
 
   const priceText = `$ ${parseFloat(pricePerNumber).toLocaleString('es-AR')} x número`;
-  ctx.font = `800 ${34}px ${FONT}`;
+  ctx.font = `800 ${36}px ${FONT}`;
   ctx.fillStyle = '#FDE68A';
   const priceW = ctx.measureText(priceText).width;
-  const pricePadX = 20;
-  const pricePadY = 12;
+  const pricePadX = 24;
+  const pricePadY = 14;
   const priceBoxW = priceW + pricePadX * 2;
-  const priceBoxH = 34 + pricePadY * 2;
-  const priceBoxX = W - (W - COLS * (MAX_CELL_SIZE + 3) + 3) / 2 - priceBoxW;
-  const priceBoxY = gridBottom - priceBoxH - 8;
+  const priceBoxH = 36 + pricePadY * 2;
+  const priceBoxX = (W - priceBoxW) / 2;
   ctx.save();
-  ctx.globalAlpha = 0.25;
+  ctx.globalAlpha = 0.2;
   ctx.fillStyle = '#000000';
-  roundRect(ctx, priceBoxX, priceBoxY, priceBoxW, priceBoxH, 12);
+  roundRect(ctx, priceBoxX, y, priceBoxW, priceBoxH, 12);
   ctx.fill();
   ctx.restore();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(priceText, priceBoxX + priceBoxW / 2, priceBoxY + priceBoxH / 2);
-
-  y = gridBottom + 10;
+  ctx.fillText(priceText, W / 2, y + priceBoxH / 2);
+  y += priceBoxH + 15;
 
   if (description) {
-    y = drawWrappedText(ctx, description, W / 2, y, W * 0.85, 26, 3, 'rgba(255,255,255,0.75)', 1.4);
-    y += 10;
+    const descPadX = 24;
+    const descPadY = 16;
+    ctx.font = `600 28px ${FONT}`;
+    const descMaxW = W * 0.85 - descPadX * 2;
+    const words = description.split(' ');
+    const descLines = [[]];
+    let lineW = 0;
+    for (const word of words) {
+      const wordW = ctx.measureText(word + ' ').width;
+      if (lineW + wordW > descMaxW && descLines[descLines.length - 1].length > 0) {
+        if (descLines.length >= 4) break;
+        descLines.push([]);
+        lineW = 0;
+      }
+      descLines[descLines.length - 1].push(word);
+      lineW += wordW;
+    }
+    let descH = 0;
+    for (const l of descLines) {
+      if (l.length > 0) descH += 28 * 1.4;
+    }
+    descH += descPadY * 2;
+    const descBoxW = W * 0.85;
+    const descBoxX = (W - descBoxW) / 2;
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#ffffff';
+    roundRect(ctx, descBoxX, y, descBoxW, descH, 14);
+    ctx.fill();
+    ctx.restore();
+    let descY = y + descPadY;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.textBaseline = 'top';
+    for (const l of descLines) {
+      if (l.length === 0) continue;
+      ctx.textAlign = 'center';
+      ctx.fillText(l.join(' '), W / 2, descY);
+      descY += 28 * 1.4;
+    }
+    y += descH + 12;
   }
 
   if (prizes && prizes.length > 0) {
@@ -283,12 +324,18 @@ export async function renderRaffleFlyer({
     ctx.textBaseline = 'top';
     ctx.fillText('🏆 Premios', W / 2, y);
     y += 42;
-    ctx.font = `500 ${26}px ${FONT}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
     for (let i = 0; i < Math.min(prizes.length, 4); i++) {
       const p = prizes[i];
+      ctx.font = `500 ${26}px ${FONT}`;
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
       ctx.fillText(`${i + 1}° ${p.title}`, W / 2, y);
       y += 32;
+      if (p.description) {
+        y = drawWrappedText(ctx, p.description, W / 2, y, W * 0.75, 22, 2, 'rgba(255,255,255,0.55)', 1.3);
+        y += 6;
+      }
     }
     if (prizes.length > 4) {
       ctx.font = `400 ${22}px ${FONT}`;
