@@ -575,10 +575,22 @@ export default function RafflesTab() {
                     <div className="flex flex-wrap gap-1.5">
                       {detailRaffle.tickets.map(t => (
                         <div key={t.number} className={cn(
-                          'w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold',
-                          t.status === 'paid' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                          'w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold relative group',
+                          t.status === 'paid' ? 'bg-red-100 text-red-700' :
+                          t.status === 'pending_transfer' ? 'bg-orange-100 text-orange-700 cursor-pointer hover:bg-orange-200' :
+                          'bg-yellow-100 text-yellow-700'
                         )} title={`${t.buyer_name || 'Anónimo'} (${t.status})`}>
                           {t.number}
+                          {t.status === 'pending_transfer' && (
+                            <button onClick={async () => {
+                              if (!confirm(`Confirmar pago del N° ${t.number}?`)) return;
+                              await api.raffles.confirmReceipt(detailRaffle.id, t.mp_external_reference, '');
+                              openDetail({ id: detailRaffle.id } as Raffle);
+                              fetchRaffles();
+                            }} className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              ✓
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -586,15 +598,15 @@ export default function RafflesTab() {
                 )}
 
                 {/* Receipts Section */}
-                {detailRaffle.receipts && detailRaffle.receipts.length > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-sm font-bold text-gray-500 uppercase">Comprobantes</h4>
-                      <button onClick={() => setShowReceipts(true)}
-                        className="flex items-center gap-1 text-xs font-bold text-brand-primary hover:underline">
-                        <Upload className="w-3 h-3" /> Subir comprobante
-                      </button>
-                    </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-bold text-gray-500 uppercase">Comprobantes</h4>
+                    <button onClick={() => setShowReceipts(true)}
+                      className="flex items-center gap-1 text-xs font-bold text-brand-primary hover:underline">
+                      <Upload className="w-3 h-3" /> Subir comprobante
+                    </button>
+                  </div>
+                  {detailRaffle.receipts && detailRaffle.receipts.length > 0 ? (
                     <div className="space-y-2">
                       {detailRaffle.receipts.map((r: any, i: number) => (
                         <div key={i} className="flex items-center gap-3 bg-brand-bg/50 p-3 rounded-xl">
@@ -622,8 +634,10 @@ export default function RafflesTab() {
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-xs text-gray-400 italic">No hay comprobantes aún. Los comprobantes enviados por WhatsApp aparecerán aquí.</p>
+                  )}
+                </div>
 
                 {/* Upload Receipt Modal */}
                 {showReceipts && (
