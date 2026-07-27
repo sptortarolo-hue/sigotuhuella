@@ -62,7 +62,7 @@ export default function RifaDetail() {
   const [copied, setCopied] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
 
-  const [form, setForm] = useState({ name: '', email: '', phone: '' });
+  const [form, setForm] = useState({ name: '', phone: '' });
 
   useEffect(() => {
     if (!id) return;
@@ -73,8 +73,7 @@ export default function RifaDetail() {
     if (user) {
       setForm(f => ({
         ...f,
-        name: f.name || user.displayName || user.name || '',
-        email: f.email || user.email || '',
+        name: f.name || user.display_name || '',
         phone: f.phone || user.phone || '',
       }));
     }
@@ -120,8 +119,8 @@ export default function RifaDetail() {
   async function handlePurchase(e: React.FormEvent) {
     e.preventDefault();
     if (!raffle || selected.size === 0) return;
-    if (!form.name || !form.email) {
-      setCheckoutError('Nombre y email son obligatorios');
+    if (!form.name || !form.phone) {
+      setCheckoutError('Nombre y WhatsApp son obligatorios');
       return;
     }
     try {
@@ -130,7 +129,6 @@ export default function RifaDetail() {
       const data = await api.raffles.reserve(raffle.id, {
         numbers: Array.from(selected).sort((a, b) => a - b),
         name: form.name,
-        email: form.email,
         phone: form.phone,
       });
       if (data.initPoint) {
@@ -486,25 +484,16 @@ export default function RifaDetail() {
               </h2>
 
               <form onSubmit={handlePurchase} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold uppercase text-gray-500">Nombre *</label>
-                    <input type="text" required value={form.name}
-                      onChange={e => setForm({ ...form, name: e.target.value })}
-                      className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 mt-1 transition-all"
-                      placeholder="Tu nombre" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase text-gray-500">Email *</label>
-                    <input type="email" required value={form.email}
-                      onChange={e => setForm({ ...form, email: e.target.value })}
-                      className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 mt-1 transition-all"
-                      placeholder="tu@email.com" />
-                  </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-gray-500">Nombre *</label>
+                  <input type="text" required value={form.name}
+                    onChange={e => setForm({ ...form, name: e.target.value })}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 mt-1 transition-all"
+                    placeholder="Tu nombre" />
                 </div>
                 <div>
-                  <label className="text-xs font-bold uppercase text-gray-500">Teléfono (opcional)</label>
-                  <input type="tel" value={form.phone}
+                  <label className="text-xs font-bold uppercase text-gray-500">Número de WhatsApp *</label>
+                  <input type="tel" required value={form.phone}
                     onChange={e => setForm({ ...form, phone: e.target.value })}
                     className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 mt-1 transition-all"
                     placeholder="11-1234-5678" />

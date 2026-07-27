@@ -208,7 +208,7 @@ router.post('/:id/reserve', async (req, res) => {
       return res.status(400).json({ error: 'Seleccioná al menos un número' });
     }
     if (!name || !phone) {
-      return res.status(400).json({ error: 'Nombre y teléfono son obligatorios' });
+      return res.status(400).json({ error: 'Nombre y WhatsApp son obligatorios' });
     }
     if (!['mp', 'transfer', 'manual'].includes(paymentMethod)) {
       return res.status(400).json({ error: 'Método de pago inválido' });

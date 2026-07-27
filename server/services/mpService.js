@@ -122,7 +122,7 @@ export async function reserveTickets(raffleId, numbers, buyerInfo, paymentMethod
     await client.query('COMMIT');
 
     if (paymentMethod === 'mp') {
-      const mpResult = await createRafflePreference({ raffle, tickets, ticketGroupId, buyerEmail: buyerInfo.email });
+      const mpResult = await createRafflePreference({ raffle, tickets, ticketGroupId, buyerEmail: buyerInfo.email || `whatsapp-${buyerInfo.phone}@placeholder.com` });
       await client.query(
         `UPDATE raffle_tickets SET mp_payment_id = $1 WHERE mp_external_reference = $2`,
         [mpResult.preferenceId, ticketGroupId]
