@@ -22,20 +22,14 @@ let sock = null;
 let pollTimer = null;
 let reconnectCount = 0;
 
-const lidCache = new Map();
-async function resolveLid(lid) {
-  if (!lid || !lid.endsWith('@lid')) return null;
-  if (lidCache.has(lid)) return lidCache.get(lid);
-  try {
-    const [result] = await sock.onWhatsApp(lid);
-    if (result?.exists && result?.jid) {
-      const phone = result.jid.replace(/@s\.whatsapp\.net$/, '');
-      lidCache.set(lid, phone);
-      console.log(`[LID] Resolved ${lid} -> ${phone}`);
-      return phone;
-    }
-  } catch (e) {
-    console.log(`[LID] Resolution failed for ${lid}: ${e.message}`);
+function getPhoneFromJid(msg) {
+  const alt = msg.key.remoteJidAlt || msg.key.participantAlt;
+  if (alt && alt.endsWith('@s.whatsapp.net')) {
+    return alt.replace(/@s\.whatsapp\.net$/, '');
+  }
+  const primary = msg.key.remoteJid || msg.key.participant || '';
+  if (primary.endsWith('@s.whatsapp.net')) {
+    return primary.replace(/@s\.whatsapp\.net$/, '');
   }
   return null;
 }
@@ -314,11 +308,9 @@ async function start() {
             imageData = buf.toString('base64');
             imageMime = imgMsg.mimetype || 'image/jpeg';
           }
-          const authorJid = msg.key.participant || gJid;
-          let resolvedPhone = null;
-          if (authorJid.endsWith('@lid')) {
-            resolvedPhone = await resolveLid(authorJid);
-          }
+          const authorJid = msg.key.participantAlt || msg.key.participant || gJid;
+          const resolvedPhone = authorJid.endsWith('@s.whatsapp.net')
+            ? authorJid.replace(/@s\.whatsapp\.net$/, '') : null;
           await axios.post(`${VPS_URL}/api/relay/scraped-message`, {
             group_id: groupId,
             wa_message_id: msg.key.id,
@@ -355,7 +347,7 @@ async function start() {
             const buf = await streamToBuffer(stream);
             const imageData = buf.toString('base64');
             const imageMime = imgMsg.mimetype || 'image/jpeg';
-            const phone = from.endsWith('@lid') ? await resolveLid(from) : from.replace(/@s\.whatsapp\.net$/, '');
+            const phone = getPhoneFromJid(msg);
             if (!phone) { console.log(`[Raffle Receipt] No se pudo resolver phone para ${from}`); }
             else {
               await axios.post(`${VPS_URL}/api/relay/raffle-receipt`, {
@@ -383,7 +375,7 @@ async function start() {
           const buf = await streamToBuffer(stream);
           const imageData = buf.toString('base64');
           const imageMime = imgMsg.mimetype || 'image/jpeg';
-          const phone = from.endsWith('@lid') ? await resolveLid(from) : from.replace(/@s\.whatsapp\.net$/, '');
+          const phone = getPhoneFromJid(msg);
           if (!phone) { console.log(`[Raffle Receipt] No se pudo resolver phone para ${from}`); }
           else {
             await axios.post(`${VPS_URL}/api/relay/raffle-receipt`, {
