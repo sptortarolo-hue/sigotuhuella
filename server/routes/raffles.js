@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin } from '../auth.js';
 import { reserveTickets, confirmPayment, cancelExpiredReservations, confirmManualPayment, rejectManualPayment } from '../services/mpService.js';
+import { enqueue } from '../services/phoneRelayService.js';
 
 const router = Router();
 
@@ -215,7 +216,30 @@ router.post('/:id/reserve', async (req, res) => {
     }
 
     const result = await reserveTickets(req.params.id, numbers, { name, phone }, paymentMethod);
-    res.json(result);
+
+    if (paymentMethod === 'transfer') {
+      const accountRes = await pool.query('SELECT * FROM collaboration_accounts ORDER BY display_order ASC LIMIT 1');
+      const account = accountRes.rows[0] || null;
+
+      if (account) {
+        const raffleRes = await pool.query('SELECT title FROM raffles WHERE id = $1', [req.params.id]);
+        const raffleTitle = raffleRes.rows[0]?.title || 'Rifa';
+        const nums = numbers.sort((a, b) => a - b).join(', ');
+        const total = numbers.length * parseFloat((await pool.query('SELECT price_per_number FROM raffles WHERE id = $1', [req.params.id])).rows[0]?.price_per_number || 0);
+
+        const waMsg = `Hola ${name}, reservaste los números ${nums} de la rifa "${raffleTitle}".\n\nImporte: $${total.toLocaleString('es-AR')}\n\n🏦 Transferí a:\n${account.bank_name}\nAlias: ${account.alias || '-'}\nCBU: ${account.cbu || '-'}${account.cvu ? '\nCVU: ' + account.cvu : ''}\n\nEnviá el comprobante de la transferencia por este chat.`;
+
+        try {
+          await enqueue(phone, waMsg, null);
+        } catch (e) {
+          console.error('Error sending WA raffle message:', e.message);
+        }
+      }
+
+      res.json({ ...result, account });
+    } else {
+      res.json(result);
+    }
   } catch (err) {
     console.error('POST /raffles/:id/reserve error:', err);
     res.status(400).json({ error: err.message || 'Error al reservar números' });

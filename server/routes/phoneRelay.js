@@ -575,6 +575,32 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
       }
     }
 
+    // ─── Raffle receipt detection ───
+    if (image_data && authorPhone) {
+      try {
+        const { normalizePhone } = await import('../services/phoneUtils.js');
+        const normalizedIncoming = normalizePhone(authorPhone);
+        const pendingTickets = await pool.query(
+          `SELECT rt.*, r.price_per_number
+           FROM raffle_tickets rt
+           JOIN raffles r ON r.id = rt.raffle_id
+           WHERE rt.status = 'pending_transfer'`
+        );
+        const match = pendingTickets.rows.find(t => normalizePhone(t.buyer_phone) === normalizedIncoming);
+        if (match) {
+          const totalExpected = pendingTickets.rows.filter(t => normalizePhone(t.buyer_phone) === normalizedIncoming).length * parseFloat(match.price_per_number);
+          await pool.query(
+            `INSERT INTO raffle_receipts (raffle_id, ticket_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
+            [match.raffle_id, match.id, image_data, image_mime || 'image/jpeg', match.buyer_name, match.buyer_phone, totalExpected]
+          );
+          console.log(`[Relay] Raffle receipt captured for phone ${normalizedIncoming}, raffle ${match.raffle_id}`);
+        }
+      } catch (e) {
+        console.error('[Relay] Raffle receipt detection error:', e.message);
+      }
+    }
+
     res.json({ id: messageId, status: 'pending_classification', merged: isMerged });
 
     // Pre-filter: only for NEW (non-merged) messages. Merged messages already passed the filter.

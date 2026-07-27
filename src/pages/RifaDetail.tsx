@@ -61,6 +61,7 @@ export default function RifaDetail() {
   const [checkoutError, setCheckoutError] = useState('');
   const [copied, setCopied] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
+  const [reserveResult, setReserveResult] = useState<{ tickets: { number: number }[]; account: { bank_name: string; alias: string; cbu: string; cvu: string } } | null>(null);
 
   const [form, setForm] = useState({ name: '', phone: '' });
 
@@ -130,14 +131,11 @@ export default function RifaDetail() {
         numbers: Array.from(selected).sort((a, b) => a - b),
         name: form.name,
         phone: form.phone,
+        paymentMethod: 'transfer',
       });
-      if (data.initPoint) {
-        window.location.href = data.initPoint;
-      } else if (data.sandboxInitPoint) {
-        window.location.href = data.sandboxInitPoint;
-      }
+      setReserveResult({ tickets: data.tickets, account: data.account });
     } catch (err: any) {
-      setCheckoutError(err.message || 'Error al procesar la compra');
+      setCheckoutError(err.message || 'Error al procesar la reserva');
       setCheckoutLoading(false);
     }
   }
@@ -182,6 +180,62 @@ export default function RifaDetail() {
 
   const soldPercent = Math.round((raffle.stats.sold / raffle.total_numbers) * 100);
   const totalParticipantes = raffle.stats.sold + raffle.stats.reservedMp + raffle.stats.pendingTransfer + raffle.stats.pendingManual;
+
+  if (reserveResult) {
+    const reservedNumbers = reserveResult.tickets.map(t => t.number).sort((a, b) => a - b);
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 py-12">
+        <div className="max-w-md w-full text-center">
+          <div className="bg-white rounded-3xl border border-brand-accent p-6 sm:p-8">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Check className="w-8 h-8 text-green-600" />
+            </div>
+            <h1 className="text-2xl font-serif font-bold text-brand-primary mb-2">¡Números reservados!</h1>
+            <p className="text-sm text-gray-500 mb-6">Te enviamos un WhatsApp con toda la información</p>
+
+            <div className="bg-brand-bg rounded-2xl p-4 mb-4 text-left">
+              <div className="text-xs font-bold text-gray-500 uppercase mb-2">Números</div>
+              <div className="flex flex-wrap gap-1.5">
+                {reservedNumbers.map(n => (
+                  <span key={n} className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-sm font-bold">{n}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-brand-bg rounded-2xl p-4 mb-4 text-left">
+              <div className="text-xs font-bold text-gray-500 uppercase mb-2">Importe a transferir</div>
+              <div className="text-2xl font-bold text-brand-primary">${total.toLocaleString('es-AR')}</div>
+            </div>
+
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-200/50 text-left mb-6">
+              <div className="text-xs font-bold text-amber-700 uppercase mb-2">🏦 Datos para transferir</div>
+              <div className="space-y-1.5 text-sm">
+                <div className="font-bold text-gray-800">{reserveResult.account.bank_name}</div>
+                {reserveResult.account.alias && (
+                  <div><span className="text-gray-500">Alias:</span> <span className="font-bold text-gray-800">{reserveResult.account.alias}</span></div>
+                )}
+                {reserveResult.account.cbu && (
+                  <div><span className="text-gray-500">CBU:</span> <span className="font-bold text-gray-800">{reserveResult.account.cbu}</span></div>
+                )}
+                {reserveResult.account.cvu && (
+                  <div><span className="text-gray-500">CVU:</span> <span className="font-bold text-gray-800">{reserveResult.account.cvu}</span></div>
+                )}
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-400 mb-6">
+              📱 Enviá el comprobante de la transferencia por WhatsApp
+            </p>
+
+            <Link to="/rifas"
+              className="block w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all text-center">
+              Volver a rifas
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
@@ -277,7 +331,7 @@ export default function RifaDetail() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Shield className="w-4 h-4 text-green-600" />
-            <span>Pago 100% seguro con <strong className="text-gray-700">Mercado Pago</strong></span>
+            <span>Pago por transferencia bancaria</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400 mr-1">Compartir:</span>
@@ -372,7 +426,7 @@ export default function RifaDetail() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             {[
               { icon: Ticket, title: 'Elegí tus números', desc: 'Seleccioná los números que quieras del grid', color: 'amber' },
-              { icon: Shield, title: 'Pagá seguro', desc: 'Pagá con Mercado Pago de forma 100% segura', color: 'green' },
+              { icon: Shield, title: 'Pagá por transferencia', desc: 'Transferí a la cuenta que te mostramos', color: 'green' },
               { icon: Trophy, title: 'Esperá el sorteo', desc: 'El día del sorteo se sortean los premios', color: 'orange' },
             ].map(({ icon: Icon, title, desc, color }, i) => (
               <div key={i} className="bg-white rounded-2xl border border-brand-accent p-4 sm:p-5 text-center">
@@ -504,7 +558,7 @@ export default function RifaDetail() {
                     <span className="text-gray-600">{selected.size} número{selected.size > 1 ? 's' : ''} × ${raffle.price_per_number.toLocaleString('es-AR')}</span>
                     <span className="font-bold text-brand-primary text-lg">${total.toLocaleString('es-AR')}</span>
                   </div>
-                  <p className="text-xs text-gray-500">Serás redirigido a Mercado Pago para completar el pago</p>
+                  <p className="text-xs text-gray-500">Pago por transferencia bancaria</p>
                 </div>
 
                 {checkoutError && (
@@ -518,7 +572,7 @@ export default function RifaDetail() {
                   {checkoutLoading ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /> Procesando...</>
                   ) : (
-                    <>Pagar ${total.toLocaleString('es-AR')} con Mercado Pago</>
+                    <>Reservar ${total.toLocaleString('es-AR')}</>
                   )}
                 </button>
               </form>
