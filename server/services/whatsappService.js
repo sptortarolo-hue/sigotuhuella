@@ -1,6 +1,5 @@
 import axios from 'axios';
 import pool from '../db.js';
-import { enqueue } from './phoneRelayService.js';
 import { generateCelebrationText } from './textTemplates.js';
 import { enqueuePublishTask, applySpintax } from './facebookRelayService.js';
 
@@ -359,10 +358,10 @@ export async function broadcastPetToGroups(petId) {
       return;
     }
 
-    const groups = await pool.query("SELECT * FROM whatsapp_groups WHERE is_active = TRUE AND auto_broadcast = TRUE");
+    const groups = await pool.query("SELECT * FROM whatsapp_groups WHERE is_active = TRUE");
     console.log('[Broadcast] Grupos encontrados:', groups.rows.length);
     if (groups.rows.length === 0) {
-      console.log('[Broadcast] >>> SALIENDO: sin grupos con auto_broadcast');
+      console.log('[Broadcast] >>> SALIENDO: sin grupos activos');
       return;
     }
 
@@ -389,46 +388,23 @@ export async function broadcastPetToGroups(petId) {
       ? `${frontendUrl}/api/images/pet/${petId}/cover`
       : null;
 
-    console.log('[Broadcast] >>> ENCOLANDO para', groups.rows.length, 'grupo(s)');
+    console.log('[Broadcast] >>> ENVIANDO a', groups.rows.length, 'grupo(s)');
     for (const group of groups.rows) {
       try {
-        const msgType = group.type === 'channel' ? 'channel' : 'message';
-        console.log('[Broadcast] Encolando a', msgType === 'channel' ? 'canal' : 'grupo:', group.name, 'group_id:', group.group_id);
-        await enqueue(group.group_id, caption, coverUrl, msgType);
-        console.log('[Broadcast] Encolado OK:', group.name);
-      } catch (relayErr) {
-        console.warn(`[Broadcast] Relay error to ${group.name}, fallback to Meta:`, relayErr.message);
-        try {
-          if (coverUrl) {
-            await sendGroupImage(group.group_id, coverUrl, caption);
-          } else {
-            await sendGroupMessage(group.group_id, caption);
-          }
-        } catch (metaErr) {
-          console.error(`[Broadcast] Meta fallback error to ${group.name}:`, metaErr.message);
+        console.log('[Broadcast] Enviando a grupo:', group.name, 'group_id:', group.group_id);
+        if (coverUrl) {
+          await sendGroupImage(group.group_id, coverUrl, caption);
+        } else {
+          await sendGroupMessage(group.group_id, caption);
         }
+        console.log('[Broadcast] Enviado OK:', group.name);
+      } catch (err) {
+        console.error(`[Broadcast] Error sending to group ${group.name} (${group.group_id}):`, err.message);
       }
     }
   } catch (err) {
     console.error('[Broadcast] Error:', err.message);
   }
-}
-
-function buildShareButtonText(pet) {
-  const species = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : 'mascota';
-  const name = pet.name || 'una mascota';
-  const location = pet.location || 'una zona del barrio';
-  const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
-  const link = `${frontendUrl}/pet/${pet.id}`;
-
-  let body;
-  if (pet.status === 'for_adoption') {
-    body = `🐾 ${name} busca un hogar amoroso en ${location}. Dale una chance 🙏`;
-  } else {
-    body = `🐾 ${name} busca un hogar amoroso en ${location}. Sólo difusión 🙏`;
-  }
-
-  return `${body}\n\n${link}`;
 }
 
 export async function getNextAdoptionPet() {
@@ -469,7 +445,25 @@ export async function broadcastNextAdoptionPet(existingPet = null) {
     }
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
-    const caption = buildShareButtonText(pet);
+    const speciesLabel = pet.species === 'dog' ? 'perro' : pet.species === 'cat' ? 'gato' : (pet.species || 'mascota');
+    const desc = pet.description ? pet.description.substring(0, 200) : '';
+    const edadInfo = pet.age ? ` de ${pet.age}` : '';
+
+    const caption = [
+      `🏡 *Buscamos hogar para ${pet.name || 'una mascota'}*`,
+      '',
+      'En Sigo Tu Huella conectamos mascotas con familias.',
+      '',
+      `Hoy te presentamos a *${pet.name || 'una mascota'}*, ${speciesLabel}${edadInfo} que está buscando un hogar.`,
+      desc ? `\n${desc}` : '',
+      '',
+      `📍 ${pet.location || 'Sin ubicación'}`,
+      pet.contact_info ? `📞 ${pet.contact_info}` : '',
+      '',
+      `👉 ${frontendUrl}/pet/${pet.id}`,
+      '',
+      'Si no podés adoptar, compartir también ayuda 🐾',
+    ].filter(Boolean).join('\n');
 
     const coverUrl = pet.image_data
       ? `${frontendUrl}/api/images/pet/${pet.id}/cover`
@@ -477,19 +471,13 @@ export async function broadcastNextAdoptionPet(existingPet = null) {
 
     for (const group of groups) {
       try {
-        const msgType = group.type === 'channel' ? 'channel' : 'message';
-        await enqueue(group.group_id, caption, coverUrl, msgType);
-      } catch (relayErr) {
-        console.warn(`[AdoptionBroadcast] Relay error to ${group.name}, fallback to Meta:`, relayErr.message);
-        try {
-          if (coverUrl) {
-            await sendGroupImage(group.group_id, coverUrl, caption);
-          } else {
-            await sendGroupMessage(group.group_id, caption);
-          }
-        } catch (metaErr) {
-          console.error(`[AdoptionBroadcast] Meta fallback error to ${group.name}:`, metaErr.message);
+        if (coverUrl) {
+          await sendGroupImage(group.group_id, coverUrl, caption);
+        } else {
+          await sendGroupMessage(group.group_id, caption);
         }
+      } catch (err) {
+        console.error(`[AdoptionBroadcast] Error sending to ${group.name}:`, err.message);
       }
     }
 
