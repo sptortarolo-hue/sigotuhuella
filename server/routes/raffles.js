@@ -79,7 +79,7 @@ router.get('/:id', async (req, res) => {
     const receipts = await pool.query(
       `SELECT r.*, rt.number AS ticket_number
        FROM raffle_receipts r
-       LEFT JOIN raffle_tickets rt ON rt.raffle_id = r.raffle_id AND rt.mp_external_reference = r.ticket_id
+       LEFT JOIN raffle_tickets rt ON rt.id = r.ticket_id
        WHERE r.raffle_id = $1
        ORDER BY r.created_at DESC`,
       [id]
