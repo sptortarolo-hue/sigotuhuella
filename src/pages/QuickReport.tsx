@@ -244,7 +244,7 @@ export default function QuickReport() {
     return (
       <>
         {croppingIndex !== null && cropFile && (
-          <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+          <ImageCropper file={cropFile} aspect={1} fillMode="blur" onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
         )}
         <div className="min-h-[80vh] py-8 sm:py-12 px-4">
           <div className="max-w-lg mx-auto">
@@ -376,7 +376,7 @@ export default function QuickReport() {
   return (
     <>
       {croppingIndex !== null && cropFile && (
-        <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+        <ImageCropper file={cropFile} aspect={1} fillMode="blur" onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
       )}
       <div className="min-h-[80vh] py-8 sm:py-12 px-4">
         <div className="max-w-lg mx-auto">

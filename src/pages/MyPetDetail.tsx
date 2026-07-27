@@ -592,10 +592,10 @@ export default function MyPetDetail() {
   return (
     <>
       {cropMode && cropFile && (
-        <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+        <ImageCropper file={cropFile} aspect={1} fillMode="blur" onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
       )}
       {recordCropFile && (
-        <ImageCropper file={recordCropFile} aspect={1} onCropComplete={handleRecordCropComplete} onCancel={handleRecordCropCancel} />
+        <ImageCropper file={recordCropFile} aspect={1} fillMode="blur" onCropComplete={handleRecordCropComplete} onCancel={handleRecordCropCancel} />
       )}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
       <div className="flex items-center gap-4 mb-6">

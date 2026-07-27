@@ -5,20 +5,31 @@ import { X, ZoomIn, ZoomOut } from 'lucide-react';
 interface ImageCropperProps {
   file: File;
   aspect?: number;
+  fillMode?: 'crop' | 'blur';
   onCropComplete: (croppedBlob: Blob) => void;
   onCancel: () => void;
 }
 
-export default function ImageCropper({ file, aspect = 1, onCropComplete, onCancel }: ImageCropperProps) {
+export default function ImageCropper({ file, aspect = 1, fillMode = 'crop', onCropComplete, onCancel }: ImageCropperProps) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
 
   const imageUrl = useMemo(() => URL.createObjectURL(file), [file]);
 
   useEffect(() => {
     return () => URL.revokeObjectURL(imageUrl);
   }, [imageUrl]);
+
+  useEffect(() => {
+    if (fillMode !== 'blur') return;
+    const img = new Image();
+    img.onload = () => setNaturalAspect(img.naturalWidth / img.naturalHeight);
+    img.src = imageUrl;
+  }, [fillMode, imageUrl]);
+
+  const effectiveAspect = fillMode === 'blur' && naturalAspect ? naturalAspect : aspect;
 
   const onCropChange = useCallback((location: { x: number; y: number }) => {
     setCrop(location);
@@ -51,13 +62,46 @@ export default function ImageCropper({ file, aspect = 1, onCropComplete, onCance
       const cropX = croppedAreaPixels.x;
       const cropY = croppedAreaPixels.y;
 
-      const outputSize = 800;
-      canvas.width = outputSize;
-      canvas.height = outputSize;
+      if (fillMode === 'blur') {
+        const MAX = 800;
+        const outAspect = cropW / cropH;
+        let outW: number, outH: number;
+        if (outAspect >= 1) {
+          outW = MAX;
+          outH = Math.round(MAX / outAspect);
+        } else {
+          outW = Math.round(MAX * outAspect);
+          outH = MAX;
+        }
+        canvas.width = outW;
+        canvas.height = outH;
 
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, outputSize, outputSize);
-      ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, outputSize, outputSize);
+        ctx.filter = 'blur(30px)';
+        const coverScale = Math.max(outW / cropW, outH / cropH);
+        ctx.drawImage(img, cropX, cropY, cropW, cropH,
+          (outW - cropW * coverScale) / 2,
+          (outH - cropH * coverScale) / 2,
+          cropW * coverScale,
+          cropH * coverScale
+        );
+
+        ctx.filter = 'none';
+        const fitScale = Math.min(outW / cropW, outH / cropH);
+        ctx.drawImage(img, cropX, cropY, cropW, cropH,
+          (outW - cropW * fitScale) / 2,
+          (outH - cropH * fitScale) / 2,
+          cropW * fitScale,
+          cropH * fitScale
+        );
+      } else {
+        const outputSize = 800;
+        canvas.width = outputSize;
+        canvas.height = outputSize;
+
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, outputSize, outputSize);
+        ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, outputSize, outputSize);
+      }
 
       const blob = await new Promise<Blob>((resolve, reject) =>
         canvas.toBlob((b) => {
@@ -70,7 +114,7 @@ export default function ImageCropper({ file, aspect = 1, onCropComplete, onCance
     } catch (e) {
       console.error('Crop error:', e);
     }
-  }, [croppedAreaPixels, imageUrl, onCropComplete]);
+  }, [croppedAreaPixels, imageUrl, onCropComplete, fillMode]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center sm:p-4">
@@ -88,7 +132,7 @@ export default function ImageCropper({ file, aspect = 1, onCropComplete, onCance
             image={imageUrl}
             crop={crop}
             zoom={zoom}
-            aspect={aspect}
+            aspect={effectiveAspect}
             onCropChange={onCropChange}
             onZoomChange={onZoomChange}
             onCropComplete={onCropAreaComplete}

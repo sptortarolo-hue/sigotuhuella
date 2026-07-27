@@ -229,6 +229,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         <ImageCropper
           file={cropFile}
           aspect={1}
+          fillMode="blur"
           onCropComplete={handleCropComplete}
           onCancel={handleCropCancel}
         />

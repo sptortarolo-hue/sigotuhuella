@@ -284,7 +284,7 @@ export default function LostPetReport() {
   return (
     <div className="min-h-[80vh] py-8 sm:py-12 px-4">
       {croppingIndex !== null && cropFile && (
-        <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+        <ImageCropper file={cropFile} aspect={1} fillMode="blur" onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
       )}
       {loadingPets ? (
         <div className="max-w-lg mx-auto flex items-center justify-center min-h-[50vh]">

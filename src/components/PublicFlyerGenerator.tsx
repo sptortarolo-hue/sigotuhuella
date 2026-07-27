@@ -277,6 +277,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
                 <ImageCropper
                   file={pendingFile}
                   aspect={1}
+                  fillMode="blur"
                   onCropComplete={handleCropComplete}
                   onCancel={() => { setShowCropper(false); setPendingFile(null); }}
                 />
