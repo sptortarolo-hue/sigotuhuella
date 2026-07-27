@@ -211,9 +211,6 @@ export async function renderRaffleFlyer({
 
   drawBgDecorations(ctx, colorStart, colorEnd);
 
-  const remaining = BRAND_BAR_Y - y;
-  const gridH = Math.floor(remaining * 0.70);
-
   let y = TOP_PAD;
 
   const titleFontSize = title.length > 30 ? 52 : title.length > 20 ? 58 : 66;
@@ -291,6 +288,9 @@ export async function renderRaffleFlyer({
     }
     y += descH + 10;
   }
+
+  const remaining = BRAND_BAR_Y - y;
+  const gridH = Math.floor(remaining * 0.70);
 
   const gridTop = y;
   const gridBottom = drawNumberGrid(ctx, gridTop, gridH, tickets, totalNumbers);
