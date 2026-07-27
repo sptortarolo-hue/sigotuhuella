@@ -387,6 +387,7 @@ async function start() {
         } catch (e) {
           console.log(`[Raffle Receipt] Error: ${e.message}`);
         }
+        continue;
       }
 
       await sock.sendMessage(from, {
