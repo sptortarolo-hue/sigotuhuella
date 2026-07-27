@@ -8,6 +8,7 @@ import { requireAdmin } from '../auth.js';
 import { classifyWhatsAppMessage } from '../services/geminiClassifier.js';
 import { matchScrapedToAppPets, matchScrapedToScraped } from '../services/geminiMatching.js';
 import { detectAnimal } from '../services/animalDetector.js';
+import { normalizePhone } from '../services/phoneUtils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -176,6 +177,41 @@ router.post('/send', requireAdmin, async (req, res) => {
     res.json({ success: true, id });
   } catch (err) {
     console.error('[Relay] send error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/raffle-receipt', relayAuth, async (req, res) => {
+  try {
+    const { phone, image_data, image_mime, wa_message_id } = req.body;
+    if (!phone || !image_data) return res.status(400).json({ error: 'phone and image_data required' });
+
+    const normalized = normalizePhone(phone);
+    const pendingTickets = await pool.query(
+      `SELECT rt.*, r.price_per_number
+       FROM raffle_tickets rt
+       JOIN raffles r ON r.id = rt.raffle_id
+       WHERE rt.status = 'pending_transfer'`
+    );
+
+    const match = pendingTickets.rows.find(t => normalizePhone(t.buyer_phone) === normalized);
+    if (!match) return res.json({ received: true, raffle_receipt: false });
+
+    const totalExpected = pendingTickets.rows
+      .filter(t => normalizePhone(t.buyer_phone) === normalized)
+      .length * parseFloat(match.price_per_number);
+
+    await pool.query(
+      `INSERT INTO raffle_receipts (raffle_id, ticket_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
+      [match.raffle_id, match.mp_external_reference, image_data, image_mime || 'image/jpeg',
+       match.buyer_name, match.buyer_phone, totalExpected]
+    );
+    console.log(`[Raffle Receipt] Capturado para phone ${normalized}, raffle ${match.raffle_id}`);
+
+    res.json({ received: true, raffle_receipt: true });
+  } catch (err) {
+    console.error('[Relay] raffle-receipt error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -572,32 +608,6 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
         } catch (e) {
           console.error('[Relay] failed to save image:', e.message);
         }
-      }
-    }
-
-    // ─── Raffle receipt detection ───
-    if (image_data && authorPhone) {
-      try {
-        const { normalizePhone } = await import('../services/phoneUtils.js');
-        const normalizedIncoming = normalizePhone(authorPhone);
-        const pendingTickets = await pool.query(
-          `SELECT rt.*, r.price_per_number
-           FROM raffle_tickets rt
-           JOIN raffles r ON r.id = rt.raffle_id
-           WHERE rt.status = 'pending_transfer'`
-        );
-        const match = pendingTickets.rows.find(t => normalizePhone(t.buyer_phone) === normalizedIncoming);
-        if (match) {
-          const totalExpected = pendingTickets.rows.filter(t => normalizePhone(t.buyer_phone) === normalizedIncoming).length * parseFloat(match.price_per_number);
-          await pool.query(
-            `INSERT INTO raffle_receipts (raffle_id, ticket_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
-            [match.raffle_id, match.id, image_data, image_mime || 'image/jpeg', match.buyer_name, match.buyer_phone, totalExpected]
-          );
-          console.log(`[Relay] Raffle receipt captured for phone ${normalizedIncoming}, raffle ${match.raffle_id}`);
-        }
-      } catch (e) {
-        console.error('[Relay] Raffle receipt detection error:', e.message);
       }
     }
 
