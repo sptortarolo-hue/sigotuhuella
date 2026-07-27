@@ -831,14 +831,6 @@ export default function RafflesTab() {
                   </div>
                 )}
 
-                {detailRaffle.status !== 'drawn' && (
-                  <div className="flex gap-3">
-                    <button onClick={() => handleDraw(detailRaffle.id)}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-sm hover:opacity-90">
-                      <Trophy className="w-4 h-4" /> Sortear
-                    </button>
-                  </div>
-                )}
               </div>
             </motion.div>
           </motion.div>
