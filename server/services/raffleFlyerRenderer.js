@@ -250,30 +250,6 @@ export async function renderRaffleFlyer({
   }
   y += 10;
 
-  const gridTop = y;
-  const gridBottom = drawNumberGrid(ctx, gridTop, gridH, tickets, totalNumbers);
-  y = gridBottom + 15;
-
-  const priceText = `$ ${parseFloat(pricePerNumber).toLocaleString('es-AR')} x número`;
-  ctx.font = `800 ${36}px ${FONT}`;
-  ctx.fillStyle = '#FDE68A';
-  const priceW = ctx.measureText(priceText).width;
-  const pricePadX = 24;
-  const pricePadY = 14;
-  const priceBoxW = priceW + pricePadX * 2;
-  const priceBoxH = 36 + pricePadY * 2;
-  const priceBoxX = (W - priceBoxW) / 2;
-  ctx.save();
-  ctx.globalAlpha = 0.2;
-  ctx.fillStyle = '#000000';
-  roundRect(ctx, priceBoxX, y, priceBoxW, priceBoxH, 12);
-  ctx.fill();
-  ctx.restore();
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(priceText, W / 2, y + priceBoxH / 2);
-  y += priceBoxH + 15;
-
   if (description) {
     const descPadX = 24;
     const descPadY = 16;
@@ -314,8 +290,32 @@ export async function renderRaffleFlyer({
       ctx.fillText(l.join(' '), W / 2, descY);
       descY += 28 * 1.4;
     }
-    y += descH + 12;
+    y += descH + 10;
   }
+
+  const gridTop = y;
+  const gridBottom = drawNumberGrid(ctx, gridTop, gridH, tickets, totalNumbers);
+  y = gridBottom + 15;
+
+  const priceText = `$ ${parseFloat(pricePerNumber).toLocaleString('es-AR')} x número`;
+  ctx.font = `800 ${36}px ${FONT}`;
+  ctx.fillStyle = '#FDE68A';
+  const priceW = ctx.measureText(priceText).width;
+  const pricePadX = 24;
+  const pricePadY = 14;
+  const priceBoxW = priceW + pricePadX * 2;
+  const priceBoxH = 36 + pricePadY * 2;
+  const priceBoxX = (W - priceBoxW) / 2;
+  ctx.save();
+  ctx.globalAlpha = 0.2;
+  ctx.fillStyle = '#000000';
+  roundRect(ctx, priceBoxX, y, priceBoxW, priceBoxH, 12);
+  ctx.fill();
+  ctx.restore();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(priceText, W / 2, y + priceBoxH / 2);
+  y += priceBoxH + 15;
 
   if (prizes && prizes.length > 0) {
     ctx.font = `700 ${30}px ${FONT}`;
@@ -345,11 +345,31 @@ export async function renderRaffleFlyer({
     }
   }
 
-  ctx.font = `600 ${26}px ${FONT}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  y += 5;
+
+  const ctaLines = [
+    'Ayudanos, adquirí la tuya en',
+    'www.sigotuhuella.com.ar',
+    'o por WhatsApp al 221 202 5190',
+  ];
+  const ctaFontSize = 30;
+  ctx.font = `800 ${ctaFontSize}px ${FONT}`;
+  ctx.fillStyle = '#FDE68A';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillText('sigotuhuella.com.ar', W / 2, BRAND_BAR_Y - 32);
+  const ctaMaxW = W * 0.88;
+  for (const ctaLine of ctaLines) {
+    let ctaFs = ctaFontSize;
+    ctx.font = `800 ${ctaFs}px ${FONT}`;
+    if (ctx.measureText(ctaLine).width > ctaMaxW) {
+      while (ctaFs > 22 && ctx.measureText(ctaLine).width > ctaMaxW) {
+        ctaFs -= 2;
+        ctx.font = `800 ${ctaFs}px ${FONT}`;
+      }
+    }
+    ctx.fillText(ctaLine, W / 2, y);
+    y += ctaFs * 1.25;
+  }
 
   drawBrandBar(ctx, logoImage || null);
 
