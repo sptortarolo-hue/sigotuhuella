@@ -5,9 +5,10 @@ import { cn } from '@/src/lib/utils';
 import {
   Plus, X, Loader2, Trash2, Edit2, Eye, Trophy, Calendar, Ticket,
   ChevronDown, ChevronUp, AlertCircle, Check, Pause, Play, Award, Users,
-  HandCoins, Upload, CheckCircle, XCircle, MessageSquare
+  HandCoins, Upload, CheckCircle, XCircle, MessageSquare, Share2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import RafflePublishModal from './RafflePublishModal';
 
 interface Prize {
   position: number;
@@ -66,6 +67,7 @@ export default function RafflesTab() {
   const [unmatchedLoading, setUnmatchedLoading] = useState(false);
   const [assigningReceiptId, setAssigningReceiptId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [publishRaffleId, setPublishRaffleId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   async function fetchUnmatchedReceipts() {
@@ -437,10 +439,14 @@ export default function RafflesTab() {
                     console.error('Error al cargar rifa:', err);
                   });
                 }}
-                className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
-                <HandCoins className="w-3 h-3" /> Carga manual
-              </button>
-              <button onClick={() => handleDelete(raffle.id)}
+                  className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
+                  <HandCoins className="w-3 h-3" /> Carga manual
+                </button>
+                <button onClick={() => setPublishRaffleId(raffle.id)}
+                  className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
+                  <Share2 className="w-3 h-3" /> Compartir
+                </button>
+                <button onClick={() => handleDelete(raffle.id)}
                 className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50">
                 <Trash2 className="w-3 h-3" />
               </button>
@@ -1051,6 +1057,13 @@ export default function RafflesTab() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
         </div>
+      )}
+
+      {publishRaffleId && (
+        <RafflePublishModal
+          raffleId={publishRaffleId}
+          onClose={() => setPublishRaffleId(null)}
+        />
       )}
     </div>
   );

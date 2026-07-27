@@ -2,7 +2,38 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin } from '../auth.js';
 import { reserveTickets, confirmPayment, cancelExpiredReservations, confirmManualPayment, rejectManualPayment } from '../services/mpService.js';
-import { enqueue } from '../services/phoneRelayService.js';
+import { enqueue, getAllGroups } from '../services/phoneRelayService.js';
+import { renderRaffleFlyer } from '../services/raffleFlyerRenderer.js';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+let _canvasLoadImage = null;
+async function getLoadImage() {
+  if (!_canvasLoadImage) {
+    try {
+      const mod = await import('canvas');
+      _canvasLoadImage = mod.loadImage;
+    } catch {
+      _canvasLoadImage = async () => { throw new Error('canvas no disponible'); };
+    }
+  }
+  return _canvasLoadImage;
+}
+
+let _logoImage = null;
+async function getLogoImage() {
+  if (_logoImage) return _logoImage;
+  try {
+    const logoPath = join(__dirname, '..', '..', 'public', 'sigotuhuella.jpg');
+    const buf = readFileSync(logoPath);
+    const loadImage = await getLoadImage();
+    _logoImage = await loadImage(buf);
+  } catch { _logoImage = null; }
+  return _logoImage;
+}
 
 const router = Router();
 
@@ -595,6 +626,98 @@ router.post('/:id/receipt/:receiptId/resend-bank', requireAdmin, async (req, res
   } catch (err) {
     console.error('POST /raffles/:id/receipt/:receiptId/resend-bank error:', err);
     res.status(500).json({ error: 'Error al reenviar datos bancarios' });
+  }
+});
+
+// Admin: render raffle flyer image
+router.get('/:id/flyer', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const raffleRes = await pool.query('SELECT * FROM raffles WHERE id = $1', [id]);
+    if (raffleRes.rows.length === 0) return res.status(404).json({ error: 'Rifa no encontrada' });
+    const raffle = raffleRes.rows[0];
+
+    const prizes = await pool.query(
+      'SELECT * FROM raffle_prizes WHERE raffle_id = $1 ORDER BY position',
+      [id]
+    );
+    raffle.prizes = prizes.rows;
+
+    const tickets = await pool.query(
+      `SELECT t.number, t.status, t.buyer_name, t.buyer_phone, t.payment_method, t.payment_status
+       FROM raffle_tickets t
+       WHERE t.raffle_id = $1 AND t.status NOT IN ('cancelled')
+       ORDER BY t.number`,
+      [id]
+    );
+    raffle.tickets = tickets.rows;
+
+    const stats = await pool.query(
+      `SELECT
+        COUNT(*) FILTER (WHERE status = 'paid') AS sold
+       FROM raffle_tickets WHERE raffle_id = $1`,
+      [id]
+    );
+    raffle.stats = { sold: parseInt(stats.rows[0].sold) };
+
+    const logoImage = await getLogoImage();
+    const pngBuffer = await renderRaffleFlyer({
+      title: raffle.title,
+      description: raffle.description,
+      prizes: raffle.prizes,
+      stats: raffle.stats,
+      totalNumbers: raffle.total_numbers,
+      pricePerNumber: raffle.price_per_number,
+      tickets: raffle.tickets,
+      drawDate: raffle.draw_date,
+      logoImage,
+    });
+
+    res.set('Content-Type', 'image/png');
+    res.set('Content-Length', pngBuffer.length);
+    res.set('Cache-Control', 'public, max-age=300');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.end(pngBuffer);
+  } catch (err) {
+    console.error('GET /raffles/:id/flyer error:', err);
+    res.status(500).end();
+  }
+});
+
+// Admin: broadcast raffle to WhatsApp groups
+router.post('/:id/broadcast-wa', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text } = req.body;
+
+    const raffleRes = await pool.query('SELECT id, title FROM raffles WHERE id = $1', [id]);
+    if (raffleRes.rows.length === 0) return res.status(404).json({ error: 'Rifa no encontrada' });
+    const raffle = raffleRes.rows[0];
+
+    const groups = await getAllGroups();
+    if (groups.length === 0) return res.status(404).json({ error: 'No hay grupos de WhatsApp activos' });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+    const flyerUrl = `${frontendUrl}/api/raffles/${id}/flyer`;
+
+    const defaultText = `🎟️ ¡NUEVA RIFA!\n\n${raffle.title}\n\nComprá tu número en ${frontendUrl}/rifas/${id}`;
+    const caption = text || defaultText;
+
+    const results = [];
+    for (const group of groups) {
+      try {
+        const type = group.group_id?.includes('@newsletter') ? 'channel' : 'message';
+        const msgId = await enqueue(group.group_id || group.jid, caption, flyerUrl, type);
+        results.push({ group: group.name, status: 'queued', id: msgId });
+      } catch (err) {
+        results.push({ group: group.name, status: 'error', error: err.message });
+      }
+    }
+
+    res.json({ results, caption, flyerUrl });
+  } catch (err) {
+    console.error('POST /raffles/:id/broadcast-wa error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
