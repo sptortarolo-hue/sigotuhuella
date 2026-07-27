@@ -452,6 +452,7 @@ async function start() {
           }
           sentIds.push(msg.id);
           knownContacts.add(jid);
+          replyCooldowns.set(jid, Date.now());
         } catch (e) {
           const is463 = e.code === 463 || e.message?.includes('463');
           if (is463) {
