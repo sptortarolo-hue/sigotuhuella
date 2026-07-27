@@ -51,7 +51,7 @@ router.get('/:id', async (req, res) => {
     raffle.prizes = prizes.rows;
 
     const tickets = await pool.query(
-      `SELECT number, status, buyer_name, buyer_phone, payment_method, payment_status
+      `SELECT id, number, status, buyer_name, buyer_phone, payment_method, payment_status, mp_external_reference
        FROM raffle_tickets
        WHERE raffle_id = $1 AND status NOT IN ('cancelled')
        ORDER BY number`,
@@ -80,7 +80,7 @@ router.get('/:id', async (req, res) => {
     const receipts = await pool.query(
       `SELECT r.*, rt.number AS ticket_number
        FROM raffle_receipts r
-       LEFT JOIN raffle_tickets rt ON rt.id = r.ticket_id
+       LEFT JOIN raffle_tickets rt ON rt.mp_external_reference = r.ticket_group_id
        WHERE r.raffle_id = $1
        ORDER BY r.created_at DESC`,
       [id]
@@ -204,15 +204,37 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 // Public: reserve numbers with payment method selection
 router.post('/:id/reserve', async (req, res) => {
   try {
-    const { numbers, name, phone, paymentMethod } = req.body;
-    if (!numbers || !Array.isArray(numbers) || numbers.length === 0) {
-      return res.status(400).json({ error: 'Seleccioná al menos un número' });
-    }
+    let { numbers, count, name, phone, paymentMethod } = req.body;
     if (!name || !phone) {
       return res.status(400).json({ error: 'Nombre y WhatsApp son obligatorios' });
     }
     if (!['mp', 'transfer', 'manual'].includes(paymentMethod)) {
       return res.status(400).json({ error: 'Método de pago inválido' });
+    }
+
+    // If count is provided (admin manual), auto-select available numbers
+    if ((!numbers || !Array.isArray(numbers) || numbers.length === 0) && count) {
+      const availRes = await pool.query(
+        `SELECT number FROM raffle_tickets
+         WHERE raffle_id = $1 AND status NOT IN ('cancelled')
+         ORDER BY number`,
+        [req.params.id]
+      );
+      const taken = new Set(availRes.rows.map(r => r.number));
+      const allNumbers = [];
+      const raffleRes = await pool.query('SELECT total_numbers FROM raffles WHERE id = $1', [req.params.id]);
+      const total = raffleRes.rows[0]?.total_numbers || 0;
+      for (let n = 1; n <= total && allNumbers.length < count; n++) {
+        if (!taken.has(n)) allNumbers.push(n);
+      }
+      if (allNumbers.length < count) {
+        return res.status(400).json({ error: `Solo hay ${allNumbers.length} números disponibles de ${count} solicitados` });
+      }
+      numbers = allNumbers;
+    }
+
+    if (!numbers || !Array.isArray(numbers) || numbers.length === 0) {
+      return res.status(400).json({ error: 'Seleccioná al menos un número' });
     }
 
     const result = await reserveTickets(req.params.id, numbers, { name, phone }, paymentMethod);
@@ -290,7 +312,7 @@ router.post('/:id/receipt', requireAdmin, async (req, res) => {
       await client.query('BEGIN');
 
       const receiptRes = await client.query(
-        `INSERT INTO raffle_receipts (raffle_id, ticket_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status)
+        `INSERT INTO raffle_receipts (raffle_id, ticket_group_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
          RETURNING *`,
         [id, ticketGroupId, imageData, imageMime, buyerName, buyerPhone, amountExpected]
@@ -440,13 +462,42 @@ router.post('/receipts/:id/assign', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { raffleId, ticketGroupId, buyerName, buyerPhone, amountExpected } = req.body;
-    if (!raffleId || !ticketGroupId) return res.status(400).json({ error: 'raffleId y ticketGroupId requeridos' });
+    if (!raffleId) return res.status(400).json({ error: 'raffleId requerido' });
+
+    // If no ticketGroupId, create a pending_transfer reservation automatically
+    let finalTgId = ticketGroupId;
+    if (!finalTgId) {
+      const receipt = (await pool.query('SELECT * FROM raffle_receipts WHERE id = $1', [id])).rows[0];
+      if (!receipt) return res.status(404).json({ error: 'Recibo no encontrado' });
+
+      const name = buyerName || receipt.push_name || receipt.buyer_name || 'Desconocido';
+      const phone = buyerPhone || receipt.lid_jid || receipt.buyer_phone || '';
+      const raffle = (await pool.query('SELECT * FROM raffles WHERE id = $1', [raffleId])).rows[0];
+      if (!raffle) return res.status(404).json({ error: 'Rifa no encontrada' });
+
+      // Find next available number
+      const takenRes = await pool.query(
+        `SELECT number FROM raffle_tickets WHERE raffle_id = $1 AND status NOT IN ('cancelled')`,
+        [raffleId]
+      );
+      const taken = new Set(takenRes.rows.map(r => r.number));
+      let nextNum = 1;
+      while (taken.has(nextNum) && nextNum <= raffle.total_numbers) nextNum++;
+      if (nextNum > raffle.total_numbers) return res.status(400).json({ error: 'No hay números disponibles' });
+
+      finalTgId = `tg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await pool.query(
+        `INSERT INTO raffle_tickets (raffle_id, number, buyer_name, buyer_phone, mp_external_reference, status, payment_method, payment_status)
+         VALUES ($1, $2, $3, $4, $5, 'pending_transfer', 'transfer', 'pending_transfer')`,
+        [raffleId, nextNum, name, phone, finalTgId]
+      );
+    }
 
     await pool.query(
-      `UPDATE raffle_receipts SET raffle_id = $1, ticket_id = $2, buyer_name = COALESCE($3, buyer_name), buyer_phone = COALESCE($4, buyer_phone), amount_expected = $5 WHERE id = $6`,
-      [raffleId, ticketGroupId, buyerName || null, buyerPhone || null, amountExpected || null, id]
+      `UPDATE raffle_receipts SET raffle_id = $1, ticket_group_id = $2, buyer_name = COALESCE($3, buyer_name), buyer_phone = COALESCE($4, buyer_phone), amount_expected = $5 WHERE id = $6`,
+      [raffleId, finalTgId, buyerName || null, buyerPhone || null, amountExpected || null, id]
     );
-    res.json({ success: true });
+    res.json({ success: true, ticketGroupId: finalTgId });
   } catch (err) {
     console.error('POST /raffles/receipts/:id/assign error:', err);
     res.status(500).json({ error: 'Error al asignar recibo' });

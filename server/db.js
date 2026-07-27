@@ -1440,6 +1440,24 @@ export async function initDb() {
       ALTER TABLE raffle_receipts ADD COLUMN IF NOT EXISTS push_name VARCHAR(255)
     `, 'raffle_receipts push_name');
 
+    // Fix UUID → VARCHAR for ticket_id (mp_external_reference)
+    await migrate(client, `
+      ALTER TABLE raffle_receipts ADD COLUMN IF NOT EXISTS ticket_group_id VARCHAR(255)
+    `, 'raffle_receipts ticket_group_id');
+    await migrate(client, `
+      ALTER TABLE raffle_receipts ALTER COLUMN ticket_id DROP NOT NULL
+    `, 'raffle_receipts ticket_id nullable');
+
+    // Add telegram_id for potential future use
+    await migrate(client, `
+      ALTER TABLE raffle_receipts ADD COLUMN IF NOT EXISTS raffle_ticket_id UUID REFERENCES raffle_tickets(id)
+    `, 'raffle_receipts raffle_ticket_id');
+
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_raffle_receipts_ticket_group_id
+      ON raffle_receipts(ticket_group_id)
+    `, 'raffle_receipts ticket_group_id index');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

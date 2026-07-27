@@ -45,6 +45,7 @@ export default function RafflesTab() {
   const [drawResult, setDrawResult] = useState<any>(null);
 
   const [showManualForm, setShowManualForm] = useState(false);
+  const [manualRaffleId, setManualRaffleId] = useState<string | null>(null);
   const [manualFormData, setManualFormData] = useState({ count: 1, name: '', phone: '', paymentMethod: 'manual' });
   const [manualLoading, setManualLoading] = useState(false);
   const [manualResult, setManualResult] = useState<any>(null);
@@ -55,6 +56,7 @@ export default function RafflesTab() {
   const [showUnmatched, setShowUnmatched] = useState(false);
   const [unmatchedReceipts, setUnmatchedReceipts] = useState<any[]>([]);
   const [unmatchedLoading, setUnmatchedLoading] = useState(false);
+  const [assigningReceiptId, setAssigningReceiptId] = useState<string | null>(null);
 
   async function fetchUnmatchedReceipts() {
     try {
@@ -171,7 +173,7 @@ export default function RafflesTab() {
       setManualResult(data);
       setShowManualForm(false);
       setManualFormData({ count: 1, name: '', phone: '', paymentMethod: 'manual' });
-      openDetail(detailRaffle!);
+      openDetail({ id: raffleId } as Raffle);
       fetchRaffles();
     } catch (err: any) {
       alert(err.message || 'Error en la asignación manual');
@@ -355,7 +357,7 @@ export default function RafflesTab() {
                   </button>
                 </>
               )}
-              <button onClick={() => setShowManualForm(true)}
+              <button onClick={() => { setManualRaffleId(raffle.id); setShowManualForm(true); }}
                 className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
                 <HandCoins className="w-3 h-3" /> Carga manual
               </button>
@@ -519,7 +521,7 @@ export default function RafflesTab() {
                 <div className="flex justify-end gap-3">
                   <button onClick={() => setShowManualForm(false)} disabled={manualLoading}
                     className="px-4 py-2 border border-brand-accent rounded-xl font-bold text-sm hover:bg-brand-accent/20">Cancelar</button>
-                  <button onClick={() => detailRaffle && handleManualAssign(detailRaffle.id)} disabled={manualLoading}
+                  <button onClick={() => manualRaffleId && handleManualAssign(manualRaffleId)} disabled={manualLoading}
                     className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm hover:opacity-90">
                     {manualLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     Asignar
@@ -589,26 +591,43 @@ export default function RafflesTab() {
                       Números ({detailRaffle.tickets.length})
                     </h4>
                     <div className="flex flex-wrap gap-1.5">
-                      {detailRaffle.tickets.map(t => (
+                      {detailRaffle.tickets.map(t => {
+                        const receiptForTicket = detailRaffle.receipts?.find((r: any) => r.ticket_group_id === (t as any).mp_external_reference);
+                        return (
                         <div key={t.number} className={cn(
                           'w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold relative group',
                           t.status === 'paid' ? 'bg-red-100 text-red-700' :
                           t.status === 'pending_transfer' ? 'bg-orange-100 text-orange-700 cursor-pointer hover:bg-orange-200' :
                           'bg-yellow-100 text-yellow-700'
-                        )} title={`${t.buyer_name || 'Anónimo'} (${t.status})`}>
+                        )} title={`${t.buyer_name || 'Anónimo'} (${t.status})${receiptForTicket ? ' - Tiene comprobante' : ''}`}>
                           {t.number}
-                          {t.status === 'pending_transfer' && (
+                          {receiptForTicket && (
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 hidden group-hover:block">
+                              <div className="bg-white rounded-xl shadow-xl border border-brand-accent p-2 w-24">
+                                <img src={receiptForTicket.image_data} alt="comprobante" className="w-full aspect-square object-cover rounded-lg" />
+                                <p className={cn(
+                                  'text-[8px] text-center mt-1 font-bold',
+                                  receiptForTicket.status === 'confirmed' ? 'text-green-600' :
+                                  receiptForTicket.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'
+                                )}>
+                                  {receiptForTicket.status === 'confirmed' ? '✓ Confirmado' :
+                                   receiptForTicket.status === 'rejected' ? '✗ Rechazado' : 'Pendiente'}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {t.status === 'pending_transfer' && receiptForTicket && (
                             <button onClick={async () => {
                               if (!confirm(`Confirmar pago del N° ${t.number}?`)) return;
-                              await api.raffles.confirmReceipt(detailRaffle.id, t.mp_external_reference, '');
-                              openDetail({ id: detailRaffle.id } as Raffle);
+                              await api.raffles.confirmReceipt(detailRaffle!.id, receiptForTicket.id, '');
+                              openDetail({ id: detailRaffle!.id } as Raffle);
                               fetchRaffles();
                             }} className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                               ✓
                             </button>
                           )}
                         </div>
-                      ))}
+                      )})}
                     </div>
                   </div>
                 )}
@@ -718,12 +737,46 @@ export default function RafflesTab() {
               ) : unmatchedReceipts.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">No hay recibos sin asignar</p>
               ) : unmatchedReceipts.map((r: any) => (
-                <div key={r.id} className="flex items-start gap-4 bg-brand-bg/50 p-4 rounded-xl">
-                  <img src={r.image_data} alt="receipt" className="w-20 h-20 object-cover rounded-xl shrink-0" />
-                  <div className="flex-1 min-w-0 text-sm">
-                    <p className="font-bold">{r.push_name || r.buyer_name || 'Desconocido'}</p>
-                    <p className="text-gray-500 text-xs break-words">{r.lid_jid || r.buyer_phone || 'Sin ID'}</p>
-                    <p className="text-gray-400 text-xs mt-1">{new Date(r.created_at).toLocaleString('es-AR')}</p>
+                <div key={r.id} className="bg-brand-bg/50 p-4 rounded-xl space-y-3">
+                  <div className="flex items-start gap-4">
+                    <img src={r.image_data} alt="receipt" className="w-20 h-20 object-cover rounded-xl shrink-0" />
+                    <div className="flex-1 min-w-0 text-sm">
+                      <p className="font-bold">{r.push_name || r.buyer_name || 'Desconocido'}</p>
+                      <p className="text-gray-500 text-xs break-words">{r.lid_jid || r.buyer_phone || 'Sin ID'}</p>
+                      <p className="text-gray-400 text-xs mt-1">{new Date(r.created_at).toLocaleString('es-AR')}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <select
+                      className="w-full px-3 py-2 bg-white rounded-xl border border-brand-accent outline-none text-sm"
+                      value={assigningReceiptId === r.id ? r._selectedRaffle || '' : ''}
+                      onChange={(e) => { r._selectedRaffle = e.target.value; setAssigningReceiptId(r.id); }}
+                    >
+                      <option value="">Seleccionar rifa...</option>
+                      {raffles.filter(rf => rf.status !== 'drawn').map(rf => (
+                        <option key={rf.id} value={rf.id}>{rf.title}</option>
+                      ))}
+                    </select>
+                    <button
+                      disabled={!r._selectedRaffle}
+                      onClick={async () => {
+                        if (!r._selectedRaffle) return;
+                        try {
+                          await api.raffles.assignReceipt(r.id, {
+                            raffleId: r._selectedRaffle,
+                            buyerName: r.push_name || r.buyer_name,
+                            buyerPhone: r.lid_jid || r.buyer_phone,
+                          });
+                          fetchUnmatchedReceipts();
+                          fetchRaffles();
+                        } catch (err: any) {
+                          alert(err.message || 'Error al asignar');
+                        }
+                      }}
+                      className="px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm hover:opacity-90 disabled:opacity-50"
+                    >
+                      Asignar a rifa
+                    </button>
                   </div>
                 </div>
               ))}

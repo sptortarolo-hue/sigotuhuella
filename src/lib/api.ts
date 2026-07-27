@@ -401,7 +401,7 @@ export const api = {
       request(`/raffles/${raffleId}/receipt/${receiptId}/reject`, { method: 'POST', body: JSON.stringify({ adminNote: note }) }),
     cleanup: () => request('/raffles/cleanup', { method: 'POST' }),
     unmatchedReceipts: () => request('/raffles/unmatched-receipts'),
-    assignReceipt: (id: string, data: { raffleId: string; ticketGroupId: string; buyerName?: string; buyerPhone?: string; amountExpected?: number }) =>
+    assignReceipt: (id: string, data: { raffleId: string; ticketGroupId?: string; buyerName?: string; buyerPhone?: string; amountExpected?: number }) =>
       request(`/raffles/receipts/${id}/assign`, { method: 'POST', body: JSON.stringify(data) }),
   },
 };

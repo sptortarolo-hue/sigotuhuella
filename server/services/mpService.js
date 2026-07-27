@@ -1,5 +1,7 @@
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import pool from '../db.js';
+import { normalizePhone } from './phoneUtils.js';
+import { enqueue } from './phoneRelayService.js';
 
 let mpClient = null;
 
@@ -102,6 +104,7 @@ export async function reserveTickets(raffleId, numbers, buyerInfo, paymentMethod
       throw new Error(`Solo quedan ${raffle.total_numbers - totalReserved} números disponibles`);
     }
 
+    const normalizedPhone = normalizePhone(buyerInfo.phone) || buyerInfo.phone;
     const ticketGroupId = `tg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const ticketStatus = paymentMethod === 'mp' ? 'reserved'
       : paymentMethod === 'transfer' ? 'pending_transfer'
@@ -114,7 +117,7 @@ export async function reserveTickets(raffleId, numbers, buyerInfo, paymentMethod
            (raffle_id, number, buyer_name, buyer_phone, mp_external_reference, status, payment_method, payment_status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id, number`,
-        [raffleId, num, buyerInfo.name, buyerInfo.phone, ticketGroupId, ticketStatus, paymentMethod, ticketStatus]
+        [raffleId, num, buyerInfo.name, normalizedPhone, ticketGroupId, ticketStatus, paymentMethod, ticketStatus]
       );
       tickets.push(res.rows[0]);
     }
@@ -156,9 +159,10 @@ export async function confirmManualPayment(receiptId, adminNote = '') {
       [adminNote, receiptId]
     );
 
+    const tgId = receipt.ticket_group_id || receipt.ticket_id;
     const ticketsRes = await client.query(
-      'SELECT id FROM raffle_tickets WHERE raffle_id = $1 AND mp_external_reference = $2 AND status IN ($3, $4)',
-      [receipt.raffle_id, receipt.ticket_id, 'pending_transfer', 'pending_manual']
+      'SELECT id, buyer_phone, buyer_name FROM raffle_tickets WHERE raffle_id = $1 AND mp_external_reference = $2 AND status IN ($3, $4)',
+      [receipt.raffle_id, tgId, 'pending_transfer', 'pending_manual']
     );
     for (const t of ticketsRes.rows) {
       await client.query(
@@ -168,6 +172,18 @@ export async function confirmManualPayment(receiptId, adminNote = '') {
     }
 
     await client.query('COMMIT');
+
+    // Notify buyer
+    if (ticketsRes.rows.length > 0) {
+      const buyerPhone = ticketsRes.rows[0].buyer_phone;
+      const buyerName = ticketsRes.rows[0].buyer_name;
+      const raffleRes = await pool.query('SELECT title FROM raffles WHERE id = $1', [receipt.raffle_id]);
+      const raffleTitle = raffleRes.rows[0]?.title || 'Rifa';
+      if (buyerPhone) {
+        enqueue(buyerPhone, `✅ Hola ${buyerName || ''}, tu pago para la rifa "${raffleTitle}" fue CONFIRMADO. ¡Gracias por participar!`, null).catch(() => {});
+      }
+    }
+
     return { success: true, raffleId: receipt.raffle_id, ticketsConfirmed: ticketsRes.rows.length };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -193,13 +209,31 @@ export async function rejectManualPayment(receiptId, adminNote = '') {
       [adminNote, receiptId]
     );
 
+    const tgId = receipt.ticket_group_id || receipt.ticket_id;
+    const ticketsRes = await client.query(
+      'SELECT buyer_phone, buyer_name FROM raffle_tickets WHERE raffle_id = $1 AND mp_external_reference = $2 AND status IN ($3, $4)',
+      [receipt.raffle_id, tgId, 'pending_transfer', 'pending_manual']
+    );
+
     await client.query(
       `UPDATE raffle_tickets SET status = 'cancelled', payment_status = 'cancelled'
        WHERE raffle_id = $1 AND mp_external_reference = $2 AND status IN ('pending_transfer', 'pending_manual')`,
-      [receipt.raffle_id, receipt.ticket_id]
+      [receipt.raffle_id, tgId]
     );
 
     await client.query('COMMIT');
+
+    // Notify buyer
+    if (ticketsRes.rows.length > 0) {
+      const buyerPhone = ticketsRes.rows[0].buyer_phone;
+      const buyerName = ticketsRes.rows[0].buyer_name;
+      const raffleRes = await pool.query('SELECT title FROM raffles WHERE id = $1', [receipt.raffle_id]);
+      const raffleTitle = raffleRes.rows[0]?.title || 'Rifa';
+      if (buyerPhone) {
+        enqueue(buyerPhone, `❌ Hola ${buyerName || ''}, lamentamos informarte que tu pago para la rifa "${raffleTitle}" fue RECHAZADO. Motivo: ${adminNote || 'el comprobante no pudo ser verificado'}.`, null).catch(() => {});
+      }
+    }
+
     return { success: true, raffleId: receipt.raffle_id };
   } catch (err) {
     await client.query('ROLLBACK');
