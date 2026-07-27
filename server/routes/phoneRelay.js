@@ -195,7 +195,11 @@ router.post('/raffle-receipt', relayAuth, async (req, res) => {
     );
 
     const match = pendingTickets.rows.find(t => normalizePhone(t.buyer_phone) === normalized);
-    if (!match) return res.json({ received: true, raffle_receipt: false });
+    if (!match) {
+      const pendingPhones = pendingTickets.rows.map(t => `${t.buyer_phone} -> ${normalizePhone(t.buyer_phone)}`);
+      console.log(`[Raffle Receipt] No match for phone ${normalized}. Pending phones: [${pendingPhones.join(', ')}]`);
+      return res.json({ received: true, raffle_receipt: false });
+    }
 
     const totalExpected = pendingTickets.rows
       .filter(t => normalizePhone(t.buyer_phone) === normalized)
@@ -528,7 +532,7 @@ router.post('/scraped-message', relayAuth, async (req, res) => {
     const existing = await pool.query('SELECT id FROM whatsapp_scraped_messages WHERE wa_message_id = $1', [wa_message_id]);
     if (existing.rows.length > 0) return res.json({ skipped: true, reason: 'duplicate' });
 
-    const authorPhone = author_jid ? author_jid.replace(/@s\.whatsapp\.net$/i, '').replace(/[^0-9]/g, '') : null;
+    const authorPhone = req.body.resolved_phone || (author_jid ? author_jid.replace(/@s\.whatsapp\.net$/i, '').replace(/[^0-9]/g, '') : null);
 
     // Check for recent message from same author in same group (last 1 minute)
     const recentRes = await pool.query(

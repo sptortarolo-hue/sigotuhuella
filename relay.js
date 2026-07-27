@@ -22,6 +22,24 @@ let sock = null;
 let pollTimer = null;
 let reconnectCount = 0;
 
+const lidCache = new Map();
+async function resolveLid(lid) {
+  if (!lid || !lid.endsWith('@lid')) return null;
+  if (lidCache.has(lid)) return lidCache.get(lid);
+  try {
+    const [result] = await sock.onWhatsApp(lid);
+    if (result?.exists && result?.jid) {
+      const phone = result.jid.replace(/@s\.whatsapp\.net$/, '');
+      lidCache.set(lid, phone);
+      console.log(`[LID] Resolved ${lid} -> ${phone}`);
+      return phone;
+    }
+  } catch (e) {
+    console.log(`[LID] Resolution failed for ${lid}: ${e.message}`);
+  }
+  return null;
+}
+
 const timelock = {
   active: false,
   expiresAt: 0,
@@ -296,11 +314,17 @@ async function start() {
             imageData = buf.toString('base64');
             imageMime = imgMsg.mimetype || 'image/jpeg';
           }
+          const authorJid = msg.key.participant || gJid;
+          let resolvedPhone = null;
+          if (authorJid.endsWith('@lid')) {
+            resolvedPhone = await resolveLid(authorJid);
+          }
           await axios.post(`${VPS_URL}/api/relay/scraped-message`, {
             group_id: groupId,
             wa_message_id: msg.key.id,
-            author_jid: msg.key.participant || gJid,
+            author_jid: authorJid,
             author_name: msg.pushName || null,
+            resolved_phone: resolvedPhone,
             content: text,
             image_data: imageData,
             image_mime: imageMime,
@@ -331,13 +355,17 @@ async function start() {
             const buf = await streamToBuffer(stream);
             const imageData = buf.toString('base64');
             const imageMime = imgMsg.mimetype || 'image/jpeg';
-            await axios.post(`${VPS_URL}/api/relay/raffle-receipt`, {
-              phone: from.replace(/@s\.whatsapp\.net$/, ''),
-              image_data: imageData,
-              image_mime: imageMime,
-              wa_message_id: msg.key.id,
-            }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 30000 });
-            console.log(`[Raffle Receipt] Imagen capturada (cooldown bypass) desde ${from}`);
+            const phone = from.endsWith('@lid') ? await resolveLid(from) : from.replace(/@s\.whatsapp\.net$/, '');
+            if (!phone) { console.log(`[Raffle Receipt] No se pudo resolver phone para ${from}`); }
+            else {
+              await axios.post(`${VPS_URL}/api/relay/raffle-receipt`, {
+                phone,
+                image_data: imageData,
+                image_mime: imageMime,
+                wa_message_id: msg.key.id,
+              }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 30000 });
+              console.log(`[Raffle Receipt] Imagen capturada (cooldown bypass) desde ${from} -> ${phone}`);
+            }
           } catch (e) {
             console.log(`[Raffle Receipt] Error: ${e.message}`);
           }
@@ -355,13 +383,17 @@ async function start() {
           const buf = await streamToBuffer(stream);
           const imageData = buf.toString('base64');
           const imageMime = imgMsg.mimetype || 'image/jpeg';
-          await axios.post(`${VPS_URL}/api/relay/raffle-receipt`, {
-            phone: from.replace(/@s\.whatsapp\.net$/, ''),
-            image_data: imageData,
-            image_mime: imageMime,
-            wa_message_id: msg.key.id,
-          }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 30000 });
-          console.log(`[Raffle Receipt] Imagen enviada al server desde ${from}`);
+          const phone = from.endsWith('@lid') ? await resolveLid(from) : from.replace(/@s\.whatsapp\.net$/, '');
+          if (!phone) { console.log(`[Raffle Receipt] No se pudo resolver phone para ${from}`); }
+          else {
+            await axios.post(`${VPS_URL}/api/relay/raffle-receipt`, {
+              phone,
+              image_data: imageData,
+              image_mime: imageMime,
+              wa_message_id: msg.key.id,
+            }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 30000 });
+            console.log(`[Raffle Receipt] Imagen enviada al server desde ${from} -> ${phone}`);
+          }
         } catch (e) {
           console.log(`[Raffle Receipt] Error: ${e.message}`);
         }
