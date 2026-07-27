@@ -90,6 +90,10 @@ export default function RifaDetail() {
     (raffle?.tickets || []).filter(t => t.status !== 'paid' && t.status !== 'cancelled').map(t => t.number)
   ), [raffle?.tickets]);
 
+  const ticketMap = useMemo(() => new Map(
+    (raffle?.tickets || []).map(t => [t.number, t])
+  ), [raffle?.tickets]);
+
   function toggleNumber(num: number) {
     if (soldNumbers.has(num) || reservedNumbers.has(num)) return;
     setSelected(prev => {
@@ -487,6 +491,7 @@ export default function RifaDetail() {
               const isSold = soldNumbers.has(num);
               const isReserved = reservedNumbers.has(num);
               const isSelected = selected.has(num);
+              const ticket = ticketMap.get(num);
 
               return (
                 <motion.button
@@ -494,15 +499,17 @@ export default function RifaDetail() {
                   whileTap={!isSold && !isReserved ? { scale: 0.9 } : undefined}
                   onClick={() => toggleNumber(num)}
                   disabled={isSold || isReserved}
+                  title={ticket?.buyer_name ? `${ticket.buyer_name} · ${ticket.status === 'paid' ? 'Pagado' : 'Reservado'}` : undefined}
                   className={cn(
-                    'aspect-square rounded-xl flex items-center justify-center text-xs sm:text-sm font-bold transition-all duration-200',
-                    isSold && 'bg-red-50 text-red-300 cursor-not-allowed line-through',
-                    isReserved && 'bg-amber-50 text-amber-400 cursor-not-allowed',
+                    'aspect-square rounded-xl flex flex-col items-center justify-center text-xs sm:text-sm font-bold transition-all duration-200 relative',
+                    isSold && 'bg-green-100 text-green-700 cursor-not-allowed border border-green-300',
+                    isReserved && 'bg-orange-100 text-orange-700 cursor-not-allowed border border-orange-300',
                     isSelected && 'bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-200 scale-105 ring-2 ring-amber-300',
                     !isSold && !isReserved && !isSelected && 'bg-brand-bg hover:bg-amber-50 text-gray-700 hover:text-amber-700 cursor-pointer border border-transparent hover:border-amber-200',
                   )}
                 >
-                  {num}
+                  <span>{num}</span>
+                  {ticket?.buyer_name && <span className="text-[8px] sm:text-[10px] leading-none opacity-70">{ticket.buyer_name.charAt(0).toUpperCase()}</span>}
                 </motion.button>
               );
             })}
@@ -516,10 +523,10 @@ export default function RifaDetail() {
               <span className="w-4 h-4 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500" /> Seleccionado
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-4 h-4 rounded-lg bg-red-50" /> Vendido
+              <span className="w-4 h-4 rounded-lg bg-green-100 border border-green-300" /> Vendido
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-4 h-4 rounded-lg bg-amber-50" /> Reservado
+              <span className="w-4 h-4 rounded-lg bg-orange-100 border border-orange-300" /> Reservado
             </span>
           </div>
         </div>
