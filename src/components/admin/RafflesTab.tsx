@@ -418,15 +418,24 @@ export default function RafflesTab() {
                   </button>
                 </>
               )}
-              <button onClick={async () => {
+              <button onClick={() => {
                   setManualRaffleId(raffle.id);
-                  try {
-                    const data = await api.raffles.get(raffle.id);
+                  setManualRaffleTickets(null);
+                  setManualRaffleTotal(0);
+                  setManualSelectedNumbers([]);
+                  setManualReceiptFile(null);
+                  setManualReceiptPreview(null);
+                  setManualFormName('');
+                  setManualFormPhone('');
+                  setManualFormPayment('manual');
+                  setShowManualForm(true);
+                  api.raffles.get(raffle.id).then(data => {
                     setManualRaffleTickets(data.tickets || []);
                     setManualRaffleTotal(data.total_numbers);
                     setManualRafflePrice(data.price_per_number);
-                  } catch (_) {}
-                  setShowManualForm(true);
+                  }).catch(err => {
+                    console.error('Error al cargar rifa:', err);
+                  });
                 }}
                 className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
                 <HandCoins className="w-3 h-3" /> Carga manual
@@ -554,7 +563,11 @@ export default function RafflesTab() {
               </div>
               <div className="p-6 sm:p-8 overflow-y-auto space-y-4">
                 {/* Number Grid */}
-                {manualRaffleTotal > 0 && (
+                {manualRaffleTickets === null ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
+                  </div>
+                ) : manualRaffleTotal > 0 ? (
                   <div>
                     <label className="text-xs font-bold uppercase text-gray-500 mb-2 block">
                       Números ({manualSelectedNumbers.length} seleccionados)
@@ -604,6 +617,8 @@ export default function RafflesTab() {
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-gray-50 border border-dashed border-gray-200" /> Disponible</span>
                     </div>
                   </div>
+                ) : (
+                  <p className="text-sm text-red-500 text-center py-4">Error al cargar los números</p>
                 )}
 
                 <div>
