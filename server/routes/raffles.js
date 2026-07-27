@@ -504,4 +504,69 @@ router.post('/receipts/:id/assign', requireAdmin, async (req, res) => {
   }
 });
 
+// Admin: release tickets (cancel + free numbers) by ticket group
+router.post('/tickets/release', requireAdmin, async (req, res) => {
+  try {
+    const { ticketGroupId } = req.body;
+    if (!ticketGroupId) return res.status(400).json({ error: 'ticketGroupId requerido' });
+
+    const result = await pool.query(
+      `UPDATE raffle_tickets SET status = 'cancelled', payment_status = 'cancelled'
+       WHERE mp_external_reference = $1 AND status IN ('pending_transfer', 'pending_manual')
+       RETURNING id, number, raffle_id`,
+      [ticketGroupId]
+    );
+
+    if (result.rowCount === 0) return res.status(404).json({ error: 'No se encontraron tickets pendientes para liberar' });
+
+    // Also cancel any pending receipts for this group
+    await pool.query(
+      `UPDATE raffle_receipts SET status = 'cancelled'
+       WHERE ticket_group_id = $1 AND status = 'pending'`,
+      [ticketGroupId]
+    );
+
+    res.json({ success: true, released: result.rows.length, tickets: result.rows });
+  } catch (err) {
+    console.error('POST /raffles/tickets/release error:', err);
+    res.status(500).json({ error: 'Error al liberar números' });
+  }
+});
+
+// Admin: resend bank details for a pending receipt
+router.post('/:id/receipt/:receiptId/resend-bank', requireAdmin, async (req, res) => {
+  try {
+    const { id, receiptId } = req.params;
+    const receipt = (await pool.query('SELECT * FROM raffle_receipts WHERE id = $1 AND raffle_id = $2', [receiptId, id])).rows[0];
+    if (!receipt) return res.status(404).json({ error: 'Comprobante no encontrado' });
+
+    const tgId = receipt.ticket_group_id;
+    if (!tgId) return res.status(400).json({ error: 'Este recibo no tiene ticket group asignado' });
+
+    const tickets = await pool.query(
+      `SELECT buyer_phone, buyer_name, number FROM raffle_tickets
+       WHERE mp_external_reference = $1 AND status IN ('pending_transfer', 'pending_manual')`,
+      [tgId]
+    );
+    if (tickets.rows.length === 0) return res.status(404).json({ error: 'No hay tickets pendientes para este grupo' });
+
+    const t = tickets.rows[0];
+    const nums = tickets.rows.map(r => r.number).sort((a, b) => a - b).join(', ');
+    const raffle = (await pool.query('SELECT title, price_per_number FROM raffles WHERE id = $1', [id])).rows[0];
+    if (!raffle) return res.status(404).json({ error: 'Rifa no encontrada' });
+
+    const account = (await pool.query('SELECT * FROM collaboration_accounts ORDER BY display_order ASC LIMIT 1')).rows[0];
+    if (!account) return res.status(400).json({ error: 'No hay cuentas bancarias configuradas' });
+
+    const total = tickets.rows.length * parseFloat(raffle.price_per_number);
+    const waMsg = `Hola ${t.buyer_name}, recordatorio de tu reserva de los números ${nums} de la rifa "${raffle.title}".\n\nImporte: $${total.toLocaleString('es-AR')}\n\n🏦 Transferí a:\n${account.bank_name}\nAlias: ${account.alias || '-'}\nCBU: ${account.cbu || '-'}${account.cvu ? '\nCVU: ' + account.cvu : ''}\n\nEnviá el comprobante de la transferencia por este chat.`;
+
+    const msgId = await enqueue(t.buyer_phone, waMsg, null);
+    res.json({ success: true, messageId: msgId, buyerPhone: t.buyer_phone });
+  } catch (err) {
+    console.error('POST /raffles/:id/receipt/:receiptId/resend-bank error:', err);
+    res.status(500).json({ error: 'Error al reenviar datos bancarios' });
+  }
+});
+
 export default router;

@@ -5,7 +5,7 @@ import { cn } from '@/src/lib/utils';
 import {
   Plus, X, Loader2, Trash2, Edit2, Eye, Trophy, Calendar, Ticket,
   ChevronDown, ChevronUp, AlertCircle, Check, Pause, Play, Award, Users,
-  HandCoins, Upload, CheckCircle, XCircle
+  HandCoins, Upload, CheckCircle, XCircle, MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -217,7 +217,7 @@ export default function RafflesTab() {
   }
 
   async function handleReceiptReject(receiptId: string, raffleId: string) {
-    if (!confirm('¿Rechazar este comprobante?')) return;
+    if (!confirm('¿Rechazar este comprobante? Los números seguirán reservados. El comprador puede reenviar otro comprobante.')) return;
     try {
       await api.raffles.rejectReceipt(raffleId, receiptId, receiptNote);
       setReceiptNote('');
@@ -225,6 +225,26 @@ export default function RafflesTab() {
       fetchRaffles();
     } catch (err: any) {
       alert(err.message || 'Error al rechazar');
+    }
+  }
+
+  async function handleReleaseTickets(ticketGroupId: string, buyerName: string) {
+    if (!confirm(`¿Liberar los números de ${buyerName}? Se cancelará la reserva y los números quedarán disponibles para otros compradores.`)) return;
+    try {
+      await api.raffles.releaseTickets(ticketGroupId);
+      openDetail(detailRaffle!);
+      fetchRaffles();
+    } catch (err: any) {
+      alert(err.message || 'Error al liberar números');
+    }
+  }
+
+  async function handleResendBank(raffleId: string, receiptId: string) {
+    try {
+      await api.raffles.resendBankDetails(raffleId, receiptId);
+      alert('✅ Datos bancarios reenviados al comprador por WhatsApp');
+    } catch (err: any) {
+      alert(err.message || 'Error al reenviar datos');
     }
   }
 
@@ -604,7 +624,7 @@ export default function RafflesTab() {
                           {receiptForTicket && (
                             <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 hidden group-hover:block">
                               <div className="bg-white rounded-xl shadow-xl border border-brand-accent p-2 w-24">
-                                <img src={receiptForTicket.image_data} alt="comprobante" className="w-full aspect-square object-cover rounded-lg" />
+                                <img src={`data:${receiptForTicket.image_mime || 'image/jpeg'};base64,${receiptForTicket.image_data}`} alt="comprobante" className="w-full aspect-square object-cover rounded-lg" />
                                 <p className={cn(
                                   'text-[8px] text-center mt-1 font-bold',
                                   receiptForTicket.status === 'confirmed' ? 'text-green-600' :
@@ -616,15 +636,29 @@ export default function RafflesTab() {
                               </div>
                             </div>
                           )}
-                          {t.status === 'pending_transfer' && receiptForTicket && (
-                            <button onClick={async () => {
-                              if (!confirm(`Confirmar pago del N° ${t.number}?`)) return;
-                              await api.raffles.confirmReceipt(detailRaffle!.id, receiptForTicket.id, '');
-                              openDetail({ id: detailRaffle!.id } as Raffle);
-                              fetchRaffles();
-                            }} className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              ✓
-                            </button>
+                          {(t.status === 'pending_transfer' || t.status === 'pending_manual') && (
+                            <>
+                              {receiptForTicket && (
+                                <button onClick={async () => {
+                                  if (!confirm(`Confirmar pago del N° ${t.number}?`)) return;
+                                  await api.raffles.confirmReceipt(detailRaffle!.id, receiptForTicket.id, '');
+                                  openDetail({ id: detailRaffle!.id } as Raffle);
+                                  fetchRaffles();
+                                }} className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20" title="Confirmar pago">
+                                  ✓
+                                </button>
+                              )}
+                              {(t as any).mp_external_reference && (
+                                <button onClick={async () => {
+                                  if (!confirm(`¿Liberar el N° ${t.number}? Se cancelará la reserva.`)) return;
+                                  await api.raffles.releaseTickets((t as any).mp_external_reference);
+                                  openDetail({ id: detailRaffle!.id } as Raffle);
+                                  fetchRaffles();
+                                }} className="absolute -bottom-1 -right-1 w-4 h-4 bg-orange-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20" title="Liberar número">
+                                  ✕
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       )})}
@@ -645,7 +679,7 @@ export default function RafflesTab() {
                     <div className="space-y-2">
                       {detailRaffle.receipts.map((r: any, i: number) => (
                         <div key={i} className="flex items-center gap-3 bg-brand-bg/50 p-3 rounded-xl">
-                          <img src={r.image_data} alt="receipt" className="w-12 h-12 object-cover rounded-lg" />
+                          <img src={`data:${r.image_mime || 'image/jpeg'};base64,${r.image_data}`} alt="receipt" className="w-12 h-12 object-cover rounded-lg" />
                           <div className="flex-1 text-xs">
                             <p className="font-bold">{r.buyer_name} — {r.buyer_phone}</p>
                             <p className="text-gray-500">Esperado: ${r.amount_expected?.toLocaleString('es-AR')}</p>
@@ -661,9 +695,25 @@ export default function RafflesTab() {
                           {r.status === 'pending' && (
                             <div className="flex gap-1">
                               <button onClick={() => handleReceiptConfirm(r.id, detailRaffle.id)}
-                                className="p-1 text-green-600 hover:bg-green-50 rounded"><CheckCircle className="w-4 h-4" /></button>
+                                className="p-1 text-green-600 hover:bg-green-50 rounded" title="Confirmar pago"><CheckCircle className="w-4 h-4" /></button>
                               <button onClick={() => handleReceiptReject(r.id, detailRaffle.id)}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded"><XCircle className="w-4 h-4" /></button>
+                                className="p-1 text-red-600 hover:bg-red-50 rounded" title="Rechazar comprobante"><XCircle className="w-4 h-4" /></button>
+                              <button onClick={() => handleResendBank(detailRaffle.id, r.id)}
+                                className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Reenviar datos bancarios"><MessageSquare className="w-4 h-4" /></button>
+                              <button onClick={() => handleReleaseTickets(r.ticket_group_id, r.buyer_name || r.push_name || '')}
+                                className="p-1 text-orange-600 hover:bg-orange-50 rounded" title="Liberar números"><X className="w-4 h-4" /></button>
+                            </div>
+                          )}
+                          {(r.status === 'rejected' || r.status === 'confirmed') && (
+                            <div className="flex gap-1">
+                              {r.status === 'rejected' && (
+                                <button onClick={() => handleResendBank(detailRaffle.id, r.id)}
+                                  className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Reenviar datos bancarios"><MessageSquare className="w-4 h-4" /></button>
+                              )}
+                              {r.ticket_group_id && (
+                                <button onClick={() => handleReleaseTickets(r.ticket_group_id, r.buyer_name || r.push_name || '')}
+                                  className="p-1 text-orange-600 hover:bg-orange-50 rounded" title="Liberar números"><X className="w-4 h-4" /></button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -739,7 +789,7 @@ export default function RafflesTab() {
               ) : unmatchedReceipts.map((r: any) => (
                 <div key={r.id} className="bg-brand-bg/50 p-4 rounded-xl space-y-3">
                   <div className="flex items-start gap-4">
-                    <img src={r.image_data} alt="receipt" className="w-20 h-20 object-cover rounded-xl shrink-0" />
+                    <img src={`data:${r.image_mime || 'image/jpeg'};base64,${r.image_data}`} alt="receipt" className="w-20 h-20 object-cover rounded-xl shrink-0" />
                     <div className="flex-1 min-w-0 text-sm">
                       <p className="font-bold">{r.push_name || r.buyer_name || 'Desconocido'}</p>
                       <p className="text-gray-500 text-xs break-words">{r.lid_jid || r.buyer_phone || 'Sin ID'}</p>

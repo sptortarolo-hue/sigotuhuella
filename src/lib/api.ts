@@ -403,5 +403,7 @@ export const api = {
     unmatchedReceipts: () => request('/raffles/unmatched-receipts'),
     assignReceipt: (id: string, data: { raffleId: string; ticketGroupId?: string; buyerName?: string; buyerPhone?: string; amountExpected?: number }) =>
       request(`/raffles/receipts/${id}/assign`, { method: 'POST', body: JSON.stringify(data) }),
+    releaseTickets: (ticketGroupId: string) => request('/raffles/tickets/release', { method: 'POST', body: JSON.stringify({ ticketGroupId }) }),
+    resendBankDetails: (raffleId: string, receiptId: string) => request(`/raffles/${raffleId}/receipt/${receiptId}/resend-bank`, { method: 'POST' }),
   },
 };

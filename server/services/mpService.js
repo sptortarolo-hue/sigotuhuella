@@ -171,6 +171,13 @@ export async function confirmManualPayment(receiptId, adminNote = '') {
       );
     }
 
+    // Also confirm other pending receipts for the same ticket group
+    await client.query(
+      `UPDATE raffle_receipts SET status = 'confirmed', admin_note = COALESCE(admin_note, $1)
+       WHERE ticket_group_id = $2 AND raffle_id = $3 AND status = 'pending' AND id != $4`,
+      [adminNote, tgId, receipt.raffle_id, receiptId]
+    );
+
     await client.query('COMMIT');
 
     // Notify buyer
@@ -215,26 +222,20 @@ export async function rejectManualPayment(receiptId, adminNote = '') {
       [receipt.raffle_id, tgId, 'pending_transfer', 'pending_manual']
     );
 
-    await client.query(
-      `UPDATE raffle_tickets SET status = 'cancelled', payment_status = 'cancelled'
-       WHERE raffle_id = $1 AND mp_external_reference = $2 AND status IN ('pending_transfer', 'pending_manual')`,
-      [receipt.raffle_id, tgId]
-    );
-
     await client.query('COMMIT');
 
-    // Notify buyer
+    // Notify buyer — pedir reenvío, NO cancelar tickets
     if (ticketsRes.rows.length > 0) {
       const buyerPhone = ticketsRes.rows[0].buyer_phone;
       const buyerName = ticketsRes.rows[0].buyer_name;
       const raffleRes = await pool.query('SELECT title FROM raffles WHERE id = $1', [receipt.raffle_id]);
       const raffleTitle = raffleRes.rows[0]?.title || 'Rifa';
       if (buyerPhone) {
-        enqueue(buyerPhone, `❌ Hola ${buyerName || ''}, lamentamos informarte que tu pago para la rifa "${raffleTitle}" fue RECHAZADO. Motivo: ${adminNote || 'el comprobante no pudo ser verificado'}.`, null).catch(() => {});
+        enqueue(buyerPhone, `❌ Hola ${buyerName || ''}, el comprobante para "${raffleTitle}" no pudo verificarse. Motivo: ${adminNote || 'el comprobante no es válido'}. Enviá uno nuevo por este chat.`, null).catch(() => {});
       }
     }
 
-    return { success: true, raffleId: receipt.raffle_id };
+    return { success: true, raffleId: receipt.raffle_id, ticketsPreserved: ticketsRes.rows.length };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
