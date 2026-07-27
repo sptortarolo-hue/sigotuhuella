@@ -79,12 +79,21 @@ export default function RafflePublishModal({ raffleId, onClose }: Props) {
           ) : (
             <>
               <div className="bg-brand-bg rounded-2xl overflow-hidden">
-                <img
-                  src={`/api/raffles/${raffleId}/flyer`}
-                  alt="Vista previa del flyer"
-                  className="w-full object-contain max-h-80"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
+                <div id="flyer-preview-container">
+                  <img
+                    src={`/api/raffles/${raffleId}/flyer`}
+                    alt="Vista previa del flyer"
+                    className="w-full object-contain max-h-80"
+                    onError={(e) => {
+                      const el = e.target as HTMLImageElement;
+                      el.style.display = 'none';
+                      const container = document.getElementById('flyer-preview-container');
+                      if (container) {
+                        container.innerHTML = '<div class="flex items-center justify-center h-40 text-red-500 text-sm">Error al cargar la vista previa del flyer. Verificá que el servidor tenga las dependencias necesarias.</div>';
+                      }
+                    }}
+                  />
+                </div>
               </div>
 
               <div>

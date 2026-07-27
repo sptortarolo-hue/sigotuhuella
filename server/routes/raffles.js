@@ -680,7 +680,7 @@ router.get('/:id/flyer', async (req, res) => {
     res.end(pngBuffer);
   } catch (err) {
     console.error('GET /raffles/:id/flyer error:', err);
-    res.status(500).end();
+    res.status(500).json({ error: 'Error al generar flyer: ' + err.message });
   }
 });
 
