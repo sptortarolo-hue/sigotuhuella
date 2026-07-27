@@ -6,6 +6,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const FONT = 'sans-serif';
 const W = 1080;
 const H = 1350;
+const COLS = 10;
+const BRAND_BAR_H = 70;
+const BRAND_BAR_Y = H - BRAND_BAR_H;
+const TOP_PAD = 50;
+const BOTTOM_PAD = 20;
+const MAX_CELL_SIZE = 60;
 let _canvasModule = null;
 
 async function getCanvas() {
@@ -55,22 +61,6 @@ function drawBgDecorations(ctx, colorStart, colorEnd) {
   ctx.globalAlpha = 1;
 }
 
-function drawBadge(ctx, y, label, bgColor) {
-  const badgeH = 70;
-  const badgeW = ctx.measureText(label).width + 70;
-  const badgeX = (W - badgeW) / 2;
-  ctx.save();
-  ctx.fillStyle = bgColor;
-  roundRect(ctx, badgeX, y, badgeW, badgeH, badgeH / 2);
-  ctx.fill();
-  ctx.restore();
-  ctx.font = `800 ${badgeH * 0.55}px ${FONT}`;
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, W / 2, y + badgeH / 2);
-}
-
 function drawWrappedText(ctx, text, cx, y, maxWidth, fontSize, maxLines, color, lineSpacing) {
   ctx.font = `600 ${fontSize}px ${FONT}`;
   ctx.fillStyle = color || '#ffffff';
@@ -99,17 +89,22 @@ function drawWrappedText(ctx, text, cx, y, maxWidth, fontSize, maxLines, color, 
   return curY;
 }
 
-function drawNumberGrid(ctx, y, tickets, totalNumbers) {
-  const cellSize = 20;
+function drawNumberGrid(ctx, startY, gridHeight, tickets, totalNumbers) {
   const gap = 3;
-  const cols = 10;
-  const cellW = cellSize + gap;
+  const cellW = COLS * (MAX_CELL_SIZE + gap) - gap;
   const totalCells = Math.min(totalNumbers, 200);
-  const rows = Math.ceil(totalCells / cols);
-  const gridW = cols * cellW - gap;
-  const gridH = rows * cellW - gap;
-  const startX = (W - gridW) / 2;
-  const startY = y;
+  const rows = Math.ceil(totalCells / COLS);
+
+  let cellSize = Math.floor((gridHeight + gap) / rows) - gap;
+  cellSize = Math.min(cellSize, MAX_CELL_SIZE);
+  cellSize = Math.max(cellSize, 12);
+
+  const step = cellSize + gap;
+  const actualGridW = COLS * step - gap;
+  const actualGridH = rows * step - gap;
+  const startX = (W - actualGridW) / 2;
+  const startYCentered = startY + (gridHeight - actualGridH) / 2;
+  const gridBottom = startYCentered + actualGridH;
 
   const ticketMap = {};
   if (tickets) {
@@ -119,8 +114,8 @@ function drawNumberGrid(ctx, y, tickets, totalNumbers) {
   }
 
   for (let i = 1; i <= totalCells; i++) {
-    const col = (i - 1) % cols;
-    const row = Math.floor((i - 1) / cols);
+    const col = (i - 1) % COLS;
+    const row = Math.floor((i - 1) / COLS);
     const t = ticketMap[i];
     let color;
     if (!t) {
@@ -130,29 +125,29 @@ function drawNumberGrid(ctx, y, tickets, totalNumbers) {
     } else {
       color = '#FBBF24';
     }
-    const x = startX + col * cellW;
-    const cellY = startY + row * cellW;
+    const x = startX + col * step;
+    const cellY = startYCentered + row * step;
     ctx.fillStyle = color;
     ctx.globalAlpha = 0.85;
-    roundRect(ctx, x, cellY, cellSize, cellSize, 3);
+    roundRect(ctx, x, cellY, cellSize, cellSize, Math.max(3, cellSize * 0.12));
     ctx.fill();
     ctx.globalAlpha = 1;
   }
 
   if (totalNumbers > totalCells) {
     const remaining = totalNumbers - totalCells;
-    ctx.font = `500 ${26}px ${FONT}`;
+    ctx.font = `500 ${22}px ${FONT}`;
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(`y ${remaining} números más`, W / 2, startY + gridH + 12);
+    ctx.fillText(`y ${remaining} números más`, W / 2, gridBottom + 10);
   }
 
-  return startY + gridH + (totalNumbers > totalCells ? 50 : 30);
+  return gridBottom;
 }
 
 function drawBrandBar(ctx, logoImg) {
-  const brandY = H - 70;
+  const brandY = BRAND_BAR_Y;
   ctx.strokeStyle = 'rgba(255,255,255,0.2)';
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -212,9 +207,10 @@ export async function renderRaffleFlyer({
 
   drawBgDecorations(ctx, colorStart, colorEnd);
 
-  let y = 40;
-  drawBadge(ctx, y, '🎟  RIFA', '#F59E0B');
-  y += 100;
+  const availableH = BRAND_BAR_Y - TOP_PAD - BOTTOM_PAD;
+  const gridH = Math.floor(availableH * 0.70);
+
+  let y = TOP_PAD;
 
   const titleFontSize = title.length > 30 ? 52 : title.length > 20 ? 58 : 66;
   ctx.font = `800 ${titleFontSize}px ${FONT}`;
@@ -222,14 +218,12 @@ export async function renderRaffleFlyer({
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   const titleMaxW = W * 0.88;
-  let displayTitle = title;
+  let fs = titleFontSize;
   if (ctx.measureText(title).width > titleMaxW) {
-    let fs = titleFontSize;
-    while (fs > 30 && ctx.measureText(displayTitle).width > titleMaxW) {
+    while (fs > 30 && ctx.measureText(title).width > titleMaxW) {
       fs -= 2;
       ctx.font = `800 ${fs}px ${FONT}`;
     }
-    ctx.font = `800 ${fs}px ${FONT}`;
   }
   const titleLines = [];
   const words = title.split(' ');
@@ -249,125 +243,66 @@ export async function renderRaffleFlyer({
     ctx.fillText(titleDisplay[i], W / 2, y);
     y += titleFontSize * 1.2;
   }
-  y += 20;
+  y += 10;
+
+  const gridTop = y;
+  const gridBottom = drawNumberGrid(ctx, gridTop, gridH, tickets, totalNumbers);
+  y = gridBottom + 5;
+
+  const priceText = `$ ${parseFloat(pricePerNumber).toLocaleString('es-AR')} x número`;
+  ctx.font = `800 ${34}px ${FONT}`;
+  ctx.fillStyle = '#FDE68A';
+  const priceW = ctx.measureText(priceText).width;
+  const pricePadX = 20;
+  const pricePadY = 12;
+  const priceBoxW = priceW + pricePadX * 2;
+  const priceBoxH = 34 + pricePadY * 2;
+  const priceBoxX = W - (W - COLS * (MAX_CELL_SIZE + 3) + 3) / 2 - priceBoxW;
+  const priceBoxY = gridBottom - priceBoxH - 8;
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  ctx.fillStyle = '#000000';
+  roundRect(ctx, priceBoxX, priceBoxY, priceBoxW, priceBoxH, 12);
+  ctx.fill();
+  ctx.restore();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(priceText, priceBoxX + priceBoxW / 2, priceBoxY + priceBoxH / 2);
+
+  y = gridBottom + 10;
+
+  if (description) {
+    y = drawWrappedText(ctx, description, W / 2, y, W * 0.85, 26, 3, 'rgba(255,255,255,0.75)', 1.4);
+    y += 10;
+  }
 
   if (prizes && prizes.length > 0) {
-    ctx.font = `700 ${34}px ${FONT}`;
+    ctx.font = `700 ${30}px ${FONT}`;
     ctx.fillStyle = '#FDE68A';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText('🏆 Premios', W / 2, y);
-    y += 48;
-    ctx.font = `500 ${30}px ${FONT}`;
+    y += 42;
+    ctx.font = `500 ${26}px ${FONT}`;
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     for (let i = 0; i < Math.min(prizes.length, 4); i++) {
       const p = prizes[i];
-      const text = `${i + 1}° ${p.title}`;
-      ctx.fillText(text, W / 2, y);
-      y += 36;
-      if (p.description) {
-        ctx.font = `400 ${24}px ${FONT}`;
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        const descY = drawWrappedText(ctx, p.description, W / 2, y, W * 0.7, 24, 1, 'rgba(255,255,255,0.6)', 1.3);
-        y = descY + 4;
-        ctx.font = `500 ${30}px ${FONT}`;
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      }
+      ctx.fillText(`${i + 1}° ${p.title}`, W / 2, y);
+      y += 32;
     }
     if (prizes.length > 4) {
-      ctx.font = `400 ${24}px ${FONT}`;
+      ctx.font = `400 ${22}px ${FONT}`;
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.fillText(`+${prizes.length - 4} premios más`, W / 2, y);
-      y += 36;
+      y += 30;
     }
-    y += 20;
   }
 
-  const priceText = `$ ${parseFloat(pricePerNumber).toLocaleString('es-AR')} x número`;
-  ctx.font = `800 ${44}px ${FONT}`;
-  ctx.fillStyle = '#FDE68A';
+  ctx.font = `600 ${26}px ${FONT}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  const priceW = ctx.measureText(priceText).width;
-  const pricePx = 24;
-  const pricePy = 16;
-  const priceBoxW = priceW + pricePx * 2;
-  const priceBoxX = (W - priceBoxW) / 2;
-  ctx.save();
-  ctx.globalAlpha = 0.2;
-  ctx.fillStyle = '#000000';
-  roundRect(ctx, priceBoxX, y, priceBoxW, 44 + pricePy * 2, 16);
-  ctx.fill();
-  ctx.restore();
-  ctx.fillText(priceText, W / 2, y + pricePy);
-  y += 44 + pricePy * 2 + 16;
-
-  if (drawDate) {
-    const d = new Date(drawDate);
-    const dateStr = d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
-    ctx.font = `500 ${32}px ${FONT}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`📅 Sorteo: ${dateStr}`, W / 2, y);
-    y += 48;
-  }
-
-  const sold = stats?.sold || 0;
-  const available = totalNumbers - sold;
-  const total = totalNumbers;
-  const pctSold = total > 0 ? sold / total : 0;
-
-  const barW = 600;
-  const barH = 28;
-  const barX = (W - barW) / 2;
-  ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  roundRect(ctx, barX, y, barW, barH, barH / 2);
-  ctx.fill();
-  if (pctSold > 0) {
-    ctx.fillStyle = '#F87171';
-    const soldW = barW * Math.min(pctSold, 1);
-    roundRect(ctx, barX, y, soldW, barH, barH / 2);
-    ctx.fill();
-    if (pctSold < 0.95) {
-      ctx.fillStyle = '#4ADE80';
-      roundRect(ctx, barX + soldW, y, barW - soldW, barH, barH / 2);
-      ctx.fill();
-    }
-  } else {
-    ctx.fillStyle = '#4ADE80';
-    roundRect(ctx, barX, y, barW, barH, barH / 2);
-    ctx.fill();
-  }
-  ctx.restore();
-  y += barH + 8;
-
-  ctx.font = `700 ${34}px ${FONT}`;
-  ctx.fillStyle = '#4ADE80';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText(`🔥 ${available} disponibles`, W / 2, y);
-  y += 44;
-  ctx.font = `500 ${28}px ${FONT}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.fillText(`${sold} vendidos de ${total}`, W / 2, y);
-  y += 55;
-
-  const gridBottom = drawNumberGrid(ctx, y, tickets, totalNumbers);
-  y = gridBottom + 20;
-
-  const linkText = '🔗 sigotuhuella.com.ar';
-  ctx.font = `600 ${30}px ${FONT}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText(linkText, W / 2, y);
-  y += 42;
-
-  ctx.font = `500 ${24}px ${FONT}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillText('Comprá tu número antes de que se agoten', W / 2, y);
+  ctx.fillText('sigotuhuella.com.ar', W / 2, BRAND_BAR_Y - 32);
 
   drawBrandBar(ctx, logoImage || null);
 
