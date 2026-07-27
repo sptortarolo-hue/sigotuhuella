@@ -8,7 +8,21 @@ function getToken(): string | null {
   return localStorage.getItem('token');
 }
 
+const cache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 15_000;
+
 async function request(path: string, options: RequestInit = {}): Promise<any> {
+  const isRead = !options.method || options.method === 'GET';
+
+  if (isRead) {
+    const cached = cache.get(path);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
+  } else {
+    cache.clear();
+  }
+
   const token = getToken();
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -26,6 +40,11 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
     err.fbtrace_id = data.fbtrace_id;
     throw err;
   }
+
+  if (isRead) {
+    cache.set(path, { data, timestamp: Date.now() });
+  }
+
   return data;
 }
 

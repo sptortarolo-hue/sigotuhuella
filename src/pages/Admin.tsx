@@ -48,6 +48,11 @@ import ReunionModal from '@/src/components/ReunionModal';
 export default function Admin() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles'>('pets');
+  const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['pets']));
+
+  useEffect(() => {
+    setMountedTabs(prev => new Set([...prev, activeTab]));
+  }, [activeTab]);
 
   // Pets State
   const [pets, setPets] = useState<Pet[]>([]);
@@ -982,10 +987,11 @@ export default function Admin() {
       ) : (
         <div className="space-y-8">
           {/* ====== MASCOTAS ====== */}
-          {activeTab === 'pets' && (
-            <>
-              {/* Desktop: split panel */}
-              <div className="hidden lg:flex lg:gap-6">
+          {mountedTabs.has('pets') && (
+            <div className={activeTab === 'pets' ? '' : 'hidden'}>
+              <>
+                {/* Desktop: split panel */}
+                <div className="hidden lg:flex lg:gap-6">
                 {/* Left: Search + Filters + Pet list */}
                 <div className="w-[400px] shrink-0 space-y-4">
                   <div className="flex flex-col gap-3">
@@ -1217,12 +1223,14 @@ export default function Admin() {
                 actionLabel={confirmDialog.actionLabel}
                 variant={confirmDialog.variant}
               />
-            </>
+              </>
+            </div>
           )}
 
           {/* ====== ADOPCIÓN ====== */}
-          {activeTab === 'adoption' && (
-            <>
+          {mountedTabs.has('adoption') && (
+            <div className={activeTab === 'adoption' ? '' : 'hidden'}>
+              <>
               <div className="flex justify-end mb-6">
                 <button
                   onClick={() => { resetPetForm(); setFormData(prev => ({ ...prev, status: PetStatus.FOR_ADOPTION })); setShowForm(true); }}
@@ -1257,11 +1265,13 @@ export default function Admin() {
                 ))}
               </div>
             </>
+          </div>
           )}
 
           {/* ====== NOTICIAS DESTACADAS ====== */}
-          {activeTab === 'highlights' && (
-            <>
+          {mountedTabs.has('highlights') && (
+            <div className={activeTab === 'highlights' ? '' : 'hidden'}>
+              <>
               <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-x-auto">
                 <table className="w-full text-left min-w-max">
                   <thead>
@@ -1299,12 +1309,14 @@ export default function Admin() {
                   </div>
                 )}
               </div>
-            </>
+              </>
+            </div>
           )}
 
           {/* ====== NOVEDADES ====== */}
-          {activeTab === 'news' && (
-            <>
+          {mountedTabs.has('news') && (
+            <div className={activeTab === 'news' ? '' : 'hidden'}>
+              <>
               <div className="flex justify-end mb-6">
                 <button
                   onClick={() => { resetNewsForm(); setShowNewsForm(true); }}
@@ -1375,12 +1387,13 @@ export default function Admin() {
                   </div>
                 )}
               </div>
-            </>
+              </>
+            </div>
           )}
 
           {/* ====== CUENTAS DE AYUDA ====== */}
-          {activeTab === 'collab' && (
-            <div className="space-y-6">
+          {mountedTabs.has('collab') && (
+            <div className={`${activeTab === 'collab' ? '' : 'hidden'} space-y-6`}>
               <div className="flex justify-end">
                 <button
                   onClick={() => { setEditingAccount(null); setCollabData({ title: '', description: '', bankName: '', alias: '', cbu: '', cvu: '', displayOrder: accounts.length, mercadopagoLink: '' }); setShowCollabForm(true); }}
@@ -1422,8 +1435,8 @@ export default function Admin() {
           )}
 
           {/* ====== COLABORADORES ====== */}
-          {activeTab === 'sponsors' && (
-            <div className="space-y-6">
+          {mountedTabs.has('sponsors') && (
+            <div className={`${activeTab === 'sponsors' ? '' : 'hidden'} space-y-6`}>
               <div className="flex justify-end">
                 <button
                   onClick={() => { setEditingSponsor(null); setSponsorData({ name: '', logo: '', website: '' }); setShowSponsorForm(true); }}
@@ -1522,8 +1535,9 @@ export default function Admin() {
           )}
 
           {/* ====== USUARIOS ====== */}
-          {activeTab === 'users' && (
-            <>
+          {mountedTabs.has('users') && (
+            <div className={activeTab === 'users' ? '' : 'hidden'}>
+              <>
               {/* Desktop: 3-column layout */}
               <div className="hidden lg:flex lg:gap-6">
                 {/* Column 1: Search + User list */}
@@ -1761,11 +1775,12 @@ export default function Admin() {
                 />
               )}
             </>
+            </div>
           )}
 
             {/* ====== VOLUNTARIOS ====== */}
-            {activeTab === 'volunteers' && (
-              <div className="space-y-10">
+            {mountedTabs.has('volunteers') && (
+              <div className={`${activeTab === 'volunteers' ? '' : 'hidden'} space-y-10`}>
                 {/* Search + Badge Filter */}
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="relative flex-1">
@@ -2022,90 +2037,87 @@ export default function Admin() {
             )}
 
           {/* ====== REPORTES PUBLICOS ====== */}
-          {activeTab === 'public' && (
-            <PublicReportsTab />
+          {mountedTabs.has('public') && (
+            <div className={activeTab === 'public' ? '' : 'hidden'}>
+              <PublicReportsTab />
+            </div>
           )}
 
           {/* ====== WHATSAPP META ====== */}
-          {activeTab === 'whatsapp' && <WhatsAppTab />}
+          {mountedTabs.has('whatsapp') && <div className={activeTab === 'whatsapp' ? '' : 'hidden'}><WhatsAppTab /></div>}
 
           {/* ====== DASHBOARD ====== */}
-          {activeTab === 'dashboard' && <UnifiedDashboard />}
+          {mountedTabs.has('dashboard') && <div className={activeTab === 'dashboard' ? '' : 'hidden'}><UnifiedDashboard /></div>}
 
           {/* ====== ANALYTICS ====== */}
-          {activeTab === 'analytics' && <AnalyticsTab />}
+          {mountedTabs.has('analytics') && <div className={activeTab === 'analytics' ? '' : 'hidden'}><AnalyticsTab /></div>}
 
           {/* ====== RIFAS ====== */}
-          {activeTab === 'raffles' && (
-            <>
-              <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 mb-6">
-                <h3 className="text-lg font-bold text-brand-primary mb-4 flex items-center gap-2">
-                  <Sparkles className="w-5 h-5" /> Rifas — Visibilidad en la app pública
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">Mostrar rifas en la página pública</span>
-                      <p className="text-xs text-gray-400 mt-0.5">Controla la visibilidad de las secciones de rifas en Home, Sidebar, Footer, Nav y Colaborar</p>
+          {mountedTabs.has('raffles') && (
+            <div className={activeTab === 'raffles' ? '' : 'hidden'}>
+              <>
+                <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 mb-6">
+                  <h3 className="text-lg font-bold text-brand-primary mb-4 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5" /> Rifas — Visibilidad en la app pública
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-medium text-gray-700">Mostrar rifas en la página pública</span>
+                        <p className="text-xs text-gray-400 mt-0.5">Controla la visibilidad de las secciones de rifas en Home, Sidebar, Footer, Nav y Colaborar</p>
+                      </div>
+                      <button
+                        onClick={() => setRafflesVisible(!rafflesVisible)}
+                        className={cn("w-12 h-7 rounded-full transition-colors relative shrink-0", rafflesVisible ? "bg-brand-primary" : "bg-gray-300")}
+                      >
+                        <div className={cn("w-5 h-5 bg-white rounded-full absolute top-1 transition-transform shadow-sm", rafflesVisible ? "left-[26px]" : "left-1")} />
+                      </button>
                     </div>
                     <button
-                      onClick={() => setRafflesVisible(!rafflesVisible)}
-                      className={cn("w-12 h-7 rounded-full transition-colors relative shrink-0", rafflesVisible ? "bg-brand-primary" : "bg-gray-300")}
+                      onClick={async () => {
+                        setRafflesSettingsLoading(true);
+                        try {
+                          await api.settings.update('raffles_visible', String(rafflesVisible));
+                          alert('Configuración guardada');
+                        } catch (e) {
+                          alert('Error al guardar');
+                        }
+                        setRafflesSettingsLoading(false);
+                      }}
+                      disabled={rafflesSettingsLoading}
+                      className="px-6 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
                     >
-                      <div className={cn("w-5 h-5 bg-white rounded-full absolute top-1 transition-transform shadow-sm", rafflesVisible ? "left-[26px]" : "left-1")} />
+                      {rafflesSettingsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      Guardar
                     </button>
                   </div>
-                  <button
-                    onClick={async () => {
-                      setRafflesSettingsLoading(true);
-                      try {
-                        await api.settings.update('raffles_visible', String(rafflesVisible));
-                        alert('Configuración guardada');
-                      } catch (e) {
-                        alert('Error al guardar');
-                      }
-                      setRafflesSettingsLoading(false);
-                    }}
-                    disabled={rafflesSettingsLoading}
-                    className="px-6 py-2.5 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {rafflesSettingsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Guardar
-                  </button>
                 </div>
-              </div>
-              <RafflesTab />
-            </>
+                <RafflesTab />
+              </>
+            </div>
           )}
 
           {/* ====== WHATSAPP RELAY ====== */}
-          {activeTab === 'relay-whatsapp' && <RelayWhatsAppTab />}
+          {mountedTabs.has('relay-whatsapp') && <div className={activeTab === 'relay-whatsapp' ? '' : 'hidden'}><RelayWhatsAppTab /></div>}
 
           {/* ====== FB RELAY ====== */}
-          {activeTab === 'fb-relay' && <FacebookRelayTab />}
+          {mountedTabs.has('fb-relay') && <div className={activeTab === 'fb-relay' ? '' : 'hidden'}><FacebookRelayTab /></div>}
 
             {/* ====== INSTAGRAM ====== */}
-            {activeTab === 'instagram' && (
-              <InstagramTab initialError={igConnectError} />
-            )}
+            {mountedTabs.has('instagram') && <div className={activeTab === 'instagram' ? '' : 'hidden'}><InstagramTab initialError={igConnectError} /></div>}
 
             {/* ====== SCRAPER ====== */}
-            {activeTab === 'scraper' && (
-              <ScraperTab />
-            )}
+            {mountedTabs.has('scraper') && <div className={activeTab === 'scraper' ? '' : 'hidden'}><ScraperTab /></div>}
 
             {/* ====== FACEBOOK ====== */}
-            {activeTab === 'facebook' && (
-              <FacebookTab />
-            )}
+            {mountedTabs.has('facebook') && <div className={activeTab === 'facebook' ? '' : 'hidden'}><FacebookTab /></div>}
 
             {/* ====== VIDEOS ====== */}
-{activeTab === 'videos' && (
-  <VideoGeneratorTab />
-)}
+            {mountedTabs.has('videos') && <div className={activeTab === 'videos' ? '' : 'hidden'}><VideoGeneratorTab /></div>}
 
-{activeTab === 'qr' && (
-  <>
+          {mountedTabs.has('qr') && (
+            <div className={activeTab === 'qr' ? '' : 'hidden'}>
+              <>
     {/* Banner settings */}
     <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8 mb-6">
       <h3 className="text-lg font-bold text-brand-primary mb-4 flex items-center gap-2">
@@ -2722,8 +2734,9 @@ export default function Admin() {
       )}
     </div>
   </div>
-  </>
-)}
+              </>
+            </div>
+          )}
           </div>
         )}
 
