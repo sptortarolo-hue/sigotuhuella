@@ -57,6 +57,8 @@ export default function RafflesTab() {
   const [unmatchedReceipts, setUnmatchedReceipts] = useState<any[]>([]);
   const [unmatchedLoading, setUnmatchedLoading] = useState(false);
   const [assigningReceiptId, setAssigningReceiptId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   async function fetchUnmatchedReceipts() {
     try {
@@ -607,62 +609,110 @@ export default function RafflesTab() {
 
                 {detailRaffle.tickets && detailRaffle.tickets.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">
-                      Números ({detailRaffle.tickets.length})
-                    </h4>
-                    <div className="flex flex-wrap gap-1.5">
-                      {detailRaffle.tickets.map(t => {
-                        const receiptForTicket = detailRaffle.receipts?.find((r: any) => r.ticket_group_id === (t as any).mp_external_reference);
-                        return (
-                        <div key={t.number} className={cn(
-                          'w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold relative group',
-                          t.status === 'paid' ? 'bg-red-100 text-red-700' :
-                          t.status === 'pending_transfer' ? 'bg-orange-100 text-orange-700 cursor-pointer hover:bg-orange-200' :
-                          'bg-yellow-100 text-yellow-700'
-                        )} title={`${t.buyer_name || 'Anónimo'} (${t.status})${receiptForTicket ? ' - Tiene comprobante' : ''}`}>
-                          {t.number}
-                          {receiptForTicket && (
-                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 hidden group-hover:block">
-                              <div className="bg-white rounded-xl shadow-xl border border-brand-accent p-2 w-24">
-                                <img src={`data:${receiptForTicket.image_mime || 'image/jpeg'};base64,${receiptForTicket.image_data}`} alt="comprobante" className="w-full aspect-square object-cover rounded-lg" />
-                                <p className={cn(
-                                  'text-[8px] text-center mt-1 font-bold',
-                                  receiptForTicket.status === 'confirmed' ? 'text-green-600' :
-                                  receiptForTicket.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'
-                                )}>
-                                  {receiptForTicket.status === 'confirmed' ? '✓ Confirmado' :
-                                   receiptForTicket.status === 'rejected' ? '✗ Rechazado' : 'Pendiente'}
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                          {(t.status === 'pending_transfer' || t.status === 'pending_manual') && (
-                            <>
-                              {receiptForTicket && (
-                                <button onClick={async () => {
-                                  if (!confirm(`Confirmar pago del N° ${t.number}?`)) return;
-                                  await api.raffles.confirmReceipt(detailRaffle!.id, receiptForTicket.id, '');
-                                  openDetail({ id: detailRaffle!.id } as Raffle);
-                                  fetchRaffles();
-                                }} className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20" title="Confirmar pago">
-                                  ✓
-                                </button>
-                              )}
-                              {(t as any).mp_external_reference && (
-                                <button onClick={async () => {
-                                  if (!confirm(`¿Liberar el N° ${t.number}? Se cancelará la reserva.`)) return;
-                                  await api.raffles.releaseTickets((t as any).mp_external_reference);
-                                  openDetail({ id: detailRaffle!.id } as Raffle);
-                                  fetchRaffles();
-                                }} className="absolute -bottom-1 -right-1 w-4 h-4 bg-orange-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20" title="Liberar número">
-                                  ✕
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )})}
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-sm font-bold text-gray-500 uppercase">
+                        Números ({detailRaffle.tickets.length})
+                      </h4>
+                      <div className="flex bg-brand-bg rounded-lg p-0.5 border border-brand-accent">
+                        <button onClick={() => setViewMode('grid')}
+                          className={cn('px-2.5 py-1 text-[10px] font-bold rounded-md transition-colors', viewMode === 'grid' ? 'bg-white text-brand-primary shadow-sm' : 'text-gray-400 hover:text-gray-600')}>
+                          Grilla
+                        </button>
+                        <button onClick={() => setViewMode('table')}
+                          className={cn('px-2.5 py-1 text-[10px] font-bold rounded-md transition-colors', viewMode === 'table' ? 'bg-white text-brand-primary shadow-sm' : 'text-gray-400 hover:text-gray-600')}>
+                          Tabla
+                        </button>
+                      </div>
                     </div>
+
+                    {viewMode === 'grid' && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {detailRaffle.tickets.map(t => {
+                          const receiptForTicket = (t as any).receipt_image_data ? t : detailRaffle.receipts?.find((r: any) => r.ticket_group_id === (t as any).mp_external_reference);
+                          return (
+                          <div key={t.number} className={cn(
+                            'w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold relative group',
+                            t.status === 'paid' ? 'bg-red-100 text-red-700' :
+                            t.status === 'pending_transfer' ? 'bg-orange-100 text-orange-700' :
+                            'bg-yellow-100 text-yellow-700'
+                          )} title={`${t.buyer_name || 'Anónimo'} (${t.status})${receiptForTicket ? ' - Tiene comprobante' : ''}`}>
+                            {t.number}
+                            {receiptForTicket && (
+                              <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 hidden group-hover:block cursor-pointer" onClick={() => setPreviewImage(`data:${receiptForTicket.receipt_image_mime || receiptForTicket.image_mime || 'image/jpeg'};base64,${receiptForTicket.receipt_image_data || receiptForTicket.image_data}`)}>
+                                <div className="bg-white rounded-xl shadow-xl border border-brand-accent p-2 w-24">
+                                  <img src={`data:${receiptForTicket.receipt_image_mime || receiptForTicket.image_mime || 'image/jpeg'};base64,${receiptForTicket.receipt_image_data || receiptForTicket.image_data}`} alt="comprobante" className="w-full aspect-square object-cover rounded-lg" />
+                                  <p className={cn(
+                                    'text-[8px] text-center mt-1 font-bold',
+                                    (receiptForTicket.receipt_status || receiptForTicket.status) === 'confirmed' ? 'text-green-600' :
+                                    (receiptForTicket.receipt_status || receiptForTicket.status) === 'rejected' ? 'text-red-600' : 'text-yellow-600'
+                                  )}>
+                                    {(receiptForTicket.receipt_status || receiptForTicket.status) === 'confirmed' ? '✓ Confirmado' :
+                                     (receiptForTicket.receipt_status || receiptForTicket.status) === 'rejected' ? '✗ Rechazado' : 'Pendiente'}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )})}
+                      </div>
+                    )}
+
+                    {viewMode === 'table' && (
+                      <div className="overflow-x-auto rounded-2xl border border-brand-accent">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="bg-brand-bg border-b border-brand-accent">
+                              <th className="p-2 font-bold">N°</th>
+                              <th className="p-2 font-bold">Comprador</th>
+                              <th className="p-2 font-bold">Teléfono</th>
+                              <th className="p-2 font-bold">Estado</th>
+                              <th className="p-2 font-bold">Comprobante</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {detailRaffle.tickets.map(t => {
+                              const receiptForTicket = (t as any).receipt_image_data ? t : detailRaffle.receipts?.find((r: any) => r.ticket_group_id === (t as any).mp_external_reference);
+                              return (
+                                <tr key={t.number} className="border-b border-brand-accent/50 hover:bg-brand-bg/30">
+                                  <td className="p-2 font-bold">{t.number}</td>
+                                  <td className="p-2">{t.buyer_name || 'Anónimo'}</td>
+                                  <td className="p-2 text-gray-500">{t.buyer_phone || '-'}</td>
+                                  <td className="p-2">
+                                    <span className={cn(
+                                      'text-[10px] px-2 py-0.5 rounded-full font-bold',
+                                      t.status === 'paid' ? 'bg-red-100 text-red-700' :
+                                      t.status === 'pending_transfer' ? 'bg-orange-100 text-orange-700' :
+                                      'bg-yellow-100 text-yellow-700'
+                                    )}>
+                                      {t.status === 'paid' ? 'Pagado' : t.status === 'pending_transfer' ? 'Pendiente' : 'Reservado'}
+                                    </span>
+                                  </td>
+                                  <td className="p-2">
+                                    {receiptForTicket ? (
+                                      <button onClick={() => setPreviewImage(`data:${receiptForTicket.receipt_image_mime || receiptForTicket.image_mime || 'image/jpeg'};base64,${receiptForTicket.receipt_image_data || receiptForTicket.image_data}`)}
+                                        className="flex items-center gap-1.5 text-brand-primary hover:underline">
+                                        <img src={`data:${receiptForTicket.receipt_image_mime || receiptForTicket.image_mime || 'image/jpeg'};base64,${receiptForTicket.receipt_image_data || receiptForTicket.image_data}`}
+                                          alt="" className="w-8 h-8 object-cover rounded-lg border border-brand-accent" />
+                                        <span className={cn(
+                                          'text-[10px] font-bold',
+                                          (receiptForTicket.receipt_status || receiptForTicket.status) === 'confirmed' ? 'text-green-600' :
+                                          (receiptForTicket.receipt_status || receiptForTicket.status) === 'rejected' ? 'text-red-600' : 'text-yellow-600'
+                                        )}>
+                                          {(receiptForTicket.receipt_status || receiptForTicket.status) === 'confirmed' ? '✓' :
+                                           (receiptForTicket.receipt_status || receiptForTicket.status) === 'rejected' ? '✗' : '?'}
+                                        </span>
+                                      </button>
+                                    ) : (
+                                      <span className="text-gray-300">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -679,9 +729,14 @@ export default function RafflesTab() {
                     <div className="space-y-2">
                       {detailRaffle.receipts.map((r: any, i: number) => (
                         <div key={i} className="flex items-center gap-3 bg-brand-bg/50 p-3 rounded-xl">
-                          <img src={`data:${r.image_mime || 'image/jpeg'};base64,${r.image_data}`} alt="receipt" className="w-12 h-12 object-cover rounded-lg" />
-                          <div className="flex-1 text-xs">
-                            <p className="font-bold">{r.buyer_name} — {r.buyer_phone}</p>
+                          <button onClick={() => setPreviewImage(`data:${r.image_mime || 'image/jpeg'};base64,${r.image_data}`)}>
+                            <img src={`data:${r.image_mime || 'image/jpeg'};base64,${r.image_data}`} alt="receipt" className="w-12 h-12 object-cover rounded-lg cursor-pointer hover:opacity-80" />
+                          </button>
+                          <div className="flex-1 text-xs min-w-0">
+                            <p className="font-bold truncate">{r.buyer_name} — {r.buyer_phone}</p>
+                            {r.ticket_numbers && r.ticket_numbers.length > 0 && (
+                              <p className="text-gray-500">Números: {r.ticket_numbers.join(', ')}</p>
+                            )}
                             <p className="text-gray-500">Esperado: ${r.amount_expected?.toLocaleString('es-AR')}</p>
                             <span className={cn(
                               'text-[10px] px-2 py-1 rounded-full font-bold',
@@ -789,7 +844,9 @@ export default function RafflesTab() {
               ) : unmatchedReceipts.map((r: any) => (
                 <div key={r.id} className="bg-brand-bg/50 p-4 rounded-xl space-y-3">
                   <div className="flex items-start gap-4">
-                    <img src={`data:${r.image_mime || 'image/jpeg'};base64,${r.image_data}`} alt="receipt" className="w-20 h-20 object-cover rounded-xl shrink-0" />
+                    <button onClick={() => setPreviewImage(`data:${r.image_mime || 'image/jpeg'};base64,${r.image_data}`)}>
+                      <img src={`data:${r.image_mime || 'image/jpeg'};base64,${r.image_data}`} alt="receipt" className="w-20 h-20 object-cover rounded-xl shrink-0 cursor-pointer hover:opacity-80" />
+                    </button>
                     <div className="flex-1 min-w-0 text-sm">
                       <p className="font-bold">{r.push_name || r.buyer_name || 'Desconocido'}</p>
                       <p className="text-gray-500 text-xs break-words">{r.lid_jid || r.buyer_phone || 'Sin ID'}</p>
@@ -831,6 +888,18 @@ export default function RafflesTab() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-size image preview */}
+      {previewImage && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70" onClick={() => setPreviewImage(null)}>
+          <div className="relative max-w-[90vw] max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <img src={previewImage} alt="preview" className="max-w-full max-h-[90vh] object-contain rounded-2xl" />
+            <button onClick={() => setPreviewImage(null)} className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-100">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}

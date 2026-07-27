@@ -51,10 +51,16 @@ router.get('/:id', async (req, res) => {
     raffle.prizes = prizes.rows;
 
     const tickets = await pool.query(
-      `SELECT id, number, status, buyer_name, buyer_phone, payment_method, payment_status, mp_external_reference
-       FROM raffle_tickets
-       WHERE raffle_id = $1 AND status NOT IN ('cancelled')
-       ORDER BY number`,
+      `SELECT t.id, t.number, t.status, t.buyer_name, t.buyer_phone, t.payment_method, t.payment_status, t.mp_external_reference,
+              r.id AS receipt_id, r.status AS receipt_status, r.image_data AS receipt_image_data, r.image_mime AS receipt_image_mime
+       FROM raffle_tickets t
+       LEFT JOIN LATERAL (
+         SELECT id, status, image_data, image_mime FROM raffle_receipts
+         WHERE ticket_group_id = t.mp_external_reference AND raffle_id = $1
+         ORDER BY created_at DESC LIMIT 1
+       ) r ON true
+       WHERE t.raffle_id = $1 AND t.status NOT IN ('cancelled')
+       ORDER BY t.number`,
       [id]
     );
     raffle.tickets = tickets.rows;
@@ -78,9 +84,14 @@ router.get('/:id', async (req, res) => {
     };
 
     const receipts = await pool.query(
-      `SELECT r.*, rt.number AS ticket_number
+      `SELECT r.*,
+              COALESCE(
+                (SELECT array_agg(rt2.number ORDER BY rt2.number)
+                 FROM raffle_tickets rt2
+                 WHERE rt2.mp_external_reference = r.ticket_group_id AND rt2.status NOT IN ('cancelled')),
+                '{}'
+              ) AS ticket_numbers
        FROM raffle_receipts r
-       LEFT JOIN raffle_tickets rt ON rt.mp_external_reference = r.ticket_group_id
        WHERE r.raffle_id = $1
        ORDER BY r.created_at DESC`,
       [id]
@@ -475,22 +486,20 @@ router.post('/receipts/:id/assign', requireAdmin, async (req, res) => {
       const raffle = (await pool.query('SELECT * FROM raffles WHERE id = $1', [raffleId])).rows[0];
       if (!raffle) return res.status(404).json({ error: 'Rifa no encontrada' });
 
-      // Find next available number
-      const takenRes = await pool.query(
-        `SELECT number FROM raffle_tickets WHERE raffle_id = $1 AND status NOT IN ('cancelled')`,
-        [raffleId]
-      );
-      const taken = new Set(takenRes.rows.map(r => r.number));
-      let nextNum = 1;
-      while (taken.has(nextNum) && nextNum <= raffle.total_numbers) nextNum++;
-      if (nextNum > raffle.total_numbers) return res.status(400).json({ error: 'No hay números disponibles' });
-
+      // Find next available number via ON CONFLICT loop (race-condition safe)
       finalTgId = `tg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      await pool.query(
-        `INSERT INTO raffle_tickets (raffle_id, number, buyer_name, buyer_phone, mp_external_reference, status, payment_method, payment_status)
-         VALUES ($1, $2, $3, $4, $5, 'pending_transfer', 'transfer', 'pending_transfer')`,
-        [raffleId, nextNum, name, phone, finalTgId]
-      );
+      let inserted = false;
+      for (let n = 1; n <= raffle.total_numbers; n++) {
+        const res = await pool.query(
+          `INSERT INTO raffle_tickets (raffle_id, number, buyer_name, buyer_phone, mp_external_reference, status, payment_method, payment_status)
+           VALUES ($1, $2, $3, $4, $5, 'pending_transfer', 'transfer', 'pending_transfer')
+           ON CONFLICT (raffle_id, number) DO NOTHING
+           RETURNING id`,
+          [raffleId, n, name, phone, finalTgId]
+        );
+        if (res.rows.length > 0) { inserted = true; break; }
+      }
+      if (!inserted) return res.status(400).json({ error: 'No hay números disponibles' });
     }
 
     await pool.query(

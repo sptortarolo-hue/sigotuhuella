@@ -85,18 +85,9 @@ export async function reserveTickets(raffleId, numbers, buyerInfo, paymentMethod
     if (raffleRes.rows.length === 0) throw new Error('Rifa no encontrada o inactiva');
     const raffle = raffleRes.rows[0];
 
-    const existingRes = await client.query(
-      'SELECT number FROM raffle_tickets WHERE raffle_id = $1 AND number = ANY($2::int[]) AND status NOT IN ($3)',
-      [raffleId, numbers, 'cancelled']
-    );
-    if (existingRes.rows.length > 0) {
-      const taken = existingRes.rows.map(r => r.number);
-      throw new Error(`Números ya vendidos/reservados: ${taken.join(', ')}`);
-    }
-
     const reservedRes = await client.query(
       `SELECT COUNT(*) FROM raffle_tickets
-       WHERE raffle_id = $1 AND status IN ('reserved', 'paid', 'pending_transfer', 'pending_manual')`,
+       WHERE raffle_id = $1 AND status NOT IN ('cancelled')`,
       [raffleId]
     );
     const totalReserved = parseInt(reservedRes.rows[0].count);
@@ -116,9 +107,13 @@ export async function reserveTickets(raffleId, numbers, buyerInfo, paymentMethod
         `INSERT INTO raffle_tickets
            (raffle_id, number, buyer_name, buyer_phone, mp_external_reference, status, payment_method, payment_status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (raffle_id, number) DO NOTHING
          RETURNING id, number`,
         [raffleId, num, buyerInfo.name, normalizedPhone, ticketGroupId, ticketStatus, paymentMethod, ticketStatus]
       );
+      if (res.rows.length === 0) {
+        throw new Error(`El número ${num} fue tomado por otro comprador. Intente de nuevo.`);
+      }
       tickets.push(res.rows[0]);
     }
 
