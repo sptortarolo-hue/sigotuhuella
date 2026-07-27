@@ -103,18 +103,33 @@ export async function reserveTickets(raffleId, numbers, buyerInfo, paymentMethod
 
     const tickets = [];
     for (const num of numbers) {
-      const res = await client.query(
-        `INSERT INTO raffle_tickets
-           (raffle_id, number, buyer_name, buyer_phone, mp_external_reference, status, payment_method, payment_status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (raffle_id, number) DO NOTHING
+      // First try to revive a cancelled ticket (UPDATE is faster than DELETE+INSERT)
+      const updateRes = await client.query(
+        `UPDATE raffle_tickets
+         SET status = $1, buyer_name = $2, buyer_phone = $3,
+             mp_external_reference = $4, payment_method = $5, payment_status = $6,
+             paid_at = NULL, mp_payment_id = NULL
+         WHERE raffle_id = $7 AND number = $8 AND status = 'cancelled'
          RETURNING id, number`,
-        [raffleId, num, buyerInfo.name, normalizedPhone, ticketGroupId, ticketStatus, paymentMethod, ticketStatus]
+        [ticketStatus, buyerInfo.name, normalizedPhone, ticketGroupId, paymentMethod, ticketStatus, raffleId, num]
       );
-      if (res.rows.length === 0) {
-        throw new Error(`El número ${num} fue tomado por otro comprador. Intente de nuevo.`);
+      if (updateRes.rows.length > 0) {
+        tickets.push(updateRes.rows[0]);
+      } else {
+        // No cancelled ticket, try INSERT fresh
+        const insertRes = await client.query(
+          `INSERT INTO raffle_tickets
+             (raffle_id, number, buyer_name, buyer_phone, mp_external_reference, status, payment_method, payment_status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (raffle_id, number) DO NOTHING
+           RETURNING id, number`,
+          [raffleId, num, buyerInfo.name, normalizedPhone, ticketGroupId, ticketStatus, paymentMethod, ticketStatus]
+        );
+        if (insertRes.rows.length === 0) {
+          throw new Error(`El número ${num} fue tomado por otro comprador. Intente de nuevo.`);
+        }
+        tickets.push(insertRes.rows[0]);
       }
-      tickets.push(res.rows[0]);
     }
 
     await client.query('COMMIT');

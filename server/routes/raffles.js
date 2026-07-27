@@ -486,18 +486,27 @@ router.post('/receipts/:id/assign', requireAdmin, async (req, res) => {
       const raffle = (await pool.query('SELECT * FROM raffles WHERE id = $1', [raffleId])).rows[0];
       if (!raffle) return res.status(404).json({ error: 'Rifa no encontrada' });
 
-      // Find next available number via ON CONFLICT loop (race-condition safe)
+      // Find next available number — try UPDATE cancelled first, then INSERT ON CONFLICT
       finalTgId = `tg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       let inserted = false;
       for (let n = 1; n <= raffle.total_numbers; n++) {
-        const res = await pool.query(
+        const updateRes = await pool.query(
+          `UPDATE raffle_tickets SET status = 'pending_transfer', buyer_name = $1, buyer_phone = $2,
+              mp_external_reference = $3, payment_method = 'transfer', payment_status = 'pending_transfer',
+              paid_at = NULL, mp_payment_id = NULL
+           WHERE raffle_id = $4 AND number = $5 AND status = 'cancelled'
+           RETURNING id`,
+          [name, phone, finalTgId, raffleId, n]
+        );
+        if (updateRes.rows.length > 0) { inserted = true; break; }
+        const insertRes = await pool.query(
           `INSERT INTO raffle_tickets (raffle_id, number, buyer_name, buyer_phone, mp_external_reference, status, payment_method, payment_status)
            VALUES ($1, $2, $3, $4, $5, 'pending_transfer', 'transfer', 'pending_transfer')
            ON CONFLICT (raffle_id, number) DO NOTHING
            RETURNING id`,
           [raffleId, n, name, phone, finalTgId]
         );
-        if (res.rows.length > 0) { inserted = true; break; }
+        if (insertRes.rows.length > 0) { inserted = true; break; }
       }
       if (!inserted) return res.status(400).json({ error: 'No hay números disponibles' });
     }
