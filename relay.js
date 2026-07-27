@@ -323,7 +323,27 @@ async function start() {
         continue;
       }
 
-      if (replyCooldowns.has(from)) continue;
+      if (replyCooldowns.has(from)) {
+        const imgMsg = msg.message?.imageMessage;
+        if (imgMsg) {
+          try {
+            const stream = await downloadContentFromMessage(imgMsg, 'image');
+            const buf = await streamToBuffer(stream);
+            const imageData = buf.toString('base64');
+            const imageMime = imgMsg.mimetype || 'image/jpeg';
+            await axios.post(`${VPS_URL}/api/relay/raffle-receipt`, {
+              phone: from.replace(/@s\.whatsapp\.net$/, ''),
+              image_data: imageData,
+              image_mime: imageMime,
+              wa_message_id: msg.key.id,
+            }, { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 30000 });
+            console.log(`[Raffle Receipt] Imagen capturada (cooldown bypass) desde ${from}`);
+          } catch (e) {
+            console.log(`[Raffle Receipt] Error: ${e.message}`);
+          }
+        }
+        continue;
+      }
 
       const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
       console.log(`[Entrante] ${from}: ${text.substring(0, 80)}`);
