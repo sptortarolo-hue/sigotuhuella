@@ -625,37 +625,55 @@ export default function RafflesTab() {
                       </div>
                     </div>
 
-                    {viewMode === 'grid' && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {detailRaffle.tickets.map(t => {
-                          const receiptForTicket = (t as any).receipt_image_data ? t : detailRaffle.receipts?.find((r: any) => r.ticket_group_id === (t as any).mp_external_reference);
-                          return (
-                          <div key={t.number} className={cn(
-                            'w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold relative group',
-                            t.status === 'paid' ? 'bg-red-100 text-red-700' :
-                            t.status === 'pending_transfer' ? 'bg-orange-100 text-orange-700' :
-                            'bg-yellow-100 text-yellow-700'
-                          )} title={`${t.buyer_name || 'Anónimo'} (${t.status})${receiptForTicket ? ' - Tiene comprobante' : ''}`}>
-                            {t.number}
-                            {receiptForTicket && (
-                              <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-10 hidden group-hover:block cursor-pointer" onClick={() => setPreviewImage(`data:${receiptForTicket.receipt_image_mime || receiptForTicket.image_mime || 'image/jpeg'};base64,${receiptForTicket.receipt_image_data || receiptForTicket.image_data}`)}>
-                                <div className="bg-white rounded-xl shadow-xl border border-brand-accent p-2 w-24">
-                                  <img src={`data:${receiptForTicket.receipt_image_mime || receiptForTicket.image_mime || 'image/jpeg'};base64,${receiptForTicket.receipt_image_data || receiptForTicket.image_data}`} alt="comprobante" className="w-full aspect-square object-cover rounded-lg" />
-                                  <p className={cn(
-                                    'text-[8px] text-center mt-1 font-bold',
-                                    (receiptForTicket.receipt_status || receiptForTicket.status) === 'confirmed' ? 'text-green-600' :
-                                    (receiptForTicket.receipt_status || receiptForTicket.status) === 'rejected' ? 'text-red-600' : 'text-yellow-600'
-                                  )}>
-                                    {(receiptForTicket.receipt_status || receiptForTicket.status) === 'confirmed' ? '✓ Confirmado' :
-                                     (receiptForTicket.receipt_status || receiptForTicket.status) === 'rejected' ? '✗ Rechazado' : 'Pendiente'}
-                                  </p>
+                    {viewMode === 'grid' && (() => {
+                      const ticketMap = new Map(detailRaffle.tickets!.map((t: any) => [t.number, t]));
+                      const total = detailRaffle.total_numbers;
+                      const nums = [];
+                      for (let i = 1; i <= total; i++) nums.push(i);
+                      return (
+                      <div>
+                        <div className="flex flex-wrap gap-1">
+                          {nums.map(n => {
+                            const t = ticketMap.get(n);
+                            const receiptForTicket = t ? ((t as any).receipt_image_data ? t : detailRaffle.receipts?.find((r: any) => r.ticket_group_id === (t as any).mp_external_reference)) : null;
+                            return t ? (
+                            <div key={n} className={cn(
+                              'w-11 h-11 rounded-lg flex flex-col items-center justify-center text-[10px] font-bold relative group cursor-default',
+                              'border',
+                              t.status === 'paid' ? 'bg-green-100 text-green-800 border-green-300' :
+                              t.status === 'pending_transfer' ? 'bg-orange-100 text-orange-800 border-orange-300' :
+                              'bg-blue-100 text-blue-800 border-blue-300'
+                            )} title={`${t.buyer_name || 'Anónimo'} · ${t.status === 'paid' ? 'Pagado' : t.status === 'pending_transfer' ? 'Pendiente' : 'Reservado'}${receiptForTicket ? ' · Tiene comprobante' : ''}`}>
+                              <span>{n}</span>
+                              {t.buyer_name && <span className="text-[7px] leading-none opacity-70">{t.buyer_name.charAt(0).toUpperCase()}</span>}
+                              {receiptForTicket && (
+                                <div className="absolute -top-9 left-1/2 -translate-x-1/2 z-10 hidden group-hover:block cursor-pointer" onClick={() => setPreviewImage(`data:${receiptForTicket.receipt_image_mime || receiptForTicket.image_mime || 'image/jpeg'};base64,${receiptForTicket.receipt_image_data || receiptForTicket.image_data}`)}>
+                                  <div className="bg-white rounded-xl shadow-xl border border-brand-accent p-2 w-24">
+                                    <img src={`data:${receiptForTicket.receipt_image_mime || receiptForTicket.image_mime || 'image/jpeg'};base64,${receiptForTicket.receipt_image_data || receiptForTicket.image_data}`} alt="comprobante" className="w-full aspect-square object-cover rounded-lg" />
+                                    <p className={cn('text-[8px] text-center mt-1 font-bold', (receiptForTicket.receipt_status || receiptForTicket.status) === 'confirmed' ? 'text-green-600' : (receiptForTicket.receipt_status || receiptForTicket.status) === 'rejected' ? 'text-red-600' : 'text-yellow-600')}>
+                                      {(receiptForTicket.receipt_status || receiptForTicket.status) === 'confirmed' ? '✓ Confirmado' : (receiptForTicket.receipt_status || receiptForTicket.status) === 'rejected' ? '✗ Rechazado' : 'Pendiente'}
+                                    </p>
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </div>
-                        )})}
+                              )}
+                            </div>
+                            ) : (
+                            <div key={n} className="w-11 h-11 rounded-lg flex items-center justify-center text-[10px] font-bold text-gray-300 bg-gray-50 border border-dashed border-gray-200">
+                              {n}
+                            </div>
+                            );
+                          })}
+                        </div>
+                        {/* Legend */}
+                        <div className="flex flex-wrap gap-3 mt-3 text-[10px]">
+                          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-green-100 border border-green-300" /> Pagado</span>
+                          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-orange-100 border border-orange-300" /> Pendiente</span>
+                          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-300" /> Reservado</span>
+                          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-gray-50 border border-dashed border-gray-200" /> Disponible</span>
+                        </div>
                       </div>
-                    )}
+                      );
+                    })()}
 
                     {viewMode === 'table' && (
                       <div className="overflow-x-auto rounded-2xl border border-brand-accent">
@@ -673,7 +691,7 @@ export default function RafflesTab() {
                             {detailRaffle.tickets.map(t => {
                               const receiptForTicket = (t as any).receipt_image_data ? t : detailRaffle.receipts?.find((r: any) => r.ticket_group_id === (t as any).mp_external_reference);
                               return (
-                                <tr key={t.number} className="border-b border-brand-accent/50 hover:bg-brand-bg/30">
+                                <tr key={t.number} className={cn('border-b border-brand-accent/50', t.status === 'paid' ? 'bg-green-50/50' : t.status === 'pending_transfer' ? 'bg-orange-50/50' : 'bg-blue-50/50')}>
                                   <td className="p-2 font-bold">{t.number}</td>
                                   <td className="p-2">{t.buyer_name || 'Anónimo'}</td>
                                   <td className="p-2 text-gray-500">{t.buyer_phone || '-'}</td>
