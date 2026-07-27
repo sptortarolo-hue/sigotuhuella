@@ -430,9 +430,9 @@ export default function RafflesTab() {
                   setManualFormPayment('manual');
                   setShowManualForm(true);
                   api.raffles.get(raffle.id).then(data => {
-                    setManualRaffleTickets(data.tickets || []);
-                    setManualRaffleTotal(data.total_numbers);
-                    setManualRafflePrice(data.price_per_number);
+                    setManualRaffleTickets(data.raffle?.tickets || []);
+                    setManualRaffleTotal(data.raffle?.total_numbers);
+                    setManualRafflePrice(data.raffle?.price_per_number);
                   }).catch(err => {
                     console.error('Error al cargar rifa:', err);
                   });
