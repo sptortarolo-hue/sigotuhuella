@@ -419,7 +419,7 @@ export async function showMenu(conv) {
       { id: 'adopt', title: '🙋 Quiero adoptar' },
       { id: 'adopt_post', title: '🐾 Publicar en adopción' },
       { id: 'info_qr', title: 'ℹ️ Chapita QR' },
-      { id: 'raffle', title: '🎫 Comprar números de rifa' },
+      { id: 'raffle', title: '🎫 Comprar RIFA' },
       { id: 'donate', title: '💰 Donar' },
       { id: 'volunteer', title: '🙌 Ser voluntario' },
       { id: 'human', title: '🗣 Contactar equipo' },
@@ -440,7 +440,7 @@ export async function showMenu(conv) {
         `• "Quiero adoptar"\n` +
         `• "Publicar en adopción"\n` +
         `• "Chapita QR"\n` +
-        `• "Comprar números de rifa"\n` +
+        `• "Comprar RIFA"\n` +
         `• "Donar"\n` +
         `• "Link Facebook"\n` +
         `• "Contactar equipo"`
