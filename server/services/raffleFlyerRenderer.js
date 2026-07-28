@@ -1,9 +1,10 @@
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FONT = 'sans-serif';
+const EMOJI_FONT = 'Noto Color Emoji';
 const W = 1080;
 const H = 1350;
 const COLS = 10;
@@ -25,6 +26,12 @@ async function getCanvas() {
     _canvasModule = await import('canvas').catch(() => {
       throw new Error('canvas (node-canvas) no disponible en este servidor');
     });
+    try {
+      const fontPath = '/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf';
+      if (existsSync(fontPath)) {
+        _canvasModule.registerFont(fontPath, { family: 'Noto Color Emoji' });
+      }
+    } catch (e) { /* ignore */ }
   }
   return _canvasModule;
 }
@@ -339,7 +346,7 @@ export async function renderRaffleFlyer({
   y += priceBoxH + 15;
 
   if (prizes && prizes.length > 0) {
-    ctx.font = `700 ${30}px ${FONT}`;
+    ctx.font = `700 ${30}px ${EMOJI_FONT}, ${FONT}`;
     ctx.fillStyle = '#FDE68A';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
