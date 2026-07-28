@@ -1,5 +1,6 @@
 import axios from 'axios';
 import pool from '../db.js';
+import { enqueue } from './phoneRelayService.js';
 import { generateCelebrationText } from './textTemplates.js';
 import { enqueuePublishTask, applySpintax } from './facebookRelayService.js';
 
@@ -388,18 +389,14 @@ export async function broadcastPetToGroups(petId) {
       ? `${frontendUrl}/api/images/pet/${petId}/cover`
       : null;
 
-    console.log('[Broadcast] >>> ENVIANDO a', groups.rows.length, 'grupo(s)');
+    console.log('[Broadcast] >>> ENCOLANDO para', groups.rows.length, 'grupo(s)');
     for (const group of groups.rows) {
       try {
-        console.log('[Broadcast] Enviando a grupo:', group.name, 'group_id:', group.group_id);
-        if (coverUrl) {
-          await sendGroupImage(group.group_id, coverUrl, caption);
-        } else {
-          await sendGroupMessage(group.group_id, caption);
-        }
-        console.log('[Broadcast] Enviado OK:', group.name);
+        console.log('[Broadcast] Encolando a grupo:', group.name, 'group_id:', group.group_id);
+        await enqueue(group.group_id, caption, coverUrl);
+        console.log('[Broadcast] Encolado OK:', group.name);
       } catch (err) {
-        console.error(`[Broadcast] Error sending to group ${group.name} (${group.group_id}):`, err.message);
+        console.error(`[Broadcast] Error encolando a grupo ${group.name} (${group.group_id}):`, err.message);
       }
     }
   } catch (err) {
@@ -471,13 +468,9 @@ export async function broadcastNextAdoptionPet(existingPet = null) {
 
     for (const group of groups) {
       try {
-        if (coverUrl) {
-          await sendGroupImage(group.group_id, coverUrl, caption);
-        } else {
-          await sendGroupMessage(group.group_id, caption);
-        }
+        await enqueue(group.group_id, caption, coverUrl);
       } catch (err) {
-        console.error(`[AdoptionBroadcast] Error sending to ${group.name}:`, err.message);
+        console.error(`[AdoptionBroadcast] Error encolando para ${group.name}:`, err.message);
       }
     }
 
