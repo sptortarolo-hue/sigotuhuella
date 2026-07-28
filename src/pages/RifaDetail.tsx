@@ -59,6 +59,7 @@ export default function RifaDetail() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
+  const [confirming, setConfirming] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const [reserveResult, setReserveResult] = useState<{ tickets: { number: number }[]; account: { bank_name: string; alias: string; cbu: string; cvu: string } } | null>(null);
@@ -121,8 +122,7 @@ export default function RifaDetail() {
 
   const total = selected.size * (raffle?.price_per_number || 0);
 
-  async function handlePurchase(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleReserve() {
     if (!raffle || selected.size === 0) return;
     if (!form.name || !form.phone) {
       setCheckoutError('Nombre y WhatsApp son obligatorios');
@@ -141,7 +141,19 @@ export default function RifaDetail() {
     } catch (err: any) {
       setCheckoutError(err.message || 'Error al procesar la reserva');
       setCheckoutLoading(false);
+      setConfirming(false);
     }
+  }
+
+  function handlePurchase(e: React.FormEvent) {
+    e.preventDefault();
+    if (!raffle || selected.size === 0) return;
+    if (!form.name || !form.phone) {
+      setCheckoutError('Nombre y WhatsApp son obligatorios');
+      return;
+    }
+    setConfirming(true);
+    setCheckoutError('');
   }
 
   function handleShare(platform: 'whatsapp' | 'instagram' | 'copy') {
@@ -541,7 +553,7 @@ export default function RifaDetail() {
 
         {/* ─── CHECKOUT ─── */}
         <AnimatePresence>
-          {selected.size > 0 && (
+          {selected.size > 0 && !confirming && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -584,13 +596,76 @@ export default function RifaDetail() {
 
                 <button type="submit" disabled={checkoutLoading}
                   className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:shadow-lg hover:scale-[1.01] disabled:opacity-50 disabled:hover:scale-100 transition-all">
-                  {checkoutLoading ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Procesando...</>
-                  ) : (
-                    <>Reservar ${total.toLocaleString('es-AR')}</>
-                  )}
+                  Reservar ${total.toLocaleString('es-AR')}
                 </button>
               </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ─── CONFIRMACIÓN ─── */}
+        <AnimatePresence>
+          {confirming && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="bg-white rounded-3xl border border-brand-accent p-5 sm:p-6 mb-20 sm:mb-8"
+            >
+              <h2 className="text-lg sm:text-xl font-bold text-brand-primary mb-4 flex items-center gap-2">
+                <Check className="w-5 h-5 text-green-500" /> Resumen de tu reserva
+              </h2>
+
+              <div className="space-y-4">
+                <div className="bg-brand-bg rounded-2xl p-4">
+                  <div className="text-xs font-bold text-gray-500 uppercase mb-2">Números seleccionados</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Array.from(selected).sort((a, b) => a - b).map(n => (
+                      <span key={n} className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-sm font-bold">{n}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-brand-bg rounded-2xl p-4">
+                    <div className="text-xs font-bold text-gray-500 uppercase mb-1">Nombre</div>
+                    <div className="font-bold text-brand-primary">{form.name}</div>
+                  </div>
+                  <div className="bg-brand-bg rounded-2xl p-4">
+                    <div className="text-xs font-bold text-gray-500 uppercase mb-1">WhatsApp</div>
+                    <div className="font-bold text-brand-primary">{form.phone}</div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-200/50">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-600">{selected.size} número{selected.size > 1 ? 's' : ''} × ${raffle.price_per_number.toLocaleString('es-AR')}</span>
+                    <span className="font-bold text-brand-primary text-lg">${total.toLocaleString('es-AR')}</span>
+                  </div>
+                  <p className="text-xs text-gray-500">Pago por transferencia bancaria</p>
+                </div>
+
+                {checkoutError && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-xl">
+                    <AlertCircle className="w-4 h-4 shrink-0" /> {checkoutError}
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button onClick={() => setConfirming(false)} disabled={checkoutLoading}
+                    className="flex-1 px-4 py-3 border border-brand-accent rounded-xl font-bold text-sm hover:bg-brand-accent/20 transition-all">
+                    Modificar
+                  </button>
+                  <button onClick={handleReserve} disabled={checkoutLoading}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:shadow-lg hover:scale-[1.01] disabled:opacity-50 disabled:hover:scale-100 transition-all">
+                    {checkoutLoading ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Reservando...</>
+                    ) : (
+                      <>Confirmar ${total.toLocaleString('es-AR')}</>
+                    )}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

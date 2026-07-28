@@ -287,8 +287,15 @@ export default function RafflesTab() {
     }
   }
 
+  function defaultPrizeTitle(n: number) {
+    if (n === 1) return '1er Premio';
+    if (n === 2) return '2do Premio';
+    if (n === 3) return '3er Premio';
+    return `${n}to Premio`;
+  }
+
   function addPrize() {
-    setPrizes([...prizes, { position: prizes.length + 1, title: `${prizes.length + 1}er Premio`, description: '', amount: null }]);
+    setPrizes([...prizes, { position: prizes.length + 1, title: defaultPrizeTitle(prizes.length + 1), description: '', amount: null }]);
   }
 
   function removePrize(idx: number) {
