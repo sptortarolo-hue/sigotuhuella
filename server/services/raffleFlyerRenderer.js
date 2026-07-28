@@ -11,6 +11,13 @@ const BRAND_BAR_H = 70;
 const BRAND_BAR_Y = H - BRAND_BAR_H;
 const TOP_PAD = 50;
 const MAX_CELL_SIZE = 80;
+
+function defaultPrizeTitle(n) {
+  if (n === 1) return '1er Premio';
+  if (n === 2) return '2do Premio';
+  if (n === 3) return '3er Premio';
+  return `${n}to Premio`;
+}
 let _canvasModule = null;
 
 async function getCanvas() {
@@ -344,7 +351,7 @@ export async function renderRaffleFlyer({
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(`${i + 1}° ${p.title}`, W / 2, y);
+      ctx.fillText(defaultPrizeTitle(i + 1), W / 2, y);
       y += 32;
       if (p.description) {
         y = drawWrappedText(ctx, p.description, W / 2, y, W * 0.75, 22, 2, 'rgba(255,255,255,0.55)', 1.3);
