@@ -195,7 +195,7 @@ export default function Home() {
                     files: [file],
                     title: `Chappita identificadora${bannerIsFree ? ' gratis' : ''} - Sigo Tu Huella`,
                     text: `Protegé a tu mascota con una chappita QR${bannerIsFree ? ' gratuita' : ''} de Sigo Tu Huella. ${bannerIsFree ? '¡Solicitala ahora!' : `$${bannerPrice} — El dinero recaudado se destina a asistir a las mascotas del barrio. Solicitala ahora!`}`,
-                    url: `${window.location.origin}/solicitar-chapita`,
+                    url: `${import.meta.env.VITE_FRONTEND_URL || 'https://www.sigotuhuella.com.ar'}/solicitar-chapita`,
                   });
                 } catch {}
               }}
