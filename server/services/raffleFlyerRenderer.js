@@ -299,8 +299,11 @@ export async function renderRaffleFlyer({
     }
     if (prizes.length > 4) prizesH += 30;
   }
-  const ctaH = Math.floor(30 * 1.25 * 3);
-  const bottomNeeded = priceH + prizesH + 5 + ctaH + 20;
+  const ctaGap = 45;
+  const ctaBoxPad = 18;
+  const ctaTextH = Math.floor(30 * 1.25 * 3);
+  const ctaH = ctaTextH + ctaBoxPad * 2;
+  const bottomNeeded = priceH + prizesH + 5 + ctaGap + ctaH + 20;
 
   const gridAvailable = BRAND_BAR_Y - y - bottomNeeded;
   const gridH = Math.max(Math.floor(gridAvailable), 150);
@@ -356,31 +359,65 @@ export async function renderRaffleFlyer({
     }
   }
 
-  y += 5;
+  y += 20;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(253, 230, 138, 0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(W * 0.3, y);
+  ctx.lineTo(W * 0.75, y);
+  ctx.stroke();
+  ctx.restore();
+
+  y += 25;
 
   const ctaLines = [
-    'Ayudanos, adquirí la tuya en',
-    'www.sigotuhuella.com.ar',
-    'o por WhatsApp al 221 202 5190',
+    { text: 'Ayudanos, adquirí la tuya en', color: '#FDE68A' },
+    { text: 'www.sigotuhuella.com.ar',      color: '#67E8F9' },
+    { text: 'o por WhatsApp al 221 202 5190', color: '#34D399' },
   ];
   const ctaFontSize = 30;
-  ctx.font = `800 ${ctaFontSize}px ${FONT}`;
-  ctx.fillStyle = '#FDE68A';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  const ctaMaxW = W * 0.88;
-  for (const ctaLine of ctaLines) {
-    let ctaFs = ctaFontSize;
-    ctx.font = `800 ${ctaFs}px ${FONT}`;
-    if (ctx.measureText(ctaLine).width > ctaMaxW) {
-      while (ctaFs > 22 && ctx.measureText(ctaLine).width > ctaMaxW) {
-        ctaFs -= 2;
-        ctx.font = `800 ${ctaFs}px ${FONT}`;
-      }
+
+  let maxW = 0;
+  let totalH = 0;
+  for (const { text } of ctaLines) {
+    let fs = ctaFontSize;
+    ctx.font = `800 ${fs}px ${FONT}`;
+    const maxCtaW = W * 0.88;
+    if (ctx.measureText(text).width > maxCtaW) {
+      while (fs > 22 && ctx.measureText(text).width > maxCtaW) { fs -= 2; ctx.font = `800 ${fs}px ${FONT}`; }
     }
-    ctx.fillText(ctaLine, W / 2, y);
-    y += ctaFs * 1.25;
+    maxW = Math.max(maxW, ctx.measureText(text).width);
+    totalH += fs * 1.25;
   }
+
+  const boxW = maxW + ctaBoxPad * 2;
+  const boxH = totalH + ctaBoxPad * 2;
+  const boxX = (W - boxW) / 2;
+
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = '#ffffff';
+  roundRect(ctx, boxX, y, boxW, boxH, 14);
+  ctx.fill();
+  ctx.restore();
+
+  y += ctaBoxPad;
+  ctx.textBaseline = 'top';
+  for (const { text, color } of ctaLines) {
+    let fs = ctaFontSize;
+    ctx.font = `800 ${fs}px ${FONT}`;
+    const maxCtaW = W * 0.88;
+    if (ctx.measureText(text).width > maxCtaW) {
+      while (fs > 22 && ctx.measureText(text).width > maxCtaW) { fs -= 2; ctx.font = `800 ${fs}px ${FONT}`; }
+    }
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.fillText(text, W / 2, y);
+    y += fs * 1.25;
+  }
+  y += ctaBoxPad;
 
   drawBrandBar(ctx, logoImage || null);
 
