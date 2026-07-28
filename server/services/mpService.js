@@ -8,8 +8,7 @@ async function notifyRaffleBuyer(phone, text) {
     const convCheck = await pool.query(
       `SELECT flow FROM whatsapp_conversations
        WHERE wa_from = $1 AND status = 'active'
-         AND (flow LIKE 'raffle.%'
-           OR (flow = 'end_flow' AND context->>'raffleId' IS NOT NULL))
+         AND context->>'raffleId' IS NOT NULL
        ORDER BY last_message_at DESC LIMIT 1`,
       [phone]
     );
