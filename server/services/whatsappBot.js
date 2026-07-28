@@ -2835,12 +2835,6 @@ async function raffleConfirm(conv, parsed, intent) {
 
     await sendMessage(conv.wa_from, bankMsg);
     await sendMessage(conv.wa_from, `📸 ${conv.bot_name}: Esperamos tu comprobante. Enviá la foto por este chat.`);
-
-    // Also enqueue via relay as backup
-    try {
-      const { enqueue } = await import('./phoneRelayService.js');
-      enqueue(conv.wa_from, bankMsg, null).catch(() => {});
-    } catch (e) {}
   } catch (err) {
     console.error('Raffle reservation error:', err);
     await sendMessage(conv.wa_from,
