@@ -3,6 +3,27 @@ import pool from '../db.js';
 import { normalizePhone } from './phoneUtils.js';
 import { enqueue } from './phoneRelayService.js';
 
+async function notifyRaffleBuyer(phone, text) {
+  try {
+    const convCheck = await pool.query(
+      `SELECT flow FROM whatsapp_conversations
+       WHERE wa_from = $1 AND status = 'active'
+         AND flow LIKE 'raffle.%'
+       ORDER BY last_message_at DESC LIMIT 1`,
+      [phone]
+    );
+    if (convCheck.rows.length > 0) {
+      const { sendMessage } = await import('./whatsappService.js');
+      await sendMessage(phone, text);
+    } else {
+      enqueue(phone, text, null).catch(() => {});
+    }
+  } catch (e) {
+    console.error('notifyRaffleBuyer error, fallback to enqueue:', e.message);
+    enqueue(phone, text, null).catch(() => {});
+  }
+}
+
 let mpClient = null;
 
 async function getClient() {
@@ -197,7 +218,7 @@ export async function confirmManualPayment(receiptId, adminNote = '') {
       const raffleRes = await pool.query('SELECT title FROM raffles WHERE id = $1', [receipt.raffle_id]);
       const raffleTitle = raffleRes.rows[0]?.title || 'Rifa';
       if (buyerPhone) {
-        enqueue(buyerPhone, `✅ Hola ${buyerName || ''}, tu pago para la rifa "${raffleTitle}" fue CONFIRMADO. ¡Gracias por participar!`, null).catch(() => {});
+        notifyRaffleBuyer(buyerPhone, `✅ Hola ${buyerName || ''}, tu pago para la rifa "${raffleTitle}" fue CONFIRMADO. ¡Gracias por participar!`);
       }
     }
 
@@ -241,7 +262,7 @@ export async function rejectManualPayment(receiptId, adminNote = '') {
       const raffleRes = await pool.query('SELECT title FROM raffles WHERE id = $1', [receipt.raffle_id]);
       const raffleTitle = raffleRes.rows[0]?.title || 'Rifa';
       if (buyerPhone) {
-        enqueue(buyerPhone, `❌ Hola ${buyerName || ''}, el comprobante para "${raffleTitle}" no pudo verificarse. Motivo: ${adminNote || 'el comprobante no es válido'}. Enviá uno nuevo por este chat.`, null).catch(() => {});
+        notifyRaffleBuyer(buyerPhone, `❌ Hola ${buyerName || ''}, el comprobante para "${raffleTitle}" no pudo verificarse. Motivo: ${adminNote || 'el comprobante no es válido'}. Enviá uno nuevo por este chat.`);
       }
     }
 
