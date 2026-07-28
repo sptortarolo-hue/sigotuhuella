@@ -89,7 +89,7 @@ function detectIntent(parsed) {
   if (/donar|donación|don/.test(text)) return 'donate';
   if (/face|facebook|fb\./i.test(text)) return 'report_from_fb';
   if (/humano|persona|hablar/.test(text)) return 'human';
-  if (/(?:numero\s+de\s+)?rifa|sorteo|quiero.*numer|participar|comprar.*numer/i.test(text)) return 'raffle';
+  if (/(?:numero\s+de\s+)?rifa|sorteo|quiero.*numer|participar|comprar.*numer|reserv[aeio].*\d+|dame.*\d+|quiero.*\d+/i.test(text)) return 'raffle';
   if (/s[ií]|confirmar|dale|end_yes/.test(text)) return 'confirm';
   if (/^no$|no |cancelar|end_no/.test(text)) return 'cancel';
   if (/saltar|omitir/.test(text)) return 'skip';
