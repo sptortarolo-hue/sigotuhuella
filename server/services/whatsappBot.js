@@ -2642,6 +2642,15 @@ function parseNumbers(text) {
 }
 
 async function startRaffleFlow(conv) {
+  const rafflesVisible = await getSetting('raffles_visible');
+  if (rafflesVisible === 'false') {
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: Lo siento, no tenemos rifas activas en este momento. 🎫\n\n` +
+      `Si querés colaborar, podés hacer una donación para ayudar a las mascotas del barrio. 💚`
+    );
+    return startDonateFlow(conv);
+  }
+
   const raffle = await getActiveRaffle();
   if (!raffle) {
     await sendMessage(conv.wa_from,
