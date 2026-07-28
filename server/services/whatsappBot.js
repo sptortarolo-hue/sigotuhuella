@@ -58,6 +58,7 @@ function detectIntent(parsed) {
       case 'species_dog': case 'species_cat': case 'species_other': return 'species';
       case 'report_from_fb': return 'report_from_fb';
       case 'adopt_post': return 'adopt_post';
+      case 'raffle': return 'raffle';
       case 'raffle_yes': return 'confirm';
       case 'raffle_no': return 'cancel';
     }
