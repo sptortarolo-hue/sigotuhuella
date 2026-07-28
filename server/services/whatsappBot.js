@@ -2626,18 +2626,11 @@ async function getAndUploadFlyer(raffleId) {
 }
 
 function parseNumbers(text) {
-  const parts = text.split(/[,;]+/);
+  const parts = text.split(/[\s,;.\-y]+/).filter(Boolean);
   const nums = new Set();
   for (const part of parts) {
-    const range = part.match(/(\d+)\s*[-–]\s*(\d+)/);
-    if (range) {
-      const a = parseInt(range[1]);
-      const b = parseInt(range[2]);
-      for (let i = Math.min(a, b); i <= Math.max(a, b); i++) nums.add(i);
-    } else {
-      const m = part.match(/\d+/);
-      if (m) nums.add(parseInt(m[0]));
-    }
+    const m = part.match(/\d+/);
+    if (m) nums.add(parseInt(m[0]));
   }
   return [...nums].filter(n => n > 0).sort((a, b) => a - b);
 }
@@ -2683,10 +2676,10 @@ async function raffleIntro(conv, parsed, intent) {
 
   await sendMessage(conv.wa_from,
     `${conv.bot_name}: Decinos qué *números* querés.\n\n` +
-    `Podés escribir:\n` +
+    `Podés escribirlos separados por espacios, comas o guiones:\n` +
+    `• "5 10 15 20"\n` +
     `• "1, 5, 10, 15, 20"\n` +
-    `• "del 1 al 5"\n` +
-    `• "1-10, 22, 30-35"\n\n` +
+    `• "23 43 5"\n\n` +
     `Los números disponibles son del *1 al ${raffle.total_numbers}*.`
   );
   await setFlow(conv, 'raffle.numbers');
