@@ -289,11 +289,23 @@ export async function renderRaffleFlyer({
     y += descH + 10;
   }
 
-  const remaining = BRAND_BAR_Y - y;
-  const gridH = Math.floor(remaining * 0.70);
+  const priceH = 64 + 15;
+  let prizesH = 0;
+  if (prizes && prizes.length > 0) {
+    prizesH = 42;
+    for (let i = 0; i < Math.min(prizes.length, 4); i++) {
+      prizesH += 32;
+      if (prizes[i].description) prizesH += Math.floor(22 * 1.3 * 2) + 6;
+    }
+    if (prizes.length > 4) prizesH += 30;
+  }
+  const ctaH = Math.floor(30 * 1.25 * 3);
+  const bottomNeeded = priceH + prizesH + 5 + ctaH + 20;
 
-  const gridTop = y;
-  const gridBottom = drawNumberGrid(ctx, gridTop, gridH, tickets, totalNumbers);
+  const gridAvailable = BRAND_BAR_Y - y - bottomNeeded;
+  const gridH = Math.max(Math.floor(gridAvailable), 150);
+
+  const gridBottom = drawNumberGrid(ctx, y, gridH, tickets, totalNumbers);
   y = gridBottom + 15;
 
   const priceText = `$ ${parseFloat(pricePerNumber).toLocaleString('es-AR')} x número`;
