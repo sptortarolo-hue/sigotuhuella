@@ -2602,7 +2602,13 @@ async function apConfirm(conv, parsed, intent) {
 // ─── Raffle Flow ───
 
 async function getActiveRaffle() {
-  const r = await pool.query("SELECT * FROM raffles WHERE status = 'active' ORDER BY created_at DESC LIMIT 1");
+  const r = await pool.query(
+    `SELECT r.*,
+       COALESCE((SELECT COUNT(*) FROM raffle_tickets WHERE raffle_id = r.id AND status NOT IN ('cancelled', 'available')), 0) AS sold_count
+     FROM raffles r
+     WHERE r.status = 'active'
+     ORDER BY r.created_at DESC LIMIT 1`
+  );
   return r.rows[0] || null;
 }
 
@@ -2650,7 +2656,7 @@ async function startRaffleFlow(conv) {
   await sendMessage(conv.wa_from,
     `🎫 *${conv.bot_name}:* Entiendo que querés participar de la rifa *"${raffle.title}"*\n\n` +
     `💰 *Precio:* $${parseFloat(raffle.price_per_number).toLocaleString('es-AR')} x número\n` +
-    `📊 *Disponibles:* ${raffle.total_numbers - (raffle.stats?.sold || 0)} de ${raffle.total_numbers}\n\n` +
+    `📊 *Disponibles:* ${raffle.total_numbers - Number(raffle.sold_count)} de ${raffle.total_numbers}\n\n` +
     `¿Querés participar?`
   );
   await sendInteractiveButtons(conv.wa_from, '¿Participás?', [
