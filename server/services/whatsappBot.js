@@ -238,7 +238,12 @@ async function routeFlow(conv, parsed) {
   }
 
   switch (flow) {
-    case 'welcome': return showWelcome(conv);
+    case 'welcome':
+      if (intent) {
+        await setFlow(conv, 'menu', { is_new: false, return_count: 1 });
+        return handleMenu(conv, parsed, intent);
+      }
+      return showWelcome(conv);
     case 'menu': return handleMenu(conv, parsed, intent);
     case 'flow_interrupted': return handleFlowInterrupted(conv, parsed);
     case 'report_lost.species': return rlSpecies(conv, parsed);
