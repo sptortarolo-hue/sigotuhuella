@@ -4,13 +4,12 @@ import { normalizePhone } from './phoneUtils.js';
 import { enqueue } from './phoneRelayService.js';
 
 async function notifyRaffleBuyer(phone, text) {
-  // Primero intenta enviar por Meta API (bot). Si falla (por ejemplo, fuera de
-  // ventana 24h o sin conversación activa), usa relay como fallback.
   try {
     const { sendMessage } = await import('./whatsappService.js');
     await sendMessage(phone, text);
+    console.log(`notifyRaffleBuyer: enviado por Meta API a ${phone}`);
   } catch (e) {
-    console.error('notifyRaffleBuyer: Meta API falló, fallback a relay:', e.message);
+    console.error(`notifyRaffleBuyer: Meta API falló para ${phone}:`, e.response?.data || e.message);
     enqueue(phone, text, null).catch(() => {});
   }
 }
