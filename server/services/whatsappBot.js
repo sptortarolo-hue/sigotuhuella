@@ -58,6 +58,8 @@ function detectIntent(parsed) {
       case 'species_dog': case 'species_cat': case 'species_other': return 'species';
       case 'report_from_fb': return 'report_from_fb';
       case 'adopt_post': return 'adopt_post';
+      case 'raffle_yes': return 'confirm';
+      case 'raffle_no': return 'cancel';
     }
   }
 
@@ -86,6 +88,7 @@ function detectIntent(parsed) {
   if (/donar|donación|don/.test(text)) return 'donate';
   if (/face|facebook|fb\./i.test(text)) return 'report_from_fb';
   if (/humano|persona|hablar/.test(text)) return 'human';
+  if (/rifa|sorteo|numero|quiero.*numer|participar|comprar.*numer/i.test(text)) return 'raffle';
   if (/s[ií]|confirmar|dale|end_yes/.test(text)) return 'confirm';
   if (/^no$|no |cancelar|end_no/.test(text)) return 'cancel';
   if (/saltar|omitir/.test(text)) return 'skip';
@@ -293,6 +296,11 @@ async function routeFlow(conv, parsed) {
     case 'adopt_post.description': return apDescription(conv, parsed);
     case 'adopt_post.confirm': return apConfirm(conv, parsed, intent);
     case 'info_qr': return showInfoQr(conv);
+    case 'raffle.intro': return raffleIntro(conv, parsed, intent);
+    case 'raffle.numbers': return raffleNumbers(conv, parsed);
+    case 'raffle.name': return raffleName(conv, parsed, intent);
+    case 'raffle.confirm': return raffleConfirm(conv, parsed, intent);
+    case 'raffle.waiting_receipt': return raffleWaitingReceipt(conv, parsed);
     case 'report_from_fb.ask_url': return fbAskUrl(conv, parsed);
     case 'report_from_fb.lookup': return fbLookup(conv, parsed);
     case 'report_from_fb.ask_status': return fbAskStatus(conv, parsed);
@@ -354,6 +362,11 @@ const stepNames = {
   'adopt_post.name': 'decir el nombre',
   'adopt_post.description': 'dar una descripción',
   'adopt_post.confirm': 'confirmar los datos',
+  'raffle.intro': 'responder si querés participar',
+  'raffle.numbers': 'escribir los números',
+  'raffle.name': 'confirmar tu nombre',
+  'raffle.confirm': 'confirmar la reserva',
+  'raffle.waiting_receipt': 'enviar el comprobante',
   'report_from_fb.ask_url': 'pegar el link de Facebook',
   'report_from_fb.lookup': 'confirmar la publicación',
   'report_from_fb.ask_status': 'indicar el estado',
@@ -406,6 +419,7 @@ export async function showMenu(conv) {
       { id: 'adopt', title: '🙋 Quiero adoptar' },
       { id: 'adopt_post', title: '🐾 Publicar en adopción' },
       { id: 'info_qr', title: 'ℹ️ Chapita QR' },
+      { id: 'raffle', title: '🎫 Comprar números de rifa' },
       { id: 'donate', title: '💰 Donar' },
       { id: 'volunteer', title: '🙌 Ser voluntario' },
       { id: 'report_from_fb', title: '📱 Link Facebook' },
@@ -427,6 +441,7 @@ export async function showMenu(conv) {
         `• "Quiero adoptar"\n` +
         `• "Publicar en adopción"\n` +
         `• "Chapita QR"\n` +
+        `• "Comprar números de rifa"\n` +
         `• "Donar"\n` +
         `• "Link Facebook"\n` +
         `• "Contactar equipo"`
@@ -459,6 +474,7 @@ async function handleMenu(conv, parsed, intent) {
     case 'donate': return startDonateFlow(conv);
     case 'report_from_fb': return startReportFromFb(conv);
     case 'human': return startHumanRequest(conv);
+    case 'raffle': return startRaffleFlow(conv);
     case 'image_received': return handleImageFromMenu(conv, parsed);
     default:
       return handleUnrecognizedText(conv, parsed);
@@ -2580,6 +2596,311 @@ async function apConfirm(conv, parsed, intent) {
     return endFlow(conv);
   }
   await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
+  return endFlow(conv);
+}
+
+// ─── Raffle Flow ───
+
+async function getActiveRaffle() {
+  const r = await pool.query("SELECT * FROM raffles WHERE status = 'active' ORDER BY created_at DESC LIMIT 1");
+  return r.rows[0] || null;
+}
+
+async function getBaseUrl() {
+  const r = await pool.query("SELECT value FROM settings WHERE key = 'app_base_url'");
+  return r.rows[0]?.value || process.env.APP_BASE_URL || 'https://sigotuhuella.com.ar';
+}
+
+async function getAndUploadFlyer(raffleId) {
+  try {
+    const baseUrl = await getBaseUrl();
+    const resp = await fetch(`${baseUrl}/api/raffles/${raffleId}/flyer`);
+    if (!resp.ok) return null;
+    const buffer = await resp.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
+    return await uploadMedia(base64, resp.headers.get('content-type') || 'image/png');
+  } catch (e) {
+    console.error('getAndUploadFlyer error:', e);
+    return null;
+  }
+}
+
+function parseNumbers(text) {
+  const parts = text.split(/[,;]+/);
+  const nums = new Set();
+  for (const part of parts) {
+    const range = part.match(/(\d+)\s*[-–]\s*(\d+)/);
+    if (range) {
+      const a = parseInt(range[1]);
+      const b = parseInt(range[2]);
+      for (let i = Math.min(a, b); i <= Math.max(a, b); i++) nums.add(i);
+    } else {
+      const m = part.match(/\d+/);
+      if (m) nums.add(parseInt(m[0]));
+    }
+  }
+  return [...nums].filter(n => n > 0).sort((a, b) => a - b);
+}
+
+async function startRaffleFlow(conv) {
+  const raffle = await getActiveRaffle();
+  if (!raffle) {
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: Lo siento, no hay rifas activas en este momento. 🎫\n\n` +
+      `Seguinos en nuestras redes para enterarte cuando lancemos una nueva.`
+    );
+    return endFlow(conv);
+  }
+
+  await setFlow(conv, 'raffle.intro', { raffle });
+
+  await sendMessage(conv.wa_from,
+    `🎫 *${conv.bot_name}:* Entiendo que querés participar de la rifa *"${raffle.title}"*\n\n` +
+    `💰 *Precio:* $${parseFloat(raffle.price_per_number).toLocaleString('es-AR')} x número\n` +
+    `📊 *Disponibles:* ${raffle.total_numbers - (raffle.stats?.sold || 0)} de ${raffle.total_numbers}\n\n` +
+    `¿Querés participar?`
+  );
+  await sendInteractiveButtons(conv.wa_from, '¿Participás?', [
+    { id: 'raffle_yes', title: '✅ Sí' },
+    { id: 'raffle_no', title: '❌ No' },
+  ]);
+}
+
+async function raffleIntro(conv, parsed, intent) {
+  const raffle = conv.context?.raffle;
+  if (!raffle) return showMenu(conv);
+
+  if (intent === 'cancel') {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: No hay problema. Si querés participar después, escribime "rifa" 🐾`);
+    return endFlow(conv);
+  }
+
+  // Send flyer
+  const mediaId = await getAndUploadFlyer(raffle.id);
+  if (mediaId) {
+    await sendImage(conv.wa_from, mediaId, `Rifa: ${raffle.title}`);
+  }
+
+  await sendMessage(conv.wa_from,
+    `${conv.bot_name}: Decinos qué *números* querés.\n\n` +
+    `Podés escribir:\n` +
+    `• "1, 5, 10, 15, 20"\n` +
+    `• "del 1 al 5"\n` +
+    `• "1-10, 22, 30-35"\n\n` +
+    `Los números disponibles son del *1 al ${raffle.total_numbers}*.`
+  );
+  await setFlow(conv, 'raffle.numbers');
+}
+
+async function raffleNumbers(conv, parsed) {
+  const raffle = conv.context?.raffle;
+  if (!raffle) return showMenu(conv);
+
+  const text = (parsed.textBody || '').trim();
+  let numbers = parseNumbers(text);
+
+  if (numbers.length === 0) {
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: No entendí los números. Escribilos separados por coma o con guión. Ej: "1, 5, 10, 15-20"`
+    );
+    return;
+  }
+
+  if (numbers.length > 20) {
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: Podés pedir hasta 20 números por vez. Escribí menos números.`
+    );
+    return;
+  }
+
+  const invalid = numbers.filter(n => n > raffle.total_numbers);
+  if (invalid.length > 0) {
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: Los números van del 1 al ${raffle.total_numbers}. Los siguientes no existen: ${invalid.join(', ')}.`
+    );
+    return;
+  }
+
+  // Check availability
+  const tickets = (await pool.query(
+    `SELECT number FROM raffle_tickets WHERE raffle_id = $1 AND number = ANY($2) AND status NOT IN ('cancelled')`,
+    [raffle.id, numbers]
+  )).rows;
+
+  const takenNumbers = tickets.map(t => t.number);
+  if (takenNumbers.length > 0) {
+    const available = numbers.filter(n => !takenNumbers.includes(n));
+    if (available.length === 0) {
+      await sendMessage(conv.wa_from,
+        `${conv.bot_name}: Todos los números que pediste ya están vendidos o reservados. Elegí otros números.`
+      );
+      return;
+    }
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Los números ${takenNumbers.join(', ')} ya no están disponibles.`);
+    numbers = available;
+  }
+
+  await setFlow(conv, 'raffle.name', { ...conv.context, selectedNumbers: numbers });
+  await sendMessage(conv.wa_from, `✅ Números registrados: ${numbers.join(', ')}`);
+
+  const profileName = parsed.profileName || '';
+  if (profileName) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Tu nombre es *${profileName}*, ¿correcto?`);
+    await sendInteractiveButtons(conv.wa_from, 'Nombre:', [
+      { id: 'confirm_yes', title: '✅ Sí' },
+      { id: 'confirm_no', title: '✏️ No, escribir otro' },
+    ]);
+  } else {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Decime tu *nombre*:`);
+  }
+}
+
+async function raffleName(conv, parsed, intent) {
+  let name;
+  if (intent === 'confirm') {
+    name = parsed.profileName || '';
+    if (!name) {
+      await sendMessage(conv.wa_from, `${conv.bot_name}: Decime tu *nombre*:`);
+      return;
+    }
+  } else if (parsed.buttonId === 'confirm_no' || intent === 'edit') {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Decime tu *nombre*:`);
+    await setFlow(conv, 'raffle.name', conv.context);
+    return;
+  } else {
+    name = (parsed.textBody || '').trim();
+    if (!name || name.length < 2) {
+      await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor decime tu nombre.`);
+      return;
+    }
+  }
+
+  const numbers = conv.context.selectedNumbers;
+  const raffle = conv.context.raffle;
+  const total = numbers.length * parseFloat(raffle.price_per_number);
+
+  await setFlow(conv, 'raffle.confirm', { ...conv.context, buyerName: name });
+
+  await sendMessage(conv.wa_from,
+    `${conv.bot_name}: Confirmá tu reserva:\n\n` +
+    `🎫 *Rifa:* ${raffle.title}\n` +
+    `🔢 *Números:* ${numbers.join(', ')}\n` +
+    `👤 *Nombre:* ${name}\n` +
+    `💰 *Total:* $${total.toLocaleString('es-AR')}\n\n` +
+    `¿Reservamos?`
+  );
+  await sendInteractiveButtons(conv.wa_from, 'Confirmar reserva:', [
+    { id: 'confirm_yes', title: '✅ Sí, reservar' },
+    { id: 'confirm_no', title: '❌ Cancelar' },
+  ]);
+}
+
+async function raffleConfirm(conv, parsed, intent) {
+  if (intent !== 'confirm') {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
+    return endFlow(conv);
+  }
+
+  const ctx = conv.context;
+  const raffle = ctx.raffle;
+  const numbers = ctx.selectedNumbers;
+  const name = ctx.buyerName;
+
+  try {
+    const { reserveTickets } = await import('./mpService.js');
+    const result = await reserveTickets(raffle.id, numbers, {
+      name,
+      phone: conv.wa_from,
+    }, 'transfer');
+
+    // Save context for receipt matching
+    await setFlow(conv, 'raffle.waiting_receipt', {
+      ...ctx,
+      buyerName: name,
+      ticketGroupId: result.ticketGroupId,
+      raffleId: raffle.id,
+      reservedNumbers: numbers,
+    });
+
+    // Fetch bank account
+    const accRes = await pool.query(
+      'SELECT * FROM collaboration_accounts ORDER BY display_order ASC, bank_name ASC LIMIT 1'
+    );
+    const account = accRes.rows[0];
+
+    let bankMsg = `🎫 *${conv.bot_name}:* Reservaste los números *${numbers.join(', ')}* de la rifa *"${raffle.title}"*.\n\n`;
+    bankMsg += `💰 *Total a transferir:* $${(numbers.length * parseFloat(raffle.price_per_number)).toLocaleString('es-AR')}\n\n`;
+    if (account) {
+      bankMsg += `🏦 *Datos para la transferencia:*\n`;
+      bankMsg += `*Banco:* ${account.bank_name}\n`;
+      if (account.alias) bankMsg += `*Alias:* ${account.alias}\n`;
+      if (account.cbu) bankMsg += `*CBU:* ${account.cbu}\n`;
+      if (account.cvu) bankMsg += `*CVU:* ${account.cvu}\n`;
+      if (account.holder_name) bankMsg += `*Titular:* ${account.holder_name}\n`;
+    }
+    bankMsg += `\n📱 *Importante:* Enviá el *comprobante de la transferencia* (foto) por este chat para confirmar tu participación.`;
+
+    await sendMessage(conv.wa_from, bankMsg);
+    await sendMessage(conv.wa_from, `📸 ${conv.bot_name}: Esperamos tu comprobante. Enviá la foto por este chat.`);
+
+    // Also enqueue via relay as backup
+    try {
+      const { enqueue } = await import('./phoneRelayService.js');
+      enqueue(conv.wa_from, bankMsg, null).catch(() => {});
+    } catch (e) {}
+  } catch (err) {
+    console.error('Raffle reservation error:', err);
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: Hubo un error al procesar la reserva: ${err.message || 'Error desconocido'}. Probá de nuevo más tarde.`
+    );
+    return endFlow(conv);
+  }
+}
+
+async function raffleWaitingReceipt(conv, parsed) {
+  const ctx = conv.context;
+  if (!ctx?.ticketGroupId) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: No encontré tu reserva. Escribí "rifa" para empezar de nuevo.`);
+    return endFlow(conv);
+  }
+
+  if (parsed.messageType !== 'image' || !parsed.imageData) {
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: Enviá la *foto* del comprobante de transferencia para confirmar tu participación. 📸`
+    );
+    return;
+  }
+
+  try {
+    const totalExpected = ctx.reservedNumbers.length * parseFloat(ctx.raffle.price_per_number);
+
+    await pool.query(
+      `INSERT INTO raffle_receipts (raffle_id, ticket_group_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
+      [ctx.raffleId, ctx.ticketGroupId, parsed.imageData, parsed.imageMime || 'image/jpeg',
+       ctx.buyerName, conv.wa_from, totalExpected]
+    );
+
+    // Notify admin with push notification
+    try {
+      const { sendPushToAdmins } = await import('./pushService.js');
+      sendPushToAdmins({
+        title: '📸 Nuevo comprobante de rifa',
+        body: `${ctx.buyerName} envió comprobante para ${ctx.reservedNumbers.length} número(s)`,
+        tag: `raffle-receipt-${Date.now()}`,
+      }).catch(() => {});
+    } catch (e) {}
+
+    await sendMessage(conv.wa_from,
+      `✅ *${conv.bot_name}:* ¡Recibimos tu comprobante! Un administrador lo va a verificar y confirmar tu participación. Te avisamos por este chat cuando esté aprobado. 🐾`
+    );
+  } catch (err) {
+    console.error('Raffle receipt save error:', err);
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: Hubo un error al guardar el comprobante. Intentalo de nuevo o contactá al equipo.`
+    );
+  }
+
   return endFlow(conv);
 }
 
