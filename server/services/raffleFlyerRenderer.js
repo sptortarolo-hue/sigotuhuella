@@ -286,7 +286,7 @@ export async function renderRaffleFlyer({
       ctx.fillText(l.join(' '), W / 2, descY);
       descY += 28 * 1.4;
     }
-    y += descH + 10;
+    y += descH + 35;
   }
 
   const priceH = 64 + 15;
