@@ -1,6 +1,6 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const { exec } = require('child_process');
-const { readdirSync, existsSync } = require('fs');
+const { readdirSync, existsSync, rmSync, writeFileSync } = require('fs');
 const path = require('path');
 const axios = require('axios');
 const QR = require('qrcode-terminal');
@@ -14,6 +14,18 @@ const MAX_RETRIES = 1;
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const TIMELOCK_CHECK_MS = 60000;
 const WA_KEYWORDS = /perdido|perdida|encontré|encontre|encontrada|encontrado|perro|perra|gato|gata|mascota|apareció|aparecio|extraviado|extraviada|adopción|adopcion|callejero|abandonado|busco|busca|rescate|rescaté|rescatado/i;
+
+const args = process.argv.slice(2);
+const isLogin = args.includes('--login');
+const isHeaded = args.includes('--headed');
+
+if (isLogin) {
+  const authDir = path.join(__dirname, 'auth_info');
+  if (existsSync(authDir)) {
+    rmSync(authDir, { recursive: true, force: true });
+    console.log('[Login] Sesión eliminada. Se generará QR nuevo.');
+  }
+}
 
 const replyCooldowns = new Map();
 const knownContacts = new Set();
@@ -145,6 +157,13 @@ async function sendQR(qrData) {
       headers: { Authorization: `Bearer ${TOKEN}` },
       timeout: 10000,
     });
+    if (isHeaded) {
+      const tmpFile = '/tmp/wa-relay-qr.png';
+      writeFileSync(tmpFile, buf);
+      exec(`DISPLAY=${process.env.DISPLAY || ':0'} display ${tmpFile}`, (err) => {
+        if (err) console.log('[Headed] display no disponible:', err.message);
+      });
+    }
   } catch (e) { /* QR upload failure is non-critical */ }
 }
 
