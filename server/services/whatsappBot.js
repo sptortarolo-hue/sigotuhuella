@@ -623,6 +623,10 @@ async function hMotive(conv, parsed) {
 }
 
 async function hName(conv, parsed) {
+  if (parsed.buttonId) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí tu nombre, no uses botones de pasos anteriores.`);
+    return;
+  }
   const name = (parsed.textBody || '').trim();
   if (!name || name.length < 3) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí tu nombre completo`);
@@ -1398,6 +1402,10 @@ async function askChapitaPetName(conv) {
 }
 
 async function chapitaPetName(conv, parsed) {
+  if (parsed.buttonId) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí el nombre de tu mascota, no uses botones de pasos anteriores.`);
+    return;
+  }
   const petName = (parsed.textBody || '').trim();
   if (!petName) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor decime el nombre de tu mascota`);
@@ -1558,6 +1566,10 @@ async function vAlertsOptin(conv, parsed) {
 }
 
 async function vName(conv, parsed) {
+  if (parsed.buttonId) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí tu nombre, no uses botones de pasos anteriores.`);
+    return;
+  }
   const name = (parsed.textBody || '').trim();
   if (!name || name.length < 3) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí tu nombre completo`);
@@ -2335,6 +2347,10 @@ async function startAdoptPost(conv) {
 }
 
 async function registerName(conv, parsed) {
+  if (parsed.buttonId) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí tu nombre, no uses botones de pasos anteriores.`);
+    return;
+  }
   const name = (parsed.textBody || '').trim();
   if (!name || name.length < 2) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor decime tu nombre para registrarte.`);
@@ -2345,6 +2361,10 @@ async function registerName(conv, parsed) {
 }
 
 async function registerEmail(conv, parsed) {
+  if (parsed.buttonId) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí tu email, no uses botones de pasos anteriores.`);
+    return;
+  }
   const email = (parsed.textBody || '').trim().toLowerCase();
   if (!email.includes('@') || !email.includes('.')) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Ese no parece un email válido. Escribí tu correo electrónico.`);
