@@ -88,7 +88,72 @@ export default function PublicPetProfile() {
   }
 
   if (!data || !data.found) {
-    if (data?.resolved_share_token) {
+    if (data?.adoption_pending) {
+    // Show adopter data for pending adoption
+    const pet = data.pet;
+    return (
+      <div className="min-h-screen bg-brand-bg pb-8">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <ShieldCheck className="w-4 h-4" /> QR {data.code}
+            </div>
+            <Link to="/" className="text-xs text-brand-primary hover:underline flex items-center gap-1">
+              <ArrowLeft className="w-3 h-3" /> Sigo Tu Huella
+            </Link>
+          </div>
+
+          <div className="bg-gradient-to-r from-amber-500 to-rose-500 rounded-[2.5rem] px-6 py-8 sm:py-10 shadow-sm">
+            <div className="text-center">
+              <div className="w-20 h-20 rounded-2xl overflow-hidden bg-white/10 mx-auto mb-4 flex items-center justify-center border-2 border-white/20">
+                <Heart className="w-10 h-10 text-white/70" />
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white">{pet.name}</h1>
+              <p className="text-white/80 text-sm mt-1">
+                {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species}{pet.breed ? ` · ${pet.breed}` : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden shadow-sm -mt-3 relative z-10 p-6 sm:p-8">
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 mb-6">
+              <p className="text-sm font-bold text-amber-800 flex items-center gap-2">
+                <Heart className="w-4 h-4" /> Esta mascota está en adopción
+              </p>
+              <p className="text-xs text-amber-600 mt-1">
+                Está en período de prueba con su nuevo adoptante. Si la encontraste, comunicate con los datos abajo.
+              </p>
+            </div>
+
+            {pet.owner_name && (
+              <div className="mb-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Está con</p>
+                <a href={`https://wa.me/${pet.owner_phone?.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-4 bg-green-50 rounded-2xl border border-green-200 hover:bg-green-100 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+                    <MessageCircle className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">{pet.owner_name}</p>
+                    <p className="text-xs text-gray-500">{pet.owner_phone}</p>
+                  </div>
+                </a>
+              </div>
+            )}
+
+            <div className="mt-6">
+              <Link to={`/adopcion/reclamar/${data.assignment_token}`}
+                className="block w-full py-3 bg-brand-primary text-white rounded-xl font-bold text-sm text-center hover:shadow-lg transition-all">
+                Soy el adoptante — Confirmar adopción
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (data?.resolved_share_token) {
       return <Navigate to={`/mascota/${data.resolved_share_token}`} replace />;
     }
     if (data?.exists) {

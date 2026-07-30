@@ -141,6 +141,12 @@ export default function MyPetDetail() {
   const [bioDraft, setBioDraft] = useState('');
   const [showLostModal, setShowLostModal] = useState(false);
   const [showReunionModal, setShowReunionModal] = useState(false);
+  const [showAdoptionGiveModal, setShowAdoptionGiveModal] = useState(false);
+  const [adopterName, setAdopterName] = useState('');
+  const [adopterEmail, setAdopterEmail] = useState('');
+  const [adopterPhone, setAdopterPhone] = useState('');
+  const [adoptionGiveLoading, setAdoptionGiveLoading] = useState(false);
+  const [adoptionGiveDone, setAdoptionGiveDone] = useState(false);
   const [lostLocation, setLostLocation] = useState('');
   const [lostPhone, setLostPhone] = useState(user?.phone || '');
   const [lostPhoneError, setLostPhoneError] = useState('');
@@ -794,6 +800,23 @@ export default function MyPetDetail() {
                   </button>
                 )}
               </div>
+
+              {qrDataUrl && (
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
+                    <Heart className="w-4 h-4" /> Dar en adopción
+                  </h4>
+                  <button
+                    onClick={() => { setShowAdoptionGiveModal(true); setAdoptionGiveDone(false); setAdopterName(''); setAdopterEmail(''); setAdopterPhone(''); }}
+                    className="px-4 py-2.5 bg-rose-50 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-rose-100 transition-colors w-full justify-center border border-rose-200"
+                  >
+                    <Heart className="w-3 h-3" /> Dar en adopción con datos del adoptante
+                  </button>
+                  <p className="text-[10px] text-gray-400 mt-2">
+                    La mascota ya tiene chapita QR. Al darla en adopción, los datos del adoptante aparecerán en el QR.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
@@ -1940,6 +1963,105 @@ export default function MyPetDetail() {
           }}
         />
       )}
+
+      <AnimatePresence>
+        {showAdoptionGiveModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-brand-primary/20 backdrop-blur-sm"
+          >
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              className="relative w-full max-w-md bg-white rounded-[2rem] p-6 sm:p-8"
+            >
+              <button onClick={() => setShowAdoptionGiveModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 bg-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <Heart className="w-7 h-7 text-rose-500" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Dar en adopción</h3>
+                <p className="text-xs text-gray-400 mt-1">Ingresá los datos de la persona que se lleva a {pet?.name}</p>
+              </div>
+
+              {adoptionGiveDone ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Check className="w-8 h-8 text-green-600" />
+                  </div>
+                  <p className="text-sm font-medium text-green-700 mb-2">¡Adopción pendiente creada!</p>
+                  <p className="text-xs text-gray-500 mb-4">
+                    {adopterName} recibirá un link para registrarse y confirmar. La mascota aparece en tu sección "Adopciones pendientes".
+                  </p>
+                  <button onClick={() => setShowAdoptionGiveModal(false)}
+                    className="px-6 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">Nombre del adoptante *</label>
+                    <input type="text" value={adopterName} onChange={e => setAdopterName(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                      placeholder="Nombre" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">Email *</label>
+                    <input type="email" value={adopterEmail} onChange={e => setAdopterEmail(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                      placeholder="email@ejemplo.com" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">WhatsApp *</label>
+                    <input type="tel" value={adopterPhone} onChange={e => setAdopterPhone(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                      placeholder="+54 9 221 123456" />
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      if (!adopterName || !adopterEmail || !adopterPhone) { alert('Completá todos los campos'); return; }
+                      setAdoptionGiveLoading(true);
+                      try {
+                        const shareToken = pet?.qr_id?.share_token;
+                        await api.requestChapita({
+                          pet: {
+                            name: pet.name,
+                            species: pet.species,
+                            breed: pet.breed,
+                            color: pet.color,
+                            gender: pet.gender,
+                            bio: pet.bio,
+                            is_vaccinated: pet.is_vaccinated,
+                            is_sterilized: pet.is_sterilized,
+                            is_dewormed: pet.is_dewormed,
+                            location: '',
+                          },
+                          share_token: shareToken || undefined,
+                          for_adopter: true,
+                          adopter: { name: adopterName, email: adopterEmail, phone: adopterPhone },
+                        });
+                        setAdoptionGiveDone(true);
+                      } catch (e: any) {
+                        alert(e.message || 'Error al procesar');
+                      } finally {
+                        setAdoptionGiveLoading(false);
+                      }
+                    }}
+                    disabled={adoptionGiveLoading}
+                    className="w-full py-3 bg-rose-500 text-white rounded-xl text-sm font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {adoptionGiveLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className="w-4 h-4" />}
+                    {adoptionGiveLoading ? 'Procesando...' : 'Confirmar entrega'}
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div></>
   );
 }

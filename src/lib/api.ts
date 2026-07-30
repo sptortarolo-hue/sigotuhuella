@@ -400,6 +400,12 @@ export const api = {
       delete: (postId: string, commentId: string) => request(`/feed/${postId}/comments/${commentId}`, { method: 'DELETE' }),
     },
   },
+  adoptionAssignments: {
+    pending: () => request('/adoption-assignments/pending'),
+    claim: (token: string) => request(`/adoption-assignments/claim/${token}`, { method: 'POST' }),
+    return: (token: string, reason?: string) => request(`/adoption-assignments/return/${token}`, { method: 'POST', body: JSON.stringify({ reason }) }),
+    checkToken: (token: string) => request(`/adoption-assignments/check-token/${token}`),
+  },
   raffles: {
     list: () => request('/raffles'),
     get: (id: string) => request(`/raffles/${id}`),

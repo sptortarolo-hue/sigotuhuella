@@ -53,6 +53,41 @@ router.post('/register', async (req, res) => {
       }
     } catch (e) { /* ignore invite errors on registration */ }
 
+    // Auto-claim any pending adoption assignments for this email
+    try {
+      const pendingAdoptions = await pool.query(
+        `SELECT aa.id, aa.pet_id, aa.qr_id, p.name as pet_name, p.species, p.breed, p.color
+         FROM adoption_assignments aa
+         JOIN pets p ON p.id = aa.pet_id
+         WHERE aa.adopter_email = $1 AND aa.status = 'pending_adopter'`,
+        [email]
+      );
+      for (const ass of pendingAdoptions.rows) {
+        const myPetResult = await pool.query(
+          `INSERT INTO my_pets (user_id, name, species, breed, color, gender)
+           VALUES ($1, $2, $3, $4, $5, 'unknown')
+           RETURNING *`,
+          [user.id, ass.pet_name, ass.species, ass.breed || null, ass.color || null]
+        );
+        const myPetId = myPetResult.rows[0].id;
+
+        if (ass.qr_id) {
+          await pool.query('UPDATE qr_identifiers SET my_pet_id = $1, assigned_at = NOW() WHERE id = $2', [myPetId, ass.qr_id]);
+          await pool.query('UPDATE my_pets SET qr_id = $1 WHERE id = $2', [ass.qr_id, myPetId]);
+        }
+
+        await pool.query(
+          `UPDATE adoption_assignments SET status = 'completed', adopter_id = $1, completed_at = NOW() WHERE id = $2`,
+          [user.id, ass.id]
+        );
+
+        await pool.query(
+          `UPDATE pets SET status = 'adopted', adoption_assignment_id = NULL WHERE id = $1`,
+          [ass.pet_id]
+        );
+      }
+    } catch (e) { /* ignore adoption assignment errors on registration */ }
+
     sendVerificationEmail(user.email, user.display_name, verificationToken).catch(err => console.error('Failed to send verification email:', err));
     notifyUser(user, {
       subject: 'Confirmá tu email — Sigo Tu Huella',

@@ -622,6 +622,27 @@ CREATE TABLE IF NOT EXISTS my_pet_shares (
   created_at TIMESTAMP DEFAULT NOW(),
   PRIMARY KEY (pet_id, user_id)
 );
+
+CREATE TABLE IF NOT EXISTS adoption_assignments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,
+  inviter_id UUID NOT NULL REFERENCES users(id),
+  adopter_id UUID REFERENCES users(id),
+  adopter_name VARCHAR(255) NOT NULL,
+  adopter_email VARCHAR(255) NOT NULL,
+  adopter_phone VARCHAR(100) NOT NULL,
+  token VARCHAR(64) UNIQUE NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending_adopter',
+  qr_id UUID REFERENCES qr_identifiers(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  completed_at TIMESTAMP,
+  returned_at TIMESTAMP,
+  return_reason TEXT
+);
+
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS adoption_assignment_id UUID REFERENCES adoption_assignments(id);
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMP;
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP;
 `;
 
 async function migrate(client, sql, label) {
@@ -1457,6 +1478,17 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_raffle_receipts_ticket_group_id
       ON raffle_receipts(ticket_group_id)
     `, 'raffle_receipts ticket_group_id index');
+
+    // ─── Adoption Assignments ───
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS adoption_assignment_id UUID REFERENCES adoption_assignments(id)
+    `, 'pets adoption_assignment_id');
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMP
+    `, 'pets trial_started_at');
+    await migrate(client, `
+      ALTER TABLE pets ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP
+    `, 'pets trial_ends_at');
 
     console.log('Database migrations complete');
   } finally {

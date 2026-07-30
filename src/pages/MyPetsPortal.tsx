@@ -8,7 +8,7 @@ import ImageCropper from '@/src/components/ImageCropper';
 import {
   PawPrint, Plus, Loader2, X, Save, Dog, Cat, Heart,
   Syringe, Scissors, Bug, Weight, Calendar, Sparkles, ChevronRight,
-  QrCode, ShieldCheck, Share2, Mail, Phone, Check,
+  QrCode, ShieldCheck, Share2, Mail, Phone, Check, Clock, AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QrClaimModal from '@/src/components/QrClaimModal';
@@ -64,6 +64,9 @@ export default function MyPetsPortal() {
   const navigate = useNavigate();
   const [myPets, setMyPets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingAdoptions, setPendingAdoptions] = useState<any[]>([]);
+  const [pendingAdoptionsLoading, setPendingAdoptionsLoading] = useState(false);
+  const [returningId, setReturningId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
@@ -107,6 +110,19 @@ export default function MyPetsPortal() {
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
+
+  const fetchPendingAdoptions = async () => {
+    try {
+      setPendingAdoptionsLoading(true);
+      const data = await api.adoptionAssignments.pending();
+      setPendingAdoptions(data.assignments || []);
+    } catch (e) { console.error(e); }
+    finally { setPendingAdoptionsLoading(false); }
+  };
+
+  useEffect(() => {
+    if (user) fetchPendingAdoptions();
+  }, [user]);
 
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -272,6 +288,66 @@ export default function MyPetsPortal() {
           </button>
         </div>
       </div>
+
+      {pendingAdoptions.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="w-5 h-5 text-amber-500" />
+            <h2 className="text-lg font-bold text-brand-primary">Adopciones pendientes</h2>
+            {pendingAdoptionsLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+          </div>
+          <div className="space-y-3">
+            {pendingAdoptions.map((ass: any) => (
+              <div key={ass.id} className="bg-white rounded-2xl border border-amber-200 p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <PawPrint className="w-4 h-4 text-brand-primary shrink-0" />
+                      <h3 className="text-sm font-bold text-gray-800 truncate">{ass.pet_name}</h3>
+                      <span className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">
+                        {ass.species === 'dog' ? 'Perro' : ass.species === 'cat' ? 'Gato' : ass.species}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                      <span className="flex items-center gap-1"><User className="w-3 h-3" /> {ass.adopter_name}</span>
+                      <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {ass.adopter_email}</span>
+                      <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {ass.adopter_phone}</span>
+                    </div>
+                    {ass.qr_code && (
+                      <p className="text-[10px] text-gray-400 mt-1">QR asignado: {ass.qr_code}</p>
+                    )}
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Creada: {new Date(ass.created_at).toLocaleDateString('es-AR')}
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`¿Cancelar la adopción de ${ass.pet_name}? La mascota volverá a estar disponible.`)) return;
+                      setReturningId(ass.id);
+                      try {
+                        await api.adoptionAssignments.return(ass.token);
+                        await fetchPendingAdoptions();
+                      } catch (e: any) {
+                        alert(e.message || 'Error al cancelar');
+                      } finally {
+                        setReturningId(null);
+                      }
+                    }}
+                    disabled={returningId === ass.id}
+                    className="shrink-0 px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-xs font-medium hover:bg-red-100 transition-all disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {returningId === ass.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertTriangle className="w-3 h-3" />}
+                    Cancelar
+                  </button>
+                </div>
+                <div className="mt-3 p-2 bg-amber-50 rounded-xl border border-amber-100 text-[11px] text-amber-700">
+                  ⏳ Pendiente: el adoptante debe registrarse para confirmar. Si no se concreta, podés cancelar y la mascota vuelve a tu lista.
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {myPets.length === 0 ? (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}

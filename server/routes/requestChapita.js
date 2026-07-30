@@ -2,16 +2,23 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { generateToken, hashPassword, verifyToken, sendVerificationEmail, generateVerificationToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from '../services/pushService.js';
+import { v4 as uuidv4 } from 'uuid';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 
 const router = Router();
 
 router.post('/', async (req, res) => {
-  const { pet, user: userData, share_token } = req.body;
+  const { pet, user: userData, share_token, for_adopter, adopter } = req.body;
 
   if (!pet || !pet.name || !pet.species) {
     return res.status(400).json({ error: 'Nombre y especie de la mascota son requeridos' });
+  }
+
+  if (for_adopter) {
+    if (!adopter || !adopter.name || !adopter.email || !adopter.phone) {
+      return res.status(400).json({ error: 'Nombre, email y WhatsApp del adoptante son requeridos' });
+    }
   }
 
   const client = await pool.connect();
@@ -32,6 +39,7 @@ router.post('/', async (req, res) => {
 
     let userId;
     let needsVerification = false;
+    let userEmail;
     const authHeader = req.headers.authorization;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -67,6 +75,7 @@ router.post('/', async (req, res) => {
       needsVerification = true;
       const newUser = userResult.rows[0];
       userId = newUser.id;
+      userEmail = newUser.email;
 
       await pool.query(
         'UPDATE users SET email_verification_token = $1, email_verification_expires = $2, email_verified = FALSE WHERE id = $3',
@@ -74,6 +83,68 @@ router.post('/', async (req, res) => {
       );
 
       sendVerificationEmail(newUser.email, newUser.display_name, verificationToken).catch(err => console.error('Verification email error:', err));
+    }
+
+    if (for_adopter) {
+      // Crear pet en estado for_adoption vinculado al dueño actual
+      const petResult = await client.query(
+        `INSERT INTO pets (name, species, breed, color, gender, status, description, location,
+          is_vaccinated, is_sterilized, is_dewormed, created_by)
+         VALUES ($1,$2,$3,$4,$5,'for_adoption',$6,$7,$8,$9,$10,$11)
+         RETURNING *`,
+        [
+          pet.name, pet.species, pet.breed || null, pet.color || null,
+          pet.gender || 'unknown', pet.bio || null, pet.location || '',
+          pet.is_vaccinated || false, pet.is_sterilized || false, pet.is_dewormed || false,
+          userId,
+        ]
+      );
+      const newPet = petResult.rows[0];
+
+      // Crear adoption_assignment pendiente
+      const token = uuidv4().replace(/-/g, '') + Date.now().toString(36);
+      const assignmentResult = await client.query(
+        `INSERT INTO adoption_assignments (pet_id, inviter_id, adopter_name, adopter_email, adopter_phone, token, qr_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [newPet.id, userId, adopter.name, adopter.email, adopter.phone, token, share_token ? (await client.query('SELECT id FROM qr_identifiers WHERE share_token = $1', [share_token])).rows[0]?.id : null]
+      );
+      const assignment = assignmentResult.rows[0];
+
+      // Vincular el pet al assignment
+      await client.query(
+        'UPDATE pets SET adoption_assignment_id = $1 WHERE id = $2',
+        [assignment.id, newPet.id]
+      );
+
+      // Si hay share_token (QR escaneado), asignarlo al assignment
+      if (share_token) {
+        const qrRow = await client.query('SELECT id FROM qr_identifiers WHERE share_token = $1', [share_token]);
+        if (qrRow.rows.length > 0) {
+          await client.query(
+            'UPDATE qr_identifiers SET assigned_at = NOW() WHERE share_token = $1',
+            [share_token]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+
+      // Notificar al admin
+      const userName = userData?.displayName || userData?.email?.split('@')[0] || 'Usuario';
+      sendPushToAdmins({
+        title: 'Nueva adopción pendiente',
+        body: `${userName} cargó a ${pet.name} para adopción con datos del adoptante ${adopter.name}`,
+        tag: `adoption-pending-${newPet.id}`,
+      }).catch(() => {});
+
+      res.status(201).json({
+        for_adopter: true,
+        assignment_token: token,
+        pet_id: newPet.id,
+        message: 'Adopción pendiente creada. El adoptante recibirá una invitación para registrarse y reclamar la mascota.',
+      });
+      return;
     }
 
     const petResult = await client.query(

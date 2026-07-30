@@ -10,6 +10,7 @@ export enum PetStatus {
   FOR_ADOPTION_SIMPLE = 'for_adoption_simple',
   ADOPTED = 'adopted',
   REUNITED = 'reunited',
+  ADOPTION_TRIAL = 'adoption_trial',
 }
 
 export interface PetImage {

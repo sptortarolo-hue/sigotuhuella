@@ -7,7 +7,7 @@ import ImageCropper from '@/src/components/ImageCropper';
 import {
   PawPrint, ArrowLeft, Loader2, CheckCircle2, Dog, Cat,
   QrCode, Mail, Lock, Phone, User, Camera, Syringe, Scissors, Bug, RefreshCw,
-  Plus,
+  Plus, Heart,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -59,6 +59,10 @@ export default function SolicitarChapita() {
   const [showNewPetForm, setShowNewPetForm] = useState(false);
   const [assignLoading, setAssignLoading] = useState<string | null>(null);
   const [assignDone, setAssignDone] = useState(false);
+  const [forAdopter, setForAdopter] = useState(false);
+  const [adopterName, setAdopterName] = useState('');
+  const [adopterEmail, setAdopterEmail] = useState('');
+  const [adopterPhone, setAdopterPhone] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -114,6 +118,14 @@ export default function SolicitarChapita() {
       return;
     }
 
+    if (forAdopter) {
+      if (!adopterName || !adopterEmail || !adopterPhone) {
+        setError('Completá el nombre, email y WhatsApp del adoptante');
+        setLoading(false);
+        return;
+      }
+    }
+
     if (!user) {
       if (!email || !password) {
         setError('Completá tu email y contraseña para registrarte');
@@ -147,9 +159,19 @@ export default function SolicitarChapita() {
           avatar_image: avatarData,
           avatar_mime_type: avatarMime,
           personality_tags: [],
+          location: '',
         },
         share_token: qrToken || undefined,
+        for_adopter: forAdopter,
       };
+
+      if (forAdopter) {
+        payload.adopter = {
+          name: adopterName,
+          email: adopterEmail,
+          phone: adopterPhone,
+        };
+      }
 
       if (!user) {
         payload.user = {
@@ -164,6 +186,12 @@ export default function SolicitarChapita() {
 
       if (data.requiresVerification) {
         setRequiresVerification(true);
+        return;
+      }
+
+      if (data.for_adopter) {
+        // Show assignment success
+        setSuccess(true);
         return;
       }
 
@@ -260,6 +288,41 @@ export default function SolicitarChapita() {
             <p className="text-gray-600 mb-6">Solicitaste una chappita QR para tu mascota. Te notificaremos cuando esté lista.</p>
             <button onClick={() => navigate('/mi-mascota', { replace: true })}
               className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
+              Ir a mis mascotas
+            </button>
+          </motion.div>
+        </div>
+      );
+    }
+    if (forAdopter) {
+      return (
+        <div className="min-h-[80vh] flex items-center justify-center px-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="text-center max-w-md"
+          >
+            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Heart className="w-10 h-10 text-amber-600" />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary mb-3">
+              ¡Adopción en proceso!
+            </h1>
+            <p className="text-gray-600 mb-2">
+              {pet.name} fue cargada para adopción con los datos de {adopterName}.
+            </p>
+            <p className="text-gray-500 text-sm mb-6">
+              El adoptante recibirá un link por email para registrarse y confirmar la adopción.
+              La mascota quedará asociada a su cuenta automáticamente.
+            </p>
+            <p className="text-gray-500 text-xs mb-6 bg-amber-50 p-3 rounded-xl border border-amber-200">
+              Mientras el adoptante no confirme, la mascota aparece en tu sección "Adopciones pendientes".
+              Si la adopción no se concreta, podés cancelarla desde allí.
+            </p>
+            <button
+              onClick={() => navigate('/mi-mascota', { replace: true })}
+              className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all"
+            >
               Ir a mis mascotas
             </button>
           </motion.div>
@@ -563,6 +626,47 @@ export default function SolicitarChapita() {
           </div>
 
           <div className="border-t border-brand-accent pt-8">
+            <div className="mb-6 p-4 bg-amber-50 rounded-2xl border border-amber-200">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={forAdopter} onChange={e => setForAdopter(e.target.checked)}
+                  className="mt-1 w-4 h-4 rounded accent-brand-primary" />
+                <div>
+                  <p className="text-sm font-bold text-amber-800">La mascota se va con el adoptante</p>
+                  <p className="text-xs text-amber-600 mt-0.5">La chapita QR tendrá los datos del adoptante. Él recibirá un link para registrarse y confirmar la adopción.</p>
+                </div>
+              </label>
+            </div>
+
+            {forAdopter && (
+              <div className="mb-6 p-4 bg-brand-bg rounded-2xl border border-brand-accent space-y-3">
+                <h3 className="text-sm font-bold text-brand-primary flex items-center gap-2">
+                  <Heart className="w-4 h-4" /> Datos del adoptante
+                </h3>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre *</label>
+                  <input type="text" required value={adopterName} onChange={e => setAdopterName(e.target.value)}
+                    className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
+                    placeholder="Nombre del adoptante" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <Mail className="w-3 h-3" /> Email *
+                  </label>
+                  <input type="email" required value={adopterEmail} onChange={e => setAdopterEmail(e.target.value)}
+                    className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
+                    placeholder="email del adoptante" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                    <Phone className="w-3 h-3" /> WhatsApp *
+                  </label>
+                  <input type="tel" required value={adopterPhone} onChange={e => setAdopterPhone(e.target.value)}
+                    className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
+                    placeholder="+54 9 221 123456" />
+                </div>
+              </div>
+            )}
+
             <h2 className="text-lg font-bold text-brand-primary flex items-center gap-2 mb-4">
               <User className="w-5 h-5" /> Tus datos
             </h2>
