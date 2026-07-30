@@ -176,6 +176,7 @@ export default function Admin() {
     personality_tags: [] as string[], is_vaccinated: false, is_sterilized: false,
     is_dewormed: false, weight_kg: '',
     behavior_notes: '', medical_notes: '', emergency_phone: '',
+    pet_type: 'own' as string,
   });
   const [editMyPetFile, setEditMyPetFile] = useState<File | null>(null);
   const [editMyPetPreview, setEditMyPetPreview] = useState<string | null>(null);
@@ -735,6 +736,7 @@ export default function Admin() {
       is_dewormed: mp.is_dewormed || false, weight_kg: mp.weight_kg || '',
       behavior_notes: mp.behavior_notes || '', medical_notes: mp.medical_notes || '',
       emergency_phone: mp.emergency_phone || '',
+      pet_type: mp.pet_type || 'own',
     });
     setEditMyPetFile(null);
     setEditMyPetPreview(null);
@@ -3001,6 +3003,26 @@ export default function Admin() {
                     <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Color</label>
                     <input value={editMyPetForm.color} onChange={e => setEditMyPetForm(prev => ({ ...prev, color: e.target.value }))}
                       className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Ej: Dorado" />
+                  </div>
+                </div>
+
+                {/* Pet type */}
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Tipo</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { value: 'own', label: 'Propia', desc: 'Mascota de la familia' },
+                      { value: 'foster', label: 'Tránsito', desc: 'Está de paso en casa' },
+                      { value: 'adoption', label: 'Adopción', desc: 'Busca un hogar' },
+                      { value: 'community', label: 'Comunitaria', desc: 'De la cuadra/barrio' },
+                    ].map(opt => (
+                      <button key={opt.value} onClick={() => setEditMyPetForm(prev => ({ ...prev, pet_type: opt.value }))}
+                        className={`p-3 rounded-xl border text-xs font-medium text-left transition-all ${editMyPetForm.pet_type === opt.value ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-brand-accent hover:border-brand-primary/50 text-gray-600'}`}
+                      >
+                        <p className="font-bold">{opt.label}</p>
+                        <p className="text-[10px] opacity-70 mt-0.5">{opt.desc}</p>
+                      </button>
+                    ))}
                   </div>
                 </div>
 

@@ -8,6 +8,13 @@ import {
 import QRCode from 'qrcode';
 import ImageLightbox from './ImageLightbox';
 
+const PET_TYPE_BADGE: Record<string, { label: string; bg: string }> = {
+  own:       { label: 'Propia',       bg: 'bg-blue-100 text-blue-700' },
+  foster:    { label: 'Tránsito',     bg: 'bg-amber-100 text-amber-700' },
+  adoption:  { label: 'Adopción',     bg: 'bg-rose-100 text-rose-700' },
+  community: { label: 'Comunitaria',  bg: 'bg-purple-100 text-purple-700' },
+};
+
 function getAge(birthDate: string) {
   if (!birthDate) return null;
   const birth = new Date(birthDate);
@@ -105,6 +112,11 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit }: Adm
               {pet.breed ? ` · ${pet.breed}` : ''}
               {getAge(pet.birth_date) ? ` · ${getAge(pet.birth_date)}` : ''}
             </p>
+            {pet.pet_type && pet.pet_type !== 'own' && (
+              <span className={cn("inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-bold", PET_TYPE_BADGE[pet.pet_type]?.bg)}>
+                {PET_TYPE_BADGE[pet.pet_type]?.label}
+              </span>
+            )}
             {pet.personality_tags?.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1.5">
                 {pet.personality_tags.map((tag: string) => (
