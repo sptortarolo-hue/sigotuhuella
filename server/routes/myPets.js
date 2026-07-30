@@ -188,7 +188,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     const {
       name, species, breed, color, gender, birth_date, chip_id,
       bio, personality_tags, is_vaccinated, is_sterilized, is_dewormed,
-      weight_kg, behavior_notes, medical_notes, emergency_phone,
+      weight_kg, behavior_notes, medical_notes, emergency_phone, pet_type,
       avatar_image, avatar_mime_type, crop_x, crop_y,
     } = req.body;
 
