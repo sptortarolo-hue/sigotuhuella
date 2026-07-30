@@ -2037,6 +2037,8 @@ export default function MyPetDetail() {
                   <button
                     onClick={async () => {
                       if (!adopterName || !adopterEmail || !adopterPhone) { alert('Completá todos los campos'); return; }
+                      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adopterEmail)) { alert('Email inválido'); return; }
+                      if (!isValidPhone(adopterPhone)) { alert('WhatsApp inválido. Formato: 549 + código de área sin 0 + teléfono'); return; }
                       setAdoptionGiveLoading(true);
                       try {
                         const shareToken = pet?.qr_id?.share_token;

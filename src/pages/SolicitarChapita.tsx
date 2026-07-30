@@ -124,6 +124,16 @@ export default function SolicitarChapita() {
         setLoading(false);
         return;
       }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adopterEmail)) {
+        setError('Email del adoptante inválido');
+        setLoading(false);
+        return;
+      }
+      if (!/^549\d{10}$/.test(adopterPhone.replace(/\D/g, ''))) {
+        setError('WhatsApp del adoptante inválido. Formato: 549 + código de área sin 0 + teléfono');
+        setLoading(false);
+        return;
+      }
     }
 
     if (!user) {

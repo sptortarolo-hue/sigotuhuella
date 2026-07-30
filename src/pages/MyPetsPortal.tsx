@@ -861,6 +861,8 @@ export default function MyPetsPortal() {
                   <button
                     onClick={async () => {
                       if (!adopterName || !adopterEmail || !adopterPhone) { alert('Completá todos los campos'); return; }
+                      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adopterEmail)) { alert('Email inválido'); return; }
+                      if (!isValidPhone(adopterPhone)) { alert('WhatsApp inválido. Formato: 549 + código de área sin 0 + teléfono'); return; }
                       setAdoptionLoading(true);
                       try {
                         const shareToken = adoptionPet?.qr_id?.share_token;
