@@ -38,6 +38,13 @@ const PET_TYPE_OPTIONS = [
   { value: 'community', label: 'Comunitaria', desc: 'De la cuadra/barrio' },
 ];
 
+const PET_TYPE_BADGE: Record<string, { label: string; bg: string; text: string }> = {
+  own: { label: 'Propia', bg: 'bg-white/20', text: 'text-white' },
+  foster: { label: 'Tránsito', bg: 'bg-amber-500/70', text: 'text-white' },
+  adoption: { label: 'Adopción', bg: 'bg-rose-500/70', text: 'text-white' },
+  community: { label: 'Comunitaria', bg: 'bg-purple-500/70', text: 'text-white' },
+};
+
 const emptyForm = {
   name: '', species: 'dog' as 'dog' | 'cat' | 'other', breed: '', color: '',
   gender: 'unknown' as string, birth_date: '', chip_id: '', bio: '',
@@ -84,6 +91,13 @@ export default function MyPetsPortal() {
   const [shareLoading, setShareLoading] = useState(false);
   const [shareResult, setShareResult] = useState<{ shared?: boolean; invited?: boolean; inviteLink?: string } | null>(null);
   const [shareSelectedPets, setShareSelectedPets] = useState<Set<string>>(new Set());
+  const [showAdoptionModal, setShowAdoptionModal] = useState(false);
+  const [adoptionPet, setAdoptionPet] = useState<any>(null);
+  const [adopterName, setAdopterName] = useState('');
+  const [adopterEmail, setAdopterEmail] = useState('');
+  const [adopterPhone, setAdopterPhone] = useState('');
+  const [adoptionLoading, setAdoptionLoading] = useState(false);
+  const [adoptionDone, setAdoptionDone] = useState(false);
 
   const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
 
@@ -383,6 +397,13 @@ export default function MyPetsPortal() {
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 pt-12">
+                  {pet.pet_type && pet.pet_type !== 'own' && (
+                    <div className="absolute top-3 left-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-sm ${PET_TYPE_BADGE[pet.pet_type]?.bg || 'bg-white/20'} ${PET_TYPE_BADGE[pet.pet_type]?.text || 'text-white'}`}>
+                        {PET_TYPE_BADGE[pet.pet_type]?.label}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     <h3 className="text-lg font-bold text-white">{pet.name}</h3>
                     {pet.qr_id && (
@@ -408,6 +429,14 @@ export default function MyPetsPortal() {
                       <span className="text-[10px] sm:text-xs px-2 py-0.5 bg-brand-accent text-gray-500 rounded-full">+{pet.personality_tags.length - 4}</span>
                     )}
                   </div>
+                )}
+                {pet.pet_type === 'adoption' && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowAdoptionModal(true); setAdoptionPet(pet); setAdopterName(''); setAdopterEmail(''); setAdopterPhone(''); }}
+                    className="w-full mb-3 py-2 bg-rose-50 text-rose-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors border border-rose-200"
+                  >
+                    <Heart className="w-3.5 h-3.5" /> Dar en adopción
+                  </button>
                 )}
                 <div className="flex items-center justify-between">
                   <div className="flex gap-2 flex-wrap">
@@ -770,6 +799,107 @@ export default function MyPetsPortal() {
             onSuccess={async () => { setShowQrClaim(false); await fetchPets(); }}
             myPets={myPets}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAdoptionModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-brand-primary/20 backdrop-blur-sm"
+          >
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              className="relative w-full max-w-md bg-white rounded-[2rem] p-6 sm:p-8"
+            >
+              <button onClick={() => setShowAdoptionModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 bg-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <Heart className="w-7 h-7 text-rose-500" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800">Dar en adopción</h3>
+                <p className="text-xs text-gray-400 mt-1">Ingresá los datos de la persona que se lleva a {adoptionPet?.name}</p>
+              </div>
+
+              {adoptionDone ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Check className="w-8 h-8 text-green-600" />
+                  </div>
+                  <p className="text-sm font-medium text-green-700 mb-2">¡Adopción pendiente creada!</p>
+                  <p className="text-xs text-gray-500 mb-4">
+                    {adopterName} recibirá un link para registrarse y confirmar. La mascota aparece en tu sección "Adopciones pendientes".
+                  </p>
+                  <button onClick={() => setShowAdoptionModal(false)}
+                    className="px-6 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">Nombre del adoptante *</label>
+                    <input type="text" value={adopterName} onChange={e => setAdopterName(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                      placeholder="Nombre" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">Email *</label>
+                    <input type="email" value={adopterEmail} onChange={e => setAdopterEmail(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                      placeholder="email@ejemplo.com" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">WhatsApp *</label>
+                    <input type="tel" value={adopterPhone} onChange={e => setAdopterPhone(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                      placeholder="+54 9 221 123456" />
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      if (!adopterName || !adopterEmail || !adopterPhone) { alert('Completá todos los campos'); return; }
+                      setAdoptionLoading(true);
+                      try {
+                        const shareToken = adoptionPet?.qr_id?.share_token;
+                        await api.requestChapita({
+                          pet: {
+                            name: adoptionPet.name,
+                            species: adoptionPet.species,
+                            breed: adoptionPet.breed,
+                            color: adoptionPet.color,
+                            gender: adoptionPet.gender,
+                            bio: adoptionPet.bio,
+                            is_vaccinated: adoptionPet.is_vaccinated,
+                            is_sterilized: adoptionPet.is_sterilized,
+                            is_dewormed: adoptionPet.is_dewormed,
+                            location: '',
+                          },
+                          share_token: shareToken || undefined,
+                          for_adopter: true,
+                          adopter: { name: adopterName, email: adopterEmail, phone: adopterPhone },
+                        });
+                        setAdoptionDone(true);
+                        await fetchPets();
+                        await fetchPendingAdoptions();
+                      } catch (e: any) {
+                        alert(e.message || 'Error al procesar');
+                      } finally {
+                        setAdoptionLoading(false);
+                      }
+                    }}
+                    disabled={adoptionLoading}
+                    className="w-full py-3 bg-rose-500 text-white rounded-xl text-sm font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {adoptionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className="w-4 h-4" />}
+                    {adoptionLoading ? 'Procesando...' : 'Confirmar entrega'}
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

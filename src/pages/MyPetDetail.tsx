@@ -46,6 +46,13 @@ const SPECIES_OPTIONS = [
   { value: 'other', label: 'Otro', icon: '🐾' },
 ];
 
+const PET_TYPE_BADGE: Record<string, { label: string; bg: string }> = {
+  own: { label: 'Propia', bg: 'bg-blue-100 text-blue-700' },
+  foster: { label: 'Tránsito', bg: 'bg-amber-100 text-amber-700' },
+  adoption: { label: 'Adopción', bg: 'bg-rose-100 text-rose-700' },
+  community: { label: 'Comunitaria', bg: 'bg-purple-100 text-purple-700' },
+};
+
 const GENDER_OPTIONS = [
   { value: 'male', label: 'Macho' },
   { value: 'female', label: 'Hembra' },
@@ -630,7 +637,14 @@ export default function MyPetDetail() {
           </div>
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary truncate">{pet.name}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary truncate">
+            {pet.name}
+            {pet.pet_type && pet.pet_type !== 'own' && (
+              <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ml-2 align-middle ${PET_TYPE_BADGE[pet.pet_type]?.bg || 'bg-gray-100 text-gray-500'}`}>
+                {PET_TYPE_BADGE[pet.pet_type]?.label}
+              </span>
+            )}
+          </h1>
           <p className="text-sm text-gray-500">
             {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otro'}
             {pet.breed ? ` · ${pet.breed}` : ''}
