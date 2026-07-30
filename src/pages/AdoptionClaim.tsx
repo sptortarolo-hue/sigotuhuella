@@ -4,7 +4,7 @@ import { api } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import {
   PawPrint, Loader2, CheckCircle2, Heart, Mail, Phone, User,
-  ArrowLeft, MessageCircle,
+  ArrowLeft, MessageCircle, Check, XCircle,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -99,9 +99,9 @@ export default function AdoptionClaim() {
           <div className="w-16 h-16 bg-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Heart className="w-8 h-8 text-rose-500" />
           </div>
-          <h1 className="text-2xl font-bold text-brand-primary">¡Te invitaron a adoptar!</h1>
+          <h1 className="text-2xl font-bold text-brand-primary">Te eligieron para adoptar 🐾</h1>
           <p className="text-gray-500 text-sm mt-2">
-            {ass.adopter_name}, te invitaron a adoptar a <strong>{ass.pet_name}</strong>
+            {ass.inviter_name || 'Alguien'} te confía a <strong>{ass.pet_name}</strong> para que sea parte de tu familia
           </p>
         </div>
 
@@ -124,13 +124,35 @@ export default function AdoptionClaim() {
           )}
         </div>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 text-sm text-amber-800">
-          <p className="font-medium mb-1">¿Qué tenés que hacer?</p>
-          <ol className="space-y-1 text-amber-700 list-decimal list-inside">
-            <li>Iniciá sesión o registrate en Sigo Tu Huella</li>
-            <li>Confirmá la adopción con un clic</li>
-            <li>La mascota aparecerá automáticamente en "Mis mascotas"</li>
-          </ol>
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 mb-6">
+          <h3 className="font-bold text-amber-900 mb-3">¿Qué significa adoptar en Sigo Tu Huella?</h3>
+
+          <p className="text-sm text-amber-800 mb-3">
+            <strong>{ass.inviter_name || 'El dueño actual'}</strong> te está confiando a <strong>{ass.pet_name}</strong> para que sea parte de tu familia. Al confirmar:
+          </p>
+
+          <ul className="space-y-2 text-sm text-amber-700">
+            <li className="flex items-start gap-2">
+              <Check className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+              <span><strong>La mascota pasa a ser oficialmente tuya</strong> — aparecerá en tu sección "Mis mascotas"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <Check className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+              <span><strong>La chapita QR se asocia a tu cuenta</strong> — al escanearla verán tus datos de contacto</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <Check className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+              <span><strong>Podés gestionar su perfil completo</strong> — fotos, salud, vacunas, recordatorios</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <XCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+              <span><strong>El dueño anterior ya no podrá modificar</strong> los datos de la mascota</span>
+            </li>
+          </ul>
+
+          <p className="text-xs text-amber-600 mt-3 border-t border-amber-200 pt-3">
+            Si no querés confirmar, simplemente ignorá esta invitación. El dueño podrá cancelarla y la mascota quedará disponible para otra persona.
+          </p>
         </div>
 
         {error && (

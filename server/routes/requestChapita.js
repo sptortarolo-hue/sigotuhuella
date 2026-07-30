@@ -144,6 +144,81 @@ router.post('/', async (req, res) => {
         pet_id: newPet.id,
         message: 'Adopción pendiente creada. El adoptante recibirá una invitación para registrarse y reclamar la mascota.',
       });
+
+      // Enviar notificación al adoptante (sin bloquear la respuesta)
+      const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+      const claimLink = `${FRONTEND_URL}/adopcion/reclamar/${token}`;
+      const inviterName = userData?.displayName || userData?.email?.split('@')[0] || 'Un usuario';
+      const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species;
+
+      const waText = `🐾 Hola ${adopter.name}!
+
+${inviterName} te eligió para darle un hogar a ${pet.name} a través de Sigo Tu Huella.
+
+¿Qué significa?
+✅ ${pet.name} va a ser oficialmente tuya
+✅ Su chapita QR quedará asociada a tu nombre
+✅ Vas a poder gestionar su perfil, fotos y salud
+✅ El dueño anterior ya no podrá modificar sus datos
+
+Para ver los detalles y confirmar, hacé clic acá:
+${claimLink}`;
+
+      import('../services/whatsappService.js').then(({ sendMessage }) => {
+        const normalized = adopter.phone.replace(/\D/g, '');
+        if (normalized) sendMessage(normalized, waText).catch(e => console.error('WA notify adopter error:', e));
+      }).catch(() => {});
+
+      import('nodemailer').then(({ default: nm }) => {
+        const t = nm.createTransport({
+          host: process.env.SMTP_HOST || 'l0061596.ferozo.com',
+          port: parseInt(process.env.SMTP_PORT) || 587,
+          secure: false,
+          tls: { rejectUnauthorized: false },
+          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+        });
+        t.sendMail({
+          from: `"Sigo Tu Huella" <${process.env.SMTP_FROM}>`,
+          to: adopter.email,
+          subject: `${inviterName} te dio en adopción a ${pet.name}`,
+          html: `
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:30px;border:1px solid #e2e8f0;border-radius:16px;background:#f8fafc;">
+              <div style="text-align:center;margin-bottom:20px;">
+                <div style="background:#f43f5e;color:white;width:60px;height:60px;line-height:60px;font-size:30px;border-radius:20px;display:inline-block;">🐾</div>
+              </div>
+              <h2 style="color:#1e293b;text-align:center;font-size:20px;margin-bottom:8px;">${inviterName} te dio en adopción a ${pet.name}</h2>
+              <p style="color:#475569;text-align:center;font-size:15px;margin-bottom:20px;">A través de Sigo Tu Huella, la red de vecinos que cuidamos las mascotas.</p>
+
+              <table style="width:100%;background:white;border-radius:12px;padding:16px;margin-bottom:20px;border:1px solid #e2e8f0;">
+                <tr><td style="padding:4px 0;color:#64748b;">Especie</td><td style="padding:4px 0;font-weight:bold;">${speciesLabel}</td></tr>
+                ${pet.breed ? `<tr><td style="padding:4px 0;color:#64748b;">Raza</td><td style="padding:4px 0;font-weight:bold;">${pet.breed}</td></tr>` : ''}
+                ${pet.color ? `<tr><td style="padding:4px 0;color:#64748b;">Color</td><td style="padding:4px 0;font-weight:bold;">${pet.color}</td></tr>` : ''}
+              </table>
+
+              <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:16px;margin-bottom:20px;">
+                <h3 style="color:#92400e;font-size:14px;margin:0 0 8px;">¿Qué significa?</h3>
+                <ul style="color:#92400e;font-size:13px;padding-left:20px;margin:0;">
+                  <li style="margin-bottom:4px;">${pet.name} va a ser oficialmente tuya</li>
+                  <li style="margin-bottom:4px;">Su chapita QR quedará asociada a tu nombre</li>
+                  <li style="margin-bottom:4px;">Vas a poder gestionar su perfil, fotos y salud</li>
+                  <li style="margin-bottom:4px;">El dueño anterior ya no podrá modificar sus datos</li>
+                </ul>
+              </div>
+
+              <div style="text-align:center;margin:24px 0;">
+                <a href="${claimLink}" style="background:#5A5A40;color:#fff;padding:14px 40px;border-radius:12px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block;">
+                  Ver y confirmar adopción
+                </a>
+              </div>
+
+              <p style="color:#94a3b8;font-size:12px;text-align:center;margin-top:16px;">
+                Si tenés dudas, contactá a ${inviterName} directamente.
+              </p>
+            </div>
+          `,
+        }).catch(e => console.error('Email notify adopter error:', e));
+      }).catch(() => {});
+
       return;
     }
 

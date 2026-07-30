@@ -56,7 +56,7 @@ router.post('/register', async (req, res) => {
     // Auto-claim any pending adoption assignments for this email
     try {
       const pendingAdoptions = await pool.query(
-        `SELECT aa.id, aa.pet_id, aa.qr_id, p.name as pet_name, p.species, p.breed, p.color
+        `SELECT aa.id, aa.pet_id, aa.qr_id, aa.inviter_id, p.name as pet_name, p.species, p.breed, p.color
          FROM adoption_assignments aa
          JOIN pets p ON p.id = aa.pet_id
          WHERE aa.adopter_email = $1 AND aa.status = 'pending_adopter'`,
@@ -85,6 +85,17 @@ router.post('/register', async (req, res) => {
           `UPDATE pets SET status = 'adopted', adoption_assignment_id = NULL WHERE id = $1`,
           [ass.pet_id]
         );
+
+        // Notificar al dueño
+        pool.query('SELECT id, email, display_name, phone, notification_preference FROM users WHERE id = $1', [ass.inviter_id]).then(ownerRes => {
+          if (ownerRes.rows[0]) {
+            notifyUser(ownerRes.rows[0], {
+              subject: '✅ Adopción confirmada — Sigo Tu Huella',
+              textMessage: `✅ ${user.display_name || user.email} confirmó la adopción de ${ass.pet_name}. Ya es oficial.\n\nLa mascota ya no aparece en tu lista de pendientes.`,
+              sendEmailFn: null,
+            }).catch(() => {});
+          }
+        }).catch(() => {});
       }
     } catch (e) { /* ignore adoption assignment errors on registration */ }
 
