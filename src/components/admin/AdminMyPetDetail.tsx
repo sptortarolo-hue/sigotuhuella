@@ -1,18 +1,44 @@
 import { useState } from 'react';
 import { cn } from '@/src/lib/utils';
-import { PawPrint, Syringe, Heart, Droplet, ExternalLink, Download } from 'lucide-react';
+import { formatTag } from '@/src/lib/personalityTags';
+import {
+  PawPrint, Syringe, Scissors, Bug, ExternalLink, Download,
+  Edit3, QrCode, Copy, Check, Heart, Stethoscope, Phone, Image as ImageIcon
+} from 'lucide-react';
 import QRCode from 'qrcode';
 import ImageLightbox from './ImageLightbox';
+
+function getAge(birthDate: string) {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  const now = new Date();
+  let years = now.getFullYear() - birth.getFullYear();
+  let months = now.getMonth() - birth.getMonth();
+  if (months < 0) { years--; months += 12; }
+  if (years === 0) return `${months} mes${months !== 1 ? 'es' : ''}`;
+  if (months === 0) return `${years} año${years !== 1 ? 's' : ''}`;
+  return `${years}a ${months}m`;
+}
 
 interface AdminMyPetDetailProps {
   pet: any;
   onClose?: () => void;
   isMobile?: boolean;
+  onEdit?: () => void;
 }
 
-export default function AdminMyPetDetail({ pet, onClose, isMobile }: AdminMyPetDetailProps) {
+export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit }: AdminMyPetDetailProps) {
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const copyToClipboard = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    } catch {}
+  };
 
   const handleDownloadQr = async () => {
     try {
@@ -30,129 +56,187 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile }: AdminMyPetD
       console.error('Error generando QR:', err);
     }
   };
-  const avatarSrc = pet.avatar_image
-    ? `data:${pet.avatar_mime_type || 'image/jpeg'};base64,${pet.avatar_image}`
-    : pet.photos?.[0]?.image_data
-      ? `data:${pet.photos[0].mime_type || 'image/jpeg'};base64,${pet.photos[0].image_data}`
-      : null;
+
+  const allImages: string[] = [];
+  if (pet.avatar_image) allImages.push(`data:${pet.avatar_mime_type || 'image/jpeg'};base64,${pet.avatar_image}`);
+  (pet.photos || []).forEach((p: any) => {
+    if (p.image_data) allImages.push(`data:${p.mime_type || 'image/jpeg'};base64,${p.image_data}`);
+  });
+
+  const avatarSrc = allImages[0] || null;
+
+  const openLightbox = (idx: number) => {
+    if (allImages.length > 0) { setLightboxImages(allImages); setLightboxIndex(idx); }
+  };
+
+  const infoFields = [
+    { label: 'Nombre', value: pet.name },
+    { label: 'Especie', value: pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otro' },
+    { label: 'Raza', value: pet.breed },
+    { label: 'Color', value: pet.color },
+    { label: 'Sexo', value: pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : 'Desconocido' },
+    { label: 'Nacimiento', value: pet.birth_date ? new Date(pet.birth_date).toLocaleDateString('es-AR') : null },
+    { label: 'Edad', value: getAge(pet.birth_date) },
+    { label: 'Chip ID', value: pet.chip_id },
+    { label: 'Peso', value: pet.weight_kg ? `${pet.weight_kg} kg` : null },
+  ].filter(f => f.value);
 
   return (
     <div className={cn("space-y-5", isMobile ? "p-4" : "p-6")}>
-      <div className="flex items-center gap-4">
-        <div className="w-20 h-20 rounded-2xl bg-brand-bg overflow-hidden shrink-0">
-          {avatarSrc ? (
-            <img
-              src={avatarSrc}
-              alt=""
-              className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => {
-                const imgs: string[] = [];
-                if (pet.avatar_image) imgs.push(`data:${pet.avatar_mime_type || 'image/jpeg'};base64,${pet.avatar_image}`);
-                (pet.photos || []).forEach((p: any) => { if (p.image_data) imgs.push(`data:${p.mime_type || 'image/jpeg'};base64,${p.image_data}`); });
-                if (imgs.length > 0) { setLightboxImages(imgs); setLightboxIndex(0); }
-              }}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-8 h-8" /></div>
-          )}
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="font-bold text-lg text-brand-primary">{pet.name}</h3>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase bg-brand-primary/10 text-brand-primary">
-              {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species}
-            </span>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-brand-bg overflow-hidden shrink-0 border-2 border-brand-accent">
+            {avatarSrc ? (
+              <img
+                src={avatarSrc}
+                alt=""
+                className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => openLightbox(0)}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-8 h-8" /></div>
+            )}
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mt-1">
-            {pet.breed && <span>Raza: {pet.breed}</span>}
-            {pet.color && <span>Color: {pet.color}</span>}
-          </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mt-1">
-            {pet.gender && <span>Sexo: {pet.gender}</span>}
-            {pet.birth_date && <span>Nac: {new Date(pet.birth_date).toLocaleDateString()}</span>}
-            {pet.weight_kg && <span>Peso: {pet.weight_kg} kg</span>}
+          <div className="min-w-0">
+            <h3 className="font-bold text-lg text-brand-primary truncate">{pet.name}</h3>
+            <p className="text-sm text-gray-500">
+              {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : 'Otro'}
+              {pet.breed ? ` · ${pet.breed}` : ''}
+              {getAge(pet.birth_date) ? ` · ${getAge(pet.birth_date)}` : ''}
+            </p>
+            {pet.personality_tags?.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {pet.personality_tags.map((tag: string) => (
+                  <span key={tag} className="text-[10px] px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded-full">{formatTag(tag)}</span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      </div>
-
-      {pet.bio && (
-        <div>
-          <h4 className="text-xs font-bold text-gray-500 uppercase mb-1">Biografía</h4>
-          <p className="text-sm text-gray-600">{pet.bio}</p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="flex items-center gap-2 text-xs text-gray-500 bg-brand-bg/50 rounded-xl p-3">
-          <Syringe className="w-4 h-4 text-brand-primary" />
-          <span>{pet.is_vaccinated ? 'Vacunado' : 'No vacunado'}</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-gray-500 bg-brand-bg/50 rounded-xl p-3">
-          <Heart className="w-4 h-4 text-brand-primary" />
-          <span>{pet.is_sterilized ? 'Esterilizado' : 'No esterilizado'}</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-gray-500 bg-brand-bg/50 rounded-xl p-3">
-          <Droplet className="w-4 h-4 text-brand-primary" />
-          <span>{pet.is_dewormed ? 'Desparasitado' : 'No desparasitado'}</span>
-        </div>
-        {pet.chip_id && (
-          <div className="flex items-center gap-2 text-xs text-gray-500 bg-brand-bg/50 rounded-xl p-3">
-            <span className="text-brand-primary font-bold">🐾</span>
-            <span>Chip: {pet.chip_id}</span>
-          </div>
+        {onEdit && (
+          <button onClick={onEdit}
+            className="px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-xs hover:shadow-lg transition-all flex items-center gap-2 shrink-0">
+            <Edit3 className="w-3 h-3" /> Editar mascota
+          </button>
         )}
       </div>
 
-      {pet.personality_tags?.length > 0 && (
+      {/* Bio */}
+      {pet.bio && (
+        <div className="p-4 bg-brand-bg rounded-2xl">
+          <p className="text-sm text-gray-600 italic">"{pet.bio}"</p>
+        </div>
+      )}
+
+      {/* Info grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {infoFields.map(field => (
+          <div key={field.label} className="p-3 bg-brand-bg rounded-xl">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{field.label}</p>
+            <p className="text-sm font-medium text-gray-800 mt-0.5">{field.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Health flags */}
+      <div className="flex flex-wrap gap-2">
+        {pet.is_vaccinated && (
+          <span className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-medium">
+            <Syringe className="w-3 h-3" /> Vacunado
+          </span>
+        )}
+        {pet.is_sterilized && (
+          <span className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-xl text-xs font-medium">
+            <Scissors className="w-3 h-3" /> Esterilizado
+          </span>
+        )}
+        {pet.is_dewormed && (
+          <span className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-xl text-xs font-medium">
+            <Bug className="w-3 h-3" /> Desparasitado
+          </span>
+        )}
+      </div>
+
+      {/* Behavior notes */}
+      {pet.behavior_notes && (
+        <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
+          <h4 className="text-xs font-bold uppercase tracking-widest text-orange-600 mb-1 flex items-center gap-1.5">
+            <Heart className="w-3 h-3" /> Comportamiento
+          </h4>
+          <p className="text-sm text-gray-600">{pet.behavior_notes}</p>
+        </div>
+      )}
+
+      {/* Medical notes */}
+      {pet.medical_notes && (
+        <div className="p-4 bg-red-50 rounded-2xl border border-red-100">
+          <h4 className="text-xs font-bold uppercase tracking-widest text-red-600 mb-1 flex items-center gap-1.5">
+            <Stethoscope className="w-3 h-3" /> Notas médicas
+          </h4>
+          <p className="text-sm text-gray-600">{pet.medical_notes}</p>
+        </div>
+      )}
+
+      {/* Emergency phone */}
+      {pet.emergency_phone && (
+        <div className="flex items-center gap-2 p-3 bg-brand-bg rounded-xl">
+          <Phone className="w-4 h-4 text-brand-primary shrink-0" />
+          <span className="text-sm text-gray-600">Tel. emergencia: <strong>{pet.emergency_phone}</strong></span>
+        </div>
+      )}
+
+      {/* Photos gallery */}
+      {(pet.photos || []).filter((p: any) => p.id !== 'avatar' || !pet.avatar_image).length > 0 && (
         <div>
-          <h4 className="text-xs font-bold text-gray-500 uppercase mb-1">Personalidad</h4>
-          <div className="flex flex-wrap gap-1">
-            {pet.personality_tags.map((tag: string, i: number) => (
-              <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-brand-primary/5 text-brand-primary">{tag}</span>
-            ))}
+          <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-1.5">
+            <ImageIcon className="w-3 h-3" /> Fotos ({pet.photos?.length || 0})
+          </h4>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            {(pet.photos || []).map((photo: any, idx: number) => {
+              const dataUri = photo.image_data
+                ? `data:${photo.mime_type || 'image/jpeg'};base64,${photo.image_data}`
+                : null;
+              return dataUri ? (
+                <div key={photo.id} className="aspect-square rounded-xl overflow-hidden bg-brand-bg cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => openLightbox(idx + (pet.avatar_image ? 1 : 0))}>
+                  <img src={dataUri} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : null;
+            })}
           </div>
         </div>
       )}
 
-      {pet.photos?.filter((p: any) => p.id !== 'avatar').length > 0 && (
-        <div>
-          <h4 className="text-xs font-bold text-gray-500 uppercase mb-1">Fotos adicionales</h4>
-          <div className="grid grid-cols-3 gap-2">
-            {pet.photos.filter((p: any) => p.id !== 'avatar').map((photo: any, idx: number) => (
-              <div key={photo.id} className="aspect-square rounded-xl overflow-hidden bg-brand-bg cursor-pointer hover:opacity-80 transition-opacity"
-                onClick={() => {
-                  const imgs: string[] = [];
-                  if (pet.avatar_image) imgs.push(`data:${pet.avatar_mime_type || 'image/jpeg'};base64,${pet.avatar_image}`);
-                  (pet.photos || []).forEach((p: any) => { if (p.image_data) imgs.push(`data:${p.mime_type || 'image/jpeg'};base64,${p.image_data}`); });
-                  setLightboxImages(imgs); setLightboxIndex(idx + (pet.avatar_image ? 1 : 0));
-                }}>
-                <img src={`data:${photo.mime_type || 'image/jpeg'};base64,${photo.image_data}`} alt="" className="w-full h-full object-cover" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* QR */}
       {pet.qr_data && (
-        <div className="p-3 bg-brand-bg/50 rounded-xl">
-          <h4 className="text-[10px] font-bold text-gray-500 uppercase mb-2">Identificación QR</h4>
-          <div className="text-xs text-gray-600 space-y-1">
-            <p>Código: <span className="font-bold text-brand-primary">{pet.qr_data.code}</span></p>
-            <p className="text-[10px] text-gray-400 break-all">Token: {pet.qr_data.share_token}</p>
-            <a
-              href={`${window.location.origin}/mascota/${pet.qr_data.share_token}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-brand-primary hover:underline mt-1"
-            >
-              <ExternalLink className="w-3 h-3" /> Ver perfil público
-            </a>
-            <button
-              onClick={handleDownloadQr}
-              className="inline-flex items-center gap-1 text-brand-primary hover:underline mt-1"
-            >
-              <Download className="w-3 h-3" /> Descargar QR
-            </button>
+        <div className="border border-brand-accent rounded-2xl p-4">
+          <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
+            <QrCode className="w-4 h-4" /> Identificación QR
+          </h4>
+          <div className="flex items-start gap-4">
+            <div className="w-24 h-24 shrink-0 bg-brand-bg rounded-xl flex items-center justify-center">
+              <QrCode className="w-12 h-12 text-brand-primary/40" />
+            </div>
+            <div className="flex-1 min-w-0 space-y-2">
+              <p className="text-sm font-bold text-brand-primary">{pet.qr_data.code}</p>
+              <p className="text-[10px] text-gray-400 break-all">Token: {pet.qr_data.share_token}</p>
+              <div className="flex gap-2 flex-wrap">
+                <a href={`${window.location.origin}/mascota/${pet.qr_data.share_token}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-brand-primary font-medium hover:underline">
+                  <ExternalLink className="w-3 h-3" /> Perfil público
+                </a>
+                <button onClick={() => copyToClipboard(`${window.location.origin}/mascota/${pet.qr_data.share_token}`, 'qr')}
+                  className="inline-flex items-center gap-1 text-xs text-gray-500 font-medium hover:text-brand-primary">
+                  {copied === 'qr' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copied === 'qr' ? 'Copiado' : 'Copiar link'}
+                </button>
+                <button onClick={handleDownloadQr}
+                  className="inline-flex items-center gap-1 text-xs text-gray-500 font-medium hover:text-brand-primary">
+                  <Download className="w-3 h-3" /> Descargar QR
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

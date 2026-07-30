@@ -38,12 +38,31 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
 import AdminConfirmDialog from '@/src/components/admin/AdminConfirmDialog';
 import AdminEditUserModal from '@/src/components/admin/AdminEditUserModal';
 import UserDetailPanel from '@/src/components/admin/UserDetailPanel';
 import AdminMyPetDetail from '@/src/components/admin/AdminMyPetDetail';
 import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
 import ReunionModal from '@/src/components/ReunionModal';
+
+const SPECIES_OPTIONS = [
+  { value: 'dog', label: 'Perro', icon: '🐶' },
+  { value: 'cat', label: 'Gato', icon: '🐱' },
+  { value: 'other', label: 'Otro', icon: '🐾' },
+];
+
+const GENDER_OPTIONS = [
+  { value: 'male', label: 'Macho' },
+  { value: 'female', label: 'Hembra' },
+  { value: 'unknown', label: 'No sé' },
+];
+
+const PERSONALITY_TAGS = [
+  'juguetón', 'tranquilo', 'cariñoso', 'miedoso', 'explorador',
+  'dormilón', 'guardián', 'sociable', 'independiente', 'travieso',
+  'leal', 'curioso', 'mimoso', 'atlético', 'glotón',
+];
 
 export default function Admin() {
   const { user } = useAuth();
@@ -148,6 +167,19 @@ export default function Admin() {
   const [mobilePetView, setMobilePetView] = useState<'list' | 'detail'>('list');
 
   const [showEditUserModal, setShowEditUserModal] = useState(false);
+
+  // My Pet edit state
+  const [showEditMyPet, setShowEditMyPet] = useState(false);
+  const [editMyPetForm, setEditMyPetForm] = useState({
+    name: '', species: 'dog' as string, breed: '', color: '',
+    gender: 'unknown' as string, birth_date: '', chip_id: '', bio: '',
+    personality_tags: [] as string[], is_vaccinated: false, is_sterilized: false,
+    is_dewormed: false, weight_kg: '',
+    behavior_notes: '', medical_notes: '', emergency_phone: '',
+  });
+  const [editMyPetFile, setEditMyPetFile] = useState<File | null>(null);
+  const [editMyPetPreview, setEditMyPetPreview] = useState<string | null>(null);
+  const [editMyPetLoading, setEditMyPetLoading] = useState(false);
 
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -690,6 +722,45 @@ export default function Admin() {
     setSelectedPetData(null);
     setSelectedPetId(null);
     setSelectedMyPetData(mp);
+  };
+
+  const openEditMyPet = () => {
+    const mp = selectedMyPetData;
+    if (!mp) return;
+    setEditMyPetForm({
+      name: mp.name || '', species: mp.species || 'dog', breed: mp.breed || '', color: mp.color || '',
+      gender: mp.gender || 'unknown', birth_date: mp.birth_date || '', chip_id: mp.chip_id || '',
+      bio: mp.bio || '', personality_tags: mp.personality_tags || [],
+      is_vaccinated: mp.is_vaccinated || false, is_sterilized: mp.is_sterilized || false,
+      is_dewormed: mp.is_dewormed || false, weight_kg: mp.weight_kg || '',
+      behavior_notes: mp.behavior_notes || '', medical_notes: mp.medical_notes || '',
+      emergency_phone: mp.emergency_phone || '',
+    });
+    setEditMyPetFile(null);
+    setEditMyPetPreview(null);
+    setShowEditMyPet(true);
+  };
+
+  const handleEditMyPetSave = async () => {
+    if (!selectedMyPetData) return;
+    setEditMyPetLoading(true);
+    try {
+      const payload: any = { ...editMyPetForm };
+      if (editMyPetFile) {
+        const { data, mimeType } = await fileToBase64(editMyPetFile);
+        payload.avatar_image = data;
+        payload.avatar_mime_type = mimeType;
+      }
+      if (payload.weight_kg === '') payload.weight_kg = null;
+      await api.myPets.update(selectedMyPetData.id, payload);
+      setShowEditMyPet(false);
+      if (selectedUserId) fetchUserRelations(selectedUserId);
+    } catch (e) {
+      console.error(e);
+      alert('Error al guardar');
+    } finally {
+      setEditMyPetLoading(false);
+    }
   };
 
   const handleDeleteUser = async (id: string) => {
@@ -1635,7 +1706,7 @@ export default function Admin() {
                     </div>
                   ) : selectedMyPetData ? (
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
-                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} />
+                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} />
                     </div>
                   ) : (
                     <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-brand-accent h-full flex items-center justify-center">
@@ -1747,7 +1818,7 @@ export default function Admin() {
                       ← Volver al usuario
                     </button>
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent">
-                      <AdminMyPetDetail pet={selectedMyPetData} isMobile />
+                      <AdminMyPetDetail pet={selectedMyPetData} isMobile onEdit={openEditMyPet} />
                     </div>
                   </div>
                 )}
@@ -2858,6 +2929,194 @@ export default function Admin() {
                 </div>
                 <button type="submit" disabled={formLoading} className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold">{formLoading ? <Loader2 className="animate-spin" /> : <Save className="w-5 h-5 inline mr-2" />} Guardar</button>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {showEditMyPet && selectedMyPetData && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowEditMyPet(false)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-2xl bg-white rounded-[2.5rem] max-h-[90vh] flex flex-col shadow-2xl"
+            >
+              <div className="p-6 sm:p-8 border-b border-brand-accent flex items-center justify-between">
+                <h2 className="text-xl font-bold text-brand-primary">Editar mascota</h2>
+                <button onClick={() => setShowEditMyPet(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              <div className="p-6 sm:p-8 overflow-y-auto space-y-5">
+                {/* Avatar */}
+                <div className="flex items-center gap-4">
+                  <button onClick={() => document.getElementById('admin-mypet-avatar-input')?.click()}
+                    className="w-20 h-20 rounded-2xl border-2 border-dashed border-brand-accent hover:border-brand-primary bg-brand-bg flex items-center justify-center overflow-hidden transition-colors shrink-0"
+                  >
+                    {editMyPetPreview ? (
+                      <img src={editMyPetPreview} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : selectedMyPetData?.avatar_image ? (
+                      <img src={`data:${selectedMyPetData.avatar_mime_type || 'image/jpeg'};base64,${selectedMyPetData.avatar_image}`} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <PawPrint className="w-8 h-8 text-brand-accent" />
+                    )}
+                  </button>
+                  <input id="admin-mypet-avatar-input" type="file" accept="image/*" className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setEditMyPetFile(file);
+                      setEditMyPetPreview(URL.createObjectURL(file));
+                    }}
+                  />
+                  <div className="flex-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Nombre</label>
+                    <input value={editMyPetForm.name} onChange={e => setEditMyPetForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none text-sm"
+                      placeholder="Nombre de tu mascota" />
+                  </div>
+                </div>
+
+                {/* Species */}
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Especie</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {SPECIES_OPTIONS.map(opt => (
+                      <button key={opt.value} onClick={() => setEditMyPetForm(prev => ({ ...prev, species: opt.value }))}
+                        className={`p-3 rounded-xl border text-sm font-medium flex items-center justify-center gap-2 transition-all ${editMyPetForm.species === opt.value ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-brand-accent hover:border-brand-primary/50 text-gray-600'}`}
+                      >
+                        <span className="text-lg">{opt.icon}</span> {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Breed + Color */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Raza</label>
+                    <input value={editMyPetForm.breed} onChange={e => setEditMyPetForm(prev => ({ ...prev, breed: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Ej: Labrador" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Color</label>
+                    <input value={editMyPetForm.color} onChange={e => setEditMyPetForm(prev => ({ ...prev, color: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Ej: Dorado" />
+                  </div>
+                </div>
+
+                {/* Gender + Birth */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Sexo</label>
+                    <div className="grid grid-cols-3 gap-2 mt-1">
+                      {GENDER_OPTIONS.map(opt => (
+                        <button key={opt.value} onClick={() => setEditMyPetForm(prev => ({ ...prev, gender: opt.value }))}
+                          className={`p-2 rounded-xl border text-xs font-medium transition-all ${editMyPetForm.gender === opt.value ? 'border-brand-primary bg-brand-primary/10 text-brand-primary' : 'border-brand-accent hover:border-brand-primary/50 text-gray-600'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Fecha de nacimiento</label>
+                    <input type="date" value={editMyPetForm.birth_date} onChange={e => setEditMyPetForm(prev => ({ ...prev, birth_date: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" />
+                  </div>
+                </div>
+
+                {/* Chip + Weight */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Chip ID</label>
+                    <input value={editMyPetForm.chip_id} onChange={e => setEditMyPetForm(prev => ({ ...prev, chip_id: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Nro. de microchip" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Peso (kg)</label>
+                    <input type="number" step="0.1" value={editMyPetForm.weight_kg} onChange={e => setEditMyPetForm(prev => ({ ...prev, weight_kg: e.target.value }))}
+                      className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm" placeholder="Ej: 12.5" />
+                  </div>
+                </div>
+
+                {/* Bio */}
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Descripción / Señas particulares</label>
+                  <textarea value={editMyPetForm.bio} onChange={e => setEditMyPetForm(prev => ({ ...prev, bio: e.target.value }))}
+                    className="w-full mt-1 p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm resize-none" rows={2}
+                    placeholder="Contanos cómo es tu mascota, sus señas particulares..." />
+                </div>
+
+                {/* Personality */}
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Personalidad</label>
+                  <div className="flex flex-wrap gap-2">
+                    {PERSONALITY_TAGS.map(tag => (
+                      <button key={tag} onClick={() => setEditMyPetForm(prev => ({
+                        ...prev,
+                        personality_tags: prev.personality_tags?.includes(tag)
+                          ? prev.personality_tags.filter((t: string) => t !== tag)
+                          : [...(prev.personality_tags || []), tag],
+                      }))}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${editMyPetForm.personality_tags?.includes(tag) ? 'bg-brand-primary text-white' : 'bg-brand-bg text-gray-500 hover:bg-brand-accent'}`}
+                      >
+                        {PERSONALITY_TAG_EMOJIS[tag] || '🐾'} {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Health */}
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Salud</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: 'is_vaccinated', label: 'Vacunado', icon: '💉' },
+                      { key: 'is_sterilized', label: 'Esterilizado', icon: '✂️' },
+                      { key: 'is_dewormed', label: 'Desparasitado', icon: '🐛' },
+                    ].map(item => (
+                      <button key={item.key} onClick={() => setEditMyPetForm(prev => ({ ...prev, [item.key]: !prev[item.key as keyof typeof prev] }))}
+                        className={`px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all ${editMyPetForm[item.key as keyof typeof editMyPetForm] ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-brand-bg text-gray-400 border border-brand-accent'}`}
+                      >
+                        {item.icon} {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Behavior notes */}
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Comportamiento</label>
+                  <textarea value={editMyPetForm.behavior_notes || ''} onChange={e => setEditMyPetForm(prev => ({ ...prev, behavior_notes: e.target.value }))}
+                    className="w-full p-3 rounded-xl border border-brand-accent bg-brand-bg outline-none text-sm resize-none" rows={2}
+                    placeholder="¿Cómo es su comportamiento? (miedos, cómo acercarse, etc.)" />
+                </div>
+
+                {/* Medical notes */}
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Notas médicas</label>
+                  <textarea value={editMyPetForm.medical_notes || ''} onChange={e => setEditMyPetForm(prev => ({ ...prev, medical_notes: e.target.value }))}
+                    className="w-full p-3 rounded-xl border border-brand-accent bg-brand-bg outline-none text-sm resize-none" rows={2}
+                    placeholder="Alergias, medicación, condiciones (opcional)" />
+                </div>
+
+                {/* Emergency phone */}
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Teléfono de emergencia</label>
+                  <input type="tel" value={editMyPetForm.emergency_phone || ''} onChange={e => setEditMyPetForm(prev => ({ ...prev, emergency_phone: e.target.value }))}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm"
+                    placeholder="Teléfono alternativo (opcional)" />
+                </div>
+              </div>
+
+              <div className="p-6 sm:p-8 border-t border-brand-accent">
+                <button onClick={handleEditMyPetSave} disabled={editMyPetLoading || !editMyPetForm.name}
+                  className="w-full py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {editMyPetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Guardar cambios
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
