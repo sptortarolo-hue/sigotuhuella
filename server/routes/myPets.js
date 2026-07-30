@@ -180,7 +180,7 @@ router.post('/', requireAuth, async (req, res) => {
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const access = await canEditMyPet(req.user.id, req.params.id);
-    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
+    if (!access.allowed && req.user.role !== 'admin') return res.status(404).json({ error: 'Mascota no encontrada' });
 
     const existing = await pool.query('SELECT * FROM my_pets WHERE id = $1', [req.params.id]);
     if (existing.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
