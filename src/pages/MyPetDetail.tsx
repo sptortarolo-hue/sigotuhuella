@@ -662,6 +662,14 @@ export default function MyPetDetail() {
         </div>
       </div>
 
+      {pet.pet_type === 'adoption' && (
+        <button onClick={() => { setShowAdoptionGiveModal(true); setAdoptionGiveDone(false); setAdopterName(''); setAdopterEmail(''); setAdopterPhone(''); }}
+          className="w-full mb-6 py-3 bg-rose-50 text-rose-700 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors border border-rose-200"
+        >
+          <Heart className="w-4 h-4" /> Dar en adopción
+        </button>
+      )}
+
       {reminders.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
           className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6"
