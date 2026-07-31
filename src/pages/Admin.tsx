@@ -37,7 +37,7 @@ import {
   Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, BarChart3, Ticket
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '@/src/lib/utils';
+import { cn, formatDateOnly } from '@/src/lib/utils';
 import { PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
 import AdminConfirmDialog from '@/src/components/admin/AdminConfirmDialog';
 import AdminEditUserModal from '@/src/components/admin/AdminEditUserModal';
@@ -3359,11 +3359,11 @@ export default function Admin() {
                         <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Gastos</div>
                       </div>
                       <div className="bg-brand-bg rounded-xl p-3 text-center">
-                        <div className="text-lg font-bold text-emerald-600">{recordsSummary.next_date ? new Date(recordsSummary.next_date).toLocaleDateString() : '-'}</div>
+                        <div className="text-lg font-bold text-emerald-600">{recordsSummary.next_date ? formatDateOnly(recordsSummary.next_date) : '-'}</div>
                         <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Próximo</div>
                       </div>
                       <div className="bg-brand-bg rounded-xl p-3 text-center">
-                        <div className="text-lg font-bold text-brand-primary">{recordsSummary.last_date ? new Date(recordsSummary.last_date).toLocaleDateString() : '-'}</div>
+                        <div className="text-lg font-bold text-brand-primary">{recordsSummary.last_date ? formatDateOnly(recordsSummary.last_date) : '-'}</div>
                         <div className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Último</div>
                       </div>
                       <div className="bg-brand-bg rounded-xl p-3 text-center">
@@ -3427,7 +3427,7 @@ export default function Admin() {
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                  <span className="text-[10px] text-gray-400">{new Date(rec.record_date).toLocaleDateString()}</span>
+                                  <span className="text-[10px] text-gray-400">{rec.record_date ? formatDateOnly(rec.record_date) : ''}</span>
                                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${tc.color}`}>{tc.label}</span>
                                 </div>
                                 <h4 className="text-sm font-bold text-gray-800">{rec.title}</h4>
@@ -3435,7 +3435,7 @@ export default function Admin() {
                                 {(rec.vet_name || rec.clinic_name) && <p className="text-[11px] text-gray-500 mt-1">🏥 {[rec.vet_name, rec.clinic_name].filter(Boolean).join(' · ')}</p>}
                                 {(rec.medication_name || rec.dosage) && <p className="text-[11px] text-gray-500 mt-1">💊 {[rec.medication_name, rec.dosage].filter(Boolean).join(' · ')}</p>}
                                 {rec.amount && <p className="text-xs font-bold text-brand-primary mt-1">${parseFloat(rec.amount).toLocaleString('es-AR')}</p>}
-                                {rec.next_date && <p className="text-[11px] text-amber-600 mt-1">📅 Próximo: {new Date(rec.next_date).toLocaleDateString()}</p>}
+                                {rec.next_date && <p className="text-[11px] text-amber-600 mt-1">📅 Próximo: {formatDateOnly(rec.next_date)}</p>}
                                 {rec.attachment_data && (
                                   <a href={`data:${rec.attachment_type};base64,${rec.attachment_data}`} download={rec.attachment_name || 'adjunto'} className="inline-flex items-center gap-1 text-[11px] text-brand-primary font-bold hover:underline mt-1">
                                     <Download className="w-3 h-3" /> {rec.attachment_name || 'Descargar'}

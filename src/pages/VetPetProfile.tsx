@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '@/src/lib/api';
+import { formatDateOnly } from '@/src/lib/utils';
 import {
   PawPrint, Loader2, Syringe, Scissors, Bug, Phone, Mail, Weight,
   Calendar, Activity, Clock, ShieldCheck, ArrowLeft, Stethoscope,
@@ -113,7 +114,7 @@ export default function VetPetProfile() {
               {[
                 { label: 'Color', value: pet.color },
                 { label: 'Sexo', value: pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : 'Desconocido' },
-                { label: 'Nacimiento', value: pet.birth_date ? new Date(pet.birth_date).toLocaleDateString('es-AR') : null },
+                { label: 'Nacimiento', value: pet.birth_date ? formatDateOnly(pet.birth_date) : null },
                 { label: 'Peso', value: pet.weight_kg ? `${pet.weight_kg} kg` : null },
                 { label: 'Chip ID', value: pet.chip_id },
                 { label: 'Dueño', value: pet.owner_name },
@@ -180,7 +181,7 @@ export default function VetPetProfile() {
                         </span>
                         <h4 className="text-sm font-bold text-gray-800 truncate">{record.title}</h4>
                         <div className="flex flex-wrap gap-2 mt-1 text-xs text-gray-400">
-                          {record.record_date && <span>{new Date(record.record_date).toLocaleDateString('es-AR')}</span>}
+                          {record.record_date && <span>{formatDateOnly(record.record_date)}</span>}
                           {record.vet_name && <span>· Vet: {record.vet_name}</span>}
                           {record.amount && (
                             <span className={record.record_type === 'weight' ? 'text-brand-primary font-medium' : 'text-emerald-600 font-medium'}>
@@ -216,7 +217,7 @@ export default function VetPetProfile() {
                             {record.medication_name && <span>· {record.medication_name} {record.dosage}</span>}
                             {record.next_date && (
                               <span className="text-amber-600 font-medium">
-                                · Próximo: {new Date(record.next_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                                · Próximo: {formatDateOnly(record.next_date, { day: 'numeric', month: 'short' })}
                               </span>
                             )}
                           </div>
@@ -265,7 +266,7 @@ export default function VetPetProfile() {
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-bold text-gray-800 truncate">{event.title}</h4>
                       <p className="text-xs text-gray-400">
-                        {new Date(event.event_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        {formatDateOnly(event.event_date, { day: 'numeric', month: 'long', year: 'numeric' })}
                       </p>
                     </div>
                     <div className="shrink-0 mt-1">
@@ -291,7 +292,7 @@ export default function VetPetProfile() {
                           )}
                           {event.next_date && (
                             <p className="text-xs text-amber-600 font-medium mt-1">
-                              Próximo: {new Date(event.next_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                              Próximo: {formatDateOnly(event.next_date, { day: 'numeric', month: 'short' })}
                             </p>
                           )}
                           {event.photo_id && (

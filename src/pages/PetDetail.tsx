@@ -7,7 +7,7 @@ import { api } from '@/src/lib/api';
 import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { cn } from '@/src/lib/utils';
+import { cn, formatDateOnly } from '@/src/lib/utils';
 import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
 import { shareOnFacebook } from '@/src/lib/facebookShare';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
@@ -522,14 +522,14 @@ Me gustaría obtener más información.`;
                     <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full bg-amber-400 border-2 border-white shadow" />
                     <p className="text-sm font-bold text-brand-primary">{item.title || 'Evento'}</p>
                     {item.description && <p className="text-sm text-gray-600 mt-0.5">{item.description}</p>}
-                    <p className="text-xs text-gray-400 mt-1">{new Date(item.event_date || item.created_at).toLocaleString('es-AR')}</p>
+                    <p className="text-xs text-gray-400 mt-1">{item.event_date ? formatDateOnly(item.event_date, { day: 'numeric', month: 'long', year: 'numeric' }) : new Date(item.created_at).toLocaleDateString('es-AR')}</p>
                   </div>
                 ) : item._type === 'myrecord' ? (
                   <div key={item.id} className="relative">
                     <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full bg-rose-400 border-2 border-white shadow" />
                     <p className="text-sm font-bold text-brand-primary">{item.title || 'Registro'}</p>
                     {item.description && <p className="text-sm text-gray-600 mt-0.5">{item.description}</p>}
-                    <p className="text-xs text-gray-400 mt-1">{new Date(item.record_date || item.created_at).toLocaleString('es-AR')}</p>
+                    <p className="text-xs text-gray-400 mt-1">{item.record_date ? formatDateOnly(item.record_date, { day: 'numeric', month: 'long', year: 'numeric' }) : new Date(item.created_at).toLocaleDateString('es-AR')}</p>
                   </div>
                 ) : (
                   <div key={item.id} className="relative">

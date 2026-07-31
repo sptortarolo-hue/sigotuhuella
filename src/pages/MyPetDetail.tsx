@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '@/src/lib/api';
-import { cn } from '@/src/lib/utils';
+import { cn, formatDateOnly } from '@/src/lib/utils';
 import { fileToBase64 } from '@/src/lib/storageService';
 import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
 import ImageCropper from '@/src/components/ImageCropper';
@@ -88,7 +88,9 @@ function getAge(birthDate: string) {
 }
 
 function daysUntil(dateStr: string) {
-  const d = new Date(dateStr);
+  const m = String(dateStr).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return 0;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
@@ -636,10 +638,15 @@ export default function MyPetDetail() {
 
   if (!pet) return <div className="p-8 text-center text-gray-400">Mascota no encontrada</div>;
 
+  const todayKey = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  })();
+
   const reminders = [...(pet.events || []), ...(pet.records || [])]
-    .filter((r: any) => r.next_date && new Date(r.next_date) >= new Date())
+    .filter((r: any) => r.next_date && String(r.next_date).slice(0, 10) >= todayKey)
     .map((r: any) => ({ ...r, due_date: r.next_date }))
-    .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+    .sort((a: any, b: any) => String(a.due_date).slice(0, 10).localeCompare(String(b.due_date).slice(0, 10)));
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'ficha', label: 'Ficha', icon: <PawPrint className="w-4 h-4" /> },
@@ -801,7 +808,7 @@ export default function MyPetDetail() {
                 { label: 'Raza', value: pet.breed },
                 { label: 'Color', value: pet.color },
                 { label: 'Sexo', value: pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : 'Desconocido' },
-                { label: 'Nacimiento', value: pet.birth_date ? new Date(pet.birth_date).toLocaleDateString('es-AR') : null },
+                { label: 'Nacimiento', value: pet.birth_date ? formatDateOnly(pet.birth_date) : null },
                 { label: 'Edad', value: getAge(pet.birth_date) },
                 { label: 'Chip ID', value: pet.chip_id },
                 { label: 'Peso', value: pet.weight_kg ? `${pet.weight_kg} kg` : null },
@@ -1192,10 +1199,10 @@ export default function MyPetDetail() {
                           <div>
                             <h4 className="text-sm font-bold text-gray-800">{item.title}</h4>
                             <p className="text-xs text-gray-400">
-                              {new Date(item._date).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                              {formatDateOnly(item._date, { day: 'numeric', month: 'long', year: 'numeric' })}
                               {item.next_date && (
                                 <span className="ml-2 text-amber-600">
-                                  Próximo: {new Date(item.next_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                                  Próximo: {formatDateOnly(item.next_date, { day: 'numeric', month: 'short' })}
                                 </span>
                               )}
                             </p>
@@ -1354,10 +1361,10 @@ export default function MyPetDetail() {
                     const range = maxW - minW || 1;
                     const height = 20 + ((wr.weight - minW) / range) * 80;
                     return (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${wr.weight} kg — ${new Date(wr.date).toLocaleDateString('es-AR')}`}>
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${wr.weight} kg — ${formatDateOnly(wr.date)}`}>
                         <span className="text-[10px] font-bold text-brand-primary">{wr.weight}</span>
                         <div className="w-full bg-brand-secondary/80 rounded-t-md" style={{ height: `${height}%` }} />
-                        <span className="text-[8px] text-gray-400">{new Date(wr.date).toLocaleDateString('es-AR', { month: 'short' })}</span>
+                        <span className="text-[8px] text-gray-400">{formatDateOnly(wr.date, { month: 'short' })}</span>
                       </div>
                     );
                   })}
@@ -1386,7 +1393,7 @@ export default function MyPetDetail() {
                         <h4 className="text-sm font-bold text-gray-800">{record.title}</h4>
                         {record.description && <p className="text-xs text-gray-500 mt-0.5">{record.description}</p>}
                         <div className="flex flex-wrap gap-2 mt-2 text-xs text-gray-400">
-                          {record.record_date && <span>{new Date(record.record_date).toLocaleDateString('es-AR')}</span>}
+                          {record.record_date && <span>{formatDateOnly(record.record_date)}</span>}
                           {record.vet_name && <span>· Vet: {record.vet_name}</span>}
                           {record.clinic_name && <span>· {record.clinic_name}</span>}
                           {record.medication_name && <span>· {record.medication_name} {record.dosage}</span>}
@@ -1394,7 +1401,7 @@ export default function MyPetDetail() {
                     {record.record_type === 'weight' && record.amount && <span className="text-brand-primary font-medium">· {record.amount} kg</span>}
                           {record.next_date && (
                             <span className="text-amber-600 font-medium">
-                              · Próximo: {new Date(record.next_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                              · Próximo: {formatDateOnly(record.next_date, { day: 'numeric', month: 'short' })}
                             </span>
                           )}
                         </div>
