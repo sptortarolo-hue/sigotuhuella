@@ -430,6 +430,7 @@ export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMo
                         pet.status === 'for_adoption' ? 'bg-blue-100 text-blue-700' :
                         pet.status === 'for_adoption_simple' ? 'bg-orange-100 text-orange-700' :
                         pet.status === 'lost' ? 'bg-red-100 text-red-700' :
+                        pet.status === 'transitada' ? 'bg-teal-100 text-teal-700' :
                         'bg-amber-100 text-amber-700'
                       )}>{pet.status}</span>
                       {pet.instagram_posts?.length > 0 && <span className="text-[10px] text-gray-400">📷 IG: {pet.instagram_posts.length}</span>}

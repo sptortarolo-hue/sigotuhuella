@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X, PawPrint, MapPin, Phone, Calendar, Shield, MessageSquare, Camera,
-  Globe, Instagram, QrCode, ExternalLink, ChevronRight, ChevronDown, User, Heart, HeartHandshake
+  Globe, Instagram, QrCode, ExternalLink, ChevronRight, ChevronDown, User, Heart, HeartHandshake,
+  Layers, Home, History as HistoryIcon, Users, ArrowUpRight
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import ReunionModal from '@/src/components/ReunionModal';
 import { getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
+import { api } from '@/src/lib/api';
+import PetGroupTransitModal from '@/src/components/admin/PetGroupTransitModal';
 
 function petImageAt(pet: any, idx: number): string | undefined {
   if (!pet?.images?.[idx]) return undefined;
@@ -61,25 +64,46 @@ interface PetDetailPanelProps {
   onSelectUser?: (userId: string) => void;
   isMobile?: boolean;
   onClose?: () => void;
+  pets?: any[];
+  users?: any[];
+  onRefresh?: () => void;
 }
 
-export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }: PetDetailPanelProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'info' | 'images' | 'owner' | 'relations'>('info');
+export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, pets, users, onRefresh }: PetDetailPanelProps) {
+  const [activeSubTab, setActiveSubTab] = useState<'info' | 'images' | 'owner' | 'relations' | 'group' | 'history'>('info');
   const [showReunionModal, setShowReunionModal] = useState(false);
-  const { pet, created_by_user, facebook_posts, instagram_posts, whatsapp_messages, facebook_matches, qr_identifiers } = data;
+  const [showModal, setShowModal] = useState<null | 'group' | 'transit'>(null);
+  const { pet, created_by_user, facebook_posts, instagram_posts, whatsapp_messages, facebook_matches, qr_identifiers, group_members, history } = data;
+
+  const refresh = () => { onRefresh?.(); };
 
   const statusLabels: Record<string, string> = {
     lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado',
     accidented: 'Accidentado', needs_attention: 'Necesita Atención',
     for_adoption: 'En Adopción', for_adoption_simple: 'Adopción (Difusión)', adopted: 'Adoptado', reunited: 'Reencontrado',
+    transitada: 'En Tránsito',
   };
   const statusColors: Record<string, string> = {
     lost: 'bg-red-100 text-red-700', retained: 'bg-amber-100 text-amber-700',
     sighted: 'bg-blue-100 text-blue-700', accidented: 'bg-orange-100 text-orange-700',
     needs_attention: 'bg-yellow-100 text-yellow-700', for_adoption: 'bg-purple-100 text-purple-700', for_adoption_simple: 'bg-orange-100 text-orange-700',
     adopted: 'bg-emerald-100 text-emerald-700', reunited: 'bg-emerald-100 text-emerald-700',
+    transitada: 'bg-teal-100 text-teal-700',
   };
   const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species;
+
+  const isGroupedMember = !!pet.group_id;
+
+  function historyEventLabel(type: string): string {
+    const labels: Record<string, string> = {
+      status_change: 'Cambio de estado',
+      grouped: 'Reporte agrupado',
+      ungrouped: 'Reporte desagrupado',
+      transit_assigned: 'Puesta en tránsito',
+      transit_exited: 'Salida de tránsito',
+    };
+    return labels[type] || type;
+  }
 
   return (
     <div className={cn("space-y-4", isMobile ? "p-4" : "p-6")}>
@@ -126,12 +150,42 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
         )}
       </div>
 
+      {/* Group + transit actions */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setShowModal('group')}
+          className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-brand-bg text-brand-primary font-bold border border-brand-accent hover:border-brand-primary/50 transition-colors"
+        >
+          <Layers className="w-3.5 h-3.5" /> Agrupar reporte
+        </button>
+        {pet.status === 'transitada' ? (
+          <button
+            onClick={async () => {
+              if (!confirm('¿Sacar la mascota de tránsito y pasarla a adopción?')) return;
+              try { await api.pets.exitTransit(pet.id); refresh(); } catch (e: any) { alert(e?.message || 'Error al salir de tránsito'); }
+            }}
+            className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-teal-50 text-teal-700 font-bold border border-teal-200 hover:bg-teal-100 transition-colors"
+          >
+            <Home className="w-3.5 h-3.5" /> Salir de tránsito
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowModal('transit')}
+            className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-teal-50 text-teal-700 font-bold border border-teal-200 hover:bg-teal-100 transition-colors"
+          >
+            <Home className="w-3.5 h-3.5" /> Poner en tránsito
+          </button>
+        )}
+      </div>
+
       {/* Sub-tabs */}
       <div className="flex border-b border-brand-accent gap-0 overflow-x-auto">
         {[
           { id: 'info', label: 'Info' },
           { id: 'images', label: `Fotos (${pet.images?.length || 0})` },
           { id: 'owner', label: 'Dueño' },
+          { id: 'group', label: `Grupo (${group_members?.length || 0})` },
+          { id: 'history', label: `Historial (${history?.length || 0})` },
           { id: 'relations', label: 'Relaciones' },
         ].map(tab => (
           <button
@@ -323,6 +377,118 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
         </div>
       )}
 
+      {/* Group tab */}
+      {activeSubTab === 'group' && (
+        <div className="space-y-4">
+          <div className="p-4 bg-teal-50 border border-teal-200 rounded-2xl">
+            <div className="flex items-center gap-2 text-sm font-bold text-teal-800">
+              <Home className="w-4 h-4" />
+              {pet.status === 'transitada' ? 'En tránsito' : 'Estado actual: ' + (statusLabels[pet.status] || pet.status)}
+            </div>
+            <p className="text-xs text-teal-700 mt-1">
+              {pet.transit_caregiver_id
+                ? 'Asignada a un usuario responsable del tránsito.'
+                : pet.status === 'transitada'
+                  ? 'Asignada a la agrupación (visible para todos los administradores).'
+                  : 'Esta mascota aún no está en tránsito.'}
+            </p>
+            {pet.transit_assigned_at && (
+              <p className="text-xs text-teal-600 mt-1">Desde {new Date(pet.transit_assigned_at).toLocaleDateString()}</p>
+            )}
+          </div>
+
+          <Section title={`Reportes agrupados (${group_members?.length || 0})`} icon={<Layers className="w-4 h-4" />}>
+            {isGroupedMember ? (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500 mb-2">Este reporte pertenece a la ficha principal:</p>
+                {group_members?.map((m: any) => (
+                  <div key={m.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                    <div className="w-11 h-11 rounded-xl bg-white border border-brand-accent overflow-hidden shrink-0">
+                      {petImageAt(m, 0) ? <img src={petImageAt(m, 0)} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-5 h-5" /></div>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="font-bold text-xs text-brand-primary block truncate">{m.name || 'Sin nombre'}</span>
+                      <span className="text-[10px] text-gray-500 block truncate">{m.location}</span>
+                    </div>
+                    <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold shrink-0", statusColors[m.status] || 'bg-gray-100 text-gray-500')}>
+                      {statusLabels[m.status] || m.status}
+                    </span>
+                    <span className="text-[10px] px-2 py-1 rounded-full bg-teal-50 text-teal-700 font-bold shrink-0">Principal</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                {!group_members || group_members.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-4">Sin reportes agrupados.</p>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {group_members.map((m: any) => (
+                      <div key={m.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                        <div className="w-11 h-11 rounded-xl bg-white border border-brand-accent overflow-hidden shrink-0">
+                          {petImageAt(m, 0) ? <img src={petImageAt(m, 0)} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-5 h-5" /></div>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="font-bold text-xs text-brand-primary block truncate">{m.name || 'Sin nombre'}</span>
+                          <span className="text-[10px] text-gray-500 block truncate">{m.location}</span>
+                        </div>
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold shrink-0", statusColors[m.status] || 'bg-gray-100 text-gray-500')}>
+                          {statusLabels[m.status] || m.status}
+                        </span>
+                        <button
+                          onClick={async () => {
+                            if (!confirm('¿Desagrupar este reporte?')) return;
+                            try { await api.pets.ungroup(pet.id, m.id); refresh(); } catch (e: any) { alert(e?.message || 'Error'); }
+                          }}
+                          className="text-[10px] px-2 py-1 rounded-full bg-red-50 text-red-600 font-bold hover:bg-red-100 shrink-0"
+                        >
+                          Desagrupar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowModal('group')}
+                  className="mt-3 w-full py-2.5 rounded-xl bg-brand-primary text-white text-xs font-bold hover:bg-brand-primary/90 transition-colors"
+                >
+                  + Agrupar reporte
+                </button>
+              </>
+            )}
+          </Section>
+        </div>
+      )}
+
+      {/* History tab */}
+      {activeSubTab === 'history' && (
+        <div className="space-y-3">
+          {!history || history.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">Sin eventos registrados</p>
+          ) : (
+            <div className="relative pl-5 border-l-2 border-brand-accent space-y-4">
+              {history.map((h: any) => (
+                <div key={h.id} className="relative">
+                  <div className="absolute -left-[27px] top-1 w-3 h-3 rounded-full bg-brand-primary border-2 border-white" />
+                  <div className="text-sm">
+                    <span className="font-bold text-brand-primary">{historyEventLabel(h.event_type)}</span>
+                    {h.to_status && (
+                      <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-gray-100 text-gray-600">
+                        {statusLabels[h.from_status] || h.from_status || ''} → {statusLabels[h.to_status] || h.to_status}
+                      </span>
+                    )}
+                  </div>
+                  {h.description && <p className="text-xs text-gray-600 mt-0.5">{h.description}</p>}
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {new Date(h.created_at).toLocaleString()} {h.changed_by_name ? `· ${h.changed_by_name}` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Relations tab */}
       {activeSubTab === 'relations' && (
         <div className="space-y-4">
@@ -460,6 +626,19 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose }
           onClose={() => setShowReunionModal(false)}
           onSaved={() => setShowReunionModal(false)}
         />
+      )}
+
+      {showModal && (
+        <AnimatePresence>
+          <PetGroupTransitModal
+            mode={showModal}
+            petId={pet.id}
+            pets={pets || []}
+            users={users || []}
+            onClose={() => setShowModal(null)}
+            onSaved={refresh}
+          />
+        </AnimatePresence>
       )}
     </div>
   );

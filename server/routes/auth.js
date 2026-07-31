@@ -86,6 +86,12 @@ router.post('/register', async (req, res) => {
           [ass.pet_id]
         );
 
+        await pool.query(
+          `INSERT INTO pet_history (pet_id, event_type, description, to_status, changed_by)
+           VALUES ($1, 'status_change', 'Mascota adoptada', 'adopted', $2)`,
+          [ass.pet_id, user.id]
+        );
+
         // Notificar al dueño
         pool.query('SELECT id, email, display_name, phone, notification_preference FROM users WHERE id = $1', [ass.inviter_id]).then(ownerRes => {
           if (ownerRes.rows[0]) {

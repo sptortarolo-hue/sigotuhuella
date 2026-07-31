@@ -644,6 +644,25 @@ ALTER TABLE pets ADD COLUMN IF NOT EXISTS adoption_assignment_id UUID REFERENCES
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMP;
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP;
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS my_pet_id UUID REFERENCES my_pets(id);
+
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES pets(id) ON DELETE SET NULL;
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS transit_caregiver_id UUID REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS transit_assigned_at TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_pets_group_id ON pets(group_id);
+
+CREATE TABLE IF NOT EXISTS pet_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+  event_type VARCHAR(50) NOT NULL,
+  description TEXT,
+  from_status VARCHAR(50),
+  to_status VARCHAR(50),
+  related_pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,
+  related_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  changed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pet_history_pet ON pet_history(pet_id, created_at);
 `;
 
 async function migrate(client, sql, label) {

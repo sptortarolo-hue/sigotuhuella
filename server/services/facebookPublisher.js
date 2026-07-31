@@ -14,6 +14,7 @@ const statusLabels = {
   reunited: '🎉 REENCUENTRO',
   accidented: '🚑 ACCIDENTADO',
   needs_attention: '⚠️ NECESITA ATENCIÓN',
+  transitada: '🏠 EN TRÁNSITO',
 };
 
 const speciesLabel = { dog: 'Perro', cat: 'Gato', other: 'Otra mascota' };

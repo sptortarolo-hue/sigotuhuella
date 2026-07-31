@@ -54,6 +54,11 @@ export async function detectReunion(postId) {
     if (petRes.rows.length > 0) {
       for (const pet of petRes.rows) {
         await pool.query(`UPDATE pets SET status = 'reunited', updated_at = NOW() WHERE id = $1`, [pet.id]);
+        await pool.query(
+          `INSERT INTO pet_history (pet_id, event_type, description, from_status, to_status, changed_by)
+           VALUES ($1, 'status_change', 'Reencuentro detectado por publicación de Facebook', $2, 'reunited', NULL)`,
+          [pet.id, pet.status]
+        );
         console.log(`Pet ${pet.id} → reunited via FB post ${postId} (keyword: "${matched}")`);
       }
     }

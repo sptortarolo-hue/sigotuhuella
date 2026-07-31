@@ -26,6 +26,8 @@ export default function PetDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [pet, setPet] = useState<Pet | null>(null);
+  const [groupMembers, setGroupMembers] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentImageIdx, setCurrentImageIdx] = useState(0);
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
@@ -56,6 +58,8 @@ export default function PetDetail() {
         const data = await api.pets.get(id);
         const found = data.pet;
         setPet(found || null);
+        setGroupMembers(data.group_members || []);
+        setHistory(data.history || []);
         if (found) {
           fetch(`/api/pets/${id}/view`, { method: 'POST' }).catch(() => {});
         }
@@ -144,6 +148,7 @@ Me gustaría obtener más información.`;
     [PetStatus.FOR_ADOPTION]: 'bg-brand-primary/20 text-brand-primary',
     [PetStatus.FOR_ADOPTION_SIMPLE]: 'bg-orange-100 text-orange-700',
     [PetStatus.REUNITED]: 'bg-green-100 text-green-700',
+    [PetStatus.TRANSITADA]: 'bg-teal-100 text-teal-700',
   };
 
   const statusLabels = {
@@ -155,6 +160,7 @@ Me gustaría obtener más información.`;
     [PetStatus.FOR_ADOPTION]: 'En Adopción',
     [PetStatus.FOR_ADOPTION_SIMPLE]: 'Adopción (Difusión)',
     [PetStatus.REUNITED]: 'Reencuentro',
+    [PetStatus.TRANSITADA]: 'En Tránsito',
   };
 
   return (
@@ -162,6 +168,18 @@ Me gustaría obtener más información.`;
       <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold mb-8 transition-colors">
         <ArrowLeft className="w-4 h-4" /> Volver
       </button>
+
+      {pet.group_id && (
+        <div className="mb-6 p-4 rounded-2xl bg-teal-50 border border-teal-200 flex items-start gap-3">
+          <Info className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-teal-800">
+            Este reporte pertenece al caso principal de esta mascota.{' '}
+            <button onClick={() => navigate(`/mascota/${pet.group_id}`)} className="font-bold underline hover:text-teal-900">
+              Ver ficha principal →
+            </button>
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* Galería de Imágenes */}
@@ -386,6 +404,81 @@ Me gustaría obtener más información.`;
           </div>
         </div>
       </div>
+
+      {/* Reportes relacionados (agrupados) */}
+      {groupMembers.length > 1 && (
+        <div className="mt-12">
+          <h2 className="text-2xl sm:text-3xl font-serif font-bold text-brand-primary mb-6">
+            Reportes relacionados
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {groupMembers
+              .filter((m: any) => m.id !== pet.id)
+              .map((m: any) => (
+                <button
+                  key={m.id}
+                  onClick={() => navigate(`/mascota/${m.id}`)}
+                  className="group bg-white rounded-[2rem] border border-brand-accent overflow-hidden text-left hover:shadow-lg transition-shadow"
+                >
+                  <div className="aspect-square bg-brand-bg overflow-hidden">
+                    {m.images?.[0]?.image_data || m.images?.[0]?.external_url ? (
+                      <img
+                        src={m.images[0].external_url || `data:${m.images[0].mime_type || 'image/jpeg'};base64,${m.images[0].image_data}`}
+                        alt=""
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-300">
+                        <img src="/sigotuhuella.jpg" alt="" className="w-2/3 h-2/3 object-contain opacity-15" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-brand-primary">{m.name || 'Sin nombre'}</span>
+                    </div>
+                    <p className="text-sm text-gray-500 flex items-center gap-1.5 mb-3">
+                      <MapPin className="w-4 h-4 shrink-0" /> <span className="truncate">{m.location}</span>
+                    </p>
+                    <span className={cn("inline-block text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide",
+                      statusColors[m.status] || 'bg-gray-100 text-gray-500'
+                    )}>
+                      {statusLabels[m.status] || m.status}
+                    </span>
+                    <span className="text-[10px] text-gray-400 ml-2">{new Date(m.created_at).toLocaleDateString('es-AR')}</span>
+                  </div>
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Historial */}
+      {history.length > 0 && (
+        <div className="mt-12">
+          <h2 className="text-2xl sm:text-3xl font-serif font-bold text-brand-primary mb-6">
+            Historial
+          </h2>
+          <div className="bg-white rounded-[2rem] border border-brand-accent p-6 sm:p-8">
+            <div className="relative pl-6 border-l-2 border-brand-accent space-y-6">
+              {history.map((h: any) => (
+                <div key={h.id} className="relative">
+                  <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full bg-brand-primary border-2 border-white shadow" />
+                  <p className="text-sm font-bold text-brand-primary">
+                    {h.event_type === 'status_change' ? 'Cambio de estado' :
+                     h.event_type === 'grouped' ? 'Reporte agrupado' :
+                     h.event_type === 'ungrouped' ? 'Reporte desagrupado' :
+                     h.event_type === 'transit_assigned' ? 'Puesta en tránsito' :
+                     h.event_type === 'transit_exited' ? 'Salida de tránsito' : h.event_type}
+                  </p>
+                  {h.description && <p className="text-sm text-gray-600 mt-0.5">{h.description}</p>}
+                  <p className="text-xs text-gray-400 mt-1">{new Date(h.created_at).toLocaleString('es-AR')}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Share modal */}
       <AnimatePresence>

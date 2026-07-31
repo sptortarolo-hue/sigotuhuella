@@ -33,6 +33,7 @@ export function getFacebookShareText(pet) {
     reunited: '🎉 REENCUENTRO',
     accidented: '🚑 ACCIDENTADO',
     needs_attention: '⚠️ NECESITA ATENCIÓN',
+    transitada: '🏠 EN TRÁNSITO',
   };
   const speciesLabels = { dog: 'Perro', cat: 'Gato', other: 'Mascota' };
   const statusTag = statusLabels[pet.status] || '🐾 MASCOTA';

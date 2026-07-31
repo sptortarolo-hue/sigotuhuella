@@ -1093,6 +1093,7 @@ export default function Admin() {
                        <option value={PetStatus.FOR_ADOPTION_SIMPLE}>Adopción (Difusión)</option>
                        <option value={PetStatus.ADOPTED}>Adoptado</option>
                       <option value={PetStatus.REUNITED}>Reencuentro</option>
+                      <option value={PetStatus.TRANSITADA}>En Tránsito</option>
                     </select>
                     <button onClick={() => { resetPetForm(); setShowForm(true); }} className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">
                       <Plus className="w-5 h-5" /> Nuevo Reporte
@@ -1135,8 +1136,14 @@ export default function Admin() {
                               pet.status === 'for_adoption' ? 'bg-blue-100 text-blue-700' :
                               pet.status === 'for_adoption_simple' ? 'bg-orange-100 text-orange-700' :
                               pet.status === 'lost' ? 'bg-red-100 text-red-700' :
+                              pet.status === 'transitada' ? 'bg-teal-100 text-teal-700' :
                               'bg-amber-100 text-amber-700'
                             )}>{pet.status}</span>
+                            {pet.group_id && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold mt-1 ml-1 inline-block bg-gray-100 text-gray-500">
+                                Agrupado
+                              </span>
+                            )}
                             <div className="flex items-center gap-1 mt-2" onClick={e => e.stopPropagation()}>
                               <button onClick={() => setSharePet(pet)} className="p-1.5 rounded-lg bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-md transition-all" title="Redes Sociales"><Share2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => editPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Editar"><Edit2 className="w-3.5 h-3.5" /></button>
@@ -1176,7 +1183,7 @@ export default function Admin() {
                     </div>
                   ) : selectedPetData ? (
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
-                      <PetDetailPanel data={selectedPetData} />
+                      <PetDetailPanel data={selectedPetData} pets={pets} users={userList} onRefresh={() => fetchPetRelations(selectedPetData.pet.id)} />
                     </div>
                   ) : (
                     <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-brand-accent h-full flex items-center justify-center">
@@ -1220,6 +1227,7 @@ export default function Admin() {
                     <option value={PetStatus.FOR_ADOPTION_SIMPLE}>Adopción (Difusión)</option>
                     <option value={PetStatus.ADOPTED}>Adoptado</option>
                     <option value={PetStatus.REUNITED}>Reencuentro</option>
+                    <option value={PetStatus.TRANSITADA}>En Tránsito</option>
                   </select>
                   <button onClick={() => { resetPetForm(); setShowForm(true); }} className="px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:shadow-lg transition-all shrink-0">
                     <Plus className="w-5 h-5" /> Nuevo
@@ -1279,7 +1287,7 @@ export default function Admin() {
                   {petRelationsLoading ? (
                     <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>
                   ) : selectedPetData ? (
-                    <PetDetailPanel data={selectedPetData} isMobile onClose={() => { setMobilePetView('list'); setSelectedPetData(null); setSelectedPetId(null); }} />
+                    <PetDetailPanel data={selectedPetData} isMobile onClose={() => { setMobilePetView('list'); setSelectedPetData(null); setSelectedPetId(null); }} pets={pets} users={userList} onRefresh={() => fetchPetRelations(selectedPetData.pet.id)} />
                   ) : (
                     <div className="text-center py-12 text-gray-400">No se pudo cargar la info</div>
                   )}
@@ -1313,7 +1321,7 @@ export default function Admin() {
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {pets.filter(p => p.status === PetStatus.FOR_ADOPTION || p.status === PetStatus.FOR_ADOPTION_SIMPLE || p.status === PetStatus.ADOPTED).map(pet => (
+                {pets.filter(p => p.status === PetStatus.FOR_ADOPTION || p.status === PetStatus.FOR_ADOPTION_SIMPLE || p.status === PetStatus.ADOPTED || p.status === PetStatus.TRANSITADA).map(pet => (
                   <div key={pet.id} className="relative">
                     <PetCard
                       pet={pet}
@@ -1321,7 +1329,7 @@ export default function Admin() {
                       onEdit={editPet}
                       onDelete={async (id) => { if (confirm('¿Eliminar esta publicación definitivamente?')) { try { await deletePet(id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } } }}
                     />
-                    {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.FOR_ADOPTION_SIMPLE) && (
+                    {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.FOR_ADOPTION_SIMPLE || pet.status === PetStatus.TRANSITADA) && (
                       <button
                         onClick={async () => {
                           if (confirm('¿Marcar como adoptado?')) {
@@ -1704,6 +1712,9 @@ export default function Admin() {
                         onSelectUser={(userId) => {
                           if (selectedUserId !== userId) handleSelectUser(userId);
                         }}
+                        pets={pets}
+                        users={userList}
+                        onRefresh={() => fetchPetRelations(selectedPetData.pet.id)}
                       />
                     </div>
                   ) : selectedMyPetData ? (
@@ -1809,6 +1820,9 @@ export default function Admin() {
                           if (selectedUserId !== userId) handleSelectUser(userId);
                         }}
                         isMobile
+                        pets={pets}
+                        users={userList}
+                        onRefresh={() => fetchPetRelations(selectedPetData.pet.id)}
                       />
                     </div>
                   </div>
@@ -2848,6 +2862,7 @@ export default function Admin() {
                     <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
                     <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
                     <option value={PetStatus.FOR_ADOPTION_SIMPLE}>Adopción (Difusión)</option>
+                    <option value={PetStatus.TRANSITADA}>En Tránsito</option>
                   </select>
                 </div>
                 <div className="space-y-4">

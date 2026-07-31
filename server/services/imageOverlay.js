@@ -17,6 +17,7 @@ const STATUS_STYLES = {
   for_adoption_simple: { label: 'EN ADOPCIÓN', color: '#F97316' },
   adopted: { label: 'ADOPTADO', color: '#10B981' },
   reunited: { label: 'REENCUENTRO', color: '#10B981' },
+  transitada: { label: 'EN TRÁNSITO', color: '#0D9488' },
 };
 
 let _logoBase64 = null;

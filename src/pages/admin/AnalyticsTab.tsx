@@ -19,6 +19,7 @@ const STATUS_LABELS: Record<string, string> = {
   for_adoption: 'En adopción', for_adoption_simple: 'Adopción simple',
   adopted: 'Adoptado', reunited: 'Reencontrado',
   accidented: 'Accidentado', needs_attention: 'Necesita atención',
+  transitada: 'En tránsito',
 };
 
 export default function AnalyticsTab() {

@@ -313,7 +313,7 @@ export async function buildPetBroadcastCaption(pet) {
     for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
     adopted: '✅ ADOPTADO',
     reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
-    needs_attention: '⚠️ NECESITA ATENCIÓN',
+    needs_attention: '⚠️ NECESITA ATENCIÓN', transitada: '🏠 EN TRÁNSITO',
   };
   const label = statusLabels[pet.status] || '🐾 MASCOTA';
   const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species || 'Mascota';

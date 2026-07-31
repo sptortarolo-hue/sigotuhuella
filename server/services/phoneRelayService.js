@@ -93,8 +93,8 @@ export async function getAllGroups() {
 }
 
 export async function searchPets(category, search) {
-  const reportados = ['lost', 'sighted', 'accidented', 'needs_attention', 'retained'];
-  const statuses = category === 'adopcion' ? ['for_adoption', 'for_adoption_simple'] : reportados;
+  const reportados = ['lost', 'sighted', 'accidented', 'needs_attention', 'retained', 'transitada'];
+  const statuses = category === 'adopcion' ? ['for_adoption', 'for_adoption_simple', 'transitada'] : reportados;
   const params = [statuses];
   let sql = `
     SELECT p.id, p.name, p.species, p.breed, p.status, p.location, p.created_at,
@@ -102,6 +102,7 @@ export async function searchPets(category, search) {
     FROM pets p
     WHERE p.status = ANY($1::varchar[])
       AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
+      AND p.group_id IS NULL
   `;
   if (search) {
     params.push(`%${search}%`);
@@ -136,7 +137,7 @@ export function generateBroadcastCaption(pet) {
     for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
     adopted: '✅ ADOPTADO',
     reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
-    needs_attention: '⚠️ NECESITA ATENCIÓN',
+    needs_attention: '⚠️ NECESITA ATENCIÓN', transitada: '🏠 EN TRÁNSITO',
   };
   const label = statusLabels[pet.status] || '🐾 MASCOTA';
   const speciesLabel = pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species || 'Mascota';

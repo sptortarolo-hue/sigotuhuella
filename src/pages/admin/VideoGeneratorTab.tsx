@@ -92,6 +92,7 @@ const PET_STATUS_OPTIONS = [
   { value: 'retained', label: 'Retenidos' },
   { value: 'accidented', label: 'Accidentados' },
   { value: 'needs_attention', label: 'Necesitan atención' },
+  { value: 'transitada', label: 'En tránsito' },
 ];
 
 const NEWS_TYPE_OPTIONS = [

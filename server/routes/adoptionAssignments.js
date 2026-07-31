@@ -38,6 +38,12 @@ router.post('/return/:token', requireAuth, async (req, res) => {
       [assignment.pet_id]
     );
 
+    await client.query(
+      `INSERT INTO pet_history (pet_id, event_type, description, from_status, to_status, changed_by)
+       VALUES ($1, 'status_change', 'Adopción cancelada, vuelve a adopción', $2, 'for_adoption', $3)`,
+      [assignment.pet_id, assignment.pet_status, req.user.id]
+    );
+
     if (assignment.qr_id) {
       await client.query(
         'UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL WHERE id = $1',
@@ -126,6 +132,12 @@ router.post('/claim/:token', requireAuth, async (req, res) => {
     await client.query(
       `UPDATE pets SET status = 'adopted', adoption_assignment_id = NULL, my_pet_id = NULL WHERE id = $1`,
       [assignment.pet_id]
+    );
+
+    await client.query(
+      `INSERT INTO pet_history (pet_id, event_type, description, to_status, changed_by)
+       VALUES ($1, 'status_change', 'Mascota adoptada', 'adopted', $2)`,
+      [assignment.pet_id, req.user.id]
     );
 
     await client.query('COMMIT');

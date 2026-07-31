@@ -25,6 +25,7 @@ const statusDesigns = {
   for_adoption_simple: { label: 'EN ADOPCIÓN', badgeColor: '#F97316', gradientStart: '#7C2D12', gradientEnd: '#F97316' },
   adopted: { label: '¡ADOPTADO!', badgeColor: '#10B981', gradientStart: '#064E3B', gradientEnd: '#10B981' },
   reunited: { label: '¡REENCUENTRO!', badgeColor: '#10B981', gradientStart: '#064E3B', gradientEnd: '#10B981' },
+  transitada: { label: 'EN TRÁNSITO', badgeColor: '#0D9488', gradientStart: '#134E4A', gradientEnd: '#0D9488' },
 };
 
 function roundRect(ctx, x, y, w, h, r) {

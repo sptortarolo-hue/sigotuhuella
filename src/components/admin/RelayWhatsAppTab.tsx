@@ -43,6 +43,7 @@ const STATUS_BADGES: Record<string, { label: string; color: string }> = {
   needs_attention: { label: 'Atención', color: 'bg-pink-100 text-pink-700' },
   adopted: { label: 'Adoptado', color: 'bg-blue-100 text-blue-700' },
   reunited: { label: 'Reencuentro', color: 'bg-teal-100 text-teal-700' },
+  transitada: { label: 'Tránsito', color: 'bg-cyan-100 text-cyan-700' },
 };
 
 export default function RelayWhatsAppTab() {

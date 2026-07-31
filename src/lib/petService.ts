@@ -11,6 +11,7 @@ export enum PetStatus {
   ADOPTED = 'adopted',
   REUNITED = 'reunited',
   ADOPTION_TRIAL = 'adoption_trial',
+  TRANSITADA = 'transitada',
 }
 
 export interface PetImage {
@@ -55,6 +56,9 @@ export interface Pet {
   owner_email?: string | null;
   owner_address?: string | null;
   reunited_at?: string | null;
+  group_id?: string | null;
+  transit_caregiver_id?: string | null;
+  transit_assigned_at?: string | null;
 }
 
 export function getPetImageUrl(pet: Pet): string | undefined {

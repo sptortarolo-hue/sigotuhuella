@@ -42,6 +42,7 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
      [PetStatus.FOR_ADOPTION_SIMPLE]: 'bg-orange-100 text-orange-700 border border-orange-200',
      [PetStatus.ADOPTED]: 'bg-green-100 text-green-700',
      [PetStatus.REUNITED]: 'bg-amber-100 text-amber-700',
+     [PetStatus.TRANSITADA]: 'bg-teal-100 text-teal-700',
    };
 
    const statusLabels = {
@@ -54,6 +55,7 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
     [PetStatus.FOR_ADOPTION_SIMPLE]: 'Adopción (Difusión)',
     [PetStatus.ADOPTED]: 'Adoptado',
      [PetStatus.REUNITED]: 'Reencuentro',
+     [PetStatus.TRANSITADA]: 'En Tránsito',
    };
 
    const dateLabel = pet.status === PetStatus.LOST ? 'Perdido el' : 'Reportado el';

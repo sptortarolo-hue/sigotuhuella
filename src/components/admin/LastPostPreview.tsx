@@ -31,6 +31,7 @@ const statusLabels: Record<string, string> = {
   retained: 'RETENIDO',
   accidented: 'ACCIDENTADO',
   needs_attention: 'NECESITA ATENCIÓN',
+  transitada: 'EN TRÁNSITO',
 };
 
 const speciesLabels: Record<string, string> = {

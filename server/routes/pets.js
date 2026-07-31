@@ -27,6 +27,18 @@ async function canEditPet(userId, petId) {
   return row.created_by === userId || row.is_shared;
 }
 
+async function addPetHistory({ petId, eventType, description, fromStatus, toStatus, relatedPetId, relatedUserId, changedBy }) {
+  try {
+    await pool.query(
+      `INSERT INTO pet_history (pet_id, event_type, description, from_status, to_status, related_pet_id, related_user_id, changed_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [petId, eventType, description || null, fromStatus || null, toStatus || null, relatedPetId || null, relatedUserId || null, changedBy || null]
+    );
+  } catch (err) {
+    console.error('addPetHistory error:', err.message);
+  }
+}
+
 async function processImage(imageData, mimeType, size = 800) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
@@ -211,7 +223,7 @@ const statusLabels = {
   for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
   adopted: '✅ ADOPTADO',
   reunited: '🎉 REENCUENTRO', accidented: '🚑 ACCIDENTADO',
-  needs_attention: '⚠️ NECESITA ATENCIÓN',
+  needs_attention: '⚠️ NECESITA ATENCIÓN', transitada: '🏠 EN TRÁNSITO',
 };
 const speciesLabel = { dog: 'Perro', cat: 'Gato', other: 'Otra mascota' };
 const genderLabel = { male: 'Macho', female: 'Hembra', unknown: '' };
@@ -265,6 +277,7 @@ router.get('/', async (req, res) => {
     }
     if (include_hidden !== 'true') {
       conditions.push(`(p.is_hidden = FALSE OR p.is_hidden IS NULL)`);
+      conditions.push(`p.group_id IS NULL`);
     }
     if (isPublic === 'true') {
       conditions.push(`p.created_by IS NULL`);
@@ -299,7 +312,30 @@ router.get('/:id', async (req, res) => {
     if (result.rows.length === 0 || result.rows[0].is_hidden) {
       return res.status(404).json({ error: 'Pet not found' });
     }
-    res.json({ pet: result.rows[0] });
+    const pet = result.rows[0];
+
+    // Related reports in the same group + history timeline
+    const rootId = pet.group_id || pet.id;
+    const groupMembersRes = await pool.query(
+      `SELECT p.id, p.name, p.species, p.breed, p.color, p.status, p.location, p.created_at,
+        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+      FROM pets p
+      LEFT JOIN pet_images pi ON pi.pet_id = p.id
+      WHERE (p.id = $1 OR p.group_id = $1)
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+      LIMIT 50`,
+      [rootId]
+    );
+    const historyRes = await pool.query(
+      `SELECT ph.* FROM pet_history ph
+       WHERE ph.pet_id = $1 OR ph.related_pet_id = $1
+       ORDER BY ph.created_at DESC
+       LIMIT 100`,
+      [pet.id]
+    );
+
+    res.json({ pet, group_members: groupMembersRes.rows, history: historyRes.rows });
 
     // Track pet view (fire-and-forget)
     pool.query(
@@ -513,6 +549,15 @@ router.put('/:id', requireAuth, async (req, res) => {
     // Auto-generate news on status change to REUNITED or ADOPTED
     const isReunited = pet.status !== 'reunited' && req.body.status === 'reunited';
     const isAdopted = pet.status !== 'adopted' && req.body.status === 'adopted';
+    if (req.body.status && req.body.status !== pet.status) {
+      await addPetHistory({
+        petId,
+        eventType: 'status_change',
+        fromStatus: pet.status,
+        toStatus: req.body.status,
+        changedBy: req.user.id,
+      });
+    }
     if ((isReunited || isAdopted) && !pet.reunited_at) {
       await pool.query('UPDATE pets SET reunited_at = NOW() WHERE id = $1', [petId]);
     }
@@ -589,6 +634,175 @@ router.delete('/:id', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Delete pet error:', err);
     res.status(500).json({ error: 'Failed to delete pet' });
+  }
+});
+
+// ── Admin: group duplicate reports ───────────────────────────────────────────
+router.post('/:id/group', requireAdmin, async (req, res) => {
+  const petId = req.params.id;
+  const { memberId } = req.body;
+  try {
+    if (!memberId) return res.status(400).json({ error: 'memberId es requerido' });
+    if (memberId === petId) return res.status(400).json({ error: 'No se puede agrupar consigo mismo' });
+
+    const [rootRes, memberRes] = await Promise.all([
+      pool.query('SELECT id, group_id FROM pets WHERE id = $1', [petId]),
+      pool.query('SELECT id, group_id FROM pets WHERE id = $1', [memberId]),
+    ]);
+    if (rootRes.rows.length === 0 || memberRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Mascota no encontrada' });
+    }
+    if (rootRes.rows[0].group_id) {
+      return res.status(400).json({ error: 'La mascota raíz no puede ser un reporte agrupado' });
+    }
+    if (memberRes.rows[0].group_id && memberRes.rows[0].group_id !== petId) {
+      return res.status(400).json({ error: 'Ese reporte ya pertenece a otra agrupación' });
+    }
+    if (memberRes.rows[0].group_id === petId) {
+      return res.status(400).json({ error: 'Ese reporte ya está agrupado aquí' });
+    }
+
+    await pool.query('UPDATE pets SET group_id = $1, updated_at = NOW() WHERE id = $2', [petId, memberId]);
+    await addPetHistory({ petId, eventType: 'grouped', description: 'Reporte agregado a esta agrupación', relatedPetId: memberId, changedBy: req.user.id });
+    await addPetHistory({ petId: memberId, eventType: 'grouped', description: 'Reporte agrupado bajo la ficha principal', relatedPetId: petId, changedBy: req.user.id });
+    res.json({ message: 'Reporte agrupado' });
+  } catch (err) {
+    console.error('Group pet error:', err);
+    res.status(500).json({ error: 'Failed to group pet' });
+  }
+});
+
+router.post('/:id/ungroup', requireAdmin, async (req, res) => {
+  const petId = req.params.id;
+  const { memberId } = req.body;
+  try {
+    if (!memberId) return res.status(400).json({ error: 'memberId es requerido' });
+    const memberRes = await pool.query('SELECT id, group_id FROM pets WHERE id = $1', [memberId]);
+    if (memberRes.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    if (!memberRes.rows[0].group_id) return res.status(400).json({ error: 'Este reporte no está agrupado' });
+
+    await pool.query('UPDATE pets SET group_id = NULL, updated_at = NOW() WHERE id = $1', [memberId]);
+    await addPetHistory({ petId, eventType: 'ungrouped', description: 'Reporte removido de la agrupación', relatedPetId: memberId, changedBy: req.user.id });
+    await addPetHistory({ petId: memberId, eventType: 'ungrouped', description: 'Reporte separado de la ficha principal', relatedPetId: petId, changedBy: req.user.id });
+    res.json({ message: 'Reporte desagrupado' });
+  } catch (err) {
+    console.error('Ungroup pet error:', err);
+    res.status(500).json({ error: 'Failed to ungroup pet' });
+  }
+});
+
+// ── Admin: transit assignment (transitada) ───────────────────────────────────
+router.post('/:id/transit', requireAdmin, async (req, res) => {
+  const petId = req.params.id;
+  const { userId } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const petRes = await client.query('SELECT * FROM pets WHERE id = $1', [petId]);
+    if (petRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pet not found' });
+    }
+    const pet = petRes.rows[0];
+
+    let myPetId = pet.my_pet_id;
+    if (userId) {
+      const userRes = await client.query('SELECT id FROM users WHERE id = $1', [userId]);
+      if (userRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Usuario no encontrado' });
+      }
+      if (!myPetId) {
+        const imgRes = await client.query(
+          `SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1`,
+          [petId]
+        );
+        const img = imgRes.rows[0] || null;
+        const myPetRes = await client.query(
+          `INSERT INTO my_pets (user_id, name, species, breed, color, gender, bio, pet_type, avatar_image, avatar_mime_type)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'foster',$8,$9)
+           RETURNING id`,
+          [
+            userId,
+            pet.name || 'Sin nombre',
+            pet.species,
+            pet.breed || null,
+            pet.color || null,
+            pet.gender || 'unknown',
+            pet.description || null,
+            img ? img.image_data : null,
+            img ? img.mime_type : null,
+          ]
+        );
+        myPetId = myPetRes.rows[0].id;
+      } else {
+        await client.query('UPDATE my_pets SET pet_type = $1 WHERE id = $2', ['foster', myPetId]);
+      }
+    }
+
+    await client.query(
+      `UPDATE pets SET status = 'transitada', transit_caregiver_id = $1, transit_assigned_at = NOW(),
+        my_pet_id = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [userId || null, myPetId || null, petId]
+    );
+    await client.query(
+      `INSERT INTO pet_history (pet_id, event_type, description, from_status, to_status, related_user_id, changed_by)
+       VALUES ($1, 'transit_assigned', $2, $3, 'transitada', $4, $5)`,
+      [
+        petId,
+        userId ? 'Mascota puesta en tránsito y asignada a un usuario' : 'Mascota puesta en tránsito asignada a la agrupación',
+        pet.status,
+        userId || null,
+        req.user.id,
+      ]
+    );
+    await client.query('COMMIT');
+    res.json({ message: 'Mascota puesta en tránsito', my_pet_id: myPetId });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Transit pet error:', err);
+    res.status(500).json({ error: 'Failed to set pet in transit' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/:id/exit-transit', requireAdmin, async (req, res) => {
+  const petId = req.params.id;
+  try {
+    const petRes = await pool.query('SELECT * FROM pets WHERE id = $1', [petId]);
+    if (petRes.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
+    const pet = petRes.rows[0];
+
+    await pool.query(
+      `UPDATE pets SET status = 'for_adoption', transit_caregiver_id = NULL, transit_assigned_at = NULL, updated_at = NOW()
+       WHERE id = $1`,
+      [petId]
+    );
+    await addPetHistory({ petId, eventType: 'transit_exited', description: 'Mascota salió de tránsito y pasó a adopción', fromStatus: pet.status, toStatus: 'for_adoption', changedBy: req.user.id });
+    res.json({ message: 'Mascota fuera de tránsito' });
+  } catch (err) {
+    console.error('Exit transit error:', err);
+    res.status(500).json({ error: 'Failed to exit transit' });
+  }
+});
+
+router.get('/:id/history', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ph.*, u.display_name as changed_by_name
+       FROM pet_history ph
+       LEFT JOIN users u ON u.id = ph.changed_by
+       WHERE ph.pet_id = $1
+       ORDER BY ph.created_at DESC
+       LIMIT 100`,
+      [req.params.id]
+    );
+    res.json({ history: result.rows });
+  } catch (err) {
+    console.error('Get pet history error:', err);
+    res.status(500).json({ error: 'Failed to fetch pet history' });
   }
 });
 
@@ -680,6 +894,43 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
       [petId]
     );
 
+    let groupMembers = [];
+    if (pet.group_id) {
+      const groupMembersRes = await pool.query(
+        `SELECT p.*,
+          COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+        FROM pets p
+        LEFT JOIN pet_images pi ON pi.pet_id = p.id
+        WHERE p.id = $1
+        GROUP BY p.id`,
+        [pet.group_id]
+      );
+      groupMembers = groupMembersRes.rows;
+    } else {
+      const groupMembersRes = await pool.query(
+        `SELECT p.id, p.name, p.species, p.breed, p.color, p.status, p.location, p.description, p.created_at, p.created_by, p.is_hidden,
+          COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+        FROM pets p
+        LEFT JOIN pet_images pi ON pi.pet_id = p.id
+        WHERE p.group_id = $1
+        GROUP BY p.id
+        ORDER BY p.created_at DESC
+        LIMIT 50`,
+        [petId]
+      );
+      groupMembers = groupMembersRes.rows;
+    }
+
+    const historyRes = await pool.query(
+      `SELECT ph.*, u.display_name as changed_by_name
+       FROM pet_history ph
+       LEFT JOIN users u ON u.id = ph.changed_by
+       WHERE ph.pet_id = $1
+       ORDER BY ph.created_at DESC
+       LIMIT 100`,
+      [petId]
+    );
+
     res.json({
       pet,
       created_by_user: createdBy,
@@ -688,6 +939,8 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
       whatsapp_messages: waMessagesRes.rows,
       facebook_matches: matchesRes.rows,
       qr_identifiers: qrRes.rows,
+      group_members: groupMembers,
+      history: historyRes.rows,
     });
   } catch (err) {
     console.error('Get pet relations error:', err);
@@ -891,7 +1144,7 @@ router.get('/:petId/records/report', async (req, res) => {
       [req.params.petId]
     );
 
-    const statusLabels = { lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado', accidented: 'Accidentado', needs_attention: 'Necesita Atención', for_adoption: 'En Adopción', adopted: 'Adoptado', reunited: 'Reencuentro' };
+    const statusLabels = { lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado', accidented: 'Accidentado', needs_attention: 'Necesita Atención', for_adoption: 'En Adopción', adopted: 'Adoptado', reunited: 'Reencuentro', transitada: 'En Tránsito' };
     const typeLabels = { appointment: 'Turno', study: 'Estudio', expense: 'Gasto', medication: 'Medicación', vaccine: 'Vacuna', surgery: 'Cirugía', note: 'Nota' };
 
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
@@ -1043,7 +1296,7 @@ router.post('/public', async (req, res) => {
         matchWhatsAppToPets(pet.id).catch(e => console.error('Matching WhatsApp->pets error:', e));
 
         // Auto-broadcast to WhatsApp groups for active statuses
-        const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention'];
+        const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];
         if (broadcastStatuses.includes(pet.status)) {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
         }
@@ -1163,7 +1416,7 @@ router.post('/lost-report', async (req, res) => {
         matchWhatsAppToPets(pet.id).catch(e => console.error('Matching WhatsApp->pets error:', e));
 
         // Auto-broadcast to WhatsApp groups for active statuses
-        const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention'];
+        const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];
         if (broadcastStatuses.includes(pet.status)) {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
         }

@@ -41,6 +41,9 @@ function getWhatsAppShareText(pet: Pet): string {
     case PetStatus.REUNITED:
       body = `🐾 ${name} se reencontró con su familia. Gracias por difundir 💚`;
       break;
+    case PetStatus.TRANSITADA:
+      body = `🐾 ${name} está en tránsito en ${location} mientras espera un hogar definitivo 🙏`;
+      break;
     default:
       body = `🐾 ${name} en ${location} — Más información en Sigo Tu Huella`;
   }
