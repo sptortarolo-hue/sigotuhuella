@@ -769,6 +769,8 @@ export default function Admin() {
       }
       if (payload.weight_kg === '') payload.weight_kg = null;
       await api.myPets.update(selectedMyPetData.id, payload);
+      const updated = await api.myPets.get(selectedMyPetData.id);
+      setSelectedMyPetData(updated.myPet);
       setShowEditMyPet(false);
       if (selectedUserId) fetchUserRelations(selectedUserId);
     } catch (e) {
