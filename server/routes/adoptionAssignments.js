@@ -120,9 +120,9 @@ router.post('/claim/:token', requireAuth, async (req, res) => {
 
     const assignment = assignResult.rows[0];
 
-    if (assignment.adopter_email !== req.user.email) {
+    if (assignment.adopter_email && assignment.adopter_email !== req.user.email) {
       await client.query('ROLLBACK');
-      return res.status(403).json({ error: 'Esta invitación fue creada para otro email' });
+      return res.status(403).json({ error: 'Esta invitación fue creada para otra cuenta' });
     }
 
     const myPet = await transferToAdopter(client, assignment, req.user.id);

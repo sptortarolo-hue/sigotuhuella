@@ -74,7 +74,6 @@ export default function ManualAdopcion() {
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>Nombre</strong> del adoptante</li>
-              <li><strong>Email</strong></li>
               <li><strong>WhatsApp</strong></li>
             </ul>
             <p className="text-xs text-gray-400">El WhatsApp debe tener el formato 549 + código de área sin 0 + teléfono.</p>
@@ -93,12 +92,12 @@ export default function ManualAdopcion() {
             </p>
           </ManualStep>
 
-          <ManualStep number={5} title="El adoptante recibe el link por WhatsApp y email" icon={MessageCircle}
-            visual={<UiFrame label="El adoptante recibe el mismo mensaje por WhatsApp y por email."><MockWhatsAppMsg /></UiFrame>}
+          <ManualStep number={5} title="El adoptante recibe el link por WhatsApp" icon={MessageCircle}
+            visual={<UiFrame label="El adoptante recibe el link por WhatsApp con todos los detalles."><MockWhatsAppMsg /></UiFrame>}
           >
             <p>
-              La persona elegida recibe una invitación con un <strong>link personal</strong>,
-              tanto por <strong>WhatsApp</strong> como por <strong>email</strong>.
+              La persona elegida recibe una invitación con un <strong>link personal</strong>
+              por <strong>WhatsApp</strong>.
             </p>
             <p>
               Ese link es único para ella: nadie más puede confirmar esa adopción.

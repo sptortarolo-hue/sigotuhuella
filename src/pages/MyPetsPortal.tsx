@@ -8,7 +8,7 @@ import ImageCropper from '@/src/components/ImageCropper';
 import {
   PawPrint, Plus, Loader2, X, Save, Dog, Cat, Heart,
   Syringe, Scissors, Bug, Weight, Calendar, Sparkles, ChevronRight,
-  QrCode, ShieldCheck, Share2, Mail, Phone, Check, Clock, AlertTriangle,
+  QrCode, ShieldCheck, Share2, Phone, Check, Clock, AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QrClaimModal from '@/src/components/QrClaimModal';
@@ -95,7 +95,6 @@ export default function MyPetsPortal() {
   const [showAdoptionModal, setShowAdoptionModal] = useState(false);
   const [adoptionPet, setAdoptionPet] = useState<any>(null);
   const [adopterName, setAdopterName] = useState('');
-  const [adopterEmail, setAdopterEmail] = useState('');
   const [adopterPhone, setAdopterPhone] = useState('');
   const [adoptionLoading, setAdoptionLoading] = useState(false);
   const [adoptionDone, setAdoptionDone] = useState(false);
@@ -325,7 +324,6 @@ export default function MyPetsPortal() {
                     </div>
                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                       <span className="flex items-center gap-1"><User className="w-3 h-3" /> {ass.adopter_name}</span>
-                      <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {ass.adopter_email}</span>
                       <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {ass.adopter_phone}</span>
                     </div>
                     {ass.qr_code && (
@@ -871,12 +869,6 @@ export default function MyPetsPortal() {
                       placeholder="Nombre" />
                   </div>
                   <div>
-                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">Email *</label>
-                    <input type="email" value={adopterEmail} onChange={e => setAdopterEmail(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
-                      placeholder="email@ejemplo.com" />
-                  </div>
-                  <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">WhatsApp *</label>
                     <input type="tel" value={adopterPhone} onChange={e => setAdopterPhone(e.target.value)}
                       className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
@@ -885,8 +877,7 @@ export default function MyPetsPortal() {
 
                   <button
                     onClick={async () => {
-                      if (!adopterName || !adopterEmail || !adopterPhone) { alert('Completá todos los campos'); return; }
-                      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adopterEmail)) { alert('Email inválido'); return; }
+                      if (!adopterName || !adopterPhone) { alert('Completá nombre y WhatsApp'); return; }
                       if (!isValidPhone(adopterPhone)) { alert('WhatsApp inválido. Formato: 549 + código de área sin 0 + teléfono'); return; }
                       setAdoptionLoading(true);
                       try {
@@ -907,7 +898,7 @@ export default function MyPetsPortal() {
                           share_token: shareToken || undefined,
                           for_adopter: true,
                           my_pet_id: adoptionPet.id,
-                          adopter: { name: adopterName, email: adopterEmail, phone: adopterPhone },
+                          adopter: { name: adopterName, phone: adopterPhone },
                         });
                         setAdoptionDone(true);
                         await fetchPets();

@@ -18,8 +18,8 @@ router.post('/', async (req, res) => {
   }
 
   if (for_adopter) {
-    if (!adopter || !adopter.name || !adopter.email || !adopter.phone) {
-      return res.status(400).json({ error: 'Nombre, email y WhatsApp del adoptante son requeridos' });
+    if (!adopter || !adopter.name || !adopter.phone) {
+      return res.status(400).json({ error: 'Nombre y WhatsApp del adoptante son requeridos' });
     }
   }
 
@@ -143,7 +143,7 @@ router.post('/', async (req, res) => {
         `INSERT INTO adoption_assignments (pet_id, inviter_id, adopter_name, adopter_email, adopter_phone, token, qr_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
-        [newPet.id, userId, adopter.name, adopter.email, adopter.phone, token, share_token ? (await client.query('SELECT id FROM qr_identifiers WHERE share_token = $1', [share_token])).rows[0]?.id : null]
+        [newPet.id, userId, adopter.name, adopter.email || null, adopter.phone, token, share_token ? (await client.query('SELECT id FROM qr_identifiers WHERE share_token = $1', [share_token])).rows[0]?.id : null]
       );
       const assignment = assignmentResult.rows[0];
 
@@ -203,7 +203,8 @@ ${claimLink}`;
       const normalizedPhone = normalizePhone(adopter.phone);
       if (normalizedPhone) enqueue(normalizedPhone, waText).catch(e => console.error('WA notify adopter error:', e));
 
-      import('nodemailer').then(({ default: nm }) => {
+      if (adopter.email) {
+        import('nodemailer').then(({ default: nm }) => {
         const t = nm.createTransport({
           host: process.env.SMTP_HOST || 'l0061596.ferozo.com',
           port: parseInt(process.env.SMTP_PORT) || 587,
@@ -252,6 +253,7 @@ ${claimLink}`;
           `,
         }).catch(e => console.error('Email notify adopter error:', e));
       }).catch(() => {});
+      }
 
       return;
     }

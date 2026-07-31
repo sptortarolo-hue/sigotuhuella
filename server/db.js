@@ -641,6 +641,7 @@ CREATE TABLE IF NOT EXISTS adoption_assignments (
 );
 
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS adoption_assignment_id UUID REFERENCES adoption_assignments(id);
+ALTER TABLE adoption_assignments ALTER COLUMN adopter_email DROP NOT NULL;
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMP;
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP;
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS my_pet_id UUID REFERENCES my_pets(id);

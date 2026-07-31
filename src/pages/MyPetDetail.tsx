@@ -155,7 +155,6 @@ export default function MyPetDetail() {
   const [showReunionModal, setShowReunionModal] = useState(false);
   const [showAdoptionGiveModal, setShowAdoptionGiveModal] = useState(false);
   const [adopterName, setAdopterName] = useState('');
-  const [adopterEmail, setAdopterEmail] = useState('');
   const [adopterPhone, setAdopterPhone] = useState('');
   const [adoptionGiveLoading, setAdoptionGiveLoading] = useState(false);
   const [adoptionGiveDone, setAdoptionGiveDone] = useState(false);
@@ -2188,12 +2187,6 @@ export default function MyPetDetail() {
                       placeholder="Nombre" />
                   </div>
                   <div>
-                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">Email *</label>
-                    <input type="email" value={adopterEmail} onChange={e => setAdopterEmail(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
-                      placeholder="email@ejemplo.com" />
-                  </div>
-                  <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">WhatsApp *</label>
                     <input type="tel" value={adopterPhone} onChange={e => setAdopterPhone(e.target.value)}
                       className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
@@ -2202,8 +2195,7 @@ export default function MyPetDetail() {
 
                   <button
                     onClick={async () => {
-                      if (!adopterName || !adopterEmail || !adopterPhone) { alert('Completá todos los campos'); return; }
-                      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adopterEmail)) { alert('Email inválido'); return; }
+                      if (!adopterName || !adopterPhone) { alert('Completá nombre y WhatsApp'); return; }
                       if (!isValidPhone(adopterPhone)) { alert('WhatsApp inválido. Formato: 549 + código de área sin 0 + teléfono'); return; }
                       setAdoptionGiveLoading(true);
                       try {
@@ -2224,7 +2216,7 @@ export default function MyPetDetail() {
                           share_token: shareToken || undefined,
                           for_adopter: true,
                           my_pet_id: pet.id,
-                          adopter: { name: adopterName, email: adopterEmail, phone: adopterPhone },
+                          adopter: { name: adopterName, phone: adopterPhone },
                         });
                         setAdoptionGiveDone(true);
                       } catch (e: any) {

@@ -61,7 +61,6 @@ export default function SolicitarChapita() {
   const [assignDone, setAssignDone] = useState(false);
   const [forAdopter, setForAdopter] = useState(false);
   const [adopterName, setAdopterName] = useState('');
-  const [adopterEmail, setAdopterEmail] = useState('');
   const [adopterPhone, setAdopterPhone] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -119,13 +118,8 @@ export default function SolicitarChapita() {
     }
 
     if (forAdopter) {
-      if (!adopterName || !adopterEmail || !adopterPhone) {
-        setError('Completá el nombre, email y WhatsApp del adoptante');
-        setLoading(false);
-        return;
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adopterEmail)) {
-        setError('Email del adoptante inválido');
+      if (!adopterName || !adopterPhone) {
+        setError('Completá el nombre y WhatsApp del adoptante');
         setLoading(false);
         return;
       }
@@ -178,7 +172,6 @@ export default function SolicitarChapita() {
       if (forAdopter) {
         payload.adopter = {
           name: adopterName,
-          email: adopterEmail,
           phone: adopterPhone,
         };
       }
@@ -322,7 +315,7 @@ export default function SolicitarChapita() {
               {pet.name} fue cargada para adopción con los datos de {adopterName}.
             </p>
             <p className="text-gray-500 text-sm mb-6">
-              El adoptante recibirá un link por email para registrarse y confirmar la adopción.
+              El adoptante recibirá un link por WhatsApp para registrarse y confirmar la adopción.
               La mascota quedará asociada a su cuenta automáticamente.
             </p>
             <p className="text-gray-500 text-xs mb-6 bg-amber-50 p-3 rounded-xl border border-amber-200">
@@ -657,14 +650,6 @@ export default function SolicitarChapita() {
                   <input type="text" required value={adopterName} onChange={e => setAdopterName(e.target.value)}
                     className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
                     placeholder="Nombre del adoptante" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                    <Mail className="w-3 h-3" /> Email *
-                  </label>
-                  <input type="email" required value={adopterEmail} onChange={e => setAdopterEmail(e.target.value)}
-                    className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
-                    placeholder="email del adoptante" />
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">

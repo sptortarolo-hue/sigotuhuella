@@ -17,10 +17,6 @@ export default function MockAdoptionModal() {
           <div className="w-full p-2.5 rounded-xl border border-brand-accent text-[11px] text-gray-700">María González</div>
         </div>
         <div>
-          <label className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-1 block">Email *</label>
-          <div className="w-full p-2.5 rounded-xl border border-brand-accent text-[11px] text-gray-700">maria@gmail.com</div>
-        </div>
-        <div>
           <label className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-1 block">WhatsApp *</label>
           <div className="w-full p-2.5 rounded-xl border border-brand-accent text-[11px] text-gray-700">+54 9 221 555-1234</div>
         </div>
