@@ -97,6 +97,37 @@ export default function PetDetail() {
     finally { setShareLoading(false); }
   };
 
+  const petImagesToUrls = (petId: string, images: any[]) =>
+    (images || []).map((img: any, idx: number) => {
+      if (img.has_original) return `/og-image/${petId}/${idx}?full=1`;
+      if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
+      if (img.external_url) return img.external_url;
+      if (img.has_image) return `/api/images/pet-thumb/${petId}/${idx}`;
+      return '';
+    }).filter(Boolean);
+
+  const allImages = useMemo(() => {
+    const petUrls = petImagesToUrls(pet?.id || '', pet?.images);
+    const reportUrls = (groupMembers || [])
+      .filter((m: any) => m.id !== pet?.id)
+      .flatMap((m: any) => petImagesToUrls(m.id, m.images));
+    const myPetUrls = (myPetPhotos || []).map((p: any) =>
+      p.image_data ? `data:${p.mime_type || 'image/jpeg'};base64,${p.image_data}` : ''
+    ).filter(Boolean);
+    return [...petUrls, ...reportUrls, ...myPetUrls];
+  }, [pet, groupMembers, myPetPhotos]);
+
+  const timelineItems = useMemo(() => {
+    const items: any[] = [];
+    (history || []).forEach((h: any) => items.push({ ...h, _type: 'history', _date: h.created_at }));
+    (groupMembers || [])
+      .filter((m: any) => m.id !== pet?.id)
+      .forEach((m: any) => items.push({ ...m, _type: 'report', _date: m.created_at }));
+    (myPetEvents || []).forEach((e: any) => items.push({ ...e, _type: 'myevent', _date: e.event_date || e.created_at }));
+    (myPetRecords || []).forEach((r: any) => items.push({ ...r, _type: 'myrecord', _date: r.record_date || r.created_at }));
+    return items.sort((a, b) => new Date(b._date).getTime() - new Date(a._date).getTime());
+  }, [history, groupMembers, myPetEvents, myPetRecords, pet?.id]);
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center text-brand-primary">
@@ -124,28 +155,6 @@ export default function PetDetail() {
       </div>
     );
   }
-
-  const petImagesToUrls = (petId: string, images: any[]) =>
-    (images || []).map((img: any, idx: number) => {
-      if (img.has_original) return `/og-image/${petId}/${idx}?full=1`;
-      if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
-      if (img.external_url) return img.external_url;
-      if (img.has_image) return `/api/images/pet-thumb/${petId}/${idx}`;
-      return '';
-    }).filter(Boolean);
-
-  const images = petImagesToUrls(pet.id, pet.images);
-
-  const allImages = useMemo(() => {
-    const petUrls = petImagesToUrls(pet.id, pet.images);
-    const reportUrls = (groupMembers || [])
-      .filter((m: any) => m.id !== pet.id)
-      .flatMap((m: any) => petImagesToUrls(m.id, m.images));
-    const myPetUrls = (myPetPhotos || []).map((p: any) =>
-      p.image_data ? `data:${p.mime_type || 'image/jpeg'};base64,${p.image_data}` : ''
-    ).filter(Boolean);
-    return [...petUrls, ...reportUrls, ...myPetUrls];
-  }, [pet.id, pet.images, groupMembers, myPetPhotos]);
 
   const waMessage = `Hola! Estoy escribiendo por la publicación de ${pet.name || 'la mascota'} en Sigo Tu Huella. 
 📍 Ubicación: ${pet.location}
@@ -182,17 +191,6 @@ Me gustaría obtener más información.`;
     [PetStatus.REUNITED]: 'Reencuentro',
     [PetStatus.TRANSITADA]: 'En Tránsito',
   };
-
-  const timelineItems = useMemo(() => {
-    const items: any[] = [];
-    (history || []).forEach((h: any) => items.push({ ...h, _type: 'history', _date: h.created_at }));
-    (groupMembers || [])
-      .filter((m: any) => m.id !== pet?.id)
-      .forEach((m: any) => items.push({ ...m, _type: 'report', _date: m.created_at }));
-    (myPetEvents || []).forEach((e: any) => items.push({ ...e, _type: 'myevent', _date: e.event_date || e.created_at }));
-    (myPetRecords || []).forEach((r: any) => items.push({ ...r, _type: 'myrecord', _date: r.record_date || r.created_at }));
-    return items.sort((a, b) => new Date(b._date).getTime() - new Date(a._date).getTime());
-  }, [history, groupMembers, myPetEvents, myPetRecords, pet?.id]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
