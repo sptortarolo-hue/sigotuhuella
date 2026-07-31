@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -162,6 +162,15 @@ Me gustaría obtener más información.`;
     [PetStatus.REUNITED]: 'Reencuentro',
     [PetStatus.TRANSITADA]: 'En Tránsito',
   };
+
+  const timelineItems = useMemo(() => {
+    const items: any[] = [];
+    (history || []).forEach((h: any) => items.push({ ...h, _type: 'history', _date: h.created_at }));
+    (groupMembers || [])
+      .filter((m: any) => m.id !== pet?.id)
+      .forEach((m: any) => items.push({ ...m, _type: 'report', _date: m.created_at }));
+    return items.sort((a, b) => new Date(b._date).getTime() - new Date(a._date).getTime());
+  }, [history, groupMembers, pet?.id]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -454,27 +463,54 @@ Me gustaría obtener más información.`;
         </div>
       )}
 
-      {/* Historial */}
-      {history.length > 0 && (
+      {/* Historial / Timeline */}
+      {timelineItems.length > 0 && (
         <div className="mt-12">
           <h2 className="text-2xl sm:text-3xl font-serif font-bold text-brand-primary mb-6">
             Historial
           </h2>
           <div className="bg-white rounded-[2rem] border border-brand-accent p-6 sm:p-8">
             <div className="relative pl-6 border-l-2 border-brand-accent space-y-6">
-              {history.map((h: any) => (
-                <div key={h.id} className="relative">
-                  <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full bg-brand-primary border-2 border-white shadow" />
-                  <p className="text-sm font-bold text-brand-primary">
-                    {h.event_type === 'status_change' ? 'Cambio de estado' :
-                     h.event_type === 'grouped' ? 'Reporte agrupado' :
-                     h.event_type === 'ungrouped' ? 'Reporte desagrupado' :
-                     h.event_type === 'transit_assigned' ? 'Puesta en tránsito' :
-                     h.event_type === 'transit_exited' ? 'Salida de tránsito' : h.event_type}
-                  </p>
-                  {h.description && <p className="text-sm text-gray-600 mt-0.5">{h.description}</p>}
-                  <p className="text-xs text-gray-400 mt-1">{new Date(h.created_at).toLocaleString('es-AR')}</p>
-                </div>
+              {timelineItems.map((item: any) => (
+                item._type === 'report' ? (
+                  <button
+                    key={item.id}
+                    onClick={() => navigate(`/pet/${item.id}`)}
+                    className="relative block w-full text-left group"
+                  >
+                    <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full bg-teal-500 border-2 border-white shadow" />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-bold text-brand-primary">Publicación de la app</p>
+                      <span className={cn("inline-block text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide",
+                        statusColors[item.status] || 'bg-gray-100 text-gray-500'
+                      )}>
+                        {statusLabels[item.status] || item.status}
+                      </span>
+                    </div>
+                    {item.location && (
+                      <p className="text-sm text-gray-600 mt-0.5 flex items-center gap-1.5">
+                        <MapPin className="w-4 h-4 shrink-0" /> {item.location}
+                      </p>
+                    )}
+                    {item.description && <p className="text-sm text-gray-600 mt-0.5 line-clamp-2">{item.description}</p>}
+                    <p className="text-xs text-gray-400 mt-1 group-hover:text-brand-primary">
+                      {new Date(item.created_at).toLocaleDateString('es-AR')} · Ver reporte →
+                    </p>
+                  </button>
+                ) : (
+                  <div key={item.id} className="relative">
+                    <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full bg-brand-primary border-2 border-white shadow" />
+                    <p className="text-sm font-bold text-brand-primary">
+                      {item.event_type === 'status_change' ? 'Cambio de estado' :
+                       item.event_type === 'grouped' ? 'Reporte agrupado' :
+                       item.event_type === 'ungrouped' ? 'Reporte desagrupado' :
+                       item.event_type === 'transit_assigned' ? 'Puesta en tránsito' :
+                       item.event_type === 'transit_exited' ? 'Salida de tránsito' : item.event_type}
+                    </p>
+                    {item.description && <p className="text-sm text-gray-600 mt-0.5">{item.description}</p>}
+                    <p className="text-xs text-gray-400 mt-1">{new Date(item.created_at).toLocaleString('es-AR')}</p>
+                  </div>
+                )
               ))}
             </div>
           </div>
