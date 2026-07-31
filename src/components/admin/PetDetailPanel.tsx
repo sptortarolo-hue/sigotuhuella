@@ -401,7 +401,7 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
             {isGroupedMember ? (
               <div className="space-y-2">
                 <p className="text-xs text-gray-500 mb-2">Este reporte pertenece a la ficha principal:</p>
-                {group_members?.map((m: any) => (
+                {group_members?.slice().sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((m: any) => (
                   <div key={m.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
                     <div className="w-11 h-11 rounded-xl bg-white border border-brand-accent overflow-hidden shrink-0">
                       {petImageAt(m, 0) ? <img src={petImageAt(m, 0)} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-5 h-5" /></div>}
@@ -413,7 +413,9 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
                     <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold shrink-0", statusColors[m.status] || 'bg-gray-100 text-gray-500')}>
                       {statusLabels[m.status] || m.status}
                     </span>
-                    <span className="text-[10px] px-2 py-1 rounded-full bg-teal-50 text-teal-700 font-bold shrink-0">Principal</span>
+                    {!m.group_id && (
+                      <span className="text-[10px] px-2 py-1 rounded-full bg-teal-50 text-teal-700 font-bold shrink-0">Principal</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -423,7 +425,7 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
                   <p className="text-sm text-gray-400 text-center py-4">Sin reportes agrupados.</p>
                 ) : (
                   <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {group_members.map((m: any) => (
+                    {group_members.slice().sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((m: any) => (
                       <div key={m.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
                         <div className="w-11 h-11 rounded-xl bg-white border border-brand-accent overflow-hidden shrink-0">
                           {petImageAt(m, 0) ? <img src={petImageAt(m, 0)} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-5 h-5" /></div>}

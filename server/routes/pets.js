@@ -901,8 +901,10 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
           COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images
         FROM pets p
         LEFT JOIN pet_images pi ON pi.pet_id = p.id
-        WHERE p.id = $1
-        GROUP BY p.id`,
+        WHERE p.id = $1 OR p.group_id = $1
+        GROUP BY p.id
+        ORDER BY p.created_at DESC
+        LIMIT 50`,
         [pet.group_id]
       );
       groupMembers = groupMembersRes.rows;

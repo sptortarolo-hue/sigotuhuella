@@ -174,7 +174,7 @@ Me gustaría obtener más información.`;
           <Info className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
           <p className="text-sm text-teal-800">
             Este reporte pertenece al caso principal de esta mascota.{' '}
-            <button onClick={() => navigate(`/mascota/${pet.group_id}`)} className="font-bold underline hover:text-teal-900">
+            <button onClick={() => navigate(`/pet/${pet.group_id}`)} className="font-bold underline hover:text-teal-900">
               Ver ficha principal →
             </button>
           </p>
@@ -414,10 +414,11 @@ Me gustaría obtener más información.`;
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {groupMembers
               .filter((m: any) => m.id !== pet.id)
+              .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
               .map((m: any) => (
                 <button
                   key={m.id}
-                  onClick={() => navigate(`/mascota/${m.id}`)}
+                  onClick={() => navigate(`/pet/${m.id}`)}
                   className="group bg-white rounded-[2rem] border border-brand-accent overflow-hidden text-left hover:shadow-lg transition-shadow"
                 >
                   <div className="aspect-square bg-brand-bg overflow-hidden">
