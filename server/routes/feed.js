@@ -14,7 +14,7 @@ router.get('/', requireAuth, async (req, res) => {
 
     const result = await pool.query(
       `SELECT fp.*, mp.name as pet_name, mp.species, mp.avatar_image IS NOT NULL as has_avatar,
-              u.display_name as user_name, u.avatar as user_avatar,
+              u.display_name as user_name, u.avatar_data as user_avatar,
               COALESCE(lc.like_count, 0) as like_count,
               fl.id IS NOT NULL as user_liked
        FROM feed_posts fp

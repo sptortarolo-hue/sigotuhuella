@@ -9,7 +9,7 @@ router.get('/', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
     `SELECT id, email, display_name, phone, role, created_at,
-                avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges, notification_preference, contribution_areas, points, level, email_verified, registration_pending
+                avatar_type, member_number, volunteer_status, badges, notification_preference, contribution_areas, points, level, email_verified, registration_pending
      FROM users ORDER BY created_at DESC`
     );
         res.json({ users: result.rows.map(u => ({ ...u, badges: u.badges || [], contribution_areas: u.contribution_areas || [] })) });
