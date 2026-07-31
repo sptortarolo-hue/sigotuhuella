@@ -413,8 +413,18 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
                     <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold shrink-0", statusColors[m.status] || 'bg-gray-100 text-gray-500')}>
                       {statusLabels[m.status] || m.status}
                     </span>
-                    {!m.group_id && (
+                    {!m.group_id ? (
                       <span className="text-[10px] px-2 py-1 rounded-full bg-teal-50 text-teal-700 font-bold shrink-0">Principal</span>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          if (!confirm('¿Desagrupar este reporte?')) return;
+                          try { await api.pets.ungroup(pet.group_id!, m.id); refresh(); } catch (e: any) { alert(e?.message || 'Error'); }
+                        }}
+                        className="text-[10px] px-2 py-1 rounded-full bg-red-50 text-red-600 font-bold hover:bg-red-100 shrink-0"
+                      >
+                        Desagrupar
+                      </button>
                     )}
                   </div>
                 ))}
