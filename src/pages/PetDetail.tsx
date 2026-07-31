@@ -28,6 +28,9 @@ export default function PetDetail() {
   const [pet, setPet] = useState<Pet | null>(null);
   const [groupMembers, setGroupMembers] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [myPetEvents, setMyPetEvents] = useState<any[]>([]);
+  const [myPetRecords, setMyPetRecords] = useState<any[]>([]);
+  const [myPetPhotos, setMyPetPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentImageIdx, setCurrentImageIdx] = useState(0);
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
@@ -60,6 +63,9 @@ export default function PetDetail() {
         setPet(found || null);
         setGroupMembers(data.group_members || []);
         setHistory(data.history || []);
+        setMyPetEvents(data.my_pet_events || []);
+        setMyPetRecords(data.my_pet_records || []);
+        setMyPetPhotos(data.my_pet_photos || []);
         if (found) {
           fetch(`/api/pets/${id}/view`, { method: 'POST' }).catch(() => {});
         }
@@ -119,13 +125,27 @@ export default function PetDetail() {
     );
   }
 
-  const images = pet.images?.map((img: any, idx: number) => {
-    if (img.has_original) return `/og-image/${pet.id}/${idx}?full=1`;
-    if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
-    if (img.external_url) return img.external_url;
-    if (img.has_image) return `/api/images/pet-thumb/${pet.id}/${idx}`;
-    return '';
-  }).filter(Boolean) || [];
+  const petImagesToUrls = (petId: string, images: any[]) =>
+    (images || []).map((img: any, idx: number) => {
+      if (img.has_original) return `/og-image/${petId}/${idx}?full=1`;
+      if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
+      if (img.external_url) return img.external_url;
+      if (img.has_image) return `/api/images/pet-thumb/${petId}/${idx}`;
+      return '';
+    }).filter(Boolean);
+
+  const images = petImagesToUrls(pet.id, pet.images);
+
+  const allImages = useMemo(() => {
+    const petUrls = petImagesToUrls(pet.id, pet.images);
+    const reportUrls = (groupMembers || [])
+      .filter((m: any) => m.id !== pet.id)
+      .flatMap((m: any) => petImagesToUrls(m.id, m.images));
+    const myPetUrls = (myPetPhotos || []).map((p: any) =>
+      p.image_data ? `data:${p.mime_type || 'image/jpeg'};base64,${p.image_data}` : ''
+    ).filter(Boolean);
+    return [...petUrls, ...reportUrls, ...myPetUrls];
+  }, [pet.id, pet.images, groupMembers, myPetPhotos]);
 
   const waMessage = `Hola! Estoy escribiendo por la publicación de ${pet.name || 'la mascota'} en Sigo Tu Huella. 
 📍 Ubicación: ${pet.location}
@@ -169,8 +189,10 @@ Me gustaría obtener más información.`;
     (groupMembers || [])
       .filter((m: any) => m.id !== pet?.id)
       .forEach((m: any) => items.push({ ...m, _type: 'report', _date: m.created_at }));
+    (myPetEvents || []).forEach((e: any) => items.push({ ...e, _type: 'myevent', _date: e.event_date || e.created_at }));
+    (myPetRecords || []).forEach((r: any) => items.push({ ...r, _type: 'myrecord', _date: r.record_date || r.created_at }));
     return items.sort((a, b) => new Date(b._date).getTime() - new Date(a._date).getTime());
-  }, [history, groupMembers, pet?.id]);
+  }, [history, groupMembers, myPetEvents, myPetRecords, pet?.id]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -194,17 +216,17 @@ Me gustaría obtener más información.`;
         {/* Galería de Imágenes */}
         <div className="space-y-4">
           <div className="relative aspect-square rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-xl group cursor-pointer"
-            onClick={() => { if (images.length > 0) { setLightboxImages(images); setLightboxIndex(currentImageIdx); } }}>
-            {images.length > 0 ? (
+            onClick={() => { if (allImages.length > 0) { setLightboxImages(allImages); setLightboxIndex(currentImageIdx); } }}>
+            {allImages.length > 0 ? (
               <>
                 <PetImage
-                  src={images[currentImageIdx]}
+                  src={allImages[currentImageIdx]}
                   alt={pet.name || 'Mascota'}
                   className="transition-transform duration-500 group-hover:scale-105"
                 />
-                {images.length > 1 && (
+                {allImages.length > 1 && (
                   <div className="absolute bottom-4 right-4 px-3 py-1 bg-black/50 text-white text-xs font-bold rounded-full backdrop-blur-sm">
-                    {currentImageIdx + 1} / {images.length}
+                    {currentImageIdx + 1} / {allImages.length}
                   </div>
                 )}
               </>
@@ -220,9 +242,9 @@ Me gustaría obtener más información.`;
             )}
           </div>
           
-          {images.length > 1 && (
+          {allImages.length > 1 && (
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {images.map((url, idx) => (
+              {allImages.map((url, idx) => (
                 <button 
                   key={idx} 
                   onClick={() => setCurrentImageIdx(idx)}
@@ -497,6 +519,20 @@ Me gustaría obtener más información.`;
                       {new Date(item.created_at).toLocaleDateString('es-AR')} · Ver reporte →
                     </p>
                   </button>
+                ) : item._type === 'myevent' ? (
+                  <div key={item.id} className="relative">
+                    <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full bg-amber-400 border-2 border-white shadow" />
+                    <p className="text-sm font-bold text-brand-primary">{item.title || 'Evento'}</p>
+                    {item.description && <p className="text-sm text-gray-600 mt-0.5">{item.description}</p>}
+                    <p className="text-xs text-gray-400 mt-1">{new Date(item.event_date || item.created_at).toLocaleString('es-AR')}</p>
+                  </div>
+                ) : item._type === 'myrecord' ? (
+                  <div key={item.id} className="relative">
+                    <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full bg-rose-400 border-2 border-white shadow" />
+                    <p className="text-sm font-bold text-brand-primary">{item.title || 'Registro'}</p>
+                    {item.description && <p className="text-sm text-gray-600 mt-0.5">{item.description}</p>}
+                    <p className="text-xs text-gray-400 mt-1">{new Date(item.record_date || item.created_at).toLocaleString('es-AR')}</p>
+                  </div>
                 ) : (
                   <div key={item.id} className="relative">
                     <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full bg-brand-primary border-2 border-white shadow" />

@@ -335,7 +335,37 @@ router.get('/:id', async (req, res) => {
       [pet.id]
     );
 
-    res.json({ pet, group_members: groupMembersRes.rows, history: historyRes.rows });
+    let myPetEvents = [];
+    let myPetRecords = [];
+    let myPetPhotos = [];
+    if (pet.my_pet_id) {
+      const [eventsRes, recordsRes, photosRes] = await Promise.all([
+        pool.query(
+          'SELECT * FROM my_pet_events WHERE my_pet_id = $1 ORDER BY COALESCE(event_date, created_at) DESC',
+          [pet.my_pet_id]
+        ),
+        pool.query(
+          'SELECT * FROM pet_records WHERE my_pet_id = $1 ORDER BY COALESCE(record_date, created_at) DESC',
+          [pet.my_pet_id]
+        ),
+        pool.query(
+          'SELECT id, caption, taken_at, created_at, mime_type, image_data FROM my_pet_photos WHERE my_pet_id = $1 ORDER BY COALESCE(taken_at, created_at) DESC',
+          [pet.my_pet_id]
+        ),
+      ]);
+      myPetEvents = eventsRes.rows;
+      myPetRecords = recordsRes.rows;
+      myPetPhotos = photosRes.rows;
+    }
+
+    res.json({
+      pet,
+      group_members: groupMembersRes.rows,
+      history: historyRes.rows,
+      my_pet_events: myPetEvents,
+      my_pet_records: myPetRecords,
+      my_pet_photos: myPetPhotos,
+    });
 
     // Track pet view (fire-and-forget)
     pool.query(
