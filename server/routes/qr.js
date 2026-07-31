@@ -308,9 +308,11 @@ router.get('/public/:shareToken', async (req, res) => {
   try {
     // Check if QR is linked to a pending adoption assignment
     const adoptionQrResult = await pool.query(
-      `SELECT aa.*, qi.code
+      `SELECT aa.*, qi.code,
+               u.display_name as inviter_name, u.phone as inviter_phone
        FROM qr_identifiers qi
        JOIN adoption_assignments aa ON aa.qr_id = qi.id
+       JOIN users u ON u.id = aa.inviter_id
        WHERE qi.share_token = $1 AND aa.status = 'pending_adopter'`,
       [req.params.shareToken]
     );
@@ -342,6 +344,8 @@ router.get('/public/:shareToken', async (req, res) => {
             has_avatar: false,
             owner_name: ass.adopter_name,
             owner_phone: ass.adopter_phone,
+            inviter_name: ass.inviter_name,
+            inviter_phone: ass.inviter_phone,
           },
           code: ass.code,
         });

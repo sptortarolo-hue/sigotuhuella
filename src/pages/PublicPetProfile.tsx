@@ -141,6 +141,22 @@ export default function PublicPetProfile() {
               </div>
             )}
 
+            {pet.inviter_name && (
+              <div className="mb-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Responsable anterior</p>
+                <a href={`https://wa.me/${pet.inviter_phone?.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-200 hover:bg-blue-100 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                    <MessageCircle className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">{pet.inviter_name}</p>
+                    <p className="text-xs text-gray-500">{pet.inviter_phone}</p>
+                  </div>
+                </a>
+              </div>
+            )}
+
             <div className="mt-6">
               <Link to={`/adopcion/reclamar/${data.assignment_token}`}
                 className="block w-full py-3 bg-brand-primary text-white rounded-xl font-bold text-sm text-center hover:shadow-lg transition-all">
