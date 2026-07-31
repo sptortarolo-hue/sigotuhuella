@@ -922,23 +922,6 @@ export default function MyPetDetail() {
                 )}
               </div>
 
-              {qrDataUrl && (
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
-                    <Heart className="w-4 h-4" /> Dar en adopción
-                  </h4>
-                  <button
-                    onClick={() => { setShowAdoptionGiveModal(true); setAdoptionGiveDone(false); setAdopterName(''); setAdopterEmail(''); setAdopterPhone(''); }}
-                    className="px-4 py-2.5 bg-rose-50 text-rose-700 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-rose-100 transition-colors w-full justify-center border border-rose-200"
-                  >
-                    <Heart className="w-3 h-3" /> Dar en adopción con datos del adoptante
-                  </button>
-                  <p className="text-[10px] text-gray-400 mt-2">
-                    La mascota ya tiene chapita QR. Al darla en adopción, los datos del adoptante aparecerán en el QR.
-                  </p>
-                </div>
-              )}
-
               {pet?.qr_data?.share_token && (
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
