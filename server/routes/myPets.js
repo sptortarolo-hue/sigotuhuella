@@ -218,6 +218,9 @@ router.put('/:id', requireAuth, async (req, res) => {
       bio, personality_tags, is_vaccinated, is_sterilized, is_dewormed,
       weight_kg, behavior_notes, medical_notes, emergency_phone, pet_type,
       avatar_image, avatar_mime_type, crop_x, crop_y,
+      qr_contact_name, qr_contact_phone,
+      show_bio_on_qr, show_tags_on_qr, show_health_on_qr,
+      show_behavior_on_qr, show_medical_on_qr,
     } = req.body;
 
     const sets = [];
@@ -243,6 +246,14 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (medical_notes !== undefined) addField('medical_notes', medical_notes || null);
     if (emergency_phone !== undefined) addField('emergency_phone', emergency_phone || null);
     if (pet_type !== undefined) addField('pet_type', pet_type);
+
+    if (qr_contact_name !== undefined) addField('qr_contact_name', qr_contact_name || null);
+    if (qr_contact_phone !== undefined) addField('qr_contact_phone', qr_contact_phone || null);
+    if (show_bio_on_qr !== undefined) addField('show_bio_on_qr', show_bio_on_qr);
+    if (show_tags_on_qr !== undefined) addField('show_tags_on_qr', show_tags_on_qr);
+    if (show_health_on_qr !== undefined) addField('show_health_on_qr', show_health_on_qr);
+    if (show_behavior_on_qr !== undefined) addField('show_behavior_on_qr', show_behavior_on_qr);
+    if (show_medical_on_qr !== undefined) addField('show_medical_on_qr', show_medical_on_qr);
 
     if (avatar_image !== undefined) {
       const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg');
