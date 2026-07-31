@@ -198,13 +198,13 @@ export default function MyPetDetail() {
   };
 
   useEffect(() => {
-    if (pet?.qr_id?.share_token) {
-      const token = pet.qr_id.share_token;
+    if (pet?.qr_data?.share_token) {
+      const token = pet.qr_data.share_token;
       QRCode.toDataURL(`${window.location.origin}/mascota/${token}`, {
         width: 200, margin: 1, color: { dark: '#5A5A40', light: '#ffffff' },
       }).then(setQrDataUrl).catch(() => {});
     }
-  }, [pet?.qr_id]);
+  }, [pet?.qr_data]);
 
   useEffect(() => {
     if (!previewPhotoUrl) return;
@@ -893,11 +893,11 @@ export default function MyPetDetail() {
                   <div className="p-4 bg-brand-bg rounded-2xl flex items-center gap-4">
                     <img src={qrDataUrl} alt="QR" className="w-32 h-32 rounded-xl" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-brand-primary">{pet.qr_id?.code}</p>
+                      <p className="text-sm font-bold text-brand-primary">{pet.qr_data?.code}</p>
                       <p className="text-xs text-gray-400 mt-1">Escaneá para ver el perfil público</p>
                       <div className="flex gap-2 mt-3 flex-wrap">
                         <button
-                          onClick={() => copyToClipboard(`${window.location.origin}/mascota/${pet.qr_id?.share_token}`, 'qr')}
+                          onClick={() => copyToClipboard(`${window.location.origin}/mascota/${pet.qr_data?.share_token}`, 'qr')}
                           className="px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
                         >
                           {copied === 'qr' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
@@ -939,7 +939,7 @@ export default function MyPetDetail() {
                 </div>
               )}
 
-              {qrDataUrl && (
+              {pet?.qr_data?.share_token && (
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4" /> Perfil público QR
@@ -2295,7 +2295,7 @@ export default function MyPetDetail() {
                       if (!isValidPhone(adopterPhone)) { alert('WhatsApp inválido. Formato: 549 + código de área sin 0 + teléfono'); return; }
                       setAdoptionGiveLoading(true);
                       try {
-                        const shareToken = pet?.qr_id?.share_token;
+                        const shareToken = pet?.qr_data?.share_token;
                         await api.requestChapita({
                           pet: {
                             name: pet.name,
