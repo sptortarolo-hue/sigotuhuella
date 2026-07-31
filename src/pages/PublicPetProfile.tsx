@@ -304,7 +304,7 @@ export default function PublicPetProfile() {
             </div>
 
             {/* Health badges */}
-            {(pet.is_vaccinated || pet.is_sterilized || pet.is_dewormed) && (
+            {(pet.is_vaccinated || pet.is_sterilized || pet.is_dewormed) && pet.show_health_on_qr !== false && (
               <>
                 <hr className="border-brand-accent" />
                 <div>
@@ -333,7 +333,7 @@ export default function PublicPetProfile() {
             )}
 
             {/* Behavior notes */}
-            {pet.behavior_notes && (
+            {pet.behavior_notes && pet.show_behavior_on_qr !== false && (
               <>
                 <hr className="border-brand-accent" />
                 <div>
@@ -346,7 +346,7 @@ export default function PublicPetProfile() {
             )}
 
             {/* Medical notes */}
-            {pet.medical_notes && (
+            {pet.medical_notes && pet.show_medical_on_qr === true && (
               <>
                 <hr className="border-brand-accent" />
                 <div>
@@ -359,7 +359,7 @@ export default function PublicPetProfile() {
             )}
 
             {/* Personality tags */}
-            {pet.personality_tags?.length > 0 && (
+            {pet.personality_tags?.length > 0 && pet.show_tags_on_qr !== false && (
               <>
                 <hr className="border-brand-accent" />
                 <div className="flex flex-wrap gap-2">
@@ -373,7 +373,7 @@ export default function PublicPetProfile() {
             )}
 
             {/* Bio */}
-            {pet.bio && (
+            {pet.bio && pet.show_bio_on_qr !== false && (
               <>
                 <hr className="border-brand-accent" />
                 <div className="p-4 bg-brand-bg rounded-2xl">

@@ -1514,6 +1514,18 @@ export async function initDb() {
       ALTER TABLE pets ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP
     `, 'pets trial_ends_at');
 
+    // ─── my_pets QR public profile visibility + contact ───
+    await migrate(client, `
+      ALTER TABLE my_pets
+        ADD COLUMN IF NOT EXISTS show_bio_on_qr BOOLEAN DEFAULT true,
+        ADD COLUMN IF NOT EXISTS show_tags_on_qr BOOLEAN DEFAULT true,
+        ADD COLUMN IF NOT EXISTS show_health_on_qr BOOLEAN DEFAULT true,
+        ADD COLUMN IF NOT EXISTS show_behavior_on_qr BOOLEAN DEFAULT true,
+        ADD COLUMN IF NOT EXISTS show_medical_on_qr BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS qr_contact_name VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS qr_contact_phone VARCHAR(100)
+    `, 'my_pets qr visibility + contact');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

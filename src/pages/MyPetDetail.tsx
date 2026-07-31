@@ -10,7 +10,7 @@ import {
   PawPrint, Loader2, Syringe, Scissors, Bug, Weight,
   Calendar, Plus, X, Save, Camera, Trash2, Sparkles, Heart,
   Dog, Cat, Edit3, Image as ImageIcon, Activity, Clock,
-  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle, Download, HeartHandshake, MapPin,
+  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle, Download, HeartHandshake, MapPin, ShieldCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'qrcode';
@@ -627,6 +627,53 @@ export default function MyPetDetail() {
     setEditAvatarPreview(URL.createObjectURL(file));
   };
 
+  const [qrContactName, setQrContactName] = useState('');
+  const [qrContactPhone, setQrContactPhone] = useState('');
+  const [qrContactSaving, setQrContactSaving] = useState(false);
+
+  useEffect(() => {
+    if (pet) {
+      setQrContactName(pet.qr_contact_name || '');
+      setQrContactPhone(pet.qr_contact_phone || '');
+    }
+  }, [pet?.qr_contact_name, pet?.qr_contact_phone]);
+
+  const handleQrToggle = async (field: string, value: boolean) => {
+    try {
+      const data = await api.myPets.update(id!, { [field]: value });
+      setPet((prev: any) => ({ ...prev, [field]: value }));
+    } catch (e: any) {
+      console.error(e);
+    }
+  };
+
+  const handleQrContactSave = async () => {
+    try {
+      setQrContactSaving(true);
+      await api.myPets.update(id!, {
+        qr_contact_name: qrContactName || null,
+        qr_contact_phone: qrContactPhone || null,
+      });
+      setPet((prev: any) => ({
+        ...prev,
+        qr_contact_name: qrContactName || null,
+        qr_contact_phone: qrContactPhone || null,
+      }));
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setQrContactSaving(false);
+    }
+  };
+
+  const qrVisibilityFields = [
+    { key: 'show_bio_on_qr', label: 'Biografía / descripción' },
+    { key: 'show_tags_on_qr', label: 'Etiquetas de personalidad' },
+    { key: 'show_health_on_qr', label: 'Salud (vacunas, esterilización)' },
+    { key: 'show_behavior_on_qr', label: 'Comportamiento' },
+    { key: 'show_medical_on_qr', label: 'Notas médicas' },
+  ];
+
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center text-brand-primary">
@@ -889,6 +936,55 @@ export default function MyPetDetail() {
                   <p className="text-[10px] text-gray-400 mt-2">
                     La mascota ya tiene chapita QR. Al darla en adopción, los datos del adoptante aparecerán en el QR.
                   </p>
+                </div>
+              )}
+
+              {qrDataUrl && (
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4" /> Perfil público QR
+                  </h4>
+                  <div className="space-y-2 mb-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 block">Nombre de contacto</label>
+                        <input type="text" value={qrContactName}
+                          onChange={e => setQrContactName(e.target.value)}
+                          placeholder={pet.owner_name || 'Nombre'}
+                          className="w-full p-2.5 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm bg-brand-bg"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 block">Teléfono de contacto</label>
+                        <input type="tel" value={qrContactPhone}
+                          onChange={e => setQrContactPhone(e.target.value)}
+                          placeholder={pet.owner_phone || 'Teléfono'}
+                          className="w-full p-2.5 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm bg-brand-bg"
+                        />
+                      </div>
+                    </div>
+                    <button onClick={handleQrContactSave} disabled={qrContactSaving}
+                      className="px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
+                    >
+                      {qrContactSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                      {qrContactSaving ? 'Guardando...' : 'Guardar contacto'}
+                    </button>
+                    <p className="text-[10px] text-gray-400">Si no completás estos datos, se usa el nombre y teléfono de tu cuenta.</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {qrVisibilityFields.map(item => (
+                      <label key={item.key} className="flex items-center justify-between p-2.5 bg-brand-bg rounded-xl cursor-pointer hover:bg-brand-accent/30 transition-colors">
+                        <span className="text-xs font-medium text-gray-700">{item.label}</span>
+                        <button
+                          onClick={() => handleQrToggle(item.key, !(pet[item.key] ?? true))}
+                          className={`relative w-10 h-5 rounded-full transition-colors ${(pet[item.key] ?? true) ? 'bg-brand-primary' : 'bg-gray-300'}`}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${(pet[item.key] ?? true) ? 'translate-x-5' : ''}`} />
+                        </button>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-2">Estos datos se ven cuando alguien escanea el QR de tu mascota.</p>
                 </div>
               )}
 
