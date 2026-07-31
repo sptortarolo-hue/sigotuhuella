@@ -696,6 +696,7 @@ export default function Admin() {
   const fetchPetRelations = async (petId: string) => {
     setPetRelationsLoading(true);
     setSelectedPetId(petId);
+    setSelectedMyPetData(null);
     try {
       const data = await api.pets.relations(petId);
       setSelectedPetData(data);
@@ -723,6 +724,19 @@ export default function Admin() {
     setSelectedPetData(null);
     setSelectedPetId(null);
     setSelectedMyPetData(mp);
+  };
+
+  const handleOpenMyPetById = async (myPetId: string) => {
+    try {
+      setMobileView('pet');
+      const data = await api.myPets.get(myPetId);
+      setSelectedPetData(null);
+      setSelectedPetId(null);
+      setSelectedMyPetData(data.myPet);
+    } catch (e) {
+      console.error(e);
+      alert('Error al cargar la mascota');
+    }
   };
 
   const openEditMyPet = () => {
@@ -1183,7 +1197,11 @@ export default function Admin() {
                     </div>
                   ) : selectedPetData ? (
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
-                      <PetDetailPanel data={selectedPetData} pets={pets} users={userList} onRefresh={() => fetchPetRelations(selectedPetData.pet.id)} />
+                      <PetDetailPanel data={selectedPetData} pets={pets} users={userList} onRefresh={() => fetchPetRelations(selectedPetData.pet.id)} onOpenMyPet={handleOpenMyPetById} />
+                    </div>
+                  ) : selectedMyPetData ? (
+                    <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
+                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} />
                     </div>
                   ) : (
                     <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-brand-accent h-full flex items-center justify-center">
@@ -1279,7 +1297,7 @@ export default function Admin() {
                 ) : (
                 <div className="space-y-4">
                   <button
-                    onClick={() => { setMobilePetView('list'); setSelectedPetData(null); setSelectedPetId(null); }}
+                    onClick={() => { setMobilePetView('list'); setSelectedPetData(null); setSelectedPetId(null); setSelectedMyPetData(null); }}
                     className="flex items-center gap-2 text-sm text-brand-primary font-bold"
                   >
                     ← Volver a mascotas
@@ -1287,7 +1305,9 @@ export default function Admin() {
                   {petRelationsLoading ? (
                     <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>
                   ) : selectedPetData ? (
-                    <PetDetailPanel data={selectedPetData} isMobile onClose={() => { setMobilePetView('list'); setSelectedPetData(null); setSelectedPetId(null); }} pets={pets} users={userList} onRefresh={() => fetchPetRelations(selectedPetData.pet.id)} />
+                    <PetDetailPanel data={selectedPetData} isMobile onClose={() => { setMobilePetView('list'); setSelectedPetData(null); setSelectedPetId(null); }} pets={pets} users={userList} onRefresh={() => fetchPetRelations(selectedPetData.pet.id)} onOpenMyPet={handleOpenMyPetById} />
+                  ) : selectedMyPetData ? (
+                    <AdminMyPetDetail pet={selectedMyPetData} isMobile onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} />
                   ) : (
                     <div className="text-center py-12 text-gray-400">No se pudo cargar la info</div>
                   )}
@@ -1715,6 +1735,7 @@ export default function Admin() {
                         pets={pets}
                         users={userList}
                         onRefresh={() => fetchPetRelations(selectedPetData.pet.id)}
+                        onOpenMyPet={handleOpenMyPetById}
                       />
                     </div>
                   ) : selectedMyPetData ? (
@@ -1823,6 +1844,7 @@ export default function Admin() {
                         pets={pets}
                         users={userList}
                         onRefresh={() => fetchPetRelations(selectedPetData.pet.id)}
+                        onOpenMyPet={handleOpenMyPetById}
                       />
                     </div>
                   </div>

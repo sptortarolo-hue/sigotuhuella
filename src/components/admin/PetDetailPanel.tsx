@@ -67,9 +67,10 @@ interface PetDetailPanelProps {
   pets?: any[];
   users?: any[];
   onRefresh?: () => void;
+  onOpenMyPet?: (myPetId: string) => void;
 }
 
-export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, pets, users, onRefresh }: PetDetailPanelProps) {
+export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, pets, users, onRefresh, onOpenMyPet }: PetDetailPanelProps) {
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'images' | 'owner' | 'relations' | 'group' | 'history'>('info');
   const [showReunionModal, setShowReunionModal] = useState(false);
   const [showModal, setShowModal] = useState<null | 'group' | 'transit'>(null);
@@ -176,6 +177,14 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
             <Home className="w-3.5 h-3.5" /> Poner en tránsito
           </button>
         )}
+        {pet.status === 'transitada' && pet.my_pet_id && onOpenMyPet && (
+          <button
+            onClick={() => onOpenMyPet(pet.my_pet_id)}
+            className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/30 hover:bg-brand-primary/20 transition-colors"
+          >
+            <PawPrint className="w-3.5 h-3.5" /> Ver como mascota propia
+          </button>
+        )}
       </div>
 
       {/* Sub-tabs */}
@@ -232,6 +241,41 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
               <span>Creado: {new Date(pet.created_at).toLocaleDateString()}</span>
             </div>
           </div>
+
+          {/* Transit caregiver */}
+          {(pet.status === 'transitada' && (pet.transit_caregiver_name || pet.transit_caregiver_phone || pet.transit_caregiver_email || pet.transit_caregiver_id)) && (
+            <div className="border border-teal-200 bg-teal-50/50 rounded-2xl p-4">
+              <h4 className="font-bold text-xs text-teal-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <Home className="w-3.5 h-3.5" /> Cuidador en tránsito
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                {pet.transit_caregiver_name && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <User className="w-4 h-4 shrink-0 text-teal-600" />
+                    <span className="break-words">{pet.transit_caregiver_name}</span>
+                  </div>
+                )}
+                {pet.transit_caregiver_phone && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Phone className="w-4 h-4 shrink-0 text-teal-600" />
+                    <span>{pet.transit_caregiver_phone}</span>
+                  </div>
+                )}
+                {pet.transit_caregiver_email && (
+                  <div className="flex items-center gap-2 text-gray-600 sm:col-span-2">
+                    <MessageSquare className="w-4 h-4 shrink-0 text-teal-600" />
+                    <span className="break-words">{pet.transit_caregiver_email}</span>
+                  </div>
+                )}
+                {!pet.transit_caregiver_name && pet.transit_caregiver_id && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <User className="w-4 h-4 shrink-0 text-teal-600" />
+                    <span>Asignada a un usuario de la app</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Created by */}
           {created_by_user && (

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { cn } from '@/src/lib/utils';
 import { formatTag } from '@/src/lib/personalityTags';
+import { api } from '@/src/lib/api';
 import {
   PawPrint, Syringe, Scissors, Bug, ExternalLink, Download,
-  Edit3, QrCode, Copy, Check, Heart, Stethoscope, Phone, Image as ImageIcon
+  Edit3, QrCode, Copy, Check, Heart, Stethoscope, Phone, Image as ImageIcon, Loader2
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import ImageLightbox from './ImageLightbox';
@@ -38,6 +39,20 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit }: Adm
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrRequested, setQrRequested] = useState(false);
+
+  const handleRequestQr = async () => {
+    setQrLoading(true);
+    try {
+      await api.myPets.requestQr(pet.id);
+      setQrRequested(true);
+    } catch (e: any) {
+      alert(e?.message || 'Error al solicitar QR');
+    } finally {
+      setQrLoading(false);
+    }
+  };
 
   const copyToClipboard = async (text: string, key: string) => {
     try {
@@ -221,7 +236,7 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit }: Adm
       )}
 
       {/* QR */}
-      {pet.qr_data && (
+      {pet.qr_data ? (
         <div className="border border-brand-accent rounded-2xl p-4">
           <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
             <QrCode className="w-4 h-4" /> Identificación QR
@@ -250,6 +265,26 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit }: Adm
               </div>
             </div>
           </div>
+        </div>
+      ) : (
+        <div className="border border-brand-accent rounded-2xl p-4">
+          <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-2">
+            <QrCode className="w-4 h-4" /> Identificación QR
+          </h4>
+          {pet.qr_requested || qrRequested ? (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
+              Solicitud de QR enviada. El admin la verá en la pestaña Chapitas y podrá asignar el código.
+            </div>
+          ) : (
+            <button
+              onClick={handleRequestQr}
+              disabled={qrLoading}
+              className="w-full px-4 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/20 transition-colors disabled:opacity-50"
+            >
+              {qrLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <QrCode className="w-3 h-3" />}
+              Solicitar identificación QR
+            </button>
+          )}
         </div>
       )}
 

@@ -694,7 +694,7 @@ router.post('/:id/ungroup', requireAdmin, async (req, res) => {
 // ── Admin: transit assignment (transitada) ───────────────────────────────────
 router.post('/:id/transit', requireAdmin, async (req, res) => {
   const petId = req.params.id;
-  const { userId } = req.body;
+  const { userId, caregiverName, caregiverPhone, caregiverEmail } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -712,46 +712,68 @@ router.post('/:id/transit', requireAdmin, async (req, res) => {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Usuario no encontrado' });
       }
-      if (!myPetId) {
-        const imgRes = await client.query(
-          `SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1`,
-          [petId]
+    }
+
+    if (!myPetId) {
+      const imgRes = await client.query(
+        `SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1`,
+        [petId]
+      );
+      const img = imgRes.rows[0] || null;
+      const ownerId = userId || req.user.id;
+      const myPetRes = await client.query(
+        `INSERT INTO my_pets (user_id, name, species, breed, color, gender, bio, pet_type, avatar_image, avatar_mime_type)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'foster',$8,$9)
+         RETURNING id`,
+        [
+          ownerId,
+          pet.name || 'Sin nombre',
+          pet.species,
+          pet.breed || null,
+          pet.color || null,
+          pet.gender || 'unknown',
+          pet.description || null,
+          img ? img.image_data : null,
+          img ? img.mime_type : null,
+        ]
+      );
+      myPetId = myPetRes.rows[0].id;
+    } else {
+      await client.query('UPDATE my_pets SET pet_type = $1 WHERE id = $2', ['foster', myPetId]);
+    }
+
+    if (!userId) {
+      const adminsRes = await client.query(
+        "SELECT id FROM users WHERE role = 'admin' AND id <> $1",
+        [req.user.id]
+      );
+      for (const admin of adminsRes.rows) {
+        await client.query(
+          `INSERT INTO my_pet_shares (pet_id, user_id, role) VALUES ($1, $2, 'editor') ON CONFLICT DO NOTHING`,
+          [myPetId, admin.id]
         );
-        const img = imgRes.rows[0] || null;
-        const myPetRes = await client.query(
-          `INSERT INTO my_pets (user_id, name, species, breed, color, gender, bio, pet_type, avatar_image, avatar_mime_type)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,'foster',$8,$9)
-           RETURNING id`,
-          [
-            userId,
-            pet.name || 'Sin nombre',
-            pet.species,
-            pet.breed || null,
-            pet.color || null,
-            pet.gender || 'unknown',
-            pet.description || null,
-            img ? img.image_data : null,
-            img ? img.mime_type : null,
-          ]
-        );
-        myPetId = myPetRes.rows[0].id;
-      } else {
-        await client.query('UPDATE my_pets SET pet_type = $1 WHERE id = $2', ['foster', myPetId]);
       }
     }
 
     await client.query(
       `UPDATE pets SET status = 'transitada', transit_caregiver_id = $1, transit_assigned_at = NOW(),
-        my_pet_id = $2, updated_at = NOW()
-       WHERE id = $3`,
-      [userId || null, myPetId || null, petId]
+        transit_caregiver_name = $2, transit_caregiver_phone = $3, transit_caregiver_email = $4,
+        my_pet_id = $5, updated_at = NOW()
+       WHERE id = $6`,
+      [userId || null, caregiverName || null, caregiverPhone || null, caregiverEmail || null, myPetId || null, petId]
     );
+
+    const caregiverText = caregiverName
+      ? ` (cuidador: ${caregiverName}${caregiverPhone ? `, ${caregiverPhone}` : ''})`
+      : '';
     await client.query(
       `INSERT INTO pet_history (pet_id, event_type, description, from_status, to_status, related_user_id, changed_by)
        VALUES ($1, 'transit_assigned', $2, $3, 'transitada', $4, $5)`,
       [
         petId,
-        userId ? 'Mascota puesta en tránsito y asignada a un usuario' : 'Mascota puesta en tránsito asignada a la agrupación',
+        userId
+          ? 'Mascota puesta en tránsito y asignada a un usuario'
+          : `Mascota puesta en tránsito asignada a la agrupación${caregiverText}`,
         pet.status,
         userId || null,
         req.user.id,
@@ -770,21 +792,36 @@ router.post('/:id/transit', requireAdmin, async (req, res) => {
 
 router.post('/:id/exit-transit', requireAdmin, async (req, res) => {
   const petId = req.params.id;
+  const client = await pool.connect();
   try {
-    const petRes = await pool.query('SELECT * FROM pets WHERE id = $1', [petId]);
-    if (petRes.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
+    await client.query('BEGIN');
+    const petRes = await client.query('SELECT * FROM pets WHERE id = $1', [petId]);
+    if (petRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pet not found' });
+    }
     const pet = petRes.rows[0];
 
-    await pool.query(
-      `UPDATE pets SET status = 'for_adoption', transit_caregiver_id = NULL, transit_assigned_at = NULL, updated_at = NOW()
+    if (pet.my_pet_id && !pet.transit_caregiver_id) {
+      await client.query('DELETE FROM my_pet_shares WHERE pet_id = $1', [pet.my_pet_id]);
+    }
+
+    await client.query(
+      `UPDATE pets SET status = 'for_adoption', transit_caregiver_id = NULL, transit_assigned_at = NULL,
+        transit_caregiver_name = NULL, transit_caregiver_phone = NULL, transit_caregiver_email = NULL,
+        updated_at = NOW()
        WHERE id = $1`,
       [petId]
     );
     await addPetHistory({ petId, eventType: 'transit_exited', description: 'Mascota salió de tránsito y pasó a adopción', fromStatus: pet.status, toStatus: 'for_adoption', changedBy: req.user.id });
+    await client.query('COMMIT');
     res.json({ message: 'Mascota fuera de tránsito' });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Exit transit error:', err);
     res.status(500).json({ error: 'Failed to exit transit' });
+  } finally {
+    client.release();
   }
 });
 

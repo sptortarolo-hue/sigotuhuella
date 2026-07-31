@@ -98,8 +98,8 @@ export const api = {
       request(`/pets/${id}/group`, { method: 'POST', body: JSON.stringify({ memberId }) }),
     ungroup: (id: string, memberId: string) =>
       request(`/pets/${id}/ungroup`, { method: 'POST', body: JSON.stringify({ memberId }) }),
-    transit: (id: string, userId?: string | null) =>
-      request(`/pets/${id}/transit`, { method: 'POST', body: JSON.stringify({ userId: userId || null }) }),
+    transit: (id: string, userId?: string | null, caregiver?: { caregiverName?: string; caregiverPhone?: string; caregiverEmail?: string }) =>
+      request(`/pets/${id}/transit`, { method: 'POST', body: JSON.stringify({ userId: userId || null, caregiverName: caregiver?.caregiverName || null, caregiverPhone: caregiver?.caregiverPhone || null, caregiverEmail: caregiver?.caregiverEmail || null }) }),
     exitTransit: (id: string) =>
       request(`/pets/${id}/exit-transit`, { method: 'POST' }),
     history: (id: string) => request(`/pets/${id}/history`),

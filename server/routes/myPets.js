@@ -108,11 +108,18 @@ router.get('/:id', requireAuth, async (req, res) => {
     const access = await canEditMyPet(req.user.id, req.params.id);
     if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
 
-    const result = await pool.query('SELECT * FROM my_pets WHERE id = $1', [req.params.id]);
+    const result = await pool.query(
+      `SELECT mp.*,
+        CASE WHEN qi.id IS NOT NULL THEN json_build_object('code', qi.code, 'share_token', qi.share_token) ELSE NULL END as qr_data
+       FROM my_pets mp
+       LEFT JOIN qr_identifiers qi ON qi.id = mp.qr_id
+       WHERE mp.id = $1`,
+      [req.params.id]
+    );
     const pet = result.rows[0];
 
     const photosResult = await pool.query(
-      'SELECT id, caption, taken_at, created_at, mime_type FROM my_pet_photos WHERE my_pet_id = $1 ORDER BY COALESCE(taken_at, created_at) DESC',
+      'SELECT id, caption, taken_at, created_at, mime_type, image_data FROM my_pet_photos WHERE my_pet_id = $1 ORDER BY COALESCE(taken_at, created_at) DESC',
       [pet.id]
     );
     const eventsResult = await pool.query(
@@ -411,8 +418,10 @@ router.delete('/:id/events/:eventId', requireAuth, async (req, res) => {
 router.post('/:id/request-qr', requireAuth, async (req, res) => {
   try {
     const petResult = await pool.query(
-      'SELECT * FROM my_pets WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
+      `SELECT mp.*, u.role as owner_role
+       FROM my_pets mp JOIN users u ON u.id = mp.user_id
+       WHERE mp.id = $1 AND (mp.user_id = $2 OR $3 = true)`,
+      [req.params.id, req.user.id, req.user.role === 'admin']
     );
     if (petResult.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
     if (petResult.rows[0].qr_id) return res.status(400).json({ error: 'Esta mascota ya tiene QR asignado' });

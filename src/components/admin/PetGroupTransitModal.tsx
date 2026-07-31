@@ -26,6 +26,9 @@ export default function PetGroupTransitModal({ mode, petId, pets, users, onClose
   const [userSearch, setUserSearch] = useState('');
   const [target, setTarget] = useState<any>(null);
   const [targetUser, setTargetUser] = useState<any>(null);
+  const [caregiverName, setCaregiverName] = useState('');
+  const [caregiverPhone, setCaregiverPhone] = useState('');
+  const [caregiverEmail, setCaregiverEmail] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -51,7 +54,11 @@ export default function PetGroupTransitModal({ mode, petId, pets, users, onClose
         if (!target) { setError('Seleccioná un reporte a agrupar'); setSaving(false); return; }
         await api.pets.group(petId, target.id);
       } else {
-        await api.pets.transit(petId, targetUser ? targetUser.id : null);
+        await api.pets.transit(petId, targetUser ? targetUser.id : null, {
+          caregiverName: targetUser ? undefined : (caregiverName || undefined),
+          caregiverPhone: targetUser ? undefined : (caregiverPhone || undefined),
+          caregiverEmail: targetUser ? undefined : (caregiverEmail || undefined),
+        });
       }
       onSaved();
       onClose();
@@ -140,6 +147,40 @@ export default function PetGroupTransitModal({ mode, petId, pets, users, onClose
                 >
                   <span className="text-sm font-bold text-brand-primary flex items-center gap-2"><Users className="w-4 h-4" /> Agrupación Sigo Tu Huella</span>
                 </button>
+                {!targetUser && (
+                  <div className="mt-3 p-4 bg-brand-bg/50 rounded-2xl border border-brand-accent space-y-3">
+                    <p className="text-xs text-gray-500">
+                      Si quien cuida la mascota no tiene usuario de la app, cargá sus datos. La ficha quedará disponible para todos los administradores.
+                    </p>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block mb-1">Nombre de quien cuida</label>
+                      <input
+                        value={caregiverName}
+                        onChange={e => setCaregiverName(e.target.value)}
+                        placeholder="Ej: María Pérez"
+                        className="w-full px-4 py-2.5 bg-white rounded-xl border border-brand-accent outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block mb-1">Teléfono de contacto</label>
+                      <input
+                        value={caregiverPhone}
+                        onChange={e => setCaregiverPhone(e.target.value)}
+                        placeholder="Ej: 221 555 1234"
+                        className="w-full px-4 py-2.5 bg-white rounded-xl border border-brand-accent outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block mb-1">Email (opcional)</label>
+                      <input
+                        value={caregiverEmail}
+                        onChange={e => setCaregiverEmail(e.target.value)}
+                        placeholder="ejemplo@correo.com"
+                        className="w-full px-4 py-2.5 bg-white rounded-xl border border-brand-accent outline-none text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
