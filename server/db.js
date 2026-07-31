@@ -643,6 +643,7 @@ CREATE TABLE IF NOT EXISTS adoption_assignments (
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS adoption_assignment_id UUID REFERENCES adoption_assignments(id);
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMP;
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP;
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS my_pet_id UUID REFERENCES my_pets(id);
 `;
 
 async function migrate(client, sql, label) {

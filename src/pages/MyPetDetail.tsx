@@ -2087,6 +2087,7 @@ export default function MyPetDetail() {
                           },
                           share_token: shareToken || undefined,
                           for_adopter: true,
+                          my_pet_id: pet.id,
                           adopter: { name: adopterName, email: adopterEmail, phone: adopterPhone },
                         });
                         setAdoptionGiveDone(true);

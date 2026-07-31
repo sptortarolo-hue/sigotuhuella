@@ -82,7 +82,7 @@ router.post('/register', async (req, res) => {
         );
 
         await pool.query(
-          `UPDATE pets SET status = 'adopted', adoption_assignment_id = NULL WHERE id = $1`,
+          `UPDATE pets SET status = 'adopted', adoption_assignment_id = NULL, my_pet_id = NULL WHERE id = $1`,
           [ass.pet_id]
         );
 

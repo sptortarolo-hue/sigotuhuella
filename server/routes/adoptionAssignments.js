@@ -124,7 +124,7 @@ router.post('/claim/:token', requireAuth, async (req, res) => {
     );
 
     await client.query(
-      `UPDATE pets SET status = 'adopted', adoption_assignment_id = NULL WHERE id = $1`,
+      `UPDATE pets SET status = 'adopted', adoption_assignment_id = NULL, my_pet_id = NULL WHERE id = $1`,
       [assignment.pet_id]
     );
 

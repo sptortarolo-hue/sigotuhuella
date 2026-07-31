@@ -9,7 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 const router = Router();
 
 router.post('/', async (req, res) => {
-  const { pet, user: userData, share_token, for_adopter, adopter } = req.body;
+  const { pet, user: userData, share_token, for_adopter, adopter, my_pet_id } = req.body;
 
   if (!pet || !pet.name || !pet.species) {
     return res.status(400).json({ error: 'Nombre y especie de la mascota son requeridos' });
@@ -28,8 +28,8 @@ router.post('/', async (req, res) => {
     // Validate share_token if provided
     if (share_token) {
       const qrCheck = await client.query(
-        'SELECT id FROM qr_identifiers WHERE share_token = $1 AND my_pet_id IS NULL',
-        [share_token]
+        'SELECT id FROM qr_identifiers WHERE share_token = $1 AND (my_pet_id IS NULL OR my_pet_id = $2)',
+        [share_token, my_pet_id || null]
       );
       if (qrCheck.rows.length === 0) {
         await client.query('ROLLBACK');
@@ -86,20 +86,54 @@ router.post('/', async (req, res) => {
     }
 
     if (for_adopter) {
-      // Crear pet en estado for_adoption vinculado al dueño actual
-      const petResult = await client.query(
-        `INSERT INTO pets (name, species, breed, color, gender, status, description, location,
-          is_vaccinated, is_sterilized, is_dewormed, created_by)
-         VALUES ($1,$2,$3,$4,$5,'for_adoption',$6,$7,$8,$9,$10,$11)
-         RETURNING *`,
-        [
-          pet.name, pet.species, pet.breed || null, pet.color || null,
-          pet.gender || 'unknown', pet.bio || null, pet.location || '',
-          pet.is_vaccinated || false, pet.is_sterilized || false, pet.is_dewormed || false,
-          userId,
-        ]
-      );
-      const newPet = petResult.rows[0];
+      // Buscar fila pública existente para esta my_pet (evitar duplicados)
+      let newPet = null;
+      if (my_pet_id) {
+        const existingRes = await client.query(
+          `SELECT p.*, aa.status as assignment_status
+           FROM pets p
+           LEFT JOIN adoption_assignments aa ON aa.pet_id = p.id AND aa.status = 'pending_adopter'
+           WHERE p.my_pet_id = $1 AND p.created_by = $2
+           LIMIT 1`,
+          [my_pet_id, userId]
+        );
+        const existing = existingRes.rows[0];
+        if (existing) {
+          if (existing.assignment_status === 'pending_adopter') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Esta mascota ya tiene una adopción pendiente. Cancelala desde "Adopciones pendientes".' });
+          }
+          // Reutilizar la fila existente con datos actualizados
+          const upd = await client.query(
+            `UPDATE pets SET name=$1, species=$2, breed=$3, color=$4, gender=$5,
+               status='for_adoption', description=$6, location=$7,
+               is_vaccinated=$8, is_sterilized=$9, is_dewormed=$10,
+               adoption_assignment_id=NULL, updated_at=NOW()
+             WHERE id=$11 RETURNING *`,
+            [pet.name, pet.species, pet.breed || null, pet.color || null, pet.gender || 'unknown',
+             pet.bio || null, pet.location || '', pet.is_vaccinated || false, pet.is_sterilized || false,
+             pet.is_dewormed || false, existing.id]
+          );
+          newPet = upd.rows[0];
+        }
+      }
+
+      if (!newPet) {
+        // Crear pet en estado for_adoption vinculado al dueño actual
+        const petResult = await client.query(
+          `INSERT INTO pets (name, species, breed, color, gender, status, description, location,
+            is_vaccinated, is_sterilized, is_dewormed, created_by, my_pet_id)
+           VALUES ($1,$2,$3,$4,$5,'for_adoption',$6,$7,$8,$9,$10,$11,$12)
+           RETURNING *`,
+          [
+            pet.name, pet.species, pet.breed || null, pet.color || null,
+            pet.gender || 'unknown', pet.bio || null, pet.location || '',
+            pet.is_vaccinated || false, pet.is_sterilized || false, pet.is_dewormed || false,
+            userId, my_pet_id || null,
+          ]
+        );
+        newPet = petResult.rows[0];
+      }
 
       // Crear adoption_assignment pendiente
       const token = uuidv4().replace(/-/g, '') + Date.now().toString(36);

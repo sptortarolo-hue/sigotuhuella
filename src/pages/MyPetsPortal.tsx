@@ -881,6 +881,7 @@ export default function MyPetsPortal() {
                           },
                           share_token: shareToken || undefined,
                           for_adopter: true,
+                          my_pet_id: adoptionPet.id,
                           adopter: { name: adopterName, email: adopterEmail, phone: adopterPhone },
                         });
                         setAdoptionDone(true);
