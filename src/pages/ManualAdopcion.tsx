@@ -5,6 +5,7 @@ import ManualCallout from '@/src/components/manual/ManualCallout';
 import ManualCta from '@/src/components/manual/ManualCta';
 import UiFrame from '@/src/components/manual/UiFrame';
 import MockMyPetsCard from '@/src/components/manual/mockups/MockMyPetsCard';
+import MockRegisterPet from '@/src/components/manual/mockups/MockRegisterPet';
 import MockAdoptionModal from '@/src/components/manual/mockups/MockAdoptionModal';
 import MockPendingList from '@/src/components/manual/mockups/MockPendingList';
 import MockWhatsAppMsg from '@/src/components/manual/mockups/MockWhatsAppMsg';
@@ -19,7 +20,7 @@ export default function ManualAdopcion() {
   return (
     <ManualLayout
       chapterTitle="Cómo funciona la adopción"
-      chapterDescription="Desde que una mascota se da en adopción hasta que confirma su nueva familia. Guía paso a paso para quien entrega y para quien recibe."
+      chapterDescription="Desde que cargás una mascota para darla en adopción hasta que confirma su nueva familia. Guía paso a paso para quien entrega y para quien recibe."
       icon={Heart}
       sections={[
         { id: 'doy-en-adopcion', label: 'Doy en adopción' },
@@ -33,23 +34,41 @@ export default function ManualAdopcion() {
           Doy en adopción una mascota propia
         </ManualSectionTitle>
         <div className="space-y-10 sm:space-y-14">
-          <ManualStep number={1} title="Entrá a Mis mascotas" icon={PawPrint}
-            visual={<UiFrame label={'En la sección "Mis mascotas" se listan todos tus compañeros.'}><MockMyPetsCard /></UiFrame>}
+          <ManualStep number={1} title={'Registrá tu mascota con el tipo "Adopción"'} icon={PawPrint}
+            visual={<UiFrame label={'En "Tipo" elegí "Adopción · Busca un hogar": esa mascota queda marcada para adopción.'}><MockRegisterPet /></UiFrame>}
           >
             <p>
-              Ingresá a la sección <strong>"Mis mascotas"</strong> desde el menú de la app
-              (en el celular, desde el primer tab o el menú "Más").
+              El paso inicial es <strong>cargar la mascota</strong> en la sección <strong>"Mis mascotas"</strong>:
             </p>
-            <p>Ahí vas a ver el listado de las mascotas que registraste.</p>
+            <ol className="list-decimal pl-5 space-y-1">
+              <li>Ingresá a <strong>"Mis mascotas"</strong> y tocá <strong>"Registrar mascota"</strong>.</li>
+              <li>Completá sus datos (nombre, especie, raza, color, etc.).</li>
+              <li>En el campo <strong>"Tipo"</strong> elegí <strong>"Adopción · Busca un hogar"</strong>.</li>
+            </ol>
+            <ManualCallout tone="info" title="Importante" icon={ShieldCheck}>
+              <p>
+                Solo las mascotas registradas con el tipo <strong>"Adopción"</strong> tienen el botón
+                <strong> "Dar en adopción"</strong> que te permite transferirla a un adoptante elegido.
+              </p>
+            </ManualCallout>
             <ManualCta to="/mi-mascota" icon={PawPrint}>Ir a Mis mascotas</ManualCta>
           </ManualStep>
 
           <ManualStep number={2} title={'Tocá "Dar en adopción"'} icon={Heart}
-            visual={<UiFrame label={'El botón "Dar en adopción" aparece dentro de la ficha de la mascota.'}><MockAdoptionModal /></UiFrame>}
+            visual={<UiFrame label={'El botón "Dar en adopción" aparece en la ficha de las mascotas de tipo Adopción.'}><MockMyPetsCard /></UiFrame>}
           >
             <p>
-              Elegí la mascota que vas a entregar y tocá <strong>"Dar en adopción"</strong>.
+              Una vez registrada con el tipo <strong>"Adopción"</strong>, la mascota aparece en tu
+              listado con el botón <strong>"Dar en adopción"</strong>.
             </p>
+            <p>
+              Tocá ese botón para empezar la entrega a la persona que elegiste.
+            </p>
+          </ManualStep>
+
+          <ManualStep number={3} title="Completá los datos del adoptante" icon={Heart}
+            visual={<UiFrame label="Se abre una ventana para cargar los datos de la persona que se lleva la mascota."><MockAdoptionModal /></UiFrame>}
+          >
             <p>
               Se abre una ventana donde tenés que completar los datos de la persona que se lleva la mascota:
             </p>
@@ -61,7 +80,7 @@ export default function ManualAdopcion() {
             <p className="text-xs text-gray-400">El WhatsApp debe tener el formato 549 + código de área sin 0 + teléfono.</p>
           </ManualStep>
 
-          <ManualStep number={3} title={'La mascota queda en "Adopciones pendientes"'} icon={Clock}
+          <ManualStep number={4} title={'La mascota queda en "Adopciones pendientes"'} icon={Clock}
             visual={<UiFrame label="Podés seguir y cancelar la adopción hasta que el adoptante confirme."><MockPendingList /></UiFrame>}
           >
             <p>
@@ -73,7 +92,7 @@ export default function ManualAdopcion() {
             </p>
           </ManualStep>
 
-          <ManualStep number={4} title="El adoptante recibe el link por WhatsApp y email" icon={MessageCircle}
+          <ManualStep number={5} title="El adoptante recibe el link por WhatsApp y email" icon={MessageCircle}
             visual={<UiFrame label="El adoptante recibe el mismo mensaje por WhatsApp y por email."><MockWhatsAppMsg /></UiFrame>}
           >
             <p>
@@ -85,7 +104,7 @@ export default function ManualAdopcion() {
             </p>
           </ManualStep>
 
-          <ManualStep number={5} title="Cuando confirme, la mascota pasa a ser suya" icon={XCircle}>
+          <ManualStep number={6} title="Cuando confirme, la mascota pasa a ser suya" icon={XCircle}>
             <p>
               En cuanto el adoptante abre el link y confirma, la mascota pasa a estar
               <strong> oficialmente adoptada</strong>:
