@@ -330,6 +330,7 @@ export const api = {
     records: {
       list: (petId: string) => request(`/my-pets/${petId}/records`),
       create: (petId: string, data: any) => request(`/my-pets/${petId}/records`, { method: 'POST', body: JSON.stringify(data) }),
+      update: (petId: string, recordId: string, data: any) => request(`/my-pets/${petId}/records/${recordId}`, { method: 'PUT', body: JSON.stringify(data) }),
     },
     reminders: (petId: string) => request(`/my-pets/${petId}/reminders`),
     convert: (petId: string, extra?: { bio?: string; birth_date?: string; weight_kg?: number; personality_tags?: string[] }) =>

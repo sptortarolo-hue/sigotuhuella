@@ -110,6 +110,7 @@ export default function MyPetDetail() {
   const [eventLoading, setEventLoading] = useState(false);
 
   const [showRecordForm, setShowRecordForm] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<any>(null);
   const [recordForm, setRecordForm] = useState({ record_type: 'vaccine', title: '', description: '', record_date: '', next_date: '', vet_name: '', clinic_name: '', medication_name: '', dosage: '', amount: '', link_url: '' });
   const [recordLoading, setRecordLoading] = useState(false);
   const [recordPhotos, setRecordPhotos] = useState<File[]>([]);
@@ -439,8 +440,11 @@ export default function MyPetDetail() {
         payload.attachment_type = mimeType;
         payload.attachment_name = recordPdfName;
       }
-      await api.myPets.records.create(id!, payload);
+      await (editingRecord
+        ? api.myPets.records.update(id!, editingRecord.id, payload)
+        : api.myPets.records.create(id!, payload));
       setShowRecordForm(false);
+      setEditingRecord(null);
       setRecordForm({ record_type: 'vaccine', title: '', description: '', record_date: '', next_date: '', vet_name: '', clinic_name: '', medication_name: '', dosage: '', amount: '', link_url: '' });
       setRecordPhotos([]);
       setRecordPhotoPreviews([]);
@@ -545,8 +549,29 @@ export default function MyPetDetail() {
 
   const closeRecordForm = () => {
     setShowRecordForm(false);
+    setEditingRecord(null);
     setRecordPdf(null);
     setRecordPdfName(null);
+  };
+
+  const handleEditRecord = (record: any) => {
+    setEditingRecord(record);
+    setRecordForm({
+      record_type: record.record_type || 'vaccine',
+      title: record.title || '',
+      description: record.description || '',
+      record_date: (record.record_date || '').slice(0, 10),
+      next_date: (record.next_date || '').slice(0, 10),
+      vet_name: record.vet_name || '',
+      clinic_name: record.clinic_name || '',
+      medication_name: record.medication_name || '',
+      dosage: record.dosage || '',
+      amount: record.amount != null ? String(record.amount) : '',
+      link_url: record.link_url || '',
+    });
+    setRecordPhotos([]);
+    setRecordPhotoPreviews([]);
+    setShowRecordForm(true);
   };
 
   const openEditForm = () => {
@@ -1310,7 +1335,7 @@ export default function MyPetDetail() {
           {activeTab === 'salud' && (
           <motion.div key="salud" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="flex justify-end mb-4">
-              <button onClick={() => setShowRecordForm(true)}
+              <button onClick={() => { setEditingRecord(null); setShowRecordForm(true); }}
                 className="px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-xs hover:shadow-lg transition-all flex items-center gap-2"
               >
                 <Plus className="w-3 h-3" /> Agregar registro
@@ -1344,7 +1369,7 @@ export default function MyPetDetail() {
               <div className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-6 sm:p-8 text-center">
                 <Activity className="w-12 h-12 text-brand-accent mx-auto mb-3" />
                 <p className="text-gray-400">Todavía no hay registros médicos</p>
-                <button onClick={() => setShowRecordForm(true)}
+                <button onClick={() => { setEditingRecord(null); setShowRecordForm(true); }}
                   className="mt-4 px-4 py-2 bg-brand-primary text-white rounded-xl text-xs font-bold">
                   Agregar primer registro
                 </button>
@@ -1374,6 +1399,12 @@ export default function MyPetDetail() {
                           )}
                         </div>
                       </div>
+                      <button onClick={() => handleEditRecord(record)}
+                        className="shrink-0 p-2 text-gray-400 hover:text-brand-primary hover:bg-brand-bg rounded-xl transition-colors"
+                        title="Editar registro"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
                       {record.link_url && (
                         <a href={record.link_url} target="_blank" rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 mt-3 text-xs text-blue-600 hover:text-blue-700 underline break-all"
@@ -1419,7 +1450,7 @@ export default function MyPetDetail() {
                     className="relative w-full max-w-lg bg-white rounded-[2.5rem] max-h-[90vh] flex flex-col shadow-2xl"
                   >
                     <div className="p-6 sm:p-8 border-b border-brand-accent flex items-center justify-between">
-                      <h3 className="text-lg font-bold text-brand-primary">Nuevo registro médico</h3>
+                      <h3 className="text-lg font-bold text-brand-primary">{editingRecord ? 'Editar registro médico' : 'Nuevo registro médico'}</h3>
                       <button onClick={closeRecordForm} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-400" /></button>
                     </div>
                     <div className="p-6 sm:p-8 overflow-y-auto space-y-4">

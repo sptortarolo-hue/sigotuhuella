@@ -596,6 +596,66 @@ router.post('/:id/records', requireAuth, async (req, res) => {
   }
 });
 
+router.put('/:id/records/:recordId', requireAuth, async (req, res) => {
+  try {
+    const access = await canEditMyPet(req.user.id, req.params.id);
+    if (!access.allowed) return res.status(404).json({ error: 'Mascota no encontrada' });
+
+    const {
+      record_type, title, description, amount, record_date, next_date,
+      vet_name, clinic_name, medication_name, dosage, photo_ids, link_url,
+      attachment_data, attachment_type, attachment_name,
+    } = req.body;
+
+    const fields = [];
+    const values = [];
+    let idx = 1;
+    const setField = (col, val) => {
+      if (val !== undefined) {
+        fields.push(`${col} = $${idx++}`);
+        values.push(val);
+      }
+    };
+    setField('record_type', record_type);
+    setField('title', title);
+    setField('description', description);
+    setField('amount', amount);
+    setField('record_date', record_date);
+    setField('next_date', next_date);
+    setField('vet_name', vet_name);
+    setField('clinic_name', clinic_name);
+    setField('medication_name', medication_name);
+    setField('dosage', dosage);
+    setField('photo_ids', photo_ids);
+    setField('link_url', link_url);
+    setField('attachment_data', attachment_data);
+    setField('attachment_type', attachment_type);
+    setField('attachment_name', attachment_name);
+
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+    const result = await pool.query(
+      `UPDATE pet_records SET ${fields.join(', ')}, updated_at = NOW()
+       WHERE id = $${idx} AND my_pet_id = $${idx + 1} RETURNING *`,
+      [...values, req.params.recordId, req.params.id]
+    );
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Registro no encontrado' });
+
+    if (record_type === 'weight' && amount) {
+      const weightVal = parseFloat(amount);
+      if (!isNaN(weightVal) && weightVal > 0 && weightVal < 500) {
+        await pool.query('UPDATE my_pets SET weight_kg = $1 WHERE id = $2', [weightVal, req.params.id]);
+      }
+    }
+
+    res.json({ record: result.rows[0] });
+  } catch (err) {
+    console.error('my-pet record update error:', err);
+    res.status(500).json({ error: 'Error al actualizar registro médico' });
+  }
+});
+
 router.post('/convert/:petId', requireAuth, async (req, res) => {
   try {
     const petResult = await pool.query(
