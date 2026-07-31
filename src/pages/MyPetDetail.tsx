@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '@/src/lib/api';
+import { cn } from '@/src/lib/utils';
 import { fileToBase64 } from '@/src/lib/storageService';
 import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
 import ImageCropper from '@/src/components/ImageCropper';
@@ -9,7 +10,7 @@ import {
   PawPrint, Loader2, Syringe, Scissors, Bug, Weight,
   Calendar, Plus, X, Save, Camera, Trash2, Sparkles, Heart,
   Dog, Cat, Edit3, Image as ImageIcon, Activity, Clock,
-  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle, Download, HeartHandshake,
+  QrCode, Share2, Stethoscope, Copy, Check, FileText, Play, AlertTriangle, Download, HeartHandshake, MapPin,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'qrcode';
@@ -173,6 +174,7 @@ export default function MyPetDetail() {
   const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
   const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+  const [relatedReports, setRelatedReports] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -185,6 +187,7 @@ export default function MyPetDetail() {
       setLoading(true);
       const data = await api.myPets.get(id!);
       setPet(data.myPet);
+      setRelatedReports(data.myPet.related_reports || []);
       setQrRequested(data.myPet.qr_requested || false);
       setVetShareEnabled(data.myPet.vet_share_enabled || false);
       setVetShareToken(data.myPet.vet_share_token || null);
@@ -230,12 +233,28 @@ export default function MyPetDetail() {
     return (pet?.photos || []).filter((p: any) => !recordPhotoIds.has(p.id));
   }, [pet?.photos, recordPhotoIds]);
 
+  const reportImages = useMemo(() => {
+    const imgs: { id: string; src: string; reportName?: string }[] = [];
+    (relatedReports || []).forEach((r: any) => {
+      (r.images || []).forEach((img: any) => {
+        const src = img.has_original
+          ? `/og-image/${r.id}/${r.images.indexOf(img)}?full=1`
+          : img.image_data
+            ? `data:${img.mime_type || 'image/jpeg'};base64,${img.image_data}`
+            : img.external_url;
+        if (src) imgs.push({ id: `${r.id}-${img.id || r.images.indexOf(img)}`, src, reportName: r.name });
+      });
+    });
+    return imgs;
+  }, [relatedReports]);
+
   const timelineItems = useMemo(() => {
     const items: any[] = [];
     (pet?.events || []).forEach((e: any) => items.push({ ...e, _type: 'event', _date: e.event_date }));
     (pet?.records || []).forEach((r: any) => items.push({ ...r, _type: 'record', _date: r.record_date || r.created_at }));
+    (relatedReports || []).forEach((r: any) => items.push({ ...r, _type: 'report', _date: r.created_at }));
     return items.sort((a, b) => new Date(b._date).getTime() - new Date(a._date).getTime());
-  }, [pet?.events, pet?.records]);
+  }, [pet?.events, pet?.records, relatedReports]);
 
   const handleRequestQr = async () => {
     try {
@@ -1028,6 +1047,33 @@ export default function MyPetDetail() {
                 ))}
               </div>
             )}
+
+            {reportImages.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-sm font-bold text-gray-600 mb-3">Fotos de publicaciones</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {reportImages.map((ri) => (
+                    <button
+                      key={ri.id}
+                      onClick={() => setPreviewPhotoUrl(ri.src)}
+                      className="relative group rounded-2xl overflow-hidden aspect-square bg-brand-bg"
+                    >
+                      <img
+                        src={ri.src}
+                        alt={ri.reportName || 'Foto de publicación'}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                      {ri.reportName && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2.5 pt-6">
+                          <p className="text-white text-[10px] truncate">{ri.reportName}</p>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -1053,6 +1099,55 @@ export default function MyPetDetail() {
             ) : (
               <div className="space-y-4">
                 {timelineItems.map((item: any, i: number) => {
+                  if (item._type === 'report') {
+                    const statusLabels: Record<string, string> = {
+                      lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado',
+                      accidented: 'Accidentado', needs_attention: 'Necesita Atención',
+                      for_adoption: 'En Adopción', for_adoption_simple: 'Adopción (Difusión)',
+                      adopted: 'Adoptado', reunited: 'Reencontrado', transitada: 'En Tránsito',
+                    };
+                    const statusColors: Record<string, string> = {
+                      lost: 'bg-red-100 text-red-700', retained: 'bg-amber-100 text-amber-700',
+                      sighted: 'bg-blue-100 text-blue-700', accidented: 'bg-orange-100 text-orange-700',
+                      needs_attention: 'bg-yellow-100 text-yellow-700', for_adoption: 'bg-purple-100 text-purple-700',
+                      for_adoption_simple: 'bg-orange-100 text-orange-700', adopted: 'bg-emerald-100 text-emerald-700',
+                      reunited: 'bg-emerald-100 text-emerald-700', transitada: 'bg-teal-100 text-teal-700',
+                    };
+                    return (
+                      <motion.div key={`report-${item.id}`} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                        className="flex gap-4 items-start"
+                      >
+                        <div className="flex flex-col items-center">
+                          <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-lg shrink-0">
+                            📢
+                          </div>
+                          {i < timelineItems.length - 1 && <div className="w-0.5 h-full bg-brand-accent mt-1" />}
+                        </div>
+                        <button
+                          onClick={() => navigate(`/pet/${item.id}`)}
+                          className="flex-1 bg-white rounded-2xl border border-brand-accent p-4 text-left group hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-sm font-bold text-gray-800">Publicación de la app</h4>
+                            <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide",
+                              statusColors[item.status] || 'bg-gray-100 text-gray-500'
+                            )}>
+                              {statusLabels[item.status] || item.status}
+                            </span>
+                          </div>
+                          {item.location && (
+                            <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 shrink-0" /> {item.location}
+                            </p>
+                          )}
+                          {item.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</p>}
+                          <p className="text-xs text-gray-400 mt-1.5 group-hover:text-brand-primary">
+                            {new Date(item._date).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })} · Ver reporte →
+                          </p>
+                        </button>
+                      </motion.div>
+                    );
+                  }
                   const isEvent = item._type === 'event';
                   const icon = isEvent
                     ? (EVENT_TYPES.find(t => t.value === item.event_type)?.icon || '📋')

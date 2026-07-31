@@ -131,9 +131,30 @@ router.get('/:id', requireAuth, async (req, res) => {
       [pet.id]
     );
 
+    const lostReportId = pet.lost_report_id || null;
+    const relatedReportsRes = await pool.query(
+      `SELECT p.id, p.name, p.species, p.breed, p.color, p.status, p.location, p.description,
+        p.created_at, p.group_id,
+        COALESCE(json_agg(json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type,
+          'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL) ORDER BY pi.created_at)
+          FILTER (WHERE pi.id IS NOT NULL), '[]') as images
+       FROM pets p
+       LEFT JOIN pet_images pi ON pi.pet_id = p.id
+       WHERE p.my_pet_id = $1
+          OR p.id = $2
+          OR p.group_id IN (SELECT COALESCE(group_id, id) FROM pets WHERE my_pet_id = $1 OR id = $2)
+       GROUP BY p.id
+       ORDER BY p.created_at DESC`,
+      [pet.id, lostReportId]
+    );
+    const relatedReports = relatedReportsRes.rows.filter(
+      (r, i, arr) => arr.findIndex((x) => x.id === r.id) === i
+    );
+
     pet.photos = photosResult.rows;
     pet.events = eventsResult.rows;
     pet.records = recordsResult.rows;
+    pet.related_reports = relatedReports;
     res.json({ myPet: pet });
   } catch (err) {
     console.error('my-pet get error:', err);
