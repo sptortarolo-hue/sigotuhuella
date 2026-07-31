@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { fileToBase64 } from '@/src/lib/storageService';
 import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
@@ -820,6 +820,9 @@ export default function MyPetsPortal() {
                 </div>
                 <h3 className="text-lg font-bold text-gray-800">Dar en adopción</h3>
                 <p className="text-xs text-gray-400 mt-1">Ingresá los datos de la persona que se lleva a {adoptionPet?.name}</p>
+                <Link to="/manual/adopcion" className="text-[10px] text-brand-primary hover:underline font-bold mt-1 inline-block">
+                  ¿Cómo funciona la adopción?
+                </Link>
               </div>
 
               {adoptionDone ? (

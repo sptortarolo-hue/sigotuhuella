@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { getPets, Pet, PetStatus } from '@/src/lib/petService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import PetCard from '@/src/components/PetCard';
 import PetMap from '@/src/components/PetMap';
 import MapLoader from '@/src/components/MapLoader';
-import { Search, Filter, Loader2, Grid, Map as MapIcon } from 'lucide-react';
+import { Search, Filter, Loader2, Grid, Map as MapIcon, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 
@@ -109,6 +110,12 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
              ? 'Mascotas perdidas, retenidas, avistadas o accidentadas en Sicardi, Garibaldi y Correas. Filtra por estado o busca por cualquier dato.'
              : 'Conoce a los integrantes de "Sigo tu huella" que están buscando un hogar lleno de amor.'}
          </p>
+
+         {type === 'adoption' && (
+           <Link to="/manual/adopcion" className="inline-flex items-center gap-1.5 mt-4 text-xs sm:text-sm text-gray-400 hover:text-brand-primary font-bold transition-colors">
+             <BookOpen className="w-3.5 h-3.5" /> ¿Cómo funciona la adopción? Ver la guía →
+           </Link>
+         )}
 
 <div className="mt-8 flex flex-col sm:flex-row gap-4 items-center justify-center">
            <div className="relative flex-1 max-w-md w-full">

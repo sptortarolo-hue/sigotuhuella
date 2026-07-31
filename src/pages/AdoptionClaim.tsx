@@ -4,7 +4,7 @@ import { api } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import {
   PawPrint, Loader2, CheckCircle2, Heart, Mail, Phone, User,
-  ArrowLeft, MessageCircle, Check, XCircle,
+  ArrowLeft, MessageCircle, Check, XCircle, BookOpen,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -182,6 +182,9 @@ export default function AdoptionClaim() {
         )}
 
         <div className="mt-4 text-center">
+          <Link to="/manual/adopcion" className="text-xs text-gray-400 hover:text-brand-primary font-bold flex items-center justify-center gap-1 mb-2">
+            <BookOpen className="w-3 h-3" /> ¿Cómo funciona la adopción?
+          </Link>
           <Link to="/" className="text-xs text-gray-400 hover:text-gray-600 flex items-center justify-center gap-1">
             <ArrowLeft className="w-3 h-3" /> Volver al inicio
           </Link>

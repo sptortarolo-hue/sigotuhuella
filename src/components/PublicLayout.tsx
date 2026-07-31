@@ -41,6 +41,7 @@ export default function PublicLayout() {
                 <li><Link to="/adopcion" className="hover:text-brand-primary">Adopción</Link></li>
                 <li><Link to="/reportar" className="hover:text-brand-primary">Publicar</Link></li>
                 <li><Link to="/reportar-rapido" className="hover:text-brand-primary">Reporte Rápido</Link></li>
+                <li><Link to="/manual" className="hover:text-brand-primary">Manual de la app</Link></li>
               </ul>
             </div>
             <div>

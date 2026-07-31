@@ -2159,6 +2159,9 @@ export default function MyPetDetail() {
                 </div>
                 <h3 className="text-lg font-bold text-gray-800">Dar en adopción</h3>
                 <p className="text-xs text-gray-400 mt-1">Ingresá los datos de la persona que se lleva a {pet?.name}</p>
+                <Link to="/manual/adopcion" className="text-[10px] text-brand-primary hover:underline font-bold mt-1 inline-block">
+                  ¿Cómo funciona la adopción?
+                </Link>
               </div>
 
               {adoptionGiveDone ? (

@@ -114,6 +114,11 @@ export default function Home() {
               </Link>
             </div>
 
+            <Link to="/manual/adopcion"
+              className="mt-4 text-center block text-xs sm:text-sm text-gray-400 hover:text-brand-primary font-bold transition-colors">
+              ¿Cómo funciona la adopción? Ver la guía paso a paso →
+            </Link>
+
             <Link to="/colaborar"
               className="w-full bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border border-brand-secondary/30 rounded-2xl p-4 sm:p-5 md:p-6 mt-6 md:mt-8 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-brand-primary to-brand-secondary/80 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
