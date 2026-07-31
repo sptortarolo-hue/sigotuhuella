@@ -5,7 +5,7 @@ import { formatTag } from '@/src/lib/personalityTags';
 import {
   PawPrint, Loader2, Syringe, Scissors, Bug, MapPin, Heart,
   ArrowLeft, ShieldCheck, Share2, Copy, Check,
-  Camera, ExternalLink, Phone, MessageCircle, AlertTriangle, Info,
+  Camera, ExternalLink, Phone, MessageCircle, AlertTriangle, Info, HeartHandshake,
 } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import FoundReportModal from '@/src/components/FoundReportModal';
@@ -87,7 +87,7 @@ export default function PublicPetProfile() {
     );
   }
 
-  if (!data || !data.found) {
+  if (!data || !data.found || data.adoption_pending) {
     if (data?.adoption_pending) {
     // Show adopter data for pending adoption
     const pet = data.pet;
@@ -247,6 +247,16 @@ export default function PublicPetProfile() {
         {/* Contact section */}
         <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden shadow-sm -mt-3 relative z-10">
           <div className="p-6 sm:p-8 space-y-6">
+            {data.owner_confirmed && (
+              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
+                <p className="text-sm font-bold text-emerald-700 flex items-center gap-2">
+                  <HeartHandshake className="w-4 h-4" /> Adopción confirmada
+                </p>
+                <p className="text-xs text-emerald-600 mt-1">
+                  Esta mascota ya fue adoptada. {pet.owner_name} es su nuevo dueño.
+                </p>
+              </div>
+            )}
             {/* Direct contact */}
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-1">

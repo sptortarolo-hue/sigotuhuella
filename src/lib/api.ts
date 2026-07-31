@@ -413,6 +413,7 @@ export const api = {
   adoptionAssignments: {
     pending: () => request('/adoption-assignments/pending'),
     claim: (token: string) => request(`/adoption-assignments/claim/${token}`, { method: 'POST' }),
+    confirm: (token: string) => request(`/adoption-assignments/confirm/${token}`, { method: 'POST' }),
     return: (token: string, reason?: string) => request(`/adoption-assignments/return/${token}`, { method: 'POST', body: JSON.stringify({ reason }) }),
     checkToken: (token: string) => request(`/adoption-assignments/check-token/${token}`),
   },

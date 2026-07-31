@@ -74,6 +74,7 @@ export default function MyPetsPortal() {
   const [pendingAdoptions, setPendingAdoptions] = useState<any[]>([]);
   const [pendingAdoptionsLoading, setPendingAdoptionsLoading] = useState(false);
   const [returningId, setReturningId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
@@ -334,28 +335,49 @@ export default function MyPetsPortal() {
                       Creada: {new Date(ass.created_at).toLocaleDateString('es-AR')}
                     </p>
                   </div>
-                  <button
-                    onClick={async () => {
-                      if (!confirm(`¿Cancelar la adopción de ${ass.pet_name}? La mascota volverá a estar disponible.`)) return;
-                      setReturningId(ass.id);
-                      try {
-                        await api.adoptionAssignments.return(ass.token);
-                        await fetchPendingAdoptions();
-                      } catch (e: any) {
-                        alert(e.message || 'Error al cancelar');
-                      } finally {
-                        setReturningId(null);
-                      }
-                    }}
-                    disabled={returningId === ass.id}
-                    className="shrink-0 px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-xs font-medium hover:bg-red-100 transition-all disabled:opacity-50 flex items-center gap-1"
-                  >
-                    {returningId === ass.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertTriangle className="w-3 h-3" />}
-                    Cancelar
-                  </button>
+                  <div className="flex flex-col gap-2 shrink-0 sm:flex-row sm:items-center">
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`¿Confirmás que ${ass.pet_name} fue adoptada por ${ass.adopter_name}? Dejarás de ser su responsable y la mascota pasará a su nombre.`)) return;
+                        setConfirmingId(ass.id);
+                        try {
+                          await api.adoptionAssignments.confirm(ass.token);
+                          await fetchPendingAdoptions();
+                        } catch (e: any) {
+                          alert(e.message || 'Error al confirmar');
+                        } finally {
+                          setConfirmingId(null);
+                        }
+                      }}
+                      disabled={confirmingId === ass.id}
+                      className="shrink-0 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-medium hover:bg-emerald-100 transition-all disabled:opacity-50 flex items-center justify-center gap-1"
+                    >
+                      {confirmingId === ass.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                      Confirmar adopción
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`¿Cancelar la adopción de ${ass.pet_name}? La mascota volverá a estar disponible.`)) return;
+                        setReturningId(ass.id);
+                        try {
+                          await api.adoptionAssignments.return(ass.token);
+                          await fetchPendingAdoptions();
+                        } catch (e: any) {
+                          alert(e.message || 'Error al cancelar');
+                        } finally {
+                          setReturningId(null);
+                        }
+                      }}
+                      disabled={returningId === ass.id}
+                      className="shrink-0 px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-xs font-medium hover:bg-red-100 transition-all disabled:opacity-50 flex items-center justify-center gap-1"
+                    >
+                      {returningId === ass.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertTriangle className="w-3 h-3" />}
+                      Cancelar
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-3 p-2 bg-amber-50 rounded-xl border border-amber-100 text-[11px] text-amber-700">
-                  ⏳ Pendiente: el adoptante debe registrarse para confirmar. Si no se concreta, podés cancelar y la mascota vuelve a tu lista.
+                  ⏳ El adoptante puede confirmar al abrir el link, o podés confirmar vos desde acá para cerrar la adopción. Si no se concreta, podés cancelar y la mascota vuelve a tu lista.
                 </div>
               </div>
             ))}

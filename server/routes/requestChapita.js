@@ -2,6 +2,8 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { generateToken, hashPassword, verifyToken, sendVerificationEmail, generateVerificationToken, sendWelcomeEmail, sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from '../services/pushService.js';
+import { enqueue } from '../services/phoneRelayService.js';
+import { normalizePhone } from '../services/phoneUtils.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
@@ -198,10 +200,8 @@ ${inviterName} te eligió para darle un hogar a ${pet.name} a través de Sigo Tu
 Para ver los detalles y confirmar, hacé clic acá:
 ${claimLink}`;
 
-      import('../services/whatsappService.js').then(({ sendMessage }) => {
-        const normalized = adopter.phone.replace(/\D/g, '');
-        if (normalized) sendMessage(normalized, waText).catch(e => console.error('WA notify adopter error:', e));
-      }).catch(() => {});
+      const normalizedPhone = normalizePhone(adopter.phone);
+      if (normalizedPhone) enqueue(normalizedPhone, waText).catch(e => console.error('WA notify adopter error:', e));
 
       import('nodemailer').then(({ default: nm }) => {
         const t = nm.createTransport({

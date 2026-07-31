@@ -31,7 +31,7 @@ export default function ManualAdopcion() {
       {/* ── PARTE A: DOY EN ADOPCIÓN ─────────────────────────────── */}
       <section>
         <ManualSectionTitle id="doy-en-adopcion" icon={HeartHandshake}>
-          Doy en adopción una mascota propia
+          Doy en adopción una mascota
         </ManualSectionTitle>
         <div className="space-y-10 sm:space-y-14">
           <ManualStep number={1} title={'Registrá tu mascota con el tipo "Adopción"'} icon={PawPrint}
@@ -81,14 +81,15 @@ export default function ManualAdopcion() {
           </ManualStep>
 
           <ManualStep number={4} title={'La mascota queda en "Adopciones pendientes"'} icon={Clock}
-            visual={<UiFrame label="Podés seguir y cancelar la adopción hasta que el adoptante confirme."><MockPendingList /></UiFrame>}
+            visual={<UiFrame label="Podés seguir, confirmar o cancelar la adopción desde acá."><MockPendingList /></UiFrame>}
           >
             <p>
               Al confirmar la entrega, la mascota pasa a estar <strong>"En adopción"</strong> y
               aparece en tu sección <strong>"Adopciones pendientes"</strong>, dentro de Mis mascotas.
             </p>
             <p>
-              Ahí vas a ver el nombre de la mascota y los datos del adoptante elegido.
+              Ahí vas a ver el nombre de la mascota, los datos del adoptante elegido y dos acciones:
+              <strong> confirmar la adopción</strong> o <strong>cancelarla</strong>.
             </p>
           </ManualStep>
 
@@ -104,19 +105,28 @@ export default function ManualAdopcion() {
             </p>
           </ManualStep>
 
-          <ManualStep number={6} title="Cuando confirme, la mascota pasa a ser suya" icon={XCircle}>
+          <ManualStep number={6} title="Cuando se confirma, la mascota pasa a ser suya" icon={XCircle}>
             <p>
-              En cuanto el adoptante abre el link y confirma, la mascota pasa a estar
+              La adopción se puede confirmar de dos maneras: <strong>el adoptante</strong> abre el
+              link y confirma, o <strong>vos confirmás</strong> directamente desde
+              "Adopciones pendientes". En cualquiera de los dos casos, la mascota pasa a estar
               <strong> oficialmente adoptada</strong>:
             </p>
             <ul className="list-disc pl-5 space-y-1">
-              <li>Deja de aparecer en tus pendientes.</li>
-              <li>Aparece en el "Mis mascotas" del nuevo dueño.</li>
-              <li>La chapita QR queda asociada a su cuenta.</li>
+              <li>Deja de aparecer en tus pendientes y deja de ser tu responsabilidad.</li>
+              <li>Aparece en el "Mis mascotas" del nuevo dueño (si tiene cuenta).</li>
+              <li>La chapita QR queda asociada a los datos del nuevo dueño.</li>
             </ul>
+            <ManualCallout tone="info" title="Confirmar vos la adopción" icon={Info}>
+              <p>
+                Si el adoptante todavía no se registró, podés confirmar la adopción igual desde
+                "Adopciones pendientes". La mascota queda oficialmente adoptada y, al escanear
+                su QR, aparecerán los datos del nuevo dueño.
+              </p>
+            </ManualCallout>
             <ManualCallout tone="warning" title="¿Cambió el acuerdo?" icon={Info}>
               <p>
-                Mientras el adoptante no confirme, podés <strong>cancelar la adopción</strong> desde
+                Mientras la adopción no esté confirmada, podés <strong>cancelarla</strong> desde
                 "Adopciones pendientes". La mascota vuelve a estar disponible y el adoptante recibe el aviso.
               </p>
             </ManualCallout>

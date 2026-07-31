@@ -1,4 +1,4 @@
-import { Clock, PawPrint, User, AlertTriangle } from 'lucide-react';
+import { Clock, PawPrint, User, AlertTriangle, Check } from 'lucide-react';
 
 export default function MockPendingList() {
   return (
@@ -21,12 +21,17 @@ export default function MockPendingList() {
             </div>
             <p className="text-[9px] text-gray-400 mt-1">Creada: 30/07/2026</p>
           </div>
-          <button className="shrink-0 px-2.5 py-1.5 bg-red-50 text-red-600 rounded-xl text-[10px] font-medium flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3" /> Cancelar
-          </button>
+          <div className="flex flex-col gap-1.5 shrink-0 sm:flex-row sm:items-center">
+            <button className="shrink-0 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-[10px] font-medium flex items-center justify-center gap-1">
+              <Check className="w-3 h-3" /> Confirmar
+            </button>
+            <button className="shrink-0 px-2.5 py-1.5 bg-red-50 text-red-600 rounded-xl text-[10px] font-medium flex items-center justify-center gap-1">
+              <AlertTriangle className="w-3 h-3" /> Cancelar
+            </button>
+          </div>
         </div>
         <div className="mt-3 p-2 bg-amber-50 rounded-xl border border-amber-100 text-[10px] text-amber-700">
-          Pendiente: el adoptante debe registrarse para confirmar. Si no se concreta, podés cancelar y la mascota vuelve a tu lista.
+          El adoptante puede confirmar al abrir el link, o podés confirmar vos para cerrar la adopción. Si no se concreta, podés cancelar.
         </div>
       </div>
     </div>

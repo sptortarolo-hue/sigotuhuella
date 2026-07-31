@@ -352,6 +352,46 @@ router.get('/public/:shareToken', async (req, res) => {
       }
     }
 
+    // Adopción confirmada por el dueño (sin reclamo del adoptante)
+    const confirmedQrResult = await pool.query(
+      `SELECT aa.*, qi.code
+       FROM qr_identifiers qi
+       JOIN adoption_assignments aa ON aa.qr_id = qi.id
+       WHERE qi.share_token = $1 AND aa.status = 'completed' AND aa.adopter_id IS NULL
+       LIMIT 1`,
+      [req.params.shareToken]
+    );
+
+    if (confirmedQrResult.rows.length > 0) {
+      const ass = confirmedQrResult.rows[0];
+      const petResult = await pool.query(
+        `SELECT p.id, p.name, p.species, p.breed, p.color, p.description,
+                p.location, p.status
+         FROM pets p WHERE p.id = $1`,
+        [ass.pet_id]
+      );
+      if (petResult.rows.length > 0) {
+        const pet = petResult.rows[0];
+        return res.json({
+          found: true,
+          owner_confirmed: true,
+          pet: {
+            id: pet.id,
+            name: pet.name,
+            species: pet.species,
+            breed: pet.breed,
+            color: pet.color,
+            description: pet.description,
+            location: pet.location,
+            has_avatar: false,
+            owner_name: ass.adopter_name,
+            owner_phone: ass.adopter_phone,
+          },
+          code: ass.code,
+        });
+      }
+    }
+
     const qrResult = await pool.query(
       `SELECT qi.*, mp.id as pet_id, mp.name, mp.species, mp.breed, mp.color,
               mp.gender, mp.chip_id, mp.weight_kg, mp.birth_date,
