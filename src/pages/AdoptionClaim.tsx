@@ -105,6 +105,12 @@ export default function AdoptionClaim() {
           </p>
         </div>
 
+        {data.owner_confirmed && (
+          <div className="mb-4 p-3 bg-emerald-50 text-emerald-700 rounded-xl text-sm border border-emerald-100">
+            El dueño ya confirmó la entrega de <strong>{ass.pet_name}</strong>. Confirmá vos para recibirla en tu cuenta junto con su chapita QR.
+          </div>
+        )}
+
         <div className="bg-brand-bg rounded-2xl p-4 mb-6 space-y-2">
           <div className="flex items-center gap-2 text-sm">
             <PawPrint className="w-4 h-4 text-brand-primary" />

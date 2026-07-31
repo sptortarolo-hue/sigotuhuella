@@ -19,6 +19,11 @@ async function transferToAdopter(client, assignment, adopterUserId) {
   );
   const myPet = myPetResult.rows[0];
   if (assignment.qr_id) {
+    // Desvincular el QR de cualquier dueño anterior antes de transferirlo
+    await client.query(
+      'UPDATE my_pets SET qr_id = NULL WHERE qr_id = $1',
+      [assignment.qr_id]
+    );
     await client.query(
       'UPDATE qr_identifiers SET my_pet_id = $1, assigned_at = NOW() WHERE id = $2',
       [myPet.id, assignment.qr_id]
@@ -106,10 +111,10 @@ router.post('/claim/:token', requireAuth, async (req, res) => {
     await client.query('BEGIN');
 
     const assignResult = await client.query(
-      `SELECT aa.*, p.species, p.breed, p.color, p.name as pet_name
+      `SELECT aa.*, p.species, p.breed, p.color, p.name as pet_name, p.status as pet_status
        FROM adoption_assignments aa
        JOIN pets p ON p.id = aa.pet_id
-       WHERE aa.token = $1 AND aa.status = 'pending_adopter'`,
+       WHERE aa.token = $1 AND (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))`,
       [req.params.token]
     );
 
@@ -137,11 +142,13 @@ router.post('/claim/:token', requireAuth, async (req, res) => {
       [assignment.pet_id]
     );
 
-    await client.query(
-      `INSERT INTO pet_history (pet_id, event_type, description, to_status, changed_by)
-       VALUES ($1, 'status_change', 'Mascota adoptada', 'adopted', $2)`,
-      [assignment.pet_id, req.user.id]
-    );
+    if (assignment.pet_status !== 'adopted') {
+      await client.query(
+        `INSERT INTO pet_history (pet_id, event_type, description, to_status, changed_by)
+         VALUES ($1, 'status_change', 'Mascota adoptada', 'adopted', $2)`,
+        [assignment.pet_id, req.user.id]
+      );
+    }
 
     await client.query('COMMIT');
     res.json({ success: true, myPet, share_token: assignment.qr_id ? (await pool.query('SELECT share_token FROM qr_identifiers WHERE id = $1', [assignment.qr_id])).rows[0]?.share_token : null });
@@ -193,9 +200,13 @@ router.post('/confirm/:token', requireAuth, async (req, res) => {
     const assignment = assignResult.rows[0];
 
     // Si el adoptante ya tiene cuenta, transferir mascota + QR automáticamente
+    const normalizedAdopterPhone = normalizePhone(assignment.adopter_phone);
     const adopterRes = await client.query(
-      'SELECT id, email, display_name, phone, notification_preference FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
-      [assignment.adopter_email]
+      `SELECT id, email, display_name, phone, notification_preference FROM users
+       WHERE (LOWER(email) = LOWER($1) AND $1 IS NOT NULL AND $1 <> '')
+          OR ($2 IS NOT NULL AND phone = $2)
+       LIMIT 1`,
+      [assignment.adopter_email, normalizedAdopterPhone]
     );
     const adopter = adopterRes.rows[0];
 
@@ -278,7 +289,7 @@ router.get('/check-token/:token', async (req, res) => {
        FROM adoption_assignments aa
        JOIN pets p ON p.id = aa.pet_id
        JOIN users u ON u.id = aa.inviter_id
-       WHERE aa.token = $1 AND aa.status = 'pending_adopter'`,
+       WHERE aa.token = $1 AND (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))`,
       [req.params.token]
     );
     if (result.rows.length === 0) {
@@ -287,6 +298,7 @@ router.get('/check-token/:token', async (req, res) => {
     const assignment = result.rows[0];
     res.json({
       found: true,
+      owner_confirmed: assignment.status === 'completed' && !assignment.adopter_id,
       assignment: {
         id: assignment.id,
         pet_name: assignment.pet_name,

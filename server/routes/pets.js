@@ -650,20 +650,34 @@ router.put('/:id', requireAuth, async (req, res) => {
 
 router.delete('/:id', requireAuth, async (req, res) => {
   const petId = req.params.id;
+  const client = await pool.connect();
   try {
-    const existing = await pool.query('SELECT * FROM pets WHERE id = $1', [petId]);
+    await client.query('BEGIN');
+    const existing = await client.query('SELECT * FROM pets WHERE id = $1', [petId]);
     if (existing.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Pet not found' });
     }
     const pet = existing.rows[0];
     if (req.user.role !== 'admin' && pet.created_by !== req.user.id) {
+      await client.query('ROLLBACK');
       return res.status(403).json({ error: 'Not authorized' });
     }
-    await pool.query('DELETE FROM pets WHERE id = $1', [petId]);
+    // Cancelar adopciones pendientes vinculadas antes de borrar la mascota
+    await client.query(
+      `UPDATE adoption_assignments SET status = 'returned', returned_at = NOW(), return_reason = $1
+       WHERE pet_id = $2 AND status = 'pending_adopter'`,
+      ['Mascota eliminada', petId]
+    );
+    await client.query('DELETE FROM pets WHERE id = $1', [petId]);
+    await client.query('COMMIT');
     res.json({ message: 'Pet deleted' });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Delete pet error:', err);
     res.status(500).json({ error: 'Failed to delete pet' });
+  } finally {
+    client.release();
   }
 });
 
@@ -1365,7 +1379,7 @@ router.post('/public', async (req, res) => {
         matchWhatsAppToPets(pet.id).catch(e => console.error('Matching WhatsApp->pets error:', e));
 
         // Auto-broadcast to WhatsApp groups for active statuses
-        const broadcastStatuses = ['lost', 'for_adoption', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];
+        const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];
         if (broadcastStatuses.includes(pet.status)) {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
         }

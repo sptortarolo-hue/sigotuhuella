@@ -53,14 +53,17 @@ router.post('/register', async (req, res) => {
       }
     } catch (e) { /* ignore invite errors on registration */ }
 
-    // Auto-claim any pending adoption assignments for this email
+    // Auto-claim any pending adoption assignments for this email/phone
     try {
+      const normalizedPhone = phone ? phone.replace(/\D/g, '') : null;
       const pendingAdoptions = await pool.query(
-        `SELECT aa.id, aa.pet_id, aa.qr_id, aa.inviter_id, p.name as pet_name, p.species, p.breed, p.color
+        `SELECT aa.id, aa.pet_id, aa.qr_id, aa.inviter_id, p.name as pet_name, p.species, p.breed, p.color, p.status as pet_status
          FROM adoption_assignments aa
          JOIN pets p ON p.id = aa.pet_id
-         WHERE aa.adopter_email = $1 AND aa.status = 'pending_adopter'`,
-        [email]
+         WHERE (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))
+           AND ((LOWER(aa.adopter_email) = LOWER($1) AND $1 IS NOT NULL AND $1 <> '')
+             OR ($2 IS NOT NULL AND aa.adopter_phone = $2))`,
+        [email, normalizedPhone]
       );
       for (const ass of pendingAdoptions.rows) {
         const myPetResult = await pool.query(
@@ -72,6 +75,7 @@ router.post('/register', async (req, res) => {
         const myPetId = myPetResult.rows[0].id;
 
         if (ass.qr_id) {
+          await pool.query('UPDATE my_pets SET qr_id = NULL WHERE qr_id = $1', [ass.qr_id]);
           await pool.query('UPDATE qr_identifiers SET my_pet_id = $1, assigned_at = NOW() WHERE id = $2', [myPetId, ass.qr_id]);
           await pool.query('UPDATE my_pets SET qr_id = $1 WHERE id = $2', [ass.qr_id, myPetId]);
         }
@@ -86,11 +90,13 @@ router.post('/register', async (req, res) => {
           [ass.pet_id]
         );
 
-        await pool.query(
-          `INSERT INTO pet_history (pet_id, event_type, description, to_status, changed_by)
-           VALUES ($1, 'status_change', 'Mascota adoptada', 'adopted', $2)`,
-          [ass.pet_id, user.id]
-        );
+        if (ass.pet_status !== 'adopted') {
+          await pool.query(
+            `INSERT INTO pet_history (pet_id, event_type, description, to_status, changed_by)
+             VALUES ($1, 'status_change', 'Mascota adoptada', 'adopted', $2)`,
+            [ass.pet_id, user.id]
+          );
+        }
 
         // Notificar al dueño
         pool.query('SELECT id, email, display_name, phone, notification_preference FROM users WHERE id = $1', [ass.inviter_id]).then(ownerRes => {
