@@ -134,10 +134,10 @@ const handleSubmit = async (e: React.FormEvent) => {
        return;
      }
 
-     if (!formData.coordinates) {
-       setError('Por favor activa la ubicación en el mapa haciendo click donde fue visto.');
-       return;
-     }
+      if (formData.status !== PetStatus.FOR_ADOPTION_SIMPLE && !formData.coordinates) {
+        setError('Por favor activa la ubicación en el mapa haciendo click donde fue visto.');
+        return;
+      }
 
      if (!formData.description.trim()) {
        setError('La descripción es obligatoria.');
@@ -177,8 +177,8 @@ const handleSubmit = async (e: React.FormEvent) => {
          isDewormed: formData.isDewormed,
          description: formData.description,
          location: formData.location,
-         latitude: formData.coordinates.lat,
-         longitude: formData.coordinates.lng,
+         latitude: formData.coordinates?.lat ?? null,
+         longitude: formData.coordinates?.lng ?? null,
          contactInfo: formData.contactInfo,
          images,
        };
@@ -246,7 +246,11 @@ const handleSubmit = async (e: React.FormEvent) => {
             <div className="bg-white p-6 sm:p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl text-center">
               <CheckCircle2 className="w-20 h-20 text-green-500 mx-auto mb-6" />
               <h1 className="text-4xl font-serif font-bold text-brand-primary mb-4">¡Publicado con éxito!</h1>
-              <p className="text-gray-500 mb-8">Tu reporte ya es visible para toda la comunidad de Sicardi y Garibaldi.</p>
+              <p className="text-gray-500 mb-8">
+                {formData.status === PetStatus.FOR_ADOPTION_SIMPLE
+                  ? 'Tu publicación ya es visible en la galería de adopción.'
+                  : 'Tu reporte ya es visible para toda la comunidad de Sicardi y Garibaldi.'}
+              </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button
@@ -465,50 +469,66 @@ const handleSubmit = async (e: React.FormEvent) => {
               </div>
 
               <div className="space-y-4">
-                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 flex items-center gap-2">
-                  <Locate className="w-3 h-3" />
-                  ¿Dónde fue visto por última vez? (Marca en el mapa) *
-                </label>
+                {formData.status === PetStatus.FOR_ADOPTION_SIMPLE ? (
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Zona / Barrio *</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="Ej: Villa Elvira, Arana"
+                      className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+                      value={formData.location}
+                      onChange={e => setFormData({ ...formData, location: e.target.value })}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 flex items-center gap-2">
+                      <Locate className="w-3 h-3" />
+                      ¿Dónde fue visto por última vez? (Marca en el mapa) *
+                    </label>
 
-                <MapLoader>
-                  <LocationPicker
-                    initialCenter={DEFAULT_CENTER}
-                    selectedLocation={formData.coordinates || undefined}
-                    onLocationSelect={async (coords) => {
-                      setFormData(prev => ({ ...prev, coordinates: coords }));
-                      try {
-                        const res = await fetch(
-                          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}&addressdetails=1&accept-language=es`,
-                          { headers: { 'User-Agent': 'SigoTuHuella/1.0' } }
-                        );
-                        const data = await res.json();
-                        if (data?.address) {
-                          const parts: string[] = [];
-                          if (data.address.road) parts.push(data.address.road);
-                          if (data.address.house_number) parts.push(data.address.house_number);
-                          const street = parts.join(' ');
-                          if (street) {
-                            setFormData(prev => ({ ...prev, location: street }));
+                    <MapLoader>
+                      <LocationPicker
+                        initialCenter={DEFAULT_CENTER}
+                        selectedLocation={formData.coordinates || undefined}
+                        onLocationSelect={async (coords) => {
+                          setFormData(prev => ({ ...prev, coordinates: coords }));
+                          try {
+                            const res = await fetch(
+                              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}&addressdetails=1&accept-language=es`,
+                              { headers: { 'User-Agent': 'SigoTuHuella/1.0' } }
+                            );
+                            const data = await res.json();
+                            if (data?.address) {
+                              const parts: string[] = [];
+                              if (data.address.road) parts.push(data.address.road);
+                              if (data.address.house_number) parts.push(data.address.house_number);
+                              const street = parts.join(' ');
+                              if (street) {
+                                setFormData(prev => ({ ...prev, location: street }));
+                              }
+                            }
+                          } catch (e) {
+                            console.error('Error al obtener dirección:', e);
                           }
-                        }
-                      } catch (e) {
-                        console.error('Error al obtener dirección:', e);
-                      }
-                    }}
-                  />
-                </MapLoader>
+                        }}
+                      />
+                    </MapLoader>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Referencia escrita (Calle, esquina, etc.)</label>
-                  <input
-                    required
-                    type="text"
-                    placeholder="Ej: Calle 610 y 11"
-                    className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                    value={formData.location}
-                    onChange={e => setFormData({ ...formData, location: e.target.value })}
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Referencia escrita (Calle, esquina, etc.)</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder="Ej: Calle 610 y 11"
+                        className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
+                        value={formData.location}
+                        onChange={e => setFormData({ ...formData, location: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="space-y-2">
