@@ -73,6 +73,9 @@ export default function MyPetsPortal() {
   const [loading, setLoading] = useState(true);
   const [pendingAdoptions, setPendingAdoptions] = useState<any[]>([]);
   const [pendingAdoptionsLoading, setPendingAdoptionsLoading] = useState(false);
+  const [incomingAdoptions, setIncomingAdoptions] = useState<any[]>([]);
+  const [incomingAdoptionsLoading, setIncomingAdoptionsLoading] = useState(false);
+  const [incomingClaimingId, setIncomingClaimingId] = useState<string | null>(null);
   const [returningId, setReturningId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -134,8 +137,18 @@ export default function MyPetsPortal() {
     finally { setPendingAdoptionsLoading(false); }
   };
 
+  const fetchIncomingAdoptions = async () => {
+    try {
+      setIncomingAdoptionsLoading(true);
+      const data = await api.adoptionAssignments.myPending();
+      setIncomingAdoptions(data.assignments || []);
+    } catch (e) { console.error(e); }
+    finally { setIncomingAdoptionsLoading(false); }
+  };
+
   useEffect(() => {
     if (user) fetchPendingAdoptions();
+    if (user) fetchIncomingAdoptions();
   }, [user]);
 
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -302,6 +315,69 @@ export default function MyPetsPortal() {
           </button>
         </div>
       </div>
+
+      {incomingAdoptions.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Heart className="w-5 h-5 text-brand-primary" />
+            <h2 className="text-lg font-bold text-brand-primary">Adopción en espera</h2>
+            {incomingAdoptionsLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+          </div>
+          <div className="space-y-3">
+            {incomingAdoptions.map((ass: any) => (
+              <div key={ass.id} className="bg-white rounded-2xl border border-brand-accent p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <PawPrint className="w-4 h-4 text-brand-primary shrink-0" />
+                      <h3 className="text-sm font-bold text-gray-800 truncate">{ass.pet_name}</h3>
+                      <span className="text-[10px] px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded-full font-medium">
+                        {ass.species === 'dog' ? 'Perro' : ass.species === 'cat' ? 'Gato' : ass.species}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                      <span className="flex items-center gap-1"><User className="w-3 h-3" /> {ass.inviter_name || 'Alguien'}</span>
+                    </div>
+                    {ass.qr_code && (
+                      <p className="text-[10px] text-gray-400 mt-1">QR asignado: {ass.qr_code}</p>
+                    )}
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Creada: {new Date(ass.created_at).toLocaleDateString('es-AR')}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`¿Confirmás que ${ass.pet_name} pasa a ser tuya? La mascota y su chapita QR se asociarán a tu cuenta.`)) return;
+                        setIncomingClaimingId(ass.id);
+                        try {
+                          await api.adoptionAssignments.claim(ass.token);
+                          await fetchIncomingAdoptions();
+                          await fetchPets();
+                        } catch (e: any) {
+                          alert(e.message || 'Error al confirmar');
+                        } finally {
+                          setIncomingClaimingId(null);
+                        }
+                      }}
+                      disabled={incomingClaimingId === ass.id}
+                      className="shrink-0 px-3 py-1.5 bg-brand-primary text-white rounded-xl text-xs font-medium hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-1"
+                    >
+                      {incomingClaimingId === ass.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                      Confirmar adopción
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 p-2 bg-brand-accent/20 rounded-xl border border-brand-accent text-[11px] text-gray-600">
+                  {ass.status === 'completed' && !ass.adopter_id
+                    ? '✅ El dueño ya confirmó la entrega. Confirmá vos para recibirla en tu cuenta.'
+                    : '⏳ Te confiaron esta mascota. Confirmá para recibirla junto con su chapita QR.'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {pendingAdoptions.length > 0 && (
         <div className="mb-8">

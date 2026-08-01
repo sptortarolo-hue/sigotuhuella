@@ -14,6 +14,7 @@ export default function VerifyEmail() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
+  const pendingRedirect = sessionStorage.getItem('pendingRedirect');
 
   useEffect(() => {
     if (!token) {
@@ -69,12 +70,21 @@ export default function VerifyEmail() {
             <p className="text-gray-600 mb-6">
               Tu cuenta está activa. Ya podés acceder a todas las funcionalidades.
             </p>
-            <button
-              onClick={() => navigate('/', { replace: true })}
-              className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all"
-            >
-              Ir al inicio
-            </button>
+            {pendingRedirect ? (
+              <button
+                onClick={() => { sessionStorage.removeItem('pendingRedirect'); navigate(pendingRedirect, { replace: true }); }}
+                className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all"
+              >
+                Continuar la adopción
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate('/', { replace: true })}
+                className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all"
+              >
+                Ir al inicio
+              </button>
+            )}
           </>
         )}
 

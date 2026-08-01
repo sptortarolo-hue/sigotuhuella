@@ -11,7 +11,7 @@ export default function Login() {
   const { user, isAdmin, loading, login, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as any)?.from || '/';
+  const [from, setFrom] = useState<string>((location.state as any)?.from || '/');
   const [authLoading, setAuthLoading] = useState(false);
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'login' | 'register' | 'complete-registration' | 'verify-email' | 'link-google'>('login');
@@ -48,7 +48,23 @@ export default function Login() {
     const params = new URLSearchParams(location.search);
     if (params.get('case')) setPendingCase(params.get('case')!);
     if (params.get('invite')) setInviteToken(params.get('invite')!);
+    const redirectParam = params.get('redirect');
+    if (redirectParam && redirectParam.startsWith('/')) {
+      sessionStorage.setItem('pendingRedirect', redirectParam);
+      setFrom(redirectParam);
+    } else if (sessionStorage.getItem('pendingRedirect')) {
+      setFrom(sessionStorage.getItem('pendingRedirect')!);
+    }
+    if (params.get('mode') === 'register') {
+      setMode('register');
+    }
   }, [location.search]);
+
+  const goAfterAuth = () => {
+    const target = from || sessionStorage.getItem('pendingRedirect') || '/';
+    sessionStorage.removeItem('pendingRedirect');
+    navigate(target, { replace: true });
+  };
   const googleInitedRef = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,7 +89,7 @@ export default function Login() {
       if (inviteToken) {
         try { await fetch(`/api/invites/${inviteToken}/accept`, { method: 'POST', headers: { 'Authorization': `Bearer ${data.token}` } }); } catch {}
       }
-      navigate(from, { replace: true });
+      goAfterAuth();
         return;
       }
 
@@ -115,7 +131,7 @@ export default function Login() {
       if (inviteToken) {
         try { await fetch(`/api/invites/${inviteToken}/accept`, { method: 'POST', headers: { 'Authorization': `Bearer ${data.token}` } }); } catch {}
       }
-      navigate(from, { replace: true });
+      goAfterAuth();
     } catch (err: any) {
       if (err.message?.includes('Email no verificado') || err.message?.includes('email no verificado')) {
         setMode('verify-email');
@@ -140,7 +156,7 @@ export default function Login() {
         return;
       }
       login(data.token, data.user);
-      navigate(from, { replace: true });
+      goAfterAuth();
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión con Google');
     } finally {
@@ -158,7 +174,7 @@ export default function Login() {
       const data = await api.auth.linkGoogle(googleCred, linkingPassword);
       (window as any).__pendingGoogleCred = null;
       login(data.token, data.user);
-      navigate(from, { replace: true });
+      goAfterAuth();
     } catch (err: any) {
       setError(err.message || 'Error al vincular cuenta');
     } finally {

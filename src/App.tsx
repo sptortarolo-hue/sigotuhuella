@@ -129,6 +129,7 @@ export default function App() {
             {/* Standalone routes with mobile shell */}
             <Route element={<PublicMobileLayout />}>
               <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Login />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />
             </Route>
