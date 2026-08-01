@@ -23,11 +23,19 @@ const GENDER_OPTIONS = [
   { value: 'unknown', label: 'No sé' },
 ];
 
+const PET_TYPE_OPTIONS = [
+  { value: 'own', label: 'Propia', desc: 'Mascota de la familia' },
+  { value: 'foster', label: 'Tránsito', desc: 'Está de paso en casa' },
+  { value: 'adoption', label: 'Adopción', desc: 'Busca un hogar' },
+  { value: 'community', label: 'Comunitaria', desc: 'De la cuadra/barrio' },
+];
+
 const emptyPetForm = {
   name: '', species: 'dog' as 'dog' | 'cat' | 'other', breed: '', color: '',
   gender: 'unknown' as string, birth_date: '', bio: '',
   is_vaccinated: false, is_sterilized: false, is_dewormed: false,
   behavior_notes: '', medical_notes: '', emergency_phone: '',
+  pet_type: 'own',
 };
 
 export default function SolicitarChapita() {
@@ -538,6 +546,32 @@ export default function SolicitarChapita() {
                 </div>
               </div>
 
+              <div>
+                <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Clasificación</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {PET_TYPE_OPTIONS.map(opt => (
+                    <button key={opt.value}
+                      onClick={() => {
+                        setPet(prev => ({ ...prev, pet_type: opt.value }));
+                        if (opt.value !== 'adoption') {
+                          setForAdopter(false);
+                          setAdopterName('');
+                          setAdopterPhone('');
+                        }
+                      }}
+                      className={`p-3 rounded-xl border text-xs font-medium text-left transition-all ${
+                        pet.pet_type === opt.value
+                          ? 'border-brand-primary bg-brand-primary/10 text-brand-primary'
+                          : 'border-brand-accent hover:border-brand-primary/50 text-gray-600'
+                      }`}
+                    >
+                      <p className="font-bold">{opt.label}</p>
+                      <p className="text-[10px] opacity-70 mt-0.5">{opt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Raza</label>
@@ -629,37 +663,41 @@ export default function SolicitarChapita() {
           </div>
 
           <div className="border-t border-brand-accent pt-8">
-            <div className="mb-6 p-4 bg-amber-50 rounded-2xl border border-amber-200">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input type="checkbox" checked={forAdopter} onChange={e => setForAdopter(e.target.checked)}
-                  className="mt-1 w-4 h-4 rounded accent-brand-primary" />
-                <div>
-                  <p className="text-sm font-bold text-amber-800">La mascota se va con el adoptante</p>
-                  <p className="text-xs text-amber-600 mt-0.5">La chapita QR tendrá los datos del adoptante. Él recibirá un link para registrarse y confirmar la adopción.</p>
-                </div>
-              </label>
-            </div>
-
-            {forAdopter && (
-              <div className="mb-6 p-4 bg-brand-bg rounded-2xl border border-brand-accent space-y-3">
-                <h3 className="text-sm font-bold text-brand-primary flex items-center gap-2">
-                  <Heart className="w-4 h-4" /> Datos del adoptante
-                </h3>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre *</label>
-                  <input type="text" required value={adopterName} onChange={e => setAdopterName(e.target.value)}
-                    className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
-                    placeholder="Nombre del adoptante" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                    <Phone className="w-3 h-3" /> WhatsApp *
+            {pet.pet_type === 'adoption' && (
+              <>
+                <div className="mb-6 p-4 bg-amber-50 rounded-2xl border border-amber-200">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" checked={forAdopter} onChange={e => setForAdopter(e.target.checked)}
+                      className="mt-1 w-4 h-4 rounded accent-brand-primary" />
+                    <div>
+                      <p className="text-sm font-bold text-amber-800">¿Ya se va con el adoptante?</p>
+                      <p className="text-xs text-amber-600 mt-0.5">La chapita QR tendrá los datos del adoptante. Él recibirá un link para registrarse y confirmar la adopción.</p>
+                    </div>
                   </label>
-                  <input type="tel" required value={adopterPhone} onChange={e => setAdopterPhone(e.target.value)}
-                    className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
-                    placeholder="+54 9 221 123456" />
                 </div>
-              </div>
+
+                {forAdopter && (
+                  <div className="mb-6 p-4 bg-brand-bg rounded-2xl border border-brand-accent space-y-3">
+                    <h3 className="text-sm font-bold text-brand-primary flex items-center gap-2">
+                      <Heart className="w-4 h-4" /> Datos del adoptante
+                    </h3>
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-widest text-gray-500">Nombre *</label>
+                      <input type="text" required value={adopterName} onChange={e => setAdopterName(e.target.value)}
+                        className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
+                        placeholder="Nombre del adoptante" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                        <Phone className="w-3 h-3" /> WhatsApp *
+                      </label>
+                      <input type="tel" required value={adopterPhone} onChange={e => setAdopterPhone(e.target.value)}
+                        className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
+                        placeholder="+54 9 221 123456" />
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             <h2 className="text-lg font-bold text-brand-primary flex items-center gap-2 mb-4">

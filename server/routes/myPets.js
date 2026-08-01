@@ -75,7 +75,9 @@ router.get('/', requireAuth, async (req, res) => {
       `SELECT mp.*,
         (SELECT count(*) FROM my_pet_photos WHERE my_pet_id = mp.id) as photo_count,
         (SELECT count(*) FROM my_pet_events WHERE my_pet_id = mp.id) as event_count,
-        (SELECT count(*) FROM pet_records WHERE my_pet_id = mp.id) as record_count
+        (SELECT count(*) FROM pet_records WHERE my_pet_id = mp.id) as record_count,
+        EXISTS(SELECT 1 FROM adoption_assignments aa JOIN pets p ON p.id = aa.pet_id
+               WHERE p.my_pet_id = mp.id AND aa.status = 'pending_adopter') as has_pending_adoption
        FROM my_pets mp
        LEFT JOIN my_pet_shares ms ON ms.pet_id = mp.id AND ms.user_id = $1
        WHERE mp.user_id = $1 OR ms.user_id IS NOT NULL
@@ -110,7 +112,9 @@ router.get('/:id', requireAuth, async (req, res) => {
 
     const result = await pool.query(
       `SELECT mp.*,
-        CASE WHEN qi.id IS NOT NULL THEN json_build_object('code', qi.code, 'share_token', qi.share_token) ELSE NULL END as qr_data
+        CASE WHEN qi.id IS NOT NULL THEN json_build_object('code', qi.code, 'share_token', qi.share_token) ELSE NULL END as qr_data,
+        EXISTS(SELECT 1 FROM adoption_assignments aa JOIN pets p ON p.id = aa.pet_id
+               WHERE p.my_pet_id = mp.id AND aa.status = 'pending_adopter') as has_pending_adoption
        FROM my_pets mp
        LEFT JOIN qr_identifiers qi ON qi.id = mp.qr_id
        WHERE mp.id = $1`,

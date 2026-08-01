@@ -306,6 +306,25 @@ router.post('/assign-by-token', requireAuth, async (req, res) => {
 
 router.get('/public/:shareToken', async (req, res) => {
   try {
+    // Verify the QR exists before anything else
+    const existsResult = await pool.query(
+      'SELECT id, my_pet_id, code FROM qr_identifiers WHERE share_token = $1',
+      [req.params.shareToken]
+    );
+
+    if (existsResult.rows.length === 0) {
+      if (/^\d+$/.test(req.params.shareToken)) {
+        const petQrResult = await pool.query(
+          'SELECT share_token FROM qr_identifiers WHERE my_pet_id = $1',
+          [req.params.shareToken]
+        );
+        if (petQrResult.rows.length > 0) {
+          return res.json({ found: false, exists: false, resolved_share_token: petQrResult.rows[0].share_token });
+        }
+      }
+      return res.json({ found: false, exists: false });
+    }
+
     // Check if QR is linked to a pending adoption assignment
     const adoptionQrResult = await pool.query(
       `SELECT aa.*, qi.code,
@@ -392,6 +411,11 @@ router.get('/public/:shareToken', async (req, res) => {
       }
     }
 
+    // QR existe pero no tiene mascota asignada y no hay adopción pendiente
+    if (existsResult.rows[0].my_pet_id === null) {
+      return res.json({ found: false, exists: true, share_token: req.params.shareToken });
+    }
+
     const qrResult = await pool.query(
       `SELECT qi.*, mp.id as pet_id, mp.name, mp.species, mp.breed, mp.color,
               mp.gender, mp.chip_id, mp.weight_kg, mp.birth_date,
@@ -411,22 +435,6 @@ router.get('/public/:shareToken', async (req, res) => {
       [req.params.shareToken]
     );
     if (qrResult.rows.length === 0) {
-      const existsResult = await pool.query(
-        'SELECT id FROM qr_identifiers WHERE share_token = $1',
-        [req.params.shareToken]
-      );
-      if (existsResult.rows.length > 0) {
-        return res.json({ found: false, exists: true, share_token: req.params.shareToken });
-      }
-      if (/^\d+$/.test(req.params.shareToken)) {
-        const petQrResult = await pool.query(
-          'SELECT share_token FROM qr_identifiers WHERE my_pet_id = $1',
-          [req.params.shareToken]
-        );
-        if (petQrResult.rows.length > 0) {
-          return res.json({ found: false, exists: false, resolved_share_token: petQrResult.rows[0].share_token });
-        }
-      }
       return res.json({ found: false, exists: false });
     }
 

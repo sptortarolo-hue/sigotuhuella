@@ -760,7 +760,7 @@ export default function MyPetDetail() {
         </div>
       </div>
 
-      {pet.pet_type === 'adoption' && (
+      {pet.pet_type === 'adoption' && !pet.has_pending_adoption && (
         <button onClick={() => { setShowAdoptionGiveModal(true); setAdoptionGiveDone(false); setAdopterName(''); setAdopterEmail(''); setAdopterPhone(''); }}
           className="w-full mb-6 py-3 bg-rose-50 text-rose-700 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors border border-rose-200"
         >

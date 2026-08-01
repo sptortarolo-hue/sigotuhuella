@@ -101,8 +101,8 @@ router.post('/', async (req, res) => {
           `INSERT INTO my_pets (user_id, name, species, breed, color, gender, birth_date, bio,
             personality_tags, is_vaccinated, is_sterilized, is_dewormed,
             behavior_notes, medical_notes, emergency_phone,
-            avatar_image, avatar_mime_type)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+            avatar_image, avatar_mime_type, pet_type)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
            RETURNING *`,
           [
             userId, pet.name, pet.species, pet.breed || null, pet.color || null,
@@ -111,6 +111,7 @@ router.post('/', async (req, res) => {
             pet.is_vaccinated || false, pet.is_sterilized || false, pet.is_dewormed || false,
             pet.behavior_notes || null, pet.medical_notes || null, pet.emergency_phone || null,
             pet.avatar_image || null, pet.avatar_mime_type || null,
+            'adoption',
           ]
         );
         my_pet_id = myPetResult.rows[0].id;
@@ -290,8 +291,8 @@ ${claimLink}`;
       `INSERT INTO my_pets (user_id, name, species, breed, color, gender, birth_date, bio,
         personality_tags, is_vaccinated, is_sterilized, is_dewormed,
         behavior_notes, medical_notes, emergency_phone,
-        avatar_image, avatar_mime_type)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+        avatar_image, avatar_mime_type, pet_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
        RETURNING *`,
       [
         userId, pet.name, pet.species, pet.breed || null, pet.color || null,
@@ -300,6 +301,7 @@ ${claimLink}`;
         pet.is_vaccinated || false, pet.is_sterilized || false, pet.is_dewormed || false,
         pet.behavior_notes || null, pet.medical_notes || null, pet.emergency_phone || null,
         pet.avatar_image || null, pet.avatar_mime_type || null,
+        pet.pet_type || 'own',
       ]
     );
     const myPet = petResult.rows[0];
