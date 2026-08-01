@@ -8,7 +8,7 @@ import ImageCropper from '@/src/components/ImageCropper';
 import {
   PawPrint, Plus, Loader2, X, Save, Dog, Cat, Heart,
   Syringe, Scissors, Bug, Weight, Calendar, Sparkles, ChevronRight,
-  QrCode, ShieldCheck, Share2, Phone, Check, Clock, AlertTriangle,
+  QrCode, ShieldCheck, Share2, Phone, Check, Clock, AlertTriangle, User,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QrClaimModal from '@/src/components/QrClaimModal';
