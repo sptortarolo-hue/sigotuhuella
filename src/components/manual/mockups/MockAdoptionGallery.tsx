@@ -3,7 +3,7 @@ import { MapPin } from 'lucide-react';
 export default function MockAdoptionGallery() {
   const cards = [
     { name: 'Rocky', sub: 'Perro · Labrador', badge: 'En Adopción', chip: 'Perfil en la app', zone: 'La Plata' },
-    { name: 'Luna', sub: 'Gata · Mestiza', badge: 'Aviso de adopción', chip: '', zone: 'Tolosa' },
+    { name: 'Luna', sub: 'Gata · Mestiza', badge: 'En adopción (solo difusión)', chip: '', zone: 'Tolosa' },
   ];
 
   return (

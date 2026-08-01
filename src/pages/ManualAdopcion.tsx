@@ -386,13 +386,13 @@ export default function ManualAdopcion() {
               </p>
             </ManualStep>
 
-            <ManualStep number={2} title="Buscá un aviso de adopción" icon={Search}
-              visual={<UiFrame label={'Los avisos sin perfil se identifican con el estado "Aviso de adopción".'}><MockAdoptionGallery /></UiFrame>}
+            <ManualStep number={2} title="Buscá una adopción de difusión" icon={Search}
+              visual={<UiFrame label={'Las publicaciones sin perfil se identifican con el estado "En adopción (solo difusión)".'}><MockAdoptionGallery /></UiFrame>}
             >
               <p>
-                Las mascotas <strong>sin perfil</strong> se publican como
-                <strong> "Aviso de adopción"</strong> en la misma galería. Mirá la ficha para
-                conocer la historia y los datos de la mascota.
+                Las mascotas <strong>sin perfil</strong> se publican en
+                <strong> "en adopción (solo difusión)"</strong> en la misma galería. Mirá la ficha
+                para conocer la historia y los datos de la mascota.
               </p>
             </ManualStep>
 

@@ -52,7 +52,7 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
      [PetStatus.ACCIDENTED]: 'Accidentado',
      [PetStatus.NEEDS_ATTENTION]: 'Necesita Atención',
     [PetStatus.FOR_ADOPTION]: 'En Adopción',
-    [PetStatus.FOR_ADOPTION_SIMPLE]: 'Aviso de adopción',
+    [PetStatus.FOR_ADOPTION_SIMPLE]: 'En adopción (solo difusión)',
     [PetStatus.ADOPTED]: 'Adoptado',
      [PetStatus.REUNITED]: 'Reencuentro',
      [PetStatus.TRANSITADA]: 'En Tránsito',

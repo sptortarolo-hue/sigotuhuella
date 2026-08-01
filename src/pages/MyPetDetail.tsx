@@ -1134,7 +1134,7 @@ export default function MyPetDetail() {
                     const statusLabels: Record<string, string> = {
                       lost: 'Perdido', retained: 'Retenido', sighted: 'Avistado',
                       accidented: 'Accidentado', needs_attention: 'Necesita Atención',
-                      for_adoption: 'En Adopción', for_adoption_simple: 'Aviso de adopción',
+                      for_adoption: 'En Adopción', for_adoption_simple: 'En adopción (solo difusión)',
                       adopted: 'Adoptado', reunited: 'Reencontrado', transitada: 'En Tránsito',
                     };
                     const statusColors: Record<string, string> = {

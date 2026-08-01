@@ -364,7 +364,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                     {isStatusLocked ? (
                       <div className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent text-gray-800 font-medium">
                         {formData.status === PetStatus.FOR_ADOPTION_SIMPLE
-                          ? 'Aviso de adopción'
+                          ? 'En adopción (solo difusión)'
                           : formData.status}
                       </div>
                     ) : (
@@ -379,7 +379,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                         <option value={PetStatus.SIGHTED}>Fue avistado</option>
                         <option value={PetStatus.ACCIDENTED}>Está accidentado</option>
                         <option value={PetStatus.NEEDS_ATTENTION}>Necesita atención</option>
-                        <option value={PetStatus.FOR_ADOPTION_SIMPLE}>Aviso de adopción</option>
+                        <option value={PetStatus.FOR_ADOPTION_SIMPLE}>En adopción (solo difusión)</option>
                       </select>
                     )}
                   </div>

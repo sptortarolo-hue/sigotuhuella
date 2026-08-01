@@ -187,7 +187,7 @@ Me gustaría obtener más información.`;
     [PetStatus.ACCIDENTED]: 'Accidentado',
     [PetStatus.NEEDS_ATTENTION]: 'Necesita Atención',
     [PetStatus.FOR_ADOPTION]: 'En Adopción',
-    [PetStatus.FOR_ADOPTION_SIMPLE]: 'Aviso de adopción',
+    [PetStatus.FOR_ADOPTION_SIMPLE]: 'En adopción (solo difusión)',
     [PetStatus.REUNITED]: 'Reencuentro',
     [PetStatus.TRANSITADA]: 'En Tránsito',
   };
@@ -376,8 +376,9 @@ Me gustaría obtener más información.`;
               <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 mt-4 flex items-start gap-3">
                 <Info className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-orange-800 leading-relaxed">
-                  Este es un <strong>aviso de adopción</strong>. Coordiná la entrega directamente
-                  con la persona responsable por WhatsApp.
+                  Esta publicación es una <strong>adopción de solo difusión</strong>. La app no
+                  gestiona el traspaso: coordiná la entrega directamente con la persona
+                  responsable por WhatsApp.
                 </p>
               </div>
             )}
