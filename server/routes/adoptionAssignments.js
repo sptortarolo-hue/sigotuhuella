@@ -301,7 +301,7 @@ router.get('/check-token/:token', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT aa.*, p.name as pet_name, p.species, p.breed, p.color,
-              p.description, p.location, p.images,
+              p.description, p.location,
               u.display_name as inviter_name
        FROM adoption_assignments aa
        JOIN pets p ON p.id = aa.pet_id
