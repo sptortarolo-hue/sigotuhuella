@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import ManualLayout from '@/src/components/manual/ManualLayout';
 import ManualSectionTitle from '@/src/components/manual/ManualSectionTitle';
 import ManualStep from '@/src/components/manual/ManualStep';
@@ -11,10 +12,52 @@ import MockPendingList from '@/src/components/manual/mockups/MockPendingList';
 import MockWhatsAppMsg from '@/src/components/manual/mockups/MockWhatsAppMsg';
 import MockClaimPage from '@/src/components/manual/mockups/MockClaimPage';
 import MockSuccessScreen from '@/src/components/manual/mockups/MockSuccessScreen';
+import MockHomeButtons from '@/src/components/manual/mockups/MockHomeButtons';
+import MockAdoptionPublish from '@/src/components/manual/mockups/MockAdoptionPublish';
+import MockAdoptionGallery from '@/src/components/manual/mockups/MockAdoptionGallery';
+import MockPetDetailContact from '@/src/components/manual/mockups/MockPetDetailContact';
 import {
   Heart, HeartHandshake, PawPrint, Clock, MessageCircle, XCircle,
-  Link2, FileText, LogIn, Info, ShieldCheck,
+  Link2, FileText, LogIn, Info, ShieldCheck, Search, Camera, MapPin, ChevronRight,
 } from 'lucide-react';
+
+function SubSectionTitle({ id, icon: Icon, children }: { id: string; icon: any; children: ReactNode }) {
+  return (
+    <div id={id} className="scroll-mt-20 flex items-center gap-3 mb-8 sm:mb-10">
+      <div className="w-9 h-9 sm:w-11 sm:h-11 bg-brand-secondary/10 rounded-2xl flex items-center justify-center shrink-0">
+        <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-brand-secondary" />
+      </div>
+      <h3 className="text-xl sm:text-2xl font-serif font-bold text-brand-primary">{children}</h3>
+    </div>
+  );
+}
+
+function PathChooser({
+  items,
+}: {
+  items: { href: string; icon: any; iconBg: string; iconColor: string; title: string; desc: string }[];
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 my-8 sm:my-10">
+      {items.map((it) => (
+        <a
+          key={it.href}
+          href={it.href}
+          className="group bg-white rounded-[2rem] border-2 border-brand-accent hover:border-brand-primary p-5 sm:p-6 transition-all hover:shadow-lg hover:-translate-y-0.5"
+        >
+          <div className={`w-12 h-12 ${it.iconBg} rounded-2xl flex items-center justify-center mb-3`}>
+            <it.icon className={`w-6 h-6 ${it.iconColor}`} />
+          </div>
+          <h3 className="text-lg font-bold text-brand-primary mb-1">{it.title}</h3>
+          <p className="text-sm text-gray-500 leading-relaxed">{it.desc}</p>
+          <span className="inline-flex items-center gap-1 text-sm font-bold text-brand-primary mt-3 group-hover:translate-x-1 transition-transform">
+            Ver pasos <ChevronRight className="w-4 h-4" />
+          </span>
+        </a>
+      ))}
+    </div>
+  );
+}
 
 export default function ManualAdopcion() {
   return (
@@ -24,7 +67,7 @@ export default function ManualAdopcion() {
       icon={Heart}
       sections={[
         { id: 'doy-en-adopcion', label: 'Doy en adopción' },
-        { id: 'voy-a-adoptar', label: 'Voy a adoptar' },
+        { id: 'quiero-adoptar', label: 'Quiero adoptar' },
         { id: 'que-significa', label: '¿Qué significa adoptar?' },
       ]}
     >
@@ -33,6 +76,37 @@ export default function ManualAdopcion() {
         <ManualSectionTitle id="doy-en-adopcion" icon={HeartHandshake}>
           Doy en adopción una mascota
         </ManualSectionTitle>
+
+        <p className="text-base sm:text-lg text-gray-600 leading-relaxed max-w-3xl">
+          Hay <strong>dos formas de dar una mascota en adopción</strong>, según si ya está
+          registrada en la app o no. Elegí la que se ajusta a tu caso:
+        </p>
+
+        <PathChooser
+          items={[
+            {
+              href: '#con-registro',
+              icon: Heart,
+              iconBg: 'bg-rose-100',
+              iconColor: 'text-rose-500',
+              title: 'Con mascota registrada',
+              desc: 'La mascota ya está en "Mis mascotas". Elegís quién la adopta y la app gestiona el traspaso con un link de confirmación.',
+            },
+            {
+              href: '#sin-registro',
+              icon: Camera,
+              iconBg: 'bg-purple-100',
+              iconColor: 'text-purple-500',
+              title: 'Sin mascota registrada',
+              desc: 'La mascota no está cargada en la app. Publicás un aviso y los interesados te contactan por WhatsApp.',
+            },
+          ]}
+        />
+
+        {/* ── CAMINO 1: CON MASCOTA REGISTRADA ─────────────────── */}
+        <SubSectionTitle id="con-registro" icon={Heart}>
+          Camino 1 · La mascota ya está en "Mis mascotas"
+        </SubSectionTitle>
         <div className="space-y-10 sm:space-y-14">
           <ManualStep number={1} title={'Registrá tu mascota con la clasificación "Adopción"'} icon={PawPrint}
             visual={<UiFrame label={'En "Clasificación" elegí "Adopción · Busca un hogar": esa mascota queda marcada para adopción.'}><MockRegisterPet /></UiFrame>}
@@ -131,59 +205,203 @@ export default function ManualAdopcion() {
             </ManualCallout>
           </ManualStep>
         </div>
+
+        {/* ── CAMINO 2: SIN MASCOTA REGISTRADA ─────────────────── */}
+        <div className="mt-16 sm:mt-20">
+          <SubSectionTitle id="sin-registro" icon={Camera}>
+            Camino 2 · La mascota no está registrada
+          </SubSectionTitle>
+          <div className="space-y-10 sm:space-y-14">
+            <ManualStep number={1} title={'Tocá "Dar en adopción" desde el inicio'} icon={HeartHandshake}
+              visual={<UiFrame label="En la pantalla de inicio está el acceso directo para publicar una mascota en adopción."><MockHomeButtons /></UiFrame>}
+            >
+              <p>
+                Si la mascota no está cargada en la app, no hace falta registrarla antes:
+                tocá el botón <strong>"Dar en adopción"</strong> de la pantalla de inicio.
+              </p>
+              <p>
+                Es la forma más rápida de avisar que estás buscándole un hogar.
+              </p>
+            </ManualStep>
+
+            <ManualStep number={2} title="Completá el aviso con los datos de la mascota" icon={Camera}
+              visual={<UiFrame label="Completás foto, datos y tu WhatsApp de contacto para publicar el aviso."><MockAdoptionPublish /></UiFrame>}
+            >
+              <p>
+                Completá el aviso con la información de la mascota:
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Al menos <strong>una foto clara</strong> de la mascota.</li>
+                <li>Nombre (si lo tiene), especie y sexo.</li>
+                <li>Descripción, ubicación y <strong>tu WhatsApp de contacto</strong>.</li>
+              </ul>
+            </ManualStep>
+
+            <ManualStep number={3} title="Queda publicada en la sección de adopción" icon={Search}
+              visual={<UiFrame label={'El aviso aparece en la sección "En adopción" junto a las demás mascotas.'}><MockAdoptionGallery /></UiFrame>}
+            >
+              <p>
+                Al publicar, el aviso aparece en la sección <strong>"En adopción"</strong>
+                (el destino del botón <strong>"Quiero adoptar"</strong>) para que todos lo vean.
+              </p>
+            </ManualStep>
+
+            <ManualStep number={4} title="Los interesados te contactan por WhatsApp" icon={MessageCircle}
+              visual={<UiFrame label={'La ficha pública muestra tu WhatsApp con el botón "Contactar".'}><MockPetDetailContact /></UiFrame>}
+            >
+              <p>
+                Cuando alguien quiera adoptarla, abre la ficha y toca
+                <strong> "Contactar por WhatsApp"</strong>: ahí aparece el contacto que cargaste.
+              </p>
+              <p>
+                Coordinás vos la entrega directamente con la persona interesada.
+              </p>
+              <ManualCallout tone="info" title="Un aviso, no un traspaso gestionado" icon={Info}>
+                <p>
+                  Este camino es un <strong>aviso de difusión</strong>: la app no gestiona el traspaso
+                  ni genera un link de confirmación. Si preferís elegir vos al adoptante y que la mascota
+                  pase oficialmente con su QR a otra cuenta, usá el <a href="#con-registro" className="font-bold underline">Camino 1 (mascota registrada)</a>.
+                </p>
+              </ManualCallout>
+              <ManualCta to="/reportar?status=for_adoption_simple" icon={Camera}>Publicar una mascota en adopción</ManualCta>
+            </ManualStep>
+          </div>
+        </div>
       </section>
 
-      {/* ── PARTE B: VOY A ADOPTAR ───────────────────────────────── */}
+      {/* ── PARTE B: QUIERO ADOPTAR ────────────────────────────── */}
       <section>
-        <ManualSectionTitle id="voy-a-adoptar" icon={Heart}>
-          Voy a adoptar una mascota
+        <ManualSectionTitle id="quiero-adoptar" icon={Heart}>
+          Quiero adoptar una mascota
         </ManualSectionTitle>
+
+        <p className="text-base sm:text-lg text-gray-600 leading-relaxed max-w-3xl">
+          También hay <strong>dos formas de adoptar</strong>: buscando por tu cuenta entre las
+          mascotas en adopción, o cuando alguien te elige y te envía una invitación.
+        </p>
+
+        <PathChooser
+          items={[
+            {
+              href: '#explorando',
+              icon: Search,
+              iconBg: 'bg-sky-100',
+              iconColor: 'text-sky-600',
+              title: 'Explorando la galería',
+              desc: 'Buscás por tu cuenta en la sección de adopción, abrís la ficha de la mascota y contactás al responsable por WhatsApp.',
+            },
+            {
+              href: '#invitacion',
+              icon: Link2,
+              iconBg: 'bg-emerald-100',
+              iconColor: 'text-emerald-600',
+              title: 'Por invitación',
+              desc: 'Alguien te eligió y te envió un link personal. Lo abrís, confirmás y la mascota pasa a tu cuenta con su QR.',
+            },
+          ]}
+        />
+
+        {/* ── CAMINO 1: EXPLORANDO LA GALERÍA ──────────────────── */}
+        <SubSectionTitle id="explorando" icon={Search}>
+          Camino 1 · Buscar y contactar por tu cuenta
+        </SubSectionTitle>
         <div className="space-y-10 sm:space-y-14">
-          <ManualStep number={1} title="Abrí el link que te enviaron" icon={Link2}>
+          <ManualStep number={1} title={'Tocá "Quiero adoptar" desde el inicio'} icon={HeartHandshake}
+            visual={<UiFrame label={'En la pantalla de inicio tocás "Quiero adoptar" para ver las mascotas en adopción.'}><MockHomeButtons /></UiFrame>}
+          >
             <p>
-              El dueño te elige a vos y te envía un <strong>link personal</strong> por
-              <strong> WhatsApp y email</strong> (es el mismo mensaje del paso 4 de la sección anterior).
-            </p>
-            <p>
-              Ese link es intransferible: la adopción queda reservada para vos.
+              En la pantalla de inicio tocá el botón <strong>"Quiero adoptar"</strong>:
+              te lleva a la sección con todas las mascotas que buscan hogar.
             </p>
           </ManualStep>
 
-          <ManualStep number={2} title="Revisá la invitación" icon={FileText}
-            visual={<UiFrame label="La invitación muestra la mascota y qué significa adoptarla."><MockClaimPage /></UiFrame>}
+          <ManualStep number={2} title="Explorá las mascotas en adopción" icon={Search}
+            visual={<UiFrame label="Cada tarjeta muestra foto, nombre, especie y zona."><MockAdoptionGallery /></UiFrame>}
           >
             <p>
-              Al abrir el link vas a ver los datos de la mascota y quién te la confía,
-              junto con una explicación de qué significa adoptarla.
-            </p>
-            <p>
-              Si no querés confirmar, no tenés que hacer nada: el dueño puede cancelar
-              y la mascota quedará disponible para otra persona.
+              Recorré las tarjetas y mirá la ficha de las mascotas que te llamen la atención:
+              foto, nombre, especie, ubicación y su historia.
             </p>
           </ManualStep>
 
-          <ManualStep number={3} title="Ingresá con el mismo email y confirmá" icon={LogIn}
-            visual={<UiFrame label={'Al confirmar, la mascota pasa a tu "Mis mascotas" con su QR.'}><MockSuccessScreen /></UiFrame>}
+          <ManualStep number={3} title='Tocá "Contactar por WhatsApp"' icon={MessageCircle}
+            visual={<UiFrame label="La ficha tiene un botón verde para escribirle al responsable directamente."><MockPetDetailContact /></UiFrame>}
           >
             <p>
-              Para confirmar necesitás tener una cuenta. Si todavía no la tenés,
-              registrate con <strong>el mismo email con el que te invitaron</strong>.
+              Si una mascota te interesa, tocá <strong>"Contactar por WhatsApp"</strong>
+              para escribirle a la persona que la está dando en adopción.
             </p>
-            <ManualCallout tone="info" title="Importante" icon={ShieldCheck}>
+          </ManualStep>
+
+          <ManualStep number={4} title="Coordiná la entrega con el responsable" icon={MapPin}>
+            <p>
+              La entrega y la coordinación se hacen <strong>directamente con el responsable</strong>
+              de la publicación: van a acordar cómo y cuándo conocerse.
+            </p>
+            <ManualCallout tone="info" title="Un aviso de difusión" icon={Info}>
               <p>
-                La invitación está atada a tu email. Si te registrás o ingresás con otro,
-                la app te va a avisar que el link corresponde a otra cuenta.
+                Las publicaciones de la galería son avisos: la app no gestiona este traspaso.
+                Si en cambio <strong>te eligen y te llega una invitación</strong>, ese sí es un
+                traspaso gestionado con confirmación y QR (mirá el <a href="#invitacion" className="font-bold underline">Camino 2</a>).
               </p>
             </ManualCallout>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <ManualCta to="/login" icon={LogIn}>Iniciar sesión</ManualCta>
-              <ManualCta to="/register" variant="secondary">Crear cuenta</ManualCta>
-            </div>
-            <p>
-              Después tocá <strong>"Confirmar adopción"</strong> y listo: la mascota aparece en tu
-              <strong> "Mis mascotas"</strong> y la chapita QR queda asociada a tu cuenta.
-            </p>
+            <ManualCta to="/adopcion" icon={Heart}>Ver mascotas en adopción</ManualCta>
           </ManualStep>
+        </div>
+
+        {/* ── CAMINO 2: POR INVITACIÓN ─────────────────────────── */}
+        <div className="mt-16 sm:mt-20">
+          <SubSectionTitle id="invitacion" icon={Link2}>
+            Camino 2 · Te eligen y te envían una invitación
+          </SubSectionTitle>
+          <div className="space-y-10 sm:space-y-14">
+            <ManualStep number={1} title="Abrí el link que te enviaron" icon={Link2}>
+              <p>
+                El dueño te elige a vos y te envía un <strong>link personal</strong> por
+                <strong> WhatsApp y email</strong> (es el mismo mensaje del paso 5 del
+                <a href="#con-registro" className="font-bold underline"> Camino 1 de "Doy en adopción"</a>).
+              </p>
+              <p>
+                Ese link es intransferible: la adopción queda reservada para vos.
+              </p>
+            </ManualStep>
+
+            <ManualStep number={2} title="Revisá la invitación" icon={FileText}
+              visual={<UiFrame label="La invitación muestra la mascota y qué significa adoptarla."><MockClaimPage /></UiFrame>}
+            >
+              <p>
+                Al abrir el link vas a ver los datos de la mascota y quién te la confía,
+                junto con una explicación de qué significa adoptarla.
+              </p>
+              <p>
+                Si no querés confirmar, no tenés que hacer nada: el dueño puede cancelar
+                y la mascota quedará disponible para otra persona.
+              </p>
+            </ManualStep>
+
+            <ManualStep number={3} title="Ingresá con el mismo email y confirmá" icon={LogIn}
+              visual={<UiFrame label={'Al confirmar, la mascota pasa a tu "Mis mascotas" con su QR.'}><MockSuccessScreen /></UiFrame>}
+            >
+              <p>
+                Para confirmar necesitás tener una cuenta. Si todavía no la tenés,
+                registrate con <strong>el mismo email con el que te invitaron</strong>.
+              </p>
+              <ManualCallout tone="info" title="Importante" icon={ShieldCheck}>
+                <p>
+                  La invitación está atada a tu email. Si te registrás o ingresás con otro,
+                  la app te va a avisar que el link corresponde a otra cuenta.
+                </p>
+              </ManualCallout>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <ManualCta to="/login" icon={LogIn}>Iniciar sesión</ManualCta>
+                <ManualCta to="/register" variant="secondary">Crear cuenta</ManualCta>
+              </div>
+              <p>
+                Después tocá <strong>"Confirmar adopción"</strong> y listo: la mascota aparece en tu
+                <strong> "Mis mascotas"</strong> y la chapita QR queda asociada a tu cuenta.
+              </p>
+            </ManualStep>
+          </div>
         </div>
       </section>
 

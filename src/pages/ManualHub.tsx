@@ -6,7 +6,7 @@ import { cn } from '@/src/lib/utils';
 const chapters = [
   {
     title: 'Adopción',
-    description: 'Cómo dar en adopción una mascota propia y cómo adoptar cuando te eligen.',
+    description: 'Dá en adopción una mascota registrada o sin registrar, y adoptá explorando la galería o por invitación.',
     icon: Heart,
     path: '/manual/adopcion',
     accent: 'bg-rose-50 text-rose-500',
