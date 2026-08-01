@@ -659,7 +659,7 @@ export default function MyPetsPortal() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Tipo</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Clasificación</label>
                   <div className="grid grid-cols-2 gap-2">
                     {PET_TYPE_OPTIONS.map(opt => (
                       <button key={opt.value}

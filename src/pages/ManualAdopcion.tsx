@@ -34,8 +34,8 @@ export default function ManualAdopcion() {
           Doy en adopción una mascota
         </ManualSectionTitle>
         <div className="space-y-10 sm:space-y-14">
-          <ManualStep number={1} title={'Registrá tu mascota con el tipo "Adopción"'} icon={PawPrint}
-            visual={<UiFrame label={'En "Tipo" elegí "Adopción · Busca un hogar": esa mascota queda marcada para adopción.'}><MockRegisterPet /></UiFrame>}
+          <ManualStep number={1} title={'Registrá tu mascota con la clasificación "Adopción"'} icon={PawPrint}
+            visual={<UiFrame label={'En "Clasificación" elegí "Adopción · Busca un hogar": esa mascota queda marcada para adopción.'}><MockRegisterPet /></UiFrame>}
           >
             <p>
               El paso inicial es <strong>cargar la mascota</strong> en la sección <strong>"Mis mascotas"</strong>:
@@ -43,11 +43,11 @@ export default function ManualAdopcion() {
             <ol className="list-decimal pl-5 space-y-1">
               <li>Ingresá a <strong>"Mis mascotas"</strong> y tocá <strong>"Registrar mascota"</strong>.</li>
               <li>Completá sus datos (nombre, especie, raza, color, etc.).</li>
-              <li>En el campo <strong>"Tipo"</strong> elegí <strong>"Adopción · Busca un hogar"</strong>.</li>
+              <li>En el campo <strong>"Clasificación"</strong> elegí <strong>"Adopción · Busca un hogar"</strong>.</li>
             </ol>
             <ManualCallout tone="info" title="Importante" icon={ShieldCheck}>
               <p>
-                Solo las mascotas registradas con el tipo <strong>"Adopción"</strong> tienen el botón
+                Solo las mascotas registradas con la clasificación <strong>"Adopción"</strong> tienen el botón
                 <strong> "Dar en adopción"</strong> que te permite transferirla a un adoptante elegido.
               </p>
             </ManualCallout>
@@ -55,10 +55,10 @@ export default function ManualAdopcion() {
           </ManualStep>
 
           <ManualStep number={2} title={'Tocá "Dar en adopción"'} icon={Heart}
-            visual={<UiFrame label={'El botón "Dar en adopción" aparece en la ficha de las mascotas de tipo Adopción.'}><MockMyPetsCard /></UiFrame>}
+            visual={<UiFrame label={'El botón "Dar en adopción" aparece en la ficha de las mascotas de clasificación Adopción.'}><MockMyPetsCard /></UiFrame>}
           >
             <p>
-              Una vez registrada con el tipo <strong>"Adopción"</strong>, la mascota aparece en tu
+              Una vez registrada con la clasificación <strong>"Adopción"</strong>, la mascota aparece en tu
               listado con el botón <strong>"Dar en adopción"</strong>.
             </p>
             <p>

@@ -3047,8 +3047,8 @@ export default function Admin() {
 
                 {/* Pet type */}
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Tipo</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+<label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Clasificación</label>
+                  <div className="grid grid-cols-2 gap-2">
                     {[
                       { value: 'own', label: 'Propia', desc: 'Mascota de la familia' },
                       { value: 'foster', label: 'Tránsito', desc: 'Está de paso en casa' },
