@@ -995,52 +995,7 @@ export default function MyPetDetail() {
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-brand-accent">
-              {(pet.owner_name || pet.owner_phone || pet.owner_email || pet.owner_address) ? (
-                <div className="mb-4">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">
-                    Datos del {pet.status === 'adopted' ? 'adoptante' : 'dueño'}
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {pet.owner_name && (
-                      <div className="p-3 bg-brand-bg rounded-xl">
-                        <p className="text-[10px] font-bold uppercase text-gray-400">Nombre</p>
-                        <p className="text-sm text-gray-800">{pet.owner_name}</p>
-                      </div>
-                    )}
-                    {pet.owner_phone && (
-                      <div className="p-3 bg-brand-bg rounded-xl">
-                        <p className="text-[10px] font-bold uppercase text-gray-400">Teléfono</p>
-                        <a href={`https://wa.me/54${pet.owner_phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
-                          className="text-sm text-emerald-600 hover:underline">{pet.owner_phone}</a>
-                      </div>
-                    )}
-                    {pet.owner_email && (
-                      <div className="p-3 bg-brand-bg rounded-xl">
-                        <p className="text-[10px] font-bold uppercase text-gray-400">Email</p>
-                        <a href={`mailto:${pet.owner_email}`} className="text-sm text-brand-primary hover:underline">{pet.owner_email}</a>
-                      </div>
-                    )}
-                    {pet.owner_address && (
-                      <div className="p-3 bg-brand-bg rounded-xl">
-                        <p className="text-[10px] font-bold uppercase text-gray-400">Dirección</p>
-                        <p className="text-sm text-gray-800">{pet.owner_address}</p>
-                      </div>
-                    )}
-                  </div>
-                  <button onClick={() => setShowReunionModal(true)}
-                    className="mt-2 text-xs text-gray-400 hover:text-brand-primary transition-colors">
-                    Editar datos del {pet.status === 'adopted' ? 'adoptante' : 'dueño'}
-                  </button>
-                </div>
-              ) : (
-                <button onClick={() => setShowReunionModal(true)}
-                  className="w-full py-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2 mb-4"
-                >
-                  <HeartHandshake className="w-4 h-4" /> Marcar como reencontrado / adoptado
-                </button>
-              )}
-            </div>
+            
 
             <HealthTips petId={id} />
 
