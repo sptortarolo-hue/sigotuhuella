@@ -43,6 +43,7 @@ const SolicitarChapita = lazy(() => import('@/src/pages/SolicitarChapita'));
 const AdoptionClaim = lazy(() => import('@/src/pages/AdoptionClaim'));
 const ManualHub = lazy(() => import('@/src/pages/ManualHub'));
 const ManualAdopcion = lazy(() => import('@/src/pages/ManualAdopcion'));
+const ManualChapita = lazy(() => import('@/src/pages/ManualChapita'));
 const VerifyEmail = lazy(() => import('@/src/pages/VerifyEmail'));
 const FlyerPage = lazy(() => import('@/src/pages/FlyerPage'));
 const Rifas = lazy(() => import('@/src/pages/Rifas'));
@@ -91,6 +92,7 @@ export default function App() {
               <Route path="/adopcion/reclamar/:token" element={<AdoptionClaim />} />
               <Route path="/manual" element={<ManualHub />} />
               <Route path="/manual/adopcion" element={<ManualAdopcion />} />
+              <Route path="/manual/chapita" element={<ManualChapita />} />
               <Route path="/verificar-email" element={<VerifyEmail />} />
               <Route path="/sumate" element={<Join />} />
               <Route path="/verificar/:memberNumber" element={<VerifyMember />} />

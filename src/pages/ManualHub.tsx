@@ -24,9 +24,9 @@ const chapters = [
     title: 'Chapita QR',
     description: 'Solicitá tu chapita, asociá el QR y enterate qué pasa cuando lo escanean.',
     icon: QrCode,
-    path: '',
+    path: '/manual/chapita',
     accent: 'bg-emerald-50 text-emerald-600',
-    available: false,
+    available: true,
   },
   {
     title: 'Mis mascotas',
