@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, verifyToken } from '../auth.js';
 import { v4 as uuidv4 } from 'uuid';
 import { notifyUser } from '../services/notificationService.js';
 import { enqueue } from '../services/phoneRelayService.js';
@@ -141,6 +141,11 @@ router.post('/claim/:token', requireAuth, async (req, res) => {
 
     const assignment = assignResult.rows[0];
 
+    if (assignment.adopter_id && assignment.adopter_id !== req.user.id) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Esta invitación fue creada para otra cuenta' });
+    }
+
     const adopterUserRes = await client.query(
       'SELECT email, phone FROM users WHERE id = $1',
       [req.user.id]
@@ -149,7 +154,8 @@ router.post('/claim/:token', requireAuth, async (req, res) => {
     const normalizedAdopterPhone = adopterUser?.phone ? normalizePhone(adopterUser.phone) : null;
     const assignmentPhone = assignment.adopter_phone ? normalizePhone(assignment.adopter_phone) : null;
 
-    if (assignment.adopter_email && assignment.adopter_email.toLowerCase() !== (adopterUser?.email || req.user.email).toLowerCase()
+    if (!assignment.adopter_id
+        && assignment.adopter_email && assignment.adopter_email.toLowerCase() !== (adopterUser?.email || req.user.email).toLowerCase()
         && !(normalizedAdopterPhone && assignmentPhone && normalizedAdopterPhone === assignmentPhone)) {
       await client.query('ROLLBACK');
       return res.status(403).json({ error: 'Esta invitación fue creada para otra cuenta' });
@@ -322,11 +328,12 @@ router.get('/my-pending', requireAuth, async (req, res) => {
        JOIN pets p ON p.id = aa.pet_id
        JOIN users u ON u.id = aa.inviter_id
        LEFT JOIN qr_identifiers qi ON qi.id = aa.qr_id
-       WHERE (LOWER(aa.adopter_email) = LOWER($1) AND $1 IS NOT NULL AND $1 <> '')
-          OR ($2 IS NOT NULL AND regexp_replace(aa.adopter_phone, '[^0-9]', '', 'g') = $2)
+       WHERE (aa.adopter_id = $1
+          OR (LOWER(aa.adopter_email) = LOWER($2) AND $2 IS NOT NULL AND $2 <> '')
+          OR ($3 IS NOT NULL AND regexp_replace(aa.adopter_phone, '[^0-9]', '', 'g') = $3))
          AND (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))
        ORDER BY aa.created_at DESC`,
-      [user?.email || null, normalizedPhone]
+      [req.user.id, user?.email || null, normalizedPhone]
     );
     res.json({ assignments: result.rows });
   } catch (err) {
@@ -351,6 +358,24 @@ router.get('/check-token/:token', async (req, res) => {
       return res.json({ found: false });
     }
     const assignment = result.rows[0];
+
+    // Si hay sesión activa, vincular la invitación a la cuenta del adoptante
+    let authedUserId = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const payload = verifyToken(authHeader.slice(7));
+        authedUserId = payload.id;
+      } catch { /* token inválido: ignorar */ }
+    }
+    if (authedUserId && !assignment.adopter_id) {
+      await pool.query(
+        'UPDATE adoption_assignments SET adopter_id = $1 WHERE id = $2 AND adopter_id IS NULL',
+        [authedUserId, assignment.id]
+      );
+      assignment.adopter_id = authedUserId;
+    }
+
     res.json({
       found: true,
       owner_confirmed: assignment.status === 'completed' && !assignment.adopter_id,

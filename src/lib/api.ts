@@ -23,6 +23,26 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
     cache.clear();
   }
 
+  // check-token puede vincular adopter_id al usuario logueado: no cachear
+  if (isRead && path.includes('/adoption-assignments/check-token/')) {
+    const token = getToken();
+    const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+    const data = await res.json();
+    if (!res.ok) {
+      const err: any = new Error(data.error || 'Request failed');
+      err.fbtrace_id = data.fbtrace_id;
+      throw err;
+    }
+    return data;
+  }
+
   const token = getToken();
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
