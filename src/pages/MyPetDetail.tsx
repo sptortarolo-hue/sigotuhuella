@@ -153,6 +153,7 @@ export default function MyPetDetail() {
   const [bioDraft, setBioDraft] = useState('');
   const [showLostModal, setShowLostModal] = useState(false);
   const [showReunionModal, setShowReunionModal] = useState(false);
+  const [showQrProfileModal, setShowQrProfileModal] = useState(false);
   const [showAdoptionGiveModal, setShowAdoptionGiveModal] = useState(false);
   const [adopterName, setAdopterName] = useState('');
   const [adopterPhone, setAdopterPhone] = useState('');
@@ -927,47 +928,12 @@ export default function MyPetDetail() {
                   <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4" /> Perfil público QR
                   </h4>
-                  <div className="space-y-2 mb-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 block">Nombre de contacto</label>
-                        <input type="text" value={qrContactName}
-                          onChange={e => setQrContactName(e.target.value)}
-                          placeholder={pet.owner_name || 'Nombre'}
-                          className="w-full p-2.5 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm bg-brand-bg"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 block">Teléfono de contacto</label>
-                        <input type="tel" value={qrContactPhone}
-                          onChange={e => setQrContactPhone(e.target.value)}
-                          placeholder={pet.owner_phone || 'Teléfono'}
-                          className="w-full p-2.5 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm bg-brand-bg"
-                        />
-                      </div>
-                    </div>
-                    <button onClick={handleQrContactSave} disabled={qrContactSaving}
-                      className="px-3 py-1.5 bg-brand-primary/10 text-brand-primary rounded-lg text-xs font-medium flex items-center gap-1 hover:bg-brand-primary/20 transition-colors"
-                    >
-                      {qrContactSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                      {qrContactSaving ? 'Guardando...' : 'Guardar contacto'}
-                    </button>
-                    <p className="text-[10px] text-gray-400">Si no completás estos datos, se usa el nombre y teléfono de tu cuenta.</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    {qrVisibilityFields.map(item => (
-                      <label key={item.key} className="flex items-center justify-between p-2.5 bg-brand-bg rounded-xl cursor-pointer hover:bg-brand-accent/30 transition-colors">
-                        <span className="text-xs font-medium text-gray-700">{item.label}</span>
-                        <button
-                          onClick={() => handleQrToggle(item.key, !(pet[item.key] ?? true))}
-                          className={`relative w-10 h-5 rounded-full transition-colors ${(pet[item.key] ?? true) ? 'bg-brand-primary' : 'bg-gray-300'}`}
-                        >
-                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${(pet[item.key] ?? true) ? 'translate-x-5' : ''}`} />
-                        </button>
-                      </label>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-2">Estos datos se ven cuando alguien escanea el QR de tu mascota.</p>
+                  <button onClick={() => { setQrContactName(pet.qr_contact_name || ''); setQrContactPhone(pet.qr_contact_phone || ''); setShowQrProfileModal(true); }}
+                    className="w-full py-3 bg-brand-bg border border-brand-accent rounded-xl text-xs font-bold text-brand-primary flex items-center justify-center gap-2 hover:bg-brand-accent/50 transition-colors"
+                  >
+                    <ShieldCheck className="w-4 h-4" /> Editar perfil público
+                  </button>
+                  <p className="text-[10px] text-gray-400 mt-2">Controlá qué datos se ven cuando alguien escanea el QR.</p>
                 </div>
               )}
 
@@ -1965,6 +1931,75 @@ export default function MyPetDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showQrProfileModal && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+        >
+          <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={() => setShowQrProfileModal(false)} />
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className="relative w-full max-w-md bg-white rounded-[2.5rem] max-h-[90vh] flex flex-col shadow-2xl"
+          >
+            <div className="p-6 sm:p-8 border-b border-brand-accent flex items-center justify-between shrink-0">
+              <h3 className="text-lg font-bold text-brand-primary flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5" /> Perfil público QR
+              </h3>
+              <button onClick={() => setShowQrProfileModal(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6 sm:p-8 overflow-y-auto space-y-5">
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">Nombre de contacto</label>
+                  <input type="text" value={qrContactName}
+                    onChange={e => setQrContactName(e.target.value)}
+                    placeholder={pet?.owner_name || 'Nombre'}
+                    className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">Teléfono de contacto</label>
+                  <input type="tel" value={qrContactPhone}
+                    onChange={e => setQrContactPhone(e.target.value)}
+                    placeholder={pet?.owner_phone || 'Teléfono'}
+                    className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400">Si no completás estos datos, se usa el nombre y teléfono de tu cuenta.</p>
+              </div>
+              <hr className="border-brand-accent" />
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">Visibilidad en el QR</p>
+              <div className="space-y-1.5">
+                {qrVisibilityFields.map(item => (
+                  <label key={item.key} className="flex items-center justify-between p-3 bg-brand-bg rounded-xl cursor-pointer hover:bg-brand-accent/30 transition-colors">
+                    <span className="text-xs font-medium text-gray-700">{item.label}</span>
+                    <button
+                      onClick={() => handleQrToggle(item.key, !(pet?.[item.key] ?? true))}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${(pet?.[item.key] ?? true) ? 'bg-brand-primary' : 'bg-gray-300'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${(pet?.[item.key] ?? true) ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="p-6 sm:p-8 border-t border-brand-accent flex gap-3">
+              <button onClick={() => setShowQrProfileModal(false)}
+                className="flex-1 py-3 border border-brand-accent text-gray-500 rounded-xl font-bold text-sm hover:bg-brand-bg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button onClick={async () => { await handleQrContactSave(); setShowQrProfileModal(false); }} disabled={qrContactSaving}
+                className="flex-1 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 hover:shadow-lg transition-all"
+              >
+                {qrContactSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Guardar cambios
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
 
       {showVideoModal && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
