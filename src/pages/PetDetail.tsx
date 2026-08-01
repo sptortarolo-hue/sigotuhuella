@@ -4,7 +4,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
 import { api } from '@/src/lib/api';
-import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn, formatDateOnly } from '@/src/lib/utils';
@@ -369,6 +369,15 @@ Me gustaría obtener más información.`;
                   Esta mascota tiene <strong>su perfil en Sigo Tu Huella</strong>. La adopción se
                   gestiona desde la app: contactá al responsable y, si te elige, te llegará una
                   invitación para confirmar. La mascota pasa a tu cuenta con su chapita QR.
+                </p>
+              </div>
+            )}
+            {pet.has_pending_adoption && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-4 flex items-start gap-3">
+                <Clock className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  ⏳ Esta mascota está <strong>en proceso de adopción</strong>: ya tiene un
+                  adoptante en camino. Si la adopción no se concreta, vuelve a estar disponible.
                 </p>
               </div>
             )}
