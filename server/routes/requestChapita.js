@@ -11,7 +11,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 const router = Router();
 
 router.post('/', async (req, res) => {
-  const { pet, user: userData, share_token, for_adopter, adopter, my_pet_id } = req.body;
+  const { pet, user: userData, share_token, for_adopter, adopter } = req.body;
+  let my_pet_id = req.body.my_pet_id || null;
 
   if (!pet || !pet.name || !pet.species) {
     return res.status(400).json({ error: 'Nombre y especie de la mascota son requeridos' });
@@ -88,6 +89,33 @@ router.post('/', async (req, res) => {
     }
 
     if (for_adopter) {
+      // Teléfono del dueño para el contacto de la ficha pública
+      const ownerRes = await client.query('SELECT phone FROM users WHERE id = $1', [userId]);
+      const ownerPhone = ownerRes.rows[0]?.phone || null;
+
+      // Si la mascota todavía no tiene perfil en my_pets (caso SolicitarChapita
+      // "La mascota se va con el adoptante"), crearlo a nombre del dueño para
+      // que quede vinculada a la adopción gestionada.
+      if (!my_pet_id) {
+        const myPetResult = await client.query(
+          `INSERT INTO my_pets (user_id, name, species, breed, color, gender, birth_date, bio,
+            personality_tags, is_vaccinated, is_sterilized, is_dewormed,
+            behavior_notes, medical_notes, emergency_phone,
+            avatar_image, avatar_mime_type)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+           RETURNING *`,
+          [
+            userId, pet.name, pet.species, pet.breed || null, pet.color || null,
+            pet.gender || 'unknown', pet.birth_date || null, pet.bio || null,
+            JSON.stringify(pet.personality_tags || []),
+            pet.is_vaccinated || false, pet.is_sterilized || false, pet.is_dewormed || false,
+            pet.behavior_notes || null, pet.medical_notes || null, pet.emergency_phone || null,
+            pet.avatar_image || null, pet.avatar_mime_type || null,
+          ]
+        );
+        my_pet_id = myPetResult.rows[0].id;
+      }
+
       // Buscar fila pública existente para esta my_pet (evitar duplicados)
       let newPet = null;
       if (my_pet_id) {
@@ -110,11 +138,11 @@ router.post('/', async (req, res) => {
             `UPDATE pets SET name=$1, species=$2, breed=$3, color=$4, gender=$5,
                status='for_adoption', description=$6, location=$7,
                is_vaccinated=$8, is_sterilized=$9, is_dewormed=$10,
-               adoption_assignment_id=NULL, updated_at=NOW()
-             WHERE id=$11 RETURNING *`,
+               contact_info=$11, adoption_assignment_id=NULL, updated_at=NOW()
+             WHERE id=$12 RETURNING *`,
             [pet.name, pet.species, pet.breed || null, pet.color || null, pet.gender || 'unknown',
              pet.bio || null, pet.location || '', pet.is_vaccinated || false, pet.is_sterilized || false,
-             pet.is_dewormed || false, existing.id]
+             pet.is_dewormed || false, ownerPhone, existing.id]
           );
           newPet = upd.rows[0];
         }
@@ -124,14 +152,14 @@ router.post('/', async (req, res) => {
         // Crear pet en estado for_adoption vinculado al dueño actual
         const petResult = await client.query(
           `INSERT INTO pets (name, species, breed, color, gender, status, description, location,
-            is_vaccinated, is_sterilized, is_dewormed, created_by, my_pet_id)
-           VALUES ($1,$2,$3,$4,$5,'for_adoption',$6,$7,$8,$9,$10,$11,$12)
+            is_vaccinated, is_sterilized, is_dewormed, contact_info, created_by, my_pet_id)
+           VALUES ($1,$2,$3,$4,$5,'for_adoption',$6,$7,$8,$9,$10,$11,$12,$13)
            RETURNING *`,
           [
             pet.name, pet.species, pet.breed || null, pet.color || null,
             pet.gender || 'unknown', pet.bio || null, pet.location || '',
             pet.is_vaccinated || false, pet.is_sterilized || false, pet.is_dewormed || false,
-            userId, my_pet_id || null,
+            ownerPhone, userId, my_pet_id || null,
           ]
         );
         newPet = petResult.rows[0];

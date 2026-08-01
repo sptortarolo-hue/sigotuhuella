@@ -52,11 +52,16 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
      [PetStatus.ACCIDENTED]: 'Accidentado',
      [PetStatus.NEEDS_ATTENTION]: 'Necesita Atención',
     [PetStatus.FOR_ADOPTION]: 'En Adopción',
-    [PetStatus.FOR_ADOPTION_SIMPLE]: 'Adopción (Difusión)',
+    [PetStatus.FOR_ADOPTION_SIMPLE]: 'Aviso de adopción',
     [PetStatus.ADOPTED]: 'Adoptado',
      [PetStatus.REUNITED]: 'Reencuentro',
      [PetStatus.TRANSITADA]: 'En Tránsito',
    };
+
+   // Sin perfil vinculado, "En Adopción" se muestra como aviso simple.
+   const displayStatus = pet.status === PetStatus.FOR_ADOPTION && !pet.my_pet_id
+     ? PetStatus.FOR_ADOPTION_SIMPLE
+     : pet.status;
 
    const dateLabel = pet.status === PetStatus.LOST ? 'Perdido el' : 'Reportado el';
   const imageUrl = getPetImageUrl(pet);
@@ -117,10 +122,15 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
         
         <div className={cn(
           "absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md",
-          statusColors[pet.status]
+          statusColors[displayStatus]
         )}>
-          {statusLabels[pet.status]}
+          {statusLabels[displayStatus]}
         </div>
+        {pet.status === PetStatus.FOR_ADOPTION && pet.my_pet_id && (
+          <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md bg-brand-primary/90 text-white border border-brand-primary">
+            Perfil en la app
+          </div>
+        )}
         {pet.source_type === 'whatsapp_owner' && (
           <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md bg-amber-50/90 text-amber-700 border border-amber-200">
             Difusión particular

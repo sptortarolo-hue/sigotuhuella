@@ -51,6 +51,7 @@ export interface Pet {
   created_at: string;
   updated_at: string;
   is_hidden?: boolean;
+  my_pet_id?: string | null;
   owner_name?: string | null;
   owner_phone?: string | null;
   owner_email?: string | null;

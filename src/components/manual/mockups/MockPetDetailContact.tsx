@@ -9,6 +9,9 @@ export default function MockPetDetailContact() {
           <span className="absolute top-4 left-4 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-pink-100 text-pink-800 border border-pink-200">
             En Adopción
           </span>
+          <span className="absolute top-4 right-4 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-brand-primary/90 text-white border border-brand-primary">
+            Perfil en la app
+          </span>
         </div>
 
         <div className="p-4">
@@ -24,7 +27,7 @@ export default function MockPetDetailContact() {
           </div>
 
           <p className="mt-2 text-[9px] text-gray-400 text-center">
-            El aviso muestra el contacto del responsable para que escribas directo.
+            El contacto te lleva a hablar con el responsable de la mascota.
           </p>
         </div>
       </div>

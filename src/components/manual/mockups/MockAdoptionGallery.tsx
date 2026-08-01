@@ -2,8 +2,8 @@ import { MapPin } from 'lucide-react';
 
 export default function MockAdoptionGallery() {
   const cards = [
-    { name: 'Rocky', sub: 'Perro · Labrador', badge: 'En Adopción', zone: 'La Plata' },
-    { name: 'Luna', sub: 'Gata · Mestiza', badge: 'Adopción (Difusión)', zone: 'Tolosa' },
+    { name: 'Rocky', sub: 'Perro · Labrador', badge: 'En Adopción', chip: 'Perfil en la app', zone: 'La Plata' },
+    { name: 'Luna', sub: 'Gata · Mestiza', badge: 'Aviso de adopción', chip: '', zone: 'Tolosa' },
   ];
 
   return (
@@ -21,6 +21,11 @@ export default function MockAdoptionGallery() {
               <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider backdrop-blur-md bg-pink-100 text-pink-800 border border-pink-200">
                 {c.badge}
               </span>
+              {c.chip && (
+                <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider backdrop-blur-md bg-brand-primary/90 text-white border border-brand-primary">
+                  {c.chip}
+                </span>
+              )}
             </div>
             <div className="p-2.5">
               <p className="text-[12px] font-bold text-gray-800">{c.name}</p>

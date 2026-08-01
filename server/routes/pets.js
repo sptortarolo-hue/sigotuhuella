@@ -452,6 +452,8 @@ router.post('/', requireAuth, async (req, res) => {
   if (!species || !status || !location) {
     return res.status(400).json({ error: 'Species, status, and location are required' });
   }
+  // for_adoption requiere un perfil vinculado (my_pet_id). Sin él, es un aviso simple.
+  const effectiveStatus = status === 'for_adoption' ? 'for_adoption_simple' : status;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -459,7 +461,7 @@ router.post('/', requireAuth, async (req, res) => {
       `INSERT INTO pets (name, species, breed, color, status, gender, age, size, is_vaccinated, is_sterilized, is_dewormed, description, location, latitude, longitude, contact_info, created_by, is_admin_verified, neighborhoods)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *`,
-      [name || null, species, breed || null, color || null, status, gender || 'unknown',
+      [name || null, species, breed || null, color || null, effectiveStatus, gender || 'unknown',
        age || null, size || null, isVaccinated || false, isSterilized || false, req.body.isDewormed || false,
        description || null, location, latitude || null, longitude || null,
        contactInfo || null, req.user.id, false, JSON.stringify(neighborhoods || [])]
@@ -516,6 +518,10 @@ router.put('/:id', requireAuth, async (req, res) => {
     const pet = existing.rows[0];
     if (req.user.role !== 'admin' && !(await canEditPet(req.user.id, petId))) {
       return res.status(403).json({ error: 'Not authorized' });
+    }
+    // for_adoption requiere un perfil vinculado (my_pet_id). Sin él, es un aviso simple.
+    if (req.body.status === 'for_adoption' && !pet.my_pet_id) {
+      req.body.status = 'for_adoption_simple';
     }
     const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info', 'is_hidden', 'owner_name', 'owner_phone', 'owner_email', 'owner_address'];
     const updates = [];

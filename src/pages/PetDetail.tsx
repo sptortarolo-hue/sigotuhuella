@@ -4,7 +4,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
 import { api } from '@/src/lib/api';
-import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn, formatDateOnly } from '@/src/lib/utils';
@@ -187,10 +187,15 @@ Me gustaría obtener más información.`;
     [PetStatus.ACCIDENTED]: 'Accidentado',
     [PetStatus.NEEDS_ATTENTION]: 'Necesita Atención',
     [PetStatus.FOR_ADOPTION]: 'En Adopción',
-    [PetStatus.FOR_ADOPTION_SIMPLE]: 'Adopción (Difusión)',
+    [PetStatus.FOR_ADOPTION_SIMPLE]: 'Aviso de adopción',
     [PetStatus.REUNITED]: 'Reencuentro',
     [PetStatus.TRANSITADA]: 'En Tránsito',
   };
+
+  // Sin perfil vinculado, "En Adopción" se muestra como aviso simple.
+  const displayStatus = pet.status === PetStatus.FOR_ADOPTION && !pet.my_pet_id
+    ? PetStatus.FOR_ADOPTION_SIMPLE
+    : pet.status;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -263,8 +268,8 @@ Me gustaría obtener más información.`;
         <div className="flex flex-col h-full">
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-4 flex-wrap">
-              <div className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide", statusColors[pet.status])}>
-                {statusLabels[pet.status]}
+              <div className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide", statusColors[displayStatus])}>
+                {statusLabels[displayStatus]}
               </div>
               {pet.source_type === 'whatsapp_owner' && (
                 <div className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
@@ -354,6 +359,25 @@ Me gustaría obtener más información.`;
                   Esta publicación es una <strong>difusión particular</strong>.
                   Sigo Tu Huella solo difunde el aviso, no gestiona la adopción.
                   Comunicate directamente con el dueño para más información.
+                </p>
+              </div>
+            )}
+            {pet.status === PetStatus.FOR_ADOPTION && pet.my_pet_id && (
+              <div className="bg-pink-50 border border-pink-200 rounded-2xl p-4 mt-4 flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-pink-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-pink-800 leading-relaxed">
+                  Esta mascota tiene <strong>su perfil en Sigo Tu Huella</strong>. La adopción se
+                  gestiona desde la app: contactá al responsable y, si te elige, te llegará una
+                  invitación para confirmar. La mascota pasa a tu cuenta con su chapita QR.
+                </p>
+              </div>
+            )}
+            {(pet.status === PetStatus.FOR_ADOPTION_SIMPLE || (pet.status === PetStatus.FOR_ADOPTION && !pet.my_pet_id)) && (
+              <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 mt-4 flex items-start gap-3">
+                <Info className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-orange-800 leading-relaxed">
+                  Este es un <strong>aviso de adopción</strong>. Coordiná la entrega directamente
+                  con la persona responsable por WhatsApp.
                 </p>
               </div>
             )}
