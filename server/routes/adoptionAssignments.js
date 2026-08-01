@@ -11,11 +11,19 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 const router = Router();
 
 async function transferToAdopter(client, assignment, adopterUserId) {
+  let inheritedQrRequested = false;
+  if (assignment.my_pet_id) {
+    const origRes = await client.query(
+      'SELECT qr_requested FROM my_pets WHERE id = $1',
+      [assignment.my_pet_id]
+    );
+    inheritedQrRequested = !!(origRes.rows[0]?.qr_requested);
+  }
   const myPetResult = await client.query(
-    `INSERT INTO my_pets (user_id, name, species, breed, color, gender)
-     VALUES ($1, $2, $3, $4, $5, 'unknown')
+    `INSERT INTO my_pets (user_id, name, species, breed, color, gender, qr_requested)
+     VALUES ($1, $2, $3, $4, $5, 'unknown', $6)
      RETURNING *`,
-    [adopterUserId, assignment.pet_name, assignment.species, assignment.breed || null, assignment.color || null]
+    [adopterUserId, assignment.pet_name, assignment.species, assignment.breed || null, assignment.color || null, inheritedQrRequested]
   );
   const myPet = myPetResult.rows[0];
   if (assignment.qr_id) {
@@ -31,6 +39,13 @@ async function transferToAdopter(client, assignment, adopterUserId) {
     await client.query(
       'UPDATE my_pets SET qr_id = $1 WHERE id = $2',
       [assignment.qr_id, myPet.id]
+    );
+  }
+  // La solicitud de chapita pendiente ahora pertenece a la mascota del adoptante
+  if (assignment.my_pet_id) {
+    await client.query(
+      'UPDATE my_pets SET qr_requested = false WHERE id = $1',
+      [assignment.my_pet_id]
     );
   }
   return myPet;
@@ -111,7 +126,8 @@ router.post('/claim/:token', requireAuth, async (req, res) => {
     await client.query('BEGIN');
 
     const assignResult = await client.query(
-      `SELECT aa.*, p.species, p.breed, p.color, p.name as pet_name, p.status as pet_status
+      `SELECT aa.*, p.species, p.breed, p.color, p.name as pet_name, p.status as pet_status,
+              p.my_pet_id
        FROM adoption_assignments aa
        JOIN pets p ON p.id = aa.pet_id
        WHERE aa.token = $1 AND (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))`,
@@ -185,7 +201,8 @@ router.post('/confirm/:token', requireAuth, async (req, res) => {
     await client.query('BEGIN');
 
     const assignResult = await client.query(
-      `SELECT aa.*, p.species, p.breed, p.color, p.name as pet_name, p.status as pet_status
+      `SELECT aa.*, p.species, p.breed, p.color, p.name as pet_name, p.status as pet_status,
+              p.my_pet_id
        FROM adoption_assignments aa
        JOIN pets p ON p.id = aa.pet_id
        WHERE aa.token = $1 AND aa.inviter_id = $2 AND aa.status = 'pending_adopter'`,
