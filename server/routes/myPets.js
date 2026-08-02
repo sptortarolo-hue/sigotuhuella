@@ -517,7 +517,9 @@ router.delete('/:id/events/:eventId', requireAuth, async (req, res) => {
 router.post('/:id/request-qr', requireAuth, async (req, res) => {
   try {
     const petResult = await pool.query(
-      `SELECT mp.*, u.role as owner_role
+      `SELECT mp.*, u.role as owner_role,
+              u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone,
+              u.notification_preference as owner_notification_preference
        FROM my_pets mp JOIN users u ON u.id = mp.user_id
        WHERE mp.id = $1 AND (mp.user_id = $2 OR $3 = true)`,
       [req.params.id, req.user.id, req.user.role === 'admin']
@@ -529,10 +531,8 @@ router.post('/:id/request-qr', requireAuth, async (req, res) => {
     await pool.query('UPDATE my_pets SET qr_requested = true WHERE id = $1', [req.params.id]);
 
     const pet = petResult.rows[0];
-    const userResult = await pool.query('SELECT display_name, email FROM users WHERE id = $1', [req.user.id]);
-    const userRow = userResult.rows[0] || {};
-    const userName = userRow.display_name || 'Usuario';
-    const userEmail = userRow.email;
+    const userName = pet.owner_name || 'Usuario';
+    const userEmail = pet.owner_email || '';
 
     sendPushToAdmins({
       title: 'Solicitud de identificación QR',
@@ -542,7 +542,7 @@ router.post('/:id/request-qr', requireAuth, async (req, res) => {
 
     sendAdminNotificationEmail(
       'Nueva solicitud de identificación QR',
-      `<p><strong>${userName}</strong> solicita un código QR para <strong>${pet.name}</strong> (${pet.species}${pet.breed ? ' - ' + pet.breed : ''}).</p>
+      `<p><strong>${userName}</strong> ha solicitado un código QR para <strong>${pet.name}</strong> (${pet.species}${pet.breed ? ' - ' + pet.breed : ''}).</p>
        <p><a href="https://sigotuhuella.com.ar/admin" style="background:#5A5A40;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Ir al panel admin</a></p>`
     ).catch(() => {});
 

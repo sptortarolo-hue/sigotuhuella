@@ -225,6 +225,9 @@ router.post('/assign', requireAdmin, async (req, res) => {
       const petName = petResult.rows[0].name;
       const code = qrResult.rows[0].code;
       const qrId = qrResult.rows[0].id;
+      const shareToken = qrResult.rows[0].share_token;
+
+      await notifyChapitaReady(qrId, shareToken, code, petName, user).catch(() => {});
     }
 
     res.json({ success: true, code: qrResult.rows[0].code });
