@@ -84,7 +84,7 @@ function getAge(birthDate: string) {
   if (months < 0) { years--; months += 12; }
   if (years === 0) return `${months} mes${months !== 1 ? 'es' : ''}`;
   if (months === 0) return `${years} año${years !== 1 ? 's' : ''}`;
-  return `${years}a ${months}m`;
+  return `${years} año${years !== 1 ? 's' : ''} y ${months} mes${months !== 1 ? 'es' : ''}`;
 }
 
 function daysUntil(dateStr: string) {
