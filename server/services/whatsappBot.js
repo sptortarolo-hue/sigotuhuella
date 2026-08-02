@@ -285,7 +285,8 @@ async function routeFlow(conv, parsed) {
     case 'donate.method': return dMethod(conv, parsed);
     case 'chapita.channel': return chapitaChannel(conv, parsed);
     case 'chapita.count': return chapitaCount(conv, parsed);
-    case 'chapita.count_more': return chapitaCountMore(conv, parsed);
+    case 'chapita.count_p2': return chapitaCountP2(conv, parsed);
+    case 'chapita.count_p3': return chapitaCountP3(conv, parsed);
     case 'chapita.count_confirm': return chapitaCountConfirm(conv, parsed, intent);
     case 'chapita.pet_name': return chapitaPetName(conv, parsed);
     case 'chapita.species': return chapitaSpecies(conv, parsed);
@@ -355,7 +356,8 @@ const stepNames = {
   'donate.method': 'elegir un método de donación',
   'chapita.channel': 'elegir un canal',
   'chapita.count': 'decirme para cuántas mascotas es',
-  'chapita.count_more': 'elegir la cantidad',
+  'chapita.count_p2': 'elegir la cantidad',
+  'chapita.count_p3': 'elegir la cantidad',
   'chapita.count_confirm': 'confirmar la cantidad',
   'chapita.pet_name': 'decir el nombre de la mascota',
   'chapita.species': 'decir la especie',
@@ -1418,56 +1420,73 @@ function parsePetCount(input) {
   return null;
 }
 
+// P1: 1, 2, or Más → P2
 async function askChapitaCount(conv) {
   await sendMessage(conv.wa_from,
     `${conv.bot_name}: Genial. ¿Para *cuántas mascotas* querés la chapita QR?`
   );
-  await sendInteractiveButtons(conv.wa_from, 'Cantidad de mascotas:', [
-    { id: 'count_1', title: '1 🐾' },
-    { id: 'count_2', title: '2 🐾🐾' },
-    { id: 'count_3', title: '3 🐾🐾🐾' },
-    { id: 'count_other', title: 'Más…' },
+  await sendInteractiveButtons(conv.wa_from, 'Tocá una opción:', [
+    { id: 'count_1', title: '1' },
+    { id: 'count_2', title: '2' },
+    { id: 'count_more_p2', title: 'Más…' },
   ]);
   await setFlow(conv, 'chapita.count');
 }
 
 async function chapitaCount(conv, parsed) {
-  if (parsed.buttonId === 'count_other') {
-    return askChapitaCountMore(conv);
-  }
-  if (parsed.buttonId && parsed.buttonId.startsWith('count_')) {
-    const petCount = parseInt(parsed.buttonId.replace('count_', ''), 10);
-    if (petCount >= 1 && petCount <= 3) return confirmPetCount(conv, petCount);
-  }
-  await askChapitaCount(conv);
+  if (parsed.buttonId === 'count_more_p2') return askChapitaCountP2(conv);
+  if (parsed.buttonId === 'count_1') return confirmPetCount(conv, 1);
+  if (parsed.buttonId === 'count_2') return confirmPetCount(conv, 2);
+  const typed = parsePetCount(parsed.textBody);
+  if (typed === 1 || typed === 2) return confirmPetCount(conv, typed);
+  if (typed && typed > 2) return askChapitaCountP2(conv);
+  await sendMessage(conv.wa_from, `${conv.bot_name}: Tocá un botón o escribí la cantidad (1 o 2).`);
+  return askChapitaCount(conv);
 }
 
-async function askChapitaCountMore(conv) {
-  await sendMessage(conv.wa_from,
-    `${conv.bot_name}: Si son más de 3, tocá cuántas mascotas son:`
-  );
-  await sendInteractiveButtons(conv.wa_from, 'Cantidad:', [
-    { id: 'count_more_4', title: '4 🐾🐾🐾🐾' },
-    { id: 'count_more_5', title: '5 🐾🐾🐾🐾🐾' },
-    { id: 'count_more_6', title: '6 🐾🐾🐾🐾🐾🐾' },
-    { id: 'count_back', title: '← Volver' },
+// P2: 3, 4, or Más → P3
+async function askChapitaCountP2(conv) {
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Son más de 2 mascotas?`);
+  await sendInteractiveButtons(conv.wa_from, 'Tocá una opción:', [
+    { id: 'count_3', title: '3' },
+    { id: 'count_4', title: '4' },
+    { id: 'count_more_p3', title: 'Más…' },
   ]);
-  await setFlow(conv, 'chapita.count_more');
+  await setFlow(conv, 'chapita.count_p2');
 }
 
-async function chapitaCountMore(conv, parsed) {
-  if (parsed.buttonId === 'count_back') {
-    await sendMessage(conv.wa_from, `${conv.bot_name}: No hay problema, marquemos la cantidad en estos botones.`);
-    return askChapitaCount(conv);
-  }
-  if (parsed.buttonId && parsed.buttonId.startsWith('count_more_')) {
-    const petCount = parseInt(parsed.buttonId.replace('count_more_', ''), 10);
-    if (petCount >= 4 && petCount <= CHAPITA_MAX_PETS) {
-      return confirmPetCount(conv, petCount);
-    }
-  }
-  await sendMessage(conv.wa_from, `${conv.bot_name}: Para que no haya errores, tocá uno de estos botones (4, 5 o 6), o volvé.`);
-  return askChapitaCountMore(conv);
+async function chapitaCountP2(conv, parsed) {
+  if (parsed.buttonId === 'count_more_p3') return askChapitaCountP3(conv);
+  if (parsed.buttonId === 'count_3') return confirmPetCount(conv, 3);
+  if (parsed.buttonId === 'count_4') return confirmPetCount(conv, 4);
+  const typed = parsePetCount(parsed.textBody);
+  if (typed === 3 || typed === 4) return confirmPetCount(conv, typed);
+  if (typed && typed > 4) return askChapitaCountP3(conv);
+  if (typed && typed <= 2) return askChapitaCount(conv);
+  await sendMessage(conv.wa_from, `${conv.bot_name}: Tocá un botón o escribí la cantidad (3 o 4).`);
+  return askChapitaCountP2(conv);
+}
+
+// P3: 5, 6, or Volver → P1
+async function askChapitaCountP3(conv) {
+  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Son más de 4 mascotas?`);
+  await sendInteractiveButtons(conv.wa_from, 'Tocá una opción:', [
+    { id: 'count_5', title: '5' },
+    { id: 'count_6', title: '6' },
+    { id: 'count_back_p1', title: '← Volver' },
+  ]);
+  await setFlow(conv, 'chapita.count_p3');
+}
+
+async function chapitaCountP3(conv, parsed) {
+  if (parsed.buttonId === 'count_back_p1') return askChapitaCount(conv);
+  if (parsed.buttonId === 'count_5') return confirmPetCount(conv, 5);
+  if (parsed.buttonId === 'count_6') return confirmPetCount(conv, 6);
+  const typed = parsePetCount(parsed.textBody);
+  if (typed === 5 || typed === 6) return confirmPetCount(conv, typed);
+  if (typed && typed <= 4) return askChapitaCountP2(conv);
+  await sendMessage(conv.wa_from, `${conv.bot_name}: Tocá un botón o escribí la cantidad (5 o 6).`);
+  return askChapitaCountP3(conv);
 }
 
 function confirmPetCount(conv, petCount) {
