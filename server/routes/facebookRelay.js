@@ -286,8 +286,12 @@ function saveDebug(key, data) {
 
 router.post('/fb-debug', relayAuth, async (req, res) => {
   try {
-    const { screenshot, ariaLabels, lexicalInfo, url, html } = req.body;
-    saveDebug('last', { ariaLabels, lexicalInfo, url, html, timestamp: new Date().toISOString() });
+    const { screenshot, ariaLabels, lexicalInfo, url, html, label, totalDialogs, dialogTag, dialogRole, items } = req.body;
+    saveDebug('last', {
+      ariaLabels, lexicalInfo, url, html, label,
+      diag4: { totalDialogs, dialogTag, dialogRole, items },
+      timestamp: new Date().toISOString(),
+    });
     if (screenshot) {
       const buf = Buffer.from(screenshot, 'base64');
       writeFileSync(path.join(DEBUG_DIR, 'last_screenshot.png'), buf);

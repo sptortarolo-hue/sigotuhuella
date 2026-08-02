@@ -526,8 +526,42 @@ function DebugSection() {
               <div className="grid grid-cols-2 gap-4">
                 <div><strong>URL:</strong> <span className="break-all">{data.url}</span></div>
                 <div><strong>Timestamp:</strong> {data.timestamp}</div>
+                <div><strong>Label:</strong> {data.label ?? '—'}</div>
                 <div><strong>Lexical:</strong> {data.lexicalInfo?.hasLexical ? '✓ sí' : '✗ no'} (count: {data.lexicalInfo?.count})</div>
               </div>
+              {data.diag4 && (
+                <div>
+                  <strong>Diálogo share/group (diag4):</strong>
+                  <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
+                    <div>Dialogs: {data.diag4.totalDialogs}</div>
+                    <div>Tag: {data.diag4.dialogTag} role={data.diag4.dialogRole}</div>
+                  </div>
+                  {data.diag4.items?.length > 0 && (
+                    <table className="mt-1 w-full text-xs border border-gray-200 rounded-lg overflow-hidden">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="p-1 text-left">tag</th>
+                          <th className="p-1 text-left">role</th>
+                          <th className="p-1 text-left">aria</th>
+                          <th className="p-1 text-left">texto</th>
+                          <th className="p-1 text-left">rect (w×h@l,t)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.diag4.items.map((it, i) => (
+                          <tr key={i} className="border-t border-gray-100 align-top">
+                            <td className="p-1 font-mono">{it.tag}</td>
+                            <td className="p-1">{it.role ?? ''}</td>
+                            <td className="p-1">{it.ariaLabel ?? ''}</td>
+                            <td className="p-1 break-all">{it.text}</td>
+                            <td className="p-1 font-mono">{it.rect ? `${it.rect.w}×${it.rect.h}@${it.rect.l},${it.rect.t}` : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
               {data.ariaLabels && (
                 <div>
                   <strong>ARIA labels (primeros 50):</strong>
