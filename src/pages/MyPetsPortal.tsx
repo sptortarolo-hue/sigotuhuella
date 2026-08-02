@@ -9,6 +9,7 @@ import {
   PawPrint, Plus, Loader2, X, Save, Dog, Cat, Heart,
   Syringe, Scissors, Bug, Weight, Calendar, Sparkles, ChevronRight,
   QrCode, ShieldCheck, Share2, Phone, Check, Clock, AlertTriangle, User,
+  Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QrClaimModal from '@/src/components/QrClaimModal';
@@ -101,6 +102,9 @@ export default function MyPetsPortal() {
   const [adopterPhone, setAdopterPhone] = useState('');
   const [adoptionLoading, setAdoptionLoading] = useState(false);
   const [adoptionDone, setAdoptionDone] = useState(false);
+  const [deletePet, setDeletePet] = useState<any>(null);
+  const [deleteStep, setDeleteStep] = useState<'confirm' | 'final'>('confirm');
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
 
@@ -217,11 +221,14 @@ export default function MyPetsPortal() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar esta mascota? Se borrarán todas las fotos, eventos y registros.')) return;
+    setDeleteLoading(true);
     try {
       await api.myPets.delete(id);
       await fetchPets();
-    } catch (e) { console.error(e); }
+      setDeletePet(null);
+      setDeleteStep('confirm');
+    } catch (e) { console.error(e); alert('Error al eliminar la mascota'); }
+    finally { setDeleteLoading(false); }
   };
 
   const handleShare = async () => {
@@ -500,6 +507,15 @@ export default function MyPetsPortal() {
                         {PET_TYPE_BADGE[pet.pet_type]?.label}
                       </span>
                     </div>
+                  )}
+                  {!pet.has_pending_adoption && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeletePet(pet); setDeleteStep('confirm'); }}
+                      className="absolute top-3 right-3 p-2 rounded-full bg-white/90 backdrop-blur-sm text-red-500 hover:bg-red-50 hover:text-red-600 shadow-sm transition-colors"
+                      title="Eliminar mascota"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   )}
                   <div className="flex items-center gap-2">
                     <h3 className="text-lg font-bold text-white">{pet.name}</h3>
@@ -994,6 +1010,91 @@ export default function MyPetsPortal() {
                   </button>
                 </div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── ELIMINAR MASCOTA (doble confirmación) ─── */}
+      <AnimatePresence>
+        {deletePet && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm"
+              onClick={() => { if (!deleteLoading) setDeletePet(null); }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-xl p-6 sm:p-8"
+            >
+              <button
+                onClick={() => { if (!deleteLoading) setDeletePet(null); }}
+                className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-14 h-14 rounded-full flex items-center justify-center bg-red-100">
+                  <Trash2 className="w-7 h-7 text-red-500" />
+                </div>
+                {deleteStep === 'confirm' ? (
+                  <>
+                    <h2 className="text-xl font-bold text-brand-primary">¿Eliminar a {deletePet.name}?</h2>
+                    <p className="text-gray-500 text-sm leading-relaxed">
+                      Esta mascota se quitará de tu portal "Mis mascotas".
+                    </p>
+                    <div className="flex gap-3 w-full mt-2">
+                      <button
+                        onClick={() => setDeletePet(null)}
+                        className="flex-1 px-4 py-3 border border-brand-accent rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => setDeleteStep('final')}
+                        className="flex-1 px-4 py-3 bg-red-500 rounded-xl text-sm font-bold text-white hover:bg-red-600 transition-all"
+                      >
+                        Continuar
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-xl font-bold text-brand-primary">¿Seguro que querés eliminarla?</h2>
+                    <p className="text-gray-500 text-sm leading-relaxed">
+                      Se borrarán todas las fotos, eventos y registros de {deletePet.name}. Esta acción no se puede deshacer.
+                    </p>
+                    <div className="flex gap-3 w-full mt-2">
+                      <button
+                        onClick={() => setDeleteStep('confirm')}
+                        disabled={deleteLoading}
+                        className="flex-1 px-4 py-3 border border-brand-accent rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      >
+                        Volver
+                      </button>
+                      <button
+                        onClick={() => handleDelete(deletePet.id)}
+                        disabled={deleteLoading}
+                        className="flex-1 px-4 py-3 bg-red-500 rounded-xl text-sm font-bold text-white hover:bg-red-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        {deleteLoading ? 'Eliminando...' : 'Eliminar definitivamente'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}

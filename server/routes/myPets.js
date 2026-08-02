@@ -285,16 +285,30 @@ router.put('/:id', requireAuth, async (req, res) => {
 });
 
 router.delete('/:id', requireAuth, async (req, res) => {
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query('BEGIN');
+    // Desvincular la ficha pública antes de borrar (evita error de FK pets.my_pet_id)
+    await client.query(
+      'UPDATE pets SET my_pet_id = NULL WHERE my_pet_id = $1',
+      [req.params.id]
+    );
+    const result = await client.query(
       'DELETE FROM my_pets WHERE id = $1 AND user_id = $2 RETURNING id',
       [req.params.id, req.user.id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Mascota no encontrada' });
+    }
+    await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('my-pet delete error:', err);
     res.status(500).json({ error: 'Error al eliminar mascota' });
+  } finally {
+    client.release();
   }
 });
 
