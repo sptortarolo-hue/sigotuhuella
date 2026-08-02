@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth, requireAdmin, hashPassword, comparePassword } from '../auth.js';
+import { requireAuth, requireAdmin, hashPassword, comparePassword, sendWhatsAppRegistrationEmail, sendAdminNotificationEmail } from '../auth.js';
+import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import sharp from 'sharp';
 
 const router = Router();
@@ -16,6 +18,100 @@ router.get('/', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Get users error:', err);
     res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// ── Admin: create a user (direct password or pending registration) ───────────
+router.post('/', requireAdmin, async (req, res) => {
+  const { email, displayName, phone, memberNumber, role, mode, password, notificationPreference } = req.body;
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Se requiere un email válido' });
+  }
+  if (phone && !/^549\d{10}$/.test(phone.replace(/\D/g, ''))) {
+    return res.status(400).json({ error: 'El teléfono debe tener formato 549XXXXXXXXXX (13 dígitos)' });
+  }
+
+  try {
+    const dup = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+    if (dup.rows.length > 0) {
+      return res.status(400).json({ error: 'El email ya está en uso por otro usuario' });
+    }
+
+    const finalRole = ['admin', 'user'].includes(role) ? role : 'user';
+    const notifyPref = ['email', 'whatsapp', 'both'].includes(notificationPreference) ? notificationPreference : 'email';
+
+    // pending: user completes registration via link (CompleteRegistration flow)
+    const isPending = mode === 'pending' || !password;
+    let passwordHash = '';
+    let registrationToken = null;
+    let emailVerified = false;
+    let registrationPending = isPending;
+
+    if (isPending) {
+      registrationToken = uuidv4().replace(/-/g, '') + crypto.randomBytes(16).toString('hex');
+    } else {
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+      }
+      passwordHash = await hashPassword(password);
+      emailVerified = true; // para que el usuario pueda iniciar sesión sin verificar email
+    }
+
+    const result = await pool.query(
+      `INSERT INTO users (email, password_hash, display_name, phone, role,
+        member_number, email_verified, registration_pending, registration_token, notification_preference)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, email, display_name, phone, role, member_number, created_at,
+                 email_verified, registration_pending, notification_preference`,
+      [email.trim().toLowerCase(), passwordHash, displayName || email.split('@')[0], phone || null,
+        finalRole, memberNumber || null, emailVerified, isPending, registrationToken, notifyPref]
+    );
+    const user = result.rows[0];
+
+    if (isPending) {
+      // Enviar email con enlace de registro pendiente (firma en ambos modos)
+      sendWhatsAppRegistrationEmail(user.email, user.display_name, registrationToken)
+        .catch(err => console.error('Pending registration email error:', err));
+      sendAdminNotificationEmail(
+        'Nuevo usuario creado (registro pendiente)',
+        `<p>El admin creó un usuario para <strong>${user.display_name}</strong>.</p>
+         <p>Email: ${user.email}</p>
+         <p>El enlace de registro se envió por email para que complete su contraseña.</p>`
+      ).catch(err => console.error('Admin notif error:', err));
+    }
+
+    res.status(201).json({
+      user,
+      registrationLink: isPending
+        ? `${process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar'}/completar-registro?token=${registrationToken}`
+        : null,
+    });
+  } catch (err) {
+    console.error('Create user error:', err);
+    res.status(500).json({ error: 'Failed to create user' });
+  }
+});
+
+// ── Admin: set/reset a user's password directly ───────────────────────────────
+router.put('/:id/set-password', requireAdmin, async (req, res) => {
+  const { password } = req.body;
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  }
+  try {
+    const passwordHash = await hashPassword(password);
+    const result = await pool.query(
+      "UPDATE users SET password_hash = $1, registration_pending = FALSE, registration_token = NULL, email_verified = TRUE WHERE id = $2 RETURNING id, email, display_name",
+      [passwordHash, req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ message: 'Password set', user: result.rows[0] });
+  } catch (err) {
+    console.error('Set password error:', err);
+    res.status(500).json({ error: 'Failed to set password' });
   }
 });
 
