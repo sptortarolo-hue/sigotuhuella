@@ -35,7 +35,7 @@ async function canEditMyPet(userId, petId) {
     `SELECT mp.user_id, ms.user_id IS NOT NULL as is_shared
      FROM my_pets mp
      LEFT JOIN my_pet_shares ms ON ms.pet_id = mp.id AND ms.user_id = $1
-     WHERE mp.id = $2`,
+     WHERE mp.id = $2 AND mp.transferred_at IS NULL`,
     [userId, petId]
   );
   if (result.rows.length === 0) return { allowed: false, isOwner: false };
@@ -80,7 +80,7 @@ router.get('/', requireAuth, async (req, res) => {
                WHERE p.my_pet_id = mp.id AND aa.status = 'pending_adopter') as has_pending_adoption
        FROM my_pets mp
        LEFT JOIN my_pet_shares ms ON ms.pet_id = mp.id AND ms.user_id = $1
-       WHERE mp.user_id = $1 OR ms.user_id IS NOT NULL
+       WHERE (mp.user_id = $1 OR ms.user_id IS NOT NULL) AND mp.transferred_at IS NULL
        ORDER BY mp.created_at DESC`,
       [req.user.id]
     );

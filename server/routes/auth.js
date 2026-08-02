@@ -92,7 +92,7 @@ router.post('/register', async (req, res) => {
         // La solicitud de chapita pendiente ahora pertenece a la mascota del adoptante
         if (ass.my_pet_id) {
           await pool.query(
-            'UPDATE my_pets SET qr_requested = false WHERE id = $1',
+            'UPDATE my_pets SET qr_requested = false, transferred_at = NOW() WHERE id = $1 AND transferred_at IS NULL',
             [ass.my_pet_id]
           );
         }

@@ -1526,6 +1526,25 @@ export async function initDb() {
         ADD COLUMN IF NOT EXISTS qr_contact_phone VARCHAR(100)
     `, 'my_pets qr visibility + contact');
 
+    // ─── my_pets transferred (adopción confirmada: ocultar del portal del dueño anterior) ───
+    await migrate(client, `
+      ALTER TABLE my_pets ADD COLUMN IF NOT EXISTS transferred_at TIMESTAMP
+    `, 'my_pets transferred_at');
+    await migrate(client, `
+      UPDATE my_pets mp
+      SET transferred_at = NOW()
+      WHERE mp.transferred_at IS NULL
+        AND EXISTS (
+          SELECT 1
+          FROM adoption_assignments aa
+          JOIN pets p ON p.id = aa.pet_id
+          WHERE aa.status = 'completed'
+            AND aa.inviter_id = mp.user_id
+            AND p.name = mp.name
+            AND p.species = mp.species
+        )
+    `, 'my_pets backfill transferred_at para adopciones completadas');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

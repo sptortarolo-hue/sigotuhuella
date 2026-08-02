@@ -44,7 +44,7 @@ async function transferToAdopter(client, assignment, adopterUserId) {
   // La solicitud de chapita pendiente ahora pertenece a la mascota del adoptante
   if (assignment.my_pet_id) {
     await client.query(
-      'UPDATE my_pets SET qr_requested = false WHERE id = $1',
+      'UPDATE my_pets SET qr_requested = false, transferred_at = NOW() WHERE id = $1 AND transferred_at IS NULL',
       [assignment.my_pet_id]
     );
   }
@@ -250,6 +250,14 @@ router.post('/confirm/:token', requireAuth, async (req, res) => {
       await client.query(
         'UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL WHERE id = $1',
         [assignment.qr_id]
+      );
+    }
+
+    // La mascota ya no es del dueño anterior: ocultarla de su portal
+    if (assignment.my_pet_id) {
+      await client.query(
+        'UPDATE my_pets SET transferred_at = NOW() WHERE id = $1 AND transferred_at IS NULL',
+        [assignment.my_pet_id]
       );
     }
 

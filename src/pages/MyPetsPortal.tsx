@@ -417,6 +417,7 @@ export default function MyPetsPortal() {
                         try {
                           await api.adoptionAssignments.confirm(ass.token);
                           await fetchPendingAdoptions();
+                          await fetchPets();
                         } catch (e: any) {
                           alert(e.message || 'Error al confirmar');
                         } finally {
