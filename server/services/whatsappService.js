@@ -412,8 +412,13 @@ export async function getNextAdoptionPet() {
     FROM pets p
     WHERE p.status IN ('for_adoption', 'for_adoption_simple')
       AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
+      AND NOT EXISTS (
+        SELECT 1 FROM adoption_assignments aa
+        WHERE aa.pet_id = p.id
+          AND (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))
+      )
     ORDER BY p.adoption_broadcasted_at ASC NULLS FIRST, p.created_at ASC
-    LIMIT 1
+LIMIT 1
   `)).rows;
   return pets.length > 0 ? pets[0] : null;
 }
