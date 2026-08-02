@@ -284,6 +284,8 @@ async function routeFlow(conv, parsed) {
     case 'human.confirm': return hConfirm(conv, parsed, intent);
     case 'donate.method': return dMethod(conv, parsed);
     case 'chapita.channel': return chapitaChannel(conv, parsed);
+    case 'chapita.count': return chapitaCount(conv, parsed);
+    case 'chapita.count_confirm': return chapitaCountConfirm(conv, parsed, intent);
     case 'chapita.pet_name': return chapitaPetName(conv, parsed);
     case 'chapita.species': return chapitaSpecies(conv, parsed);
     case 'chapita.color': return chapitaColor(conv, parsed);
@@ -351,6 +353,8 @@ const stepNames = {
   'human.confirm': 'confirmar los datos',
   'donate.method': 'elegir un método de donación',
   'chapita.channel': 'elegir un canal',
+  'chapita.count': 'decirme para cuántas mascotas es',
+  'chapita.count_confirm': 'confirmar la cantidad',
   'chapita.pet_name': 'decir el nombre de la mascota',
   'chapita.species': 'decir la especie',
   'chapita.color': 'decir el color',
@@ -1379,8 +1383,8 @@ async function startChapita(conv) {
 
   if (user && !user.registration_pending) {
     conv.context = { ...conv.context, user_id: user.id, user_name: user.display_name };
-    await sendMessage(conv.wa_from, `¡Hola ${user.display_name}! Vamos a pedir la chapita para tu mascota.`);
-    return askChapitaPetName(conv);
+    await sendMessage(conv.wa_from, `¡Hola ${user.display_name}! Vamos a pedir la chapita QR para tu mascota.`);
+    return askChapitaCount(conv);
   }
 
   if (user && user.registration_pending) {
@@ -1393,30 +1397,108 @@ async function startChapita(conv) {
   await sendMessage(conv.wa_from,
     `${conv.bot_name}: Para solicitar una chapita necesitás registrarte. ¿Cómo te llamás?`
   );
-  await setFlow(conv, 'register.name', { _redirect: 'chapita.pet_name' });
+  await setFlow(conv, 'register.name', { _redirect: 'chapita.count' });
 }
 
-async function askChapitaPetName(conv) {
-  await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Cómo se llama tu mascota?`);
+const CHAPITA_MAX_PETS = 6;
+const COUNT_WORDS = {
+  uno: 1, dos: 2, dosa: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6,
+};
+
+function parsePetCount(input) {
+  const text = String(input || '').toLowerCase().trim();
+  if (!text) return null;
+  const direct = text.match(/\b(\d{1,2})\b/);
+  if (direct) return Math.min(Math.max(parseInt(direct[1], 10), 1), CHAPITA_MAX_PETS);
+  for (const [word, num] of Object.entries(COUNT_WORDS)) {
+    if (text.split(/[\s,-]+/).includes(word)) return Math.min(num, CHAPITA_MAX_PETS);
+  }
+  return null;
+}
+
+async function askChapitaCount(conv) {
+  await sendMessage(conv.wa_from,
+    `${conv.bot_name}: Genial. ¿Para *cuántas mascotas* querés la chapita QR?\n\nEscribí el número, por ejemplo: 1, 2, 3... (máximo ${CHAPITA_MAX_PETS})`
+  );
+  await setFlow(conv, 'chapita.count');
+}
+
+async function chapitaCount(conv, parsed) {
+  const petCount = parsePetCount(parsed.textBody);
+
+  if (!petCount || petCount < 1) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: No entendí el número. Escribí cuántas mascotas son, por ejemplo: 2 o 3.`);
+    return;
+  }
+
+  await setFlow(conv, 'chapita.count_confirm', {
+    ...conv.context,
+    pet_count: petCount,
+    current_index: 0,
+    pets: [],
+  });
+  await sendMessage(conv.wa_from,
+    `${conv.bot_name}: Entendido. Vamos a pedir la chapita para *${petCount} ${petCount === 1 ? 'mascota' : 'mascotas'}*. ¿Es correcto?`
+  );
+  await sendInteractiveButtons(conv.wa_from, 'Confirmar cantidad:', [
+    { id: 'confirm_yes', title: '✅ Sí' },
+    { id: 'confirm_no', title: '❌ No / corregir' },
+  ]);
+}
+
+async function chapitaCountConfirm(conv, parsed, intent) {
+  if (intent !== 'confirm') {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: No hay problema. Escribí la cantidad correcta, por ejemplo: 2 o 3.`);
+    return askChapitaCount(conv);
+  }
+  await sendMessage(conv.wa_from, `✅ Perfecto. Vamos a registrar ${conv.context.pet_count} ${conv.context.pet_count === 1 ? 'mascota' : 'mascotas'}.`);
+  return askPetName(conv);
+}
+
+async function askPetName(conv) {
+  const idx = conv.context?.current_index || 0;
+  const total = conv.context?.pet_count || 1;
+  const n = idx + 1;
+  await sendMessage(conv.wa_from,
+    total > 1
+      ? `${conv.bot_name}: Ahora la *mascota ${n} de ${total}*. ¿Cómo se llama?`
+      : `${conv.bot_name}: ¿Cómo se llama tu mascota?`
+  );
   await setFlow(conv, 'chapita.pet_name');
 }
 
 async function chapitaPetName(conv, parsed) {
   if (parsed.buttonId) {
-    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí el nombre de tu mascota, no uses botones de pasos anteriores.`);
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí el nombre de la mascota, no uses los botones.`);
     return;
   }
   const petName = (parsed.textBody || '').trim();
   if (!petName) {
-    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor decime el nombre de tu mascota`);
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor decime el nombre de la mascota`);
     return;
   }
-  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Qué especie es?`, [
+
+  // Si describió una cantidad ("tengo 4", "son 2", "4") en vez de un nombre, corregir la cantidad.
+  const countMatch = petName.match(/(?:tengo|son|hay|hoy|para|quiero)\s+(\d{1,2}|\w+)/i);
+  const quant = countMatch ? parsePetCount(countMatch[1]) : /^\d{1,2}$/.test(petName) ? parsePetCount(petName) : null;
+  if (quant) {
+    await sendMessage(conv.wa_from,
+      `${conv.bot_name}: Parece que me escribiste una cantidad. Este pedido es para registrar a las mascotas una por una.\n\n¿Para cuántas mascotas vamos a pedir la chapita? (escribí el número, máximo ${CHAPITA_MAX_PETS})`
+    );
+    await setFlow(conv, 'chapita.count', { ...conv.context });
+    return;
+  }
+
+  const idx = conv.context?.current_index || 0;
+  const pets = Array.isArray(conv.context?.pets) ? [...conv.context.pets] : [];
+  pets[idx] = { ...(pets[idx] || {}), name: petName };
+  const ctx = { ...conv.context, pets };
+  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Qué animal es *${petName}*?`, [
     { id: 'species_dog', title: '🐕 Perro' },
     { id: 'species_cat', title: '🐈 Gato' },
     { id: 'species_other', title: '🐾 Otro' },
   ]);
-  await setFlow(conv, 'chapita.species', { ...conv.context, pet_name: petName });
+  await setFlow(conv, 'chapita.species', ctx);
 }
 
 async function chapitaSpecies(conv, parsed) {
@@ -1428,34 +1510,59 @@ async function chapitaSpecies(conv, parsed) {
     species = text.includes('gato') ? 'cat' : text.includes('otro') ? 'other' : 'dog';
   }
   await sendMessage(conv.wa_from, `✅ Anotado.`);
-  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿De qué *color* es? (ej: marrón, blanco y negro, atigrado — opcional)`, [
+  const idx = conv.context?.current_index || 0;
+  const pets = Array.isArray(conv.context?.pets) ? [...conv.context.pets] : [];
+  pets[idx] = { ...(pets[idx] || {}), species };
+  const petName = pets[idx]?.name || 'la mascota';
+  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿De qué *color* es *${petName}*? (ej: marrón, blanco y negro, atigrado — opcional)`, [
     { id: 'skip', title: '⏭ Saltar' },
   ]);
-  await setFlow(conv, 'chapita.color', { ...conv.context, species });
+  await setFlow(conv, 'chapita.color', { ...conv.context, pets });
 }
 
 async function chapitaColor(conv, parsed) {
   const text = (parsed.textBody || '').toLowerCase().trim();
   const color = (parsed.buttonId === 'skip' || text === 'saltar' || text === 'no') ? null : (parsed.textBody || '').trim();
-  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Qué *raza* es? (ej: caniche, mestizo, siamés — opcional)`, [
+  const idx = conv.context?.current_index || 0;
+  const pets = Array.isArray(conv.context?.pets) ? [...conv.context.pets] : [];
+  pets[idx] = { ...(pets[idx] || {}), color: color || null };
+  const petName = pets[idx]?.name || 'la mascota';
+  await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Qué *raza* es *${petName}*? (ej: caniche, mestizo, siamés — opcional)`, [
     { id: 'skip', title: '⏭ Saltar' },
   ]);
-  await setFlow(conv, 'chapita.breed', { ...conv.context, color: color || null });
+  await setFlow(conv, 'chapita.breed', { ...conv.context, pets });
 }
 
 async function chapitaBreed(conv, parsed) {
   const text = (parsed.textBody || '').toLowerCase().trim();
   const breed = (parsed.buttonId === 'skip' || text === 'saltar' || text === 'no') ? null : (parsed.textBody || '').trim();
-  const ctx = { ...conv.context, breed: breed || null };
-  await setFlow(conv, 'chapita.confirm', ctx);
+  const idx = conv.context?.current_index || 0;
+  const total = conv.context?.pet_count || 1;
+  const pets = Array.isArray(conv.context?.pets) ? [...conv.context.pets] : [];
+  pets[idx] = { ...(pets[idx] || {}), breed: breed || null };
 
-  const speciesLabel = { dog: 'perro 🐕', cat: 'gato 🐈', other: 'otro 🐾' }[ctx.species] || ctx.species;
-  await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos:\n\n` +
-    `🏷️ *Nombre:* ${ctx.pet_name}\n` +
-    `🐾 *Especie:* ${speciesLabel}\n` +
-    `${ctx.color ? `🎨 *Color:* ${ctx.color}\n` : ''}` +
-    `${ctx.breed ? `🧬 *Raza:* ${ctx.breed}\n` : ''}` +
-    `\nDespués podrás completar el perfil desde la app.`);
+  const nextIdx = idx + 1;
+  const ctx = { ...conv.context, pets };
+
+  if (nextIdx < total) {
+    // Todavía faltan mascotas → registrar la siguiente.
+    await setFlow(conv, 'chapita.pet_name', { ...ctx, current_index: nextIdx });
+    const speciesLabel = { dog: 'perro 🐕', cat: 'gato 🐈', other: 'otro 🐾' }[pets[idx].species || 'dog'] || 'otro';
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Listo, *${pets[idx]?.name || 'la mascota'}* (${speciesLabel}) registrada.`);
+    return askPetName(conv);
+  }
+
+  // Todas las mascotas completadas → resumen final.
+  await setFlow(conv, 'chapita.confirm', ctx);
+  const speciesLabel = { dog: 'perro 🐕', cat: 'gato 🐈', other: 'otro 🐾' };
+  let summary = `${conv.bot_name}: Confirmá que todo esté bien. *Resumen de tu pedido (${total} ${total === 1 ? 'chapita' : 'chapitas'})*:\n`;
+  pets.forEach((pet, i) => {
+    summary += `\n🐾 *${i + 1}.* ${pet.name} — ${speciesLabel[pet.species] || pet.species || 'otro'}` +
+      `${pet.color ? `, ${pet.color}` : ''}` +
+      `${pet.breed ? `, ${pet.breed}` : ''}`;
+  });
+  summary += `\n\nDespués podrás completar el perfil desde la app.`;
+  await sendMessage(conv.wa_from, summary);
   await sendInteractiveButtons(conv.wa_from, '¿Confirmás?', [
     { id: 'confirm_yes', title: '✅ Sí, solicitar' },
     { id: 'confirm_no', title: '❌ Cancelar' },
@@ -1477,26 +1584,33 @@ async function chapitaConfirm(conv, parsed, intent) {
   }
 
   try {
-    const petResult = await pool.query(
-      `INSERT INTO my_pets (user_id, name, species, color, breed, qr_requested)
-       VALUES ($1, $2, $3, $4, $5, TRUE)
-       RETURNING id`,
-      [userId, ctx.pet_name, ctx.species || 'dog', ctx.color, ctx.breed]
-    );
-    const myPetId = petResult.rows[0].id;
+    const pets = Array.isArray(ctx.pets) && ctx.pets.length > 0 ? ctx.pets : [{ name: ctx.pet_name, species: ctx.species, color: ctx.color, breed: ctx.breed }];
 
+    const insertedIds = [];
     const { sendPushToAdmins } = await import('./pushService.js');
-    sendPushToAdmins({
-      title: 'Solicitud de chapita QR',
-      body: `${ctx.user_name || 'Usuario'} solicita QR para ${ctx.pet_name}`,
-      tag: `qr-request-${myPetId}`,
-    }).catch(() => {});
 
-    const speciesLabel = { dog: 'perro 🐕', cat: 'gato 🐈', other: 'otro 🐾' }[ctx.species] || ctx.species;
+    for (const pet of pets) {
+      const petResult = await pool.query(
+        `INSERT INTO my_pets (user_id, name, species, color, breed, qr_requested)
+         VALUES ($1, $2, $3, $4, $5, TRUE)
+         RETURNING id`,
+        [userId, pet.name || 'Sin nombre', pet.species || 'dog', pet.color || null, pet.breed || null]
+      );
+      const myPetId = petResult.rows[0].id;
+      insertedIds.push(myPetId);
+      sendPushToAdmins({
+        title: 'Solicitud de chapita QR',
+        body: `${ctx.user_name || 'Usuario'} solicita QR para ${pet.name || 'Sin nombre'}`,
+        tag: `qr-request-${myPetId}`,
+      }).catch(() => {});
+    }
+
+    const total = pets.length;
+    const names = pets.map((p, i) => `*${i + 1}.* ${p.name || 'Sin nombre'}`).join('\n');
     await sendMessage(conv.wa_from,
       `✅ *${conv.bot_name}:* ¡Solicitud recibida!\n\n` +
-      `Pedimos una chapita QR para *${ctx.pet_name}* (${speciesLabel}).\n` +
-      `Te vamos a notificar por este chat cuando esté lista para retirar.\n\n` +
+      `Pedimos ${total === 1 ? 'una chapita QR' : `${total} chapitas QR`} para:\n${names}\n\n` +
+      `Te vamos a notificar por este chat cuando estén listas para retirar.\n\n` +
       `📱 También podés completar el perfil desde la app.`);
   } catch (err) {
     console.error('Chapita confirm error:', err);
@@ -2434,13 +2548,13 @@ async function registerConfirm(conv, parsed, intent) {
     const redirect = conv.context._redirect || 'adopt_post.species';
 
     await sendMessage(conv.wa_from,
-      `✅ *${conv.bot_name}:* Registro creado. Te enviamos un mail a *${email}* para activar tu cuenta. ${redirect === 'chapita.pet_name' ? 'Ahora vamos a pedir la chapita.' : 'Ahora vamos a publicar la adopción.'}`
+      `✅ *${conv.bot_name}:* Registro creado. Te enviamos un mail a *${email}* para activar tu cuenta. ${redirect === 'chapita.count' ? 'Ahora vamos a pedir la chapita.' : 'Ahora vamos a publicar la adopción.'}`
     );
     await setFlow(conv, redirect, { ...conv.context });
     if (redirect === 'adopt_post.species') {
       await apAskSpecies(conv);
-    } else if (redirect === 'chapita.pet_name') {
-      await askChapitaPetName(conv);
+    } else if (redirect === 'chapita.count') {
+      await askChapitaCount(conv);
     }
   } catch (err) {
     console.error('Register confirm error:', err);
