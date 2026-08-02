@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Heart, Search, ShieldCheck, Share2, PawPrint, X, Camera, HeartHandshake, Ticket } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import NewsCarousel from '@/src/components/NewsCarousel';
 import { getNews } from '@/src/lib/newsService';
 import { api } from '@/src/lib/api';
@@ -18,6 +18,8 @@ export default function Home() {
   const [showChapitaModal, setShowChapitaModal] = useState(false);
   const [sponsors, setSponsors] = useState<{ name: string; logo: string; website: string }[]>([]);
   const [rafflesVisible, setRafflesVisible] = useState(true);
+  const [sponsorIndex, setSponsorIndex] = useState(0);
+  const sponsorScrollerRef = useRef<HTMLDivElement>(null);
 
 
   useEffect(() => {
@@ -255,18 +257,62 @@ export default function Home() {
             <h2 className="text-2xl sm:text-3xl font-bold text-brand-primary">Colaboran con nosotros</h2>
             <p className="text-sm text-gray-500 mt-2">Instituciones y marcas que colaboran con Sigo Tu Huella</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+
+          {/* Mobile: carousel full-width */}
+          <div className="sm:hidden">
+            <div
+              ref={sponsorScrollerRef}
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                const w = el.clientWidth;
+                if (w > 0) setSponsorIndex(Math.round(el.scrollLeft / w));
+              }}
+              className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-none -mx-4 px-4"
+            >
+              {sponsors.map((s, i) => (
+                <a key={i} href={s.website || '#'} target="_blank" rel="noopener noreferrer"
+                  className="group w-full shrink-0 snap-center bg-white rounded-[2rem] border border-brand-accent p-8 flex flex-col items-center text-center hover:shadow-lg transition-all">
+                  {s.logo ? (
+                    <img src={s.logo} alt={s.name} className="w-40 h-40 object-contain mb-4 rounded-xl" />
+                  ) : (
+                    <div className="w-40 h-40 bg-brand-bg rounded-xl flex items-center justify-center mb-4">
+                      <Heart className="w-14 h-14 text-brand-secondary" />
+                    </div>
+                  )}
+                  <span className="text-sm font-semibold text-brand-primary">{s.name}</span>
+                </a>
+              ))}
+            </div>
+            {sponsors.length > 1 && (
+              <div className="flex justify-center gap-2 mt-4">
+                {sponsors.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setSponsorIndex(idx);
+                      sponsorScrollerRef.current?.scrollTo({ left: idx * sponsorScrollerRef.current.clientWidth, behavior: 'smooth' });
+                    }}
+                    className={`w-2 h-2 rounded-full transition-all ${idx === sponsorIndex ? 'bg-brand-primary w-5' : 'bg-brand-accent hover:bg-brand-primary/50'}`}
+                    aria-label={`Ver ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Desktop: grid */}
+          <div className="hidden sm:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
             {sponsors.map((s, i) => (
               <a key={i} href={s.website || '#'} target="_blank" rel="noopener noreferrer"
-                className="group bg-white rounded-2xl border border-brand-accent p-5 sm:p-8 flex flex-col items-center text-center hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                className="group bg-white rounded-[2.5rem] border border-brand-accent p-6 lg:p-10 flex flex-col items-center text-center hover:shadow-lg hover:-translate-y-0.5 transition-all">
                 {s.logo ? (
-                  <img src={s.logo} alt={s.name} className="w-20 h-20 sm:w-28 sm:h-28 object-contain mb-3 rounded-xl" />
+                  <img src={s.logo} alt={s.name} className="w-40 h-40 lg:w-48 lg:h-48 object-contain mb-4 rounded-xl" />
                 ) : (
-                  <div className="w-20 h-20 sm:w-28 sm:h-28 bg-brand-bg rounded-xl flex items-center justify-center mb-3">
-                    <Heart className="w-8 h-8 sm:w-10 sm:h-10 text-brand-secondary" />
+                  <div className="w-40 h-40 lg:w-48 lg:h-48 bg-brand-bg rounded-xl flex items-center justify-center mb-4">
+                    <Heart className="w-12 h-12 lg:w-14 lg:h-14 text-brand-secondary" />
                   </div>
                 )}
-                <span className="text-xs sm:text-sm font-semibold text-brand-primary">{s.name}</span>
+                <span className="text-sm lg:text-base font-semibold text-brand-primary">{s.name}</span>
               </a>
             ))}
           </div>
