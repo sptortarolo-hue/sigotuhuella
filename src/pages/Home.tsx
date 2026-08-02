@@ -271,15 +271,17 @@ export default function Home() {
             >
               {sponsors.map((s, i) => (
                 <a key={i} href={s.website || '#'} target="_blank" rel="noopener noreferrer"
-                  className="group w-full shrink-0 snap-center bg-white rounded-[2rem] border border-brand-accent p-8 flex flex-col items-center text-center hover:shadow-lg transition-all">
+                  className="group w-full shrink-0 snap-center bg-white rounded-[2rem] border border-brand-accent overflow-hidden flex flex-col hover:shadow-lg transition-all">
                   {s.logo ? (
-                    <img src={s.logo} alt={s.name} className="w-40 h-40 object-contain mb-4 rounded-xl" />
+                    <div className="w-full aspect-square bg-brand-bg overflow-hidden">
+                      <img src={s.logo} alt={s.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    </div>
                   ) : (
-                    <div className="w-40 h-40 bg-brand-bg rounded-xl flex items-center justify-center mb-4">
-                      <Heart className="w-14 h-14 text-brand-secondary" />
+                    <div className="w-full aspect-square bg-brand-bg flex items-center justify-center">
+                      <Heart className="w-16 h-16 text-brand-secondary" />
                     </div>
                   )}
-                  <span className="text-sm font-semibold text-brand-primary">{s.name}</span>
+                  <span className="text-sm font-semibold text-brand-primary py-4 text-center shrink-0">{s.name}</span>
                 </a>
               ))}
             </div>
@@ -304,15 +306,17 @@ export default function Home() {
           <div className="hidden sm:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
             {sponsors.map((s, i) => (
               <a key={i} href={s.website || '#'} target="_blank" rel="noopener noreferrer"
-                className="group bg-white rounded-[2.5rem] border border-brand-accent p-6 lg:p-10 flex flex-col items-center text-center hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                className="group bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden flex flex-col hover:shadow-lg hover:-translate-y-0.5 transition-all">
                 {s.logo ? (
-                  <img src={s.logo} alt={s.name} className="w-40 h-40 lg:w-48 lg:h-48 object-contain mb-4 rounded-xl" />
+                  <div className="w-full aspect-square bg-brand-bg overflow-hidden">
+                    <img src={s.logo} alt={s.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  </div>
                 ) : (
-                  <div className="w-40 h-40 lg:w-48 lg:h-48 bg-brand-bg rounded-xl flex items-center justify-center mb-4">
-                    <Heart className="w-12 h-12 lg:w-14 lg:h-14 text-brand-secondary" />
+                  <div className="w-full aspect-square bg-brand-bg flex items-center justify-center">
+                    <Heart className="w-14 h-14 text-brand-secondary" />
                   </div>
                 )}
-                <span className="text-sm lg:text-base font-semibold text-brand-primary">{s.name}</span>
+                <span className="text-sm lg:text-base font-semibold text-brand-primary py-4 lg:py-5 text-center shrink-0">{s.name}</span>
               </a>
             ))}
           </div>
