@@ -928,6 +928,10 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
 
     // === Paso 2: Menú "Compartir en grupo" (detectar fila real del popover, buscar "grupo" solo allí) ===
     console.log('[FB Relay] Seleccionando Compartir en grupo...');
+    if (DEBUG_PAUSE) {
+      console.log(`[FB Relay] Debug pause: revisá el popover de Compartir antes de elegir grupo (${DEBUG_PAUSE/1000}s)...`);
+      await sleep(DEBUG_PAUSE);
+    }
     await sleep(3000);
     // Diagnóstico: encontrar contenedor, fila real, y botones
     const diag = await page.evaluate(() => {
@@ -970,6 +974,17 @@ async function sharePostToGroup(b, targetUrl, fbGroupId, message, groupName) {
     });
     console.log('[FB Relay] Popover container:', diag.cont, '| Row:', diag.row);
     for (const it of diag.items) console.log(`  [${it.idx}] <${it.tag}> left=${it.left} text="${it.text}"`);
+    try {
+      await api.post('/fb-debug', {
+        label: 'share-popover-step2',
+        url: page.url(),
+        diag4: { totalDialogs: 0, dialogTag: diag.cont || null, dialogRole: null, items: diag.items.map(it => ({ ...it })) },
+        timestamp: new Date().toISOString(),
+      });
+      console.log('[FB Relay] Popover diag enviado al servidor');
+    } catch (e) {
+      console.error('[FB Relay] Error enviando diag popover:', e.message);
+    }
     // Click: brute-force por segmentos (probar 5 y 6 botones)
     const rowRect = await page.evaluate(() => {
       const rkw = ['messenger','whatsapp','historia','enlace','grupo','perfil'];
