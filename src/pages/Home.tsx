@@ -273,8 +273,11 @@ export default function Home() {
                 <a key={i} href={s.website || '#'} target="_blank" rel="noopener noreferrer"
                   className="group w-full shrink-0 snap-center bg-white rounded-[2rem] border border-brand-accent overflow-hidden flex flex-col hover:shadow-lg transition-all">
                   {s.logo ? (
-                    <div className="w-full aspect-square bg-brand-bg overflow-hidden">
-                      <img src={s.logo} alt={s.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <div className="relative w-full aspect-square overflow-hidden">
+                      <img src={s.logo} alt="" aria-hidden
+                        className="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-70" />
+                      <img src={s.logo} alt={s.name}
+                        className="relative w-full h-full p-6 sm:p-8 object-contain" />
                     </div>
                   ) : (
                     <div className="w-full aspect-square bg-brand-bg flex items-center justify-center">
@@ -308,8 +311,11 @@ export default function Home() {
               <a key={i} href={s.website || '#'} target="_blank" rel="noopener noreferrer"
                 className="group bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden flex flex-col hover:shadow-lg hover:-translate-y-0.5 transition-all">
                 {s.logo ? (
-                  <div className="w-full aspect-square bg-brand-bg overflow-hidden">
-                    <img src={s.logo} alt={s.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <div className="relative w-full aspect-square overflow-hidden">
+                    <img src={s.logo} alt="" aria-hidden
+                      className="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-70" />
+                    <img src={s.logo} alt={s.name}
+                      className="relative w-full h-full p-6 lg:p-8 object-contain" />
                   </div>
                 ) : (
                   <div className="w-full aspect-square bg-brand-bg flex items-center justify-center">
