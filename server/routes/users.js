@@ -46,7 +46,6 @@ router.post('/', requireAdmin, async (req, res) => {
     let passwordHash = '';
     let registrationToken = null;
     let emailVerified = false;
-    let registrationPending = isPending;
 
     if (isPending) {
       registrationToken = uuidv4().replace(/-/g, '') + crypto.randomBytes(16).toString('hex');

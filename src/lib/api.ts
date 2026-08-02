@@ -177,6 +177,7 @@ export const api = {
   },
   users: {
     list: () => request('/users'),
+    create: (data: any) => request('/users', { method: 'POST', body: JSON.stringify(data) }),
     search: (q: string) => request(`/users/search?q=${encodeURIComponent(q)}`),
     relations: (id: string) => request(`/users/${id}/relations`),
     update: (id: string, data: any) => request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -189,6 +190,8 @@ export const api = {
     stats: (id: string) => request(`/users/${id}/stats`),
     updateMember: (id: string, data: { memberNumber?: string; displayName?: string }) =>
       request(`/users/${id}/member`, { method: 'PUT', body: JSON.stringify(data) }),
+    setPassword: (id: string, password: string) =>
+      request(`/users/${id}/set-password`, { method: 'PUT', body: JSON.stringify({ password }) }),
   },
   members: {
     me: () => request('/members/me'),
@@ -332,6 +335,7 @@ export const api = {
     list: () => request('/my-pets'),
     get: (id: string) => request(`/my-pets/${id}`),
     create: (data: any) => request('/my-pets', { method: 'POST', body: JSON.stringify(data) }),
+    createForUser: (userId: string, data: any) => request(`/my-pets/admin/for-user/${userId}`, { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: any) => request(`/my-pets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/my-pets/${id}`, { method: 'DELETE' }),
     requestQr: (id: string) => request(`/my-pets/${id}/request-qr`, { method: 'POST' }),

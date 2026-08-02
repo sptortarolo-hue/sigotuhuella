@@ -41,6 +41,8 @@ import { cn, formatDateOnly } from '@/src/lib/utils';
 import { PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
 import AdminConfirmDialog from '@/src/components/admin/AdminConfirmDialog';
 import AdminEditUserModal from '@/src/components/admin/AdminEditUserModal';
+import AdminCreateUserModal from '@/src/components/admin/AdminCreateUserModal';
+import AdminCreateMyPetModal from '@/src/components/admin/AdminCreateMyPetModal';
 import UserDetailPanel from '@/src/components/admin/UserDetailPanel';
 import AdminMyPetDetail from '@/src/components/admin/AdminMyPetDetail';
 import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
@@ -167,6 +169,8 @@ export default function Admin() {
   const [mobilePetView, setMobilePetView] = useState<'list' | 'detail'>('list');
 
   const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [showCreateMyPetModal, setShowCreateMyPetModal] = useState(false);
 
   // My Pet edit state
   const [showEditMyPet, setShowEditMyPet] = useState(false);
@@ -799,6 +803,17 @@ export default function Admin() {
 
   const handleUserUpdate = (updatedUser: any) => {
     setSelectedUserData((prev: any) => prev ? { ...prev, user: updatedUser } : prev);
+  };
+
+  const handleCreateUserSaved = (createdUser: any) => {
+    fetchUsers();
+    if (createdUser?.id) {
+      handleSelectUser(createdUser.id);
+    }
+  };
+
+  const handleCreateMyPetSaved = () => {
+    if (selectedUserId) fetchUserRelations(selectedUserId);
   };
 
   const handleToggleRole = async (id: string, currentRole: string) => {
@@ -1655,6 +1670,9 @@ export default function Admin() {
                       className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
                     />
                   </div>
+                  <button onClick={() => setShowCreateUserModal(true)} className="w-full px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">
+                    <Plus className="w-5 h-5" /> Nuevo Usuario
+                  </button>
                   <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
                     {userList
                       .filter(u => !userSearch || (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) || (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) || (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase())))
@@ -1705,6 +1723,7 @@ export default function Admin() {
                         onUserUpdate={handleUserUpdate}
                       />
                       <div className="px-6 pb-6 flex gap-2">
+                        <button onClick={() => setShowCreateMyPetModal(true)} className="flex-1 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold hover:bg-brand-primary/90 transition-colors flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Agregar mascota</button>
                         {selectedUserData.user.email !== 'sptortarolo@gmail.com' && (
                           <>
                             <button onClick={() => setShowEditUserModal(true)} className="flex-1 px-4 py-2.5 border border-brand-accent rounded-xl text-sm font-bold text-brand-primary hover:bg-brand-bg/50 transition-colors flex items-center justify-center gap-2"><UserCog className="w-4 h-4" /> Editar</button>
@@ -1770,6 +1789,9 @@ export default function Admin() {
                         className="w-full pl-12 pr-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none shadow-sm"
                       />
                     </div>
+                    <button onClick={() => setShowCreateUserModal(true)} className="w-full px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all">
+                      <Plus className="w-5 h-5" /> Nuevo Usuario
+                    </button>
                     <div className="space-y-3">
                       {userList
                         .filter(u => !userSearch || (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) || (u.display_name && u.display_name.toLowerCase().includes(userSearch.toLowerCase())) || (u.phone && u.phone.toLowerCase().includes(userSearch.toLowerCase())))
@@ -1826,6 +1848,11 @@ export default function Admin() {
                         onClose={() => { setMobileView('list'); setSelectedUserData(null); setSelectedUserId(null); }}
                         onUserUpdate={handleUserUpdate}
                       />
+                      <div className="px-6 pb-6">
+                        <button onClick={() => setShowCreateMyPetModal(true)} className="w-full px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-all">
+                          <Plus className="w-5 h-5" /> Agregar mascota
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1885,6 +1912,19 @@ export default function Admin() {
                   }}
                 />
               )}
+
+              <AdminCreateUserModal
+                isOpen={showCreateUserModal}
+                onClose={() => setShowCreateUserModal(false)}
+                onSaved={handleCreateUserSaved}
+              />
+              <AdminCreateMyPetModal
+                isOpen={showCreateMyPetModal}
+                userId={selectedUserId}
+                userName={selectedUserData?.user?.display_name}
+                onClose={() => setShowCreateMyPetModal(false)}
+                onSaved={handleCreateMyPetSaved}
+              />
             </>
             </div>
           )}

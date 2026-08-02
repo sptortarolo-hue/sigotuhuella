@@ -209,6 +209,55 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
+// ── Admin: create a my_pet under any user ─────────────────────────────────────
+router.post('/admin/for-user/:userId', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    const ownerExists = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
+    if (ownerExists.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const {
+      name, species, breed, color, gender, birth_date, chip_id,
+      bio, personality_tags, is_vaccinated, is_sterilized, is_dewormed,
+      weight_kg, avatar_image, avatar_mime_type, crop_x, crop_y,
+    } = req.body;
+
+    if (!name || !species) return res.status(400).json({ error: 'Nombre y especie son requeridos' });
+
+    let avatarData = null;
+    let avatarMime = null;
+    if (avatar_image) {
+      const compressed = await compressAvatar(avatar_image, avatar_mime_type || 'image/jpeg');
+      avatarData = compressed.data;
+      avatarMime = compressed.mimeType;
+    }
+
+    const result = await pool.query(
+      `INSERT INTO my_pets (user_id, name, species, breed, color, gender, birth_date, chip_id,
+        bio, personality_tags, is_vaccinated, is_sterilized, is_dewormed, weight_kg,
+        avatar_image, avatar_mime_type, crop_x, crop_y, original_avatar_data, pet_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+       RETURNING *`,
+      [
+        userId, name, species, breed || null, req.body.color || null, req.body.gender || 'unknown',
+        birth_date || null, chip_id || null, bio || null,
+        JSON.stringify(personality_tags || []),
+        is_vaccinated || false, is_sterilized || false, is_dewormed || false,
+        weight_kg || null, avatarData, avatarMime,
+        crop_x ?? 0.5, crop_y ?? 0.5, null,
+        req.body.pet_type || 'own',
+      ]
+    );
+    res.status(201).json({ myPet: result.rows[0] });
+  } catch (err) {
+    console.error('my-pet admin create error:', err);
+    res.status(500).json({ error: 'Error al crear mascota' });
+  }
+});
+
 router.put('/:id', requireAuth, async (req, res) => {
   try {
     const access = await canEditMyPet(req.user.id, req.params.id);
