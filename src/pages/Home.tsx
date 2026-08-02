@@ -258,12 +258,12 @@ export default function Home() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             {sponsors.map((s, i) => (
               <a key={i} href={s.website || '#'} target="_blank" rel="noopener noreferrer"
-                className="group bg-white rounded-2xl border border-brand-accent p-4 sm:p-6 flex flex-col items-center text-center hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                className="group bg-white rounded-2xl border border-brand-accent p-5 sm:p-8 flex flex-col items-center text-center hover:shadow-lg hover:-translate-y-0.5 transition-all">
                 {s.logo ? (
-                  <img src={s.logo} alt={s.name} className="w-14 h-14 sm:w-20 sm:h-20 object-contain mb-3 rounded-xl" />
+                  <img src={s.logo} alt={s.name} className="w-20 h-20 sm:w-28 sm:h-28 object-contain mb-3 rounded-xl" />
                 ) : (
-                  <div className="w-14 h-14 sm:w-20 sm:h-20 bg-brand-bg rounded-xl flex items-center justify-center mb-3">
-                    <Heart className="w-6 h-6 sm:w-8 sm:h-8 text-brand-secondary" />
+                  <div className="w-20 h-20 sm:w-28 sm:h-28 bg-brand-bg rounded-xl flex items-center justify-center mb-3">
+                    <Heart className="w-8 h-8 sm:w-10 sm:h-10 text-brand-secondary" />
                   </div>
                 )}
                 <span className="text-xs sm:text-sm font-semibold text-brand-primary">{s.name}</span>
