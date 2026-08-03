@@ -4,7 +4,7 @@ import { formatTag } from '@/src/lib/personalityTags';
 import { api } from '@/src/lib/api';
 import {
   PawPrint, Syringe, Scissors, Bug, ExternalLink, Download,
-  Edit3, QrCode, Copy, Check, Heart, Stethoscope, Phone, Image as ImageIcon, Loader2
+  Edit3, QrCode, Copy, Check, Heart, Stethoscope, Phone, Image as ImageIcon, Loader2, Trash2
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import ImageLightbox from './ImageLightbox';
@@ -33,9 +33,10 @@ interface AdminMyPetDetailProps {
   onClose?: () => void;
   isMobile?: boolean;
   onEdit?: () => void;
+  onDelete?: () => void;
 }
 
-export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit }: AdminMyPetDetailProps) {
+export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit, onDelete }: AdminMyPetDetailProps) {
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
@@ -141,12 +142,20 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit }: Adm
             )}
           </div>
         </div>
-        {onEdit && (
-          <button onClick={onEdit}
-            className="px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-xs hover:shadow-lg transition-all flex items-center gap-2 shrink-0">
-            <Edit3 className="w-3 h-3" /> Editar mascota
-          </button>
-        )}
+        <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+          {onEdit && (
+            <button onClick={onEdit}
+              className="px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-xs hover:shadow-lg transition-all flex items-center gap-2">
+              <Edit3 className="w-3 h-3" /> Editar mascota
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={onDelete}
+              className="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold text-xs hover:bg-red-100 transition-colors flex items-center gap-2">
+              <Trash2 className="w-3 h-3" /> Eliminar
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Bio */}

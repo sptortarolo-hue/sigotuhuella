@@ -334,17 +334,25 @@ router.put('/:id', requireAuth, async (req, res) => {
 });
 
 router.delete('/:id', requireAuth, async (req, res) => {
+  const access = await canEditMyPet(req.user.id, req.params.id);
+  if (!access.allowed && req.user.role !== 'admin') return res.status(404).json({ error: 'Mascota no encontrada' });
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Liberar la chapita QR asignada a esta mascota (vuelve al pool)
+    await client.query(
+      `UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL, notification_status = 'pending', notified_at = NULL WHERE my_pet_id = $1`,
+      [req.params.id]
+    );
     // Desvincular la ficha pública antes de borrar (evita error de FK pets.my_pet_id)
     await client.query(
       'UPDATE pets SET my_pet_id = NULL WHERE my_pet_id = $1',
       [req.params.id]
     );
     const result = await client.query(
-      'DELETE FROM my_pets WHERE id = $1 AND user_id = $2 RETURNING id',
-      [req.params.id, req.user.id]
+      'DELETE FROM my_pets WHERE id = $1 RETURNING id',
+      [req.params.id]
     );
     if (result.rows.length === 0) {
       await client.query('ROLLBACK');

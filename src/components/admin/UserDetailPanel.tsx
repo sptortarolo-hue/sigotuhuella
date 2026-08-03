@@ -2,7 +2,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X, User, Mail, Phone, Calendar, Shield, Award, PawPrint, MessageSquare,
-  BadgeCheck, MapPin, Activity, ExternalLink, ChevronRight, ChevronDown, Edit2, Save, Loader2
+  BadgeCheck, MapPin, Activity, ExternalLink, ChevronRight, ChevronDown, Edit2, Save, Loader2, Plus
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { BADGE_CONFIG } from '@/src/components/MemberCard';
@@ -96,12 +96,13 @@ interface UserDetailPanelProps {
   data: any;
   onSelectPet?: (petId: string) => void;
   onSelectMyPet?: (mp: any) => void;
+  onAddPet?: () => void;
   isMobile?: boolean;
   onClose?: () => void;
   onUserUpdate?: (updatedUser: any) => void;
 }
 
-export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMobile, onClose, onUserUpdate }: UserDetailPanelProps) {
+export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, onAddPet, isMobile, onClose, onUserUpdate }: UserDetailPanelProps) {
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'myPets' | 'reported' | 'activity'>('info');
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -326,6 +327,14 @@ export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, isMo
       {/* My Pets tab */}
       {activeSubTab === 'myPets' && (
         <div className="space-y-3">
+          {onAddPet && (
+            <button
+              onClick={onAddPet}
+              className="w-full px-4 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold hover:bg-brand-primary/90 transition-colors flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> Agregar mascota
+            </button>
+          )}
           {(!myPets || myPets.length === 0) ? (
             <p className="text-gray-400 text-sm text-center py-8">No tiene mascotas en su perfil</p>
           ) : (

@@ -816,6 +816,23 @@ export default function Admin() {
     if (selectedUserId) fetchUserRelations(selectedUserId);
   };
 
+  const handleDeleteMyPet = (myPet: any) => {
+    const petName = myPet?.name || 'esta mascota';
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Eliminar mascota',
+      message: `¿Eliminar "${petName}" definitivamente? Se borrarán todas sus referencias (fotos, eventos, publicaciones, shares y chapita QR). Las fichas públicas de reportes quedan intactas.`,
+      actionLabel: 'CONFIRMAR',
+      variant: 'danger',
+      onConfirm: async () => {
+        await api.myPets.delete(myPet.id);
+        setSelectedMyPetData(null);
+        setMobileView('user');
+        if (selectedUserId) fetchUserRelations(selectedUserId);
+      },
+    });
+  };
+
   const handleToggleRole = async (id: string, currentRole: string) => {
     const newRole = currentRole === 'admin' ? 'user' : 'admin';
     setConfirmDialog({
@@ -1218,7 +1235,7 @@ export default function Admin() {
                     </div>
                   ) : selectedMyPetData ? (
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
-                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} />
+                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} onDelete={handleDeleteMyPet} />
                     </div>
                   ) : (
                     <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-brand-accent h-full flex items-center justify-center">
@@ -1324,7 +1341,7 @@ export default function Admin() {
                   ) : selectedPetData ? (
                     <PetDetailPanel data={selectedPetData} isMobile onClose={() => { setMobilePetView('list'); setSelectedPetData(null); setSelectedPetId(null); }} pets={pets} users={userList} onRefresh={() => fetchPetRelations(selectedPetData.pet.id)} onOpenMyPet={handleOpenMyPetById} />
                   ) : selectedMyPetData ? (
-                    <AdminMyPetDetail pet={selectedMyPetData} isMobile onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} />
+                    <AdminMyPetDetail pet={selectedMyPetData} isMobile onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} onDelete={handleDeleteMyPet} />
                   ) : (
                     <div className="text-center py-12 text-gray-400">No se pudo cargar la info</div>
                   )}
@@ -1720,10 +1737,10 @@ export default function Admin() {
                         data={selectedUserData}
                         onSelectPet={handleSelectPet}
                         onSelectMyPet={handleSelectMyPet}
+                        onAddPet={() => setShowCreateMyPetModal(true)}
                         onUserUpdate={handleUserUpdate}
                       />
                       <div className="px-6 pb-6 flex gap-2">
-                        <button onClick={() => setShowCreateMyPetModal(true)} className="flex-1 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold hover:bg-brand-primary/90 transition-colors flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Agregar mascota</button>
                         {selectedUserData.user.email !== 'sptortarolo@gmail.com' && (
                           <>
                             <button onClick={() => setShowEditUserModal(true)} className="flex-1 px-4 py-2.5 border border-brand-accent rounded-xl text-sm font-bold text-brand-primary hover:bg-brand-bg/50 transition-colors flex items-center justify-center gap-2"><UserCog className="w-4 h-4" /> Editar</button>
@@ -1761,7 +1778,7 @@ export default function Admin() {
                     </div>
                   ) : selectedMyPetData ? (
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
-                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} />
+                      <AdminMyPetDetail pet={selectedMyPetData} onClose={() => setSelectedMyPetData(null)} onEdit={openEditMyPet} onDelete={handleDeleteMyPet} />
                     </div>
                   ) : (
                     <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-brand-accent h-full flex items-center justify-center">
@@ -1844,15 +1861,11 @@ export default function Admin() {
                         data={selectedUserData}
                         onSelectPet={handleSelectPet}
                         onSelectMyPet={handleSelectMyPet}
+                        onAddPet={() => setShowCreateMyPetModal(true)}
                         isMobile
                         onClose={() => { setMobileView('list'); setSelectedUserData(null); setSelectedUserId(null); }}
                         onUserUpdate={handleUserUpdate}
                       />
-                      <div className="px-6 pb-6">
-                        <button onClick={() => setShowCreateMyPetModal(true)} className="w-full px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-all">
-                          <Plus className="w-5 h-5" /> Agregar mascota
-                        </button>
-                      </div>
                     </div>
                   </div>
                 )}
@@ -1885,7 +1898,7 @@ export default function Admin() {
                       ← Volver al usuario
                     </button>
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent">
-                      <AdminMyPetDetail pet={selectedMyPetData} isMobile onEdit={openEditMyPet} />
+                      <AdminMyPetDetail pet={selectedMyPetData} isMobile onEdit={openEditMyPet} onDelete={handleDeleteMyPet} />
                     </div>
                   </div>
                 )}
