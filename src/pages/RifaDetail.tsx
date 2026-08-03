@@ -8,6 +8,7 @@ import {
   Users, Shield, Share2, Clock, Copy, ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { shareRaffleOnWhatsApp } from '@/src/lib/whatsappShare';
 
 interface Prize {
   position: number;
@@ -359,7 +360,7 @@ export default function RifaDetail() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400 mr-1">Compartir:</span>
-            <button onClick={() => handleShare('whatsapp')} className="w-9 h-9 rounded-full bg-green-100 text-green-600 flex items-center justify-center hover:bg-green-200 transition-colors" title="WhatsApp">
+            <button onClick={() => raffle && shareRaffleOnWhatsApp(raffle.id, raffle.title)} className="w-9 h-9 rounded-full bg-green-100 text-green-600 flex items-center justify-center hover:bg-green-200 transition-colors" title="WhatsApp">
               <span className="text-sm font-bold">W</span>
             </button>
             <button onClick={() => handleShare('copy')} className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200 transition-colors" title="Copiar link">

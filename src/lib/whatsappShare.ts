@@ -1,5 +1,7 @@
 import { Pet, PetStatus } from './petService';
 
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'https://www.sigotuhuella.com.ar';
+
 function getSpeciesLabel(species: string): string {
   if (species === 'dog') return 'perro';
   if (species === 'cat') return 'gato';
@@ -55,4 +57,23 @@ export function shareOnWhatsApp(pet: Pet): void {
   const text = getWhatsAppShareText(pet);
   const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
   window.open(url, '_blank');
+}
+
+export async function shareRaffleOnWhatsApp(raffleId: string, title: string): Promise<void> {
+  const link = `${FRONTEND_URL}/rifas/${raffleId}`;
+  const text = `🎟️ ¡${title}!\n\nComprá tu número en ${link}`;
+  const flyerUrl = `${FRONTEND_URL}/api/raffles/${raffleId}/flyer`;
+
+  if (navigator.share) {
+    try {
+      const resp = await fetch(flyerUrl);
+      const blob = await resp.blob();
+      const file = new File([blob], `rifa-${title}.png`, { type: 'image/png' });
+      await navigator.share({ title: `Rifa: ${title}`, text, files: [file] });
+      return;
+    } catch {
+      // fallback si falla la descarga o el share
+    }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }

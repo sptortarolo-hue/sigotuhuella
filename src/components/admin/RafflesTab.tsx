@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import RafflePublishModal from './RafflePublishModal';
+import { shareRaffleOnWhatsApp } from '@/src/lib/whatsappShare';
 
 interface Prize {
   position: number;
@@ -452,6 +453,10 @@ export default function RafflesTab() {
                 <button onClick={() => setPublishRaffleId(raffle.id)}
                   className="flex items-center gap-1 px-3 py-1.5 border border-brand-accent rounded-lg text-xs font-bold hover:bg-brand-accent/20">
                   <Share2 className="w-3 h-3" /> Compartir
+                </button>
+                <button onClick={() => shareRaffleOnWhatsApp(raffle.id, raffle.title)}
+                  className="flex items-center gap-1 px-3 py-1.5 border border-green-200 text-green-600 rounded-lg text-xs font-bold hover:bg-green-50">
+                  <span className="text-sm font-bold">W</span>
                 </button>
                 <button onClick={() => handleDelete(raffle.id)}
                 className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50">
