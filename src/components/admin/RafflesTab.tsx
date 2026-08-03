@@ -455,8 +455,8 @@ export default function RafflesTab() {
                   <Share2 className="w-3 h-3" /> Compartir
                 </button>
                 <button onClick={() => shareRaffleOnWhatsApp(raffle.id, raffle.title)}
-                  className="flex items-center gap-1 px-3 py-1.5 border border-green-200 text-green-600 rounded-lg text-xs font-bold hover:bg-green-50">
-                  <span className="text-sm font-bold">W</span>
+                  className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors">
+                  📱 Compartir por WhatsApp
                 </button>
                 <button onClick={() => handleDelete(raffle.id)}
                 className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50">

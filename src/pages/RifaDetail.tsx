@@ -359,9 +359,8 @@ export default function RifaDetail() {
             <span>Pago por transferencia bancaria</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400 mr-1">Compartir:</span>
-            <button onClick={() => raffle && shareRaffleOnWhatsApp(raffle.id, raffle.title)} className="w-9 h-9 rounded-full bg-green-100 text-green-600 flex items-center justify-center hover:bg-green-200 transition-colors" title="WhatsApp">
-              <span className="text-sm font-bold">W</span>
+            <button onClick={() => raffle && shareRaffleOnWhatsApp(raffle.id, raffle.title)} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors">
+              📱 Compartir por WhatsApp
             </button>
             <button onClick={() => handleShare('copy')} className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200 transition-colors" title="Copiar link">
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
