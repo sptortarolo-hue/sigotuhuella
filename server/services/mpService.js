@@ -3,14 +3,19 @@ import pool from '../db.js';
 import { normalizePhone } from './phoneUtils.js';
 import { enqueue } from './phoneRelayService.js';
 
-async function notifyRaffleBuyer(phone, text) {
-  try {
-    const { sendMessage } = await import('./whatsappService.js');
-    await sendMessage(phone, text);
-    console.log(`notifyRaffleBuyer: enviado por Meta API a ${phone}`);
-  } catch (e) {
-    console.error(`notifyRaffleBuyer: Meta API falló para ${phone}:`, e.response?.data || e.message);
-    enqueue(phone, text, null).catch(() => {});
+async function notifyRaffleBuyer(phone, text, source = 'relay') {
+  if (source === 'bot') {
+    try {
+      const { sendMessage } = await import('./whatsappService.js');
+      await sendMessage(phone, text);
+      console.log(`notifyRaffleBuyer: enviado por Meta API (source=${source}) a ${phone}`);
+    } catch (e) {
+      console.error(`notifyRaffleBuyer: Meta API falló para ${phone}:`, e.response?.data || e.message);
+      enqueue(phone, text, null).catch(() => {});
+    }
+  } else {
+    console.log(`notifyRaffleBuyer: encolado por relay (source=${source}) a ${phone}`);
+    await enqueue(phone, text, null);
   }
 }
 
@@ -208,7 +213,7 @@ export async function confirmManualPayment(receiptId, adminNote = '') {
       const raffleRes = await pool.query('SELECT title FROM raffles WHERE id = $1', [receipt.raffle_id]);
       const raffleTitle = raffleRes.rows[0]?.title || 'Rifa';
       if (buyerPhone) {
-        notifyRaffleBuyer(buyerPhone, `✅ Hola ${buyerName || ''}, tu pago para la rifa "${raffleTitle}" fue CONFIRMADO. ¡Gracias por participar!`);
+        notifyRaffleBuyer(buyerPhone, `✅ Hola ${buyerName || ''}, tu pago para la rifa "${raffleTitle}" fue CONFIRMADO. ¡Gracias por participar!`, receipt.source);
       }
     }
 
@@ -252,7 +257,7 @@ export async function rejectManualPayment(receiptId, adminNote = '') {
       const raffleRes = await pool.query('SELECT title FROM raffles WHERE id = $1', [receipt.raffle_id]);
       const raffleTitle = raffleRes.rows[0]?.title || 'Rifa';
       if (buyerPhone) {
-        notifyRaffleBuyer(buyerPhone, `❌ Hola ${buyerName || ''}, el comprobante para "${raffleTitle}" no pudo verificarse. Motivo: ${adminNote || 'el comprobante no es válido'}. Enviá uno nuevo por este chat.`);
+        notifyRaffleBuyer(buyerPhone, `❌ Hola ${buyerName || ''}, el comprobante para "${raffleTitle}" no pudo verificarse. Motivo: ${adminNote || 'el comprobante no es válido'}. Enviá uno nuevo por este chat.`, receipt.source);
       }
     }
 

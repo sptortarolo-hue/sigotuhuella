@@ -3081,8 +3081,8 @@ async function raffleWaitingReceipt(conv, parsed) {
     const totalExpected = ctx.reservedNumbers.length * parseFloat(ctx.raffle.price_per_number);
 
     await pool.query(
-      `INSERT INTO raffle_receipts (raffle_id, ticket_group_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
+      `INSERT INTO raffle_receipts (raffle_id, ticket_group_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'bot')`,
       [ctx.raffleId, ctx.ticketGroupId, parsed.imageData, parsed.imageMime || 'image/jpeg',
        ctx.buyerName, conv.wa_from, totalExpected]
     );

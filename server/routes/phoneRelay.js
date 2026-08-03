@@ -249,8 +249,8 @@ router.post('/raffle-receipt', relayAuth, async (req, res) => {
 
     if (matched) {
       await pool.query(
-        `INSERT INTO raffle_receipts (raffle_id, ticket_group_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status, lid_jid, push_name)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9)`,
+        `INSERT INTO raffle_receipts (raffle_id, ticket_group_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status, lid_jid, push_name, source)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, 'relay')`,
         [matchRaffleId, matchTgId, image_data, image_mime || 'image/jpeg',
          matchName, matchPhone, totalExpected, lid_jid, push_name]
       );
@@ -259,8 +259,8 @@ router.post('/raffle-receipt', relayAuth, async (req, res) => {
 
     // Sin match: guardar como no asignado
     await pool.query(
-      `INSERT INTO raffle_receipts (image_data, image_mime, buyer_name, buyer_phone, status, lid_jid, push_name)
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6)`,
+      `INSERT INTO raffle_receipts (image_data, image_mime, buyer_name, buyer_phone, status, lid_jid, push_name, source)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, 'relay')`,
       [image_data, image_mime || 'image/jpeg', push_name || 'Desconocido', phone || lid_jid || '', lid_jid, push_name]
     );
     console.log(`[Raffle Receipt] Guardado sin match: ${lid_jid || phone || '?'}`);

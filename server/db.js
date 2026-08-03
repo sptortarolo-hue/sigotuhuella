@@ -1484,6 +1484,9 @@ export async function initDb() {
     await migrate(client, `
       ALTER TABLE raffle_receipts ADD COLUMN IF NOT EXISTS push_name VARCHAR(255)
     `, 'raffle_receipts push_name');
+    await migrate(client, `
+      ALTER TABLE raffle_receipts ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT 'relay'
+    `, 'raffle_receipts source');
 
     // Fix UUID → VARCHAR for ticket_id (mp_external_reference)
     await migrate(client, `

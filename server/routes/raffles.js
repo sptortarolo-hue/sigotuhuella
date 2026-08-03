@@ -365,8 +365,8 @@ router.post('/:id/receipt', requireAdmin, async (req, res) => {
       await client.query('BEGIN');
 
       const receiptRes = await client.query(
-        `INSERT INTO raffle_receipts (raffle_id, ticket_group_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO raffle_receipts (raffle_id, ticket_group_id, image_data, image_mime, buyer_name, buyer_phone, amount_expected, status, source)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'admin')
          RETURNING *`,
         [id, ticketGroupId, imageData, imageMime, buyerName, buyerPhone, amountExpected, receiptStatus]
       );
