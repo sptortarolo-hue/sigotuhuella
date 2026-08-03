@@ -33,7 +33,7 @@ interface AdminMyPetDetailProps {
   onClose?: () => void;
   isMobile?: boolean;
   onEdit?: () => void;
-  onDelete?: () => void;
+  onDelete?: (pet: any) => void;
 }
 
 export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit, onDelete }: AdminMyPetDetailProps) {
@@ -150,7 +150,7 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit, onDel
             </button>
           )}
           {onDelete && (
-            <button onClick={onDelete}
+            <button onClick={() => onDelete?.(pet)}
               className="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold text-xs hover:bg-red-100 transition-colors flex items-center gap-2">
               <Trash2 className="w-3 h-3" /> Eliminar
             </button>

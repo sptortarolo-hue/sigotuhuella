@@ -816,7 +816,9 @@ export default function Admin() {
     if (selectedUserId) fetchUserRelations(selectedUserId);
   };
 
-  const handleDeleteMyPet = (myPet: any) => {
+  const handleDeleteMyPet = () => {
+    const myPet = selectedMyPetData;
+    if (!myPet) return;
     const petName = myPet?.name || 'esta mascota';
     setConfirmDialog({
       isOpen: true,
@@ -825,10 +827,14 @@ export default function Admin() {
       actionLabel: 'CONFIRMAR',
       variant: 'danger',
       onConfirm: async () => {
-        await api.myPets.delete(myPet.id);
-        setSelectedMyPetData(null);
-        setMobileView('user');
-        if (selectedUserId) fetchUserRelations(selectedUserId);
+        try {
+          await api.myPets.delete(myPet.id);
+          setSelectedMyPetData(null);
+          setMobileView('user');
+          if (selectedUserId) fetchUserRelations(selectedUserId);
+        } catch (e: any) {
+          alert(e?.message || 'Error al eliminar la mascota');
+        }
       },
     });
   };
