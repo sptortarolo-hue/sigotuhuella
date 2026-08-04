@@ -373,6 +373,15 @@ router.post('/:id/receipt', requireAdmin, async (req, res) => {
 
       const receipt = receiptRes.rows[0];
 
+      // Defensive: if receipt is confirmed on creation, also mark matching tickets as paid
+      if (receiptStatus === 'confirmed') {
+        await client.query(
+          `UPDATE raffle_tickets SET status = 'paid', payment_status = 'paid', paid_at = NOW()
+           WHERE raffle_id = $1 AND mp_external_reference = $2 AND status IN ('pending_transfer', 'pending_manual')`,
+          [id, ticketGroupId]
+        );
+      }
+
       await client.query('COMMIT');
       res.json({ receipt });
     } catch (err) {

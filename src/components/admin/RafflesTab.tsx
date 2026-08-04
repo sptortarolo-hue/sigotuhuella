@@ -191,18 +191,19 @@ export default function RafflesTab() {
         autoConfirm: !manualReceiptFile,
       });
 
-      // Step 2: if receipt provided, upload as confirmed
+      // Step 2: if receipt provided, upload as pending then confirm (same as handleUploadAndConfirm)
       if (manualReceiptFile && manualReceiptPreview) {
         const base64 = manualReceiptPreview.split(',')[1];
-        await api.raffles.uploadReceipt(raffleId, {
+        const receiptData = await api.raffles.uploadReceipt(raffleId, {
           ticketGroupId: data.ticketGroupId,
           buyerName: manualFormName,
           buyerPhone: manualFormPhone,
           imageData: base64,
           imageMime: manualReceiptFile.type || 'image/jpeg',
           amountExpected: manualSelectedNumbers.length * manualRafflePrice,
-          status: 'confirmed',
+          status: 'pending',
         });
+        await api.raffles.confirmReceipt(raffleId, receiptData.receipt.id, 'Comprobante subido por admin (confirmado directo)');
       }
 
       setManualResult(data);

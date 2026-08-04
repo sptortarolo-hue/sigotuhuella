@@ -1548,6 +1548,19 @@ export async function initDb() {
         )
     `, 'my_pets backfill transferred_at para adopciones completadas');
 
+    // Fix: mark tickets as paid if receipt is already confirmed (admin manual assign bug)
+    await migrate(client, `
+      UPDATE raffle_tickets t
+      SET status = 'paid', payment_status = 'paid', paid_at = NOW()
+      WHERE t.status IN ('pending_transfer', 'pending_manual')
+        AND EXISTS (
+          SELECT 1 FROM raffle_receipts r
+          WHERE r.ticket_group_id = t.mp_external_reference
+            AND r.raffle_id = t.raffle_id
+            AND r.status = 'confirmed'
+        )
+    `, 'raffle_tickets fix stuck pending with confirmed receipt');
+
     console.log('Database migrations complete');
   } finally {
     client.release();
