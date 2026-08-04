@@ -264,7 +264,7 @@ router.get('/pet-thumb/:petId/:index', async (req, res) => {
     }
     res.set('Content-Type', 'image/jpeg');
     res.set('Content-Length', thumb.length);
-    res.set('Cache-Control', 'no-cache');
+    res.set('Cache-Control', 'public, max-age=3600');
     res.set('Access-Control-Allow-Origin', '*');
     res.end(thumb);
   } catch (err) {

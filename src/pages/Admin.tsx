@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getPets, createPet, updatePet, deletePet, Pet, PetStatus, getPetImageUrl } from '@/src/lib/petService';
+import { getPets, createPet, updatePet, deletePet, Pet, PetStatus, getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
 import { filesToBase64, fileToBase64, compressImage } from '@/src/lib/storageService';
 import ImageCropper from '@/src/components/ImageCropper';
 import {
@@ -653,7 +653,7 @@ export default function Admin() {
 
   const fetchPets = async () => {
     try {
-      const data = await api.pets.listFull(undefined, true);
+      const data = await api.pets.list(undefined, true);
       setPets(data.pets || []);
     } catch (e) { console.error(e); }
   };
@@ -950,7 +950,7 @@ export default function Admin() {
     });
     setSelectedFiles([]);
     setImagesToKeep(pet.images?.map(img => img.id) || []);
-    setPreviews(pet.images?.map(img => img.image_data ? `data:${img.mime_type};base64,${img.image_data}` : img.external_url || '') || []);
+    setPreviews(getPetImageUrls(pet));
     setShowForm(true);
   };
 
@@ -1180,8 +1180,8 @@ export default function Admin() {
                       >
                         <div className="flex items-start gap-3">
                           <div className="w-16 h-16 rounded-xl bg-brand-bg overflow-hidden shrink-0">
-                            {pet.images?.[0]?.image_data || pet.images?.[0]?.external_url ? (
-                              <img src={pet.images[0].external_url || `data:${pet.images[0].mime_type || 'image/jpeg'};base64,${pet.images[0].image_data}`} alt="" className="w-full h-full object-cover" />
+                            {getPetImageUrl(pet) ? (
+                              <img src={getPetImageUrl(pet)} alt="" loading="lazy" className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-6 h-6" /></div>
                             )}
