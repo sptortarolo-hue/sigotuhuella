@@ -70,9 +70,25 @@ export default function Admin() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles'>('pets');
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['pets']));
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(['pets', 'users']));
+
+  const loadTabData = async (tab: string) => {
+    setLoading(true);
+    try {
+      if (tab === 'collab') await fetchAccounts();
+      else if (tab === 'volunteers') await fetchVolunteers();
+      else if (tab === 'news') await fetchNews();
+      else if (tab === 'qr') await fetchQrData();
+    } catch (e) { console.error(e); }
+    setLoadedTabs(prev => new Set([...prev, tab]));
+    setLoading(false);
+  };
 
   useEffect(() => {
     setMountedTabs(prev => new Set([...prev, activeTab]));
+    if (!loadedTabs.has(activeTab)) {
+      loadTabData(activeTab);
+    }
   }, [activeTab]);
 
   // Pets State
@@ -265,7 +281,11 @@ export default function Admin() {
   const [igConnectError, setIgConnectError] = useState('');
 
   useEffect(() => {
-    fetchAll();
+    setLoading(true);
+    (async () => {
+      await Promise.all([fetchPets(), fetchUsers(), fetchSettings(), fetchLastCode()]);
+      setLoading(false);
+    })();
     const params = new URLSearchParams(window.location.search);
     const igStatus = params.get('instagram');
     if (igStatus === 'connected') {
@@ -278,12 +298,6 @@ export default function Admin() {
       window.history.replaceState({}, '', '/admin');
     }
   }, []);
-
-  const fetchAll = async () => {
-    setLoading(true);
-    await Promise.all([fetchPets(), fetchAccounts(), fetchVolunteers(), fetchUsers(), fetchNews(), fetchSettings(), fetchQrData(), fetchLastCode()]);
-    setLoading(false);
-  };
 
   const fetchSettings = async () => {
     try {
@@ -436,10 +450,6 @@ export default function Admin() {
       alert(e.message || 'Error al limpiar QRs');
     }
   };
-
-  useEffect(() => {
-    if (activeTab === 'volunteers') fetchVolunteers();
-  }, [activeTab]);
 
   const fetchNews = async () => {
     try {

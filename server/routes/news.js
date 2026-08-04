@@ -27,9 +27,20 @@ router.get('/', async (req, res) => {
        ORDER BY n.created_at DESC`
     );
     const news = result.rows;
-    const publications = await Promise.all(news.map(n => getPublications(n.id)));
-    for (let i = 0; i < news.length; i++) {
-      news[i].publications = publications[i];
+    if (news.length > 0) {
+      const pubsRes = await pool.query(
+        'SELECT news_id, platform, status, platform_post_id, error_message, published_at, created_at FROM news_publications ORDER BY platform'
+      );
+      const pubsByNews = {};
+      for (const row of pubsRes.rows) {
+        const newsId = row.news_id;
+        delete row.news_id;
+        if (!pubsByNews[newsId]) pubsByNews[newsId] = [];
+        pubsByNews[newsId].push(row);
+      }
+      for (const n of news) {
+        n.publications = pubsByNews[n.id] || [];
+      }
     }
     res.json({ news });
   } catch (err) {
