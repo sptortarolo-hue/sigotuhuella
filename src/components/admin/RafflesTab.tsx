@@ -59,10 +59,7 @@ export default function RafflesTab() {
   const [manualRafflePrice, setManualRafflePrice] = useState(0);
   const [manualLoading, setManualLoading] = useState(false);
   const [manualResult, setManualResult] = useState<any>(null);
-  const [showReceipts, setShowReceipts] = useState(false);
-  const [receiptImage, setReceiptImage] = useState('');
   const [receiptNote, setReceiptNote] = useState('');
-  const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [showUnmatched, setShowUnmatched] = useState(false);
   const [unmatchedReceipts, setUnmatchedReceipts] = useState<any[]>([]);
   const [unmatchedLoading, setUnmatchedLoading] = useState(false);
@@ -70,6 +67,10 @@ export default function RafflesTab() {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [publishRaffleId, setPublishRaffleId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [uploadTarget, setUploadTarget] = useState<any | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [uploadingReceiptConfirm, setUploadingReceiptConfirm] = useState(false);
 
   async function fetchUnmatchedReceipts() {
     try {
@@ -222,25 +223,33 @@ export default function RafflesTab() {
     }
   }
 
-  async function handleReceiptUpload(raffleId: string, ticketGroupId: string) {
-    if (!receiptImage) { alert('Seleccioná una imagen'); return; }
+  async function handleUploadAndConfirm(raffleId: string, ticket: any) {
+    if (!receiptFile || !receiptPreview) { alert('Seleccioná el comprobante'); return; }
+    if (!ticket.mp_external_reference) { alert('El ticket no tiene grupo asociado'); return; }
+    if (uploadingReceiptConfirm) return;
     try {
-      setUploadingReceipt(true);
-      await api.raffles.uploadReceipt(raffleId, {
-        ticketGroupId,
-        buyerName: '',
-        buyerPhone: '',
-        imageData: receiptImage,
-        imageMime: 'image/jpeg',
-        amountExpected: detailRaffle ? detailRaffle.price_per_number * detailRaffle.tickets!.filter(t => t.status === 'paid').length : 0,
+      setUploadingReceiptConfirm(true);
+      const ticketCount = detailRaffle?.tickets?.filter(t => t.mp_external_reference === ticket.mp_external_reference && t.status !== 'cancelled').length || 1;
+      const base64 = receiptPreview.split(',')[1];
+      const data = await api.raffles.uploadReceipt(raffleId, {
+        ticketGroupId: ticket.mp_external_reference,
+        buyerName: ticket.buyer_name || 'Desconocido',
+        buyerPhone: ticket.buyer_phone || '',
+        imageData: base64,
+        imageMime: receiptFile.type || 'image/jpeg',
+        amountExpected: detailRaffle ? detailRaffle.price_per_number * ticketCount : 0,
+        status: 'pending',
       });
-      setShowReceipts(false);
-      setReceiptImage('');
+      await api.raffles.confirmReceipt(raffleId, data.receipt.id, 'Comprobante subido por admin (confirmado directo)');
+      setUploadTarget(null);
+      setReceiptFile(null);
+      setReceiptPreview(null);
       openDetail(detailRaffle!);
+      fetchRaffles();
     } catch (err: any) {
-      alert(err.message || 'Error al subir comprobante');
+      alert(err.message || 'Error al subir y confirmar el comprobante');
     } finally {
-      setUploadingReceipt(false);
+      setUploadingReceiptConfirm(false);
     }
   }
 
@@ -807,6 +816,15 @@ export default function RafflesTab() {
                                   </div>
                                 </div>
                               )}
+                              {t.status !== 'paid' && (!receiptForTicket || receiptForTicket.receipt_status !== 'confirmed') && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setUploadTarget(t); }}
+                                  className="absolute -bottom-1 -right-1 w-4 h-4 bg-brand-primary text-white rounded-full flex items-center justify-center hidden group-hover:flex hover:opacity-80"
+                                  title="Subir comprobante"
+                                >
+                                  <Upload className="w-2.5 h-2.5" />
+                                </button>
+                              )}
                             </div>
                             ) : (
                             <div key={n} className="w-11 h-11 rounded-lg flex items-center justify-center text-[10px] font-bold text-gray-300 bg-gray-50 border border-dashed border-gray-200">
@@ -874,6 +892,14 @@ export default function RafflesTab() {
                                     ) : (
                                       <span className="text-gray-300">—</span>
                                     )}
+                                    {t.status !== 'paid' && (!receiptForTicket || receiptForTicket.receipt_status !== 'confirmed') && (
+                                      <button
+                                        onClick={() => setUploadTarget(t)}
+                                        className="ml-2 flex items-center gap-1 text-[10px] font-bold text-brand-primary hover:underline"
+                                      >
+                                        <Upload className="w-3 h-3" /> Subir
+                                      </button>
+                                    )}
                                   </td>
                                 </tr>
                               );
@@ -889,10 +915,7 @@ export default function RafflesTab() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-sm font-bold text-gray-500 uppercase">Comprobantes</h4>
-                    <button onClick={() => setShowReceipts(true)}
-                      className="flex items-center gap-1 text-xs font-bold text-brand-primary hover:underline">
-                      <Upload className="w-3 h-3" /> Subir comprobante
-                    </button>
+                    <span className="text-[10px] text-gray-400">Subí el comprobante desde la grilla o tabla, en cada número pendiente</span>
                   </div>
                   {detailRaffle.receipts && detailRaffle.receipts.length > 0 ? (
                     <div className="space-y-2">
@@ -948,23 +971,41 @@ export default function RafflesTab() {
                   )}
                 </div>
 
-                {/* Upload Receipt Modal */}
-                {showReceipts && (
+                {/* Upload Receipt Modal (por ticket pendiente) */}
+                {uploadTarget && detailRaffle && (
                   <div className="bg-brand-bg/50 rounded-xl p-4 space-y-3">
-                    <h4 className="text-sm font-bold">Subir comprobante</h4>
-                    <input type="text" placeholder="Ticket Group ID o Número del ticket"
-                      value={receiptImage} onChange={e => setReceiptImage(e.target.value)}
-                      className="w-full px-3 py-2 bg-white rounded-lg border border-brand-accent outline-none text-sm" />
-                    <textarea placeholder="Nota del admin (opcional)" value={receiptNote}
-                      onChange={e => setReceiptNote(e.target.value)}
-                      className="w-full px-3 py-2 bg-white rounded-lg border border-brand-accent outline-none text-sm" rows={2} />
+                    <h4 className="text-sm font-bold">Subir comprobante — N° {uploadTarget.number}</h4>
+                    <p className="text-xs text-gray-500">
+                      {uploadTarget.buyer_name || 'Anónimo'}{uploadTarget.buyer_phone ? ` · ${uploadTarget.buyer_phone}` : ''}
+                    </p>
+                    <input type="file" accept="image/*"
+                      onChange={e => {
+                        const file = e.target.files?.[0] || null;
+                        setReceiptFile(file);
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => setReceiptPreview(reader.result as string);
+                          reader.readAsDataURL(file);
+                        } else {
+                          setReceiptPreview(null);
+                        }
+                      }}
+                      className="w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-primary file:text-white hover:file:opacity-90" />
+                    {receiptPreview && (
+                      <div className="relative inline-block">
+                        <img src={receiptPreview} alt="preview" className="w-20 h-20 object-cover rounded-xl border border-brand-accent" />
+                        <button onClick={() => { setReceiptFile(null); setReceiptPreview(null); }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5"><X className="w-3 h-3" /></button>
+                      </div>
+                    )}
                     <div className="flex gap-2">
-                      <button onClick={() => detailRaffle && handleReceiptUpload(detailRaffle.id, receiptImage)}
-                        disabled={uploadingReceipt}
-                        className="px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm">
-                        {uploadingReceipt ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Subir'}
+                      <button onClick={() => detailRaffle && handleUploadAndConfirm(detailRaffle.id, uploadTarget)}
+                        disabled={uploadingReceiptConfirm || !receiptFile}
+                        className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm disabled:opacity-50">
+                        {uploadingReceiptConfirm ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                        Subir y confirmar
                       </button>
-                      <button onClick={() => setShowReceipts(false)}
+                      <button onClick={() => { setUploadTarget(null); setReceiptFile(null); setReceiptPreview(null); }}
                         className="px-4 py-2 border border-brand-accent rounded-xl font-bold text-sm hover:bg-brand-accent/20">Cancelar</button>
                     </div>
                   </div>
