@@ -55,16 +55,15 @@ tar_excludes=(
   --exclude='public/generated'
   --exclude='node_modules'
   --exclude='dist'
-  --exclude='server/.env'
 )
-if tar czf "$fs_file" "${tar_excludes[@]}" \
-    public/uploads \
-    fb_scraper_profile 2>/dev/null \
-    cookies.txt 2>/dev/null \
-    server/.env 2>/dev/null \
-    /root/.sihuella-db.env 2>/dev/null \
-    /root/.sihuella-mail.env 2>/dev/null \
-    > /dev/null 2>&1; then
+tar_files=()
+[ -d public/uploads ] && tar_files+=(public/uploads)
+[ -d fb_scraper_profile ] && tar_files+=(fb_scraper_profile)
+[ -f cookies.txt ] && tar_files+=(cookies.txt)
+[ -f server/.env ] && tar_files+=(server/.env)
+[ -f /root/.sihuella-db.env ] && tar_files+=(/root/.sihuella-db.env)
+[ -f /root/.sihuella-mail.env ] && tar_files+=(/root/.sihuella-mail.env)
+if tar czf "$fs_file" "${tar_excludes[@]}" --ignore-failed-read "${tar_files[@]}" > /dev/null 2>&1; then
   FS_OK=true
 else
   FS_OK=false
@@ -82,7 +81,7 @@ if [ -f "$db_file" ]; then
   if gzip -t "$db_file" 2>/dev/null; then
     HEADER=$(zcat "$db_file" 2>/dev/null | head -c 30 || true)
     case "$HEADER" in
-      "PostgreSQL database dump"*) DB_VERIFY=true ;;
+      *"PostgreSQL database dump"*) DB_VERIFY=true ;;
     esac
   fi
 fi
