@@ -498,8 +498,8 @@ app.get('/adopcion', (_req, res) => {
 <meta property="og:image" content="${baseUrl}/adopcion-og.png" />
 <meta property="og:image:secure_url" content="${baseUrl}/adopcion-og.png" />
 <meta property="og:image:type" content="image/png" />
-<meta property="og:image:width" content="1200" />
-<meta property="og:image:height" content="630" />
+<meta property="og:image:width" content="1080" />
+<meta property="og:image:height" content="1080" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Mascotas en Adopción - Sigo Tu Huella" />
 <meta name="twitter:description" content="Encontrá tu nuevo compañero. Conocé a las mascotas que buscan un hogar lleno de amor." />
