@@ -519,6 +519,7 @@ app.get('/adopcion', (_req, res) => {
 <meta name="twitter:title" content="Mascotas en Adopción - Sigo Tu Huella" />
 <meta name="twitter:description" content="Encontrá tu nuevo compañero. Conocé a las mascotas que buscan un hogar lleno de amor." />
 <meta name="twitter:image" content="${baseUrl}/og-adopcion" />
+<meta property="fb:app_id" content="1224768922970900" />
 </head>`;
   res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
 });
