@@ -541,7 +541,7 @@ router.get('/:id/stats', requireAuth, async (req, res) => {
         COUNT(*) FILTER (WHERE status = 'sighted')            AS sighted_count,
         COUNT(*) FILTER (WHERE status = 'adopted')            AS adopted_count,
         COUNT(*) FILTER (WHERE status = 'for_adoption')       AS for_adoption_count
-       FROM pets WHERE created_by = $1`,
+       FROM pets WHERE created_by = $1 AND (is_hidden = FALSE OR is_hidden IS NULL)`,
       [req.params.id]
     );
     const s = statsRes.rows[0];

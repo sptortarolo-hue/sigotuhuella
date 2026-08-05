@@ -487,11 +487,11 @@ router.get('/stats', requireAdmin, async (_req, res) => {
     const pendingComments = await pool.query("SELECT COUNT(*) FROM instagram_comments WHERE replied = FALSE AND dm_sent = FALSE");
     const totalPetsPublished = await pool.query("SELECT COUNT(DISTINCT pet_id) FROM instagram_posts WHERE status = 'published' AND pet_id IS NOT NULL");
     res.json({
-      totalPosts: parseInt(totalPosts.rows[0].count),
-      publishedPosts: parseInt(publishedPosts.rows[0].count),
-      totalComments: parseInt(totalComments.rows[0].count),
-      pendingComments: parseInt(pendingComments.rows[0].count),
-      totalPetsPublished: parseInt(totalPetsPublished.rows[0].count),
+      totalPosts: parseInt(totalPosts.rows[0].count) || 0,
+      publishedPosts: parseInt(publishedPosts.rows[0].count) || 0,
+      totalComments: parseInt(totalComments.rows[0].count) || 0,
+      pendingComments: parseInt(pendingComments.rows[0].count) || 0,
+      totalPetsPublished: parseInt(totalPetsPublished.rows[0].count) || 0,
     });
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener estadísticas' });

@@ -753,8 +753,8 @@ async function getRandomReunionPhotos(limit = 8) {
 
 async function getGlobalStats() {
   const [pets, reunited, users] = await Promise.all([
-    pool.query('SELECT COUNT(*) FROM pets'),
-    pool.query("SELECT COUNT(*) FROM pets WHERE status = 'reunited'"),
+    pool.query('SELECT COUNT(*) FROM pets WHERE (is_hidden = FALSE OR is_hidden IS NULL)'),
+    pool.query("SELECT COUNT(*) FROM pets WHERE status = 'reunited' AND (is_hidden = FALSE OR is_hidden IS NULL)"),
     pool.query('SELECT COUNT(*) FROM users'),
   ]);
   return {

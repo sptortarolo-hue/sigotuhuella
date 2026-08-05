@@ -201,7 +201,7 @@ router.get('/analytics', requireAdmin, async (_req, res) => {
         SELECT p.id, p.name, p.species, p.status, p.view_count,
           (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) IS NOT NULL as has_image
         FROM pets p
-        WHERE p.view_count > 0
+        WHERE p.view_count > 0 AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
         ORDER BY p.view_count DESC
         LIMIT 10
       `),
