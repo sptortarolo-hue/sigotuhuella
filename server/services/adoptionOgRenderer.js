@@ -1,90 +1,57 @@
+import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import sharp from 'sharp';
 import pool from '../db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const FONT = 'sans-serif';
+
+// Load Montserrat Bold font for embedding in SVG
+let FONT_BASE64 = '';
+try {
+  const fontPath = join(__dirname, '..', '..', 'public', 'fonts', 'Montserrat-Bold.ttf');
+  FONT_BASE64 = readFileSync(fontPath).toString('base64');
+} catch {
+  console.warn('[AdoptionOG] Montserrat-Bold.ttf not found, using system fallback');
+}
+
 const W = 1200;
 const H = 630;
+const PHOTO_SIZE = 150;
+const PHOTO_GAP = 20;
+const PHOTO_Y = 290;
+const BRAND_BAR_H = 56;
+const BOTTOM_BAR_H = 32;
 
-let _canvasModule = null;
+const COLORS = {
+  brandPrimary: '#5A5A40',
+  brandSecondary: '#D48C70',
+  brandBg: '#F5F5F0',
+  brandAccent: '#E6E6DF',
+  textDark: '#5A5A40',
+  textMid: '#666666',
+  textLight: '#999999',
+  white: '#F5F5F0',
+};
 
-async function getCanvas() {
-  if (!_canvasModule) {
-    _canvasModule = await import('canvas').catch(() => {
-      throw new Error('canvas (node-canvas) no disponible en este servidor');
-    });
-  }
-  return _canvasModule;
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x + r, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-}
-
-function drawCircularPhoto(ctx, x, y, size, img) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.clip();
-  if (img) {
-    const imgAspect = img.naturalWidth / img.naturalHeight;
-    let sx, sy, sw, sh;
-    if (imgAspect > 1) {
-      sh = img.naturalHeight;
-      sw = sh;
-      sx = (img.naturalWidth - sw) / 2;
-      sy = 0;
-    } else {
-      sw = img.naturalWidth;
-      sh = sw;
-      sx = 0;
-      sy = (img.naturalHeight - sh) / 2;
-    }
-    ctx.drawImage(img, sx, sy, sw, sh, x, y, size, size);
-  } else {
-    ctx.fillStyle = '#E6E6DF';
-    ctx.fillRect(x, y, size, size);
-    ctx.fillStyle = '#999';
-    ctx.font = `${size * 0.4}px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🐾', x + size / 2, y + size / 2);
-  }
-  ctx.restore();
-  // Border
-  ctx.beginPath();
-  ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
-  ctx.strokeStyle = '#D48C70';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-}
-
-function truncateText(ctx, text, maxWidth) {
-  if (ctx.measureText(text).width <= maxWidth) return text;
-  let truncated = text;
-  while (truncated.length > 0 && ctx.measureText(truncated + '…').width > maxWidth) {
-    truncated = truncated.slice(0, -1);
-  }
-  return truncated + '…';
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 async function fetchAdoptionPets() {
   const result = await pool.query(`
-    SELECT p.name, p.species, p.breed,
-      (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id AND pi.image_data IS NOT NULL ORDER BY pi.created_at LIMIT 1) as image_data,
-      (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id AND pi.image_data IS NOT NULL ORDER BY pi.created_at LIMIT 1) as mime_type
+    SELECT p.id, p.name, p.species, p.breed,
+      (SELECT pi.image_data FROM pet_images pi
+       WHERE pi.pet_id = p.id AND pi.image_data IS NOT NULL
+       ORDER BY pi.created_at LIMIT 1) as image_data,
+      (SELECT pi.mime_type FROM pet_images pi
+       WHERE pi.pet_id = p.id AND pi.image_data IS NOT NULL
+       ORDER BY pi.created_at LIMIT 1) as mime_type
     FROM pets p
     WHERE p.status IN ('for_adoption', 'for_adoption_simple')
       AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
@@ -95,10 +62,156 @@ async function fetchAdoptionPets() {
   return result.rows;
 }
 
-function loadImageFromBase64(canvasModule, base64Data, mimeType) {
-  const buf = Buffer.from(base64Data, 'base64');
-  const prefix = mimeType === 'image/png' ? 'data:image/png;base64,' : 'data:image/jpeg;base64,';
-  return canvasModule.loadImage(prefix + base64Data);
+async function processPhoto(base64Data, mimeType, size) {
+  const inputBuf = Buffer.from(base64Data, 'base64');
+  return sharp(inputBuf)
+    .resize(size, size, { fit: 'cover', position: 'centre' })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+}
+
+function buildSvg(pets, photoDataList) {
+  const fontFace = FONT_BASE64
+    ? `<style>
+    @font-face {
+      font-family: 'Montserrat';
+      src: url(data:font/truetype;base64,${FONT_BASE64}) format('truetype');
+      font-weight: bold;
+      font-style: normal;
+    }
+    .title { font-family: 'Montserrat', Arial, sans-serif; }
+  </style>`
+    : `<style>
+    .title { font-family: 'Montserrat Bold', 'Arial Black', Arial, sans-serif; }
+  </style>`;
+
+  // Photo positions (centered horizontally)
+  const totalPhotosW = Math.min(pets.length, 4) * PHOTO_SIZE + Math.max(0, Math.min(pets.length, 4) - 1) * PHOTO_GAP;
+  const photosStartX = (W - totalPhotosW) / 2;
+
+  let photoElements = '';
+  const petCount = Math.min(pets.length, 4);
+
+  for (let i = 0; i < petCount; i++) {
+    const pet = pets[i];
+    const photoData = photoDataList[i];
+    const cx = photosStartX + i * (PHOTO_SIZE + PHOTO_GAP) + PHOTO_SIZE / 2;
+    const cy = PHOTO_Y + PHOTO_SIZE / 2;
+    const clipId = `clip-${i}`;
+
+    // Clip path for circular photo
+    photoElements += `
+    <clipPath id="${clipId}">
+      <circle cx="${cx}" cy="${cy}" r="${PHOTO_SIZE / 2}" />
+    </clipPath>`;
+
+    // Shadow circle (behind photo)
+    photoElements += `
+    <circle cx="${cx}" cy="${cy + 4}" r="${PHOTO_SIZE / 2}"
+      fill="black" opacity="0.12" />`;
+
+    // Photo (clipped circle)
+    if (photoData) {
+      photoElements += `
+    <image href="data:image/jpeg;base64,${photoData}"
+      x="${cx - PHOTO_SIZE / 2}" y="${cy - PHOTO_SIZE / 2}"
+      width="${PHOTO_SIZE}" height="${PHOTO_SIZE}"
+      clip-path="url(#${clipId})" />`;
+    } else {
+      photoElements += `
+    <circle cx="${cx}" cy="${cy}" r="${PHOTO_SIZE / 2}"
+      fill="${COLORS.brandAccent}" />
+    <text x="${cx}" y="${cy + 6}" text-anchor="middle"
+      font-size="48" fill="${COLORS.textLight}">🐾</text>`;
+    }
+
+    // Border ring
+    photoElements += `
+    <circle cx="${cx}" cy="${cy}" r="${PHOTO_SIZE / 2}"
+      fill="none" stroke="${COLORS.brandSecondary}" stroke-width="3" />`;
+
+    // Pet name
+    const name = esc(pet.name || 'Sin nombre');
+    photoElements += `
+    <text x="${cx}" y="${cy + PHOTO_SIZE / 2 + 22}" text-anchor="middle"
+      font-size="14" font-weight="bold" fill="${COLORS.textDark}"
+      class="title">${name}</text>`;
+
+    // Species emoji
+    const emoji = pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐈' : '🐾';
+    photoElements += `
+    <text x="${cx}" y="${cy + PHOTO_SIZE / 2 + 40}" text-anchor="middle"
+      font-size="12" fill="${COLORS.textLight}">${emoji}</text>`;
+  }
+
+  // No pets fallback
+  if (petCount === 0) {
+    photoElements = `
+    <text x="${W / 2}" y="${PHOTO_Y + 60}" text-anchor="middle"
+      font-size="20" fill="${COLORS.textLight}" class="title">
+      Conocé a nuestras mascotas disponibles
+    </text>`;
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="${W}" y2="${H}" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="${COLORS.brandBg}" />
+      <stop offset="100%" stop-color="${COLORS.brandAccent}" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="${COLORS.brandSecondary}" />
+      <stop offset="100%" stop-color="#c47a5e" />
+    </linearGradient>
+  </defs>
+  ${fontFace}
+
+  <!-- Background -->
+  <rect width="${W}" height="${H}" fill="url(#bgGrad)" />
+
+  <!-- Decorative circles -->
+  <circle cx="${W - 150}" cy="200" r="120" fill="${COLORS.brandSecondary}" opacity="0.05" />
+  <circle cx="${W - 80}" cy="350" r="70" fill="${COLORS.brandPrimary}" opacity="0.04" />
+  <circle cx="100" cy="${H - 60}" r="50" fill="${COLORS.brandSecondary}" opacity="0.04" />
+
+  <!-- Top brand bar -->
+  <rect width="${W}" height="${BRAND_BAR_H}" fill="${COLORS.brandPrimary}" />
+  <text x="36" y="${BRAND_BAR_H / 2 + 1}" font-size="20" font-weight="bold"
+    fill="${COLORS.white}" class="title" dominant-baseline="middle">Sigo Tu Huella</text>
+  <text x="${W - 36}" y="${BRAND_BAR_H / 2 + 1}" font-size="13"
+    fill="${COLORS.white}" opacity="0.4" class="title" text-anchor="end"
+    dominant-baseline="middle">sigotuhuella.com.ar</text>
+
+  <!-- Badge -->
+  <rect x="36" y="74" width="210" height="28" rx="14"
+    fill="${COLORS.brandSecondary}" opacity="0.15" />
+  <text x="141" y="89" text-anchor="middle" font-size="12" font-weight="bold"
+    fill="${COLORS.brandSecondary}" class="title" dominant-baseline="middle"
+    letter-spacing="2">MASCOTAS EN ADOPCIÓN</text>
+
+  <!-- Main title -->
+  <text x="36" y="165" font-size="56" font-weight="bold"
+    fill="${COLORS.textDark}" class="title">Encontrá tu</text>
+  <text x="36" y="225" font-size="56" font-weight="bold"
+    fill="${COLORS.textDark}" class="title">nuevo compañero</text>
+
+  <!-- Accent bar -->
+  <rect x="36" y="244" width="200" height="5" rx="2.5" fill="url(#accentGrad)" />
+
+  <!-- Subtitle -->
+  <text x="36" y="278" font-size="16" fill="${COLORS.textMid}" class="title">
+    Conocé a las mascotas que buscan un hogar lleno de amor
+  </text>
+
+  <!-- Pet photos -->
+  ${photoElements}
+
+  <!-- Bottom brand bar -->
+  <rect y="${H - BOTTOM_BAR_H}" width="${W}" height="${BOTTOM_BAR_H}" fill="${COLORS.brandPrimary}" />
+  <text x="${W / 2}" y="${H - BOTTOM_BAR_H / 2 + 1}" text-anchor="middle"
+    font-size="12" fill="${COLORS.white}" opacity="0.7" class="title"
+    dominant-baseline="middle">sigotuhuella.com.ar</text>
+</svg>`;
 }
 
 let cachedBuffer = null;
@@ -111,152 +224,31 @@ export async function renderAdoptionOg() {
     return cachedBuffer;
   }
 
-  const { createCanvas, loadImage } = await getCanvas();
   const pets = await fetchAdoptionPets();
-
-  const canvas = createCanvas(W, H);
-  const ctx = canvas.getContext('2d');
-
-  // Background
-  const bgGrad = ctx.createLinearGradient(0, 0, W, H);
-  bgGrad.addColorStop(0, '#F5F5F0');
-  bgGrad.addColorStop(1, '#E6E6DF');
-  ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, W, H);
-
-  // Top brand bar
-  ctx.fillStyle = '#5A5A40';
-  ctx.fillRect(0, 0, W, 56);
-
-  ctx.font = `bold 22px ${FONT}`;
-  ctx.fillStyle = '#F5F5F0';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('Sigo Tu Huella', 36, 28);
-
-  ctx.textAlign = 'right';
-  ctx.font = `18px ${FONT}`;
-  ctx.fillStyle = 'rgba(245,245,240,0.4)';
-  ctx.fillText('sigotuhuella.com.ar', W - 36, 28);
-
-  // Badge "MASCOTAS EN ADOPCIÓN"
-  ctx.textAlign = 'center';
-  ctx.font = `bold 13px ${FONT}`;
-  const badgeText = 'MASCOTAS EN ADOPCIÓN';
-  const badgeW = ctx.measureText(badgeText).width + 28;
-  const badgeX = 36;
-  const badgeY = 78;
-  const badgeH = 26;
-  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 13);
-  ctx.fillStyle = 'rgba(212,140,112,0.15)';
-  ctx.fill();
-  ctx.fillStyle = '#D48C70';
-  ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + badgeH / 2 + 1);
-
-  // Main title
-  ctx.textAlign = 'left';
-  ctx.font = `bold 52px ${FONT}`;
-  ctx.fillStyle = '#5A5A40';
-  ctx.fillText('Encontrá tu', 36, 160);
-  ctx.fillText('nuevo compañero', 36, 220);
-
-  // Accent underline
-  const accentGrad = ctx.createLinearGradient(36, 0, 36 + 220, 0);
-  accentGrad.addColorStop(0, '#D48C70');
-  accentGrad.addColorStop(1, '#c47a5e');
-  ctx.fillStyle = accentGrad;
-  roundRect(ctx, 36, 240, 220, 6, 3);
-  ctx.fill();
-
-  // Subtitle
-  ctx.font = `16px ${FONT}`;
-  ctx.fillStyle = '#666';
-  ctx.fillText('Conocé a las mascotas que buscan un hogar', 36, 278);
-
-  // CTA
-  const ctaText = 'Ver disponibles →';
-  ctx.font = `bold 14px ${FONT}`;
-  const ctaW = ctx.measureText(ctaText).width + 32;
-  roundRect(ctx, 36, 302, ctaW, 36, 18);
-  ctx.fillStyle = '#D48C70';
-  ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.textAlign = 'center';
-  ctx.fillText(ctaText, 36 + ctaW / 2, 320 + 1);
-
-  // Pet photos section (right side)
   const petCount = Math.min(pets.length, 4);
-  if (petCount > 0) {
-    const photoSize = 110;
-    const gap = 16;
-    const startX = W - (petCount * photoSize + (petCount - 1) * gap) / 2 - 20;
-    const startY = 80;
 
-    // Decorative circles behind photos
-    ctx.globalAlpha = 0.06;
-    ctx.beginPath();
-    ctx.arc(startX + 200, startY + 100, 130, 0, Math.PI * 2);
-    ctx.fillStyle = '#D48C70';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(startX + 100, startY + 180, 80, 0, Math.PI * 2);
-    ctx.fillStyle = '#5A5A40';
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // Draw pet photos
-    const promises = [];
-    for (let i = 0; i < petCount; i++) {
-      const pet = pets[i];
-      const x = startX + i * (photoSize + gap);
-      const y = startY;
-
-      if (pet.image_data) {
-        promises.push(
-          loadImageFromBase64(_canvasModule, pet.image_data, pet.mime_type || 'image/jpeg')
-            .then(img => ({ index: i, img, x, y, pet }))
-            .catch(() => ({ index: i, img: null, x, y, pet }))
-        );
-      } else {
-        promises.push(Promise.resolve({ index: i, img: null, x, y, pet }));
+  // Pre-process pet photos
+  const photoDataList = [];
+  for (let i = 0; i < petCount; i++) {
+    const pet = pets[i];
+    if (pet.image_data) {
+      try {
+        const buf = await processPhoto(pet.image_data, pet.mime_type || 'image/jpeg', PHOTO_SIZE);
+        photoDataList.push(buf.toString('base64'));
+      } catch {
+        photoDataList.push(null);
       }
+    } else {
+      photoDataList.push(null);
     }
-
-    const results = await Promise.all(promises);
-    for (const r of results) {
-      drawCircularPhoto(ctx, r.x, r.y, photoSize, r.img);
-
-      // Pet name
-      ctx.textAlign = 'center';
-      ctx.font = `bold 13px ${FONT}`;
-      ctx.fillStyle = '#5A5A40';
-      const name = truncateText(ctx, r.pet.name || 'Sin nombre', photoSize + 10);
-      ctx.fillText(name, r.x + photoSize / 2, r.y + photoSize + 18);
-
-      // Species
-      ctx.font = `11px ${FONT}`;
-      ctx.fillStyle = '#999';
-      const speciesLabel = r.pet.species === 'dog' ? '🐕 Perro' : r.pet.species === 'cat' ? '🐈 Gato' : '🐾 Mascota';
-      ctx.fillText(speciesLabel, r.x + photoSize / 2, r.y + photoSize + 34);
-    }
-  } else {
-    // No pets placeholder
-    ctx.textAlign = 'center';
-    ctx.font = `16px ${FONT}`;
-    ctx.fillStyle = '#999';
-    ctx.fillText('🐾 Conocé a nuestras mascotas', W / 2, 220);
-    ctx.fillText('disponibles para adopción', W / 2, 248);
   }
 
-  // Bottom brand bar
-  ctx.fillStyle = '#5A5A40';
-  ctx.fillRect(0, H - 36, W, 36);
-  ctx.textAlign = 'center';
-  ctx.font = `12px ${FONT}`;
-  ctx.fillStyle = 'rgba(245,245,240,0.7)';
-  ctx.fillText('sigotuhuella.com.ar', W / 2, H - 14);
+  const svg = buildSvg(pets, photoDataList);
 
-  const buffer = canvas.toBuffer('image/jpeg', { quality: 0.85 });
+  const buffer = await sharp(Buffer.from(svg))
+    .jpeg({ quality: 85 })
+    .toBuffer();
+
   cachedBuffer = buffer;
   cachedAt = now;
   console.log(`[AdoptionOG] Generated ${buffer.length} bytes (${petCount} pets)`);
