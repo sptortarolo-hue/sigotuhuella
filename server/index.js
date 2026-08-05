@@ -505,20 +505,22 @@ app.get('/og-adopcion', ogLimiter, async (_req, res) => {
 app.get('/adopcion', (_req, res) => {
   const protocol = _req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'https';
   const baseUrl = `${protocol}://${_req.get('host')}`;
+  const cacheVersion = Math.floor(Date.now() / 3600000);
   const ogTags = `<meta property="og:title" content="Mascotas en Adopción - Sigo Tu Huella" />
 <meta property="og:description" content="Encontrá tu nuevo compañero. Conocé a las mascotas que buscan un hogar lleno de amor." />
 <meta property="og:url" content="${baseUrl}/adopcion" />
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="es_AR" />
-<meta property="og:image" content="${baseUrl}/og-adopcion" />
-<meta property="og:image:secure_url" content="${baseUrl}/og-adopcion" />
+<meta property="og:image" content="${baseUrl}/og-adopcion?v=${cacheVersion}" />
+<meta property="og:image:secure_url" content="${baseUrl}/og-adopcion?v=${cacheVersion}" />
 <meta property="og:image:type" content="image/jpeg" />
-<meta property="og:image:width" content="1200" />
-<meta property="og:image:height" content="630" />
+<meta property="og:image:width" content="1080" />
+<meta property="og:image:height" content="1080" />
+<meta property="fb:app_id" content="1224768922970900" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Mascotas en Adopción - Sigo Tu Huella" />
 <meta name="twitter:description" content="Encontrá tu nuevo compañero. Conocé a las mascotas que buscan un hogar lleno de amor." />
-<meta name="twitter:image" content="${baseUrl}/og-adopcion" />
+<meta name="twitter:image" content="${baseUrl}/og-adopcion?v=${cacheVersion}" />
 <meta property="fb:app_id" content="1224768922970900" />
 </head>`;
   res.send(stripOgTags(indexHtml).replace('</head>', ogTags));

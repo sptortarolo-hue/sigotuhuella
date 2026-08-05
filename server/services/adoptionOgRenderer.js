@@ -15,11 +15,11 @@ try {
   console.warn('[AdoptionOG] Montserrat-Bold.ttf not found, using system fallback');
 }
 
-const W = 1200;
-const H = 630;
-const PHOTO_SIZE = 150;
+const W = 1080;
+const H = 1080;
+const PHOTO_SIZE = 160;
 const PHOTO_GAP = 20;
-const PHOTO_Y = 340;
+const PHOTO_Y = 500;
 const PHOTO_MARGIN_X = 80;
 const BRAND_BAR_H = 56;
 const BOTTOM_BAR_H = 32;
@@ -172,9 +172,9 @@ function buildSvg(pets, photoDataList) {
   <rect width="${W}" height="${H}" fill="url(#bgGrad)" />
 
   <!-- Decorative circles -->
-  <circle cx="${W - 150}" cy="180" r="120" fill="${COLORS.brandSecondary}" opacity="0.05" />
-  <circle cx="${W - 80}" cy="400" r="70" fill="${COLORS.brandPrimary}" opacity="0.04" />
-  <circle cx="100" cy="${H - 40}" r="50" fill="${COLORS.brandSecondary}" opacity="0.04" />
+  <circle cx="${W - 120}" cy="250" r="140" fill="${COLORS.brandSecondary}" opacity="0.05" />
+  <circle cx="${W - 60}" cy="550" r="80" fill="${COLORS.brandPrimary}" opacity="0.04" />
+  <circle cx="80" cy="${H - 80}" r="60" fill="${COLORS.brandSecondary}" opacity="0.04" />
 
   <!-- Top brand bar -->
   <rect width="${W}" height="${BRAND_BAR_H}" fill="${COLORS.brandPrimary}" />
@@ -185,23 +185,23 @@ function buildSvg(pets, photoDataList) {
     dominant-baseline="middle">sigotuhuella.com.ar</text>
 
   <!-- Badge -->
-  <rect x="36" y="74" width="210" height="28" rx="14"
+  <rect x="36" y="80" width="220" height="30" rx="15"
     fill="${COLORS.brandSecondary}" opacity="0.15" />
-  <text x="141" y="89" text-anchor="middle" font-size="12" font-weight="bold"
+  <text x="146" y="96" text-anchor="middle" font-size="12" font-weight="bold"
     fill="${COLORS.brandSecondary}" class="title" dominant-baseline="middle"
     letter-spacing="2">MASCOTAS EN ADOPCIÓN</text>
 
   <!-- Main title -->
-  <text x="36" y="165" font-size="62" font-weight="bold"
+  <text x="36" y="200" font-size="72" font-weight="bold"
     fill="${COLORS.textDark}" class="title">Mascotas en</text>
-  <text x="36" y="235" font-size="62" font-weight="bold"
+  <text x="36" y="290" font-size="72" font-weight="bold"
     fill="${COLORS.textDark}" class="title">Adopción</text>
 
   <!-- Accent bar -->
-  <rect x="36" y="254" width="200" height="5" rx="2.5" fill="url(#accentGrad)" />
+  <rect x="36" y="315" width="220" height="6" rx="3" fill="url(#accentGrad)" />
 
   <!-- Subtitle -->
-  <text x="36" y="290" font-size="16" fill="${COLORS.textMid}" class="title">
+  <text x="36" y="360" font-size="20" fill="${COLORS.textMid}" class="title">
     Conocé a las mascotas que buscan un hogar
   </text>
 
