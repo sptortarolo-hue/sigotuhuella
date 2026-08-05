@@ -38,6 +38,7 @@ import backupRoutes from './routes/backup.js';
 import sitemapRoutes from './routes/sitemap.js';
 // import { startSyncTimer } from './services/vpsSyncService.js';
 import { startScreenshotScheduler } from './services/autoScreenshots.js';
+import { renderAdoptionOg } from './services/adoptionOgRenderer.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
 import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
 import { checkWhatsAppTimeouts } from './services/whatsappScheduler.js';
@@ -487,6 +488,20 @@ app.get('/buscar-facebook', (_req, res) => {
   res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
 });
 
+app.get('/og-adopcion', ogLimiter, async (_req, res) => {
+  try {
+    const buffer = await renderAdoptionOg();
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Content-Length', buffer.length);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.end(buffer);
+  } catch (err) {
+    console.error('OG adopcion image error:', err);
+    res.status(500).end();
+  }
+});
+
 app.get('/adopcion', (_req, res) => {
   const protocol = _req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'https';
   const baseUrl = `${protocol}://${_req.get('host')}`;
@@ -495,15 +510,15 @@ app.get('/adopcion', (_req, res) => {
 <meta property="og:url" content="${baseUrl}/adopcion" />
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="es_AR" />
-<meta property="og:image" content="${baseUrl}/adopcion-og.png" />
-<meta property="og:image:secure_url" content="${baseUrl}/adopcion-og.png" />
-<meta property="og:image:type" content="image/png" />
-<meta property="og:image:width" content="1080" />
-<meta property="og:image:height" content="1080" />
+<meta property="og:image" content="${baseUrl}/og-adopcion" />
+<meta property="og:image:secure_url" content="${baseUrl}/og-adopcion" />
+<meta property="og:image:type" content="image/jpeg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Mascotas en Adopción - Sigo Tu Huella" />
 <meta name="twitter:description" content="Encontrá tu nuevo compañero. Conocé a las mascotas que buscan un hogar lleno de amor." />
-<meta name="twitter:image" content="${baseUrl}/adopcion-og.png" />
+<meta name="twitter:image" content="${baseUrl}/og-adopcion" />
 </head>`;
   res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
 });
