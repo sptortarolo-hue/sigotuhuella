@@ -8,6 +8,7 @@ import {
   ChevronDown, ChevronUp, ExternalLink,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Helmet } from 'react-helmet-async';
 
 const RECORD_TYPE_LABELS: Record<string, string> = {
   vaccine: 'Vacuna', medication: 'Medicación', appointment: 'Turno',
@@ -49,6 +50,10 @@ export default function VetPetProfile() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-brand-bg text-brand-primary">
+      <Helmet>
+        <title>Ficha veterinaria - Sigo Tu Huella</title>
+        <meta name="description" content="Ficha veterinaria de mascota en Sigo Tu Huella." />
+      </Helmet>
         <Loader2 className="w-10 h-10 animate-spin" />
       </div>
     );

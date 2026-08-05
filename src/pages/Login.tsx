@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as PhoneIcon, Eye, EyeOff, KeyRound, CheckCircle2, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
+import { Helmet } from 'react-helmet-async';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -217,6 +218,10 @@ export default function Login() {
 
   if (loading) return (
     <div className="h-[60vh] flex items-center justify-center text-brand-primary">
+      <Helmet>
+        <title>Iniciar sesión - Sigo Tu Huella</title>
+        <meta name="description" content="Iniciá sesión en tu cuenta de Sigo Tu Huella." />
+      </Helmet>
       <Loader2 className="w-10 h-10 animate-spin" />
     </div>
   );

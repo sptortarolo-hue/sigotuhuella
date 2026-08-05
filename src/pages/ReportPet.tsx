@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import PetCard from '@/src/components/PetCard';
 import SocialShareModal from '@/src/components/SocialShareModal';
 import AuthGate from '@/src/components/AuthGate';
+import { Helmet } from 'react-helmet-async';
 
 const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
 
@@ -204,6 +205,10 @@ const handleSubmit = async (e: React.FormEvent) => {
   if (authLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center text-brand-primary">
+      <Helmet>
+        <title>Reportar mascota - Sigo Tu Huella</title>
+        <meta name="description" content="Reportá una mascota perdida, avistada o encontrada en Sicardi y Garibaldi." />
+      </Helmet>
         <Loader2 className="w-10 h-10 animate-spin" />
       </div>
     );

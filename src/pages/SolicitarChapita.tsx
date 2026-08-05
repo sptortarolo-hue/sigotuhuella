@@ -10,6 +10,7 @@ import {
   Plus, Heart,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { Helmet } from 'react-helmet-async';
 
 const SPECIES_OPTIONS = [
   { value: 'dog', label: 'Perro', icon: <Dog className="w-5 h-5" /> },
@@ -222,6 +223,10 @@ export default function SolicitarChapita() {
   if (requiresVerification) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center px-4">
+      <Helmet>
+        <title>Solicitar chapita QR - Sigo Tu Huella</title>
+        <meta name="description" content="Pedí la chapita QR con código de identificación para tu mascota." />
+      </Helmet>
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}

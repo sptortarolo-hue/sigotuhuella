@@ -4,6 +4,7 @@ import { getCollaborationAccounts, CollaborationAccount } from '@/src/lib/collab
 import { CreditCard, Copy, Check, Loader2, Heart, Info, ExternalLink, ShieldCheck, Ticket } from 'lucide-react';
 import { motion } from 'motion/react';
 import { api } from '@/src/lib/api';
+import { Helmet } from 'react-helmet-async';
 
 export default function Collaborate() {
   const [accounts, setAccounts] = useState<CollaborationAccount[]>([]);
@@ -39,6 +40,10 @@ export default function Collaborate() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
+      <Helmet>
+        <title>Colaborar - Sigo Tu Huella</title>
+        <meta name="description" content="Sumate a la red de rescate de mascotas. Colaborá con donaciones y voluntariado." />
+      </Helmet>
       <header className="text-center mb-16">
         <div className="inline-flex p-3 bg-red-100 text-red-600 rounded-2xl mb-6">
           <Heart className="w-8 h-8 fill-current" />

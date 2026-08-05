@@ -14,6 +14,7 @@ import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import PetImage from '@/src/components/PetImage';
 import { LinkifiedText } from '@/src/lib/linkify';
 import ImageLightbox from '@/src/components/admin/ImageLightbox';
+import { Helmet } from 'react-helmet-async';
 
 function parseNeighborhoods(n: any): string[] {
   if (Array.isArray(n)) return n;
@@ -131,6 +132,10 @@ export default function PetDetail() {
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center text-brand-primary">
+      <Helmet>
+        <title>Mascota - Sigo Tu Huella</title>
+        <meta name="description" content="Detalle de mascota reportada en Sigo Tu Huella." />
+      </Helmet>
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full animate-spin" />
           <span className="font-bold uppercase tracking-widest text-xs">Cargando mascota...</span>

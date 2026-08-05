@@ -4,6 +4,7 @@ import { api } from '@/src/lib/api';
 import { Ticket, Trophy, Calendar, Users, Loader2, ArrowRight, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { Helmet } from 'react-helmet-async';
 
 interface Prize {
   position: number;
@@ -47,6 +48,10 @@ export default function Rifas() {
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
+      <Helmet>
+        <title>Rifas solidarias - Sigo Tu Huella</title>
+        <meta name="description" content="Participá de las rifas solidarias para ayudar a las mascotas de Sicardi y Garibaldi." />
+      </Helmet>
         <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
       </div>
     );

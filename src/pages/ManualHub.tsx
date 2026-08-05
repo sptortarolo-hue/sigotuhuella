@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Heart, Search, QrCode, PawPrint, Ticket, HandCoins, Users, ArrowRight, BookOpen } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { Helmet } from 'react-helmet-async';
 
 const chapters = [
   {
@@ -57,6 +58,10 @@ const chapters = [
 export default function ManualHub() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-brand-bg to-white">
+      <Helmet>
+        <title>Manual de uso - Sigo Tu Huella</title>
+        <meta name="description" content="Guía de uso de la plataforma Sigo Tu Huella." />
+      </Helmet>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

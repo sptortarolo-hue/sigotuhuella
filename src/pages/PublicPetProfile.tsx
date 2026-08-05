@@ -10,6 +10,7 @@ import {
 import { AnimatePresence } from 'motion/react';
 import FoundReportModal from '@/src/components/FoundReportModal';
 import { getCurrentPosition } from '@/src/lib/geolocation';
+import { Helmet } from 'react-helmet-async';
 
 const SPECIES_LABELS: Record<string, string> = {
   dog: 'Perro', cat: 'Gato', other: 'Otro',
@@ -82,6 +83,10 @@ export default function PublicPetProfile() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-brand-bg text-brand-primary">
+      <Helmet>
+        <title>Perfil de mascota - Sigo Tu Huella</title>
+        <meta name="description" content="Perfil público de mascota en Sigo Tu Huella." />
+      </Helmet>
         <Loader2 className="w-10 h-10 animate-spin" />
       </div>
     );

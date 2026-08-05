@@ -4,6 +4,7 @@ import { News, getNews, getNewsImageUrl, formatNewsDate } from '@/src/lib/newsSe
 import { Sparkles, ArrowLeft, Calendar, Loader2, Info, Play, Share2, ExternalLink, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { Helmet } from 'react-helmet-async';
 
 function getVideoEmbedUrl(url: string): string | null {
   if (!url) return null;
@@ -52,6 +53,10 @@ export default function NovedadDetail() {
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center text-brand-primary">
+      <Helmet>
+        <title>Novedad - Sigo Tu Huella</title>
+        <meta name="description" content="Detalle de novedad en Sigo Tu Huella." />
+      </Helmet>
         <Loader2 className="w-10 h-10 animate-spin" />
       </div>
     );

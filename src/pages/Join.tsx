@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import AuthGate from '@/src/components/AuthGate';
 import MemberCardPage from '@/src/pages/MemberCardPage';
+import { Helmet } from 'react-helmet-async';
 
 export default function Join() {
   const { user, loading: authLoading } = useAuth();
@@ -120,6 +121,10 @@ export default function Join() {
   if (authLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center text-brand-primary">
+      <Helmet>
+        <title>Sumate - Sigo Tu Huella</title>
+        <meta name="description" content="Unite como voluntario a la red de rescate de mascotas en Sicardi y Garibaldi." />
+      </Helmet>
         <Loader2 className="w-10 h-10 animate-spin" />
       </div>
     );

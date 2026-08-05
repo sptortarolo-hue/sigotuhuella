@@ -1,10 +1,15 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Heart, Search, Map, MessageCircle, Image, Compass, ShieldCheck, PawPrint } from 'lucide-react';
 import { motion } from 'motion/react';
+import { Helmet } from 'react-helmet-async';
 
 export default function LostPetGuide() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-brand-bg to-white">
+      <Helmet>
+        <title>Perdí mi mascota - Sigo Tu Huella</title>
+        <meta name="description" content="Guía paso a paso para encontrar tu mascota perdida en Sicardi y Garibaldi." />
+      </Helmet>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12 sm:py-16 lg:py-20">
         {/* Encabezado empático */}
         <motion.div

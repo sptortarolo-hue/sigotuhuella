@@ -1,4 +1,4 @@
-import './env-loader.js';
+﻿import './env-loader.js';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { dirname, join } from 'path';
@@ -35,6 +35,7 @@ import adoptionAssignmentsRoutes from './routes/adoptionAssignments.js';
 import adminDashboardRoutes from './routes/adminDashboard.js';
 import rafflesRoutes from './routes/raffles.js';
 import backupRoutes from './routes/backup.js';
+import sitemapRoutes from './routes/sitemap.js';
 // import { startSyncTimer } from './services/vpsSyncService.js';
 import { startScreenshotScheduler } from './services/autoScreenshots.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
@@ -511,6 +512,8 @@ app.post('/api/upload/sponsor-logo', requireAdmin, sponsorUpload.single('logo'),
 
 // Video generator admin routes
  app.use('/api/admin/videos', videoGeneratorRoutes);
+
+app.use('/', sitemapRoutes);
 
  // Multer / file upload error handler
  app.use((err, _req, res, next) => {

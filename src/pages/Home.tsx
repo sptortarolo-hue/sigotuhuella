@@ -7,6 +7,7 @@ import { getNews } from '@/src/lib/newsService';
 import { api } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import SocialLinks from '@/src/components/SocialLinks';
+import { Helmet } from 'react-helmet-async';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -37,6 +38,10 @@ export default function Home() {
 
   return (
     <div className="flex flex-col">
+      <Helmet>
+        <title>Sigo Tu Huella - Red de rescate de mascotas</title>
+        <meta name="description" content="Red de vecinos para el reporte y rescate de mascotas en Sicardi y Garibaldi." />
+      </Helmet>
       {/* Hero Section */}
       <section className="relative min-h-0 md:min-h-[80vh] flex items-center overflow-hidden bg-brand-bg px-4 sm:px-6">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 items-center relative z-10 py-8 md:py-20">

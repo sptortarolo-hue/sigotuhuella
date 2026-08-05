@@ -4,6 +4,7 @@ import { News, getNews, getNewsImageUrl, formatNewsDate } from '@/src/lib/newsSe
 import { Sparkles, Loader2, ArrowLeft, Calendar, HeartHandshake, Home, Play, Share2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { Helmet } from 'react-helmet-async';
 
 export default function Novedades() {
   const navigate = useNavigate();
@@ -23,6 +24,10 @@ export default function Novedades() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <Helmet>
+        <title>Novedades - Sigo Tu Huella</title>
+        <meta name="description" content="Noticias y novedades de la red de rescate de mascotas en Sicardi y Garibaldi." />
+      </Helmet>
       <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold mb-8">
         <ArrowLeft className="w-4 h-4" /> Volver
       </button>
