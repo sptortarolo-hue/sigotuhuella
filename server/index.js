@@ -487,6 +487,27 @@ app.get('/buscar-facebook', (_req, res) => {
   res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
 });
 
+app.get('/adopcion', (_req, res) => {
+  const protocol = _req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'https';
+  const baseUrl = `${protocol}://${_req.get('host')}`;
+  const ogTags = `<meta property="og:title" content="Mascotas en Adopción - Sigo Tu Huella" />
+<meta property="og:description" content="Encontrá tu nuevo compañero. Conocé a las mascotas que buscan un hogar lleno de amor." />
+<meta property="og:url" content="${baseUrl}/adopcion" />
+<meta property="og:type" content="website" />
+<meta property="og:locale" content="es_AR" />
+<meta property="og:image" content="${baseUrl}/adopcion-og.png" />
+<meta property="og:image:secure_url" content="${baseUrl}/adopcion-og.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Mascotas en Adopción - Sigo Tu Huella" />
+<meta name="twitter:description" content="Encontrá tu nuevo compañero. Conocé a las mascotas que buscan un hogar lleno de amor." />
+<meta name="twitter:image" content="${baseUrl}/adopcion-og.png" />
+</head>`;
+  res.send(stripOgTags(indexHtml).replace('</head>', ogTags));
+});
+
 // Sponsor logo upload
 const sponsorsUploadDir = join(__dirname, '..', 'public', 'uploads', 'sponsors');
 mkdirSync(sponsorsUploadDir, { recursive: true });

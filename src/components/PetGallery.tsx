@@ -104,8 +104,10 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <Helmet>
-        <title>Mascotas perdidas - Sigo Tu Huella</title>
-        <meta name="description" content="Encontrá las mascotas perdidas en Sicardi y Garibaldi. Ayudá a reencontrarlas con su familia." />
+        <title>{type === 'adoption' ? 'Mascotas en Adopción - Sigo Tu Huella' : 'Mascotas perdidas - Sigo Tu Huella'}</title>
+        <meta name="description" content={type === 'adoption'
+          ? 'Conocé a los integrantes de Sigo Tu Huella que están buscando un hogar lleno de amor.'
+          : 'Encontrá las mascotas perdidas en Sicardi y Garibaldi. Ayudá a reencontrarlas con su familia.'} />
       </Helmet>
       <header className="mb-12 text-center max-w-2xl mx-auto">
 <h1 className="text-4xl md:text-5xl font-serif font-bold text-brand-primary mb-4">
