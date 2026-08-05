@@ -238,8 +238,49 @@ Scraper self-hosted que corre en un celular con Termux + X11. Usa Chromium real 
 - **DB:** sigotuhuella
 - **User:** sigotuhuella
 - **Password:** javier040484
-- **Persistent file:** `/root/.sihuella-db.env` (nunca se sobrescribe en deploy)
+- **Persistent file:** `/root/.sihuilla-db.env` (nunca se sobrescribe en deploy)
 - La `DATABASE_URL` se restaura desde ese archivo al final del deploy
+
+## Backup (modalidad de copia de seguridad)
+
+Backup diario automático + manual vía panel admin (solapa **Backup**).
+
+### Cómo funciona
+
+- **Script:** `scripts/backup.sh` — `pg_dump | gzip` de la DB completa + `tar` de `public/uploads` y archivos persistentes, con verificación de integridad (`gzip -t` + header PostgreSQL).
+- **Directorio:** `/var/backups/sihuella/` (archivos `db-<fecha>.sql.gz` y `fs-<fecha>.tar.gz` + `backups.json` con estado de verificación).
+- **Cron en el VPS:** `0 3 * * *` (03:00) — hay que instalarlo a mano una vez:
+  ```bash
+  crontab -e
+  # agregar:
+  0 3 * * * /var/www/sigotuhuella/scripts/backup.sh >> /var/log/sihuella-backup.log 2>&1
+  ```
+- **Retención:** 7 copias de cada tipo (configurable con `KEEP_COPIES`), borra backups con más de 14 días (`RETENTION_DAYS`).
+- **Único canal de bajada:** panel admin → Backup → "Descargar" (tu PC local). No hay copia offsite a GitHub; los backups viven solo en el VPS.
+
+### Uso manual
+
+| Comando | Descripción |
+|---------|-------------|
+| `bash /var/www/sigotuhuella/scripts/backup.sh` | Generar backup a mano + verificación |
+| Panel admin → Backup → "Generar ahora" | Backup on-demand desde la UI |
+| Panel admin → Backup → "Descargar" | Bajar backup a tu PC local |
+| `cat /var/backups/sihuella/backups.json` | Estado de integridad de los backups |
+
+### Restauración
+
+```bash
+# 1. Restaurar la DB desde el dump más reciente
+gunzip -c /var/backups/sihuella/db-<fecha>.sql.gz | psql -U sigotuhuella -h localhost -d sigotuhuella
+
+# 2. Restaurar archivos (uploads, etc.)
+tar xzf /var/backups/sihuella/fs-<fecha>.tar.gz -C /var/www/sigotuhuella
+```
+
+### Notas
+
+- La DB incluye imágenes en base64 (pesa). El dump completo con gzip se comprime bien.
+- Los backups viven solo en el VPS; bájalos a tu PC desde el panel si no hay offsite.
 
 ## Port 3000 conflict
 

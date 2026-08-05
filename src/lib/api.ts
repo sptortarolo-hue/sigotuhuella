@@ -467,4 +467,27 @@ export const api = {
     releaseTickets: (ticketGroupId: string) => request('/raffles/tickets/release', { method: 'POST', body: JSON.stringify({ ticketGroupId }) }),
     resendBankDetails: (raffleId: string, receiptId: string) => request(`/raffles/${raffleId}/receipt/${receiptId}/resend-bank`, { method: 'POST' }),
   },
+  backup: {
+    list: () => request('/backup/list'),
+    download: async (file: string) => {
+      const token = getToken();
+      const res = await fetch(`${BASE_URL}/backup/download/${encodeURIComponent(file)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err: any = new Error('Error al descargar backup');
+        throw err;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+    run: () => request('/backup/run', { method: 'POST' }),
+  },
 };
