@@ -19,7 +19,8 @@ const W = 1200;
 const H = 630;
 const PHOTO_SIZE = 150;
 const PHOTO_GAP = 20;
-const PHOTO_Y = 290;
+const PHOTO_Y = 340;
+const PHOTO_MARGIN_X = 80;
 const BRAND_BAR_H = 56;
 const BOTTOM_BAR_H = 32;
 
@@ -85,17 +86,18 @@ function buildSvg(pets, photoDataList) {
     .title { font-family: 'Montserrat Bold', 'Arial Black', Arial, sans-serif; }
   </style>`;
 
-  // Photo positions (centered horizontally)
-  const totalPhotosW = Math.min(pets.length, 4) * PHOTO_SIZE + Math.max(0, Math.min(pets.length, 4) - 1) * PHOTO_GAP;
-  const photosStartX = (W - totalPhotosW) / 2;
+  // Photo positions — distributed across full width
+  const petCount = Math.min(pets.length, 4);
+  const usableW = W - PHOTO_MARGIN_X * 2;
+  const spacing = petCount > 1 ? usableW / (petCount - 1) : 0;
+  const photosStartX = petCount === 1 ? W / 2 : PHOTO_MARGIN_X;
 
   let photoElements = '';
-  const petCount = Math.min(pets.length, 4);
 
   for (let i = 0; i < petCount; i++) {
     const pet = pets[i];
     const photoData = photoDataList[i];
-    const cx = photosStartX + i * (PHOTO_SIZE + PHOTO_GAP) + PHOTO_SIZE / 2;
+    const cx = photosStartX + i * spacing + (petCount === 1 ? 0 : 0);
     const cy = PHOTO_Y + PHOTO_SIZE / 2;
     const clipId = `clip-${i}`;
 
@@ -170,9 +172,9 @@ function buildSvg(pets, photoDataList) {
   <rect width="${W}" height="${H}" fill="url(#bgGrad)" />
 
   <!-- Decorative circles -->
-  <circle cx="${W - 150}" cy="200" r="120" fill="${COLORS.brandSecondary}" opacity="0.05" />
-  <circle cx="${W - 80}" cy="350" r="70" fill="${COLORS.brandPrimary}" opacity="0.04" />
-  <circle cx="100" cy="${H - 60}" r="50" fill="${COLORS.brandSecondary}" opacity="0.04" />
+  <circle cx="${W - 150}" cy="180" r="120" fill="${COLORS.brandSecondary}" opacity="0.05" />
+  <circle cx="${W - 80}" cy="400" r="70" fill="${COLORS.brandPrimary}" opacity="0.04" />
+  <circle cx="100" cy="${H - 40}" r="50" fill="${COLORS.brandSecondary}" opacity="0.04" />
 
   <!-- Top brand bar -->
   <rect width="${W}" height="${BRAND_BAR_H}" fill="${COLORS.brandPrimary}" />
@@ -190,17 +192,17 @@ function buildSvg(pets, photoDataList) {
     letter-spacing="2">MASCOTAS EN ADOPCIÓN</text>
 
   <!-- Main title -->
-  <text x="36" y="165" font-size="56" font-weight="bold"
-    fill="${COLORS.textDark}" class="title">Encontrá tu</text>
-  <text x="36" y="225" font-size="56" font-weight="bold"
-    fill="${COLORS.textDark}" class="title">nuevo compañero</text>
+  <text x="36" y="165" font-size="62" font-weight="bold"
+    fill="${COLORS.textDark}" class="title">Mascotas en</text>
+  <text x="36" y="235" font-size="62" font-weight="bold"
+    fill="${COLORS.textDark}" class="title">Adopción</text>
 
   <!-- Accent bar -->
-  <rect x="36" y="244" width="200" height="5" rx="2.5" fill="url(#accentGrad)" />
+  <rect x="36" y="254" width="200" height="5" rx="2.5" fill="url(#accentGrad)" />
 
   <!-- Subtitle -->
-  <text x="36" y="278" font-size="16" fill="${COLORS.textMid}" class="title">
-    Conocé a las mascotas que buscan un hogar lleno de amor
+  <text x="36" y="290" font-size="16" fill="${COLORS.textMid}" class="title">
+    Conocé a las mascotas que buscan un hogar
   </text>
 
   <!-- Pet photos -->
