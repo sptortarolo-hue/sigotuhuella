@@ -249,8 +249,9 @@ Backup diario automático + manual vía panel admin (solapa **Backup**).
 
 - **Script:** `scripts/backup.sh` — `pg_dump | gzip` de la DB completa + `tar` de `public/uploads` y archivos persistentes, con verificación de integridad (`gzip -t` + header PostgreSQL).
 - **Directorio:** `/var/backups/sihuella/` (archivos `db-<fecha>.sql.gz` y `fs-<fecha>.tar.gz` + `backups.json` con estado de verificación).
-- **Cron en el VPS:** `0 3 * * *` (03:00) — hay que instalarlo a mano una vez:
+- **Cron en el VPS:** `0 3 * * *` (03:00) — hay que instalarlo a mano una vez, en el crontab de **root** (el script lee `/root/.sihuella-*.env`):
   ```bash
+  ssh -p 28221 root@45.7.230.84
   crontab -e
   # agregar:
   0 3 * * * /var/www/sigotuhuella/scripts/backup.sh >> /var/log/sihuella-backup.log 2>&1
@@ -294,6 +295,7 @@ kill -9 $(lsof -ti :3000)
 ## VPS y deploy
 
 - **VPS:** `45.7.230.84:28221`
+- **SSH:** `ssh -p 28221 root@45.7.230.84`
 - **Deploy:** GitHub Actions via `tar | ssh` (NO usa `git pull`). Ver commit deployado con `cat /var/www/sigotuhuella/version.txt`
 - **DB:** `psql -U sigotuhuella -h localhost -d sigotuhuella` (peer auth falla, usar `-h localhost`)
 
