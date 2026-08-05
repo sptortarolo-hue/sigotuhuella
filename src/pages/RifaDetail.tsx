@@ -110,7 +110,7 @@ export default function RifaDetail() {
   function selectRow(start: number) {
     if (!raffle) return;
     const nums: number[] = [];
-    for (let i = start; i < Math.min(start + 10, raffle.total_numbers); i++) {
+    for (let i = start; i <= Math.min(start + 9, raffle.total_numbers); i++) {
       if (!soldNumbers.has(i) && !reservedNumbers.has(i)) nums.push(i);
     }
     const allSelected = nums.every(n => selected.has(n));
@@ -483,9 +483,9 @@ export default function RifaDetail() {
           {/* Row selectors for 10s */}
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4">
             {Array.from({ length: Math.ceil(raffle.total_numbers / 10) }, (_, row) => {
-              const start = row * 10;
-              const end = Math.min(start + 10, raffle.total_numbers);
-              const numsInRow = Array.from({ length: end - start }, (_, i) => start + i);
+              const start = row * 10 + 1;
+              const end = Math.min(start + 9, raffle.total_numbers);
+              const numsInRow = Array.from({ length: end - start + 1 }, (_, i) => start + i);
               const allSold = numsInRow.every(n => soldNumbers.has(n) || reservedNumbers.has(n));
               const allSelected = numsInRow.every(n => selected.has(n));
               return (
@@ -500,14 +500,14 @@ export default function RifaDetail() {
                     !allSold && !allSelected && "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
                   )}
                 >
-                  {start}–{end - 1}
+                  {start}–{end}
                 </button>
               );
             })}
           </div>
 
           <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 sm:gap-2 mb-4">
-            {Array.from({ length: raffle.total_numbers }, (_, i) => i).map(num => {
+            {Array.from({ length: raffle.total_numbers }, (_, i) => i + 1).map(num => {
               const isSold = soldNumbers.has(num);
               const isReserved = reservedNumbers.has(num);
               const isSelected = selected.has(num);
