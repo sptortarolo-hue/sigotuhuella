@@ -38,14 +38,14 @@ const H = 1080;
 const BRAND_BAR_H = 56;
 const BOTTOM_BAR_H = 32;
 
-// Circle definitions: [size, x, y] — overlapping, different sizes
+// Circle definitions — 30% bigger, shifted bottom-right
 const CIRCLES = [
-  { size: 180, x: 100, y: 580 },   // foto 1 — largest, back left
-  { size: 140, x: 300, y: 490 },   // foto 5 — mid, top center
-  { size: 160, x: 520, y: 620 },   // foto 3 — large, right
-  { size: 130, x: 430, y: 810 },   // foto 4 — mid, bottom center
-  { size: 120, x: 220, y: 760 },   // foto 2 — small, left
-  { size: 100, x: 700, y: 800 },   // foto 6 — smallest, far right
+  { size: 230, x: 140, y: 650 },   // foto 1 — largest, back left
+  { size: 180, x: 380, y: 530 },   // foto 5 — mid, top center
+  { size: 210, x: 600, y: 680 },   // foto 3 — large, right
+  { size: 170, x: 500, y: 870 },   // foto 4 — mid, bottom center
+  { size: 155, x: 260, y: 830 },   // foto 2 — small, left
+  { size: 130, x: 780, y: 850 },   // foto 6 — smallest, far right
 ];
 
 const COLORS = {
@@ -123,7 +123,7 @@ function buildSvg(pets, photoDataList) {
   }
 
   // Logo clip
-  const logoX = 640;
+  const logoX = W - logoSize - 36;
   const logoY = 150;
   const logoSize = 240;
   clipDefs += `
