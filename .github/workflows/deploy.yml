@@ -43,6 +43,7 @@ jobs:
         echo "APP_BASE_URL=${aburl:-https://sigotuhuella.com.ar}" >> server/.env
         echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" >> server/.env
         echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> server/.env
+        echo "TZ=America/Argentina/Buenos_Aires" >> server/.env
 
     - name: Check disk space on VPS
       continue-on-error: true
