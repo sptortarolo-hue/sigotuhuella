@@ -61,7 +61,7 @@ const COLORS = {
 
 function esc(str) {
   return String(str)
-    .replace(/&&/g, '&amp;')
+    .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
@@ -123,9 +123,9 @@ function buildSvg(pets, photoDataList) {
   }
 
   // Logo clip
+  const logoSize = 240;
   const logoX = W - logoSize - 36;
   const logoY = 150;
-  const logoSize = 240;
   clipDefs += `
     <clipPath id="logoClip">
       <circle cx="${logoX + logoSize / 2}" cy="${logoY + logoSize / 2}" r="${logoSize / 2}" />
