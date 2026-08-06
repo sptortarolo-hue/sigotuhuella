@@ -15,14 +15,38 @@ try {
   console.warn('[AdoptionOG] Montserrat-Bold.ttf not found, using system fallback');
 }
 
+// Load logo
+let LOGO_BASE64 = '';
+let logoReady = false;
+async function ensureLogo() {
+  if (logoReady) return;
+  try {
+    const logoPath = join(__dirname, '..', '..', 'public', 'sigotuhuella.jpg');
+    const buf = await sharp(readFileSync(logoPath))
+      .resize(240, 240, { fit: 'cover' })
+      .png()
+      .toBuffer();
+    LOGO_BASE64 = buf.toString('base64');
+    logoReady = true;
+  } catch {
+    console.warn('[AdoptionOG] sigotuhuella.jpg not found');
+  }
+}
+
 const W = 1080;
 const H = 1080;
-const PHOTO_SIZE = 160;
-const PHOTO_GAP = 20;
-const PHOTO_Y = 500;
-const PHOTO_MARGIN_X = 80;
 const BRAND_BAR_H = 56;
 const BOTTOM_BAR_H = 32;
+
+// Circle definitions: [size, x, y] — overlapping, different sizes
+const CIRCLES = [
+  { size: 180, x: 100, y: 580 },   // foto 1 — largest, back left
+  { size: 140, x: 300, y: 490 },   // foto 5 — mid, top center
+  { size: 160, x: 520, y: 620 },   // foto 3 — large, right
+  { size: 130, x: 430, y: 810 },   // foto 4 — mid, bottom center
+  { size: 120, x: 220, y: 760 },   // foto 2 — small, left
+  { size: 100, x: 700, y: 800 },   // foto 6 — smallest, far right
+];
 
 const COLORS = {
   brandPrimary: '#5A5A40',
@@ -37,7 +61,7 @@ const COLORS = {
 
 function esc(str) {
   return String(str)
-    .replace(/&/g, '&amp;')
+    .replace(/&&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
@@ -58,12 +82,12 @@ async function fetchAdoptionPets() {
       AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
       AND p.group_id IS NULL
     ORDER BY RANDOM()
-    LIMIT 4
+    LIMIT 6
   `);
   return result.rows;
 }
 
-async function processPhoto(base64Data, mimeType, size) {
+async function processPhoto(base64Data, size) {
   const inputBuf = Buffer.from(base64Data, 'base64');
   return sharp(inputBuf)
     .resize(size, size, { fit: 'cover', position: 'centre' })
@@ -86,73 +110,89 @@ function buildSvg(pets, photoDataList) {
     .title { font-family: 'Montserrat Bold', 'Arial Black', Arial, sans-serif; }
   </style>`;
 
-  // Photo positions — distributed across full width
-  const petCount = Math.min(pets.length, 4);
-  const usableW = W - PHOTO_MARGIN_X * 2;
-  const spacing = petCount > 1 ? usableW / (petCount - 1) : 0;
-  const photosStartX = petCount === 1 ? W / 2 : PHOTO_MARGIN_X;
+  const petCount = Math.min(pets.length, CIRCLES.length);
 
-  let photoElements = '';
+  // Build clip paths for all circles
+  let clipDefs = '';
+  for (let i = 0; i < CIRCLES.length; i++) {
+    const c = CIRCLES[i];
+    clipDefs += `
+    <clipPath id="clip-${i}">
+      <circle cx="${c.x}" cy="${c.y}" r="${c.size / 2}" />
+    </clipPath>`;
+  }
 
-  for (let i = 0; i < petCount; i++) {
-    const pet = pets[i];
-    const photoData = photoDataList[i];
-    const cx = photosStartX + i * spacing + (petCount === 1 ? 0 : 0);
-    const cy = PHOTO_Y + PHOTO_SIZE / 2;
-    const clipId = `clip-${i}`;
-
-    // Clip path for circular photo
-    photoElements += `
-    <clipPath id="${clipId}">
-      <circle cx="${cx}" cy="${cy}" r="${PHOTO_SIZE / 2}" />
+  // Logo clip
+  const logoX = 640;
+  const logoY = 150;
+  const logoSize = 240;
+  clipDefs += `
+    <clipPath id="logoClip">
+      <circle cx="${logoX + logoSize / 2}" cy="${logoY + logoSize / 2}" r="${logoSize / 2}" />
     </clipPath>`;
 
-    // Shadow circle (behind photo)
-    photoElements += `
-    <circle cx="${cx}" cy="${cy + 4}" r="${PHOTO_SIZE / 2}"
-      fill="black" opacity="0.12" />`;
+  // Build photo elements (drawn back to front for overlap)
+  let photoElements = '';
+  for (let i = 0; i < CIRCLES.length; i++) {
+    const c = CIRCLES[i];
+    const cx = c.x;
+    const cy = c.y;
+    const r = c.size / 2;
 
-    // Photo (clipped circle)
-    if (photoData) {
+    if (i < petCount && photoDataList[i]) {
+      // Shadow
       photoElements += `
-    <image href="data:image/jpeg;base64,${photoData}"
-      x="${cx - PHOTO_SIZE / 2}" y="${cy - PHOTO_SIZE / 2}"
-      width="${PHOTO_SIZE}" height="${PHOTO_SIZE}"
-      clip-path="url(#${clipId})" />`;
+    <circle cx="${cx}" cy="${cy + 5}" r="${r}" fill="black" opacity="0.1" />`;
+      // Photo
+      photoElements += `
+    <image href="data:image/jpeg;base64,${photoDataList[i]}"
+      x="${cx - r}" y="${cy - r}" width="${c.size}" height="${c.size}"
+      clip-path="url(#clip-${i})" />`;
+    } else if (i < petCount) {
+      // Pet without photo — placeholder
+      photoElements += `
+    <circle cx="${cx}" cy="${cy + 5}" r="${r}" fill="black" opacity="0.08" />
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${COLORS.brandAccent}" />
+    <text x="${cx}" y="${cy + 8}" text-anchor="middle" font-size="${c.size * 0.35}"
+      fill="${COLORS.textLight}">🐾</text>`;
     } else {
+      // Decorative circle (no pet)
       photoElements += `
-    <circle cx="${cx}" cy="${cy}" r="${PHOTO_SIZE / 2}"
-      fill="${COLORS.brandAccent}" />
-    <text x="${cx}" y="${cy + 6}" text-anchor="middle"
-      font-size="48" fill="${COLORS.textLight}">🐾</text>`;
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${COLORS.brandSecondary}" opacity="0.08" />`;
     }
 
     // Border ring
     photoElements += `
-    <circle cx="${cx}" cy="${cy}" r="${PHOTO_SIZE / 2}"
-      fill="none" stroke="${COLORS.brandSecondary}" stroke-width="3" />`;
+    <circle cx="${cx}" cy="${cy}" r="${r}"
+      fill="none" stroke="${COLORS.brandSecondary}" stroke-width="3" opacity="0.6" />`;
 
-    // Pet name
-    const name = esc(pet.name || 'Sin nombre');
-    photoElements += `
-    <text x="${cx}" y="${cy + PHOTO_SIZE / 2 + 22}" text-anchor="middle"
-      font-size="14" font-weight="bold" fill="${COLORS.textDark}"
-      class="title">${name}</text>`;
-
-    // Species emoji
-    const emoji = pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐈' : '🐾';
-    photoElements += `
-    <text x="${cx}" y="${cy + PHOTO_SIZE / 2 + 40}" text-anchor="middle"
-      font-size="12" fill="${COLORS.textLight}">${emoji}</text>`;
+    // Pet name label (only for real pets)
+    if (i < petCount && pets[i]) {
+      const pet = pets[i];
+      const name = esc(pet.name || '');
+      const emoji = pet.species === 'dog' ? '🐕' : pet.species === 'cat' ? '🐈' : '🐾';
+      // Position label below circle
+      const labelY = cy + r + 20;
+      photoElements += `
+    <text x="${cx}" y="${labelY}" text-anchor="middle" font-size="13" font-weight="bold"
+      fill="${COLORS.textDark}" class="title">${name}</text>
+    <text x="${cx}" y="${labelY + 16}" text-anchor="middle" font-size="11"
+      fill="${COLORS.textLight}">${emoji}</text>`;
+    }
   }
 
-  // No pets fallback
-  if (petCount === 0) {
-    photoElements = `
-    <text x="${W / 2}" y="${PHOTO_Y + 60}" text-anchor="middle"
-      font-size="20" fill="${COLORS.textLight}" class="title">
-      Conocé a nuestras mascotas disponibles
-    </text>`;
+  // Logo element
+  let logoElement = '';
+  if (LOGO_BASE64) {
+    logoElement = `
+    <!-- Logo -->
+    <circle cx="${logoX + logoSize / 2}" cy="${logoY + logoSize / 2 + 5}" r="${logoSize / 2}"
+      fill="black" opacity="0.08" />
+    <image href="data:image/png;base64,${LOGO_BASE64}"
+      x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}"
+      clip-path="url(#logoClip)" />
+    <circle cx="${logoX + logoSize / 2}" cy="${logoY + logoSize / 2}" r="${logoSize / 2}"
+      fill="none" stroke="${COLORS.brandSecondary}" stroke-width="3" opacity="0.4" />`;
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
@@ -165,16 +205,16 @@ function buildSvg(pets, photoDataList) {
       <stop offset="0%" stop-color="${COLORS.brandSecondary}" />
       <stop offset="100%" stop-color="#c47a5e" />
     </linearGradient>
+    ${clipDefs}
   </defs>
   ${fontFace}
 
   <!-- Background -->
   <rect width="${W}" height="${H}" fill="url(#bgGrad)" />
 
-  <!-- Decorative circles -->
-  <circle cx="${W - 120}" cy="250" r="140" fill="${COLORS.brandSecondary}" opacity="0.05" />
-  <circle cx="${W - 60}" cy="550" r="80" fill="${COLORS.brandPrimary}" opacity="0.04" />
-  <circle cx="80" cy="${H - 80}" r="60" fill="${COLORS.brandSecondary}" opacity="0.04" />
+  <!-- Decorative background circles -->
+  <circle cx="${W - 100}" cy="200" r="160" fill="${COLORS.brandSecondary}" opacity="0.04" />
+  <circle cx="60" cy="${H - 100}" r="80" fill="${COLORS.brandPrimary}" opacity="0.03" />
 
   <!-- Top brand bar -->
   <rect width="${W}" height="${BRAND_BAR_H}" fill="${COLORS.brandPrimary}" />
@@ -191,21 +231,24 @@ function buildSvg(pets, photoDataList) {
     fill="${COLORS.brandSecondary}" class="title" dominant-baseline="middle"
     letter-spacing="2">MASCOTAS EN ADOPCIÓN</text>
 
-  <!-- Main title -->
-  <text x="36" y="200" font-size="72" font-weight="bold"
+  <!-- Main title — LARGE -->
+  <text x="36" y="200" font-size="110" font-weight="bold"
     fill="${COLORS.textDark}" class="title">Mascotas en</text>
-  <text x="36" y="290" font-size="72" font-weight="bold"
+  <text x="36" y="330" font-size="110" font-weight="bold"
     fill="${COLORS.textDark}" class="title">Adopción</text>
 
   <!-- Accent bar -->
-  <rect x="36" y="315" width="220" height="6" rx="3" fill="url(#accentGrad)" />
+  <rect x="36" y="355" width="220" height="6" rx="3" fill="url(#accentGrad)" />
 
-  <!-- Subtitle -->
-  <text x="36" y="360" font-size="20" fill="${COLORS.textMid}" class="title">
+  <!-- Subtitle — 80% bigger -->
+  <text x="36" y="400" font-size="30" fill="${COLORS.textMid}" class="title">
     Conocé a las mascotas que buscan un hogar
   </text>
 
-  <!-- Pet photos -->
+  <!-- Logo (right of title) -->
+  ${logoElement}
+
+  <!-- Pet photos (overlapping circles) -->
   ${photoElements}
 
   <!-- Bottom brand bar -->
@@ -226,16 +269,17 @@ export async function renderAdoptionOg() {
     return cachedBuffer;
   }
 
+  await ensureLogo();
   const pets = await fetchAdoptionPets();
-  const petCount = Math.min(pets.length, 4);
+  const petCount = Math.min(pets.length, CIRCLES.length);
 
-  // Pre-process pet photos
+  // Pre-process pet photos at their circle sizes
   const photoDataList = [];
   for (let i = 0; i < petCount; i++) {
     const pet = pets[i];
     if (pet.image_data) {
       try {
-        const buf = await processPhoto(pet.image_data, pet.mime_type || 'image/jpeg', PHOTO_SIZE);
+        const buf = await processPhoto(pet.image_data, CIRCLES[i].size);
         photoDataList.push(buf.toString('base64'));
       } catch {
         photoDataList.push(null);
