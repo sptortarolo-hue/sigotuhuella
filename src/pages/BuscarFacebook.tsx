@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { api } from '@/src/lib/api';
 import { Search, MapPin, Phone, Calendar, Filter, X, ExternalLink } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import { formatDate } from '@/src/lib/formatDate';
 
 interface FacebookPost {
   id: string;
@@ -141,7 +142,7 @@ export default function BuscarFacebook() {
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-2 text-xs text-gray-400">
                     <Calendar className="w-3.5 h-3.5" />
-                    {post.posted_at ? new Date(post.posted_at).toLocaleDateString('es-AR') : '—'}
+                    {post.posted_at ? formatDate(post.posted_at) : '—'}
                     {post.group_name && <span>· {post.group_name}</span>}
                   </div>
                   {classificationBadge(post.classification)}

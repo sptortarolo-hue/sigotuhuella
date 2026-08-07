@@ -6,6 +6,7 @@ import {
   Layers, Home, History as HistoryIcon, Users, ArrowUpRight
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import { formatDate } from '@/src/lib/formatDate';
 import ReunionModal from '@/src/components/ReunionModal';
 import { getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
 import { api } from '@/src/lib/api';
@@ -368,7 +369,7 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
           </div>
           {pet.reunited_at && (
             <p className="text-xs text-emerald-600 font-medium">
-              {pet.status === 'reunited' ? 'Reencontrada' : 'Adoptada'} el {new Date(pet.reunited_at).toLocaleDateString('es-AR')}
+              {pet.status === 'reunited' ? 'Reencontrada' : 'Adoptada'} el {formatDate(pet.reunited_at)}
             </p>
           )}
           {(pet.owner_name || pet.owner_phone || pet.owner_email || pet.owner_address) ? (

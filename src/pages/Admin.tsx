@@ -28,6 +28,7 @@ import WhatsAppTab from '@/src/components/admin/WhatsAppTab';
 import RelayWhatsAppTab from '@/src/components/admin/RelayWhatsAppTab';
 import FacebookRelayTab from '@/src/components/admin/FacebookRelayTab';
 import ChapitaEditor from '@/src/components/ChapitaEditor';
+import { formatDate, formatDateTime, formatDateShort } from '@/src/lib/formatDate';
 import UnifiedDashboard from '@/src/pages/admin/UnifiedDashboard';
 import AnalyticsTab from '@/src/pages/admin/AnalyticsTab';
 import RafflesTab from '@/src/components/admin/RafflesTab';
@@ -2589,7 +2590,7 @@ export default function Admin() {
                     }`}>
                       {item.type === 'web' ? 'Web' : 'WA'}
                     </span>
-                    <span className="ml-2 text-gray-300">{new Date(item.date).toLocaleDateString('es-AR')}</span>
+                    <span className="ml-2 text-gray-300">{formatDate(item.date)}</span>
                   </p>
                 </div>
 
@@ -2789,13 +2790,13 @@ export default function Admin() {
                     <p className="text-xs text-gray-400">{item.owner_email}</p>
                   </td>
                   <td className="py-3 text-xs text-gray-400 hidden sm:table-cell">
-                    {item.assigned_at ? new Date(item.assigned_at).toLocaleDateString('es-AR') : '-'}
+                    {item.assigned_at ? formatDate(item.assigned_at) : '-'}
                   </td>
                   <td className="py-3">
                     <div className="flex items-center gap-2">
                       {item.notification_status === 'sent' ? (
                         <span className="text-xs text-green-600 font-medium whitespace-nowrap">
-                          ✅ {item.notified_at ? new Date(item.notified_at).toLocaleString('es-AR') : ''}
+                          ✅ {item.notified_at ? formatDateTime(item.notified_at) : ''}
                           {item.notification_channel ? <span className="text-gray-500"> · {item.notification_channel === 'both' ? 'WhatsApp + Email' : item.notification_channel === 'whatsapp' ? 'WhatsApp' : 'Email'}</span> : null}
                         </span>
                       ) : item.notification_status === 'failed' ? (
@@ -3691,7 +3692,7 @@ function PublicReportsTab() {
                   <td className="px-6 py-4">{report.location}</td>
                   <td className="px-6 py-4">{report.contact_info || <span className="text-gray-400">—</span>}</td>
                   <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
-                    {new Date(report.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    {formatDateShort(report.created_at)}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">

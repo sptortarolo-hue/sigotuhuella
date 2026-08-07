@@ -4,6 +4,7 @@ import { api } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import { PawPrint, Loader2, Heart, MessageCircle, Trash2, Sparkles, Send } from 'lucide-react';
 import { LinkifiedText } from '@/src/lib/linkify';
+import { formatDateShort } from '@/src/lib/formatDate';
 
 export default function Feed() {
   const { user } = useAuth();
@@ -160,7 +161,7 @@ export default function Feed() {
                     {comments[post.id]?.length || 0}
                   </button>
                   <span className="text-[10px] text-gray-400">
-                    {new Date(post.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    {formatDateShort(post.created_at)}
                   </span>
                 </div>
               </div>
@@ -180,7 +181,7 @@ export default function Feed() {
                               <span className="text-gray-500 ml-1">{c.content}</span>
                             </p>
                             <p className="text-[10px] text-gray-400 mt-0.5">
-                              {new Date(c.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              {formatDateShort(c.created_at)}
                             </p>
                           </div>
                           {user?.id === c.user_id && (

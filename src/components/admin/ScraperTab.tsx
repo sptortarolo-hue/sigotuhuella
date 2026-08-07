@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/src/lib/api';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { formatDate } from '@/src/lib/formatDate';
 import {
   Save, Loader2, Search, RefreshCw, Check, XCircle, MessageSquare,
   Globe, Users, Sliders, FlaskConical, Clock, ImageIcon,
@@ -370,7 +371,7 @@ function PostsSection() {
                           <ExternalLink className="w-3 h-3" />
                         </a>
                       )}
-                      <span className="text-[10px] text-gray-400">{new Date(item.created_at).toLocaleDateString('es-AR')}</span>
+                      <span className="text-[10px] text-gray-400">{formatDate(item.created_at)}</span>
                     </div>
                   </div>
                 </div>
@@ -479,7 +480,7 @@ function PostsSection() {
                       ) : <span className="text-xs text-gray-400">No</span>}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                      {new Date(item.created_at).toLocaleDateString('es-AR')}
+                      {formatDate(item.created_at)}
                     </td>
                   </tr>
                 );
@@ -634,7 +635,7 @@ function MatchesSection() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                      {new Date(m.created_at).toLocaleDateString('es-AR')}
+                      {formatDate(m.created_at)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">

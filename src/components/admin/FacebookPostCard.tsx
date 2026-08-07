@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { formatDate } from '@/src/lib/formatDate';
 import {
   ExternalLink, FlaskConical, RefreshCw, Trash2, MessageSquare, Image as ImageIcon, MapPin, Phone,
 } from 'lucide-react';
@@ -132,7 +133,7 @@ export default function FacebookPostCard({ post, selected, onToggleSelect, onCla
         {/* Meta */}
         <div className="flex items-center justify-between text-[10px] text-gray-400 pt-1 border-t border-gray-100">
           <span className="truncate max-w-[150px]">{post.group_name || ''}</span>
-          <span>{post.posted_at ? new Date(post.posted_at).toLocaleDateString('es-AR') : ''}</span>
+          <span>{post.posted_at ? formatDate(post.posted_at) : ''}</span>
         </div>
 
         {/* Actions */}

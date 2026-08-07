@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Film, Download, Trash2, Loader2, RefreshCw, Share2, Copy, AlertCircle, CheckCircle, Monitor, Smartphone, Square, Sparkles, Image, Search, Check, X, ChevronDown, Settings, BarChart3, Camera, Clock, List } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
+import { formatDate, formatDateTime, formatDateShort } from '@/src/lib/formatDate';
 
 interface Video {
   id: string;
@@ -1154,7 +1155,7 @@ export default function VideoGeneratorTab() {
               <div className="text-xs font-bold text-gray-700 mt-1">Última generación</div>
               <div className="text-xs text-gray-500 mt-1">
                 {reelStats.last_generated
-                  ? new Date(reelStats.last_generated).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                  ? formatDateShort(reelStats.last_generated)
                   : '—'}
               </div>
             </div>
@@ -1340,7 +1341,7 @@ export default function VideoGeneratorTab() {
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mb-3">
-                      {new Date(video.created_at).toLocaleDateString('es-AR')} &middot; {video.duration}s
+                      {formatDate(video.created_at)} &middot; {video.duration}s
                       {video.created_by_name && <> &middot; {video.created_by_name}</>}
                     </p>
                     {isReady && video.video_data && (
@@ -1401,7 +1402,7 @@ export default function VideoGeneratorTab() {
                         </select>
                         {video.last_story_posted_at && (
                           <span className="text-[10px] text-gray-400 ml-auto">
-                            Última story: {new Date(video.last_story_posted_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            Última story: {formatDateShort(video.last_story_posted_at)}
                           </span>
                         )}
                       </div>

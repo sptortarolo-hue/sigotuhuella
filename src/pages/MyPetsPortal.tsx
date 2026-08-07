@@ -3,6 +3,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { fileToBase64 } from '@/src/lib/storageService';
+import { formatDate } from '@/src/lib/formatDate';
 import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
 import ImageCropper from '@/src/components/ImageCropper';
 import {
@@ -349,7 +350,7 @@ export default function MyPetsPortal() {
                       <p className="text-[10px] text-gray-400 mt-1">QR asignado: {ass.qr_code}</p>
                     )}
                     <p className="text-[10px] text-gray-400 mt-1">
-                      Creada: {new Date(ass.created_at).toLocaleDateString('es-AR')}
+                      Creada: {formatDate(ass.created_at)}
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
@@ -413,7 +414,7 @@ export default function MyPetsPortal() {
                       <p className="text-[10px] text-gray-400 mt-1">QR asignado: {ass.qr_code}</p>
                     )}
                     <p className="text-[10px] text-gray-400 mt-1">
-                      Creada: {new Date(ass.created_at).toLocaleDateString('es-AR')}
+                      Creada: {formatDate(ass.created_at)}
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 shrink-0 sm:flex-row sm:items-center">

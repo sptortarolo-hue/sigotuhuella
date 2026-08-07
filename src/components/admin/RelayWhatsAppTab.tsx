@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode, Search, CheckSquare, Square, Plus, Trash2, Bell, Check, Save, Heart, Radio } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { cn } from '@/src/lib/utils';
+import { formatDateTime } from '@/src/lib/formatDate';
 
 interface RelayStatus {
   enabled: boolean;
@@ -624,7 +625,7 @@ export default function RelayWhatsAppTab() {
                 {pendingMessages.map((m) => (
                   <tr key={m.id} className="text-sm">
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
-                      {new Date(m.created_at).toLocaleString('es-AR')}
+                      {formatDateTime(m.created_at)}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-600">{m.wa_to}</td>
                     <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{(m.text || '').substring(0, 100)}</td>
@@ -668,7 +669,7 @@ export default function RelayWhatsAppTab() {
                 {recentSent.map((m) => (
                   <tr key={m.id} className="text-sm">
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
-                      {m.sent_at ? new Date(m.sent_at).toLocaleString('es-AR') : '—'}
+                      {m.sent_at ? formatDateTime(m.sent_at) : '—'}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-600">{m.wa_to}</td>
                     <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{(m.text || '').substring(0, 100)}</td>
@@ -795,8 +796,8 @@ export default function RelayWhatsAppTab() {
                   <div className="min-w-0 flex-1">
                     <p className="text-gray-700 line-clamp-2">{(s.text || '').substring(0, 120)}</p>
                     <p className="text-xs text-gray-400 mt-1">
-                      {new Date(s.created_at).toLocaleString('es-AR')}
-                      {s.sent_at && ` · Publicado ${new Date(s.sent_at).toLocaleString('es-AR')}`}
+                      {formatDateTime(s.created_at)}
+                      {s.sent_at && ` · Publicado ${formatDateTime(s.sent_at)}`}
                     </p>
                   </div>
                   {s.image_url && <Globe className="w-4 h-4 text-gray-400 shrink-0 mt-1" />}
@@ -1231,7 +1232,7 @@ export default function RelayWhatsAppTab() {
                 {failedMessages.map((m) => (
                   <tr key={m.id} className="text-sm">
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
-                      {new Date(m.created_at).toLocaleString('es-AR')}
+                      {formatDateTime(m.created_at)}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-600">{m.wa_to}</td>
                     <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{(m.text || '').substring(0, 100)}</td>

@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import RafflePublishModal from './RafflePublishModal';
 import { shareRaffleOnWhatsApp } from '@/src/lib/whatsappShare';
+import { formatDate, formatDateTime } from '@/src/lib/formatDate';
 
 interface Prize {
   position: number;
@@ -411,7 +412,7 @@ export default function RafflesTab() {
               </span>
               {raffle.draw_date ? (
                 <span className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3" /> {new Date(raffle.draw_date).toLocaleDateString('es-AR')}
+                  <Calendar className="w-3 h-3" /> {formatDate(raffle.draw_date)}
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-green-600">
@@ -1053,7 +1054,7 @@ export default function RafflesTab() {
                     <div className="flex-1 min-w-0 text-sm">
                       <p className="font-bold">{r.push_name || r.buyer_name || 'Desconocido'}</p>
                       <p className="text-gray-500 text-xs break-words">{r.lid_jid || r.buyer_phone || 'Sin ID'}</p>
-                      <p className="text-gray-400 text-xs mt-1">{new Date(r.created_at).toLocaleString('es-AR')}</p>
+                      <p className="text-gray-400 text-xs mt-1">{formatDateTime(r.created_at)}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

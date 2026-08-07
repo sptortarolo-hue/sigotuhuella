@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { cn } from '@/src/lib/utils';
 import { formatTag } from '@/src/lib/personalityTags';
+import { formatDate } from '@/src/lib/formatDate';
 import { api } from '@/src/lib/api';
 import {
   PawPrint, Syringe, Scissors, Bug, ExternalLink, Download,
@@ -98,7 +99,7 @@ export default function AdminMyPetDetail({ pet, onClose, isMobile, onEdit, onDel
     { label: 'Raza', value: pet.breed },
     { label: 'Color', value: pet.color },
     { label: 'Sexo', value: pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : 'Desconocido' },
-    { label: 'Nacimiento', value: pet.birth_date ? new Date(pet.birth_date).toLocaleDateString('es-AR') : null },
+    { label: 'Nacimiento', value: pet.birth_date ? formatDate(pet.birth_date) : null },
     { label: 'Edad', value: getAge(pet.birth_date) },
     { label: 'Chip ID', value: pet.chip_id },
     { label: 'Peso', value: pet.weight_kg ? `${pet.weight_kg} kg` : null },

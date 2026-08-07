@@ -8,6 +8,7 @@ import {
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { api } from '@/src/lib/api';
+import { formatDateTime } from '@/src/lib/formatDate';
 
 interface FbRelayStatus {
   enabled: boolean;
@@ -807,7 +808,7 @@ function PublisherSection() {
                       : <span className="text-gray-500 font-mono">{p.page_post_id || '—'}</span>}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                    {p.published_at ? new Date(p.published_at).toLocaleString('es-AR') : '—'}
+                    {p.published_at ? formatDateTime(p.published_at) : '—'}
                   </td>
                 </tr>
               ))}

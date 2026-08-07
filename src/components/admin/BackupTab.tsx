@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Loader2, Download, RefreshCw, Database, Folder, CheckCircle2, XCircle, AlertTriangle, HardDrive } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { cn } from '@/src/lib/utils';
+import { formatDateTime } from '@/src/lib/formatDate';
 
 interface BackupEntry {
   file: string;
@@ -155,7 +156,7 @@ export default function BackupTab() {
                     </span>
                   </td>
                   <td className="p-3 text-gray-500 whitespace-nowrap">{formatBytes(b.size)}</td>
-                  <td className="p-3 text-gray-500 whitespace-nowrap">{new Date(b.created_at).toLocaleString('es-AR')}</td>
+                  <td className="p-3 text-gray-500 whitespace-nowrap">{formatDateTime(b.created_at)}</td>
                   <td className="p-3">
                     {b.ok === true ? (
                       <span className="flex items-center gap-1 text-green-600 font-bold"><CheckCircle2 className="w-4 h-4" /> OK</span>

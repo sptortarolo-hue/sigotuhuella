@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/src/lib/api';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { formatDate } from '@/src/lib/formatDate';
 import {
   Save, Loader2, Plus, X, Trash2, ExternalLink,
   RefreshCw, MessageSquare, Globe, Camera, Send,
@@ -323,7 +324,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
               </p>
               {connected && expiresAt && (
                 <p className="text-xs text-gray-400">
-                  Token expira: {new Date(expiresAt).toLocaleDateString('es-AR')}
+                  Token expira: {formatDate(expiresAt)}
                 </p>
               )}
             </div>

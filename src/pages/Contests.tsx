@@ -73,7 +73,7 @@ export default function Contests() {
   const getEndDate = () => {
     if (!contest) return '';
     const end = new Date(contest.end_date);
-    return end.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+    return end.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'long', year: 'numeric' });
   };
 
   const getDaysLeft = () => {

@@ -8,6 +8,7 @@ import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn, formatDateOnly } from '@/src/lib/utils';
+import { formatDate, formatDateTime } from '@/src/lib/formatDate';
 import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
 import { shareOnFacebook } from '@/src/lib/facebookShare';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
@@ -514,7 +515,7 @@ Me gustaría obtener más información.`;
                     )}>
                       {statusLabels[m.status] || m.status}
                     </span>
-                    <span className="text-[10px] text-gray-400 ml-2">{new Date(m.created_at).toLocaleDateString('es-AR')}</span>
+                    <span className="text-[10px] text-gray-400 ml-2">{formatDate(m.created_at)}</span>
                   </div>
                 </button>
               ))}
@@ -553,7 +554,7 @@ Me gustaría obtener más información.`;
                     )}
                     {item.description && <p className="text-sm text-gray-600 mt-0.5 line-clamp-2">{item.description}</p>}
                     <p className="text-xs text-gray-400 mt-1 group-hover:text-brand-primary">
-                      {new Date(item.created_at).toLocaleDateString('es-AR')} · Ver reporte →
+                      {formatDate(item.created_at)} · Ver reporte →
                     </p>
                   </button>
                 ) : item._type === 'myevent' ? (
@@ -561,14 +562,14 @@ Me gustaría obtener más información.`;
                     <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full bg-amber-400 border-2 border-white shadow" />
                     <p className="text-sm font-bold text-brand-primary">{item.title || 'Evento'}</p>
                     {item.description && <p className="text-sm text-gray-600 mt-0.5">{item.description}</p>}
-                    <p className="text-xs text-gray-400 mt-1">{item.event_date ? formatDateOnly(item.event_date, { day: 'numeric', month: 'long', year: 'numeric' }) : new Date(item.created_at).toLocaleDateString('es-AR')}</p>
+                    <p className="text-xs text-gray-400 mt-1">{item.event_date ? formatDateOnly(item.event_date, { day: 'numeric', month: 'long', year: 'numeric' }) : formatDate(item.created_at)}</p>
                   </div>
                 ) : item._type === 'myrecord' ? (
                   <div key={item.id} className="relative">
                     <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full bg-rose-400 border-2 border-white shadow" />
                     <p className="text-sm font-bold text-brand-primary">{item.title || 'Registro'}</p>
                     {item.description && <p className="text-sm text-gray-600 mt-0.5">{item.description}</p>}
-                    <p className="text-xs text-gray-400 mt-1">{item.record_date ? formatDateOnly(item.record_date, { day: 'numeric', month: 'long', year: 'numeric' }) : new Date(item.created_at).toLocaleDateString('es-AR')}</p>
+                    <p className="text-xs text-gray-400 mt-1">{item.record_date ? formatDateOnly(item.record_date, { day: 'numeric', month: 'long', year: 'numeric' }) : formatDate(item.created_at)}</p>
                   </div>
                 ) : (
                   <div key={item.id} className="relative">
@@ -581,7 +582,7 @@ Me gustaría obtener más información.`;
                        item.event_type === 'transit_exited' ? 'Salida de tránsito' : item.event_type}
                     </p>
                     {item.description && <p className="text-sm text-gray-600 mt-0.5">{item.description}</p>}
-                    <p className="text-xs text-gray-400 mt-1">{new Date(item.created_at).toLocaleString('es-AR')}</p>
+                    <p className="text-xs text-gray-400 mt-1">{formatDateTime(item.created_at)}</p>
                   </div>
                 )
               ))}

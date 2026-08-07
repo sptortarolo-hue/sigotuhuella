@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/src/lib/api';
 import { cn } from '@/src/lib/utils';
+import { formatDateTime } from '@/src/lib/formatDate';
 import {
   Save, Loader2, MessageSquare, RefreshCw, Send,
   Phone, User, X, CheckCircle, XCircle,
@@ -549,7 +550,7 @@ export default function WhatsAppTab() {
                       </p>
                     )}
                     <p className="text-[10px] text-gray-300 mt-1">
-                      {new Date(conv.last_message_at).toLocaleString('es-AR')}
+                      {formatDateTime(conv.last_message_at)}
                     </p>
                   </div>
                 </div>

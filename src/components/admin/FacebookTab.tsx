@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/src/lib/api';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { formatDateTime } from '@/src/lib/formatDate';
 import {
   Loader2, Plus, X, Trash2, ExternalLink, RefreshCw,
   Globe, Search,
@@ -132,7 +133,7 @@ export default function FacebookTab() {
                     </button>
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500">
-                    {g.last_scraped_at ? new Date(g.last_scraped_at).toLocaleString('es-AR') : '—'}
+                    {g.last_scraped_at ? formatDateTime(g.last_scraped_at) : '—'}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">

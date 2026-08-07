@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/src/lib/utils';
 import { api } from '@/src/lib/api';
+import { formatDate } from '@/src/lib/formatDate';
 import { Check, XCircle, ChevronLeft, ChevronRight, Loader2, ImageIcon, MessageSquare } from 'lucide-react';
 
 interface MatchItem {
@@ -207,7 +208,7 @@ function SideCard({ side, label, type, imgIdx, setImgIdx, title }: {
             {side.color && <p className="text-gray-500">Color: {side.color}</p>}
             {side.location && <p className="text-gray-500">Ubicación: {side.location}</p>}
             {side.phone && <p className="text-gray-500">Tel: {side.phone}</p>}
-            {side.date && <p className="text-gray-400">{new Date(side.date).toLocaleDateString('es-AR')}</p>}
+            {side.date && <p className="text-gray-400">{formatDate(side.date)}</p>}
           </>
         )}
       </div>
