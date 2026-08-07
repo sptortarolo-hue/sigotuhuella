@@ -19,9 +19,11 @@ const pool = conn
   ? new Pool({
       ...conn,
       ssl: !isLocal ? { rejectUnauthorized: false } : false,
+      options: '-c TimeZone=America/Argentina/Buenos_Aires',
     })
   : new Pool({
       connectionString: 'postgresql://localhost:5432/sigotuhuella',
+      options: '-c TimeZone=America/Argentina/Buenos_Aires',
     });
 
 const schema = `
@@ -680,6 +682,20 @@ async function migrate(client, sql, label) {
 export async function initDb() {
   const client = await pool.connect();
   try {
+    // Backstop: default timezone for direct DB sessions (psql, cron).
+    // ALTER DATABASE ... SET is a session-independent persistent default.
+    try {
+      const dbRes = await client.query('SELECT current_database() AS db');
+      const dbName = dbRes.rows[0]?.db;
+      if (dbName) {
+        await client.query(
+          `ALTER DATABASE ${JSON.stringify(dbName)} SET timezone = 'America/Argentina/Buenos_Aires'`
+        );
+      }
+    } catch (err) {
+      console.warn(`[MIGRATION] set database timezone skipped: ${err.message}`);
+    }
+
     await client.query(schema);
     console.log('Database schema initialized');
 
