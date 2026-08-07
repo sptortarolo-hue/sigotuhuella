@@ -2796,19 +2796,18 @@ export default function Admin() {
                       {item.notification_status === 'sent' ? (
                         <span className="text-xs text-green-600 font-medium whitespace-nowrap">
                           ✅ {item.notified_at ? new Date(item.notified_at).toLocaleString('es-AR') : ''}
+                          {item.notification_channel ? <span className="text-gray-500"> · {item.notification_channel === 'both' ? 'WhatsApp + Email' : item.notification_channel === 'whatsapp' ? 'WhatsApp' : 'Email'}</span> : null}
                         </span>
                       ) : item.notification_status === 'failed' ? (
                         <span className="text-xs text-red-500 font-medium">❌ Fallida</span>
-                      ) : !item.owner_phone ? (
-                        <span className="text-xs text-gray-400 font-medium">— Sin teléfono</span>
                       ) : (
                         <span className="text-xs text-amber-500 font-medium">⏳ Pendiente</span>
                       )}
                       <button
                         onClick={() => handleNotifyAssigned(item.id)}
-                        disabled={qrNotifyingId === item.id || !item.owner_phone}
+                        disabled={qrNotifyingId === item.id}
                         className="px-3 py-1 text-xs font-bold rounded-full border border-brand-accent hover:bg-brand-primary hover:text-white transition-all disabled:opacity-40"
-                        title={!item.owner_phone ? 'El dueño no tiene teléfono cargado' : 'Reenviar notificación'}
+                        title="Enviar notificación"
                       >
                         {qrNotifyingId === item.id ? (
                           <Loader2 className="w-3 h-3 animate-spin" />

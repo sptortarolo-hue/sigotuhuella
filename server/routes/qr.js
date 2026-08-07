@@ -121,12 +121,15 @@ Sigo Tu Huella 🐾`;
   };
 
   try {
-    await notifyUser(user, { subject, textMessage, sendEmailFn });
+    const result = await notifyUser(user, { subject, textMessage, sendEmailFn });
+    const channel = result.waSent && result.emailSent ? 'both'
+      : result.waSent ? 'whatsapp'
+      : result.emailSent ? 'email' : 'none';
     await pool.query(
-      'UPDATE qr_identifiers SET notification_status = $1, notified_at = NOW() WHERE id = $2',
-      ['sent', qrId]
+      'UPDATE qr_identifiers SET notification_status = $1, notified_at = NOW(), notification_channel = $2 WHERE id = $3',
+      [channel === 'none' ? 'failed' : 'sent', channel, qrId]
     );
-    return { success: true, status: 'sent' };
+    return { success: channel !== 'none', status: channel === 'none' ? 'failed' : 'sent', channel };
   } catch (err) {
     console.error('notifyChapitaReady error:', err);
     await pool.query(
@@ -215,20 +218,6 @@ router.post('/assign', requireAdmin, async (req, res) => {
       'UPDATE my_pets SET qr_id = $1, qr_requested = false WHERE id = $2',
       [qr_id, my_pet_id]
     );
-
-    const userResult = await pool.query(
-      'SELECT id, email, phone, display_name, notification_preference FROM users WHERE id = $1',
-      [petResult.rows[0].user_id]
-    );
-    if (userResult.rows.length > 0) {
-      const user = userResult.rows[0];
-      const petName = petResult.rows[0].name;
-      const code = qrResult.rows[0].code;
-      const qrId = qrResult.rows[0].id;
-      const shareToken = qrResult.rows[0].share_token;
-
-      await notifyChapitaReady(qrId, shareToken, code, petName, user).catch(() => {});
-    }
 
     res.json({ success: true, code: qrResult.rows[0].code });
   } catch (err) {
@@ -666,7 +655,7 @@ router.get('/assigned', requireAdmin, async (req, res) => {
     const pages = Math.ceil(total / limit);
 
     const result = await pool.query(
-      `SELECT qi.id, qi.code, qi.share_token, qi.assigned_at, qi.notified_at, qi.notification_status,
+      `SELECT qi.id, qi.code, qi.share_token, qi.assigned_at, qi.notified_at, qi.notification_status, qi.notification_channel,
               mp.id as pet_id, mp.name as pet_name, mp.species, mp.breed,
               u.display_name as owner_name, u.email as owner_email, u.phone as owner_phone
        FROM qr_identifiers qi

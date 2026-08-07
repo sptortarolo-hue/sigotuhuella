@@ -6,19 +6,22 @@ async function sendViaWhatsApp(user, textMessage) {
   const phone = normalizePhone(user.phone);
   if (!phone) {
     console.log(`[notification] No phone for user ${user.email}, skipping WhatsApp`);
-    return;
+    return false;
   }
   try {
     await enqueue(phone, textMessage);
     console.log(`[notification] Queued via relay for ${user.email} (${phone})`);
+    return true;
   } catch (relayErr) {
     console.warn(`[notification] Relay error for ${user.email}, fallback to Meta:`, relayErr.message);
     try {
       const { sendMessage } = await import('./whatsappService.js');
       await sendMessage(phone, textMessage);
       console.log(`[notification] Sent via Meta fallback for ${user.email} (${phone})`);
+      return true;
     } catch (metaErr) {
       console.error(`[notification] Meta fallback error for ${user.email}:`, metaErr.message);
+      return false;
     }
   }
 }
@@ -28,16 +31,20 @@ export async function notifyUser(user, { subject, textMessage, sendEmailFn }) {
   const sendWA = (pref === 'whatsapp' || pref === 'both');
   const sendML = (pref === 'email' || pref === 'both');
 
+  let waSent = false;
   if (sendWA && textMessage) {
-    await sendViaWhatsApp(user, textMessage);
+    waSent = await sendViaWhatsApp(user, textMessage);
   }
+  let emailSent = false;
   if (sendML && sendEmailFn) {
     try {
       await sendEmailFn();
+      emailSent = true;
     } catch (err) {
       console.error(`[notification] Email error for ${user.email}:`, err.message);
     }
   }
+  return { waSent, emailSent };
 }
 
 export async function notifyAdmins({ subject, htmlContent, textMessage }) {

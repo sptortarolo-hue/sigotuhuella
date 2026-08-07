@@ -1561,6 +1561,11 @@ export async function initDb() {
         )
     `, 'raffle_tickets fix stuck pending with confirmed receipt');
 
+    // Track which channel was used for chapita QR notifications
+    await migrate(client, `
+      ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS notification_channel VARCHAR(20)
+    `, 'qr_identifiers notification_channel');
+
     console.log('Database migrations complete');
   } finally {
     client.release();
