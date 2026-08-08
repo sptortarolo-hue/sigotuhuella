@@ -181,9 +181,6 @@ const handleSubmit = async (e: React.FormEvent) => {
          latitude: formData.coordinates?.lat ?? null,
          longitude: formData.coordinates?.lng ?? null,
          contactInfo: formData.contactInfo,
-         share_contact: true,
-         share_location: true,
-         broadcast_consent: true,
          images,
        };
 

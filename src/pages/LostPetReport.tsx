@@ -141,9 +141,6 @@ export default function LostPetReport() {
       if (coordinates) { body.latitude = coordinates.lat; body.longitude = coordinates.lng; }
       if (phone) body.phone = phone;
       if (selectedNeighborhoods.length > 0) body.neighborhoods = selectedNeighborhoods;
-      body.share_contact = true;
-      body.share_location = true;
-      body.broadcast_consent = true;
       body.images = images.map((data, i) => {
         return { data, mimeType: imageMimeTypes[i] || 'image/jpeg', crop_x: 0.5, crop_y: 0.5 };
       });

@@ -137,9 +137,6 @@ export default function QuickReport() {
         body.longitude = coordinates.lng;
       }
       if (contactInfo && status === 'retained') body.contact_info = contactInfo;
-      body.share_contact = true;
-      body.share_location = true;
-      body.broadcast_consent = true;
       if (images.length > 0) {
         body.images = images.map((data, i) => {
           return { data, mimeType: imageMimeTypes[i] || 'image/jpeg', crop_x: 0.5, crop_y: 0.5 };
