@@ -183,13 +183,13 @@ export default function RafflesTab() {
     try {
       setManualLoading(true);
 
-      // Step 1: reserve numbers with autoConfirm (si no hay comprobante)
+      // Step 1: reserve numbers. Sin comprobante quedan reservados hasta confirmar.
       const data = await api.raffles.reserve(raffleId, {
         numbers: manualSelectedNumbers,
         name: manualFormName,
         phone: manualFormPhone,
         paymentMethod: manualFormPayment,
-        autoConfirm: !manualReceiptFile,
+        autoConfirm: false,
       });
 
       // Step 2: if receipt provided, upload as pending then confirm (same as handleUploadAndConfirm)
@@ -708,7 +708,7 @@ export default function RafflesTab() {
                   <button onClick={() => manualRaffleId && handleManualAssign(manualRaffleId)} disabled={manualLoading || manualSelectedNumbers.length === 0}
                     className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm hover:opacity-90 disabled:opacity-50">
                     {manualLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    Asignar {manualSelectedNumbers.length > 0 ? `${manualSelectedNumbers.length} número${manualSelectedNumbers.length > 1 ? 's' : ''}` : ''}
+                    {manualReceiptFile ? 'Asignar y confirmar' : 'Reservar'} {manualSelectedNumbers.length > 0 ? `${manualSelectedNumbers.length} número${manualSelectedNumbers.length > 1 ? 's' : ''}` : ''}
                   </button>
                 </div>
               </div>
@@ -819,13 +819,24 @@ export default function RafflesTab() {
                                 </div>
                               )}
                               {t.status !== 'paid' && (!receiptForTicket || receiptForTicket.receipt_status !== 'confirmed') && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setUploadTarget(t); }}
-                                  className="absolute -bottom-1 -right-1 w-4 h-4 bg-brand-primary text-white rounded-full flex items-center justify-center hidden group-hover:flex hover:opacity-80"
-                                  title="Subir comprobante"
-                                >
-                                  <Upload className="w-2.5 h-2.5" />
-                                </button>
+                                <>
+                                  {(t as any).mp_external_reference && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleReleaseTickets((t as any).mp_external_reference, (t as any).buyer_name || ''); }}
+                                      className="absolute -bottom-1 -left-1 w-4 h-4 bg-orange-500 text-white rounded-full flex items-center justify-center hidden group-hover:flex hover:opacity-80"
+                                      title="Liberar números (quitar reserva)"
+                                    >
+                                      <X className="w-2.5 h-2.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setUploadTarget(t); }}
+                                    className="absolute -bottom-1 -right-1 w-4 h-4 bg-brand-primary text-white rounded-full flex items-center justify-center hidden group-hover:flex hover:opacity-80"
+                                    title="Subir comprobante"
+                                  >
+                                    <Upload className="w-2.5 h-2.5" />
+                                  </button>
+                                </>
                               )}
                             </div>
                             ) : (
@@ -895,12 +906,22 @@ export default function RafflesTab() {
                                       <span className="text-gray-300">—</span>
                                     )}
                                     {t.status !== 'paid' && (!receiptForTicket || receiptForTicket.receipt_status !== 'confirmed') && (
-                                      <button
-                                        onClick={() => setUploadTarget(t)}
-                                        className="ml-2 flex items-center gap-1 text-[10px] font-bold text-brand-primary hover:underline"
-                                      >
-                                        <Upload className="w-3 h-3" /> Subir
-                                      </button>
+                                      <>
+                                        <button
+                                          onClick={() => setUploadTarget(t)}
+                                          className="ml-2 flex items-center gap-1 text-[10px] font-bold text-brand-primary hover:underline"
+                                        >
+                                          <Upload className="w-3 h-3" /> Subir
+                                        </button>
+                                        {(t as any).mp_external_reference && (
+                                          <button
+                                            onClick={() => handleReleaseTickets((t as any).mp_external_reference, (t as any).buyer_name || '')}
+                                            className="ml-2 flex items-center gap-1 text-[10px] font-bold text-orange-600 hover:underline"
+                                          >
+                                            <X className="w-3 h-3" /> Liberar
+                                          </button>
+                                        )}
+                                      </>
                                     )}
                                   </td>
                                 </tr>
