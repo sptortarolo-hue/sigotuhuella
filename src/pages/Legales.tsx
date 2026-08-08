@@ -65,7 +65,7 @@ export default function Legales() {
 
           <h3 className="text-lg font-bold text-gray-800 mb-3">1.3. Difusión del aviso</h3>
           <P>
-            Los avisos se pueden difundir a través de nuestros grupos de WhatsApp, redes sociales y canales de la comunidad con el fin de ampliar las posibilidades de recuperar/colocar la mascota. El dueño del aviso decide en cada reporte si la difusión está habilitada y si quiere mostrar su teléfono y su ubicación exacta en el mapa público.
+            Los avisos se difunden a través de nuestros grupos de WhatsApp, redes sociales y canales de la comunidad con el fin de ampliar las posibilidades de recuperar/colocar la mascota. Como publicar un aviso implica que sus datos estén a disposición de la comunidad, el contacto y la ubicación cargados quedan visibles en el aviso público.
           </P>
 
           <h3 className="text-lg font-bold text-gray-800 mb-3">1.4. Responsabilidad</h3>
@@ -97,7 +97,7 @@ export default function Legales() {
           <ul className="list-disc pl-5 mb-3">
             <Li><strong>Al registrarte:</strong> nombre, email y, opcionalmente, WhatsApp/teléfono. Se usan para crear y gestionar tu cuenta y enviarte avisos de tus propias publicaciones.</Li>
             <Li><strong>Al publicar un reporte:</strong> datos que vos elegís cargar (descripción, fotos, teléfono de contacto, ubicación/coordenadas). Se publican como parte del aviso para poder encontrar a la mascota.</Li>
-            <Li><strong>Coordenadas y dirección:</strong> la precisión con que se muestra la ubicación en el mapa es la que vos decidís en el reporte.</Li>
+            <Li><strong>Coordenadas y dirección:</strong> la ubicación y coordenadas cargadas en el aviso se muestran en el mapa público como parte de la publicación.</Li>
             <Li><strong>Información técnica:</strong> IP y datos del navegador al visitar fichas y escanear códigos QR, con fines de funcionamiento, seguridad y estadísticas.</Li>
           </ul>
 
@@ -107,13 +107,8 @@ export default function Legales() {
 
           <h3 className="text-lg font-bold text-gray-800 mb-3">2.3. Publicación de los datos (lo importante)</h3>
           <P>
-            Los reportes son públicos por diseño, porque su objetivo es que la comunidad ayude. Eso significa que <strong>el teléfono de contacto y la ubicación de un aviso son visibles para cualquier visitante</strong>. Vos decidís en el momento del reporte:
+            Los reportes son públicos por diseño, porque su objetivo es que la comunidad ayude. Eso significa que, al publicar un aviso, <strong>el teléfono de contacto y la ubicación que cargás son visibles para cualquier visitante</strong>. El solo hecho de publicar implica tu consentimiento para que esos datos formen parte del aviso y se difundan en los canales de la red.
           </P>
-          <ul className="list-disc pl-5 mb-3">
-            <Li>Si mostrás tu teléfono en el aviso o lo mantenés oculto.</Li>
-            <Li>Si publicás la ubicación exacta en el mapa o preferís que no se muestre el punto exacto.</Li>
-            <Li>Si autorizás que el aviso se difunda en grupos y redes para ampliar su alcance.</Li>
-          </ul>
 
           <h3 className="text-lg font-bold text-gray-800 mb-3">2.4. Destinatarios y terceros</h3>
           <P>Tratamos tus datos en nombre de Sigo Tu Huella y compartimos solo lo necesario con:</P>
