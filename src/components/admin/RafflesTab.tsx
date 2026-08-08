@@ -60,6 +60,7 @@ export default function RafflesTab() {
   const [manualRafflePrice, setManualRafflePrice] = useState(0);
   const [manualLoading, setManualLoading] = useState(false);
   const [manualResult, setManualResult] = useState<any>(null);
+  const [manualConfirmTicket, setManualConfirmTicket] = useState<any | null>(null);
   const [receiptNote, setReceiptNote] = useState('');
   const [showUnmatched, setShowUnmatched] = useState(false);
   const [unmatchedReceipts, setUnmatchedReceipts] = useState<any[]>([]);
@@ -287,6 +288,65 @@ export default function RafflesTab() {
       fetchRaffles();
     } catch (err: any) {
       alert(err.message || 'Error al liberar números');
+    }
+  }
+
+  async function handleManualConfirmReceipt(raffleId: string) {
+    if (!manualConfirmTicket?.mp_external_reference) { alert('Seleccioná un número reservado'); return; }
+    if (!manualFormName || !manualFormPhone) { alert('Nombre y teléfono son obligatorios'); return; }
+    if (!manualReceiptFile || !manualReceiptPreview) { alert('Seleccioná el comprobante'); return; }
+    try {
+      setManualLoading(true);
+      const groupId = manualConfirmTicket.mp_external_reference;
+      const ticketCount = (manualRaffleTickets || []).filter(t => t.mp_external_reference === groupId && t.status !== 'cancelled').length || 1;
+      const base64 = manualReceiptPreview.split(',')[1];
+      const receiptData = await api.raffles.uploadReceipt(raffleId, {
+        ticketGroupId: groupId,
+        buyerName: manualFormName,
+        buyerPhone: manualFormPhone,
+        imageData: base64,
+        imageMime: manualReceiptFile.type || 'image/jpeg',
+        amountExpected: ticketCount * manualRafflePrice,
+        status: 'pending',
+      });
+      await api.raffles.confirmReceipt(raffleId, receiptData.receipt.id, 'Comprobante subido por admin (confirmado directo)');
+      setManualResult({ ok: true });
+      setManualConfirmTicket(null);
+      setManualReceiptFile(null);
+      setManualReceiptPreview(null);
+      setManualFormName('');
+      setManualFormPhone('');
+      api.raffles.get(raffleId).then(data => {
+        setManualRaffleTickets(data.raffle?.tickets || []);
+      });
+      fetchRaffles();
+    } catch (err: any) {
+      alert(err.message || 'Error al confirmar pago');
+    } finally {
+      setManualLoading(false);
+    }
+  }
+
+  async function handleManualRelease() {
+    if (!manualConfirmTicket?.mp_external_reference || !manualRaffleId) return;
+    if (!confirm(`¿Liberar los números de ${manualFormName || 'este comprador'}? Se cancelará la reserva y los números quedarán disponibles.`)) return;
+    try {
+      setManualLoading(true);
+      await api.raffles.releaseTickets(manualConfirmTicket.mp_external_reference);
+      setManualConfirmTicket(null);
+      setManualReceiptFile(null);
+      setManualReceiptPreview(null);
+      setManualFormName('');
+      setManualFormPhone('');
+      setManualResult(null);
+      api.raffles.get(manualRaffleId).then(data => {
+        setManualRaffleTickets(data.raffle?.tickets || []);
+      });
+      fetchRaffles();
+    } catch (err: any) {
+      alert(err.message || 'Error al liberar números');
+    } finally {
+      setManualLoading(false);
     }
   }
 
@@ -599,7 +659,7 @@ export default function RafflesTab() {
                 ) : manualRaffleTotal > 0 ? (
                   <div>
                     <label className="text-xs font-bold uppercase text-gray-500 mb-2 block">
-                      Números ({manualSelectedNumbers.length} seleccionados)
+                      Números ({manualConfirmTicket ? `${(manualRaffleTickets || []).filter(t => t.mp_external_reference === manualConfirmTicket.mp_external_reference && t.status !== 'cancelled').length} reservado(s)` : `${manualSelectedNumbers.length} seleccionados`})
                     </label>
                     <div className="flex flex-wrap gap-1">
                       {(() => {
@@ -607,16 +667,36 @@ export default function RafflesTab() {
                         const nums = [];
                         for (let i = 1; i <= manualRaffleTotal; i++) nums.push(i);
                         return nums.map(n => {
-                          const t = ticketMap.get(n);
+                          const t = ticketMap.get(n) as any;
                           const isSelected = manualSelectedNumbers.includes(n);
-                          if (t) {
+                          const inConfirmGroup = manualConfirmTicket ? t && t.mp_external_reference === manualConfirmTicket.mp_external_reference && t.status !== 'cancelled' : false;
+                          if (t && t.status === 'paid') {
                             return (
                               <div key={n} className={cn(
                                 'w-10 h-10 rounded-lg flex flex-col items-center justify-center text-[9px] font-bold relative cursor-default border',
-                                t.status === 'paid' ? 'bg-green-100 text-green-800 border-green-300' :
-                                t.status === 'pending_transfer' ? 'bg-orange-100 text-orange-800 border-orange-300' :
-                                'bg-blue-100 text-blue-800 border-blue-300'
-                              )} title={`${t.buyer_name || 'Anónimo'} · ${t.status === 'paid' ? 'Pagado' : t.status === 'pending_transfer' ? 'Pendiente' : 'Reservado'}`}>
+                                'bg-green-100 text-green-800 border-green-300'
+                              )} title={`${t.buyer_name || 'Anónimo'} · Pagado`}>
+                                <span>{n}</span>
+                                {t.buyer_name && <span className="text-[7px] leading-none opacity-70">{t.buyer_name.charAt(0).toUpperCase()}</span>}
+                              </div>
+                            );
+                          }
+                          if (t) {
+                            return (
+                              <div key={n} onClick={() => {
+                                setManualConfirmTicket(t);
+                                setManualSelectedNumbers([]);
+                                setManualResult(null);
+                                setManualFormName(t.buyer_name || '');
+                                setManualFormPhone(t.buyer_phone || '');
+                                setManualFormPayment(t.payment_method || 'manual');
+                                setManualReceiptFile(null);
+                                setManualReceiptPreview(null);
+                              }} className={cn(
+                                'w-10 h-10 rounded-lg flex flex-col items-center justify-center text-[9px] font-bold relative cursor-pointer border transition-all',
+                                t.status === 'pending_transfer' ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-blue-100 text-blue-800 border-blue-300',
+                                inConfirmGroup && 'ring-2 ring-amber-400 border-amber-400'
+                              )} title={`${t.buyer_name || 'Anónimo'} · ${t.status === 'pending_transfer' ? 'Pendiente' : 'Reservado'} · tocar para confirmar`}>
                                 <span>{n}</span>
                                 {t.buyer_name && <span className="text-[7px] leading-none opacity-70">{t.buyer_name.charAt(0).toUpperCase()}</span>}
                               </div>
@@ -624,6 +704,8 @@ export default function RafflesTab() {
                           }
                           return (
                             <div key={n} onClick={() => {
+                              setManualConfirmTicket(null);
+                              setManualResult(null);
                               setManualSelectedNumbers(prev =>
                                 prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n]
                               );
@@ -642,9 +724,11 @@ export default function RafflesTab() {
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-100 border border-green-300" /> Pagado</span>
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-orange-100 border border-orange-300" /> Pendiente</span>
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-blue-100 border border-blue-300" /> Reservado</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-200 border border-amber-400" /> A confirmar</span>
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-indigo-100 border border-indigo-300" /> Seleccionado</span>
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-gray-50 border border-dashed border-gray-200" /> Disponible</span>
                     </div>
+                    <p className="text-[10px] text-gray-400 mt-1">Tocá un número reservado para cargar sus datos y confirmar el comprobante.</p>
                   </div>
                 ) : (
                   <p className="text-sm text-red-500 text-center py-4">Error al cargar los números</p>
@@ -666,14 +750,16 @@ export default function RafflesTab() {
                   <label className="text-xs font-bold uppercase text-gray-500">Método de pago</label>
                   <select value={manualFormPayment}
                     onChange={e => setManualFormPayment(e.target.value)}
-                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1">
+                    disabled={!!manualConfirmTicket || manualLoading}
+                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1 disabled:opacity-60">
                     <option value="manual">Manual (efectivo / transferencia)</option>
                     <option value="transfer">Transferencia bancaria</option>
                   </select>
+                  {manualConfirmTicket && <p className="text-[10px] text-gray-400 mt-1">Método fijado al reservar · solo informativo</p>}
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold uppercase text-gray-500">Comprobante <span className="text-gray-300 normal-case">(opcional)</span></label>
+                  <label className="text-xs font-bold uppercase text-gray-500">Comprobante {manualConfirmTicket ? <span className="text-brand-primary normal-case">* requerido</span> : <span className="text-gray-300 normal-case">(opcional)</span>}</label>
                   <input type="file" accept="image/*"
                     onChange={e => {
                       const file = e.target.files?.[0] || null;
@@ -698,18 +784,33 @@ export default function RafflesTab() {
 
                 {manualResult && (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
-                    ✓ {manualSelectedNumbers.length} número(s) asignado(s)
+                    ✓ Pago confirmado correctamente
                   </div>
                 )}
 
                 <div className="flex justify-end gap-3 pt-2">
                   <button onClick={() => setShowManualForm(false)} disabled={manualLoading}
                     className="px-4 py-2 border border-brand-accent rounded-xl font-bold text-sm hover:bg-brand-accent/20">Cancelar</button>
-                  <button onClick={() => manualRaffleId && handleManualAssign(manualRaffleId)} disabled={manualLoading || manualSelectedNumbers.length === 0}
-                    className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm hover:opacity-90 disabled:opacity-50">
-                    {manualLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    {manualReceiptFile ? 'Asignar y confirmar' : 'Reservar'} {manualSelectedNumbers.length > 0 ? `${manualSelectedNumbers.length} número${manualSelectedNumbers.length > 1 ? 's' : ''}` : ''}
-                  </button>
+                  {manualConfirmTicket ? (
+                    <>
+                      <button onClick={() => handleManualRelease()} disabled={manualLoading}
+                        className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-xl font-bold text-sm hover:bg-red-50 disabled:opacity-50">
+                        {manualLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                        Liberar
+                      </button>
+                      <button onClick={() => manualRaffleId && handleManualConfirmReceipt(manualRaffleId)} disabled={manualLoading || !manualReceiptFile}
+                        className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm hover:opacity-90 disabled:opacity-50">
+                        {manualLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        Confirmar pago
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => manualRaffleId && handleManualAssign(manualRaffleId)} disabled={manualLoading || manualSelectedNumbers.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-sm hover:opacity-90 disabled:opacity-50">
+                      {manualLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                      {manualReceiptFile ? 'Asignar y confirmar' : 'Reservar'} {manualSelectedNumbers.length > 0 ? `${manualSelectedNumbers.length} número${manualSelectedNumbers.length > 1 ? 's' : ''}` : ''}
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -796,7 +897,7 @@ export default function RafflesTab() {
                       <div>
                         <div className="flex flex-wrap gap-1">
                           {nums.map(n => {
-                            const t = ticketMap.get(n);
+                          const t = ticketMap.get(n) as any;
                             const receiptForTicket = t ? ((t as any).receipt_image_data ? t : detailRaffle.receipts?.find((r: any) => r.ticket_group_id === (t as any).mp_external_reference)) : null;
                             return t ? (
                             <div key={n} className={cn(
@@ -817,26 +918,6 @@ export default function RafflesTab() {
                                     </p>
                                   </div>
                                 </div>
-                              )}
-                              {t.status !== 'paid' && (!receiptForTicket || receiptForTicket.receipt_status !== 'confirmed') && (
-                                <>
-                                  {(t as any).mp_external_reference && (
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleReleaseTickets((t as any).mp_external_reference, (t as any).buyer_name || ''); }}
-                                      className="absolute -bottom-1 -left-1 w-4 h-4 bg-orange-500 text-white rounded-full flex items-center justify-center hidden group-hover:flex hover:opacity-80"
-                                      title="Liberar números (quitar reserva)"
-                                    >
-                                      <X className="w-2.5 h-2.5" />
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setUploadTarget(t); }}
-                                    className="absolute -bottom-1 -right-1 w-4 h-4 bg-brand-primary text-white rounded-full flex items-center justify-center hidden group-hover:flex hover:opacity-80"
-                                    title="Subir comprobante"
-                                  >
-                                    <Upload className="w-2.5 h-2.5" />
-                                  </button>
-                                </>
                               )}
                             </div>
                             ) : (
@@ -906,22 +987,22 @@ export default function RafflesTab() {
                                       <span className="text-gray-300">—</span>
                                     )}
                                     {t.status !== 'paid' && (!receiptForTicket || receiptForTicket.receipt_status !== 'confirmed') && (
-                                      <>
+                                      <div className="flex flex-col gap-1.5 mt-1 min-w-[110px]">
                                         <button
                                           onClick={() => setUploadTarget(t)}
-                                          className="ml-2 flex items-center gap-1 text-[10px] font-bold text-brand-primary hover:underline"
+                                          className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-brand-primary/10 text-brand-primary text-[10px] font-bold hover:bg-brand-primary/20"
                                         >
-                                          <Upload className="w-3 h-3" /> Subir
+                                          <Upload className="w-3 h-3" /> Subir comprobante
                                         </button>
                                         {(t as any).mp_external_reference && (
                                           <button
                                             onClick={() => handleReleaseTickets((t as any).mp_external_reference, (t as any).buyer_name || '')}
-                                            className="ml-2 flex items-center gap-1 text-[10px] font-bold text-orange-600 hover:underline"
+                                            className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-100 text-orange-700 text-[10px] font-bold hover:bg-orange-200"
                                           >
                                             <X className="w-3 h-3" /> Liberar
                                           </button>
                                         )}
-                                      </>
+                                      </div>
                                     )}
                                   </td>
                                 </tr>
@@ -938,7 +1019,7 @@ export default function RafflesTab() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-sm font-bold text-gray-500 uppercase">Comprobantes</h4>
-                    <span className="text-[10px] text-gray-400">Subí el comprobante desde la grilla o tabla, en cada número pendiente</span>
+                    <span className="text-[10px] text-gray-400">Subí el comprobante desde la carga manual o la tabla, en cada número pendiente</span>
                   </div>
                   {detailRaffle.receipts && detailRaffle.receipts.length > 0 ? (
                     <div className="space-y-2">
