@@ -417,6 +417,17 @@ async function showWelcome(conv) {
 
   await sendMessage(conv.wa_from, greeting);
 
+  if (!isRecurring) {
+    await sendMessage(conv.wa_from,
+      `🔒 Tus datos los usamos solo para resolver el caso y difundir tu aviso. Podés leer nuestras *políticas de privacidad* en https://sigotuhuella.com.ar/legales`
+    );
+  }
+
+  await pool.query(
+    `UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`,
+    [conv.id]
+  );
+
   const rc = (conv.context?.return_count || 0) + 1;
   await setFlow(conv, 'menu', { is_new: false, return_count: rc });
   return showMenu(conv);
@@ -759,7 +770,7 @@ async function rlPhoto(conv, parsed) {
     if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
       await setFlow(conv, 'report_lost.confirm', ctx);
       const speciesLabel = { dog: 'Perro 🐕', cat: 'Gato 🐈', other: 'Otro 🐾' };
-      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos:\n\n🐾 *Especie:* ${speciesLabel[ctx.species] || ctx.species}\n📍 *Ubicación:* ${ctx.location}\n📞 *Contacto:* ${ctx.contact}\n\n¿Está todo correcto?`);
+      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos:\n\n🐾 *Especie:* ${speciesLabel[ctx.species] || ctx.species}\n📍 *Ubicación:* ${ctx.location}\n📞 *Contacto:* ${ctx.contact}\n\n🔒 Al confirmar, publicamos estos datos en la red para buscar a tu mascota, según nuestras *políticas de privacidad*.\n\n¿Está todo correcto?`);
       await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
         { id: 'confirm_yes', title: '✅ Sí, reportar' },
         { id: 'confirm_no', title: '❌ Cancelar' },
@@ -841,6 +852,8 @@ async function rlDescription(conv, parsed) {
 ${ctx.pet_name ? `🏷️ *Nombre:* ${ctx.pet_name}` : ''}
 ${description ? `📝 *Descripción:* ${description}` : ''}
 
+🔒 Al confirmar, publicamos estos datos en la red para encontrar a tu mascota, según nuestras *políticas de privacidad*.
+
 ¿Está todo correcto?`);
   await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
     { id: 'confirm_yes', title: '✅ Sí, reportar' },
@@ -863,6 +876,7 @@ async function rlConfirm(conv, parsed, intent) {
       [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.description || 'Reportado por WhatsApp como perdida', ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
+    await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
     if (ctx.photo_data) {
       try {
         const cropped = await detectAndCropPetFace(ctx.photo_data, ctx.photo_mime);
@@ -966,7 +980,7 @@ async function rsSpecies(conv, parsed) {
     if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
       await setFlow(conv, 'report_sighted.confirm', ctx);
       const speciesLabel = { dog: '🐕 Perro', cat: '🐈 Gato', other: '🐾 Otro', unknown: '?' };
-      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás el reporte de avistaje?\n  🐾 *Especie:* ${speciesLabel[species] || '?'}\n  📍 *Ubicación:* ${ctx.location}\n  ${ctx.details ? `📝 *Detalles:* ${ctx.details}\n  ` : ''}${ctx.contact ? `📞 *Contacto:* ${ctx.contact}` : ''}`);
+      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás el reporte de avistaje?\n  🐾 *Especie:* ${speciesLabel[species] || '?'}\n  📍 *Ubicación:* ${ctx.location}\n  ${ctx.details ? `📝 *Detalles:* ${ctx.details}\n  ` : ''}${ctx.contact ? `📞 *Contacto:* ${ctx.contact}` : ''}\n\n  🔒 Al confirmar publicamos estos datos en la red, según nuestras *políticas de privacidad*.`);
       await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
         { id: 'confirm_yes', title: '✅ Sí, reportar' },
         { id: 'confirm_no', title: '❌ Cancelar' },
@@ -1029,7 +1043,9 @@ async function rsContact(conv, parsed) {
   🐾 *Especie:* ${speciesLabel}
   📍 *Ubicación:* ${conv.context.location || 'Compartida'}
   ${conv.context.details ? `📝 *Detalles:* ${conv.context.details}` : ''}
-  ${contact ? `📞 *Contacto:* ${contact}` : ''}`);
+  ${contact ? `📞 *Contacto:* ${contact}` : ''}
+  
+  🔒 Al confirmar publicamos estos datos en la red, según nuestras *políticas de privacidad*.`);
   await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
     { id: 'confirm_yes', title: '✅ Sí, reportar' },
     { id: 'confirm_no', title: '❌ Cancelar' },
@@ -1051,6 +1067,7 @@ async function rsConfirm(conv, parsed, intent) {
       [species, ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje', ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
+    await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
     if (ctx.photo_data) {
       try {
         const cropped = await detectAndCropPetFace(ctx.photo_data, ctx.photo_mime);
@@ -1227,7 +1244,9 @@ async function rfShowConfirm(conv) {
   const ctx = conv.context;
   await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás que encontraste esta mascota?
 📍 *Ubicación:* ${ctx.location || 'Compartida'}
-📞 *Contacto:* ${ctx.contact || 'No especificado'}${ctx.description ? `\n📝 *Notas:* ${ctx.description}` : ''}`);
+📞 *Contacto:* ${ctx.contact || 'No especificado'}${ctx.description ? `\n📝 *Notas:* ${ctx.description}` : ''}
+
+🔒 Al confirmar publicamos estos datos en la red para encontrar a su dueño, según nuestras *políticas de privacidad*.`);
   await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
     { id: 'confirm_yes', title: '✅ Sí, publicar' },
     { id: 'confirm_edit', title: '✏️ Corregir' },
@@ -1251,6 +1270,7 @@ async function rfConfirm(conv, parsed, intent) {
       [species, ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, description, ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
+    await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
     if (ctx.photo_data) {
       try {
         const cropped = await detectAndCropPetFace(ctx.photo_data, ctx.photo_mime);
@@ -2608,6 +2628,8 @@ async function registerConfirm(conv, parsed, intent) {
 
     conv.context = { ...conv.context, user_id: userId, user_name: name };
 
+    await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
+
     await sendWhatsAppRegistrationEmail(email, name, token);
 
     const redirect = conv.context._redirect || 'adopt_post.species';
@@ -2769,7 +2791,9 @@ async function apConfirm(conv, parsed, intent) {
        RETURNING id`,
       [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.description || 'En adopción — difusión particular', ctx.user_id || null, JSON.stringify(neighborhoods)]
     );
-    const petId = petResult.rows[0].id;
+const petId = petResult.rows[0].id;
+
+    await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
 
     if (ctx.photo_data) {
       try {

@@ -256,6 +256,21 @@ async function enqueueFbGroupComment(pet, newsType) {
 
 const router = Router();
 
+// Respeta las preferencias del dueño: ocultar contacto y/o coordenadas exactas en respuestas públicas.
+// El admin (auth) siempre ve todos los datos.
+function sanitizePublicPet(pet) {
+  if (!pet) return pet;
+  if (pet.share_contact === false) {
+    ['contact_info', 'contact_info_2', 'instagram', 'owner_name', 'owner_phone', 'owner_email', 'owner_address']
+      .forEach(k => { delete pet[k]; });
+  }
+  if (pet.share_location === false) {
+    delete pet.latitude;
+    delete pet.longitude;
+  }
+  return pet;
+}
+
 router.get('/', async (req, res) => {
   try {
     const { status, isPublic, limit, include_hidden } = req.query;
@@ -294,7 +309,8 @@ router.get('/', async (req, res) => {
       query += ` LIMIT $${params.length}`;
     }
     const result = await pool.query(query, params);
-    res.json({ pets: result.rows });
+    const isAdmin = req.user?.role === 'admin';
+    res.json({ pets: isAdmin ? result.rows : result.rows.map(sanitizePublicPet) });
   } catch (err) {
     console.error('Get pets error:', err);
     res.status(500).json({ error: 'Failed to fetch pets' });
@@ -364,9 +380,10 @@ router.get('/:id', async (req, res) => {
       myPetPhotos = photosRes.rows;
     }
 
+    const isAdmin = req.user?.role === 'admin';
     res.json({
-      pet,
-      group_members: groupMembersRes.rows,
+      pet: isAdmin ? pet : sanitizePublicPet({ ...pet }),
+      group_members: isAdmin ? groupMembersRes.rows : groupMembersRes.rows.map(sanitizePublicPet),
       history: historyRes.rows,
       my_pet_events: myPetEvents,
       my_pet_records: myPetRecords,
@@ -454,7 +471,7 @@ router.post('/:id/view', async (req, res) => {
 });
 
 router.post('/', requireAuth, async (req, res) => {
-  const { name, species, breed, color, status, gender, age, size, isVaccinated, isSterilized, description, location, latitude, longitude, contactInfo, images, neighborhoods } = req.body;
+  const { name, species, breed, color, status, gender, age, size, isVaccinated, isSterilized, description, location, latitude, longitude, contactInfo, images, neighborhoods, share_contact, share_location, broadcast_consent } = req.body;
   if (!species || !status || !location) {
     return res.status(400).json({ error: 'Species, status, and location are required' });
   }
@@ -464,13 +481,14 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
     const petResult = await client.query(
-      `INSERT INTO pets (name, species, breed, color, status, gender, age, size, is_vaccinated, is_sterilized, is_dewormed, description, location, latitude, longitude, contact_info, created_by, is_admin_verified, neighborhoods)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      `INSERT INTO pets (name, species, breed, color, status, gender, age, size, is_vaccinated, is_sterilized, is_dewormed, description, location, latitude, longitude, contact_info, created_by, is_admin_verified, neighborhoods, share_contact, share_location, broadcast_consent, privacy_notice_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW())
       RETURNING *`,
       [name || null, species, breed || null, color || null, effectiveStatus, gender || 'unknown',
        age || null, size || null, isVaccinated || false, isSterilized || false, req.body.isDewormed || false,
        description || null, location, latitude || null, longitude || null,
-       contactInfo || null, req.user.id, false, JSON.stringify(neighborhoods || [])]
+       contactInfo || null, req.user.id, false, JSON.stringify(neighborhoods || []),
+       share_contact === false ? false : true, share_location === false ? false : true, broadcast_consent === false ? false : true]
     );
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
@@ -529,7 +547,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (req.body.status === 'for_adoption' && !pet.my_pet_id) {
       req.body.status = 'for_adoption_simple';
     }
-    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info', 'is_hidden', 'owner_name', 'owner_phone', 'owner_email', 'owner_address'];
+    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info', 'is_hidden', 'owner_name', 'owner_phone', 'owner_email', 'owner_address', 'share_contact', 'share_location', 'broadcast_consent'];
     const updates = [];
     const values = [];
     let idx = 1;
@@ -1322,7 +1340,7 @@ router.get('/:petId/records/report', async (req, res) => {
 
 // Public endpoint (no auth) for quick anonymous reports
 router.post('/public', async (req, res) => {
-  const { species, description, location, latitude, longitude, contact_info, status, images, neighborhoods, name, instagram } = req.body;
+  const { species, description, location, latitude, longitude, contact_info, status, images, neighborhoods, name, instagram, share_contact, share_location, broadcast_consent } = req.body;
   if (!species || !description || !location) {
     return res.status(400).json({ error: 'Species, description, and location are required' });
   }
@@ -1338,10 +1356,11 @@ router.post('/public', async (req, res) => {
     const caseNumber = 'STH' + String(nextNum).padStart(5, '0');
 
     const petResult = await client.query(
-      `INSERT INTO pets (species, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified, neighborhoods, name, instagram, case_number)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `INSERT INTO pets (species, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified, neighborhoods, name, instagram, case_number, share_contact, share_location, broadcast_consent, privacy_notice_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
        RETURNING *`,
-       [species, description, location, latitude || null, longitude || null, contact_info || null, status || 'sighted', null, false, JSON.stringify(neighborhoods || []), name || null, instagram || null, caseNumber]
+       [species, description, location, latitude || null, longitude || null, contact_info || null, status || 'sighted', null, false, JSON.stringify(neighborhoods || []), name || null, instagram || null, caseNumber,
+        share_contact === false ? false : true, share_location === false ? false : true, broadcast_consent === false ? false : true]
     );
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
@@ -1392,7 +1411,7 @@ router.post('/public', async (req, res) => {
 
         // Auto-broadcast to WhatsApp groups for active statuses
         const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];
-        if (broadcastStatuses.includes(pet.status)) {
+        if (broadcastStatuses.includes(pet.status) && pet.broadcast_consent !== false) {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
         }
 
@@ -1410,7 +1429,7 @@ router.post('/public', async (req, res) => {
 
 // Lost pet report (no auth) for owner reporting a lost pet with full details
 router.post('/lost-report', async (req, res) => {
-  const { species, name, breed, color, gender, age, size, description, location, latitude, longitude, email, phone, images, neighborhoods } = req.body;
+  const { species, name, breed, color, gender, age, size, description, location, latitude, longitude, email, phone, images, neighborhoods, share_contact, share_location, broadcast_consent } = req.body;
   if (!species || !description || !location || !email) {
     return res.status(400).json({ error: 'Species, description, location, and email are required' });
   }
@@ -1438,8 +1457,8 @@ router.post('/lost-report', async (req, res) => {
       registrationToken = uuidv4().replace(/-/g, '') + crypto.randomBytes(16).toString('hex');
       const displayName = name || email.split('@')[0];
       const userInsert = await client.query(
-        `INSERT INTO users (email, password_hash, display_name, role, registration_pending, registration_token)
-         VALUES ($1, '', $2, 'user', TRUE, $3)
+        `INSERT INTO users (email, password_hash, display_name, role, registration_pending, registration_token, privacy_notice_at)
+         VALUES ($1, '', $2, 'user', TRUE, $3, NOW())
          RETURNING id`,
         [email, displayName, registrationToken]
       );
@@ -1453,10 +1472,11 @@ router.post('/lost-report', async (req, res) => {
     }
 
     const petResult = await client.query(
-      `INSERT INTO pets (species, name, breed, color, gender, age, size, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified, neighborhoods)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      `INSERT INTO pets (species, name, breed, color, gender, age, size, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified, neighborhoods, share_contact, share_location, broadcast_consent, privacy_notice_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
        RETURNING *`,
-      [species, name || null, breed || null, color || null, gender || 'unknown', age || null, size || null, description, location, latitude || null, longitude || null, email, 'lost', userId, false, JSON.stringify(neighborhoods || [])]
+      [species, name || null, breed || null, color || null, gender || 'unknown', age || null, size || null, description, location, latitude || null, longitude || null, email, 'lost', userId, false, JSON.stringify(neighborhoods || []),
+       share_contact === false ? false : true, share_location === false ? false : true, broadcast_consent === false ? false : true]
     );
     const pet = petResult.rows[0];
 
@@ -1512,7 +1532,7 @@ router.post('/lost-report', async (req, res) => {
 
         // Auto-broadcast to WhatsApp groups for active statuses
         const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];
-        if (broadcastStatuses.includes(pet.status)) {
+        if (broadcastStatuses.includes(pet.status) && pet.broadcast_consent !== false) {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
         }
 

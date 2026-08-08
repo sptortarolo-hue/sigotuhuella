@@ -55,6 +55,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(255)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires TIMESTAMP;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_preference VARCHAR(20) DEFAULT 'email';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_notice_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS volunteer_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -98,6 +99,10 @@ CREATE INDEX IF NOT EXISTS idx_pets_case_number ON pets(case_number);
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS instagram VARCHAR(255);
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS adoption_broadcasted_at TIMESTAMP;
 ALTER TABLE pets ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT FALSE;
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS share_contact BOOLEAN DEFAULT TRUE;
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS share_location BOOLEAN DEFAULT TRUE;
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS broadcast_consent BOOLEAN DEFAULT TRUE;
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS privacy_notice_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS collaboration_accounts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -711,7 +716,8 @@ export async function initDb() {
         ADD COLUMN IF NOT EXISTS context JSONB DEFAULT '{}'::jsonb,
         ADD COLUMN IF NOT EXISTS flow VARCHAR(50),
         ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'active',
-        ADD COLUMN IF NOT EXISTS bot_name VARCHAR(20) DEFAULT 'Tute'
+        ADD COLUMN IF NOT EXISTS bot_name VARCHAR(20) DEFAULT 'Tute',
+        ADD COLUMN IF NOT EXISTS privacy_notice_at TIMESTAMP
     `, 'whatsapp_conversations columns');
 
     await migrate(client, `

@@ -50,6 +50,7 @@ const Rifas = lazy(() => import('@/src/pages/Rifas'));
 const RifaDetail = lazy(() => import('@/src/pages/RifaDetail'));
 const RifaPagoExito = lazy(() => import('@/src/pages/RifaPagoExito'));
 const RifaPagoResultado = lazy(() => import('@/src/pages/RifaPagoResultado'));
+const Legales = lazy(() => import('@/src/pages/Legales'));
 
 const fallback = (
   <div className="h-[60vh] flex items-center justify-center text-brand-primary">
@@ -96,6 +97,7 @@ export default function App() {
               <Route path="/verificar-email" element={<VerifyEmail />} />
               <Route path="/sumate" element={<Join />} />
               <Route path="/verificar/:memberNumber" element={<VerifyMember />} />
+              <Route path="/legales" element={<Legales />} />
               <Route path="/mascota/:shareToken" element={<PublicPetProfile />} />
               <Route path="/vet/:token" element={<VetPetProfile />} />
             </Route>

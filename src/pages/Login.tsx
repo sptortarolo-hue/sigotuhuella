@@ -21,7 +21,7 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
-  const [notifyWhatsApp, setNotifyWhatsApp] = useState(true);
+  const [notifyWhatsApp, setNotifyWhatsApp] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [resending, setResending] = useState(false);
   const [resentMessage, setResentMessage] = useState('');
@@ -513,16 +513,25 @@ export default function Login() {
                     <p className="text-xs text-red-500 mt-1">{phoneError}</p>
                   )}
                 </div>
-                <label className="flex items-center gap-2 p-3 bg-gray-100 rounded-xl cursor-not-allowed opacity-70">
+                <div className="p-3 bg-brand-bg rounded-xl border border-brand-accent">
+                  <p className="text-xs text-gray-600 font-medium">
+                    Los avisos de tus propias publicaciones (confirmación, resultados, contactos) te llegan <span className="font-bold">siempre a tu correo</span>. Es necesario para el servicio.
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 p-3 bg-gray-100 rounded-xl cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={true}
-                    disabled
+                    checked={notifyWhatsApp}
+                    onChange={e => setNotifyWhatsApp(e.target.checked)}
                     className="w-4 h-4 accent-brand-primary"
                   />
-                  <span className="text-xs text-gray-500 font-medium">Recibir notificaciones por WhatsApp y email</span>
+                  <span className="text-xs text-gray-500 font-medium">Recibir también mis avisos por WhatsApp</span>
                 </label>
-                <p className="text-xs text-gray-400 mt-1 ml-1">Recibirá notificaciones al WhatsApp y al email. Puede modificarlo desde el perfil de usuario.</p>
+                <p className="text-xs text-gray-400 mt-1 ml-1">Solo si tildás vas a recibir mensajes por WhatsApp. Podés cambiarlo desde el perfil de usuario.</p>
+                <p className="text-xs text-gray-400 mt-1 ml-1">
+                  Al crear tu cuenta aceptás los{' '}
+                  <a href="/legales" target="_blank" className="text-brand-primary underline">Términos y la Política de Privacidad</a>.
+                </p>
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
                     <Lock className="w-3 h-3" /> Contraseña

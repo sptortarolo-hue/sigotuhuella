@@ -29,6 +29,7 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPhoneError, setRegPhoneError] = useState('');
+  const [regNotifyWhatsApp, setRegNotifyWhatsApp] = useState(false);
 
   const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
 
@@ -76,7 +77,7 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
 
     setLoading(true);
     try {
-      const res = await api.auth.register(regEmail, regPassword, regName, regPhone);
+      const res = await api.auth.register(regEmail, regPassword, regName, regPhone, regNotifyWhatsApp ? 'both' : 'email');
       login(res.token, res.user);
       onSuccess?.();
     } catch (err: any) {
@@ -282,6 +283,21 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
                   </div>
                 </div>
 
+                <div className="p-3 bg-brand-bg rounded-2xl border border-brand-accent">
+                  <p className="text-xs text-gray-600 font-medium">
+                    Los avisos de tus propias publicaciones te llegan <span className="font-bold">siempre a tu correo</span>. Es necesario para el servicio.
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 p-3 bg-gray-100 rounded-2xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={regNotifyWhatsApp}
+                    onChange={e => setRegNotifyWhatsApp(e.target.checked)}
+                    className="w-4 h-4 accent-brand-primary"
+                  />
+                  <span className="text-xs text-gray-500 font-medium">Recibir también mis avisos por WhatsApp</span>
+                </label>
+
                 {error && (
                   <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-medium border border-red-100 flex gap-2">
                     <AlertCircle className="w-5 h-5 shrink-0" />
@@ -299,7 +315,10 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
                 </button>
 
                 <p className="text-xs text-center text-gray-400">
-                  Al registrarte, aceptas que tus datos sean usados para la gestión de la comunidad.
+                  Al crear tu cuenta aceptás los{' '}
+                  <a href="/legales" target="_blank" rel="noopener noreferrer" className="text-brand-primary underline">
+                    Términos y la Política de Privacidad
+                  </a>.
                 </p>
               </form>
             </motion.div>

@@ -54,6 +54,9 @@ export default function LostPetReport() {
   const [reporterName, setReporterName] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [imageMimeTypes, setImageMimeTypes] = useState<string[]>([]);
+  const [shareContact, setShareContact] = useState(true);
+  const [shareLocation, setShareLocation] = useState(true);
+  const [broadcastConsent, setBroadcastConsent] = useState(true);
   const [croppingIndex, setCroppingIndex] = useState<number | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
 
@@ -141,6 +144,9 @@ export default function LostPetReport() {
       if (coordinates) { body.latitude = coordinates.lat; body.longitude = coordinates.lng; }
       if (phone) body.phone = phone;
       if (selectedNeighborhoods.length > 0) body.neighborhoods = selectedNeighborhoods;
+      body.share_contact = shareContact;
+      body.share_location = shareLocation;
+      body.broadcast_consent = broadcastConsent;
       body.images = images.map((data, i) => {
         return { data, mimeType: imageMimeTypes[i] || 'image/jpeg', crop_x: 0.5, crop_y: 0.5 };
       });
@@ -442,7 +448,24 @@ export default function LostPetReport() {
                 placeholder="Ej: 221 555-5555"
                 className="w-full pl-12 pr-4 py-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors" />
             </div>
-            <p className="text-xs text-gray-400 mt-1">Visible al público para que puedan contactarte</p>
+            <p className="text-xs text-gray-400 mt-1">Si lo completás, va a quedar visible al público para que puedan contactarte (podés ocultarlo abajo).</p>
+          </div>
+
+          {/* Publication preferences */}
+          <div className="space-y-2 p-4 bg-brand-bg rounded-xl border border-brand-accent">
+            <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Privacidad del aviso</label>
+            <label className="flex items-center gap-2 cursor-pointer py-1">
+              <input type="checkbox" checked={shareContact} onChange={e => setShareContact(e.target.checked)} className="w-4 h-4 accent-brand-primary" />
+              <span className="text-sm text-gray-600">Mostrar mi teléfono/contacto en el aviso</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer py-1">
+              <input type="checkbox" checked={shareLocation} onChange={e => setShareLocation(e.target.checked)} className="w-4 h-4 accent-brand-primary" />
+              <span className="text-sm text-gray-600">Compartir la ubicación exacta en el mapa</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer py-1">
+              <input type="checkbox" checked={broadcastConsent} onChange={e => setBroadcastConsent(e.target.checked)} className="w-4 h-4 accent-brand-primary" />
+              <span className="text-sm text-gray-600">Ayudá difundiendo mi aviso en los grupos de la red</span>
+            </label>
           </div>
 
           {/* Photos */}
@@ -479,6 +502,9 @@ export default function LostPetReport() {
             <p className="font-bold mb-1">📧 ¿Qué pasa después?</p>
             <p>Te enviaremos un email con el resumen de tu reporte y te avisaremos automáticamente si aparece una mascota similar en la zona.</p>
           </div>
+
+          <p className="text-xs text-gray-400 text-center">Al enviar aceptás los{' '}
+            <a href="/legales" target="_blank" rel="noopener noreferrer" className="text-brand-primary underline">Términos y la Política de Privacidad</a>.</p>
         </div>
         </div>
       )}

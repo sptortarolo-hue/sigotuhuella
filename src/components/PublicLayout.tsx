@@ -62,7 +62,10 @@ export default function PublicLayout() {
           </div>
           <div className="mt-12 pt-8 border-t border-brand-accent flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-gray-400 uppercase tracking-widest font-bold">
             <span>© 2026 Sigo tu huella</span>
-            <span>Zona Sur, La Plata</span>
+            <span className="flex items-center gap-4">
+              <Link to="/legales" className="hover:text-brand-primary normal-case tracking-normal">Términos y Privacidad</Link>
+              <span>Zona Sur, La Plata</span>
+            </span>
           </div>
         </div>
       </footer>

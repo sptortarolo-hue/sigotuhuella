@@ -33,6 +33,9 @@ export default function QuickReport() {
   const [location, setLocation] = useState('');
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [contactInfo, setContactInfo] = useState('');
+  const [shareContact, setShareContact] = useState(true);
+  const [shareLocation, setShareLocation] = useState(true);
+  const [broadcastConsent, setBroadcastConsent] = useState(true);
   const [images, setImages] = useState<string[]>([]);
   const [imageMimeTypes, setImageMimeTypes] = useState<string[]>([]);
   const [croppingIndex, setCroppingIndex] = useState<number | null>(null);
@@ -137,6 +140,9 @@ export default function QuickReport() {
         body.longitude = coordinates.lng;
       }
       if (contactInfo && status === 'retained') body.contact_info = contactInfo;
+      body.share_contact = status === 'retained' ? shareContact : false;
+      body.share_location = shareLocation;
+      body.broadcast_consent = broadcastConsent;
       if (images.length > 0) {
         body.images = images.map((data, i) => {
           return { data, mimeType: imageMimeTypes[i] || 'image/jpeg', crop_x: 0.5, crop_y: 0.5 };
@@ -333,9 +339,28 @@ export default function QuickReport() {
                 <input value={contactInfo} onChange={e => setContactInfo(e.target.value)}
                   placeholder="Teléfono, email o Instagram"
                   className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors" />
-                <p className="text-xs text-gray-400 mt-1">Solo visible para administradores</p>
+                <p className="text-xs text-gray-400 mt-1">Si lo completás, va a quedar visible en el aviso (o desactivá la opción de abajo).</p>
               </div>
             )}
+
+            {/* Publication preferences */}
+            <div className="space-y-2 p-4 bg-brand-bg rounded-xl border border-brand-accent">
+              <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Privacidad del aviso</label>
+              {pageState === 'retained' && (
+                <label className="flex items-center gap-2 cursor-pointer py-1">
+                  <input type="checkbox" checked={shareContact} onChange={e => setShareContact(e.target.checked)} className="w-4 h-4 accent-brand-primary" />
+                  <span className="text-sm text-gray-600">Mostrar mi contacto en el aviso</span>
+                </label>
+              )}
+              <label className="flex items-center gap-2 cursor-pointer py-1">
+                <input type="checkbox" checked={shareLocation} onChange={e => setShareLocation(e.target.checked)} className="w-4 h-4 accent-brand-primary" />
+                <span className="text-sm text-gray-600">Compartir la ubicación exacta en el mapa</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer py-1">
+                <input type="checkbox" checked={broadcastConsent} onChange={e => setBroadcastConsent(e.target.checked)} className="w-4 h-4 accent-brand-primary" />
+                <span className="text-sm text-gray-600">Ayudá difundiendo mi aviso en los grupos de la red</span>
+              </label>
+            </div>
 
             {/* Photos (opcional, máximo 1) */}
             <div>
@@ -364,7 +389,8 @@ export default function QuickReport() {
               {pageState === 'submitting' ? <><Loader2 className="w-5 h-5 animate-spin" /> Enviando...</> : 'Enviar reporte'}
             </button>
 
-            <p className="text-xs text-gray-400 text-center">Al enviar aceptás que tus datos sean utilizados para la publicación del reporte.</p>
+            <p className="text-xs text-gray-400 text-center">Al enviar aceptás los{' '}
+                <a href="/legales" target="_blank" rel="noopener noreferrer" className="text-brand-primary underline">Términos y la Política de Privacidad</a>.</p>
           </div>
         </div>
       </div>
@@ -423,7 +449,8 @@ export default function QuickReport() {
 
           </div>
 
-        <p className="text-xs text-gray-400 text-center mt-8">Al enviar aceptás que tus datos sean utilizados para la publicación del reporte.</p>
+        <p className="text-xs text-gray-400 text-center mt-8">Al enviar aceptás los{' '}
+          <a href="/legales" target="_blank" rel="noopener noreferrer" className="text-brand-primary underline">Términos y la Política de Privacidad</a>.</p>
         </div>
         </div>
 

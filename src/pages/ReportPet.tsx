@@ -62,7 +62,10 @@ export default function ReportPet() {
     location: '',
     contactInfo: '',
     description: '',
-    coordinates: null as { lat: number; lng: number } | null
+    coordinates: null as { lat: number; lng: number } | null,
+    shareContact: true,
+    shareLocation: true,
+    broadcastConsent: true
   });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -181,6 +184,9 @@ const handleSubmit = async (e: React.FormEvent) => {
          latitude: formData.coordinates?.lat ?? null,
          longitude: formData.coordinates?.lng ?? null,
          contactInfo: formData.contactInfo,
+         share_contact: formData.shareContact,
+         share_location: formData.shareLocation,
+         broadcast_consent: formData.broadcastConsent,
          images,
        };
 
@@ -554,6 +560,26 @@ const handleSubmit = async (e: React.FormEvent) => {
                    value={formData.contactInfo}
                  />
                 <p className="text-[10px] text-gray-400">Ingresa solo los números de tu celular para que puedan contactarte por WhatsApp.</p>
+              </div>
+
+              <div className="space-y-2 p-4 bg-brand-bg rounded-2xl border border-brand-accent">
+                <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                  <FileText className="w-3 h-3" />
+                  Privacidad del aviso
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer py-1">
+                  <input type="checkbox" checked={formData.shareContact} onChange={e => setFormData({ ...formData, shareContact: e.target.checked })} className="w-4 h-4 accent-brand-primary" />
+                  <span className="text-sm text-gray-600">Mostrar mi número de contacto en el aviso</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer py-1">
+                  <input type="checkbox" checked={formData.shareLocation} onChange={e => setFormData({ ...formData, shareLocation: e.target.checked })} className="w-4 h-4 accent-brand-primary" />
+                  <span className="text-sm text-gray-600">Compartir la ubicación exacta en el mapa</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer py-1">
+                  <input type="checkbox" checked={formData.broadcastConsent} onChange={e => setFormData({ ...formData, broadcastConsent: e.target.checked })} className="w-4 h-4 accent-brand-primary" />
+                  <span className="text-sm text-gray-600">Ayudá difundiendo mi aviso en los grupos de la red</span>
+                </label>
+                <p className="text-[10px] text-gray-400">Desmarcá una opción para ocultar esos datos. Al publicar aceptás nuestras <a href="/legales" className="underline text-brand-primary" target="_blank" rel="noreferrer">políticas de privacidad</a>.</p>
               </div>
 
               <div className="space-y-2">
