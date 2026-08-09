@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { shareRaffleOnWhatsApp } from '@/src/lib/whatsappShare';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 interface Prize {
   position: number;
@@ -63,6 +64,8 @@ export default function RifaDetail() {
   const [confirming, setConfirming] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
+  const [phoneValid, setPhoneValid] = useState(false);
+  const [e164Phone, setE164Phone] = useState('');
   const [reserveResult, setReserveResult] = useState<{ tickets: { number: number }[]; account: { bank_name: string; alias: string; cbu: string; cvu: string } } | null>(null);
 
   const [form, setForm] = useState({ name: '', phone: '' });
@@ -125,8 +128,8 @@ export default function RifaDetail() {
 
   async function handleReserve() {
     if (!raffle || selected.size === 0) return;
-    if (!form.name || !form.phone) {
-      setCheckoutError('Nombre y WhatsApp son obligatorios');
+    if (!form.name || !phoneValid) {
+      setCheckoutError('Ingresá tu nombre y un WhatsApp válido');
       return;
     }
     try {
@@ -135,7 +138,7 @@ export default function RifaDetail() {
       const data = await api.raffles.reserve(raffle.id, {
         numbers: Array.from(selected).sort((a, b) => a - b),
         name: form.name,
-        phone: form.phone,
+        phone: e164Phone,
         paymentMethod: 'transfer',
       });
       setReserveResult({ tickets: data.tickets, account: data.account });
@@ -149,7 +152,7 @@ export default function RifaDetail() {
   function handlePurchase(e: React.FormEvent) {
     e.preventDefault();
     if (!raffle || selected.size === 0) return;
-    if (!form.name || !form.phone) {
+    if (!form.name || !phoneValid) {
       setCheckoutError('Nombre y WhatsApp son obligatorios');
       return;
     }
@@ -574,10 +577,17 @@ export default function RifaDetail() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Número de WhatsApp *</label>
-                  <input type="tel" required value={form.phone}
-                    onChange={e => setForm({ ...form, phone: e.target.value })}
-                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 mt-1 transition-all"
-                    placeholder="11-1234-5678" />
+                  <div className="mt-1">
+                    <PhoneInput
+                      value={form.phone}
+                      onChange={(value, e164) => {
+                        setForm({ ...form, phone: value });
+                        setE164Phone(e164 || '');
+                        setPhoneValid(!!e164);
+                      }}
+                      placeholder="11-1234-5678"
+                    />
+                  </div>
                 </div>
 
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-200/50">
@@ -633,7 +643,7 @@ export default function RifaDetail() {
                   </div>
                   <div className="bg-brand-bg rounded-2xl p-4">
                     <div className="text-xs font-bold text-gray-500 uppercase mb-1">WhatsApp</div>
-                    <div className="font-bold text-brand-primary">{form.phone}</div>
+                    <div className="font-bold text-brand-primary">{e164Phone || form.phone}</div>
                   </div>
                 </div>
 

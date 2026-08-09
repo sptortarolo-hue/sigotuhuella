@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import RafflePublishModal from './RafflePublishModal';
 import { shareRaffleOnWhatsApp } from '@/src/lib/whatsappShare';
 import { formatDate, formatDateTime } from '@/src/lib/formatDate';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 interface Prize {
   position: number;
@@ -51,6 +52,7 @@ export default function RafflesTab() {
   const [manualRaffleId, setManualRaffleId] = useState<string | null>(null);
   const [manualFormName, setManualFormName] = useState('');
   const [manualFormPhone, setManualFormPhone] = useState('');
+  const [manualFormPhoneValid, setManualFormPhoneValid] = useState(false);
   const [manualFormPayment, setManualFormPayment] = useState('manual');
   const [manualSelectedNumbers, setManualSelectedNumbers] = useState<number[]>([]);
   const [manualReceiptFile, setManualReceiptFile] = useState<File | null>(null);
@@ -173,8 +175,8 @@ export default function RafflesTab() {
   }
 
   async function handleManualAssign(raffleId: string) {
-    if (!manualFormName || !manualFormPhone) {
-      alert('Nombre y teléfono son obligatorios');
+    if (!manualFormName || !manualFormPhoneValid) {
+      alert('Nombre y un WhatsApp válido son obligatorios');
       return;
     }
     if (manualSelectedNumbers.length === 0) {
@@ -293,7 +295,7 @@ export default function RafflesTab() {
 
   async function handleManualConfirmReceipt(raffleId: string) {
     if (!manualConfirmTicket?.mp_external_reference) { alert('Seleccioná un número reservado'); return; }
-    if (!manualFormName || !manualFormPhone) { alert('Nombre y teléfono son obligatorios'); return; }
+    if (!manualFormName || !manualFormPhoneValid) { alert('Nombre y un WhatsApp válido son obligatorios'); return; }
     if (!manualReceiptFile || !manualReceiptPreview) { alert('Seleccioná el comprobante'); return; }
     try {
       setManualLoading(true);
@@ -741,10 +743,17 @@ export default function RafflesTab() {
                     className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1" />
                 </div>
                 <div>
-                  <label className="text-xs font-bold uppercase text-gray-500">Teléfono *</label>
-                  <input type="tel" required value={manualFormPhone}
-                    onChange={e => setManualFormPhone(e.target.value)}
-                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none focus:border-brand-primary mt-1" />
+                  <label className="text-xs font-bold uppercase text-gray-500">Teléfono (WhatsApp) *</label>
+                  <div className="mt-1">
+                    <PhoneInput
+                      value={manualFormPhone}
+                      onChange={(value, e164) => {
+                        setManualFormPhone(e164 || value);
+                        setManualFormPhoneValid(!!e164);
+                      }}
+                      placeholder="1153366373"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Método de pago</label>
