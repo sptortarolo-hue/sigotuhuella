@@ -1,4 +1,4 @@
-﻿import './env-loader.js';
+import './env-loader.js';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { dirname, join } from 'path';
@@ -36,7 +36,6 @@ import adminDashboardRoutes from './routes/adminDashboard.js';
 import rafflesRoutes from './routes/raffles.js';
 import backupRoutes from './routes/backup.js';
 import sitemapRoutes from './routes/sitemap.js';
-// import { startSyncTimer } from './services/vpsSyncService.js';
 import { startScreenshotScheduler } from './services/autoScreenshots.js';
 import { renderAdoptionOg } from './services/adoptionOgRenderer.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
@@ -229,9 +228,6 @@ app.get('/api/app/version', (_req, res) => {
     mandatory: false,
   });
 });
-
-// Sync with VPS scraper every 5 minutes — removed (scraper deprecated)
-// startSyncTimer(5);
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
