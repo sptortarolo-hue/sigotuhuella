@@ -5,6 +5,7 @@ import { Ticket, Trophy, Calendar, Users, Loader2, ArrowRight, Clock } from 'luc
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { Helmet } from 'react-helmet-async';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 interface Prize {
   position: number;
@@ -195,7 +196,7 @@ export default function Rifas() {
 
                   {/* CTA */}
                   <div className="flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm group-hover:shadow-lg group-hover:shadow-amber-200 transition-all">
-                    Comprar números
+                    {IS_PLAY_BUILD ? 'Ver rifa' : 'Comprar números'}
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </div>
                 </div>

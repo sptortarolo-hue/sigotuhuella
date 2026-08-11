@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { getPetImageUrl } from '@/src/lib/petService';
 import { getNewsImageUrl } from '@/src/lib/newsService';
 import {
@@ -107,14 +107,14 @@ export default function Dashboard() {
 
     const fetchInvites = async () => {
       try {
-        const res = await fetch('/api/invites/pending', { credentials: 'include' });
+        const res = await fetch(apiUrl('/api/invites/pending'), { credentials: 'include' });
         if (res.ok) { const data = await res.json(); setPendingInvites(data); }
       } catch (e) { console.error(e); }
       finally { setInvitesLoading(false); }
     };
     const fetchShared = async () => {
       try {
-        const res = await fetch('/api/my-pets/shared/with-me', { credentials: 'include' });
+        const res = await fetch(apiUrl('/api/my-pets/shared/with-me'), { credentials: 'include' });
         if (res.ok) { const data = await res.json(); setSharedPets(data); }
       } catch (e) { console.error(e); }
       finally { setSharedPetsLoading(false); }
@@ -125,7 +125,7 @@ export default function Dashboard() {
 
   const handleAcceptInvite = async (token: string) => {
     try {
-      const res = await fetch(`/api/invites/${token}/accept`, { method: 'POST', credentials: 'include' });
+      const res = await fetch(apiUrl(`/api/invites/${token}/accept`), { method: 'POST', credentials: 'include' });
       if (res.ok) {
         setPendingInvites(prev => prev.filter(i => i.token !== token));
       }
@@ -134,7 +134,7 @@ export default function Dashboard() {
 
   const handleRejectInvite = async (token: string) => {
     try {
-      await fetch(`/api/invites/${token}/reject`, { method: 'POST', credentials: 'include' });
+      await fetch(apiUrl(`/api/invites/${token}/reject`), { method: 'POST', credentials: 'include' });
       setPendingInvites(prev => prev.filter(i => i.token !== token));
     } catch (e) { console.error(e); }
   };
@@ -309,7 +309,7 @@ export default function Dashboard() {
                   <div className="w-20 h-20 rounded-2xl overflow-hidden bg-brand-bg border border-brand-accent group-hover:border-brand-primary/50 transition-all shadow-sm group-hover:shadow-md">
                     {pet.avatar_image ? (
                       <img
-                        src={`/my-pet-avatar/${pet.id}`}
+                        src={apiUrl(`/my-pet-avatar/${pet.id}`)}
                         alt={pet.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
@@ -506,7 +506,7 @@ export default function Dashboard() {
                   onClick={() => navigate(`/mi-mascota/${pet.id}`)} className="shrink-0 snap-start group">
                   <div className="w-24 h-24 rounded-2xl overflow-hidden bg-brand-bg border border-brand-accent group-hover:border-brand-primary/50 transition-all shadow-sm group-hover:shadow-md">
                     {pet.avatar_image ? (
-                      <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name}
+                      <img src={apiUrl(`/my-pet-avatar/${pet.id}`)} alt={pet.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
@@ -646,7 +646,7 @@ export default function Dashboard() {
                   className="shrink-0 snap-start group">
                   <div className="w-20 h-20 rounded-2xl overflow-hidden bg-brand-bg border border-brand-accent group-hover:border-brand-primary/50 transition-all shadow-sm">
                     {pet.avatar_image ? (
-                      <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name}
+                      <img src={apiUrl(`/my-pet-avatar/${pet.id}`)} alt={pet.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">

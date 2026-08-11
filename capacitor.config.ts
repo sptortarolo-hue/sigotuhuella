@@ -6,8 +6,8 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     androidScheme: 'https',
-    url: process.env.VITE_CAPACITOR_SERVER_URL || '',
-    cleartext: true,
+    ...(process.env.VITE_CAPACITOR_SERVER_URL ? { url: process.env.VITE_CAPACITOR_SERVER_URL } : {}),
+    cleartext: false,
   },
   plugins: {
     SplashScreen: {
@@ -26,7 +26,7 @@ const config: CapacitorConfig = {
     },
   },
   android: {
-    allowMixedContent: true,
+    allowMixedContent: false,
     backgroundColor: '#fdfcf7',
   },
 };

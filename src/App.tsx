@@ -12,7 +12,7 @@ import PetGallery from '@/src/components/PetGallery';
 import { Loader2 } from 'lucide-react';
 
 const Login = lazy(() => import('@/src/pages/Login'));
-const Admin = lazy(() => import('@/src/pages/Admin'));
+const Admin = import.meta.env.VITE_PLAY_BUILD === 'true' ? null : lazy(() => import('@/src/pages/Admin'));
 const ReportPet = lazy(() => import('@/src/pages/ReportPet'));
 const Collaborate = lazy(() => import('@/src/pages/Collaborate'));
 const Join = lazy(() => import('@/src/pages/Join'));
@@ -121,9 +121,13 @@ export default function App() {
               <Route
                 path="/admin"
                 element={
-                  <ProtectedRoute isAdmin>
-                    <Admin />
-                  </ProtectedRoute>
+                  import.meta.env.VITE_PLAY_BUILD === 'true' ? (
+                    <Navigate to="/" replace />
+                  ) : (
+                    <ProtectedRoute isAdmin>
+                      <Admin />
+                    </ProtectedRoute>
+                  )
                 }
               />
             </Route>

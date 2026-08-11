@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import { PawPrint, Loader2, Heart, MessageCircle, Trash2, Sparkles, Send } from 'lucide-react';
 import { LinkifiedText } from '@/src/lib/linkify';
@@ -117,7 +117,7 @@ export default function Feed() {
                   <Link to={`/mascota/${post.my_pet_id}`} className="flex items-center gap-3 group">
                     <div className="w-10 h-10 rounded-xl overflow-hidden bg-brand-primary/10 shrink-0 flex items-center justify-center">
                       {post.has_avatar ? (
-                        <img src={`/my-pet-avatar/${post.my_pet_id}`} alt="" className="w-full h-full object-cover" />
+                        <img src={apiUrl(`/my-pet-avatar/${post.my_pet_id}`)} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <PawPrint className="w-5 h-5 text-brand-primary/40" />
                       )}
@@ -145,7 +145,7 @@ export default function Feed() {
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     {post.photo_ids.slice(0, 4).map((pid: string, idx: number) => (
                       <div key={idx} className="aspect-square rounded-xl overflow-hidden bg-brand-bg">
-                        <img src={`/my-pet-photo/${pid}`} alt="" className="w-full h-full object-cover" />
+                        <img src={apiUrl(`/my-pet-photo/${pid}`)} alt="" className="w-full h-full object-cover" />
                       </div>
                     ))}
                   </div>

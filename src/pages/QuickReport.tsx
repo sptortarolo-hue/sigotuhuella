@@ -1,11 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, HeartHandshake, Frown, Camera, Loader2, CheckCircle2, AlertCircle, ArrowLeft, PawPrint, Share2, MapPin, Download, X } from 'lucide-react';
+import { Search, HeartHandshake, Frown, Camera, Loader2, CheckCircle2, AlertCircle, ArrowLeft, PawPrint, Share2, Download, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import LocationPicker from '@/src/components/LocationPicker';
-import MapLoader from '@/src/components/MapLoader';
+import LocationInput from '@/src/components/LocationInput';
 import ImageCropper from '@/src/components/ImageCropper';
-import { getCurrentPosition } from '@/src/lib/geolocation';
+import { apiUrl } from '@/src/lib/api';
 
 const FRONTEND_URL = window.location.origin;
 
@@ -32,6 +31,7 @@ export default function QuickReport() {
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<string[]>([]);
   const [contactInfo, setContactInfo] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [imageMimeTypes, setImageMimeTypes] = useState<string[]>([]);
@@ -56,6 +56,7 @@ export default function QuickReport() {
     setDescription('');
     setLocation('');
     setCoordinates(null);
+    setSelectedNeighborhoods([]);
     setContactInfo('');
     setImages([]);
     setImageMimeTypes([]);
@@ -99,33 +100,6 @@ export default function QuickReport() {
     setImageMimeTypes(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const getLocation = async () => {
-    try {
-      const position = await getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
-      setCoordinates({ lat: position.coords.latitude, lng: position.coords.longitude });
-    } catch {
-      alert('No se pudo obtener la ubicación. Permití el acceso al GPS o marcá la ubicación en el mapa.');
-    }
-  };
-
-  // Reverse geocoding: auto-fill address from coordinates
-  useEffect(() => {
-    if (!coordinates) return;
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coordinates.lat}&lon=${coordinates.lng}&addressdetails=1&accept-language=es`,
-      { headers: { 'User-Agent': 'SigoTuHuella/1.0' } })
-      .then(r => r.json())
-      .then(data => {
-        if (data?.address) {
-          const parts: string[] = [];
-          if (data.address.road) parts.push(data.address.road);
-          if (data.address.house_number) parts.push(data.address.house_number);
-          const street = parts.join(' ');
-          if (street) setLocation(street);
-        }
-      })
-      .catch(console.error);
-  }, [coordinates]);
-
   const submitReport = async (status: string) => {
     if (!isValid) return;
     setPageState('submitting');
@@ -136,13 +110,14 @@ export default function QuickReport() {
         body.latitude = coordinates.lat;
         body.longitude = coordinates.lng;
       }
+      if (selectedNeighborhoods.length > 0) body.neighborhoods = selectedNeighborhoods;
       if (contactInfo && status === 'retained') body.contact_info = contactInfo;
       if (images.length > 0) {
         body.images = images.map((data, i) => {
           return { data, mimeType: imageMimeTypes[i] || 'image/jpeg', crop_x: 0.5, crop_y: 0.5 };
         });
       }
-      const res = await fetch('/api/pets/public', {
+      const res = await fetch(apiUrl('/api/pets/public'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -305,25 +280,15 @@ export default function QuickReport() {
             {/* Location */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">Ubicación *</label>
-
-              <button onClick={getLocation} className="flex items-center gap-2 text-sm font-bold text-brand-primary bg-brand-primary/5 px-4 py-2.5 rounded-xl hover:bg-brand-primary/10 transition-colors mb-3">
-                <MapPin className="w-4 h-4" /> Obtener mi ubicación actual
-              </button>
-
-              <MapLoader>
-                <LocationPicker
-                  initialCenter={coordinates || DEFAULT_CENTER}
-                  selectedLocation={coordinates || undefined}
-                  onLocationSelect={(coords) => setCoordinates(coords)}
-                />
-              </MapLoader>
-              {coordinates && (
-                <p className="text-xs text-green-600 mt-2">📍 Ubicación seleccionada en el mapa</p>
-              )}
-
-              <input value={location} onChange={e => setLocation(e.target.value)}
-                placeholder="Ej: Calle 7 y 52, Sicardi"
-                className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors mt-3" />
+              <LocationInput
+                initialCenter={coordinates || DEFAULT_CENTER}
+                location={location}
+                onLocationChange={setLocation}
+                coordinates={coordinates}
+                onCoordinatesChange={setCoordinates}
+                selectedNeighborhoods={selectedNeighborhoods}
+                onNeighborhoodsChange={setSelectedNeighborhoods}
+              />
             </div>
 
             {/* Contact info (only for retained) */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { formatDateOnly } from '@/src/lib/utils';
 import {
   PawPrint, Loader2, Syringe, Scissors, Bug, Phone, Mail, Weight,
@@ -36,7 +36,7 @@ export default function VetPetProfile() {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/vet/${token}`);
+      const res = await fetch(apiUrl(`/api/vet/${token}`));
       const json = await res.json();
       if (!res.ok) { setError(json.error || 'Token inválido'); return; }
       setData(json.pet);
@@ -95,7 +95,7 @@ export default function VetPetProfile() {
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-white/20 bg-white/10 shrink-0">
                 {pet.avatar_image ? (
-                  <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name}
+                  <img src={apiUrl(`/my-pet-avatar/${pet.id}`)} alt={pet.name}
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     className="w-full h-full object-cover" />
                 ) : (
@@ -236,9 +236,9 @@ export default function VetPetProfile() {
                           {record.photo_ids?.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mt-3">
                               {record.photo_ids.map((pid: string) => (
-                                <img key={pid} src={`/my-pet-photo/${pid}`}
+                                <img key={pid} src={apiUrl(`/my-pet-photo/${pid}`)}
                                   className="w-16 h-16 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity border border-brand-accent"
-                                  onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}?full=1`)}
+                                  onClick={() => setPreviewPhotoUrl(apiUrl(`/my-pet-photo/${pid}?full=1`))}
                                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                               ))}
                             </div>
@@ -302,9 +302,9 @@ export default function VetPetProfile() {
                           )}
                           {event.photo_id && (
                             <div className="mt-3">
-                              <img src={`/my-pet-photo/${event.photo_id}`}
+                              <img src={apiUrl(`/my-pet-photo/${event.photo_id}`)}
                                 className="w-24 h-24 object-cover rounded-xl cursor-pointer hover:opacity-80 transition-opacity border border-brand-accent"
-                                onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${event.photo_id}?full=1`)}
+                                onClick={() => setPreviewPhotoUrl(apiUrl(`/my-pet-photo/${event.photo_id}?full=1`))}
                                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                             </div>
                           )}

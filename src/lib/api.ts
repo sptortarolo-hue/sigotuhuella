@@ -1,8 +1,16 @@
 import { isNative } from '@/src/lib/platform';
 
-const BASE_URL = isNative()
-  ? `${import.meta.env.VITE_API_URL || 'https://sigotuhuella.com.ar'}/api`
-  : '/api';
+const API_ORIGIN = isNative()
+  ? `${import.meta.env.VITE_API_URL || 'https://sigotuhuella.com.ar'}`
+  : '';
+
+const BASE_URL = `${API_ORIGIN}/api`;
+
+export function apiUrl(path: string): string {
+  if (!path) return path;
+  if (/^https?:\/\//.test(path) || path.startsWith('data:')) return path;
+  return `${API_ORIGIN}${path.startsWith('/') ? path : `/${path}`}`;
+}
 
 function getToken(): string | null {
   return localStorage.getItem('token');
@@ -92,6 +100,7 @@ export const api = {
     register: (email: string, password: string, displayName?: string, phone?: string, notification_preference?: string) =>
       request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, displayName, phone, notification_preference }) }),
     me: () => request('/auth/me'),
+    deleteAccount: () => request('/auth/me', { method: 'DELETE' }),
     forgotPassword: (email: string) =>
       request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
     resetPassword: (token: string, newPassword: string) =>
@@ -139,7 +148,7 @@ export const api = {
       report: async (petId: string) => {
         const token = localStorage.getItem('token');
         try {
-          const res = await fetch(`/api/pets/${petId}/records/report`, {
+          const res = await fetch(apiUrl(`/api/pets/${petId}/records/report`), {
             headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           });
           if (!res.ok) { const err = await res.json(); alert(err.error || 'Error al generar PDF'); return; }
@@ -390,7 +399,7 @@ export const api = {
     saveDesignSettings: (data: Record<string, string | number>) => request('/qr/design-settings', { method: 'PUT', body: JSON.stringify(data) }),
     previewLogoUrl: () => {
       const token = getToken();
-      return `/api/qr/preview-logo${token ? `?token=${token}` : ''}`;
+      return apiUrl(`/api/qr/preview-logo${token ? `?token=${token}` : ''}`);
     },
     batchPdf: (batchId: string, opts?: { from?: string; to?: string; page_w?: string; page_h?: string }) => {
       const token = getToken();
@@ -400,7 +409,7 @@ export const api = {
       if (opts?.page_w) params.set('page_w', opts.page_w);
       if (opts?.page_h) params.set('page_h', opts.page_h);
       const qs = params.toString();
-      return fetch(`/api/qr/batch/${batchId}/pdf${qs ? '?' + qs : ''}`, {
+      return fetch(apiUrl(`/api/qr/batch/${batchId}/pdf${qs ? '?' + qs : ''}`), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       }).then(async res => {
         if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Error al descargar PDF'); }

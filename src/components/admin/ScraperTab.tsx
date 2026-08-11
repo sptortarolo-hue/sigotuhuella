@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { formatDate } from '@/src/lib/formatDate';
@@ -120,7 +120,7 @@ function PostsSection() {
       if (animalDetected !== 'all') params.set('animal_detected', animalDetected);
       if (search) params.set('search', search);
       params.set('limit', '100');
-      const resp = await fetch(`/api/relay/scraped-messages?${params}`, {
+      const resp = await fetch(apiUrl(`/api/relay/scraped-messages?${params}`), {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (resp.ok) {
@@ -174,7 +174,7 @@ function PostsSection() {
       const itemsToDelete = filtered
         .filter(i => selected.has(i.id + i.source))
         .map(i => ({ id: i.id, source: i.source }));
-      const resp = await fetch('/api/relay/scraped-messages/bulk-delete', {
+      const resp = await fetch(apiUrl('/api/relay/scraped-messages/bulk-delete'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -516,7 +516,7 @@ function MatchesSection() {
     try {
       const [matchesData, statsResp] = await Promise.all([
         api.facebook.matches.list({ status: statusFilter }),
-        fetch('/api/facebook/stats').then(r => r.ok ? r.json() : null),
+        fetch(apiUrl(`/api/facebook/stats`)).then(r => r.ok ? r.json() : null),
       ]);
       setMatches(matchesData.matches);
       setStats(statsResp);

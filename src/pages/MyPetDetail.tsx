@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { cn, formatDateOnly } from '@/src/lib/utils';
 import { fileToBase64 } from '@/src/lib/storageService';
 import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
@@ -241,7 +241,7 @@ export default function MyPetDetail() {
     (relatedReports || []).forEach((r: any) => {
       (r.images || []).forEach((img: any) => {
         const src = img.has_original
-          ? `/og-image/${r.id}/${r.images.indexOf(img)}?full=1`
+          ? apiUrl(`/og-image/${r.id}/${r.images.indexOf(img)}?full=1`)
           : img.image_data
             ? `data:${img.mime_type || 'image/jpeg'};base64,${img.image_data}`
             : img.external_url;
@@ -313,7 +313,7 @@ export default function MyPetDetail() {
     setShareResult(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/invites`, {
+      const res = await fetch(apiUrl(`/api/invites`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ myPetId: id, email: shareEmail || undefined, phone: sharePhone || undefined, message: shareMsg || undefined }),
@@ -343,7 +343,7 @@ export default function MyPetDetail() {
     try {
       setPasaporteLoading(true);
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/my-pets/${id}/pasaporte`, {
+      const res = await fetch(apiUrl(`/api/my-pets/${id}/pasaporte`), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) return;
@@ -720,7 +720,7 @@ export default function MyPetDetail() {
           title="Cambiar foto de perfil"
         >
           {pet.avatar_image ? (
-            <img src={`/my-pet-avatar/${pet.id}?t=${Date.now()}`} alt={pet.name}
+            <img src={apiUrl(`/my-pet-avatar/${pet.id}?t=${Date.now()}`)} alt={pet.name}
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               className="w-full h-full object-cover" />
           ) : (
@@ -1057,7 +1057,7 @@ export default function MyPetDetail() {
                 {galleryPhotos.map((photo: any) => (
                   <div key={photo.id} className="relative group rounded-2xl overflow-hidden aspect-square bg-brand-bg">
                     <img
-                      src={`/my-pet-photo/${photo.id}`}
+                      src={apiUrl(`/my-pet-photo/${photo.id}`)}
                       alt={photo.caption || 'Foto'}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       onError={(e) => { (e.target as HTMLImageElement).src = '/sigotuhuella.jpg'; }}
@@ -1225,9 +1225,9 @@ export default function MyPetDetail() {
                             {item.photo_ids?.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 mt-2">
                                 {item.photo_ids.map((pid: string) => (
-                                  <img key={pid} src={`/my-pet-photo/${pid}`}
+                                  <img key={pid} src={apiUrl(`/my-pet-photo/${pid}`)}
                                     className="w-12 h-12 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                                    onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}?full=1`)}
+                                    onClick={() => setPreviewPhotoUrl(apiUrl(`/my-pet-photo/${pid}?full=1`))}
                                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                                 ))}
                               </div>
@@ -1421,9 +1421,9 @@ export default function MyPetDetail() {
                       {record.photo_ids?.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 mt-3">
                           {record.photo_ids.map((pid: string) => (
-                            <img key={pid} src={`/my-pet-photo/${pid}`}
+                            <img key={pid} src={apiUrl(`/my-pet-photo/${pid}`)}
                               className="w-12 h-12 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => setPreviewPhotoUrl(`/my-pet-photo/${pid}?full=1`)}
+                              onClick={() => setPreviewPhotoUrl(apiUrl(`/my-pet-photo/${pid}?full=1`))}
                               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                           ))}
                         </div>
@@ -1722,7 +1722,7 @@ export default function MyPetDetail() {
                     {editAvatarPreview ? (
                       <img src={editAvatarPreview} alt="Avatar" className="w-full h-full object-cover" />
                     ) : pet?.avatar_image ? (
-                      <img src={`/my-pet-avatar/${pet.id}?t=${Date.now()}`} alt="Avatar" className="w-full h-full object-cover" />
+                      <img src={apiUrl(`/my-pet-avatar/${pet.id}?t=${Date.now()}`)} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
                       <PawPrint className="w-8 h-8 text-brand-accent" />
                     )}
@@ -2018,7 +2018,7 @@ export default function MyPetDetail() {
                         }}
                           className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${selected ? 'border-brand-primary ring-2 ring-brand-primary/30' : 'border-transparent hover:border-brand-accent'}`}
                         >
-                          <img src={`/my-pet-photo/${photo.id}`} alt="" className="w-full h-full object-cover" />
+                          <img src={apiUrl(`/my-pet-photo/${photo.id}`)} alt="" className="w-full h-full object-cover" />
                           {selected && (
                             <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-brand-primary text-white flex items-center justify-center text-[10px] font-bold">
                               ✓

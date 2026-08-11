@@ -32,3 +32,4 @@ android/
 .next/
 tsconfig.tsbuildinfo
 next-env.d.ts
+com/

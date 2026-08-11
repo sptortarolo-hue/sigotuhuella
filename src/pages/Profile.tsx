@@ -6,7 +6,7 @@ import {
   User, Lock, Save, Loader2, CheckCircle2, AlertCircle,
   Phone as PhoneIcon, Camera, Upload, PawPrint, CreditCard,
   ChevronRight, LogOut, Shield, Bell, BellOff, Settings,
-  Trophy,
+  Trophy, Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ImageCropper from '@/src/components/ImageCropper';
@@ -38,6 +38,9 @@ export default function Profile() {
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [phoneError, setPhoneError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
 
@@ -165,6 +168,22 @@ export default function Profile() {
   const handleLogout = () => {
     logout();
     navigate('/');
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      await unsubscribe();
+    } catch { /* best effort: el server igual limpia los tokens */ }
+    try {
+      await api.auth.deleteAccount();
+      logout();
+      navigate('/', { replace: true });
+    } catch (err: any) {
+      setDeleteError(err.message || 'Error al eliminar la cuenta. Intentá de nuevo.');
+      setDeleteLoading(false);
+    }
   };
 
   const menuItems = [
@@ -418,6 +437,51 @@ export default function Profile() {
       >
         <LogOut className="w-5 h-5" /> Cerrar Sesión
       </motion.button>
+
+      {/* Eliminar cuenta */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-4"
+      >
+        {!confirmDelete ? (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="w-full flex items-center justify-center gap-3 px-4 py-4 bg-red-50 text-red-500 rounded-2xl border border-red-200 hover:bg-red-100 transition-all font-bold text-sm"
+          >
+            <Trash2 className="w-5 h-5" /> Eliminar mi cuenta
+          </button>
+        ) : (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 sm:p-5">
+            <p className="text-sm font-bold text-red-600 mb-2">¿Eliminar tu cuenta definitivamente?</p>
+            <p className="text-xs text-gray-600 mb-4">
+              Se borrarán tus datos personales, tus mascotas y publicaciones propias (los reportes públicos
+              se conservan sin tus datos de contacto, por su valor para la comunidad). Esta acción no se puede deshacer.
+            </p>
+            {deleteError && (
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-white p-3 rounded-xl mb-3">
+                <AlertCircle className="w-4 h-4 shrink-0" /> {deleteError}
+              </div>
+            )}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleteLoading}
+                className="flex-1 px-4 py-3 border border-brand-accent rounded-xl font-bold text-sm hover:bg-white transition-all disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteLoading}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 disabled:opacity-50 transition-all"
+              >
+                {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Sí, eliminar
+              </button>
+            </div>
+          </div>
+        )}
+      </motion.div>
 
       {/* Crop modal */}
       {cropFile && (

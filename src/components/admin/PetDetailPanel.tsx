@@ -9,7 +9,7 @@ import { cn } from '@/src/lib/utils';
 import { formatDate } from '@/src/lib/formatDate';
 import ReunionModal from '@/src/components/ReunionModal';
 import { getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import PetGroupTransitModal from '@/src/components/admin/PetGroupTransitModal';
 
 function petImageAt(pet: any, idx: number): string | undefined {
@@ -17,7 +17,7 @@ function petImageAt(pet: any, idx: number): string | undefined {
   const img = pet.images[idx];
   if (img.image_data) return `data:${img.mime_type || 'image/jpeg'};base64,${img.image_data}`;
   if (img.external_url) return img.external_url;
-  if (img.has_image) return `/api/images/pet-thumb/${pet.id}/${idx}`;
+  if (img.has_image) return apiUrl(`/api/images/pet-thumb/${pet.id}/${idx}`);
   return undefined;
 }
 
@@ -25,7 +25,7 @@ function petAllImages(pet: any): string[] {
   return pet?.images?.map((img: any, idx: number) => {
     if (img.image_data) return `data:${img.mime_type || 'image/jpeg'};base64,${img.image_data}`;
     if (img.external_url) return img.external_url;
-    if (img.has_image) return `/api/images/pet-thumb/${pet.id}/${idx}`;
+    if (img.has_image) return apiUrl(`/api/images/pet-thumb/${pet.id}/${idx}`);
     return '';
   }).filter(Boolean) || [];
 }

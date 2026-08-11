@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as PhoneIcon, Eye, EyeOff, KeyRound, CheckCircle2, RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Helmet } from 'react-helmet-async';
+import { isNative } from '@/src/lib/platform';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -28,6 +29,7 @@ export default function Login() {
   const [linkingEmail, setLinkingEmail] = useState('');
   const [linkingPassword, setLinkingPassword] = useState('');
   const googleButtonRef = useRef<HTMLDivElement>(null);
+  const [googleNativeLoading, setGoogleNativeLoading] = useState(false);
   const [pendingCase, setPendingCase] = useState('');
   const [inviteToken, setInviteToken] = useState('');
   const [phoneError, setPhoneError] = useState('');
@@ -88,7 +90,7 @@ export default function Login() {
         const data = await api.auth.login(email, password);
       login(data.token, data.user);
       if (inviteToken) {
-        try { await fetch(`/api/invites/${inviteToken}/accept`, { method: 'POST', headers: { 'Authorization': `Bearer ${data.token}` } }); } catch {}
+        try { await fetch(apiUrl(`/api/invites/${inviteToken}/accept`), { method: 'POST', headers: { 'Authorization': `Bearer ${data.token}` } }); } catch {}
       }
       goAfterAuth();
         return;
@@ -127,10 +129,10 @@ export default function Login() {
       const data = await api.auth.login(email, password);
       login(data.token, data.user);
       if (pendingCase) {
-        try { await fetch('/api/pets/link-case', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` }, body: JSON.stringify({ caseNumber: pendingCase }) }); } catch {}
+        try { await fetch(apiUrl('/api/pets/link-case'), { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` }, body: JSON.stringify({ caseNumber: pendingCase }) }); } catch {}
       }
       if (inviteToken) {
-        try { await fetch(`/api/invites/${inviteToken}/accept`, { method: 'POST', headers: { 'Authorization': `Bearer ${data.token}` } }); } catch {}
+        try { await fetch(apiUrl(`/api/invites/${inviteToken}/accept`), { method: 'POST', headers: { 'Authorization': `Bearer ${data.token}` } }); } catch {}
       }
       goAfterAuth();
     } catch (err: any) {
@@ -165,6 +167,27 @@ export default function Login() {
     }
   };
 
+  // Login nativo (Capacitor): reemplaza el botón GSI de web dentro de la app
+  const handleNativeGoogle = async () => {
+    if (!GOOGLE_CLIENT_ID) return;
+    setGoogleNativeLoading(true);
+    setError('');
+    try {
+      const { GoogleSignIn } = await import('@capawesome/capacitor-google-sign-in');
+      await GoogleSignIn.initialize({ clientId: GOOGLE_CLIENT_ID });
+      const result = await GoogleSignIn.signIn();
+      if (!result.idToken) {
+        setError('No se pudo obtener la sesión de Google. Intentá de nuevo.');
+        return;
+      }
+      await handleGoogleResponse({ credential: result.idToken });
+    } catch (err: any) {
+      setError(err?.message || 'Error al iniciar sesión con Google');
+    } finally {
+      setGoogleNativeLoading(false);
+    }
+  };
+
   const handleLinkGoogle = async () => {
     if (!linkingPassword) { setError('Ingresá tu contraseña'); return; }
     setAuthLoading(true);
@@ -184,7 +207,7 @@ export default function Login() {
   };
 
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || googleInitedRef.current) return;
+    if (!GOOGLE_CLIENT_ID || googleInitedRef.current || isNative()) return;
     const init = () => {
       if (window.google?.accounts?.id) {
         window.google.accounts.id.initialize({
@@ -566,8 +589,29 @@ export default function Login() {
             {/* Login mode — Google first, then email */}
             {mode === 'login' && (
               <>
-                {GOOGLE_CLIENT_ID && (
+                {GOOGLE_CLIENT_ID && !isNative() && (
                   <div ref={googleButtonRef} className="w-full min-h-[40px]" />
+                )}
+
+                {GOOGLE_CLIENT_ID && isNative() && (
+                  <button
+                    type="button"
+                    onClick={handleNativeGoogle}
+                    disabled={googleNativeLoading || authLoading}
+                    className="w-full flex items-center justify-center gap-3 px-5 py-3.5 bg-white rounded-xl border border-brand-accent font-bold text-sm text-gray-700 hover:shadow-lg hover:bg-brand-bg transition-all disabled:opacity-60"
+                  >
+                    {googleNativeLoading ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-brand-primary" />
+                    ) : (
+                      <svg className="w-5 h-5 shrink-0" viewBox="0 0 48 48" aria-hidden="true">
+                        <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
+                        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+                        <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+                        <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.7l6.2 5.2C41.2 37.2 44 32 44 24c0-1.3-.1-2.6-.4-3.9z"/>
+                      </svg>
+                    )}
+                    Continuar con Google
+                  </button>
                 )}
 
                 {GOOGLE_CLIENT_ID && (

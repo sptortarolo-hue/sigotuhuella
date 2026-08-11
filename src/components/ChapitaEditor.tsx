@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { Save, RotateCcw, Loader2, FileText } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
@@ -119,7 +119,7 @@ export default function ChapitaEditor({ className }: Props) {
   const handlePreviewPdf = async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('/api/qr/preview-pdf', {
+      const res = await fetch(apiUrl('/api/qr/preview-pdf'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) { const err = await res.json(); alert(err.error || 'Error al descargar PDF'); return; }

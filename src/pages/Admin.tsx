@@ -16,7 +16,7 @@ import {
 import { getNews, createNews, updateNews, deleteNews, News, getNewsImageUrl, publishNewsToPlatforms, PLATFORMS, getPlatformLabel, getPlatformIcon } from '@/src/lib/newsService';
 import { useAuth } from '@/src/hooks/useAuth';
 import { Badge } from '@/src/hooks/AuthProvider';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import PetCard from '@/src/components/PetCard';
 import SocialShareModal from '@/src/components/SocialShareModal';
 import { BADGE_CONFIG } from '@/src/components/MemberCard';
@@ -640,7 +640,7 @@ export default function Admin() {
   const handlePreviewPdf = async (petId: string) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/pets/${petId}/records/report`, {
+      const res = await fetch(apiUrl(`/api/pets/${petId}/records/report`), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) { const err = await res.json(); alert(err.error || 'Error al generar PDF'); return; }
@@ -1653,7 +1653,7 @@ export default function Admin() {
                                 try {
                                   const fd = new FormData();
                                   fd.append('logo', file);
-                                  const res = await fetch('/api/upload/sponsor-logo', { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, body: fd });
+                                  const res = await fetch(apiUrl('/api/upload/sponsor-logo'), { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, body: fd });
                                   const data = await res.json();
                                   if (res.ok) setSponsorData({ ...sponsorData, logo: data.url });
                                   else alert(data.error || 'Error al subir');

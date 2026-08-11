@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { shareRaffleOnWhatsApp } from '@/src/lib/whatsappShare';
 import { PhoneInput } from '@/src/components/PhoneInput';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 interface Prize {
   position: number;
@@ -317,6 +318,15 @@ export default function RifaDetail() {
                 Elegí tus números
                 <ChevronDown className="w-4 h-4" />
               </button>
+              {IS_PLAY_BUILD && (
+                <button
+                  onClick={() => handleShare('copy')}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-white text-amber-600 border-2 border-amber-300 rounded-xl font-bold text-sm hover:bg-amber-50 transition-all"
+                >
+                  Compartir la rifa
+                  <Share2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             {/* Right: Countdown */}
@@ -448,6 +458,7 @@ export default function RifaDetail() {
         </div>
 
         {/* ─── CÓMO FUNCIONA ─── */}
+        {!IS_PLAY_BUILD && (
         <div className="mb-6 sm:mb-8">
           <h2 className="text-lg sm:text-xl font-bold text-brand-primary mb-4">¿Cómo funciona?</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -471,12 +482,29 @@ export default function RifaDetail() {
             ))}
           </div>
         </div>
+        )}
 
         {/* ─── GRID DE NÚMEROS ─── */}
+        {IS_PLAY_BUILD && (
+          <div className="bg-white rounded-3xl border border-brand-accent p-6 mb-6 sm:mb-8">
+            <h2 className="text-lg sm:text-xl font-bold text-brand-primary mb-3">Participá por los canales oficiales</h2>
+            <p className="text-sm text-gray-600">
+              La compra de números de esta rifa se gestiona por WhatsApp y los canales oficiales de Sigo Tu Huella.
+              Compartí la rifa o escribinos para participar.
+            </p>
+            <button
+              onClick={() => shareRaffleOnWhatsApp(raffle.id, raffle.title)}
+              className="mt-4 inline-flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors"
+            >
+              📱 Compartir por WhatsApp
+            </button>
+          </div>
+        )}
+        {!IS_PLAY_BUILD && (
         <div id="raffle-grid" className="bg-white rounded-3xl border border-brand-accent p-5 sm:p-6 mb-6 sm:mb-8 scroll-mt-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg sm:text-xl font-bold text-brand-primary">Elegí tus números</h2>
-            {selected.size > 0 && (
+{!IS_PLAY_BUILD && selected.size > 0 && (
               <span className="text-sm font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
                 {selected.size} seleccionado{selected.size > 1 ? 's' : ''} · ${total.toLocaleString('es-AR')}
               </span>
@@ -553,10 +581,11 @@ export default function RifaDetail() {
             </span>
           </div>
         </div>
+        )}
 
         {/* ─── CHECKOUT ─── */}
         <AnimatePresence>
-          {selected.size > 0 && !confirming && (
+          {!IS_PLAY_BUILD && selected.size > 0 && !confirming && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -615,7 +644,7 @@ export default function RifaDetail() {
 
         {/* ─── CONFIRMACIÓN ─── */}
         <AnimatePresence>
-          {confirming && (
+          {!IS_PLAY_BUILD && confirming && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

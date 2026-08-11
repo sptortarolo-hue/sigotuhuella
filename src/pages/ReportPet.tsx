@@ -3,19 +3,16 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { createPet, PetStatus } from '@/src/lib/petService';
 import { filesToBase64 } from '@/src/lib/storageService';
-import MapLoader from '@/src/components/MapLoader';
-import LocationPicker from '@/src/components/LocationPicker';
+import LocationInput from '@/src/components/LocationInput';
 import ImageCropper from '@/src/components/ImageCropper';
 import {
   Camera,
-  MapPin,
   Phone,
   FileText,
   Loader2,
   X,
   CheckCircle2,
   AlertCircle,
-  Locate,
   Share2,
   ArrowLeft
 } from 'lucide-react';
@@ -62,7 +59,8 @@ export default function ReportPet() {
     location: '',
     contactInfo: '',
     description: '',
-    coordinates: null as { lat: number; lng: number } | null
+    coordinates: null as { lat: number; lng: number } | null,
+    selectedNeighborhoods: [] as string[]
   });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,6 +178,7 @@ const handleSubmit = async (e: React.FormEvent) => {
          location: formData.location,
          latitude: formData.coordinates?.lat ?? null,
          longitude: formData.coordinates?.lng ?? null,
+         neighborhoods: formData.selectedNeighborhoods,
          contactInfo: formData.contactInfo,
          images,
        };
@@ -489,49 +488,18 @@ const handleSubmit = async (e: React.FormEvent) => {
                 ) : (
                   <>
                     <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 flex items-center gap-2">
-                      <Locate className="w-3 h-3" />
-                      ¿Dónde fue visto por última vez? (Marca en el mapa) *
+                      ¿Dónde fue visto por última vez? *
                     </label>
 
-                    <MapLoader>
-                      <LocationPicker
-                        initialCenter={DEFAULT_CENTER}
-                        selectedLocation={formData.coordinates || undefined}
-                        onLocationSelect={async (coords) => {
-                          setFormData(prev => ({ ...prev, coordinates: coords }));
-                          try {
-                            const res = await fetch(
-                              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}&addressdetails=1&accept-language=es`,
-                              { headers: { 'User-Agent': 'SigoTuHuella/1.0' } }
-                            );
-                            const data = await res.json();
-                            if (data?.address) {
-                              const parts: string[] = [];
-                              if (data.address.road) parts.push(data.address.road);
-                              if (data.address.house_number) parts.push(data.address.house_number);
-                              const street = parts.join(' ');
-                              if (street) {
-                                setFormData(prev => ({ ...prev, location: street }));
-                              }
-                            }
-                          } catch (e) {
-                            console.error('Error al obtener dirección:', e);
-                          }
-                        }}
-                      />
-                    </MapLoader>
-
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Referencia escrita (Calle, esquina, etc.)</label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="Ej: Calle 610 y 11"
-                        className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                        value={formData.location}
-                        onChange={e => setFormData({ ...formData, location: e.target.value })}
-                      />
-                    </div>
+                    <LocationInput
+                      initialCenter={formData.coordinates || DEFAULT_CENTER}
+                      location={formData.location}
+                      onLocationChange={v => setFormData(prev => ({ ...prev, location: v }))}
+                      coordinates={formData.coordinates}
+                      onCoordinatesChange={c => setFormData(prev => ({ ...prev, coordinates: c }))}
+                      selectedNeighborhoods={formData.selectedNeighborhoods}
+                      onNeighborhoodsChange={ids => setFormData(prev => ({ ...prev, selectedNeighborhoods: ids }))}
+                    />
                   </>
                 )}
               </div>

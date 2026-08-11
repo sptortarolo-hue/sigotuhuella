@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, apiUrl } from './api';
 
 export interface NewsPublication {
   platform: string;
@@ -64,7 +64,7 @@ export function getNewsImageUrl(newsItem: News): string | null {
     return `data:${newsItem.mime_type};base64,${newsItem.image_data}`;
   }
   if (newsItem.has_image) {
-    return `/api/images/news/${newsItem.id}`;
+    return apiUrl(`/api/images/news/${newsItem.id}`);
   }
   return null;
 }

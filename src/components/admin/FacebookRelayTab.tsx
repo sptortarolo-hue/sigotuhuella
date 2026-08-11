@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { formatDateTime } from '@/src/lib/formatDate';
 
 interface FbRelayStatus {
@@ -615,7 +615,7 @@ function PublisherSection() {
       settingsData.forEach((s: any) => { map[s.key] = s.value; });
       setSettings(map);
       setGroups(groupsData);
-      const postsResp = await fetch('/api/facebook/page-posts?limit=10', {
+      const postsResp = await fetch(apiUrl('/api/facebook/page-posts?limit=10'), {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (postsResp.ok) setPagePosts((await postsResp.json()).posts || []);
@@ -640,7 +640,7 @@ function PublisherSection() {
   const handleGroupSave = async (id: string, data: any) => {
     setGroupSaving(p => ({ ...p, [id]: true }));
     try {
-      const resp = await fetch(`/api/facebook/groups/${id}/page-member`, {
+      const resp = await fetch(apiUrl(`/api/facebook/groups/${id}/page-member`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -656,7 +656,7 @@ function PublisherSection() {
   const handleReplicate = async () => {
     setReplicating(true);
     try {
-      const resp = await fetch('/api/facebook/replicate-latest?limit=5', {
+      const resp = await fetch(apiUrl('/api/facebook/replicate-latest?limit=5'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -672,7 +672,7 @@ function PublisherSection() {
   const handleRetry = async () => {
     setRetrying(true);
     try {
-      const resp = await fetch('/api/facebook/retry-failed?limit=10', {
+      const resp = await fetch(apiUrl('/api/facebook/retry-failed?limit=10'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -870,7 +870,7 @@ function ProfileUpload() {
     const formData = new FormData();
     formData.append('profile', file);
     try {
-      const res = await fetch('/api/relay/fb/upload-profile', {
+      const res = await fetch(apiUrl('/api/relay/fb/upload-profile'), {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         body: formData,

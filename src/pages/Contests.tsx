@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Heart, Sparkles, Loader2 } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, apiUrl } from '../lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 
 const speciesEmoji: Record<string, string> = { dog: '🐶', cat: '🐱', other: '🐾' };
@@ -128,7 +128,7 @@ export default function Contests() {
           >
             <div className="aspect-square bg-brand-bg relative overflow-hidden">
               {nominee.has_avatar ? (
-                <img src={`/my-pet-avatar/${nominee.my_pet_id}`} alt={nominee.pet_name}
+                <img src={apiUrl(`/my-pet-avatar/${nominee.my_pet_id}`)} alt={nominee.pet_name}
                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   className="w-full h-full object-cover" />
               ) : (
@@ -205,7 +205,7 @@ export default function Contests() {
                       className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-brand-bg transition-colors text-left disabled:opacity-50"
                     >
                       <div className="w-10 h-10 rounded-xl bg-brand-bg flex items-center justify-center text-lg shrink-0">
-                        {pet.avatar_image ? <img src={`/my-pet-avatar/${pet.id}`}
+                        {pet.avatar_image ? <img src={apiUrl(`/my-pet-avatar/${pet.id}`)}
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                           className="w-full h-full object-cover rounded-xl" /> : (speciesEmoji[pet.species] || '🐾')}
                       </div>

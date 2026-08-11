@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { X, Plus, FileText, Download, Loader2, Calendar, DollarSign, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -42,7 +42,7 @@ export default function PetRecordsModal({ petId, petName, onClose }: { petId: st
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/pets/${petId}/records`, {
+      const res = await fetch(apiUrl(`/api/pets/${petId}/records`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -66,7 +66,7 @@ export default function PetRecordsModal({ petId, petName, onClose }: { petId: st
     try {
       const token = localStorage.getItem('token');
       const payload = { ...formData, amount: formData.amount ? parseFloat(formData.amount) : null };
-      const res = await fetch(`/api/pets/${petId}/records`, {
+      const res = await fetch(apiUrl(`/api/pets/${petId}/records`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload)
@@ -94,7 +94,7 @@ export default function PetRecordsModal({ petId, petName, onClose }: { petId: st
     if (!confirm('¿Eliminar este registro?')) return;
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/pets/${petId}/records/${id}`, {
+      const res = await fetch(apiUrl(`/api/pets/${petId}/records/${id}`), {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -108,7 +108,7 @@ export default function PetRecordsModal({ petId, petName, onClose }: { petId: st
     try {
       const token = localStorage.getItem('token');
       // For fetch download
-      const res = await fetch(`/api/pets/${petId}/records/report`, {
+      const res = await fetch(apiUrl(`/api/pets/${petId}/records/report`), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to generate report');

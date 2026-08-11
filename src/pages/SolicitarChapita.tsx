@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { fileToBase64 } from '@/src/lib/storageService';
 import ImageCropper from '@/src/components/ImageCropper';
 import {
@@ -431,7 +431,7 @@ export default function SolicitarChapita() {
                 <div key={p.id} className="flex items-center gap-4 p-4 bg-brand-bg rounded-2xl border border-brand-accent">
                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-brand-primary/10 shrink-0">
                     {p.has_avatar ? (
-                      <img src={`/my-pet-avatar/${p.id}`} alt={p.name} className="w-full h-full object-cover"
+                      <img src={apiUrl(`/my-pet-avatar/${p.id}`)} alt={p.name} className="w-full h-full object-cover"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">

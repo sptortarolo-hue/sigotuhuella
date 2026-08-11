@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, apiUrl } from './api';
 
 export enum PetStatus {
   LOST = 'lost',
@@ -68,7 +68,7 @@ export function getPetImageUrl(pet: Pet): string | undefined {
   const img = pet.images[0];
   if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
   if (img.external_url) return img.external_url;
-  if (img.has_image) return `/api/images/pet-thumb/${pet.id}/0`;
+  if (img.has_image) return apiUrl(`/api/images/pet-thumb/${pet.id}/0`);
   return undefined;
 }
 
@@ -76,7 +76,7 @@ export function getPetImageUrls(pet: Pet): string[] {
   return pet.images?.map((img, idx) => {
     if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
     if (img.external_url) return img.external_url;
-    if (img.has_image) return `/api/images/pet-thumb/${pet.id}/${idx}`;
+    if (img.has_image) return apiUrl(`/api/images/pet-thumb/${pet.id}/${idx}`);
     return '';
   }).filter(Boolean) || [];
 }
@@ -84,7 +84,7 @@ export function getPetImageUrls(pet: Pet): string[] {
 export function getPetOriginalImageUrl(pet: Pet): string | undefined {
   if (!pet.images?.[0]) return undefined;
   const img = pet.images[0];
-  return img.has_original ? `/og-image/${pet.id}/0?full=1` : undefined;
+  return img.has_original ? apiUrl(`/og-image/${pet.id}/0?full=1`) : undefined;
 }
 
 export function getPetCoordinates(pet: Pet): { lat: number; lng: number } | null {

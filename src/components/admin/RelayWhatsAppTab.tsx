@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Send, MessageSquare, Users, Wifi, WifiOff, Power, Globe, Image, ScanQrCode, Search, CheckSquare, Square, Plus, Trash2, Bell, Check, Save, Heart, Radio } from 'lucide-react';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { cn } from '@/src/lib/utils';
 import { formatDateTime } from '@/src/lib/formatDate';
 
@@ -1075,7 +1075,7 @@ export default function RelayWhatsAppTab() {
               <button key={pet.id} onClick={() => selectPet(pet.id)} className={cn("text-left p-3 rounded-xl border-2 transition-all", selected ? 'border-brand-primary bg-brand-primary/5' : 'border-brand-accent hover:border-brand-primary/50')}>
                 <div className="flex items-center gap-3">
                   {pet.has_image ? (
-                    <img src={`/api/images/pet/${pet.id}/cover`} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    <img src={apiUrl(`/api/images/pet/${pet.id}/cover`)} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                   ) : (
                     <span className="text-xl shrink-0">{speciesIcon(pet.species)}</span>
                   )}

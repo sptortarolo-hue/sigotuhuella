@@ -3,6 +3,7 @@ import { X, Download, Loader2, ArrowRight, Camera, PawPrint, Upload } from 'luci
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { statusDesigns, drawFlyer } from '@/src/lib/flyerRenderer';
+import { apiUrl } from '@/src/lib/api';
 import ImageCropper from '@/src/components/ImageCropper';
 import LocationInput from '@/src/components/LocationInput';
 import { useAuth } from '@/src/hooks/useAuth';
@@ -142,7 +143,7 @@ export default function PublicFlyerGenerator({ onClose }: Props) {
       setSaving(true);
       try {
         const encoded = await blobToBase64(photoBlob!);
-        const res = await fetch('/api/pets/public', {
+        const res = await fetch(apiUrl('/api/pets/public'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

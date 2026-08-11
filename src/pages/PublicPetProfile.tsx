@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, Navigate, useSearchParams } from 'react-router-dom';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { formatTag } from '@/src/lib/personalityTags';
 import {
   PawPrint, Loader2, Syringe, Scissors, Bug, MapPin, Heart,
@@ -219,7 +219,7 @@ export default function PublicPetProfile() {
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left">
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-white/20 bg-white/10 shrink-0 shadow-lg">
               {pet.has_avatar ? (
-                <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name}
+                <img src={apiUrl(`/my-pet-avatar/${pet.id}`)} alt={pet.name}
                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   className="w-full h-full object-cover" />
               ) : (

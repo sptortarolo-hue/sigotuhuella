@@ -78,8 +78,11 @@ export default function LocationInput({
     onNeighborhoodsChange(next);
     if (next.length > 0) {
       onCoordinatesChange(centroidOf(next));
+      const names = next.map(id => NEIGHBORHOODS.find(x => x.id === id)?.name).filter(Boolean);
+      onLocationChange(names.join(', '));
     } else {
       onCoordinatesChange(null);
+      onLocationChange('');
     }
   };
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { fileToBase64 } from '@/src/lib/storageService';
 import { formatDate } from '@/src/lib/formatDate';
 import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
@@ -240,7 +240,7 @@ export default function MyPetsPortal() {
     setShareResult(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/invites', {
+      const res = await fetch(apiUrl('/api/invites'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -494,7 +494,7 @@ export default function MyPetsPortal() {
             >
               <div className="relative aspect-square bg-brand-bg">
                 {pet.avatar_image ? (
-                  <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name}
+                  <img src={apiUrl(`/my-pet-avatar/${pet.id}`)} alt={pet.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
@@ -622,7 +622,7 @@ export default function MyPetsPortal() {
                     />
                     <div className="w-8 h-8 rounded-lg overflow-hidden bg-brand-bg shrink-0">
                       {pet.avatar_image ? (
-                        <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name} className="w-full h-full object-cover" />
+                        <img src={apiUrl(`/my-pet-avatar/${pet.id}`)} alt={pet.name} className="w-full h-full object-cover" />
                       ) : (
                         <PawPrint className="w-4 h-4 text-brand-accent m-2" />
                       )}

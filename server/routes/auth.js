@@ -232,6 +232,75 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
+// Eliminar la propia cuenta (Ley 25.326 + requisito de cuenta de Google Play)
+router.delete('/me', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    if (req.user.role === 'admin') {
+      return res.status(400).json({ error: 'Las cuentas de administración no se eliminan desde la app. Contactá a soporte.' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const myPets = await client.query('SELECT id FROM my_pets WHERE user_id = $1', [userId]);
+      const myPetIds = myPets.rows.map(r => r.id);
+
+      if (myPetIds.length > 0) {
+        // Liberar referencias antes de borrar "mis mascotas"
+        await client.query('UPDATE pets SET my_pet_id = NULL WHERE my_pet_id = ANY($1)', [myPetIds]);
+        await client.query('UPDATE qr_identifiers SET my_pet_id = NULL, assigned_at = NULL WHERE my_pet_id = ANY($1)', [myPetIds]);
+      }
+
+      // "Mis mascotas" (cascada: fotos, eventos, shares, feed_posts, nominees de concurso)
+      await client.query('DELETE FROM my_pets WHERE user_id = $1', [userId]);
+
+      // Votos en concursos de otras mascotas
+      await client.query('DELETE FROM contest_votes WHERE user_id = $1', [userId]);
+
+      // Invitaciones de compartición creadas por el usuario
+      await client.query('DELETE FROM share_invites WHERE created_by = $1', [userId]);
+
+      // Asignaciones de adopción propias (desvinculando de su mascota)
+      await client.query(
+        `UPDATE pets SET adoption_assignment_id = NULL
+         WHERE adoption_assignment_id IN (SELECT id FROM adoption_assignments WHERE inviter_id = $1 OR adopter_id = $1)`,
+        [userId]
+      );
+      await client.query('DELETE FROM adoption_assignments WHERE inviter_id = $1 OR adopter_id = $1', [userId]);
+
+      // Si el usuario era cuidador de tránsito, limpiar sus datos de contacto
+      await client.query(
+        `UPDATE pets SET transit_caregiver_id = NULL, transit_caregiver_name = NULL,
+                         transit_caregiver_phone = NULL, transit_caregiver_email = NULL
+         WHERE transit_caregiver_id = $1`,
+        [userId]
+      );
+
+      // Anonimizar mascotas públicas creadas por el usuario: quedan para la comunidad sin sus datos
+      await client.query(
+        `UPDATE pets SET created_by = NULL, contact_info = NULL, contact_info_2 = NULL, instagram = NULL
+         WHERE created_by = $1`,
+        [userId]
+      );
+
+      // Eliminar la cuenta (cascada: tokens push, suscripciones, feed, likes, comentarios, puntos, desafíos)
+      await client.query('DELETE FROM users WHERE id = $1', [userId]);
+
+      await client.query('COMMIT');
+      res.json({ success: true, message: 'Tu cuenta fue eliminada junto con tus datos personales.' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Delete account error:', err);
+    res.status(500).json({ error: 'Error al eliminar la cuenta. Intentá de nuevo.' });
+  }
+});
+
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) {

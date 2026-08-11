@@ -7,7 +7,7 @@ import {
 import { cn } from '@/src/lib/utils';
 import { BADGE_CONFIG } from '@/src/components/MemberCard';
 import ImageLightbox from './ImageLightbox';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
 
 function petThumbUrl(pet: any, idx = 0): string | undefined {
@@ -15,7 +15,7 @@ function petThumbUrl(pet: any, idx = 0): string | undefined {
   const img = pet.images[idx];
   if (img.image_data) return `data:${img.mime_type || 'image/jpeg'};base64,${img.image_data}`;
   if (img.external_url) return img.external_url;
-  if (img.has_image) return `/api/images/pet-thumb/${pet.id}/${idx}`;
+  if (img.has_image) return apiUrl(`/api/images/pet-thumb/${pet.id}/${idx}`);
   return undefined;
 }
 

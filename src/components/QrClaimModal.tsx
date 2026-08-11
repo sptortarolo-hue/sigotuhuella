@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { X, Loader2, QrCode, Check } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -81,7 +81,7 @@ export default function QrClaimModal({ onClose, onSuccess, myPets }: Props) {
                   >
                     <div className="w-10 h-10 rounded-xl bg-brand-bg flex items-center justify-center shrink-0 overflow-hidden">
                       {pet.avatar_image ? (
-                        <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name} className="w-full h-full object-cover" />
+                        <img src={apiUrl(`/my-pet-avatar/${pet.id}`)} alt={pet.name} className="w-full h-full object-cover" />
                       ) : (
                         <span className="text-lg">🐾</span>
                       )}

@@ -44,6 +44,11 @@ jobs:
         echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" >> server/.env
         echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> server/.env
         echo "TZ=America/Argentina/Buenos_Aires" >> server/.env
+        # Firebase service account (opcional). Se persiste en /root en el restart.
+        cat > server/firebase-credentials.json <<'EOF'
+${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+EOF
+        echo "GOOGLE_APPLICATION_CREDENTIALS=/root/.sihuella-fcm.json" >> server/.env
 
     - name: Check disk space on VPS
       continue-on-error: true
@@ -101,6 +106,14 @@ jobs:
           # Restore SMTP settings (never overwritten by deploy)
           if [ -f /root/.sihuella-mail.env ]; then
             grep -q 'SMTP_HOST' server/.env 2>/dev/null || cat /root/.sihuella-mail.env >> server/.env
+          fi
+          # Persist Firebase service account (never overwritten by deploy)
+          if [ -s server/firebase-credentials.json ]; then
+            cp server/firebase-credentials.json /root/.sihuella-fcm.json
+            chmod 600 /root/.sihuella-fcm.json
+          fi
+          if [ -f /root/.sihuella-fcm.json ]; then
+            grep -q 'GOOGLE_APPLICATION_CREDENTIALS' server/.env 2>/dev/null || echo "GOOGLE_APPLICATION_CREDENTIALS=/root/.sihuella-fcm.json" >> server/.env
           fi
           # Start our app with PM2
           pm2 delete sigotuhuella 2>/dev/null || true

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -69,7 +69,7 @@ export default function PetDetail() {
         setMyPetRecords(data.my_pet_records || []);
         setMyPetPhotos(data.my_pet_photos || []);
         if (found) {
-          fetch(`/api/pets/${id}/view`, { method: 'POST' }).catch(() => {});
+          fetch(apiUrl(`/api/pets/${id}/view`), { method: 'POST' }).catch(() => {});
         }
       } catch (e) {
         console.error(e);
@@ -87,7 +87,7 @@ export default function PetDetail() {
     setShareResult(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/pets/${id}/share`, {
+      const res = await fetch(apiUrl(`/api/pets/${id}/share`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ email: shareEmail || undefined, phone: sharePhone || undefined, message: shareMsg || undefined }),
@@ -101,10 +101,10 @@ export default function PetDetail() {
 
   const petImagesToUrls = (petId: string, images: any[]) =>
     (images || []).map((img: any, idx: number) => {
-      if (img.has_original) return `/og-image/${petId}/${idx}?full=1`;
+      if (img.has_original) return apiUrl(`/og-image/${petId}/${idx}?full=1`);
       if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
       if (img.external_url) return img.external_url;
-      if (img.has_image) return `/api/images/pet-thumb/${petId}/${idx}`;
+      if (img.has_image) return apiUrl(`/api/images/pet-thumb/${petId}/${idx}`);
       return '';
     }).filter(Boolean);
 
