@@ -3,8 +3,16 @@ import { Heart, Search, QrCode, PawPrint, Ticket, HandCoins, Users, ArrowRight, 
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { Helmet } from 'react-helmet-async';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
-const chapters = [
+const chapters: {
+  title: string;
+  description: string;
+  icon: any;
+  path: string;
+  accent: string;
+  available: boolean;
+}[] = [
   {
     title: 'Adopción',
     description: 'Dá en adopción una mascota registrada o sin registrar, y adoptá explorando la galería o por invitación.',
@@ -37,14 +45,16 @@ const chapters = [
     accent: 'bg-sky-50 text-sky-600',
     available: false,
   },
-  {
-    title: 'Rifas y sorteos',
-    description: 'Comprá números, reservá y seguí tu compra paso a paso.',
-    icon: Ticket,
-    path: '',
-    accent: 'bg-amber-50 text-amber-600',
-    available: false,
-  },
+  ...(IS_PLAY_BUILD
+    ? []
+    : [{
+        title: 'Rifas y sorteos',
+        description: 'Comprá números, reservá y seguí tu compra paso a paso.',
+        icon: Ticket,
+        path: '',
+        accent: 'bg-amber-50 text-amber-600',
+        available: false,
+      }]),
   {
     title: 'Sumate y colaborá',
     description: 'Voluntariado, donaciones y cómo participar de la comunidad.',

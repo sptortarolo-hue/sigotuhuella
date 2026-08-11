@@ -21,9 +21,6 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
-    LiveUpdate: {
-      appId: 'com.sihuella.app',
-    },
   },
   android: {
     allowMixedContent: false,

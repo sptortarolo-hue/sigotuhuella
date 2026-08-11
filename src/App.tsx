@@ -46,11 +46,16 @@ const ManualAdopcion = lazy(() => import('@/src/pages/ManualAdopcion'));
 const ManualChapita = lazy(() => import('@/src/pages/ManualChapita'));
 const VerifyEmail = lazy(() => import('@/src/pages/VerifyEmail'));
 const FlyerPage = lazy(() => import('@/src/pages/FlyerPage'));
-const Rifas = lazy(() => import('@/src/pages/Rifas'));
-const RifaDetail = lazy(() => import('@/src/pages/RifaDetail'));
-const RifaPagoExito = lazy(() => import('@/src/pages/RifaPagoExito'));
-const RifaPagoResultado = lazy(() => import('@/src/pages/RifaPagoResultado'));
+const IS_PLAY_BUILD = import.meta.env.VITE_PLAY_BUILD === 'true';
+
+// En el build de Google Play se elimina toda funcionalidad de dinero real
+// (rifas y sorteos) para no disparar la política de "real-money gambling".
+const Rifas = IS_PLAY_BUILD ? null : lazy(() => import('@/src/pages/Rifas'));
+const RifaDetail = IS_PLAY_BUILD ? null : lazy(() => import('@/src/pages/RifaDetail'));
+const RifaPagoExito = IS_PLAY_BUILD ? null : lazy(() => import('@/src/pages/RifaPagoExito'));
+const RifaPagoResultado = IS_PLAY_BUILD ? null : lazy(() => import('@/src/pages/RifaPagoResultado'));
 const Legales = lazy(() => import('@/src/pages/Legales'));
+const EliminarCuenta = lazy(() => import('@/src/pages/EliminarCuenta'));
 
 const fallback = (
   <div className="h-[60vh] flex items-center justify-center text-brand-primary">
@@ -84,11 +89,15 @@ export default function App() {
               <Route path="/flyer" element={<FlyerPage />} />
               <Route path="/compartir-qr" element={<DiffusionPage />} />
               <Route path="/colaborar" element={<Collaborate />} />
-              <Route path="/rifas" element={<Rifas />} />
-              <Route path="/rifas/pago-exitoso" element={<RifaPagoExito />} />
-              <Route path="/rifas/pago-fallido" element={<RifaPagoResultado />} />
-              <Route path="/rifas/pago-pendiente" element={<RifaPagoResultado />} />
-              <Route path="/rifas/:id" element={<RifaDetail />} />
+              {!IS_PLAY_BUILD && (
+                <>
+                  <Route path="/rifas" element={<Rifas />} />
+                  <Route path="/rifas/pago-exitoso" element={<RifaPagoExito />} />
+                  <Route path="/rifas/pago-fallido" element={<RifaPagoResultado />} />
+                  <Route path="/rifas/pago-pendiente" element={<RifaPagoResultado />} />
+                  <Route path="/rifas/:id" element={<RifaDetail />} />
+                </>
+              )}
               <Route path="/solicitar-chapita" element={<SolicitarChapita />} />
               <Route path="/adopcion/reclamar/:token" element={<AdoptionClaim />} />
               <Route path="/manual" element={<ManualHub />} />
@@ -98,6 +107,7 @@ export default function App() {
               <Route path="/sumate" element={<Join />} />
               <Route path="/verificar/:memberNumber" element={<VerifyMember />} />
               <Route path="/legales" element={<Legales />} />
+              <Route path="/eliminar-cuenta" element={<EliminarCuenta />} />
               <Route path="/mascota/:shareToken" element={<PublicPetProfile />} />
               <Route path="/vet/:token" element={<VetPetProfile />} />
             </Route>

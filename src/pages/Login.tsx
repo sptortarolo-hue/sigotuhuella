@@ -8,6 +8,7 @@ import { Helmet } from 'react-helmet-async';
 import { isNative } from '@/src/lib/platform';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID_ANDROID = import.meta.env.VITE_GOOGLE_CLIENT_ID_ANDROID || '';
 
 export default function Login() {
   const { user, isAdmin, loading, login, logout } = useAuth();
@@ -169,12 +170,14 @@ export default function Login() {
 
   // Login nativo (Capacitor): reemplaza el botón GSI de web dentro de la app
   const handleNativeGoogle = async () => {
-    if (!GOOGLE_CLIENT_ID) return;
+    if (!GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID_ANDROID) return;
     setGoogleNativeLoading(true);
     setError('');
     try {
       const { GoogleSignIn } = await import('@capawesome/capacitor-google-sign-in');
-      await GoogleSignIn.initialize({ clientId: GOOGLE_CLIENT_ID });
+      const clientId = isNative() ? (GOOGLE_CLIENT_ID_ANDROID || GOOGLE_CLIENT_ID) : GOOGLE_CLIENT_ID;
+      if (!clientId) return;
+      await GoogleSignIn.initialize({ clientId });
       const result = await GoogleSignIn.signIn();
       if (!result.idToken) {
         setError('No se pudo obtener la sesión de Google. Intentá de nuevo.');

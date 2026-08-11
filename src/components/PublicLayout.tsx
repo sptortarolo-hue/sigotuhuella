@@ -5,6 +5,7 @@ import { api } from '@/src/lib/api';
 import PublicMobileTopBar from '@/src/components/PublicMobileTopBar';
 import Sidebar from '@/src/components/auth/Sidebar';
 import SocialLinks from '@/src/components/SocialLinks';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 export default function PublicLayout() {
   const { user } = useAuth();
@@ -36,7 +37,7 @@ export default function PublicLayout() {
             <div>
               <h4 className="font-bold text-gray-800 mb-4 uppercase text-xs tracking-widest">Navegación</h4>
               <ul className="space-y-2 text-gray-600 text-sm">
-                {rafflesVisible && <li><Link to="/rifas" className="hover:text-brand-primary">Rifas y Sorteos</Link></li>}
+                {!IS_PLAY_BUILD && rafflesVisible && <li><Link to="/rifas" className="hover:text-brand-primary">Rifas y Sorteos</Link></li>}
                 <li><Link to="/perdidos" className="hover:text-brand-primary">Mascotas Reportadas</Link></li>
                 <li><Link to="/adopcion" className="hover:text-brand-primary">Adopción</Link></li>
                 <li><Link to="/reportar" className="hover:text-brand-primary">Publicar</Link></li>
@@ -64,6 +65,7 @@ export default function PublicLayout() {
             <span>© 2026 Sigo tu huella</span>
             <span className="flex items-center gap-4">
               <Link to="/legales" className="hover:text-brand-primary normal-case tracking-normal">Términos y Privacidad</Link>
+              <Link to="/eliminar-cuenta" className="hover:text-brand-primary normal-case tracking-normal">Eliminar cuenta</Link>
               <span>Zona Sur, La Plata</span>
             </span>
           </div>

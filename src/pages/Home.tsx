@@ -8,6 +8,7 @@ import { api, apiUrl } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import SocialLinks from '@/src/components/SocialLinks';
 import { Helmet } from 'react-helmet-async';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -138,7 +139,7 @@ export default function Home() {
                <span className="shrink-0 text-brand-secondary font-bold text-sm group-hover:translate-x-1 transition-transform">Quiero colaborar →</span>
              </Link>
 
-             {rafflesVisible && (
+             {!IS_PLAY_BUILD && rafflesVisible && (
                <Link to="/rifas"
                  className="w-full bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300/50 rounded-2xl p-4 sm:p-5 md:p-6 mt-6 md:mt-8 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-amber-400 to-orange-400 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">

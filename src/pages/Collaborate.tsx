@@ -5,6 +5,7 @@ import { CreditCard, Copy, Check, Loader2, Heart, Info, ExternalLink, ShieldChec
 import { motion } from 'motion/react';
 import { api } from '@/src/lib/api';
 import { Helmet } from 'react-helmet-async';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 export default function Collaborate() {
   const [accounts, setAccounts] = useState<CollaborationAccount[]>([]);
@@ -54,7 +55,7 @@ export default function Collaborate() {
         </p>
         </header>
 
-        {rafflesVisible && (
+        {!IS_PLAY_BUILD && rafflesVisible && (
           <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300/50 rounded-2xl p-6 sm:p-8 mb-10 flex flex-col sm:flex-row items-center gap-6">
             <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-400 rounded-2xl flex items-center justify-center shrink-0">
               <Ticket className="w-7 h-7 text-white" />
@@ -152,9 +153,9 @@ export default function Collaborate() {
         <div className="mt-8 p-4 sm:p-6 bg-blue-50 rounded-[2rem] border border-blue-200 flex items-start gap-4">
           <ShieldCheck className="w-6 h-6 text-blue-500 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-bold text-blue-800 mb-1">Pagos 100% seguros</p>
+            <p className="text-sm font-bold text-blue-800 mb-1">Donaciones seguras</p>
             <p className="text-xs text-blue-600 leading-relaxed">
-              Los pagos se procesan a través de Mercado Pago. No almacenamos ni manejamos datos de tarjetas. Podés donar con tarjeta de crédito, débito o saldo de Mercado Pago.
+              Las donaciones se procesan de forma externa a través de Mercado Pago. Esta app no almacena ni maneja datos de tarjetas.
             </p>
           </div>
         </div>

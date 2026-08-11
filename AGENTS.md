@@ -316,3 +316,52 @@ kill -9 $(lsof -ti :3000)
 - [ ] No hay scroll horizontal no deseado
 - [ ] Sin `user-scalable=no` en el viewport
 - [ ] Padding/margin laterales: usar `px-4 sm:px-6 lg:px-8`
+
+## Release Google Play (app nativa)
+
+La app nativa (Capacitor) **no se despliega por CI**: el `android/` está fuera de git y el AAB se arma solo en la PC local.
+
+### Build de Play vs Web
+
+- `VITE_PLAY_BUILD=true` genera el bundle **solo usuario final**: elimina el panel admin, las rifas/sorteos (política "real-money gambling") y redirige `/admin` a `/`. La web normal conserva todo.
+- El flag se compila en build-time (constante `import.meta.env.VITE_PLAY_BUILD`), así que el código eliminado **no entra** al bundle (verificado por grep sobre `dist/`).
+
+### Comando de release
+
+```bash
+npm run build:play
+```
+
+Esto hace: `vite build` (con `VITE_PLAY_BUILD=true`) → `cap sync android` → `gradlew bundleRelease`. El AAB queda en `android/app/build/outputs/bundle/release/app-release.aab`.
+
+### Versionado
+
+Antes de cada subida a Play hay que incrementar en `android/app/build.gradle`:
+
+| Campo | Ejemplo |
+|-------|---------|
+| `versionCode` | 3 (debe subir, nunca bajar) |
+| `versionName` | `"1.0.2"` (visible al usuario) |
+
+### Keystore (IMPORTANTE)
+
+- **Upload key:** `android/app/key/sihuella-upload.jks` — alias `sihuella` (NO confundir con "sihuella-upload"), valido hasta 2053
+- Passwords en `android/app/keystore.properties` (ambos ignorados por git)
+- **Respaldar el keystore en un 2º lugar** (USB/Drive): si se pierde, no se puede actualizar la app en Play. Google no lo recupera.
+- SHA-1 upload key: `BD:CC:34:93:4C:35:F0:78:19:A0:E8:EB:B0:D5:B3:B3:52:9C:37:41`
+
+### Push / Firebase (FCM)
+
+- `android/app/google-services.json` vincula la app a FCM (project `gen-lang-client-0269255333`). Sin él, `processReleaseGoogleServices` se saltea y el push Android no funciona (el server ya manda via `firebase-admin`).
+- Google Sign-In nativo: `Login.tsx` usa `VITE_GOOGLE_CLIENT_ID_ANDROID` (clientId tipo Android) con fallback al web. El client Android está creado en Google Cloud (`79460157330-qnmmichfrrl5s3rg96fphdkfckhut1qb.apps.googleusercontent.com`) con el package `com.sihuella.app` + SHA-1 del upload key (y el SHA-1 de la app signing key de Play App Signing). Se inyecta en `build:play` vía cross-env.
+
+### Verificación post-build (anti-admin / anti-rifa)
+
+Tras `npm run build:play`, confirmar que no queden rastros en `dist/`:
+
+```bash
+Get-ChildItem dist -Recurse -Filter *.js | Select-String -Pattern "RifaDetail|Comprá|transferencia|/admin|RafflesTab|BackupTab"
+```
+
+Los únicos matches esperados: `Collaborate` (donaciones CBU/CVU/MercadoPago, legítimo), `Legales` (política) y falsos positivos de librerías (`reservedBit`/`RESERVED_` de wasm).
+

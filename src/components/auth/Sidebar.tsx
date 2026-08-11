@@ -5,6 +5,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
 import { api } from '@/src/lib/api';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 const publicBase = [
   { label: 'Inicio', icon: Home, path: '/' },
@@ -53,8 +54,8 @@ export default function Sidebar({ onReportClick }: { onReportClick?: () => void 
     }).catch(() => {});
   }, []);
 
-  const publicItems = rafflesVisible ? [...publicBase.slice(0, 3), rifaItem, ...publicBase.slice(3)] : publicBase;
-  const moreItems = rafflesVisible ? [...moreBase.slice(0, 2), rifaItem, ...moreBase.slice(2)] : moreBase;
+  const publicItems = rafflesVisible && !IS_PLAY_BUILD ? [...publicBase.slice(0, 3), rifaItem, ...publicBase.slice(3)] : publicBase;
+  const moreItems = rafflesVisible && !IS_PLAY_BUILD ? [...moreBase.slice(0, 2), rifaItem, ...moreBase.slice(2)] : moreBase;
 
   const handleBellClick = async () => {
     if (pushEnabled) {

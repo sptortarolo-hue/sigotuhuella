@@ -6,6 +6,7 @@ import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 import SocialLinks from '@/src/components/SocialLinks';
 import { api } from '@/src/lib/api';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 const publicTabBase = [
   { label: 'Inicio', icon: Home, path: '/' },
@@ -53,10 +54,10 @@ export default function PublicMobileNav() {
     }).catch(() => {});
   }, []);
 
-  const publicTabs = rafflesVisible
+  const publicTabs = rafflesVisible && !IS_PLAY_BUILD
     ? [...publicTabBase.slice(0, 3), rifaTabItem, ...publicTabBase.slice(3)]
     : publicTabBase;
-  const publicMoreOptions = rafflesVisible
+  const publicMoreOptions = rafflesVisible && !IS_PLAY_BUILD
     ? [...publicMoreBase.slice(0, 2), rifaTabItem, ...publicMoreBase.slice(2)]
     : publicMoreBase;
   const tabs = user ? authTabs : publicTabs;
