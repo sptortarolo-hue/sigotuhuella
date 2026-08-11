@@ -194,3 +194,9 @@ export const NEIGHBORHOODS: Neighborhood[] = [
     bounds: { south: -35.060, west: -57.865, north: -35.025, east: -57.835 },
   },
 ];
+
+export function neighborhoodAt(lat: number, lng: number): Neighborhood | null {
+  return NEIGHBORHOODS.find(
+    n => lat >= n.bounds.south && lat <= n.bounds.north && lng >= n.bounds.west && lng <= n.bounds.east
+  ) || null;
+}

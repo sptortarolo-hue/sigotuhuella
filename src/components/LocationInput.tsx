@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Rectangle, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { MapPin, X, ChevronDown, ChevronUp, Crosshair } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { NEIGHBORHOODS, Neighborhood } from '@/src/lib/neighborhoods';
-import { buildAddress } from '@/src/lib/grid';
+import { NEIGHBORHOODS, Neighborhood, neighborhoodAt } from '@/src/lib/neighborhoods';
+import { buildAddress, parseAddress, addressToLatlng } from '@/src/lib/grid';
 import { fetchEntreCalles } from '@/src/lib/overpass';
 import { getCurrentPosition } from '@/src/lib/geolocation';
 
@@ -28,6 +28,7 @@ interface LocationInputProps {
   onCoordinatesChange: (c: { lat: number; lng: number } | null) => void;
   selectedNeighborhoods: string[];
   onNeighborhoodsChange: (ids: string[]) => void;
+  exactOnly?: boolean;
 }
 
 function centroidOf(ids: string[]): { lat: number; lng: number } | null {
@@ -62,11 +63,18 @@ function rectBounds(n: Neighborhood): [[number, number], [number, number]] {
 
 export default function LocationInput({
   initialCenter, location, onLocationChange, coordinates, onCoordinatesChange,
-  selectedNeighborhoods, onNeighborhoodsChange,
+  selectedNeighborhoods, onNeighborhoodsChange, exactOnly = false,
 }: LocationInputProps) {
   const [mode, setMode] = useState<'exacta' | 'zona'>('zona');
   const [showRest, setShowRest] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
+
+  const activeMode = exactOnly ? 'exacta' : mode;
+
+  const setNeighborhoodFromCoords = (latlng: { lat: number; lng: number }) => {
+    const n = neighborhoodAt(latlng.lat, latlng.lng);
+    onNeighborhoodsChange(n ? [n.id] : []);
+  };
 
   const toggleNeighborhood = (id: string) => {
     let next: string[];
@@ -115,6 +123,7 @@ export default function LocationInput({
 
   const handlePin = (latlng: { lat: number; lng: number }) => {
     onCoordinatesChange(latlng);
+    if (exactOnly) setNeighborhoodFromCoords(latlng);
     reverseGeocode(latlng);
   };
 
@@ -123,6 +132,7 @@ export default function LocationInput({
       const position = await getCurrentPosition({ enableHighAccuracy: true, timeout: 15000 });
       const c = { lat: position.coords.latitude, lng: position.coords.longitude };
       onCoordinatesChange(c);
+      if (exactOnly) setNeighborhoodFromCoords(c);
       reverseGeocode(c);
     } catch {
       alert('No se pudo obtener la ubicación. Marcá el punto en el mapa.');
@@ -130,6 +140,7 @@ export default function LocationInput({
   };
 
   const areaLabel = (() => {
+    if (exactOnly) return null;
     if (mode === 'exacta' && coordinates) return '📍 Ubicación exacta marcada';
     if (selectedNeighborhoods.length > 0) {
       const names = selectedNeighborhoods
@@ -140,34 +151,38 @@ export default function LocationInput({
     return null;
   })();
 
+  const detectedNeighborhood = exactOnly && coordinates ? neighborhoodAt(coordinates.lat, coordinates.lng) : null;
+
   const mapCenter = coordinates || (selectedNeighborhoods.length > 0 ? centroidOf(selectedNeighborhoods) : null) || initialCenter;
 
   return (
     <div>
-      <div className="flex gap-2 mb-3">
-        <button
-          onClick={() => setMode('zona')}
-          className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
-            mode === 'zona'
-              ? 'bg-brand-primary text-white border-brand-primary'
-              : 'border-brand-accent text-gray-600 hover:border-gray-300'
-          }`}
-        >
-          Zona / barrio
-        </button>
-        <button
-          onClick={() => setMode('exacta')}
-          className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
-            mode === 'exacta'
-              ? 'bg-brand-primary text-white border-brand-primary'
-              : 'border-brand-accent text-gray-600 hover:border-gray-300'
-          }`}
-        >
-          Dirección exacta
-        </button>
-      </div>
+      {!exactOnly && (
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => setMode('zona')}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
+              mode === 'zona'
+                ? 'bg-brand-primary text-white border-brand-primary'
+                : 'border-brand-accent text-gray-600 hover:border-gray-300'
+            }`}
+          >
+            Zona / barrio
+          </button>
+          <button
+            onClick={() => setMode('exacta')}
+            className={`flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
+              mode === 'exacta'
+                ? 'bg-brand-primary text-white border-brand-primary'
+                : 'border-brand-accent text-gray-600 hover:border-gray-300'
+            }`}
+          >
+            Dirección exacta
+          </button>
+        </div>
+      )}
 
-      {mode === 'zona' && (
+      {activeMode === 'zona' && (
         <>
           <div className="flex flex-wrap gap-2 mb-3">
             {featuredNeighborhoods.map(n => {
@@ -289,7 +304,7 @@ export default function LocationInput({
         </>
       )}
 
-      {mode === 'exacta' && (
+      {activeMode === 'exacta' && (
         <>
           <button
             onClick={getLocation}
@@ -322,11 +337,40 @@ export default function LocationInput({
           <div className="relative mt-3">
             <input
               value={geocoding ? 'Obteniendo dirección...' : location}
-              onChange={e => onLocationChange(e.target.value)}
-              placeholder="Dirección (editable)"
+              onChange={e => {
+                const v = e.target.value;
+                onLocationChange(v);
+                if (exactOnly) {
+                  const p = parseAddress(v);
+                  if (p) {
+                    const c = addressToLatlng(p.road, p.from, p.to);
+                    if (c) {
+                      onCoordinatesChange(c);
+                      setNeighborhoodFromCoords(c);
+                    }
+                  }
+                }
+              }}
+              placeholder="Dirección (ej: Calle 12 entre 52 y 53)"
               className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors"
             />
           </div>
+
+          {exactOnly && coordinates && (
+            <div
+              className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border-2"
+              style={{
+                borderColor: detectedNeighborhood ? detectedNeighborhood.color : '#9CA3AF',
+                color: detectedNeighborhood ? detectedNeighborhood.color : '#6B7280',
+                backgroundColor: detectedNeighborhood ? `${detectedNeighborhood.color}14` : '#F3F4F6',
+              }}
+            >
+              <MapPin className="w-3.5 h-3.5 shrink-0" />
+              {detectedNeighborhood
+                ? `Barrio: ${detectedNeighborhood.name}`
+                : 'Fuera de la zona de cobertura'}
+            </div>
+          )}
 
           {areaLabel && (
             <p className="text-xs text-green-600 mt-2">{areaLabel}</p>

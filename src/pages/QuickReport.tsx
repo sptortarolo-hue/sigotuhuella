@@ -288,6 +288,7 @@ export default function QuickReport() {
                 onCoordinatesChange={setCoordinates}
                 selectedNeighborhoods={selectedNeighborhoods}
                 onNeighborhoodsChange={setSelectedNeighborhoods}
+                exactOnly
               />
             </div>
 

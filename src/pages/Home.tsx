@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect, useRef } from 'react';
 import NewsCarousel from '@/src/components/NewsCarousel';
 import { getNews } from '@/src/lib/newsService';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import SocialLinks from '@/src/components/SocialLinks';
 import { Helmet } from 'react-helmet-async';
@@ -279,9 +279,9 @@ export default function Home() {
                   className="group w-full shrink-0 snap-center bg-white rounded-[2rem] border border-brand-accent overflow-hidden flex flex-col hover:shadow-lg transition-all">
                   {s.logo ? (
                     <div className="relative w-full aspect-square overflow-hidden">
-                      <img src={s.logo} alt="" aria-hidden
+                      <img src={apiUrl(s.logo)} alt="" aria-hidden
                         className="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-70" />
-                      <img src={s.logo} alt={s.name}
+                      <img src={apiUrl(s.logo)} alt={s.name}
                         className="relative w-full h-full object-contain" />
                     </div>
                   ) : (
