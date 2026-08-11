@@ -44,11 +44,16 @@ jobs:
         echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" >> server/.env
         echo "SMTP_FROM=${{ secrets.SMTP_FROM }}" >> server/.env
         echo "TZ=America/Argentina/Buenos_Aires" >> server/.env
-        # Firebase service account (opcional). Se persiste en /root en el restart.
-        cat > server/firebase-credentials.json <<'EOF'
-${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-EOF
         echo "GOOGLE_APPLICATION_CREDENTIALS=/root/.sihuella-fcm.json" >> server/.env
+
+    - name: Write Firebase credentials
+      env:
+        FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      run: |
+        # Se persiste en /root en el restart (nunca se sobrescribe en deploy)
+        if [ -n "$FIREBASE_SA" ]; then
+          printf '%s\n' "$FIREBASE_SA" > server/firebase-credentials.json
+        fi
 
     - name: Check disk space on VPS
       continue-on-error: true
