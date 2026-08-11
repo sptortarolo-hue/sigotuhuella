@@ -1603,7 +1603,7 @@ export default function Admin() {
                 {sponsors.map((s, i) => (
                   <div key={i} className="bg-white rounded-[2.5rem] border border-brand-accent p-5 flex flex-col items-center text-center">
                     {s.logo && (
-                      <img src={s.logo} alt={s.name} className="w-20 h-20 object-contain mb-3 rounded-xl" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      <img src={apiUrl(s.logo)} alt={s.name} className="w-20 h-20 object-contain mb-3 rounded-xl" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     )}
                     <h4 className="font-bold text-brand-primary text-sm">{s.name}</h4>
                     {s.website && (
@@ -1665,7 +1665,7 @@ export default function Admin() {
                           {sponsorLogoUploading && <p className="text-xs text-gray-400 mt-1"><Loader2 className="w-3 h-3 animate-spin inline" /> Subiendo...</p>}
                           {sponsorData.logo && (
                             <div className="mt-2 flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                              <img src={sponsorData.logo} alt="" className="w-10 h-10 object-contain rounded" onError={e => { (e.target as HTMLElement).innerHTML = '⚠️'; }} />
+                              <img src={apiUrl(sponsorData.logo)} alt="" className="w-10 h-10 object-contain rounded" onError={e => { (e.target as HTMLElement).innerHTML = '⚠️'; }} />
                               <span className="text-xs text-gray-400 truncate">{sponsorData.logo}</span>
                             </div>
                           )}

@@ -317,9 +317,9 @@ export default function Home() {
                 className="group bg-white rounded-[2.5rem] border border-brand-accent overflow-hidden flex flex-col hover:shadow-lg hover:-translate-y-0.5 transition-all">
                 {s.logo ? (
                   <div className="relative w-full aspect-square overflow-hidden">
-                    <img src={s.logo} alt="" aria-hidden
+                    <img src={apiUrl(s.logo)} alt="" aria-hidden
                       className="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-70" />
-                    <img src={s.logo} alt={s.name}
+                    <img src={apiUrl(s.logo)} alt={s.name}
                       className="relative w-full h-full object-contain" />
                   </div>
                 ) : (
