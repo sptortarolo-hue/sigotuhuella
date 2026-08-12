@@ -22,6 +22,7 @@ import myPetsRoutes from './routes/myPets.js';
 import qrRoutes from './routes/qr.js';
 import pushRoutes from './routes/push.js';
 import feedRoutes from './routes/feed.js';
+import reportRoutes from './routes/reports.js';
 import contestRoutes from './routes/contests.js';
 import gamificationRoutes from './routes/gamification.js';
 import requestChapitaRoutes from './routes/requestChapita.js';
@@ -230,6 +231,7 @@ app.use('/api/push', (req, res, next) => {
 
 app.use('/api/request-chapita', requestChapitaRoutes);
 app.use('/api/feed', feedRoutes);
+app.use('/api/reports', reportRoutes);
 app.use('/api/contests', contestRoutes);
 app.use('/api/gamification', gamificationRoutes);
 app.use('/api/facebook', facebookRoutes);

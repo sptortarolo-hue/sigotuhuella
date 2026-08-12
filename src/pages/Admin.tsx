@@ -33,9 +33,10 @@ import UnifiedDashboard from '@/src/pages/admin/UnifiedDashboard';
 import AnalyticsTab from '@/src/pages/admin/AnalyticsTab';
 import RafflesTab from '@/src/components/admin/RafflesTab';
 import BackupTab from '@/src/components/admin/BackupTab';
+import ModerationTab from '@/src/components/admin/ModerationTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
-  CreditCard, Users, LayoutDashboard, Trash2,
+  CreditCard, Users, LayoutDashboard, Trash2, Flag,
   Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, BarChart3, Ticket, HardDrive
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -70,7 +71,7 @@ const PERSONALITY_TAGS = [
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles' | 'backup'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles' | 'backup' | 'moderation'>('pets');
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['pets']));
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(['pets', 'users']));
 
@@ -1090,6 +1091,7 @@ export default function Admin() {
           { id: 'highlights', label: 'Noticias Destacadas', icon: HeartHandshake },
           { id: 'news', label: 'Novedades', icon: Sparkles },
           { id: 'public', label: 'Reportes Públicos', icon: FileText },
+          { id: 'moderation', label: 'Moderación', icon: Flag },
           { id: 'whatsapp', label: 'WhatsApp (Meta)', icon: MessageSquare },
           { id: 'relay-whatsapp', label: 'WhatsApp Relay', icon: Smartphone },
           { id: 'fb-relay', label: 'FB Phone Relay', icon: Smartphone },
@@ -2295,8 +2297,11 @@ export default function Admin() {
             {/* ====== FACEBOOK ====== */}
             {mountedTabs.has('facebook') && <div className={activeTab === 'facebook' ? '' : 'hidden'}><FacebookTab /></div>}
 
-            {/* ====== BACKUP ====== */}
-            {mountedTabs.has('backup') && <div className={activeTab === 'backup' ? '' : 'hidden'}><BackupTab /></div>}
+          {/* ====== BACKUP ====== */}
+          {mountedTabs.has('backup') && <div className={activeTab === 'backup' ? '' : 'hidden'}><BackupTab /></div>}
+
+          {/* ====== MODERATION ====== */}
+          {mountedTabs.has('moderation') && <div className={activeTab === 'moderation' ? '' : 'hidden'}><ModerationTab /></div>}
 
             {/* ====== VIDEOS ====== */}
             {mountedTabs.has('videos') && <div className={activeTab === 'videos' ? '' : 'hidden'}><VideoGeneratorTab /></div>}

@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api, apiUrl } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
-import { PawPrint, Loader2, Heart, MessageCircle, Trash2, Sparkles, Send } from 'lucide-react';
+import { PawPrint, Loader2, Heart, MessageCircle, Trash2, Sparkles, Send, Flag } from 'lucide-react';
 import { LinkifiedText } from '@/src/lib/linkify';
 import { formatDateShort } from '@/src/lib/formatDate';
+import ReportModal from '@/src/components/ReportModal';
 
 export default function Feed() {
   const { user } = useAuth();
@@ -16,6 +17,7 @@ export default function Feed() {
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
+  const [reportTarget, setReportTarget] = useState<{ type: 'post' | 'comment'; id: string } | null>(null);
 
   const fetchPosts = useCallback(async (p: number) => {
     try {
@@ -129,11 +131,18 @@ export default function Feed() {
                       <p className="text-[10px] text-gray-400">{post.user_name}</p>
                     </div>
                   </Link>
-                  {user?.id === post.user_id && (
-                    <button onClick={() => handleDelete(post.id)} className="p-2 text-gray-300 hover:text-red-400 transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {user && user.id !== post.user_id && (
+                      <button onClick={() => setReportTarget({ type: 'post', id: post.id })} className="p-2 text-gray-300 hover:text-red-400 transition-colors" title="Reportar">
+                        <Flag className="w-4 h-4" />
+                      </button>
+                    )}
+                    {user?.id === post.user_id && (
+                      <button onClick={() => handleDelete(post.id)} className="p-2 text-gray-300 hover:text-red-400 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <h3 className="text-base font-bold text-gray-800 mb-1 line-clamp-2">{post.title}</h3>
@@ -184,6 +193,12 @@ export default function Feed() {
                               {formatDateShort(c.created_at)}
                             </p>
                           </div>
+                          {user && user.id !== c.user_id && (
+                            <button onClick={() => setReportTarget({ type: 'comment', id: c.id })} title="Reportar"
+                              className="text-gray-300 hover:text-red-400 transition-colors shrink-0">
+                              <Flag className="w-3 h-3" />
+                            </button>
+                          )}
                           {user?.id === c.user_id && (
                             <button onClick={async () => { try { await api.feed.comments.delete(post.id, c.id); setComments(prev => ({ ...prev, [post.id]: prev[post.id].filter((x: any) => x.id !== c.id) })); } catch {} }}
                               className="text-gray-300 hover:text-red-400 transition-colors shrink-0">
@@ -227,6 +242,13 @@ export default function Feed() {
           </div>
         )}
       </div>
+
+      <ReportModal
+        open={reportTarget !== null}
+        targetType={reportTarget?.type || 'post'}
+        targetId={reportTarget?.id || ''}
+        onClose={() => setReportTarget(null)}
+      />
     </div>
   );
 }

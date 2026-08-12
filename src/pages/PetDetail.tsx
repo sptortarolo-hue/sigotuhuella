@@ -4,7 +4,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
 import { api, apiUrl } from '@/src/lib/api';
-import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock, Flag } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn, formatDateOnly } from '@/src/lib/utils';
@@ -16,6 +16,7 @@ import PetImage from '@/src/components/PetImage';
 import { LinkifiedText } from '@/src/lib/linkify';
 import ImageLightbox from '@/src/components/admin/ImageLightbox';
 import { Helmet } from 'react-helmet-async';
+import ReportModal from '@/src/components/ReportModal';
 
 function parseNeighborhoods(n: any): string[] {
   if (Array.isArray(n)) return n;
@@ -38,6 +39,7 @@ export default function PetDetail() {
   const [lightboxImages, setLightboxImages] = useState<string[]>([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [shareEmail, setShareEmail] = useState('');
   const [sharePhone, setSharePhone] = useState('');
   const [shareMsg, setShareMsg] = useState('');
@@ -460,6 +462,13 @@ Me gustaría obtener más información.`;
                 <Share2 className="w-5 h-5" />
                 Compartir en Facebook
               </button>
+              <button
+                onClick={() => { if (!user) { navigate('/login'); return; } setShowReportModal(true); }}
+                className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gray-50 text-gray-600 border border-brand-accent hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+              >
+                <Flag className="w-5 h-5" />
+                Reportar
+              </button>
               {user && user.id === pet.created_by && (
                 <button
                   onClick={() => { setShareEmail(''); setSharePhone(''); setShareMsg(''); setShareResult(null); setShowShareModal(true); }}
@@ -672,6 +681,13 @@ Me gustaría obtener más información.`;
           onChange={setLightboxIndex}
         />
       )}
+
+      <ReportModal
+        open={showReportModal}
+        targetType="pet"
+        targetId={id || ''}
+        onClose={() => setShowReportModal(false)}
+      />
     </div>
   );
 }

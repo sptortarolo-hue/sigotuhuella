@@ -1588,6 +1588,22 @@ export async function initDb() {
       ALTER TABLE qr_identifiers ADD COLUMN IF NOT EXISTS notification_channel VARCHAR(20)
     `, 'qr_identifiers notification_channel');
 
+    // Content moderation: user reports for feed posts/comments and pet avisos
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS content_reports (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        target_type VARCHAR(10) NOT NULL CHECK (target_type IN ('post', 'comment', 'pet')),
+        target_id UUID NOT NULL,
+        reporter_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        reason VARCHAR(60) NOT NULL,
+        description TEXT,
+        status VARCHAR(10) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'resolved', 'dismissed')),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS content_reports_pending_unique
+        ON content_reports (target_type, target_id, reporter_id) WHERE status = 'pending';
+    `, 'content_reports');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

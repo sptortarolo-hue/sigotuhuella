@@ -447,6 +447,11 @@ export const api = {
             request('/admin/dashboard/settings', { method: 'POST', body: JSON.stringify({ settings }) }),
           analytics: () => request('/admin/dashboard/analytics'),
         },
+        moderation: {
+          list: (status?: string) => request(`/reports${status ? `?status=${status}` : ''}`),
+          setStatus: (id: string, status: string) => request(`/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+          hide: (id: string) => request(`/reports/${id}/hide`, { method: 'POST' }),
+        },
       }),
   feed: {
     list: (page = 1) => request(`/feed?page=${page}`),
@@ -454,6 +459,8 @@ export const api = {
     delete: (id: string) => request(`/feed/${id}`, { method: 'DELETE' }),
     like: (id: string) => request(`/feed/${id}/like`, { method: 'POST' }),
     unlike: (id: string) => request(`/feed/${id}/unlike`, { method: 'POST' }),
+    report: (targetType: 'post' | 'comment' | 'pet', targetId: string, data: { reason: string; description?: string }) =>
+      request('/reports', { method: 'POST', body: JSON.stringify({ targetType, targetId, ...data }) }),
     comments: {
       list: (postId: string) => request(`/feed/${postId}/comments`),
       create: (postId: string, content: string) => request(`/feed/${postId}/comments`, { method: 'POST', body: JSON.stringify({ content }) }),
