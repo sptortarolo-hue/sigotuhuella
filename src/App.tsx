@@ -46,6 +46,8 @@ const ManualAdopcion = lazy(() => import('@/src/pages/ManualAdopcion'));
 const ManualChapita = lazy(() => import('@/src/pages/ManualChapita'));
 const VerifyEmail = lazy(() => import('@/src/pages/VerifyEmail'));
 const FlyerPage = lazy(() => import('@/src/pages/FlyerPage'));
+const CaseDashboard = lazy(() => import('@/src/pages/CaseDashboard'));
+const MyCases = lazy(() => import('@/src/pages/MyCases'));
 const IS_PLAY_BUILD = import.meta.env.VITE_PLAY_BUILD === 'true';
 
 // En el build de Google Play se elimina toda funcionalidad de dinero real
@@ -80,6 +82,7 @@ export default function App() {
               <Route path="/novedades" element={<Novedades />} />
               <Route path="/novedad/:id" element={<NovedadDetail />} />
               <Route path="/perdiste-a-tu-mascota" element={<LostPetGuide />} />
+              <Route path="/caso/:id" element={<CaseDashboard />} />
               <Route path="/reportar" element={<ReportPet />} />
               <Route path="/reportar-rapido" element={<QuickReport />} />
               <Route path="/perdi-mi-mascota" element={<LostPetReport />} />
@@ -124,6 +127,8 @@ export default function App() {
               <Route path="/mi-mascota" element={<MyPetsPortal />} />
               <Route path="/mi-mascota/:id" element={<MyPetDetail />} />
               <Route path="/mis-publicaciones" element={<MyPets />} />
+              <Route path="/mis-casos" element={<MyCases />} />
+              <Route path="/mis-casos/:id" element={<CaseDashboard />} />
               <Route path="/feed" element={<Feed />} />
               <Route path="/concursos" element={<Contests />} />
               <Route path="/perfil" element={<Profile />} />

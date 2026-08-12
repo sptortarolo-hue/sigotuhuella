@@ -6,6 +6,7 @@ import { sendWhatsAppRegistrationEmail } from '../auth.js';
 import { fetchFbPost } from './fbPostFetcher.js';
 import { geocodeAddress, extractNeighborhoods } from './geocoding.js';
 import { notifyPetPublication } from './petPublicationNotification.js';
+import { createPetCase } from './caseService.js';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
@@ -892,6 +893,10 @@ async function rlConfirm(conv, parsed, intent) {
       const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
       if (p) matchPetToPosts(p).catch(e => console.error('Matching pet->FB error:', e));
     })();
+    (async () => {
+      const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
+      if (p) createPetCase(p, { source: 'whatsapp_bot' });
+    })();
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     try {
@@ -1285,6 +1290,10 @@ async function rfConfirm(conv, parsed, intent) {
     (async () => {
       const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
       if (p) matchPetToPosts(p).catch(e => console.error('Matching pet->FB error:', e));
+    })();
+    (async () => {
+      const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
+      if (p) createPetCase(p, { source: 'whatsapp_bot' });
     })();
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));

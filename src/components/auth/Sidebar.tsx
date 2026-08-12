@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, PawPrint, User, Plus, Sparkles, Share2, Camera, HandCoins, LogOut, Heart, Search, LogIn, LayoutDashboard, Bell, BellOff, Settings, Ticket } from 'lucide-react';
+import { Home, PawPrint, User, Plus, Sparkles, Share2, Camera, HandCoins, LogOut, Heart, Search, LogIn, LayoutDashboard, Bell, BellOff, Settings, Ticket, FolderOpen } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useEffect, useState } from 'react';
@@ -20,6 +20,7 @@ const portalItems = [
   { label: 'Inicio', icon: Home, path: '/' },
   { label: 'Mi Portal', icon: LayoutDashboard, path: '/dashboard' },
   { label: 'Mis Mascotas', icon: PawPrint, path: '/mi-mascota' },
+  { label: 'Mis Casos', icon: FolderOpen, path: '/mis-casos' },
   { label: 'Mi Perfil', icon: User, path: '/perfil' },
 ];
 

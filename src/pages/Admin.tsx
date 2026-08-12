@@ -34,10 +34,11 @@ import AnalyticsTab from '@/src/pages/admin/AnalyticsTab';
 import RafflesTab from '@/src/components/admin/RafflesTab';
 import BackupTab from '@/src/components/admin/BackupTab';
 import ModerationTab from '@/src/components/admin/ModerationTab';
+import CasesTab from '@/src/components/admin/CasesTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2, Flag,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, BarChart3, Ticket, HardDrive
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, BarChart3, Ticket, HardDrive, FolderOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatDateOnly } from '@/src/lib/utils';
@@ -71,7 +72,7 @@ const PERSONALITY_TAGS = [
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles' | 'backup' | 'moderation'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles' | 'backup' | 'moderation' | 'cases'>('pets');
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['pets']));
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(['pets', 'users']));
 
@@ -1104,6 +1105,7 @@ export default function Admin() {
   { id: 'raffles', label: 'Rifas', icon: Ticket },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'backup', label: 'Backup', icon: HardDrive },
+  { id: 'cases', label: 'Casos', icon: FolderOpen },
         ].map(tab => (
           <button
             key={tab.id}
@@ -2302,6 +2304,9 @@ export default function Admin() {
 
           {/* ====== MODERATION ====== */}
           {mountedTabs.has('moderation') && <div className={activeTab === 'moderation' ? '' : 'hidden'}><ModerationTab /></div>}
+
+          {/* ====== CASOS ====== */}
+          {mountedTabs.has('cases') && <div className={activeTab === 'cases' ? '' : 'hidden'}><CasesTab /></div>}
 
             {/* ====== VIDEOS ====== */}
             {mountedTabs.has('videos') && <div className={activeTab === 'videos' ? '' : 'hidden'}><VideoGeneratorTab /></div>}

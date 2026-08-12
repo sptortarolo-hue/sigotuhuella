@@ -179,6 +179,21 @@ export const api = {
     update: (id: string, data: any) => request(`/collaboration/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/collaboration/${id}`, { method: 'DELETE' }),
   },
+  cases: {
+    get: (id: string) => request(`/cases/${id}`),
+    mine: () => request('/cases/mine'),
+    listAll: (status?: string) => request(`/cases${status ? `?status=${status}` : ''}`),
+    updateStatus: (id: string, status: string) =>
+      request(`/cases/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    sightings: (id: string) => request(`/cases/${id}/sightings`),
+    createSighting: (id: string, data: any) =>
+      request(`/cases/${id}/sightings`, { method: 'POST', body: JSON.stringify(data) }),
+    hideSighting: (sightingId: string, hidden: boolean) =>
+      request(`/cases/sightings/${sightingId}/hide`, { method: 'POST', body: JSON.stringify({ hidden }) }),
+    searchAreas: (id: string) => request(`/cases/${id}/search-areas`),
+    createSearchArea: (id: string, area_geojson: any, notes?: string) =>
+      request(`/cases/${id}/search-areas`, { method: 'POST', body: JSON.stringify({ area_geojson, notes }) }),
+  },
   gamification: {
     myStats: () => request('/my-stats'),
   },

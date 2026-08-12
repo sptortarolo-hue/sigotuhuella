@@ -353,7 +353,7 @@ Antes de cada subida a Play hay que incrementar en `android/app/build.gradle`:
 ### Push / Firebase (FCM)
 
 - `android/app/google-services.json` vincula la app a FCM (project `gen-lang-client-0269255333`). Sin él, `processReleaseGoogleServices` se saltea y el push Android no funciona (el server ya manda via `firebase-admin`).
-- Google Sign-In nativo: `Login.tsx` usa `VITE_GOOGLE_CLIENT_ID_ANDROID` (clientId tipo Android) con fallback al web. El client Android está creado en Google Cloud (`79460157330-qnmmichfrrl5s3rg96fphdkfckhut1qb.apps.googleusercontent.com`) con el package `com.sihuella.app` + SHA-1 del upload key (y el SHA-1 de la app signing key de Play App Signing). Se inyecta en `build:play` vía cross-env.
+- Google Sign-In nativo: el plugin `@capawesome/capacitor-google-sign-in` requiere en `GoogleSignIn.initialize({ clientId })` el **web client ID** (NO un client Android) en todas las plataformas (ver README del plugin). `Login.tsx` usa `VITE_GOOGLE_CLIENT_ID` (web, `79460157330-2l534pfa...`) y el server verifica el idToken con ese mismo aud (`server/routes/auth.js`). El SDK de Android usa internamente el client Android de `google-services.json` (client_type 3, `79460157330-5ated...`) y exige que su SHA-1 coincida con el certificado que firma la app instalada (en Play: la **App Signing key**, no la upload key). Si el login nativo devuelve `SIGN_IN_CANCELED` ("The user canceled the sign-in flow"), revisar que el client Android de `google-services.json` tenga el SHA-1 de la App Signing key en Google Cloud Console. No inyectar clientIds Android vía `build:play`.
 
 ### Verificación post-build (anti-admin / anti-rifa)
 

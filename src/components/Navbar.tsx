@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard, FileText, Share2, Bell, BellOff, Trophy, ExternalLink } from 'lucide-react';
+import { PawPrint, Heart, Search, Menu, X, PlusCircle, HandCoins, Users, User, LogOut, Settings, LayoutList, LogIn, Sparkles, CreditCard, FileText, Share2, Bell, BellOff, Trophy, ExternalLink, FolderOpen } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -184,6 +184,9 @@ export default function Navbar() {
         <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
           <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
         </button>
+        <button onClick={() => handleNavClick('/mis-casos')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <FolderOpen className="w-4 h-4 text-brand-primary" /> Mis Casos
+        </button>
         <button onClick={() => handleNavClick('/mi-mascota')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
           <Heart className="w-4 h-4 text-brand-secondary" /> Mi Mascota
         </button>
@@ -272,6 +275,9 @@ export default function Navbar() {
                         </button>
         <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
           <LayoutList className="w-4 h-4 text-brand-primary" /> Mis Publicaciones
+        </button>
+        <button onClick={() => handleNavClick('/mis-casos')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+          <FolderOpen className="w-4 h-4 text-brand-primary" /> Mis Casos
         </button>
         <button onClick={() => handleNavClick('/mi-mascota')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
           <Heart className="w-4 h-4 text-brand-secondary" /> Mi Mascota
@@ -402,6 +408,9 @@ export default function Navbar() {
                 </Link>
                 <Link to="/mis-publicaciones" onClick={() => handleNavClick('/mis-publicaciones')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
                   <LayoutList className="w-5 h-5 shrink-0" /> Mis Publicaciones
+                </Link>
+                <Link to="/mis-casos" onClick={() => handleNavClick('/mis-casos')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
+                  <FolderOpen className="w-5 h-5 shrink-0" /> Mis Casos
                 </Link>
                 {isMember && (
                   <Link to="/mi-carnet" onClick={() => handleNavClick('/mi-carnet')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
 import { matchPetToPosts, matchWhatsAppToPets } from '../services/geminiMatching.js';
+import { createPetCase, syncCaseStatus } from '../services/caseService.js';
 import { broadcastPetToGroups } from '../services/whatsappService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { notifyPetPublication } from '../services/petPublicationNotification.js';
@@ -503,6 +504,7 @@ router.post('/', requireAuth, async (req, res) => {
     notifyPetPublication(pet.id, req.user.phone).catch(e => console.error('Publication notify error:', e));
     matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
     matchWhatsAppToPets(pet.id).catch(e => console.error('WhatsApp matching error:', e));
+    createPetCase(pet, { source: 'app_auth' });
 
     res.status(201).json({ pet });
   } catch (err) {
@@ -599,6 +601,7 @@ router.put('/:id', requireAuth, async (req, res) => {
         toStatus: req.body.status,
         changedBy: req.user.id,
       });
+      syncCaseStatus(petId, req.body.status);
     }
     if ((isReunited || isAdopted) && !pet.reunited_at) {
       await pool.query('UPDATE pets SET reunited_at = NOW() WHERE id = $1', [petId]);
@@ -1389,6 +1392,7 @@ router.post('/public', async (req, res) => {
         // Run matching in background
         matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
         matchWhatsAppToPets(pet.id).catch(e => console.error('Matching WhatsApp->pets error:', e));
+        createPetCase(pet, { source: 'app_anon' });
 
         // Auto-broadcast to WhatsApp groups for active statuses
         const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];

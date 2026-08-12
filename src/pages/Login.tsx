@@ -176,7 +176,7 @@ export default function Login() {
     setError('');
     try {
       const { GoogleSignIn } = await import('@capawesome/capacitor-google-sign-in');
-      const clientId = isNative() ? (GOOGLE_CLIENT_ID_ANDROID || GOOGLE_CLIENT_ID) : GOOGLE_CLIENT_ID;
+      const clientId = GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID_ANDROID;
       if (!clientId) return;
       await GoogleSignIn.initialize({ clientId });
       const result = await GoogleSignIn.signIn();

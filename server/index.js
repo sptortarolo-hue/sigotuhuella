@@ -21,6 +21,7 @@ import videoGeneratorRoutes from './routes/videoGenerator.js';
 import myPetsRoutes from './routes/myPets.js';
 import qrRoutes from './routes/qr.js';
 import pushRoutes from './routes/push.js';
+import caseRoutes from './routes/cases.js';
 import feedRoutes from './routes/feed.js';
 import reportRoutes from './routes/reports.js';
 import blockRoutes from './routes/blocks.js';
@@ -231,6 +232,7 @@ app.use('/api/push', (req, res, next) => {
 }, pushRoutes);
 
 app.use('/api/request-chapita', requestChapitaRoutes);
+app.use('/api/cases', caseRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/blocks', blockRoutes);

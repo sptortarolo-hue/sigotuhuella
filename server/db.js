@@ -1615,6 +1615,64 @@ export async function initDb() {
       );
     `, 'user_blocks');
 
+    // ─── Pet cases (trazabilidad: perdidas/encontradas/adopcion) ───
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS pet_cases (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        reporter_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        reporter_source VARCHAR(30) DEFAULT 'app',
+        type VARCHAR(20) NOT NULL CHECK (type IN ('lost','found')),
+        status VARCHAR(30) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pet_cases_pet ON pet_cases(pet_id);
+      CREATE INDEX IF NOT EXISTS idx_pet_cases_reporter ON pet_cases(reporter_id);
+    `, 'pet_cases');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS case_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        case_id UUID NOT NULL REFERENCES pet_cases(id) ON DELETE CASCADE,
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        event_type VARCHAR(50) NOT NULL,
+        payload JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_case_events_case ON case_events(case_id, created_at);
+    `, 'case_events');
+
+    // ─── Case sightings + search areas (Sprint 2: avistamientos colaborativos) ───
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS case_sightings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        case_id UUID NOT NULL REFERENCES pet_cases(id) ON DELETE CASCADE,
+        reporter_name VARCHAR(100) NOT NULL,
+        reporter_whatsapp VARCHAR(50),
+        lat DOUBLE PRECISION NOT NULL,
+        lng DOUBLE PRECISION NOT NULL,
+        description TEXT,
+        photo_data TEXT,
+        photo_mime VARCHAR(50),
+        hidden BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_case_sightings_case ON case_sightings(case_id, created_at);
+    `, 'case_sightings');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS case_search_areas (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        case_id UUID NOT NULL REFERENCES pet_cases(id) ON DELETE CASCADE,
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        area_geojson JSONB NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_case_search_areas_case ON case_search_areas(case_id, created_at);
+    `, 'case_search_areas');
+
     console.log('Database migrations complete');
   } finally {
     client.release();
