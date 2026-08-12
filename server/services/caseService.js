@@ -15,6 +15,26 @@ function closeReason(status) {
   return status === 'adopted' ? 'adopted' : 'reunited';
 }
 
+// Genera el próximo número de caso secuencial STH##### (usa pets.case_number, histórico).
+export async function generateCaseNumber(client = pool) {
+  const counterResult = await client.query(
+    "SELECT MAX(CAST(SUBSTRING(case_number FROM 4) AS INTEGER)) as max_num FROM pets WHERE case_number LIKE 'STH%'"
+  );
+  const nextNum = (parseInt(counterResult.rows[0]?.max_num, 10) || 0) + 1;
+  return 'STH' + String(nextNum).padStart(5, '0');
+}
+
+// Asigna case_number a la mascota si aún no tiene (mismo client, dentro de transacción).
+// Retorna el case_number asignado o el existente.
+export async function assignCaseNumberIfMissing(petId, client = pool) {
+  const cur = await client.query('SELECT case_number FROM pets WHERE id = $1', [petId]);
+  if (cur.rows.length === 0) return null;
+  if (cur.rows[0].case_number) return cur.rows[0].case_number;
+  const caseNumber = await generateCaseNumber(client);
+  await client.query('UPDATE pets SET case_number = $1 WHERE id = $2', [caseNumber, petId]);
+  return caseNumber;
+}
+
 // Crea un caso para un pet nuevo. Retorna null si el status no genera caso (sighted, adopcion simple, etc).
 export async function createPetCase(pet, { source = 'app' } = {}) {
   try {
@@ -27,11 +47,13 @@ export async function createPetCase(pet, { source = 'app' } = {}) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      // Garantiza número invocable para todos los orígenes (app_auth, app_anon, whatsapp_bot)
+      const caseNumber = await assignCaseNumberIfMissing(pet.id, client);
       const caseResult = await client.query(
-        `INSERT INTO pet_cases (pet_id, reporter_id, reporter_source, type, status)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO pet_cases (pet_id, reporter_id, reporter_source, type, status, active_until)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [pet.id, userId, reporterSource, mapping.type, mapping.caseStatus]
+        [pet.id, userId, reporterSource, mapping.type, mapping.caseStatus, new Date(Date.now() + 45 * 24 * 60 * 60 * 1000)]
       );
       const petCase = caseResult.rows[0];
       await client.query(
@@ -106,7 +128,7 @@ export async function syncCaseStatus(petId, newStatus) {
 }
 
 // Dashboard completo del caso: caso + mascota + timeline + reporter
-export async function getCaseDashboard(caseId) {
+export async function getCaseDashboard(caseId, viewerUserId = null) {
   const caseRes = await pool.query(
     `SELECT pc.*,
             u.display_name AS reporter_name, u.email AS reporter_email, u.phone AS reporter_phone
@@ -158,18 +180,20 @@ export async function getCaseDashboard(caseId) {
   );
 
   return {
-    ...petCase,
+    ...withExpiry(petCase),
     pet: petRes.rows[0] || null,
     events: eventsRes.rows,
     sightings: sightingsRes.rows,
     searchAreas: areasRes.rows,
+    followerCount: await countFollowers(caseId),
+    is_following: await isFollowing(caseId, viewerUserId),
   };
 }
 
 // Casos del usuario (como reporter o dueño de la mascota reportada)
 export async function getCasesForUser(userId) {
   const result = await pool.query(
-    `SELECT pc.*, p.name AS pet_name, p.species AS pet_species, p.status AS pet_status,
+    `SELECT pc.*, p.name AS pet_name, p.case_number, p.species AS pet_species, p.status AS pet_status,
             (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) AS image_data,
             (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) AS image_mime,
             (SELECT COUNT(*) FROM case_events ce WHERE ce.case_id = pc.id) AS event_count
@@ -179,27 +203,104 @@ export async function getCasesForUser(userId) {
      ORDER BY pc.created_at DESC`,
     [userId]
   );
-  return result.rows;
+  return result.rows.map(withExpiry);
+}
+
+const MAX_FOLLOWS = 30;
+
+// Sigue un caso. Retorna { error } si ya lo seguía o supera el límite.
+export async function followCase(caseId, userId) {
+  const countRes = await pool.query('SELECT COUNT(*)::int AS cnt FROM case_followers WHERE user_id = $1', [userId]);
+  if (countRes.rows[0].cnt >= MAX_FOLLOWS) {
+    return { error: `Alcanzaste el límite de ${MAX_FOLLOWS} casos en seguimiento` };
+  }
+  const res = await pool.query(
+    `INSERT INTO case_followers (case_id, user_id) VALUES ($1, $2)
+     ON CONFLICT (case_id, user_id) DO NOTHING RETURNING *`,
+    [caseId, userId]
+  );
+  if (res.rows.length === 0) return { error: 'Ya seguís este caso' };
+  return { followed: true, followerCount: await countFollowers(caseId) };
+}
+
+// Deja de seguir un caso.
+export async function unfollowCase(caseId, userId) {
+  await pool.query('DELETE FROM case_followers WHERE case_id = $1 AND user_id = $2', [caseId, userId]);
+  return { followed: false, followerCount: await countFollowers(caseId) };
+}
+
+export async function countFollowers(caseId) {
+  const res = await pool.query('SELECT COUNT(*)::int AS cnt FROM case_followers WHERE case_id = $1', [caseId]);
+  return res.rows[0].cnt;
+}
+
+export async function isFollowing(caseId, userId) {
+  if (!userId) return false;
+  const res = await pool.query('SELECT 1 FROM case_followers WHERE case_id = $1 AND user_id = $2', [caseId, userId]);
+  return res.rows.length > 0;
+}
+
+// IDs de seguidores de un caso.
+export async function getFollowerIds(caseId) {
+  const res = await pool.query('SELECT user_id FROM case_followers WHERE case_id = $1', [caseId]);
+  return res.rows.map(r => r.user_id);
+}
+
+// Casos que el usuario sigue (mismo shape que getCasesForUser).
+export async function getFollowedCases(userId) {
+  const result = await pool.query(
+    `SELECT pc.*, p.name AS pet_name, p.case_number, p.species AS pet_species, p.status AS pet_status,
+            (SELECT pi.image_data FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) AS image_data,
+            (SELECT pi.mime_type FROM pet_images pi WHERE pi.pet_id = p.id ORDER BY pi.created_at LIMIT 1) AS image_mime,
+            (SELECT COUNT(*) FROM case_events ce WHERE ce.case_id = pc.id) AS event_count
+     FROM case_followers cf
+     JOIN pet_cases pc ON pc.id = cf.case_id
+     JOIN pets p ON p.id = pc.pet_id
+     WHERE cf.user_id = $1
+     ORDER BY cf.created_at DESC`,
+    [userId]
+  );
+  return result.rows.map(withExpiry);
 }
 
 // Agrega un avistamiento al caso y registra el evento. Devuelve la fila creada.
-export async function addSighting(caseId, { reporterName, reporterWhatsapp, lat, lng, description, photoData, photoMime }) {
+// Si hidden=true (por lista negra), se registra evento sighting_suspicious.
+export async function addSighting(caseId, { reporterName, reporterWhatsapp, lat, lng, description, photoData, photoMime, hidden = false }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const res = await client.query(
-      `INSERT INTO case_sightings (case_id, reporter_name, reporter_whatsapp, lat, lng, description, photo_data, photo_mime)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO case_sightings (case_id, reporter_name, reporter_whatsapp, lat, lng, description, photo_data, photo_mime, hidden)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [caseId, reporterName, reporterWhatsapp || null, lat, lng, description || null, photoData || null, photoMime || null]
+      [caseId, reporterName, reporterWhatsapp || null, lat, lng, description || null, photoData || null, photoMime || null, hidden]
     );
     const sighting = res.rows[0];
     await client.query(
       `INSERT INTO case_events (case_id, event_type, payload)
        VALUES ($1, 'sighting_reported', $2)`,
-      [caseId, JSON.stringify({ sighting_id: sighting.id, lat, lng, description, reporter_name: reporterName })]
+      [caseId, JSON.stringify({ sighting_id: sighting.id, lat, lng, description, reporter_name: reporterName, hidden })]
     );
     await client.query('COMMIT');
+
+    // Aviso a followers del nuevo avistamiento (no bloquea al reporter)
+    try {
+      const followerIds = await getFollowerIds(caseId);
+      if (followerIds.length > 0) {
+        const caseRes = await pool.query('SELECT p.name AS pet_name FROM pet_cases pc JOIN pets p ON p.id = pc.pet_id WHERE pc.id = $1', [caseId]);
+        const petName = caseRes.rows[0]?.pet_name || 'La mascota';
+        const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+        const { sendPushToUsers } = await import('./pushService.js');
+        sendPushToUsers(followerIds, {
+          title: '👁 Nuevo avistamiento',
+          body: `Avistaron a ${petName}. Mirá los detalles del caso.`,
+          data: { url: `${frontendUrl}/caso/${caseId}`, caseId, type: 'case_followed' },
+        }).catch(e => console.error('Sighting followers push error:', e.message));
+      }
+    } catch (err) {
+      console.error('addSighting notify followers error:', err.message);
+    }
+
     return sighting;
   } catch (err) {
     await client.query('ROLLBACK');
@@ -434,6 +535,25 @@ export async function proposeMeeting(caseId, userId, { lat, lng, time, location 
     location: location || null,
     proposed_by: userId,
   }, userId);
+
+  // Aviso a followers del encuentro coordinado
+  try {
+    const followerIds = (await getFollowerIds(caseId)).filter(id => id !== userId);
+    if (followerIds.length > 0) {
+      const caseRes = await pool.query('SELECT p.name AS pet_name FROM pet_cases pc JOIN pets p ON p.id = pc.pet_id WHERE pc.id = $1', [caseId]);
+      const petName = caseRes.rows[0]?.pet_name || 'La mascota';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+      const { sendPushToUsers } = await import('./pushService.js');
+      sendPushToUsers(followerIds, {
+        title: '📍 Encuentro coordinado',
+        body: `Se coordinó un encuentro para ${petName}. Mirá los detalles del caso.`,
+        data: { url: `${frontendUrl}/caso/${caseId}`, caseId, type: 'case_followed' },
+      }).catch(e => console.error('Meeting followers push error:', e.message));
+    }
+  } catch (err) {
+    console.error('proposeMeeting notify followers error:', err.message);
+  }
+
   return { event };
 }
 
@@ -521,9 +641,44 @@ export async function closeCase(caseId, userId, reason) {
   return { success: true };
 }
 
+// Renueva la publicación del caso por 45 días (reporter, dueño o admin).
+export async function renewCase(caseId, userId) {
+  const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [caseId]);
+  if (caseRes.rows.length === 0) return { error: 'Caso no encontrado' };
+  const petCase = caseRes.rows[0];
+  if (petCase.status === 'closed') return { error: 'El caso está cerrado. No se puede renovar.' };
+  const newUntil = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000);
+  await pool.query(
+    `UPDATE pet_cases SET active_until = $1, updated_at = NOW() WHERE id = $2`,
+    [newUntil, caseId]
+  );
+  await createCaseEvent(caseId, 'case_renewed', {
+    renewed_by: userId,
+    active_until: newUntil.toISOString(),
+  }, userId);
+  return { success: true, active_until: newUntil };
+}
+
+// Calcula expired/days_left para un caso (no muta la DB).
+export function computeExpiry(caseStatus, activeUntil) {
+  if (caseStatus !== 'active' || !activeUntil) return { expired: false, days_left: null };
+  const ms = new Date(activeUntil).getTime() - Date.now();
+  const daysLeft = Math.floor(ms / (24 * 60 * 60 * 1000));
+  return { expired: daysLeft < 0, days_left: daysLeft };
+}
+
+// Ordena payload hacia getFollowedCases/getCasesForUser: agrega expired/days_left
+function withExpiry(row) {
+  return {
+    ...row,
+    ...computeExpiry(row.status, row.active_until),
+  };
+}
+
 // Envía push "¡Volvió a casa!" a los colaboradores del caso y registra el evento
 async function notifyCollaborators(caseId, petCase, collaboratorIds, userId, petName, frontendUrl) {
-  const filtered = collaboratorIds.filter(id => id && id !== userId);
+  const followerIds = await getFollowerIds(caseId);
+  const filtered = [...new Set([...collaboratorIds, ...followerIds])].filter(id => id && id !== userId);
   const caseUrl = `${frontendUrl}/caso/${caseId}`;
   const title = '🎉 ¡Volvió a casa!';
   const body = `${petName || 'La mascota'} se reencontró con su familia. ¡Gracias por ayudar!`;

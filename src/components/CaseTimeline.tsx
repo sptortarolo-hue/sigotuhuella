@@ -1,4 +1,4 @@
-import { FilePlus2, Instagram, Facebook, MessageCircle, Users, MapPin, Radar, HandHeart, PartyPopper, Lock, Info, BellRing, QrCode } from 'lucide-react';
+import { FilePlus2, Instagram, Facebook, MessageCircle, Users, MapPin, Radar, HandHeart, PartyPopper, Lock, Info, BellRing, QrCode, RefreshCw } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 const EVENT_ICONS: Record<string, any> = {
@@ -17,6 +17,7 @@ const EVENT_ICONS: Record<string, any> = {
   reunited: PartyPopper,
   reunion_announced: HandHeart,
   case_closed: Lock,
+  case_renewed: RefreshCw,
   status_changed: Info,
 };
 
@@ -36,6 +37,7 @@ const EVENT_STYLES: Record<string, string> = {
   reunited: 'bg-emerald-500/10 text-emerald-600',
   reunion_announced: 'bg-emerald-500/10 text-emerald-600',
   case_closed: 'bg-gray-500/10 text-gray-600',
+  case_renewed: 'bg-indigo-500/10 text-indigo-600',
   status_changed: 'bg-blue-500/10 text-blue-600',
 };
 
@@ -60,6 +62,7 @@ function eventLabel(type: string, payload: any) {
       return `Caso cerrado (${reasonMap[payload?.reason] || payload?.reason || 'motivo'})`;
     }
     case 'status_changed': return 'Estado del caso actualizado';
+    case 'case_renewed': return 'Publicación renovada';
     default: return type;
   }
 }
@@ -95,6 +98,12 @@ function eventDetail(type: string, payload: any) {
     }
     case 'reunited':
       return 'La mascota volvió a casa';
+    case 'case_renewed': {
+      if (!payload?.active_until) return null;
+      const d = new Date(payload.active_until);
+      if (isNaN(d.getTime())) return null;
+      return `El caso queda activo hasta el ${d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })}`;
+    }
     default: return null;
   }
 }

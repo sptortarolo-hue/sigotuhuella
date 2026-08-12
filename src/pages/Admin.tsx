@@ -38,7 +38,7 @@ import CasesTab from '@/src/components/admin/CasesTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2, Flag,
-  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, BarChart3, Ticket, HardDrive, FolderOpen
+  Edit2, ExternalLink, Calendar, MapPin, Phone, User, UserCog, Search, RefreshCw, HeartHandshake, Sparkles, Heart, Share2, PawPrint, Award,   MessageSquare, FlaskConical, Map, Film, QrCode, Check, Globe, ChevronRight, Smartphone, Send, Bell, Eye, EyeOff, BarChart3, Ticket, HardDrive, FolderOpen, ShieldBan, ShieldCheck, PhoneOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatDateOnly } from '@/src/lib/utils';
@@ -1093,6 +1093,7 @@ export default function Admin() {
           { id: 'news', label: 'Novedades', icon: Sparkles },
           { id: 'public', label: 'Reportes Públicos', icon: FileText },
           { id: 'moderation', label: 'Moderación', icon: Flag },
+          { id: 'blacklist', label: 'Lista Negra', icon: ShieldBan },
           { id: 'whatsapp', label: 'WhatsApp (Meta)', icon: MessageSquare },
           { id: 'relay-whatsapp', label: 'WhatsApp Relay', icon: Smartphone },
           { id: 'fb-relay', label: 'FB Phone Relay', icon: Smartphone },
@@ -2304,6 +2305,9 @@ export default function Admin() {
 
           {/* ====== MODERATION ====== */}
           {mountedTabs.has('moderation') && <div className={activeTab === 'moderation' ? '' : 'hidden'}><ModerationTab /></div>}
+
+          {/* ====== LISTA NEGRA ====== */}
+          {mountedTabs.has('blacklist') && <div className={activeTab === 'blacklist' ? '' : 'hidden'}><BlacklistTab /></div>}
 
           {/* ====== CASOS ====== */}
           {mountedTabs.has('cases') && <div className={activeTab === 'cases' ? '' : 'hidden'}><CasesTab /></div>}
@@ -3722,6 +3726,119 @@ function PublicReportsTab() {
       )}
 
 
+    </div>
+  );
+}
+
+function BlacklistTab() {
+  const [entries, setEntries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'pending' | 'approved' | 'dismissed' | ''>('pending');
+
+  const fetchEntries = async () => {
+    setLoading(true);
+    try {
+      const data = await api.blacklist.list(filter || undefined);
+      setEntries(data.entries || []);
+    } catch (err) {
+      console.error('Failed to fetch blacklist:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchEntries(); }, [filter]);
+
+  const handleReview = async (id: string, status: 'approved' | 'dismissed') => {
+    try {
+      await api.blacklist.review(id, status);
+      fetchEntries();
+    } catch (err) {
+      console.error('Review error:', err);
+    }
+  };
+
+  const statusBadge: Record<string, { label: string; cls: string }> = {
+    pending: { label: 'Pendiente', cls: 'bg-amber-100 text-amber-700' },
+    approved: { label: 'Aprobado', cls: 'bg-red-100 text-red-700' },
+    dismissed: { label: 'Descartado', cls: 'bg-gray-100 text-gray-600' },
+  };
+
+  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-brand-primary" /></div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-serif font-bold text-brand-primary">Lista Negra de Teléfonos</h2>
+          <p className="text-sm text-gray-500 mt-1">Reportados por la comunidad contra estafas ("falso rescatista"). Los avistamientos con estos teléfonos se ocultan automáticamente al aprobarse.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {(['', 'pending', 'approved', 'dismissed'] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={cn('px-3 py-1.5 rounded-lg text-xs font-bold transition-colors', filter === s ? 'bg-brand-primary text-white' : 'bg-brand-bg text-gray-500 hover:text-brand-primary')}
+            >
+              {s === '' ? 'Todas' : s === 'pending' ? 'Pendientes' : s === 'approved' ? 'Aprobadas' : 'Descartadas'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {entries.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-[2.5rem] border border-brand-accent">
+          <ShieldBan className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">No hay entradas en la lista negra.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-[2.5rem] border border-brand-accent bg-white">
+          <table className="w-full text-left text-sm min-w-max">
+            <thead className="bg-brand-bg border-b border-brand-accent">
+              <tr>
+                <th className="px-6 py-4 font-bold text-gray-700">Teléfono</th>
+                <th className="px-6 py-4 font-bold text-gray-700">Motivo</th>
+                <th className="px-6 py-4 font-bold text-gray-700">Reportado por</th>
+                <th className="px-6 py-4 font-bold text-gray-700">Fecha</th>
+                <th className="px-6 py-4 font-bold text-gray-700">Estado</th>
+                <th className="px-6 py-4 font-bold text-gray-700">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-accent">
+              {entries.map((e: any) => {
+                const b = statusBadge[e.status] || statusBadge.pending;
+                return (
+                  <tr key={e.id} className="hover:bg-brand-bg/50 transition-colors">
+                    <td className="px-6 py-4 font-mono font-bold">{e.phone}</td>
+                    <td className="px-6 py-4 max-w-xs">
+                      <p className="truncate">{e.reason || <span className="text-gray-400">—</span>}</p>
+                    </td>
+                    <td className="px-6 py-4">{e.reporter_name || 'Cuenta eliminada'}</td>
+                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDateShort(e.created_at)}</td>
+                    <td className="px-6 py-4">
+                      <span className={cn('px-2.5 py-1 rounded-full text-xs font-bold', b.cls)}>{b.label}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        {e.status === 'pending' && (
+                          <>
+                            <button onClick={() => handleReview(e.id, 'approved')} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-bold hover:bg-red-600 transition-colors">
+                              <ShieldCheck className="w-3.5 h-3.5" /> Aprobar
+                            </button>
+                            <button onClick={() => handleReview(e.id, 'dismissed')} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
+                              <PhoneOff className="w-3.5 h-3.5" /> Descartar
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

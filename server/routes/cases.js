@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin } from '../auth.js';
-import { getCaseDashboard, getCasesForUser, canManageCase, createCaseEvent, addSighting, getSightings, setSightingHidden, addSearchArea, getSearchAreas, getCaseShares, sendNeighborhoodAlert, proposeMeeting, confirmReunion, closeCase } from '../services/caseService.js';
+import { getCaseDashboard, getCasesForUser, canManageCase, createCaseEvent, addSighting, getSightings, setSightingHidden, addSearchArea, getSearchAreas, getCaseShares, sendNeighborhoodAlert, proposeMeeting, confirmReunion, closeCase, followCase, unfollowCase, getFollowedCases, isFollowing, countFollowers, renewCase } from '../services/caseService.js';
 import { sendPushToUser } from '../services/pushService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { enqueue } from '../services/phoneRelayService.js';
+import { isPhoneBlacklisted } from '../services/blacklistService.js';
 
 const router = Router();
 
@@ -60,6 +61,17 @@ router.get('/mine', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/cases/followed — casos que el usuario sigue (auth)
+router.get('/followed', requireAuth, async (req, res) => {
+  try {
+    const cases = await getFollowedCases(req.user.id);
+    res.json({ cases });
+  } catch (err) {
+    console.error('get followed cases error:', err);
+    res.status(500).json({ error: 'Error al obtener casos seguidos' });
+  }
+});
+
 // GET /api/cases/:id/shares — shares del caso (IG/FB con links + WA informativo)
 router.get('/:id/shares', async (req, res) => {
   try {
@@ -71,10 +83,29 @@ router.get('/:id/shares', async (req, res) => {
   }
 });
 
-// GET /api/cases/:id — dashboard público del caso (timeline completo visible)
+// GET /api/cases/:id — dashboard público del caso (timeline completo visible).
+// Acepta UUID o número de caso invocable (STH#####).
 router.get('/:id', async (req, res) => {
   try {
-    const data = await getCaseDashboard(req.params.id);
+    let caseId = req.params.id;
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(caseId)) {
+      const petRes = await pool.query('SELECT id FROM pets WHERE case_number = $1 LIMIT 1', [caseId]);
+      if (petRes.rows.length === 0) return res.status(404).json({ error: 'Caso no encontrado' });
+      const caseRes = await pool.query('SELECT id FROM pet_cases WHERE pet_id = $1 LIMIT 1', [petRes.rows[0].id]);
+      if (caseRes.rows.length === 0) return res.status(404).json({ error: 'Caso no encontrado' });
+      caseId = caseRes.rows[0].id;
+    }
+    // userId opcional para is_following (solo si hay token válido)
+    let viewerId = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const { verifyToken } = await import('../auth.js');
+        viewerId = verifyToken(authHeader.slice(7))?.id || null;
+      } catch {}
+    }
+    const data = await getCaseDashboard(caseId, viewerId);
     if (!data) return res.status(404).json({ error: 'Caso no encontrado' });
     res.json({ case: data });
   } catch (err) {
@@ -167,6 +198,7 @@ router.post('/:id/sightings', async (req, res) => {
     if (caseRes.rows[0].status === 'closed') {
       return res.status(400).json({ error: 'El caso ya está cerrado' });
     }
+    const blacklisted = reporter_whatsapp ? await isPhoneBlacklisted(reporter_whatsapp) : false;
     const sighting = await addSighting(req.params.id, {
       reporterName: reporter_name.trim(),
       reporterWhatsapp: reporter_whatsapp || null,
@@ -175,8 +207,9 @@ router.post('/:id/sightings', async (req, res) => {
       description: description || null,
       photoData: photo_data || null,
       photoMime: photo_mime || null,
+      hidden: blacklisted,
     });
-    notifySighting(req.params.id, sighting);
+    if (!blacklisted) notifySighting(req.params.id, sighting);
     res.status(201).json({ sighting });
   } catch (err) {
     console.error('create sighting error:', err);
@@ -303,6 +336,53 @@ router.post('/:id/close', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('close case error:', err);
     res.status(500).json({ error: 'Error al cerrar el caso' });
+  }
+});
+
+// POST /api/cases/:id/renew — renovar la publicación 45 días más (reporter, dueño o admin)
+router.post('/:id/renew', requireAuth, async (req, res) => {
+  try {
+    const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [req.params.id]);
+    if (caseRes.rows.length === 0) return res.status(404).json({ error: 'Caso no encontrado' });
+    const petCase = caseRes.rows[0];
+    if (!(await canManageCase(req.user.id, petCase))) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
+    const result = await renewCase(req.params.id, req.user.id);
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json(result);
+  } catch (err) {
+    console.error('renew case error:', err);
+    res.status(500).json({ error: 'Error al renovar el caso' });
+  }
+});
+
+// POST /api/cases/:id/follow — seguir un caso (auth). No permite seguirse en casos propios.
+router.post('/:id/follow', requireAuth, async (req, res) => {
+  try {
+    const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [req.params.id]);
+    if (caseRes.rows.length === 0) return res.status(404).json({ error: 'Caso no encontrado' });
+    const petCase = caseRes.rows[0];
+    if (await canManageCase(req.user.id, petCase)) {
+      return res.status(400).json({ error: 'Este es tu caso. No es necesario que lo sigas.' });
+    }
+    const result = await followCase(req.params.id, req.user.id);
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.status(201).json(result);
+  } catch (err) {
+    console.error('follow case error:', err);
+    res.status(500).json({ error: 'Error al seguir el caso' });
+  }
+});
+
+// DELETE /api/cases/:id/follow — dejar de seguir un caso (auth)
+router.delete('/:id/follow', requireAuth, async (req, res) => {
+  try {
+    const result = await unfollowCase(req.params.id, req.user.id);
+    res.json(result);
+  } catch (err) {
+    console.error('unfollow case error:', err);
+    res.status(500).json({ error: 'Error al dejar de seguir el caso' });
   }
 });
 

@@ -202,6 +202,10 @@ export const api = {
       request(`/cases/${id}/reunite`, { method: 'POST', body: JSON.stringify(data || {}) }),
     close: (id: string, reason: string) =>
       request(`/cases/${id}/close`, { method: 'POST', body: JSON.stringify({ reason }) }),
+    follow: (id: string) => request(`/cases/${id}/follow`, { method: 'POST' }),
+    unfollow: (id: string) => request(`/cases/${id}/follow`, { method: 'DELETE' }),
+    followed: () => request('/cases/followed'),
+    renew: (id: string) => request(`/cases/${id}/renew`, { method: 'POST' }),
   },
   gamification: {
     myStats: () => request('/my-stats'),
@@ -495,6 +499,13 @@ export const api = {
     list: () => request('/blocks'),
     block: (userId: string) => request(`/blocks/${userId}`, { method: 'POST' }),
     unblock: (userId: string) => request(`/blocks/${userId}`, { method: 'DELETE' }),
+  },
+  blacklist: {
+    report: (data: { phone: string; context_type?: string; context_id?: string; reason?: string }) =>
+      request('/blacklist/report', { method: 'POST', body: JSON.stringify(data) }),
+    list: (status?: string) => request(`/blacklist${status ? `?status=${status}` : ''}`),
+    review: (id: string, status: 'approved' | 'dismissed') =>
+      request(`/blacklist/${id}/review`, { method: 'POST', body: JSON.stringify({ status }) }),
   },
   adoptionAssignments: {
     pending: () => request('/adoption-assignments/pending'),

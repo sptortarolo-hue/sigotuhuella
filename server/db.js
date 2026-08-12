@@ -1693,6 +1693,41 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_neighborhood_alerts_case ON neighborhood_alerts(case_id, created_at);
     `, 'neighborhood_alerts');
 
+    // ─── Sprint MM-B: seguidores de casos ───
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS case_followers (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        case_id UUID NOT NULL REFERENCES pet_cases(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(case_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_case_followers_user ON case_followers(user_id, created_at);
+    `, 'case_followers');
+
+    // ─── Sprint MM-C: expiración/renovación de casos ───
+    await migrate(client, `
+      ALTER TABLE pet_cases ADD COLUMN IF NOT EXISTS active_until TIMESTAMP
+    `, 'pet_cases active_until');
+    await migrate(client, `
+      UPDATE pet_cases SET active_until = created_at + INTERVAL '45 days' WHERE active_until IS NULL
+    `, 'pet_cases active_until backfill');
+
+    // ─── Sprint MM-D: lista negra comunitaria de teléfonos ───
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS phone_blacklist (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        phone VARCHAR(20) NOT NULL,
+        reporter_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        context_type VARCHAR(20),
+        context_id UUID,
+        reason TEXT,
+        status VARCHAR(10) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','dismissed')),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_phone_blacklist_phone ON phone_blacklist(phone);
+    `, 'phone_blacklist');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

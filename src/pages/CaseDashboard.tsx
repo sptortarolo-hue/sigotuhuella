@@ -4,7 +4,7 @@ import { api } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import { getPetCoordinates } from '@/src/lib/petService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
-import { Loader2, MapPin, Calendar, Heart, ArrowLeft, Share2, BadgeCheck, Eye, BellRing } from 'lucide-react';
+import { Loader2, MapPin, Calendar, Heart, ArrowLeft, Share2, BadgeCheck, Eye, BellRing, Star, ShieldAlert } from 'lucide-react';
 import CaseTimeline from '@/src/components/CaseTimeline';
 import CaseMap from '@/src/components/CaseMap';
 import SightingModal from '@/src/components/SightingModal';
@@ -47,6 +47,9 @@ export default function CaseDashboard() {
   const [alertMsg, setAlertMsg] = useState('');
   const [copied, setCopied] = useState(false);
   const [showSightingModal, setShowSightingModal] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [renewing, setRenewing] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
 
   const refresh = async () => {
     const res = await api.cases.get(id!);
@@ -80,6 +83,57 @@ export default function CaseDashboard() {
 
   const isOwner = data && user && (data.reporter_id === user.id || data.pet?.created_by === user.id);
   const pet = data?.pet || {};
+  const isFollowing = !!data?.is_following;
+
+  const handleToggleFollow = async () => {
+    if (!user) {
+      alert('Iniciá sesión para seguir casos');
+      return;
+    }
+    setFollowBusy(true);
+    try {
+      if (isFollowing) await api.cases.unfollow(data.id);
+      else await api.cases.follow(data.id);
+      await refresh();
+    } catch (e: any) {
+      alert(e.message || 'Error al actualizar el seguimiento');
+    } finally {
+      setFollowBusy(false);
+    }
+  };
+
+  const handleReportPhone = async () => {
+    if (!user) {
+      alert('Iniciá sesión para reportar un teléfono');
+      return;
+    }
+    const phone = prompt('Ingresá el número de teléfono sospechoso (ej: 5492211234567):');
+    if (!phone || !phone.trim()) return;
+    const reason = prompt('¿Por qué lo reportás? (opcional)', '') || '';
+    setReportBusy(true);
+    try {
+      await api.blacklist.report({ phone: phone.trim(), context_type: 'sighting', context_id: data.id, reason: reason.trim() || null });
+      alert('Reporte enviado. El equipo lo revisará y, si se confirma, ese número quedará en la lista negra para proteger a la comunidad.');
+    } catch (e: any) {
+      alert(e.message || 'Error al reportar el teléfono');
+    } finally {
+      setReportBusy(false);
+    }
+  };
+
+  const handleRenew = async () => {
+    setRenewing(true);
+    try {
+      await api.cases.renew(data.id);
+      await refresh();
+    } catch (e: any) {
+      alert(e.message || 'Error al renovar el caso');
+    } finally {
+      setRenewing(false);
+    }
+  };
+
+  const isExpiring = data?.expired || (typeof data?.days_left === 'number' && data.days_left >= 0 && data.days_left <= 3);
 
   const handleSendNeighborhoodAlert = async () => {
     if (!pet?.neighborhoods || (Array.isArray(pet.neighborhoods) ? pet.neighborhoods.length : 0) === 0) {
@@ -151,6 +205,17 @@ export default function CaseDashboard() {
                 {PET_STATUS_LABELS[pet.status] || pet.status} · {pet.species === 'dog' ? 'Perro' : pet.species === 'cat' ? 'Gato' : pet.species || ''}
                 {pet.breed ? ` · ${pet.breed}` : ''}{pet.color ? ` · ${pet.color}` : ''}
               </p>
+              {pet.case_number && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(pet.case_number).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+                  }}
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-primary/10 text-brand-primary text-xs font-bold hover:bg-brand-primary/20 transition-colors"
+                >
+                  <BadgeCheck className="w-3.5 h-3.5" /> {pet.case_number}
+                  <span className="font-medium">{copied ? '✓ copiado' : 'copiar'}</span>
+                </button>
+              )}
             </div>
             {isOwner && (
               <Link to={`/pet/${pet.id}`} className="text-sm font-bold text-brand-primary underline">Ver publicación</Link>
@@ -191,6 +256,47 @@ export default function CaseDashboard() {
             </div>
           )}
           {alertMsg && <p className="mt-3 text-sm text-gray-600 flex items-center gap-2"><BellRing className="w-4 h-4 text-amber-500" /> {alertMsg}</p>}
+
+          {(isOwner || isAdmin) && data.status !== 'closed' && isExpiring && (
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5">
+              <p className="text-sm font-bold text-amber-800 mb-1">Este caso está por vencer{data?.expired ? ' (vencido)' : ''}</p>
+              <p className="text-sm text-amber-700 mb-3">
+                {data?.expired
+                  ? `El caso venció hace ${Math.abs(data.days_left) || 1} día(s). Renovaló para seguir ayudando a encontrarla.`
+                  : '¿Seguís buscando? Renová su publicación para mantenerla visible por 45 días más.'}
+              </p>
+              <button
+                onClick={handleRenew}
+                disabled={renewing}
+                className="px-5 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm hover:bg-amber-600 transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {renewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+                {renewing ? 'Renovando...' : 'Renovar caso (45 días)'}
+              </button>
+            </div>
+          )}
+
+          {user && !isOwner && !isAdmin && data.status !== 'closed' && (
+            <button
+              onClick={handleToggleFollow}
+              disabled={followBusy}
+              className={`mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-colors disabled:opacity-50 border ${isFollowing ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white text-brand-primary border-brand-accent hover:bg-brand-bg'}`}
+            >
+              {followBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className={`w-4 h-4 ${isFollowing ? 'fill-current' : ''}`} />}
+              {isFollowing ? 'Siguiendo este caso' : 'Seguir este caso'}
+              {data?.followerCount > 0 && <span className={`text-xs ${isFollowing ? 'text-white/80' : 'text-gray-400'}`}>{data.followerCount}</span>}
+            </button>
+          )}
+
+          {user && (
+            <button
+              onClick={handleReportPhone}
+              disabled={reportBusy}
+              className="mt-3 flex items-center gap-2 text-sm font-bold text-red-500 hover:text-red-600"
+            >
+              <ShieldAlert className="w-4 h-4" /> {reportBusy ? 'Enviando...' : 'Reportar teléfono sospechoso'}
+            </button>
+          )}
 
           <button
             onClick={() => {

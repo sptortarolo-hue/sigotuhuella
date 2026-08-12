@@ -2,7 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
 import { matchPetToPosts, matchWhatsAppToPets } from '../services/geminiMatching.js';
-import { createPetCase, syncCaseStatus } from '../services/caseService.js';
+import { createPetCase, syncCaseStatus, generateCaseNumber } from '../services/caseService.js';
 import { broadcastPetToGroups } from '../services/whatsappService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { notifyPetPublication } from '../services/petPublicationNotification.js';
@@ -1333,12 +1333,8 @@ router.post('/public', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Generate sequential case number STH00001
-    const counterResult = await client.query(
-      "SELECT MAX(CAST(SUBSTRING(case_number FROM 4) AS INTEGER)) as max_num FROM pets WHERE case_number LIKE 'STH%'"
-    );
-    const nextNum = (parseInt(counterResult.rows[0]?.max_num) || 0) + 1;
-    const caseNumber = 'STH' + String(nextNum).padStart(5, '0');
+    // Generate sequential case number STH00001 (función compartida con caseService)
+    const caseNumber = await generateCaseNumber(client);
 
     const petResult = await client.query(
       `INSERT INTO pets (species, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified, neighborhoods, name, instagram, case_number, privacy_notice_at)
