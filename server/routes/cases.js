@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin } from '../auth.js';
-import { getCaseDashboard, getCasesForUser, canManageCase, createCaseEvent, addSighting, getSightings, setSightingHidden, addSearchArea, getSearchAreas, getCaseShares, sendNeighborhoodAlert } from '../services/caseService.js';
+import { getCaseDashboard, getCasesForUser, canManageCase, createCaseEvent, addSighting, getSightings, setSightingHidden, addSearchArea, getSearchAreas, getCaseShares, sendNeighborhoodAlert, proposeMeeting, confirmReunion, closeCase } from '../services/caseService.js';
 import { sendPushToUser } from '../services/pushService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { enqueue } from '../services/phoneRelayService.js';
@@ -242,6 +242,67 @@ router.post('/:id/neighborhood-alert', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('send neighborhood alert error:', err);
     res.status(500).json({ error: 'Error al enviar la alerta' });
+  }
+});
+
+// POST /api/cases/:id/meeting — proponer punto de encuentro (reporter, dueño o admin)
+router.post('/:id/meeting', requireAuth, async (req, res) => {
+  const { lat, lng, time, location } = req.body;
+  if (!time) return res.status(400).json({ error: 'Se requiere fecha y hora del encuentro' });
+  try {
+    const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [req.params.id]);
+    if (caseRes.rows.length === 0) return res.status(404).json({ error: 'Caso no encontrado' });
+    const petCase = caseRes.rows[0];
+    if (!(await canManageCase(req.user.id, petCase))) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
+    const result = await proposeMeeting(req.params.id, req.user.id, { lat, lng, time, location });
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.status(201).json(result);
+  } catch (err) {
+    console.error('propose meeting error:', err);
+    res.status(500).json({ error: 'Error al proponer el encuentro' });
+  }
+});
+
+// POST /api/cases/:id/reunite — confirmar reunión + foto opcional (reporter, dueño o admin)
+router.post('/:id/reunite', requireAuth, async (req, res) => {
+  const { photo_data, photo_mime } = req.body;
+  try {
+    const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [req.params.id]);
+    if (caseRes.rows.length === 0) return res.status(404).json({ error: 'Caso no encontrado' });
+    const petCase = caseRes.rows[0];
+    if (!(await canManageCase(req.user.id, petCase))) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
+    if (petCase.status === 'closed') return res.status(400).json({ error: 'El caso ya está cerrado' });
+    const result = await confirmReunion(req.params.id, req.user.id, { photoData: photo_data, photoMime: photo_mime });
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json(result);
+  } catch (err) {
+    console.error('confirm reunion error:', err);
+    res.status(500).json({ error: 'Error al confirmar la reunión' });
+  }
+});
+
+// POST /api/cases/:id/close — cerrar caso con motivo (reporter, dueño o admin)
+router.post('/:id/close', requireAuth, async (req, res) => {
+  const { reason } = req.body;
+  if (!reason) return res.status(400).json({ error: 'Se requiere un motivo de cierre' });
+  try {
+    const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [req.params.id]);
+    if (caseRes.rows.length === 0) return res.status(404).json({ error: 'Caso no encontrado' });
+    const petCase = caseRes.rows[0];
+    if (!(await canManageCase(req.user.id, petCase))) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
+    if (petCase.status === 'closed') return res.status(400).json({ error: 'El caso ya está cerrado' });
+    const result = await closeCase(req.params.id, req.user.id, reason);
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json(result);
+  } catch (err) {
+    console.error('close case error:', err);
+    res.status(500).json({ error: 'Error al cerrar el caso' });
   }
 });
 

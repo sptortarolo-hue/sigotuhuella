@@ -87,6 +87,14 @@ function eventDetail(type: string, payload: any) {
       return null;
     case 'reunion_announced':
       return payload?.collaborators_count ? `Se avisó a ${payload.collaborators_count} personas que colaboraron` : null;
+    case 'meeting_arranged': {
+      if (!payload?.time) return null;
+      const d = new Date(payload.time);
+      const when = isNaN(d.getTime()) ? String(payload.time) : d.toLocaleString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+      return payload?.location ? `${when} · ${payload.location}` : when;
+    }
+    case 'reunited':
+      return 'La mascota volvió a casa';
     default: return null;
   }
 }

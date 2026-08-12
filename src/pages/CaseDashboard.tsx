@@ -9,6 +9,7 @@ import CaseTimeline from '@/src/components/CaseTimeline';
 import CaseMap from '@/src/components/CaseMap';
 import SightingModal from '@/src/components/SightingModal';
 import CaseShares from '@/src/components/CaseShares';
+import CaseActions from '@/src/components/CaseActions';
 
 const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
 
@@ -42,7 +43,6 @@ export default function CaseDashboard() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [savingStatus, setSavingStatus] = useState(false);
   const [sendingAlert, setSendingAlert] = useState(false);
   const [alertMsg, setAlertMsg] = useState('');
   const [copied, setCopied] = useState(false);
@@ -80,19 +80,6 @@ export default function CaseDashboard() {
 
   const isOwner = data && user && (data.reporter_id === user.id || data.pet?.created_by === user.id);
   const pet = data?.pet || {};
-
-  const handleStatusChange = async (status: string) => {
-    setSavingStatus(true);
-    try {
-      await api.cases.updateStatus(id!, status);
-      const res = await api.cases.get(id!);
-      setData(res.case);
-    } catch (e: any) {
-      alert(e.message || 'Error al actualizar el estado');
-    } finally {
-      setSavingStatus(false);
-    }
-  };
 
   const handleSendNeighborhoodAlert = async () => {
     if (!pet?.neighborhoods || (Array.isArray(pet.neighborhoods) ? pet.neighborhoods.length : 0) === 0) {
@@ -189,14 +176,10 @@ export default function CaseDashboard() {
           )}
 
           {(isOwner || isAdmin) && data.status !== 'closed' && (
-            <div className="mt-6 flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => handleStatusChange('closed')}
-                disabled={savingStatus}
-                className="w-full sm:w-auto px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold text-sm hover:bg-emerald-600 transition-colors disabled:opacity-50"
-              >
-                Cerrar caso
-              </button>
+            <CaseActions caseId={data.id} onChanged={refresh} />
+          )}
+          {(isOwner || isAdmin) && data.status !== 'closed' && (
+            <div className="mt-4">
               <button
                 onClick={handleSendNeighborhoodAlert}
                 disabled={sendingAlert}

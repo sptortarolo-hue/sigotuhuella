@@ -423,3 +423,123 @@ export async function getCaseShares(caseId) {
 
   return shares.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 }
+
+// Sprint 4 — Propone un punto de encuentro y registra el evento en el timeline
+export async function proposeMeeting(caseId, userId, { lat, lng, time, location } = {}) {
+  if (!time) return { error: 'Se requiere fecha y hora del encuentro' };
+  const event = await createCaseEvent(caseId, 'meeting_arranged', {
+    lat,
+    lng,
+    time,
+    location: location || null,
+    proposed_by: userId,
+  }, userId);
+  return { event };
+}
+
+// Sprint 4 — Confirma la reunión, cierra el caso como reunited y avisa a colaboradores
+export async function confirmReunion(caseId, userId, { photoData, photoMime } = {}) {
+  const caseRes = await pool.query(
+    `SELECT pc.*, p.name AS pet_name FROM pet_cases pc JOIN pets p ON p.id = pc.pet_id WHERE pc.id = $1`,
+    [caseId]
+  );
+  if (caseRes.rows.length === 0) return { error: 'Caso no encontrado' };
+  const petCase = caseRes.rows[0];
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE pet_cases SET status = 'closed', updated_at = NOW() WHERE id = $1`,
+      [caseId]
+    );
+    await client.query(
+      `UPDATE pets SET status = 'reunited', reunited_at = COALESCE(reunited_at, NOW()) WHERE id = $1`,
+      [petCase.pet_id]
+    );
+    await client.query(
+      `INSERT INTO case_events (case_id, user_id, event_type, payload)
+       VALUES ($1, $2, 'reunited', $3)`,
+      [caseId, userId, JSON.stringify({ confirmed_by: userId, photo_data: photoData || null, photo_mime: photoMime || null })]
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  // Avisar a colaboradores (usuarios que registraron áreas o avistaron con cuenta)
+  try {
+    const collabRes = await pool.query(
+      `SELECT DISTINCT user_id FROM case_search_areas WHERE case_id = $1 AND user_id IS NOT NULL`,
+      [caseId]
+    );
+    const collaboratorIds = collabRes.rows.map(r => r.user_id);
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+    await notifyCollaborators(caseId, petCase, collaboratorIds, userId, petCase.pet_name, frontendUrl);
+  } catch (err) {
+    console.error('confirmReunion notify collaborators error:', err.message);
+  }
+
+  return { success: true };
+}
+
+export async function closeCase(caseId, userId, reason) {
+  const validReasons = ['reunited', 'deceased', 'transferred', 'adopted'];
+  if (!validReasons.includes(reason)) return { error: 'Motivo de cierre inválido' };
+  const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [caseId]);
+  if (caseRes.rows.length === 0) return { error: 'Caso no encontrado' };
+  const petCase = caseRes.rows[0];
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE pet_cases SET status = 'closed', updated_at = NOW() WHERE id = $1`,
+      [caseId]
+    );
+    if (reason === 'reunited' || reason === 'adopted') {
+      await client.query(
+        `UPDATE pets SET status = $1, reunited_at = COALESCE(reunited_at, NOW()) WHERE id = $2`,
+        [reason, petCase.pet_id]
+      );
+    }
+    await client.query(
+      `INSERT INTO case_events (case_id, user_id, event_type, payload)
+       VALUES ($1, $2, 'case_closed', $3)`,
+      [caseId, userId, JSON.stringify({ reason, closed_by: userId })]
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  return { success: true };
+}
+
+// Envía push "¡Volvió a casa!" a los colaboradores del caso y registra el evento
+async function notifyCollaborators(caseId, petCase, collaboratorIds, userId, petName, frontendUrl) {
+  const filtered = collaboratorIds.filter(id => id && id !== userId);
+  const caseUrl = `${frontendUrl}/caso/${caseId}`;
+  const title = '🎉 ¡Volvió a casa!';
+  const body = `${petName || 'La mascota'} se reencontró con su familia. ¡Gracias por ayudar!`;
+
+  let sent = 0;
+  if (filtered.length > 0) {
+    const { sendPushToUsers } = await import('./pushService.js');
+    sent = await sendPushToUsers(filtered, {
+      title,
+      body,
+      data: { url: caseUrl, caseId, type: 'reunion_announced' },
+    });
+  }
+
+  await createCaseEvent(caseId, 'reunion_announced', {
+    collaborators_count: filtered.length,
+    channels_reached: sent,
+  }, userId);
+}

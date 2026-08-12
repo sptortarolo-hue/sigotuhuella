@@ -196,6 +196,12 @@ export const api = {
     sendNeighborhoodAlert: (id: string, data?: { neighborhoods?: string[]; radius_km?: number }) =>
       request(`/cases/${id}/neighborhood-alert`, { method: 'POST', body: JSON.stringify(data || {}) }),
     shares: (id: string) => request(`/cases/${id}/shares`),
+    proposeMeeting: (id: string, data: { lat?: number; lng?: number; time: string; location?: string }) =>
+      request(`/cases/${id}/meeting`, { method: 'POST', body: JSON.stringify(data) }),
+    reunite: (id: string, data?: { photo_data?: string | null; photo_mime?: string | null }) =>
+      request(`/cases/${id}/reunite`, { method: 'POST', body: JSON.stringify(data || {}) }),
+    close: (id: string, reason: string) =>
+      request(`/cases/${id}/close`, { method: 'POST', body: JSON.stringify({ reason }) }),
   },
   gamification: {
     myStats: () => request('/my-stats'),
