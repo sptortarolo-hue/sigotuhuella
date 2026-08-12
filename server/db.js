@@ -1604,6 +1604,17 @@ export async function initDb() {
         ON content_reports (target_type, target_id, reporter_id) WHERE status = 'pending';
     `, 'content_reports');
 
+    // User blocking: hide content and interactions from blocked users
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS user_blocks (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        blocker_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        blocked_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(blocker_id, blocked_id)
+      );
+    `, 'user_blocks');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

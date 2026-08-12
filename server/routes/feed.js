@@ -22,6 +22,7 @@ router.get('/', requireAuth, async (req, res) => {
        JOIN users u ON u.id = fp.user_id
        LEFT JOIN (SELECT post_id, COUNT(*)::int as like_count FROM feed_likes GROUP BY post_id) lc ON lc.post_id = fp.id
        LEFT JOIN feed_likes fl ON fl.post_id = fp.id AND fl.user_id = $3
+       WHERE fp.user_id NOT IN (SELECT blocked_id FROM user_blocks WHERE blocker_id = $3)
        ORDER BY fp.created_at DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset, req.user.id]
@@ -138,8 +139,9 @@ router.get('/:id/comments', requireAuth, async (req, res) => {
        FROM feed_comments fc
        JOIN users u ON u.id = fc.user_id
        WHERE fc.post_id = $1
+         AND fc.user_id NOT IN (SELECT blocked_id FROM user_blocks WHERE blocker_id = $2)
        ORDER BY fc.created_at ASC`,
-      [req.params.id]
+      [req.params.id, req.user.id]
     );
     res.json(result.rows);
   } catch (err) {

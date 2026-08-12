@@ -6,7 +6,7 @@ import {
   User, Lock, Save, Loader2, CheckCircle2, AlertCircle,
   Phone as PhoneIcon, Camera, Upload, PawPrint, CreditCard,
   ChevronRight, LogOut, Shield, Bell, BellOff, Settings,
-  Trophy, Trash2,
+  Trophy, Trash2, Ban,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ImageCropper from '@/src/components/ImageCropper';
@@ -15,7 +15,7 @@ import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pus
 import { cn } from '@/src/lib/utils';
 import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
-type Section = 'profile' | 'password' | null;
+type Section = 'profile' | 'password' | 'blocked' | null;
 
 export default function Profile() {
   const { user, login, logout, updateUser } = useAuth();
@@ -42,6 +42,10 @@ export default function Profile() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
+  const [blockedLoading, setBlockedLoading] = useState(false);
+  const [blockedError, setBlockedError] = useState('');
+  const [unblocking, setUnblocking] = useState<string | null>(null);
 
   const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
 
@@ -187,6 +191,32 @@ export default function Profile() {
     }
   };
 
+  const fetchBlocked = async () => {
+    setBlockedLoading(true);
+    setBlockedError('');
+    try {
+      const data = await api.blocks.list();
+      setBlockedUsers(data.blocked || []);
+    } catch (err: any) {
+      setBlockedError(err.message || 'Error al cargar bloqueos');
+    } finally {
+      setBlockedLoading(false);
+    }
+  };
+
+  const handleUnblock = async (userId: string) => {
+    setUnblocking(userId);
+    setBlockedError('');
+    try {
+      await api.blocks.unblock(userId);
+      setBlockedUsers(prev => prev.filter(u => u.blocked_id !== userId));
+    } catch (err: any) {
+      setBlockedError(err.message || 'Error al desbloquear');
+    } finally {
+      setUnblocking(null);
+    }
+  };
+
   const menuItems = [
     {
       icon: <CreditCard className="w-5 h-5" />,
@@ -214,6 +244,16 @@ export default function Profile() {
       label: 'Cambiar Contraseña',
       desc: 'Actualizá tu clave de acceso',
       onClick: () => setOpenSection(openSection === 'password' ? null : 'password'),
+      show: true,
+    },
+    {
+      icon: <Ban className="w-5 h-5" />,
+      label: 'Usuarios bloqueados',
+      desc: blockedUsers.length > 0 ? `${blockedUsers.length} usuario(s) bloqueado(s)` : 'Gestioná tus bloqueos',
+      onClick: () => {
+        setOpenSection(prev => prev === 'blocked' ? null : 'blocked');
+        if (blockedUsers.length === 0 && !blockedLoading) fetchBlocked();
+      },
       show: true,
     },
   ];
@@ -404,6 +444,51 @@ export default function Profile() {
                         {passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Cambiar Contraseña
                       </button>
                     </form>
+                  </div>
+                </motion.div>
+              )}
+              {(item.label === 'Usuarios bloqueados' && openSection === 'blocked') && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden border-b border-brand-accent"
+                >
+                  <div className="px-4 pb-4 pt-2 space-y-3 bg-brand-bg/30">
+                    {blockedError && (
+                      <div className="flex items-center gap-2 p-3 bg-red-50 text-red-600 rounded-xl text-sm">
+                        <AlertCircle className="w-4 h-4 shrink-0" /> {blockedError}
+                      </div>
+                    )}
+                    {blockedLoading ? (
+                      <div className="flex justify-center py-3"><Loader2 className="w-5 h-5 animate-spin text-brand-primary" /></div>
+                    ) : blockedUsers.length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-3">No bloqueaste a nadie todavía.</p>
+                    ) : (
+                      blockedUsers.map(u => (
+                        <div key={u.blocked_id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-brand-accent">
+                          <div className="w-9 h-9 rounded-full overflow-hidden bg-brand-primary/10 flex items-center justify-center shrink-0">
+                            {u.avatar_type === 'photo' && u.avatar_data ? (
+                              <img src={`data:${u.avatar_mime_type};base64,${u.avatar_data}`} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <User className="w-4 h-4 text-brand-primary" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{u.display_name || 'Usuario'}</p>
+                            <p className="text-[10px] text-gray-400">Bloqueado</p>
+                          </div>
+                          <button
+                            onClick={() => handleUnblock(u.blocked_id)}
+                            disabled={unblocking === u.blocked_id}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-xl border border-brand-accent text-gray-500 hover:bg-brand-bg disabled:opacity-50"
+                          >
+                            {unblocking === u.blocked_id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                            Desbloquear
+                          </button>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </motion.div>
               )}

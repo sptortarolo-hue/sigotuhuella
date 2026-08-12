@@ -467,6 +467,11 @@ export const api = {
       delete: (postId: string, commentId: string) => request(`/feed/${postId}/comments/${commentId}`, { method: 'DELETE' }),
     },
   },
+  blocks: {
+    list: () => request('/blocks'),
+    block: (userId: string) => request(`/blocks/${userId}`, { method: 'POST' }),
+    unblock: (userId: string) => request(`/blocks/${userId}`, { method: 'DELETE' }),
+  },
   adoptionAssignments: {
     pending: () => request('/adoption-assignments/pending'),
     myPending: () => request('/adoption-assignments/my-pending'),

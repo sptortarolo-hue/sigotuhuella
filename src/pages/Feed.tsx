@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api, apiUrl } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
-import { PawPrint, Loader2, Heart, MessageCircle, Trash2, Sparkles, Send, Flag } from 'lucide-react';
+import { PawPrint, Loader2, Heart, MessageCircle, Trash2, Sparkles, Send, Flag, Ban } from 'lucide-react';
 import { LinkifiedText } from '@/src/lib/linkify';
 import { formatDateShort } from '@/src/lib/formatDate';
 import ReportModal from '@/src/components/ReportModal';
@@ -55,6 +55,21 @@ export default function Feed() {
       await api.feed.delete(postId);
       setPosts(prev => prev.filter(p => p.id !== postId));
     } catch (e) { console.error(e); }
+  };
+
+  const handleBlock = async (userId: string, name?: string) => {
+    if (!confirm(`¿Bloquear a ${name || 'este usuario'}? Su contenido dejará de mostrarse para vos.`)) return;
+    try {
+      await api.blocks.block(userId);
+      setPosts(prev => prev.filter(p => p.user_id !== userId));
+      setComments(prev => {
+        const next: Record<string, any[]> = {};
+        for (const [pid, cs] of Object.entries(prev)) next[pid] = (cs as any[]).filter(c => c.user_id !== userId);
+        return next;
+      });
+    } catch (e: any) {
+      alert(e.message || 'Error al bloquear usuario');
+    }
   };
 
   const toggleComments = async (postId: string) => {
@@ -133,9 +148,14 @@ export default function Feed() {
                   </Link>
                   <div className="flex items-center gap-1">
                     {user && user.id !== post.user_id && (
-                      <button onClick={() => setReportTarget({ type: 'post', id: post.id })} className="p-2 text-gray-300 hover:text-red-400 transition-colors" title="Reportar">
-                        <Flag className="w-4 h-4" />
-                      </button>
+                      <>
+                        <button onClick={() => handleBlock(post.user_id, post.user_name)} className="p-2 text-gray-300 hover:text-red-400 transition-colors" title="Bloquear">
+                          <Ban className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => setReportTarget({ type: 'post', id: post.id })} className="p-2 text-gray-300 hover:text-red-400 transition-colors" title="Reportar">
+                          <Flag className="w-4 h-4" />
+                        </button>
+                      </>
                     )}
                     {user?.id === post.user_id && (
                       <button onClick={() => handleDelete(post.id)} className="p-2 text-gray-300 hover:text-red-400 transition-colors">
@@ -194,10 +214,16 @@ export default function Feed() {
                             </p>
                           </div>
                           {user && user.id !== c.user_id && (
-                            <button onClick={() => setReportTarget({ type: 'comment', id: c.id })} title="Reportar"
-                              className="text-gray-300 hover:text-red-400 transition-colors shrink-0">
-                              <Flag className="w-3 h-3" />
-                            </button>
+                            <>
+                              <button onClick={() => handleBlock(c.user_id, c.user_name)} title="Bloquear"
+                                className="text-gray-300 hover:text-red-400 transition-colors shrink-0">
+                                <Ban className="w-3 h-3" />
+                              </button>
+                              <button onClick={() => setReportTarget({ type: 'comment', id: c.id })} title="Reportar"
+                                className="text-gray-300 hover:text-red-400 transition-colors shrink-0">
+                                <Flag className="w-3 h-3" />
+                              </button>
+                            </>
                           )}
                           {user?.id === c.user_id && (
                             <button onClick={async () => { try { await api.feed.comments.delete(post.id, c.id); setComments(prev => ({ ...prev, [post.id]: prev[post.id].filter((x: any) => x.id !== c.id) })); } catch {} }}
