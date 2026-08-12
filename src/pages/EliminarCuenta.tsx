@@ -79,7 +79,9 @@ export default function EliminarCuenta() {
         </SectionCard>
 
         <SectionCard id="datos" title="Qué se elimina">
-          <P>Al eliminar tu cuenta se borran de forma permanente:</P>
+          <P>
+            Al eliminar tu cuenta se borran <strong>de inmediato y de forma permanente</strong> (sin período de retención):
+          </P>
           <ul className="list-disc pl-5 mb-3">
             <Li>Tu cuenta y tus datos personales (nombre, email, teléfono y contraseña).</Li>
             <Li>Las mascotas registradas en "Mis mascotas" y su historial (fotos, eventos, publicaciones del feed).</Li>
@@ -94,10 +96,19 @@ export default function EliminarCuenta() {
             <div>
               <p className="font-bold text-gray-800">Mascotas públicas anonimizadas</p>
               <p className="text-sm text-gray-600 leading-relaxed">
-                Las mascotas perdidas o en adopción que publicaste quedan en el aviso público para que la comunidad pueda seguir ayudándolas, pero se <strong>anonimizan</strong>: se quitan tu nombre, tu teléfono de contacto y tus redes sociales. No es posible asociarlas a vos.
+                Las mascotas perdidas o en adopción que publicaste quedan en el aviso público para que la comunidad pueda seguir ayudándolas, pero se <strong>anonimizan</strong>: se quitan tu nombre, tu teléfono de contacto y tus redes sociales. Se conservan <strong>de forma indefinida</strong> por su valor para la comunidad, sin datos personales asociados. No es posible asociarlas a vos.
               </p>
             </div>
           </div>
+        </SectionCard>
+
+        <SectionCard id="retencion" title="Períodos de retención">
+          <P>Así se manejan los plazos de conservación de tus datos:</P>
+          <ul className="list-disc pl-5 mb-3">
+            <Li><strong>Datos personales:</strong> sin retención. Se borran de inmediato al eliminar tu cuenta.</Li>
+            <Li><strong>Mascotas públicas:</strong> se conservan de forma indefinida, pero siempre anonimizadas y sin datos personales asociados a vos.</Li>
+            <Li><strong>Copias de respaldo:</strong> por razones técnicas, los respaldos diarios del servidor pueden conservar una copia residual de la base de datos hasta <strong>14 días</strong> como máximo, y luego se purgan automáticamente.</Li>
+          </ul>
         </SectionCard>
 
         <SectionCard id="contacto" title="Contacto">
