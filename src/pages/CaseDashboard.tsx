@@ -8,6 +8,7 @@ import { Loader2, MapPin, Calendar, Heart, ArrowLeft, Share2, BadgeCheck, Eye, B
 import CaseTimeline from '@/src/components/CaseTimeline';
 import CaseMap from '@/src/components/CaseMap';
 import SightingModal from '@/src/components/SightingModal';
+import CaseShares from '@/src/components/CaseShares';
 
 const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
 
@@ -245,6 +246,10 @@ export default function CaseDashboard() {
           )}
         </div>
       ) : null}
+
+      <div className="mb-8">
+        <CaseShares caseId={data.id} />
+      </div>
 
       <h2 className="text-lg sm:text-xl font-serif font-bold text-brand-primary mb-4 flex items-center gap-2">
         <BadgeCheck className="w-5 h-5" /> Trazabilidad

@@ -67,6 +67,8 @@ function eventLabel(type: string, payload: any) {
 function eventDetail(type: string, payload: any) {
   switch (type) {
     case 'instagram_published': return payload?.permalink ? `Ver publicación en Instagram` : null;
+    case 'flyer_generated':
+      return payload?.flyer_url ? `Volante 4x5 listo para imprimir` : null;
     case 'facebook_published':
       if (payload?.page_post_id) return 'Publicaciones en la página y grupos de Facebook';
       return null;

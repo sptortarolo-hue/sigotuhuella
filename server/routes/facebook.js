@@ -8,6 +8,7 @@ import { getSessionFile } from '../services/facebookRelayService.js';
 import { enqueue } from '../services/phoneRelayService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { publishToPage, publishPetToGroups } from '../services/facebookPublisher.js';
+import { createCaseEvent } from '../services/caseService.js';
 
 const router = Router();
 
@@ -599,6 +600,26 @@ router.post('/matches/:id/confirm', requireAdmin, async (req, res) => {
 
     notifySide(match.source_type, match.source_id, targetDesc);
     notifySide(match.target_type, match.target_id, sourceDesc);
+
+    (async () => {
+      try {
+        const sides = [
+          { type: match.source_type, id: match.source_id },
+          { type: match.target_type, id: match.target_id },
+        ];
+        const petSide = sides.find(s => s.type !== 'fb_post');
+        if (!petSide) return;
+        const caseRes = await pool.query('SELECT id FROM pet_cases WHERE pet_id = $1 LIMIT 1', [petSide.id]);
+        if (caseRes.rows.length === 0) return;
+        await createCaseEvent(caseRes.rows[0].id, 'match_confirmed', {
+          matched_pet_id: petSide.id,
+          score: match.score,
+          confirmed_by: req.user.id,
+        });
+      } catch (err) {
+        console.error('match_confirmed event error:', err.message);
+      }
+    })();
 
     res.json(match);
   } catch (err) {

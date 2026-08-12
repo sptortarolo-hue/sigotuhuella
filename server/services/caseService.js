@@ -373,3 +373,53 @@ export async function sendNeighborhoodAlert(caseId, { neighborhoods, radiusKm = 
     return { error: 'Error al enviar la alerta: ' + err.message };
   }
 }
+
+// Devuelve todos los shares de un caso (IG/FB con links + WA informativo)
+export async function getCaseShares(caseId) {
+  const caseRes = await pool.query('SELECT pet_id FROM pet_cases WHERE id = $1', [caseId]);
+  if (caseRes.rows.length === 0) return [];
+  const petId = caseRes.rows[0].pet_id;
+  const shares = [];
+
+  const igRes = await pool.query(
+    `SELECT ig_permalink, published_at FROM instagram_posts
+     WHERE pet_id = $1 AND status = 'published' AND ig_permalink IS NOT NULL
+     ORDER BY published_at DESC`,
+    [petId]
+  );
+  igRes.rows.forEach(r => shares.push({
+    platform: 'instagram',
+    url: r.ig_permalink,
+    date: r.published_at,
+  }));
+
+  const fbRes = await pool.query(
+    `SELECT page_post_id, group_post_ids, published_at FROM facebook_page_posts
+     WHERE pet_id = $1 AND status = 'published' AND page_post_id IS NOT NULL
+     ORDER BY published_at DESC`,
+    [petId]
+  );
+  fbRes.rows.forEach(r => shares.push({
+    platform: 'facebook',
+    url: `https://www.facebook.com/${r.page_post_id}`,
+    group_count: Array.isArray(r.group_post_ids) ? r.group_post_ids.length : 0,
+    date: r.published_at,
+  }));
+
+  const waRes = await pool.query(
+    `SELECT payload, created_at FROM case_events
+     WHERE case_id = $1 AND event_type = 'whatsapp_group_sent'
+     ORDER BY created_at DESC`,
+    [caseId]
+  );
+  waRes.rows.forEach(r => {
+    const p = r.payload || {};
+    shares.push({
+      platform: 'whatsapp',
+      group_name: p.group_name || 'Grupo de WhatsApp',
+      date: r.created_at,
+    });
+  });
+
+  return shares.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+}

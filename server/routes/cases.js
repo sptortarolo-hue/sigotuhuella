@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin } from '../auth.js';
-import { getCaseDashboard, getCasesForUser, canManageCase, createCaseEvent, addSighting, getSightings, setSightingHidden, addSearchArea, getSearchAreas, sendNeighborhoodAlert } from '../services/caseService.js';
+import { getCaseDashboard, getCasesForUser, canManageCase, createCaseEvent, addSighting, getSightings, setSightingHidden, addSearchArea, getSearchAreas, getCaseShares, sendNeighborhoodAlert } from '../services/caseService.js';
 import { sendPushToUser } from '../services/pushService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { enqueue } from '../services/phoneRelayService.js';
@@ -57,6 +57,17 @@ router.get('/mine', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('get my cases error:', err);
     res.status(500).json({ error: 'Error al obtener mis casos' });
+  }
+});
+
+// GET /api/cases/:id/shares — shares del caso (IG/FB con links + WA informativo)
+router.get('/:id/shares', async (req, res) => {
+  try {
+    const shares = await getCaseShares(req.params.id);
+    res.json({ shares });
+  } catch (err) {
+    console.error('get case shares error:', err);
+    res.status(500).json({ error: 'Error al obtener los shares' });
   }
 });
 

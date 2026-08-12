@@ -120,6 +120,12 @@ router.get('/pet/:petId/flyer4x5', async (req, res) => {
     res.set('Cache-Control', 'public, max-age=3600');
     res.set('Access-Control-Allow-Origin', '*');
     res.end(pngBuffer);
+
+    const { recordPublicationEvent } = await import('../services/caseService.js');
+    recordPublicationEvent(req.params.petId, 'flyer_generated', {
+      flyer_url: `/api/images/pet/${req.params.petId}/flyer4x5`,
+      format: '4x5',
+    }).catch(e => console.error('flyer_generated event error:', e.message));
   } catch (err) {
     console.error('Flyer render error, falling back to first image:', err.message);
     res.redirect(302, `/api/images/pet/${req.params.petId}/0`);
