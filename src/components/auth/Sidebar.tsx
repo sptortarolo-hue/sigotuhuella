@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
 import { api } from '@/src/lib/api';
 import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
-
 const publicBase = [
   { label: 'Inicio', icon: Home, path: '/' },
   { label: 'Mascotas Reportadas', icon: Search, path: '/perdidos' },
@@ -102,7 +101,7 @@ export default function Sidebar({ onReportClick }: { onReportClick?: () => void 
             {pushEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
           </button>
         )}
-        {isAdmin && (
+        {!IS_PLAY_BUILD && isAdmin && (
           <button
             onClick={() => navigate('/admin')}
             className="p-2 rounded-full text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors shrink-0"

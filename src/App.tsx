@@ -128,18 +128,16 @@ export default function App() {
               <Route path="/concursos" element={<Contests />} />
               <Route path="/perfil" element={<Profile />} />
               <Route path="/mi-carnet" element={<MemberCardPage />} />
-              <Route
-                path="/admin"
-                element={
-                  import.meta.env.VITE_PLAY_BUILD === 'true' ? (
-                    <Navigate to="/" replace />
-                  ) : (
+              {!IS_PLAY_BUILD && (
+                <Route
+                  path="/admin"
+                  element={
                     <ProtectedRoute isAdmin>
                       <Admin />
                     </ProtectedRoute>
-                  )
-                }
-              />
+                  }
+                />
+              )}
             </Route>
 
             {/* Standalone routes with mobile shell */}

@@ -1,4 +1,5 @@
 import { isNative } from '@/src/lib/platform';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 const API_ORIGIN = isNative()
   ? `${import.meta.env.VITE_API_URL || 'https://sigotuhuella.com.ar'}`
@@ -77,21 +78,25 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
 }
 
 export const api = {
-  whatsappRelay: {
-    status: () => request('/relay/admin-status'),
-    toggle: () => request('/relay/admin-toggle', { method: 'POST' }),
-    send: (to: string, text: string, image_url?: string) => request('/relay/send', { method: 'POST', body: JSON.stringify({ to, text, image_url }) }),
-    groupsBroadcast: (text: string, image_url?: string) => request('/relay/groups-broadcast', { method: 'POST', body: JSON.stringify({ text, image_url }) }),
-    testBroadcast: (petId: string, to: string) => request('/relay/test-broadcast', { method: 'POST', body: JSON.stringify({ petId: petId || undefined, to }) }),
-    pets: (category: string, search?: string) => request(`/relay/pets?category=${category}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
-    broadcastPet: (petId: string, groupIds: string[]) => request('/relay/broadcast-pet', { method: 'POST', body: JSON.stringify({ petId, groupIds }) }),
-    failedMessages: () => request('/relay/relay-failed'),
-    broadcastAdoptions: () => request('/relay/broadcast-adoptions', { method: 'POST' }),
-    clearQueue: () => request('/relay/clear-queue', { method: 'POST' }),
-    pendingMessages: () => request('/relay/pending-list'),
-    recentSent: () => request('/relay/recent-sent'),
-    deleteMessage: (id: string) => request(`/relay/message/${id}`, { method: 'DELETE' }),
-  },
+  ...(IS_PLAY_BUILD
+    ? {}
+    : {
+        whatsappRelay: {
+          status: () => request('/relay/admin-status'),
+          toggle: () => request('/relay/admin-toggle', { method: 'POST' }),
+          send: (to: string, text: string, image_url?: string) => request('/relay/send', { method: 'POST', body: JSON.stringify({ to, text, image_url }) }),
+          groupsBroadcast: (text: string, image_url?: string) => request('/relay/groups-broadcast', { method: 'POST', body: JSON.stringify({ text, image_url }) }),
+          testBroadcast: (petId: string, to: string) => request('/relay/test-broadcast', { method: 'POST', body: JSON.stringify({ petId: petId || undefined, to }) }),
+          pets: (category: string, search?: string) => request(`/relay/pets?category=${category}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
+          broadcastPet: (petId: string, groupIds: string[]) => request('/relay/broadcast-pet', { method: 'POST', body: JSON.stringify({ petId, groupIds }) }),
+          failedMessages: () => request('/relay/relay-failed'),
+          broadcastAdoptions: () => request('/relay/broadcast-adoptions', { method: 'POST' }),
+          clearQueue: () => request('/relay/clear-queue', { method: 'POST' }),
+          pendingMessages: () => request('/relay/pending-list'),
+          recentSent: () => request('/relay/recent-sent'),
+          deleteMessage: (id: string) => request(`/relay/message/${id}`, { method: 'DELETE' }),
+        },
+      }),
   get: (path: string) => request(path),
   post: (path: string, body?: any) => request(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   auth: {
@@ -318,22 +323,26 @@ export const api = {
     extractGroupIds: () => request('/facebook/extract-group-ids', { method: 'POST' }),
   },
 
-  facebookRelay: {
-    status: () => request('/relay/fb/status'),
-    toggle: () => request('/relay/fb/toggle', { method: 'POST' }),
-    uploadSession: (file: File) => {
-      const form = new FormData();
-      form.append('session', file);
-      return request('/relay/fb/upload-session', { method: 'POST', body: form });
-    },
-    clearSession: () => request('/relay/fb/clear-session', { method: 'POST' }),
-    stats: () => request('/relay/fb/stats'),
-    failedTasks: () => request('/relay/fb/failed-tasks'),
-    debugView: () => request('/relay/fb-debug-view'),
-    groups: () => request('/relay/fb/groups-ui'),
-    broadcastAdoptions: () => request('/relay/fb/broadcast-adoptions', { method: 'POST' }),
-    clearQueue: () => request('/relay/fb/clear-queue', { method: 'POST' }),
-  },
+  ...(IS_PLAY_BUILD
+    ? {}
+    : {
+        facebookRelay: {
+          status: () => request('/relay/fb/status'),
+          toggle: () => request('/relay/fb/toggle', { method: 'POST' }),
+          uploadSession: (file: File) => {
+            const form = new FormData();
+            form.append('session', file);
+            return request('/relay/fb/upload-session', { method: 'POST', body: form });
+          },
+          clearSession: () => request('/relay/fb/clear-session', { method: 'POST' }),
+          stats: () => request('/relay/fb/stats'),
+          failedTasks: () => request('/relay/fb/failed-tasks'),
+          debugView: () => request('/relay/fb-debug-view'),
+          groups: () => request('/relay/fb/groups-ui'),
+          broadcastAdoptions: () => request('/relay/fb/broadcast-adoptions', { method: 'POST' }),
+          clearQueue: () => request('/relay/fb/clear-queue', { method: 'POST' }),
+        },
+      }),
   phoneRelay: {
     scrapedMessages: {
       get: (id: string) => request(`/relay/scraped-messages/${id}`),
@@ -344,7 +353,11 @@ export const api = {
     list: () => request('/my-pets'),
     get: (id: string) => request(`/my-pets/${id}`),
     create: (data: any) => request('/my-pets', { method: 'POST', body: JSON.stringify(data) }),
-    createForUser: (userId: string, data: any) => request(`/my-pets/admin/for-user/${userId}`, { method: 'POST', body: JSON.stringify(data) }),
+    ...(IS_PLAY_BUILD
+      ? {}
+      : {
+          createForUser: (userId: string, data: any) => request(`/my-pets/admin/for-user/${userId}`, { method: 'POST', body: JSON.stringify(data) }),
+        }),
     update: (id: string, data: any) => request(`/my-pets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/my-pets/${id}`, { method: 'DELETE' }),
     requestQr: (id: string) => request(`/my-pets/${id}/request-qr`, { method: 'POST' }),
@@ -425,12 +438,16 @@ export const api = {
       });
     },
   },
-  adminDashboard: {
-    get: () => request('/admin/dashboard'),
-    updateSettings: (settings: Record<string, string>) =>
-      request('/admin/dashboard/settings', { method: 'POST', body: JSON.stringify({ settings }) }),
-    analytics: () => request('/admin/dashboard/analytics'),
-  },
+  ...(IS_PLAY_BUILD
+    ? {}
+    : {
+        adminDashboard: {
+          get: () => request('/admin/dashboard'),
+          updateSettings: (settings: Record<string, string>) =>
+            request('/admin/dashboard/settings', { method: 'POST', body: JSON.stringify({ settings }) }),
+          analytics: () => request('/admin/dashboard/analytics'),
+        },
+      }),
   feed: {
     list: (page = 1) => request(`/feed?page=${page}`),
     create: (data: any) => request('/feed', { method: 'POST', body: JSON.stringify(data) }),
@@ -451,52 +468,56 @@ export const api = {
     return: (token: string, reason?: string) => request(`/adoption-assignments/return/${token}`, { method: 'POST', body: JSON.stringify({ reason }) }),
     checkToken: (token: string) => request(`/adoption-assignments/check-token/${token}`),
   },
-  raffles: {
-    list: () => request('/raffles'),
-    get: (id: string) => request(`/raffles/${id}`),
-    create: (data: any) => request('/raffles', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: any) => request(`/raffles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    delete: (id: string) => request(`/raffles/${id}`, { method: 'DELETE' }),
-    reserve: (id: string, data: { numbers?: number[]; name: string; email?: string; phone: string; paymentMethod: string; autoConfirm?: boolean }) =>
-      request(`/raffles/${id}/reserve`, { method: 'POST', body: JSON.stringify(data) }),
-    reserveManual: (id: string, data: { count: number; name: string; phone: string; paymentMethod: string }) =>
-      request(`/raffles/${id}/reserve`, { method: 'POST', body: JSON.stringify(data) }),
-    ticketStatus: (id: string, ticketGroupId: string) => request(`/raffles/${id}/ticket-status/${ticketGroupId}`),
-    draw: (id: string) => request(`/raffles/${id}/draw`, { method: 'POST' }),
-    uploadReceipt: (id: string, data: { ticketGroupId: string; buyerName: string; buyerPhone: string; imageData: string; imageMime: string; amountExpected: number; status?: string }) =>
-      request(`/raffles/${id}/receipt`, { method: 'POST', body: JSON.stringify(data) }),
-    confirmReceipt: (raffleId: string, receiptId: string, note: string) =>
-      request(`/raffles/${raffleId}/receipt/${receiptId}/confirm`, { method: 'POST', body: JSON.stringify({ adminNote: note }) }),
-    rejectReceipt: (raffleId: string, receiptId: string, note: string) =>
-      request(`/raffles/${raffleId}/receipt/${receiptId}/reject`, { method: 'POST', body: JSON.stringify({ adminNote: note }) }),
-    cleanup: () => request('/raffles/cleanup', { method: 'POST' }),
-    unmatchedReceipts: () => request('/raffles/unmatched-receipts'),
-    assignReceipt: (id: string, data: { raffleId: string; ticketGroupId?: string; buyerName?: string; buyerPhone?: string; amountExpected?: number }) =>
-      request(`/raffles/receipts/${id}/assign`, { method: 'POST', body: JSON.stringify(data) }),
-    releaseTickets: (ticketGroupId: string) => request('/raffles/tickets/release', { method: 'POST', body: JSON.stringify({ ticketGroupId }) }),
-    resendBankDetails: (raffleId: string, receiptId: string) => request(`/raffles/${raffleId}/receipt/${receiptId}/resend-bank`, { method: 'POST' }),
-  },
-  backup: {
-    list: () => request('/backup/list'),
-    download: async (file: string) => {
-      const token = getToken();
-      const res = await fetch(`${BASE_URL}/backup/download/${encodeURIComponent(file)}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) {
-        const err: any = new Error('Error al descargar backup');
-        throw err;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    },
-    run: () => request('/backup/run', { method: 'POST' }),
-  },
+  ...(IS_PLAY_BUILD
+    ? {}
+    : {
+        raffles: {
+          list: () => request('/raffles'),
+          get: (id: string) => request(`/raffles/${id}`),
+          create: (data: any) => request('/raffles', { method: 'POST', body: JSON.stringify(data) }),
+          update: (id: string, data: any) => request(`/raffles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+          delete: (id: string) => request(`/raffles/${id}`, { method: 'DELETE' }),
+          reserve: (id: string, data: { numbers?: number[]; name: string; email?: string; phone: string; paymentMethod: string; autoConfirm?: boolean }) =>
+            request(`/raffles/${id}/reserve`, { method: 'POST', body: JSON.stringify(data) }),
+          reserveManual: (id: string, data: { count: number; name: string; phone: string; paymentMethod: string }) =>
+            request(`/raffles/${id}/reserve`, { method: 'POST', body: JSON.stringify(data) }),
+          ticketStatus: (id: string, ticketGroupId: string) => request(`/raffles/${id}/ticket-status/${ticketGroupId}`),
+          draw: (id: string) => request(`/raffles/${id}/draw`, { method: 'POST' }),
+          uploadReceipt: (id: string, data: { ticketGroupId: string; buyerName: string; buyerPhone: string; imageData: string; imageMime: string; amountExpected: number; status?: string }) =>
+            request(`/raffles/${id}/receipt`, { method: 'POST', body: JSON.stringify(data) }),
+          confirmReceipt: (raffleId: string, receiptId: string, note: string) =>
+            request(`/raffles/${raffleId}/receipt/${receiptId}/confirm`, { method: 'POST', body: JSON.stringify({ adminNote: note }) }),
+          rejectReceipt: (raffleId: string, receiptId: string, note: string) =>
+            request(`/raffles/${raffleId}/receipt/${receiptId}/reject`, { method: 'POST', body: JSON.stringify({ adminNote: note }) }),
+          cleanup: () => request('/raffles/cleanup', { method: 'POST' }),
+          unmatchedReceipts: () => request('/raffles/unmatched-receipts'),
+          assignReceipt: (id: string, data: { raffleId: string; ticketGroupId?: string; buyerName?: string; buyerPhone?: string; amountExpected?: number }) =>
+            request(`/raffles/receipts/${id}/assign`, { method: 'POST', body: JSON.stringify(data) }),
+          releaseTickets: (ticketGroupId: string) => request('/raffles/tickets/release', { method: 'POST', body: JSON.stringify({ ticketGroupId }) }),
+          resendBankDetails: (raffleId: string, receiptId: string) => request(`/raffles/${raffleId}/receipt/${receiptId}/resend-bank`, { method: 'POST' }),
+        },
+        backup: {
+          list: () => request('/backup/list'),
+          download: async (file: string) => {
+            const token = getToken();
+            const res = await fetch(`${BASE_URL}/backup/download/${encodeURIComponent(file)}`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (!res.ok) {
+              const err: any = new Error('Error al descargar backup');
+              throw err;
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          },
+          run: () => request('/backup/run', { method: 'POST' }),
+        },
+      }),
 };

@@ -6,6 +6,7 @@ import { LogIn, LogOut, ShieldAlert, Loader2, Mail, Lock, UserPlus, Phone as Pho
 import { motion } from 'motion/react';
 import { Helmet } from 'react-helmet-async';
 import { isNative } from '@/src/lib/platform';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_ID_ANDROID = import.meta.env.VITE_GOOGLE_CLIENT_ID_ANDROID || '';
@@ -356,7 +357,7 @@ export default function Login() {
             )}
 
             <div className="flex flex-col gap-3">
-              {isAdmin && (
+              {!IS_PLAY_BUILD && isAdmin && (
                 <button
                   onClick={() => navigate('/admin')}
                   className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all"

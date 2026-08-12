@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { cn } from '@/src/lib/utils';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 export default function PublicMobileTopBar() {
   const { user, logout, isAdmin } = useAuth();
@@ -58,7 +59,7 @@ export default function PublicMobileTopBar() {
 
         {user ? (
           <div className="flex items-center gap-1">
-            {isAdmin && (
+            {!IS_PLAY_BUILD && isAdmin && (
               <Link
                 to="/admin"
                 className="p-2 rounded-full text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors"

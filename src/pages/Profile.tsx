@@ -13,6 +13,7 @@ import ImageCropper from '@/src/components/ImageCropper';
 import { fileToBase64 } from '@/src/lib/storageService';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
 import { cn } from '@/src/lib/utils';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 type Section = 'profile' | 'password' | null;
 
@@ -412,7 +413,7 @@ export default function Profile() {
       </motion.div>
 
       {/* Admin panel */}
-      {isAdmin && (
+      {!IS_PLAY_BUILD && isAdmin && (
         <motion.button
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

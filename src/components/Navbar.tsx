@@ -5,6 +5,7 @@ import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -119,7 +120,7 @@ export default function Navbar() {
                   {pushEnabled ? <Bell className="w-4 h-4 sm:w-5 sm:h-5" /> : <BellOff className="w-4 h-4 sm:w-5 sm:h-5" />}
                 </button>
               )}
-              {isAdmin && (
+              {!IS_PLAY_BUILD && isAdmin && (
                 <Link
                   to="/admin"
                   className="px-3 py-1.5 bg-gradient-to-r from-brand-primary to-purple-600 text-white text-xs sm:text-sm font-bold rounded-xl hover:shadow-lg hover:-translate-y-0.5 transition-all whitespace-nowrap flex items-center gap-1.5"
@@ -172,7 +173,7 @@ export default function Navbar() {
                           <p className="text-xs text-gray-500 truncate">{user.email}</p>
                         </div>
       <div className="py-1">
-        {isAdmin && (
+        {!IS_PLAY_BUILD && isAdmin && (
           <button onClick={() => handleNavClick('/admin')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-primary/5 text-brand-primary font-bold transition-colors border-b border-brand-accent">
             <Settings className="w-4 h-4 text-brand-primary animate-pulse" /> Panel Admin
           </button>
@@ -261,7 +262,7 @@ export default function Navbar() {
                         <p className="text-xs text-gray-500 truncate">{user.email}</p>
                       </div>
                       <div className="py-1">
-                        {isAdmin && (
+                        {!IS_PLAY_BUILD && isAdmin && (
                           <button onClick={() => handleNavClick('/admin')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-primary/5 text-brand-primary font-bold transition-colors border-b border-brand-accent">
                             <Settings className="w-4 h-4 text-brand-primary animate-pulse" /> Panel Admin
                           </button>
@@ -307,7 +308,7 @@ export default function Navbar() {
             {pushEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
           </button>
         )}
-        {isAdmin && (
+        {!IS_PLAY_BUILD && isAdmin && (
           <Link
             to="/admin"
             className="p-2 rounded-full text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors"
@@ -391,7 +392,7 @@ export default function Navbar() {
                     <p className="text-xs text-gray-500 truncate">{user.email}</p>
                   </div>
                 </div>
-                {isAdmin && (
+                {!IS_PLAY_BUILD && isAdmin && (
                   <Link to="/admin" onClick={() => handleNavClick('/admin')} className="flex items-center gap-3 text-base font-bold p-3 rounded-lg text-brand-primary bg-brand-primary/5 hover:bg-brand-primary/10 mb-2">
                     <Settings className="w-5 h-5 shrink-0" /> Panel Admin
                   </Link>

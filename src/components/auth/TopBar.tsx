@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
 import { cn } from '@/src/lib/utils';
+import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 export default function TopBar() {
   const { user, logout, isAdmin } = useAuth();
@@ -54,7 +55,7 @@ export default function TopBar() {
             {pushEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
           </button>
         )}
-        {isAdmin && (
+        {!IS_PLAY_BUILD && isAdmin && (
           <Link
             to="/admin"
             className="p-2 rounded-full text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors"
