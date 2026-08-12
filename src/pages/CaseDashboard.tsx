@@ -4,7 +4,7 @@ import { api } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import { getPetCoordinates } from '@/src/lib/petService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
-import { Loader2, MapPin, Calendar, Heart, ArrowLeft, Share2, BadgeCheck, Eye } from 'lucide-react';
+import { Loader2, MapPin, Calendar, Heart, ArrowLeft, Share2, BadgeCheck, Eye, BellRing } from 'lucide-react';
 import CaseTimeline from '@/src/components/CaseTimeline';
 import CaseMap from '@/src/components/CaseMap';
 import SightingModal from '@/src/components/SightingModal';
@@ -37,12 +37,13 @@ const PET_STATUS_LABELS: Record<string, string> = {
 
 export default function CaseDashboard() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [savingStatus, setSavingStatus] = useState(false);
+  const [sendingAlert, setSendingAlert] = useState(false);
+  const [alertMsg, setAlertMsg] = useState('');
   const [copied, setCopied] = useState(false);
   const [showSightingModal, setShowSightingModal] = useState(false);
 
@@ -77,6 +78,7 @@ export default function CaseDashboard() {
   };
 
   const isOwner = data && user && (data.reporter_id === user.id || data.pet?.created_by === user.id);
+  const pet = data?.pet || {};
 
   const handleStatusChange = async (status: string) => {
     setSavingStatus(true);
@@ -88,6 +90,24 @@ export default function CaseDashboard() {
       alert(e.message || 'Error al actualizar el estado');
     } finally {
       setSavingStatus(false);
+    }
+  };
+
+  const handleSendNeighborhoodAlert = async () => {
+    if (!pet?.neighborhoods || (Array.isArray(pet.neighborhoods) ? pet.neighborhoods.length : 0) === 0) {
+      alert('La mascota no tiene barrios configurados. Editala para definir los barrios de difusión.');
+      return;
+    }
+    setSendingAlert(true);
+    setAlertMsg('');
+    try {
+      const res = await api.cases.sendNeighborhoodAlert(id!);
+      setAlertMsg(`Alerta enviada a ${res.recipients ?? 0} vecino(s)${res.sent ? ` (${res.sent} entregada(s))` : ''}.`);
+      await refresh();
+    } catch (e: any) {
+      alert(e.message || 'Error al enviar la alerta vecinal');
+    } finally {
+      setSendingAlert(false);
     }
   };
 
@@ -110,7 +130,6 @@ export default function CaseDashboard() {
     );
   }
 
-  const pet = data.pet || {};
   const images = (pet.images || []);
   const heroImg = imgUrl(images[0]);
 
@@ -177,8 +196,17 @@ export default function CaseDashboard() {
               >
                 Cerrar caso
               </button>
+              <button
+                onClick={handleSendNeighborhoodAlert}
+                disabled={sendingAlert}
+                className="w-full sm:w-auto px-6 py-3 bg-amber-500 text-white rounded-xl font-bold text-sm hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {sendingAlert ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
+                {sendingAlert ? 'Enviando...' : 'Enviar alerta vecinal'}
+              </button>
             </div>
           )}
+          {alertMsg && <p className="mt-3 text-sm text-gray-600 flex items-center gap-2"><BellRing className="w-4 h-4 text-amber-500" /> {alertMsg}</p>}
 
           <button
             onClick={() => {

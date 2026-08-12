@@ -166,3 +166,22 @@ export async function sendPushToUser(userId, payload) {
     return 0;
   }
 }
+
+// Envía push a varios usuarios. Los user_ids sin suscripciones/tokens no cuentan.
+export async function sendPushToUsers(userIds, payload) {
+  if (!userIds || userIds.length === 0) return 0;
+  try {
+    const [subs, tokens] = await Promise.all([
+      getSubscriptions('WHERE user_id = ANY($1::uuid[])', [userIds]),
+      getDeviceTokens('WHERE user_id = ANY($1::uuid[])', [userIds]),
+    ]);
+    const [webCount, fcmCount] = await Promise.all([
+      sendToSubscriptions(subs, payload),
+      sendToFcmTokens(tokens, payload),
+    ]);
+    return webCount + fcmCount;
+  } catch (err) {
+    console.error('sendPushToUsers error:', err);
+    return 0;
+  }
+}

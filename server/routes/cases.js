@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin } from '../auth.js';
-import { getCaseDashboard, getCasesForUser, canManageCase, createCaseEvent, addSighting, getSightings, setSightingHidden, addSearchArea, getSearchAreas } from '../services/caseService.js';
+import { getCaseDashboard, getCasesForUser, canManageCase, createCaseEvent, addSighting, getSightings, setSightingHidden, addSearchArea, getSearchAreas, sendNeighborhoodAlert } from '../services/caseService.js';
 import { sendPushToUser } from '../services/pushService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { enqueue } from '../services/phoneRelayService.js';
@@ -212,6 +212,25 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('update case status error:', err);
     res.status(500).json({ error: 'Error al actualizar el estado' });
+  }
+});
+
+// POST /api/cases/:id/neighborhood-alert — enviar alerta vecinal a usuarios del barrio (reporter, dueño o admin)
+router.post('/:id/neighborhood-alert', requireAuth, async (req, res) => {
+  const { neighborhoods, radius_km } = req.body;
+  try {
+    const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [req.params.id]);
+    if (caseRes.rows.length === 0) return res.status(404).json({ error: 'Caso no encontrado' });
+    const petCase = caseRes.rows[0];
+    if (!(await canManageCase(req.user.id, petCase))) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
+    const result = await sendNeighborhoodAlert(req.params.id, { neighborhoods, radiusKm: radius_km });
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json(result);
+  } catch (err) {
+    console.error('send neighborhood alert error:', err);
+    res.status(500).json({ error: 'Error al enviar la alerta' });
   }
 });
 

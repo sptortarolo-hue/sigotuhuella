@@ -14,6 +14,7 @@ import { fileToBase64 } from '@/src/lib/storageService';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
 import { cn } from '@/src/lib/utils';
 import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
+import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 
 type Section = 'profile' | 'password' | 'blocked' | null;
 
@@ -24,6 +25,11 @@ export default function Profile() {
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [notificationPreference, setNotificationPreference] = useState(user?.notification_preference || 'both');
+  const [neighborhoods, setNeighborhoods] = useState<string[]>(
+    Array.isArray(user?.neighborhoods) ? user.neighborhoods : (() => {
+      try { return JSON.parse(user?.neighborhoods || '[]'); } catch { return []; }
+    })()
+  );
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
@@ -104,8 +110,8 @@ export default function Profile() {
     setProfileMsg('');
     setProfileError('');
     try {
-      const data = await api.users.update(user.id, { displayName, phone, notificationPreference });
-      updateUser({ display_name: data.user.display_name, phone: data.user.phone, notification_preference: data.user.notification_preference });
+      const data = await api.users.update(user.id, { displayName, phone, notificationPreference, neighborhoods });
+      updateUser({ display_name: data.user.display_name, phone: data.user.phone, notification_preference: data.user.notification_preference, neighborhoods: data.user.neighborhoods });
       setProfileMsg('Datos actualizados');
     } catch (err: any) {
       setProfileError(err.message || 'Error al actualizar');
@@ -403,6 +409,26 @@ export default function Profile() {
                               {opt.label}
                             </label>
                           ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1 block">Alertas de mi barrio</label>
+                        <p className="text-xs text-gray-400 mb-3">Elegí los barrios donde querés recibir alertas vecinales de mascotas perdidas. Al elegirlos, aceptás recibir estas notificaciones push.</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {NEIGHBORHOODS.map(n => {
+                            const active = neighborhoods.includes(n.id);
+                            return (
+                              <button key={n.id} type="button"
+                                onClick={() => setNeighborhoods(prev => active ? prev.filter(x => x !== n.id) : [...prev, n.id])}
+                                className={cn(
+                                  "px-3 py-2 rounded-xl text-xs font-bold border transition-all",
+                                  active ? "bg-brand-primary/15 text-brand-primary border-brand-primary" : "bg-white border-brand-accent text-gray-500 hover:border-brand-primary"
+                                )}
+                              >
+                                {n.name}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                       {profileMsg && <div className="p-3 bg-green-50 text-green-600 rounded-xl text-sm flex gap-2 items-center"><CheckCircle2 className="w-4 h-4" />{profileMsg}</div>}

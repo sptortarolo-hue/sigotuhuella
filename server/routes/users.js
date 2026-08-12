@@ -115,7 +115,7 @@ router.put('/:id/set-password', requireAdmin, async (req, res) => {
 });
 
 router.put('/:id', requireAuth, async (req, res) => {
-  const { displayName, phone, role, badges, notificationPreference,
+  const { displayName, phone, role, badges, notificationPreference, neighborhoods,
           email, memberNumber, volunteerStatus, contributionAreas,
           points, level, emailVerified, registrationPending, avatarType } = req.body;
   const isSelf = req.user.id === req.params.id;
@@ -145,6 +145,11 @@ router.put('/:id', requireAuth, async (req, res) => {
       }
       fields.push(`notification_preference = $${idx++}`);
       values.push(notificationPreference);
+    }
+    if (neighborhoods !== undefined) {
+      const nArr = Array.isArray(neighborhoods) ? neighborhoods : [];
+      fields.push(`neighborhoods = $${idx++}::jsonb`);
+      values.push(JSON.stringify(nArr));
     }
     // ── Admin-only fields ────────────────────────────────────────────────
     if (role !== undefined && isAdmin) {
@@ -208,13 +213,13 @@ router.put('/:id', requireAuth, async (req, res) => {
     fields.push(`updated_at = NOW()`);
     values.push(req.params.id);
     const result = await pool.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, phone, role, created_at, avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges, notification_preference, contribution_areas, points, level, email_verified, registration_pending`,
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, phone, role, created_at, avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges, notification_preference, neighborhoods, contribution_areas, points, level, email_verified, registration_pending`,
       values
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json({ user: { ...result.rows[0], badges: result.rows[0].badges || [], contribution_areas: result.rows[0].contribution_areas || [] } });
+    res.json({ user: { ...result.rows[0], badges: result.rows[0].badges || [], contribution_areas: result.rows[0].contribution_areas || [], neighborhoods: result.rows[0].neighborhoods || [] } });
   } catch (err) {
     console.error('Update user error:', err);
     res.status(500).json({ error: 'Failed to update user' });

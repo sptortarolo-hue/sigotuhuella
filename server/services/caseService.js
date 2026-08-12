@@ -69,6 +69,13 @@ export async function createCaseEvent(caseId, eventType, payload = {}, userId = 
   }
 }
 
+// Registra un evento de publicación (IG/FB/WA) en el caso del pet, si existe. No-op sin caso.
+export async function recordPublicationEvent(petId, eventType, payload) {
+  const result = await pool.query('SELECT id FROM pet_cases WHERE pet_id = $1 LIMIT 1', [petId]);
+  if (result.rows.length === 0) return null;
+  return createCaseEvent(result.rows[0].id, eventType, payload);
+}
+
 // Sincroniza el caso cuando cambia pets.status (cerrar en reunited/adopted, reactivar si vuelve a estar perdido)
 export async function syncCaseStatus(petId, newStatus) {
   try {
@@ -277,4 +284,92 @@ export async function canManageCase(userId, petCase) {
   );
   const ownerId = ownerRes.rows[0]?.created_by;
   return petCase.reporter_id === userId || ownerId === userId;
+}
+
+// Envía una alerta vecinal por push a usuarios con barrios coincidentes y registra el envío.
+// Devuelve { alert, recipients, sent } o { error } si algo falla.
+export async function sendNeighborhoodAlert(caseId, { neighborhoods, radiusKm = 5 } = {}) {
+  try {
+    const caseRes = await pool.query(
+      `SELECT pc.*, p.name AS pet_name, p.species, p.location,
+              p.neighborhoods AS pet_neighborhoods, p.latitude, p.longitude
+       FROM pet_cases pc
+       JOIN pets p ON p.id = pc.pet_id
+       WHERE pc.id = $1`,
+      [caseId]
+    );
+    if (caseRes.rows.length === 0) return { error: 'Caso no encontrado' };
+    const petCase = caseRes.rows[0];
+
+    let nbs = neighborhoods;
+    if (!nbs || nbs.length === 0) {
+      try {
+        const parsed = typeof petCase.pet_neighborhoods === 'string'
+          ? JSON.parse(petCase.pet_neighborhoods)
+          : petCase.pet_neighborhoods;
+        nbs = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        nbs = [];
+      }
+    }
+    nbs = (nbs || []).filter(Boolean);
+    if (nbs.length === 0) return { error: 'La mascota no tiene barrios configurados' };
+
+    const radius = parseInt(radiusKm, 10) || 5;
+
+    const targets = await pool.query(
+      `SELECT DISTINCT u.id
+       FROM users u
+       WHERE u.neighborhoods ?| $1::text[]
+         AND EXISTS (
+           SELECT 1 FROM push_subscriptions ps WHERE ps.user_id = u.id
+           UNION ALL
+           SELECT 1 FROM device_tokens dt WHERE dt.user_id = u.id
+         )`,
+      [nbs]
+    );
+    const userIds = targets.rows.map(r => r.id);
+    const recipients = userIds.length;
+
+    if (recipients === 0) {
+      const alert = await pool.query(
+        `INSERT INTO neighborhood_alerts (case_id, pet_id, neighborhoods, recipients, sent_count, radius_km, status)
+         VALUES ($1, $2, $3, 0, 0, $4, 'no_recipients')
+         RETURNING *`,
+        [caseId, petCase.pet_id, nbs, radius]
+      );
+      return { alert: alert.rows[0], recipients: 0, sent: 0 };
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+    const caseUrl = `${frontendUrl}/caso/${caseId}`;
+    const title = '🚨 Alerta vecinal';
+    const body = `${petCase.pet_name || 'Una mascota'} ${petCase.species === 'dog' ? 'se perdió' : petCase.species === 'cat' ? 'se perdió' : 'fue reportada'} en ${petCase.location || petCase.pet_neighborhoods || 'tu zona'}. Mirá el caso.`;
+
+    const { sendPushToUsers } = await import('./pushService.js');
+    const sent = await sendPushToUsers(userIds, {
+      title,
+      body,
+      data: { url: caseUrl, caseId, type: 'neighborhood_alert' },
+    });
+
+    const alert = await pool.query(
+      `INSERT INTO neighborhood_alerts (case_id, pet_id, neighborhoods, recipients, sent_count, radius_km, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'sent')
+       RETURNING *`,
+      [caseId, petCase.pet_id, nbs, recipients, sent, radius]
+    );
+
+    await createCaseEvent(caseId, 'neighborhood_alert_sent', {
+      recipients,
+      radius_km: radius,
+      neighborhoods: nbs,
+      sent_count: sent,
+    });
+
+    return { alert: alert.rows[0], recipients, sent };
+  } catch (err) {
+    console.error('sendNeighborhoodAlert error:', err.message);
+    return { error: 'Error al enviar la alerta: ' + err.message };
+  }
 }

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import pool from '../db.js';
 import { enqueue } from './phoneRelayService.js';
+import { createCaseEvent } from './caseService.js';
 import { generateCelebrationText } from './textTemplates.js';
 import { enqueuePublishTask, applySpintax } from './facebookRelayService.js';
 
@@ -390,11 +391,25 @@ export async function broadcastPetToGroups(petId) {
       : null;
 
     console.log('[Broadcast] >>> ENCOLANDO para', groups.rows.length, 'grupo(s)');
+    const caseRes = await pool.query('SELECT id FROM pet_cases WHERE pet_id = $1 LIMIT 1', [petId]);
+    const caseId = caseRes.rows[0]?.id || null;
     for (const group of groups.rows) {
       try {
         console.log('[Broadcast] Encolando a grupo:', group.name, 'group_id:', group.group_id);
-        await enqueue(group.group_id, caption, coverUrl);
+        const relayMessageId = await enqueue(group.group_id, caption, coverUrl);
         console.log('[Broadcast] Encolado OK:', group.name);
+        if (caseId) {
+          try {
+            await createCaseEvent(caseId, 'whatsapp_group_sent', {
+              group_id: group.group_id,
+              group_name: group.name,
+              relay_message_id: relayMessageId,
+              reached: true,
+            });
+          } catch (eventErr) {
+            console.error(`[Broadcast] Error registrando evento para ${group.name}:`, eventErr.message);
+          }
+        }
       } catch (err) {
         console.error(`[Broadcast] Error encolando a grupo ${group.name} (${group.group_id}):`, err.message);
       }

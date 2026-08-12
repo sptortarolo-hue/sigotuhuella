@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Save, Loader2 } from 'lucide-react';
 import { api } from '@/src/lib/api';
+import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
+import { cn } from '@/src/lib/utils';
 
 interface AdminEditUserModalProps {
   user: any;
@@ -61,6 +63,7 @@ export default function AdminEditUserModal({ user, isOpen, onClose, onSaved }: A
     avatar_type: 'pawprint',
     badges: [] as string[],
     contribution_areas: [] as string[],
+    neighborhoods: [] as string[],
   });
   const [saving, setSaving] = useState(false);
 
@@ -80,6 +83,9 @@ export default function AdminEditUserModal({ user, isOpen, onClose, onSaved }: A
         avatar_type: user.avatar_type || 'pawprint',
         badges: (user.badges || []).map((b: any) => b.code || b),
         contribution_areas: Array.isArray(user.contribution_areas) ? user.contribution_areas : [],
+        neighborhoods: Array.isArray(user.neighborhoods) ? user.neighborhoods : (() => {
+          try { return JSON.parse(user.neighborhoods || '[]'); } catch { return []; }
+        })(),
       });
     }
   }, [user, isOpen]);
@@ -104,6 +110,15 @@ export default function AdminEditUserModal({ user, isOpen, onClose, onSaved }: A
     }));
   };
 
+  const handleToggleNeighborhood = (id: string) => {
+    setForm(prev => ({
+      ...prev,
+      neighborhoods: prev.neighborhoods.includes(id)
+        ? prev.neighborhoods.filter(n => n !== id)
+        : [...prev.neighborhoods, id],
+    }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -121,6 +136,7 @@ export default function AdminEditUserModal({ user, isOpen, onClose, onSaved }: A
         avatarType: form.avatar_type,
         badges: form.badges.map(code => ({ code, awarded_at: new Date().toISOString() })),
         contributionAreas: form.contribution_areas,
+        neighborhoods: form.neighborhoods,
       });
       onSaved(updated.user);
       onClose();
@@ -275,6 +291,24 @@ export default function AdminEditUserModal({ user, isOpen, onClose, onSaved }: A
                           active ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'border border-dashed border-gray-300 text-gray-400 hover:text-purple-500 hover:border-purple-300'
                         }`}>
                         {area.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Barrios para alertas vecinales */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Barrios (alertas vecinales)</label>
+                <div className="flex flex-wrap gap-2">
+                  {NEIGHBORHOODS.map(n => {
+                    const active = form.neighborhoods.includes(n.id);
+                    return (
+                      <button key={n.id} type="button" onClick={() => handleToggleNeighborhood(n.id)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                          active ? 'bg-brand-primary/15 text-brand-primary border border-brand-primary' : 'border border-dashed border-gray-300 text-gray-400 hover:text-brand-primary hover:border-brand-primary'
+                        }`}>
+                        {n.name}
                       </button>
                     );
                   })}

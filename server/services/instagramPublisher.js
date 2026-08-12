@@ -4,6 +4,7 @@ import {
   publishImageStory,
 } from './instagramService.js';
 import { enqueue } from './phoneRelayService.js';
+import { recordPublicationEvent } from './caseService.js';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
@@ -110,6 +111,7 @@ export async function publishSinglePost(petId) {
     const updatedPost = await pool.query('SELECT id FROM instagram_posts WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 1', [petId]);
     if (updatedPost.rows.length > 0) await tryPublishStory(pet, updatedPost.rows[0].id);
     await tryNotifyWhatsApp(pet, permalink);
+    await recordPublicationEvent(petId, 'instagram_published', { permalink, media_id: result.id });
     return { success: true, permalink, mediaId: result.id };
   } catch (err) {
     await pool.query(
@@ -164,6 +166,7 @@ export async function processQueue() {
       );
       await tryPublishStory(pet, post.id);
       await tryNotifyWhatsApp(pet, permalink);
+      await recordPublicationEvent(post.pet_id, 'instagram_published', { permalink, media_id: result.id });
       results.push({ postId: post.id, success: true, permalink });
     } catch (err) {
       await pool.query(

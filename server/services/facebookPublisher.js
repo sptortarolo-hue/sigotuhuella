@@ -1,5 +1,6 @@
 import axios from 'axios';
 import pool from '../db.js';
+import { recordPublicationEvent } from './caseService.js';
 
 const GRAPH_API = 'https://graph.facebook.com/v22.0';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
@@ -594,6 +595,13 @@ export async function publishPetToGroups(petId, options = {}) {
        VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
       [petId, pageResult.pagePostId || null, groupPostIds, message, status, errorMsg]
     );
+
+    if (status === 'published') {
+      await recordPublicationEvent(petId, 'facebook_published', {
+        page_post_url: pagePostUrl || null,
+        group_post_ids: groupPostIds,
+      }).catch(e => console.error(`[FB Publisher] recordPublicationEvent error: ${e.message}`));
+    }
   }
 
   return results;

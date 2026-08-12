@@ -28,6 +28,9 @@ android/
 # opencode internal config
 .opencode/
 
+# Play Store assets (solo PC local)
+play-assets/
+
 # Build artifacts
 .next/
 tsconfig.tsbuildinfo

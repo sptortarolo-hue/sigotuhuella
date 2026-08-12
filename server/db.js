@@ -1673,6 +1673,26 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_case_search_areas_case ON case_search_areas(case_id, created_at);
     `, 'case_search_areas');
 
+    // ─── Sprint 3: alertas vecinales ───
+    await migrate(client, `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS neighborhoods JSONB DEFAULT '[]'::jsonb
+    `, 'users neighborhoods');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS neighborhood_alerts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        case_id UUID NOT NULL REFERENCES pet_cases(id) ON DELETE CASCADE,
+        pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        neighborhoods TEXT[] DEFAULT '{}',
+        recipients INT DEFAULT 0,
+        sent_count INT DEFAULT 0,
+        radius_km INT DEFAULT 5,
+        status VARCHAR(20) DEFAULT 'sent',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_neighborhood_alerts_case ON neighborhood_alerts(case_id, created_at);
+    `, 'neighborhood_alerts');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

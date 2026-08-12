@@ -193,6 +193,8 @@ export const api = {
     searchAreas: (id: string) => request(`/cases/${id}/search-areas`),
     createSearchArea: (id: string, area_geojson: any, notes?: string) =>
       request(`/cases/${id}/search-areas`, { method: 'POST', body: JSON.stringify({ area_geojson, notes }) }),
+    sendNeighborhoodAlert: (id: string, data?: { neighborhoods?: string[]; radius_km?: number }) =>
+      request(`/cases/${id}/neighborhood-alert`, { method: 'POST', body: JSON.stringify(data || {}) }),
   },
   gamification: {
     myStats: () => request('/my-stats'),
