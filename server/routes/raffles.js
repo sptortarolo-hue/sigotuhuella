@@ -4,6 +4,7 @@ import { requireAuth, requireAdmin } from '../auth.js';
 import { reserveTickets, confirmPayment, cancelExpiredReservations, confirmManualPayment, rejectManualPayment } from '../services/mpService.js';
 import { enqueue, getAllGroups } from '../services/phoneRelayService.js';
 import { renderRaffleFlyer } from '../services/raffleFlyerRenderer.js';
+import PDFDocument from 'pdfkit';
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -635,6 +636,86 @@ router.post('/:id/receipt/:receiptId/resend-bank', requireAdmin, async (req, res
   } catch (err) {
     console.error('POST /raffles/:id/receipt/:receiptId/resend-bank error:', err);
     res.status(500).json({ error: 'Error al reenviar datos bancarios' });
+  }
+});
+
+// Admin: generate cut-out paper slips PDF for the draw
+router.get('/:id/pdf', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const raffleRes = await pool.query('SELECT * FROM raffles WHERE id = $1', [id]);
+    if (raffleRes.rows.length === 0) return res.status(404).json({ error: 'Rifa no encontrada' });
+    const raffle = raffleRes.rows[0];
+
+    const tickets = await pool.query(
+      `SELECT number, buyer_name, buyer_phone
+       FROM raffle_tickets
+       WHERE raffle_id = $1 AND status = 'paid'
+       ORDER BY number`,
+      [id]
+    );
+    if (tickets.rows.length === 0) {
+      return res.status(400).json({ error: 'No hay números pagados para generar papeletas' });
+    }
+
+    const COLS = 3;
+    const ROWS = 8;
+    const PER_PAGE = COLS * ROWS;
+    const PAGE_W = 595.28;   // A4 pt
+    const PAGE_H = 841.89;
+    const MARGIN = 36;
+    const HEADER_H = 40;
+    const GAP = 6;
+    const USABLE_W = PAGE_W - MARGIN * 2;
+    const USABLE_H = PAGE_H - MARGIN * 2 - HEADER_H;
+    const CELL_W = (USABLE_W - (COLS - 1) * GAP) / COLS;
+    const CELL_H = (USABLE_H - (ROWS - 1) * GAP) / ROWS;
+
+    const doc = new PDFDocument({ size: 'A4', margin: 0, info: { Title: `Papeletas - ${raffle.title}` } });
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', `attachment; filename="papeletas-${raffle.title.replace(/[^a-z0-9]+/gi, '-')}-${id.slice(0, 8)}.pdf"`);
+    doc.pipe(res);
+
+    for (let start = 0; start < tickets.rows.length; start += PER_PAGE) {
+      if (start > 0) doc.addPage();
+      const pageTickets = tickets.rows.slice(start, start + PER_PAGE);
+
+      doc.font('Helvetica-Bold').fontSize(14).fillColor('#1f2937')
+        .text(raffle.title, MARGIN, MARGIN - 8, { width: PAGE_W - MARGIN * 2, align: 'center' });
+      doc.font('Helvetica').fontSize(8).fillColor('#6b7280')
+        .text(`Página ${Math.floor(start / PER_PAGE) + 1} de ${Math.ceil(tickets.rows.length / PER_PAGE)} · ${tickets.rows.length} números vendidos`,
+          MARGIN, MARGIN + 16, { width: PAGE_W - MARGIN * 2, align: 'center' });
+
+      pageTickets.forEach((t, i) => {
+        const row = Math.floor(i / COLS);
+        const col = i % COLS;
+        const x = MARGIN + col * (CELL_W + GAP);
+        const y = MARGIN + HEADER_H + row * (CELL_H + GAP);
+
+        doc.dash(3, { space: 3 }).lineWidth(0.8).strokeColor('#9ca3af')
+          .rect(x, y, CELL_W, CELL_H).stroke();
+        doc.undash();
+
+        const name = t.buyer_name || 'Anónimo';
+        const phone = t.buyer_phone || '';
+
+        doc.font('Helvetica-Bold').fontSize(26).fillColor('#111827')
+          .text(String(t.number), x, y + 8, { width: CELL_W, align: 'center' });
+
+        doc.font('Helvetica-Bold').fontSize(9).fillColor('#111827')
+          .text(name, x + 6, y + CELL_H - 30, { width: CELL_W - 12, align: 'center', ellipsis: true, lineBreak: false });
+
+        if (phone) {
+          doc.font('Helvetica').fontSize(8).fillColor('#6b7280')
+            .text(phone, x + 6, y + CELL_H - 16, { width: CELL_W - 12, align: 'center', ellipsis: true, lineBreak: false });
+        }
+      });
+    }
+
+    doc.end();
+  } catch (err) {
+    console.error('GET /raffles/:id/pdf error:', err);
+    res.status(500).json({ error: 'Error al generar PDF: ' + err.message });
   }
 });
 

@@ -5,7 +5,7 @@ import { cn } from '@/src/lib/utils';
 import {
   Plus, X, Loader2, Trash2, Edit2, Eye, Trophy, Calendar, Ticket,
   ChevronDown, ChevronUp, AlertCircle, Check, Pause, Play, Award, Users,
-  HandCoins, Upload, CheckCircle, XCircle, MessageSquare, Share2
+  HandCoins, Upload, CheckCircle, XCircle, MessageSquare, Share2, FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import RafflePublishModal from './RafflePublishModal';
@@ -75,6 +75,7 @@ export default function RafflesTab() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [uploadingReceiptConfirm, setUploadingReceiptConfirm] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   async function fetchUnmatchedReceipts() {
     try {
@@ -171,6 +172,24 @@ export default function RafflesTab() {
       fetchRaffles();
     } catch (err: any) {
       alert(err.message || 'Error al sortear');
+    }
+  }
+
+  async function handleGeneratePdf(raffle: Raffle) {
+    const sold = raffle.stats?.sold ?? 0;
+    const total = raffle.total_numbers;
+    if (sold === 0) {
+      alert('No hay números pagados para generar las papeletas.');
+      return;
+    }
+    if (sold < total && !confirm(`Faltan ${total - sold} números por vender. ¿Generar el PDF igual?`)) return;
+    try {
+      setGeneratingPdf(true);
+      await api.raffles.paperPdf(raffle.id);
+    } catch (err: any) {
+      alert(err.message || 'Error al generar el PDF');
+    } finally {
+      setGeneratingPdf(false);
     }
   }
 
@@ -840,7 +859,18 @@ export default function RafflesTab() {
                   <h3 className="text-xl font-serif font-bold text-brand-primary">{detailRaffle.title}</h3>
                   <p className="text-sm text-gray-500">{detailRaffle.total_numbers} números · ${detailRaffle.price_per_number.toLocaleString('es-AR')} c/u</p>
                 </div>
-                <button onClick={() => { setDetailRaffle(null); setDrawResult(null); }} className="p-2 hover:bg-brand-accent/20 rounded-full"><X className="w-5 h-5" /></button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleGeneratePdf(detailRaffle)}
+                    disabled={generatingPdf}
+                    className="flex items-center gap-2 px-4 py-2 border-2 border-brand-primary text-brand-primary rounded-xl text-xs font-bold hover:bg-brand-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Generar papeletas recortables para el sorteo"
+                  >
+                    {generatingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                    Generar PDF
+                  </button>
+                  <button onClick={() => { setDetailRaffle(null); setDrawResult(null); }} className="p-2 hover:bg-brand-accent/20 rounded-full"><X className="w-5 h-5" /></button>
+                </div>
               </div>
 
               <div className="p-6 overflow-y-auto flex-1 space-y-5">

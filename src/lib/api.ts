@@ -507,6 +507,25 @@ export const api = {
             request(`/raffles/receipts/${id}/assign`, { method: 'POST', body: JSON.stringify(data) }),
           releaseTickets: (ticketGroupId: string) => request('/raffles/tickets/release', { method: 'POST', body: JSON.stringify({ ticketGroupId }) }),
           resendBankDetails: (raffleId: string, receiptId: string) => request(`/raffles/${raffleId}/receipt/${receiptId}/resend-bank`, { method: 'POST' }),
+          paperPdf: async (raffleId: string) => {
+            const token = getToken();
+            const res = await fetch(apiUrl(`/api/raffles/${raffleId}/pdf`), {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (!res.ok) {
+              const err: any = await res.json().catch(() => ({}));
+              throw new Error(err.error || 'Error al generar el PDF');
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `papeletas-${raffleId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          },
         },
         backup: {
           list: () => request('/backup/list'),
