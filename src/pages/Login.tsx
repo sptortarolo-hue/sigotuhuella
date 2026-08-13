@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { Helmet } from 'react-helmet-async';
 import { isNative } from '@/src/lib/platform';
 import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_ID_ANDROID = import.meta.env.VITE_GOOGLE_CLIENT_ID_ANDROID || '';
@@ -34,19 +35,11 @@ export default function Login() {
   const [googleNativeLoading, setGoogleNativeLoading] = useState(false);
   const [pendingCase, setPendingCase] = useState('');
   const [inviteToken, setInviteToken] = useState('');
-  const [phoneError, setPhoneError] = useState('');
+  const [phoneValid, setPhoneValid] = useState(true);
 
-  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
-
-  const handlePhoneChange = (value: string) => {
+  const handlePhoneChange = (value: string, e164?: string) => {
     setPhone(value);
-    if (!value) { setPhoneError(''); return; }
-    const cleaned = value.replace(/\D/g, '');
-    if (cleaned.length > 0 && !isValidPhone(value)) {
-      setPhoneError('Formato: 549XXXXXXXXXX (13 dígitos)');
-    } else {
-      setPhoneError('');
-    }
+    setPhoneValid(!value || !!e164);
   };
 
   useEffect(() => {
@@ -99,7 +92,7 @@ export default function Login() {
       }
 
       if (mode === 'register') {
-        if (phoneError) {
+        if (!phoneValid) {
           setError('El teléfono no tiene el formato correcto');
           setAuthLoading(false);
           return;
@@ -529,16 +522,12 @@ export default function Login() {
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
                     <PhoneIcon className="w-3 h-3" /> WhatsApp / Teléfono
                   </label>
-                  <input
-                    type="tel"
-                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none"
-                    placeholder="549XXXXXXXXXX"
+                  <PhoneInput
                     value={phone}
-                    onChange={e => handlePhoneChange(e.target.value)}
+                    onChange={handlePhoneChange}
+                    placeholder="549XXXXXXXXXX"
+                    className="bg-brand-bg"
                   />
-                  {phoneError && (
-                    <p className="text-xs text-red-500 mt-1">{phoneError}</p>
-                  )}
                 </div>
                 <div className="p-3 bg-brand-bg rounded-xl border border-brand-accent">
                   <p className="text-xs text-gray-600 font-medium">
@@ -670,7 +659,7 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={authLoading || (mode === 'register' && !!phoneError)}
+              disabled={authLoading || (mode === 'register' && !phoneValid)}
               className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
             >
               {authLoading ? (

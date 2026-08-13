@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import QRCode from 'qrcode';
 import HealthTips from '@/src/components/HealthTips';
 import ReunionModal from '@/src/components/ReunionModal';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 const EVENT_TYPES = [
   { value: 'birthday', label: 'Cumpleaños', icon: '🎂' },
@@ -157,18 +158,19 @@ export default function MyPetDetail() {
   const [showAdoptionGiveModal, setShowAdoptionGiveModal] = useState(false);
   const [adopterName, setAdopterName] = useState('');
   const [adopterPhone, setAdopterPhone] = useState('');
+  const [adopterPhoneValid, setAdopterPhoneValid] = useState(false);
   const [adoptionGiveLoading, setAdoptionGiveLoading] = useState(false);
   const [adoptionGiveDone, setAdoptionGiveDone] = useState(false);
   const [lostLocation, setLostLocation] = useState('');
   const [lostPhone, setLostPhone] = useState(user?.phone || '');
-  const [lostPhoneError, setLostPhoneError] = useState('');
+  const [lostPhoneValid, setLostPhoneValid] = useState(true);
   const [lostLoading, setLostLoading] = useState(false);
   const [lostDone, setLostDone] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareEmail, setShareEmail] = useState('');
   const [sharePhone, setSharePhone] = useState('');
   const [shareMsg, setShareMsg] = useState('');
-  const [sharePhoneError, setSharePhoneError] = useState('');
+  const [sharePhoneValid, setSharePhoneValid] = useState(true);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareResult, setShareResult] = useState<{ shared?: boolean; invited?: boolean; userExists?: boolean; inviteLink?: string } | null>(null);
   const [showEditForm, setShowEditForm] = useState(false);
@@ -284,31 +286,19 @@ export default function MyPetDetail() {
     }
   };
 
-  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
-
-  const handleSharePhoneChange = (value: string) => {
+  const handleSharePhoneChange = (value: string, e164?: string) => {
     setSharePhone(value);
-    if (!value) { setSharePhoneError(''); return; }
-    if (!isValidPhone(value)) {
-      setSharePhoneError('Formato: 549XXXXXXXXXX');
-    } else {
-      setSharePhoneError('');
-    }
+    setSharePhoneValid(!value || !!e164);
   };
 
-  const handleLostPhoneChange = (value: string) => {
+  const handleLostPhoneChange = (value: string, e164?: string) => {
     setLostPhone(value);
-    if (!value) { setLostPhoneError(''); return; }
-    if (!isValidPhone(value)) {
-      setLostPhoneError('Formato: 549XXXXXXXXXX');
-    } else {
-      setLostPhoneError('');
-    }
+    setLostPhoneValid(!value || !!e164);
   };
 
   const handleShare = async () => {
     if (!shareEmail && !sharePhone) return;
-    if (sharePhone && sharePhoneError) return;
+    if (sharePhone && !sharePhoneValid) return;
     setShareLoading(true);
     setShareResult(null);
     try {
@@ -1651,12 +1641,10 @@ export default function MyPetDetail() {
                   </div>
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Teléfono de contacto</label>
-                    <input type="tel" value={lostPhone}
-                      onChange={e => handleLostPhoneChange(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-red-400 outline-none text-sm"
+                    <PhoneInput value={lostPhone}
+                      onChange={handleLostPhoneChange}
                       placeholder="549XXXXXXXXXX"
                     />
-                    {lostPhoneError && <p className="text-xs text-red-500 mt-1">{lostPhoneError}</p>}
                   </div>
                   <div className="p-4 bg-gray-50 rounded-2xl">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Descripción del reporte</p>
@@ -1684,7 +1672,7 @@ export default function MyPetDetail() {
                         setLostLoading(false);
                       }
                     }}
-                      disabled={lostLoading || !lostLocation}
+                      disabled={lostLoading || !lostLocation || !lostPhoneValid}
                       className="flex-1 py-3 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                       {lostLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
@@ -1868,9 +1856,9 @@ export default function MyPetDetail() {
 
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Teléfono de emergencia</label>
-                  <input type="tel" value={editForm.emergency_phone || ''} onChange={e => setEditForm((prev: any) => ({ ...prev, emergency_phone: e.target.value }))}
-                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm"
-                    placeholder="Teléfono alternativo (opcional)" />
+                  <PhoneInput value={editForm.emergency_phone || ''} onChange={(value, e164) => setEditForm((prev: any) => ({ ...prev, emergency_phone: e164 || value }))}
+                    placeholder="Teléfono alternativo (opcional)"
+                  />
                 </div>
               </div>
 
@@ -1915,10 +1903,9 @@ export default function MyPetDetail() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">Teléfono de contacto</label>
-                  <input type="tel" value={qrContactPhone}
-                    onChange={e => setQrContactPhone(e.target.value)}
+                  <PhoneInput value={qrContactPhone}
+                    onChange={(value, e164) => setQrContactPhone(e164 || value)}
                     placeholder={pet?.owner_phone || 'Teléfono'}
-                    className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
                   />
                 </div>
                 <p className="text-[10px] text-gray-400">Si no completás estos datos, se usa el nombre y teléfono de tu cuenta.</p>
@@ -2143,11 +2130,9 @@ export default function MyPetDetail() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">WhatsApp / Teléfono</label>
-                  <input type="tel" value={sharePhone} onChange={e => handleSharePhoneChange(e.target.value)}
+                  <PhoneInput value={sharePhone} onChange={handleSharePhoneChange}
                     placeholder="549XXXXXXXXXX"
-                    className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
                   />
-                  {sharePhoneError && <p className="text-xs text-red-500 mt-1">{sharePhoneError}</p>}
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Mensaje (opcional)</label>
@@ -2158,7 +2143,7 @@ export default function MyPetDetail() {
                   />
                 </div>
 
-                <button onClick={handleShare} disabled={shareLoading || (!shareEmail && !sharePhone) || !!sharePhoneError}
+                <button onClick={handleShare} disabled={shareLoading || (!shareEmail && !sharePhone) || !sharePhoneValid}
                   className="w-full py-3 bg-brand-primary text-white rounded-xl text-sm font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {shareLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
@@ -2257,15 +2242,13 @@ export default function MyPetDetail() {
                   </div>
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">WhatsApp *</label>
-                    <input type="tel" value={adopterPhone} onChange={e => setAdopterPhone(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                    <PhoneInput value={adopterPhone} onChange={(value, e164) => { setAdopterPhone(value); setAdopterPhoneValid(!!e164); }}
                       placeholder="+54 9 221 123456" />
                   </div>
 
                   <button
                     onClick={async () => {
-                      if (!adopterName || !adopterPhone) { alert('Completá nombre y WhatsApp'); return; }
-                      if (!isValidPhone(adopterPhone)) { alert('WhatsApp inválido. Formato: 549 + código de área sin 0 + teléfono'); return; }
+                      if (!adopterName || !adopterPhoneValid) { alert('Completá nombre y un WhatsApp válido (549XXXXXXXXXX)'); return; }
                       setAdoptionGiveLoading(true);
                       try {
                         const shareToken = pet?.qr_data?.share_token;

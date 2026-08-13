@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Loader2, HeartHandshake, User, Phone, Mail, MapPin } from 'lucide-react';
 import { api } from '@/src/lib/api';
 import { updatePet, PetStatus } from '@/src/lib/petService';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 interface ReunionModalProps {
   petId: string;
@@ -17,6 +18,7 @@ export default function ReunionModal({ petId, petName, isAdoption, skipStatusCha
   const [saving, setSaving] = useState(false);
   const [ownerName, setOwnerName] = useState('');
   const [ownerPhone, setOwnerPhone] = useState('');
+  const [ownerPhoneValid, setOwnerPhoneValid] = useState(true);
   const [ownerEmail, setOwnerEmail] = useState('');
   const [ownerAddress, setOwnerAddress] = useState('');
 
@@ -39,6 +41,10 @@ export default function ReunionModal({ petId, petName, isAdoption, skipStatusCha
   }, [petId]);
 
   const handleSave = async () => {
+    if (!ownerPhoneValid) {
+      alert('Teléfono inválido. Formato: 549XXXXXXXXXX');
+      return;
+    }
     setSaving(true);
     try {
       const payload: any = {
@@ -111,12 +117,10 @@ export default function ReunionModal({ petId, petName, isAdoption, skipStatusCha
                 <label className="text-xs font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 mb-1">
                   <Phone className="w-3 h-3" /> Teléfono
                 </label>
-                <input
-                  type="tel"
+                <PhoneInput
                   value={ownerPhone}
-                  onChange={e => setOwnerPhone(e.target.value)}
+                  onChange={(value, e164) => { setOwnerPhone(value); setOwnerPhoneValid(!value || !!e164); }}
                   placeholder="Ej: 2215551234"
-                  className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm focus:border-brand-primary transition-colors"
                 />
               </div>
 

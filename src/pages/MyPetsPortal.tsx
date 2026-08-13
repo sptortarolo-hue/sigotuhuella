@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import QrClaimModal from '@/src/components/QrClaimModal';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 const SPECIES_OPTIONS = [
   { value: 'dog', label: 'Perro', icon: <Dog className="w-5 h-5" /> },
@@ -93,7 +94,7 @@ export default function MyPetsPortal() {
   const [shareEmail, setShareEmail] = useState('');
   const [sharePhone, setSharePhone] = useState('');
   const [shareMsg, setShareMsg] = useState('');
-  const [sharePhoneError, setSharePhoneError] = useState('');
+  const [sharePhoneValid, setSharePhoneValid] = useState(true);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareResult, setShareResult] = useState<{ shared?: boolean; invited?: boolean; inviteLink?: string } | null>(null);
   const [shareSelectedPets, setShareSelectedPets] = useState<Set<string>>(new Set());
@@ -101,22 +102,16 @@ export default function MyPetsPortal() {
   const [adoptionPet, setAdoptionPet] = useState<any>(null);
   const [adopterName, setAdopterName] = useState('');
   const [adopterPhone, setAdopterPhone] = useState('');
+  const [adopterPhoneValid, setAdopterPhoneValid] = useState(false);
   const [adoptionLoading, setAdoptionLoading] = useState(false);
   const [adoptionDone, setAdoptionDone] = useState(false);
   const [deletePet, setDeletePet] = useState<any>(null);
   const [deleteStep, setDeleteStep] = useState<'confirm' | 'final'>('confirm');
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
-
-  const handleSharePhoneChange = (value: string) => {
+  const handleSharePhoneChange = (value: string, e164?: string) => {
     setSharePhone(value);
-    if (!value) { setSharePhoneError(''); return; }
-    if (!isValidPhone(value)) {
-      setSharePhoneError('Formato: 549XXXXXXXXXX');
-    } else {
-      setSharePhoneError('');
-    }
+    setSharePhoneValid(!value || !!e164);
   };
 
   useEffect(() => {
@@ -234,7 +229,7 @@ export default function MyPetsPortal() {
 
   const handleShare = async () => {
     if (!shareEmail && !sharePhone) return;
-    if (sharePhone && sharePhoneError) return;
+    if (sharePhone && !sharePhoneValid) return;
     if (shareSelectedPets.size === 0) return;
     setShareLoading(true);
     setShareResult(null);
@@ -651,11 +646,9 @@ export default function MyPetsPortal() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">WhatsApp / Teléfono</label>
-                  <input type="tel" value={sharePhone} onChange={e => handleSharePhoneChange(e.target.value)}
+                  <PhoneInput value={sharePhone} onChange={handleSharePhoneChange}
                     placeholder="549XXXXXXXXXX"
-                    className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
                   />
-                  {sharePhoneError && <p className="text-xs text-red-500 mt-1">{sharePhoneError}</p>}
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Mensaje (opcional)</label>
@@ -667,7 +660,7 @@ export default function MyPetsPortal() {
                 </div>
 
                 <button onClick={handleShare}
-                  disabled={shareLoading || (!shareEmail && !sharePhone) || shareSelectedPets.size === 0 || !!sharePhoneError}
+                  disabled={shareLoading || (!shareEmail && !sharePhone) || shareSelectedPets.size === 0 || !sharePhoneValid}
                   className="w-full py-3 bg-brand-primary text-white rounded-xl text-sm font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {shareLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
@@ -886,9 +879,10 @@ export default function MyPetsPortal() {
 
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Teléfono de emergencia</label>
-                  <input type="tel" value={form.emergency_phone || ''} onChange={e => setForm(prev => ({ ...prev, emergency_phone: e.target.value }))}
-                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm"
-                    placeholder="Teléfono alternativo (opcional)" />
+                  <PhoneInput value={form.emergency_phone || ''} onChange={(value, e164) => setForm(prev => ({ ...prev, emergency_phone: e164 || value }))}
+                    placeholder="Teléfono alternativo (opcional)"
+                    className="bg-brand-bg"
+                  />
                 </div>
               </div>
 
@@ -964,15 +958,13 @@ export default function MyPetsPortal() {
                   </div>
                   <div>
                     <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1 block">WhatsApp *</label>
-                    <input type="tel" value={adopterPhone} onChange={e => setAdopterPhone(e.target.value)}
-                      className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                    <PhoneInput value={adopterPhone} onChange={(value, e164) => { setAdopterPhone(value); setAdopterPhoneValid(!!e164); }}
                       placeholder="+54 9 221 123456" />
                   </div>
 
                   <button
                     onClick={async () => {
-                      if (!adopterName || !adopterPhone) { alert('Completá nombre y WhatsApp'); return; }
-                      if (!isValidPhone(adopterPhone)) { alert('WhatsApp inválido. Formato: 549 + código de área sin 0 + teléfono'); return; }
+                      if (!adopterName || !adopterPhoneValid) { alert('Completá nombre y un WhatsApp válido (549XXXXXXXXXX)'); return; }
                       setAdoptionLoading(true);
                       try {
                         const shareToken = adoptionPet?.qr_id?.share_token;

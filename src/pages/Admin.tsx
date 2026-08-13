@@ -51,6 +51,7 @@ import UserDetailPanel from '@/src/components/admin/UserDetailPanel';
 import AdminMyPetDetail from '@/src/components/admin/AdminMyPetDetail';
 import PetDetailPanel from '@/src/components/admin/PetDetailPanel';
 import ReunionModal from '@/src/components/ReunionModal';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 const SPECIES_OPTIONS = [
   { value: 'dog', label: 'Perro', icon: '🐶' },
@@ -2984,7 +2985,7 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="text-xs font-bold uppercase text-gray-500">Contacto (WhatsApp / Teléfono)</label>
-                    <input type="tel" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.contactInfo} onChange={e => setFormData({...formData, contactInfo: e.target.value})} />
+                    <PhoneInput className="bg-brand-bg" value={formData.contactInfo} onChange={(value, e164) => setFormData({ ...formData, contactInfo: e164 || value })} placeholder="549XXXXXXXXXX" />
                   </div>
                 </div>
                 <div>
@@ -3252,8 +3253,8 @@ export default function Admin() {
                 {/* Emergency phone */}
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Teléfono de emergencia</label>
-                  <input type="tel" value={editMyPetForm.emergency_phone || ''} onChange={e => setEditMyPetForm(prev => ({ ...prev, emergency_phone: e.target.value }))}
-                    className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm"
+                  <PhoneInput value={editMyPetForm.emergency_phone || ''} onChange={(value, e164) => setEditMyPetForm(prev => ({ ...prev, emergency_phone: e164 || value }))}
+                    className="bg-brand-bg"
                     placeholder="Teléfono alternativo (opcional)" />
                 </div>
               </div>

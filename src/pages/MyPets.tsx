@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { ALL_TAGS, formatTag } from '@/src/lib/personalityTags';
 import ReunionModal from '@/src/components/ReunionModal';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
 
@@ -410,7 +411,7 @@ export default function MyPets() {
                   </div>
                   <div>
                     <label className="text-xs font-bold uppercase text-gray-500">Contacto (WhatsApp / Teléfono)</label>
-                    <input type="tel" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" value={formData.contactInfo} onChange={e => setFormData({...formData, contactInfo: e.target.value})} />
+                    <PhoneInput value={formData.contactInfo} onChange={(value, e164) => setFormData({ ...formData, contactInfo: e164 || value })} placeholder="549XXXXXXXXXX" className="bg-brand-bg" />
                   </div>
                 </div>
                 <div>

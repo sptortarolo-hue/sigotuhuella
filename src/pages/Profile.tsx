@@ -15,6 +15,8 @@ import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pus
 import { cn } from '@/src/lib/utils';
 import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
+import { PhoneInput } from '@/src/components/PhoneInput';
+import { toE164 } from '@/src/lib/phone';
 
 type Section = 'profile' | 'password' | 'blocked' | null;
 
@@ -44,7 +46,7 @@ export default function Profile() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
-  const [phoneError, setPhoneError] = useState('');
+  const [phoneValid, setPhoneValid] = useState(!(user?.phone || '') || !!toE164(user?.phone || ''));
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -53,16 +55,9 @@ export default function Profile() {
   const [blockedError, setBlockedError] = useState('');
   const [unblocking, setUnblocking] = useState<string | null>(null);
 
-  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
-
-  const handlePhoneChange = (value: string) => {
+  const handlePhoneChange = (value: string, e164?: string) => {
     setPhone(value);
-    if (!value) { setPhoneError(''); return; }
-    if (!isValidPhone(value)) {
-      setPhoneError('Formato: 549XXXXXXXXXX (13 dígitos)');
-    } else {
-      setPhoneError('');
-    }
+    setPhoneValid(!value || !!e164);
   };
 
   const isMember = user?.member_number && user?.volunteer_status !== 'none';
@@ -102,7 +97,7 @@ export default function Profile() {
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (phoneError) {
+    if (!phoneValid) {
       setProfileError('El teléfono no tiene el formato correcto');
       return;
     }
@@ -382,16 +377,12 @@ export default function Profile() {
                         <input type="text" className="w-full mt-1 px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
                           value={displayName} onChange={e => setDisplayName(e.target.value)} />
                       </div>
-                      <div>
-                        <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                          <PhoneIcon className="w-4 h-4" /> WhatsApp / Teléfono
-                        </label>
-                        <input type="tel" className="w-full mt-1 px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
-                          placeholder="549XXXXXXXXXX" value={phone} onChange={e => handlePhoneChange(e.target.value)} />
-                        {phoneError && (
-                          <p className="text-xs text-red-500 mt-1">{phoneError}</p>
-                        )}
-                      </div>
+<div>
+                          <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                            <PhoneIcon className="w-4 h-4" /> WhatsApp / Teléfono
+                          </label>
+                          <PhoneInput value={phone} onChange={handlePhoneChange} placeholder="549XXXXXXXXXX" className="bg-white mt-1" />
+                        </div>
                       <div>
                         <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1 block">Canal de notificaciones</label>
                         <p className="text-xs text-gray-400 mb-3">Elegí cómo querés recibir las alertas de reportes, reencuentros y novedades</p>
@@ -433,7 +424,7 @@ export default function Profile() {
                       </div>
                       {profileMsg && <div className="p-3 bg-green-50 text-green-600 rounded-xl text-sm flex gap-2 items-center"><CheckCircle2 className="w-4 h-4" />{profileMsg}</div>}
                       {profileError && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm flex gap-2 items-center"><AlertCircle className="w-4 h-4" />{profileError}</div>}
-                      <button type="submit" disabled={profileLoading || !!phoneError}
+                      <button type="submit" disabled={profileLoading || !phoneValid}
                         className="w-full px-6 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-50"
                       >
                         {profileLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar Cambios

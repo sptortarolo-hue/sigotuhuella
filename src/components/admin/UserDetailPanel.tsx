@@ -9,6 +9,7 @@ import { BADGE_CONFIG } from '@/src/components/MemberCard';
 import ImageLightbox from './ImageLightbox';
 import { api, apiUrl } from '@/src/lib/api';
 import { getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 function petThumbUrl(pet: any, idx = 0): string | undefined {
   if (!pet?.images?.[idx]) return undefined;
@@ -108,10 +109,15 @@ export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, onAd
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
+  const [phoneInputValid, setPhoneInputValid] = useState(true);
   const [savingPhone, setSavingPhone] = useState(false);
   const { user, volunteer_request, conversations, myPets, pets, stats } = data;
 
   async function handleSavePhone() {
+    if (!phoneInputValid) {
+      alert('Teléfono inválido. Formato: 549XXXXXXXXXX');
+      return;
+    }
     if (!phoneInput.trim()) return;
     setSavingPhone(true);
     try {
@@ -212,13 +218,12 @@ export default function UserDetailPanel({ data, onSelectPet, onSelectMyPet, onAd
               <Phone className="w-4 h-4 shrink-0" />
               {isEditingPhone ? (
                 <div className="flex items-center gap-2 flex-1">
-                  <input
-                    type="tel"
+                  <PhoneInput
                     value={phoneInput}
-                    onChange={(e) => setPhoneInput(e.target.value)}
-                    className="flex-1 px-2 py-1 border border-brand-accent rounded-lg text-sm"
+                    onChange={(value, e164) => { setPhoneInput(value); setPhoneInputValid(!!e164 || !value); }}
+                    className="flex-1 px-2 py-1"
                     placeholder="549XXXXXXXXXX"
-                    autoFocus
+                    autoComplete="tel"
                   />
                   <button
                     onClick={handleSavePhone}

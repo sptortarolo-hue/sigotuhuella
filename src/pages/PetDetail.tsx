@@ -16,6 +16,7 @@ import PetImage from '@/src/components/PetImage';
 import { LinkifiedText } from '@/src/lib/linkify';
 import ImageLightbox from '@/src/components/admin/ImageLightbox';
 import { Helmet } from 'react-helmet-async';
+import { PhoneInput } from '@/src/components/PhoneInput';
 import ReportModal from '@/src/components/ReportModal';
 
 function parseNeighborhoods(n: any): string[] {
@@ -43,20 +44,13 @@ export default function PetDetail() {
   const [shareEmail, setShareEmail] = useState('');
   const [sharePhone, setSharePhone] = useState('');
   const [shareMsg, setShareMsg] = useState('');
-  const [sharePhoneError, setSharePhoneError] = useState('');
+  const [sharePhoneValid, setSharePhoneValid] = useState(true);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareResult, setShareResult] = useState<any>(null);
 
-  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
-
-  const handleSharePhoneChange = (value: string) => {
+  const handleSharePhoneChange = (value: string, e164?: string) => {
     setSharePhone(value);
-    if (!value) { setSharePhoneError(''); return; }
-    if (!isValidPhone(value)) {
-      setSharePhoneError('Formato: 549XXXXXXXXXX');
-    } else {
-      setSharePhoneError('');
-    }
+    setSharePhoneValid(!value || !!e164);
   };
 
   useEffect(() => {
@@ -84,7 +78,7 @@ export default function PetDetail() {
 
   const handleShare = async () => {
     if (!shareEmail && !sharePhone) return;
-    if (sharePhone && sharePhoneError) return;
+    if (sharePhone && !sharePhoneValid) return;
     setShareLoading(true);
     setShareResult(null);
     try {
@@ -632,11 +626,10 @@ Me gustaría obtener más información.`;
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">WhatsApp / Teléfono</label>
-                  <input type="tel" value={sharePhone} onChange={e => handleSharePhoneChange(e.target.value)}
+                  <PhoneInput value={sharePhone} onChange={handleSharePhoneChange}
                     placeholder="549XXXXXXXXXX"
-                    className="w-full p-3 rounded-xl border border-brand-accent focus:border-brand-primary outline-none text-sm"
+                    className="p-3"
                   />
-                  {sharePhoneError && <p className="text-xs text-red-500 mt-1">{sharePhoneError}</p>}
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Mensaje (opcional)</label>
@@ -647,7 +640,7 @@ Me gustaría obtener más información.`;
                   />
                 </div>
 
-                <button onClick={handleShare} disabled={shareLoading || (!shareEmail && !sharePhone) || !!sharePhoneError}
+                <button onClick={handleShare} disabled={shareLoading || (!shareEmail && !sharePhone) || !sharePhoneValid}
                   className="w-full py-3 bg-brand-primary text-white rounded-xl text-sm font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {shareLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}

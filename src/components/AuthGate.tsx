@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
-import { Loader2, AlertCircle, LogIn, UserPlus, Mail, Lock, User, Eye, EyeOff, Phone as PhoneIcon } from 'lucide-react';
+import { Loader2, AlertCircle, LogIn, UserPlus, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 interface AuthGateProps {
   title: string;
@@ -28,19 +29,12 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regPhone, setRegPhone] = useState('');
-  const [regPhoneError, setRegPhoneError] = useState('');
+  const [regPhoneValid, setRegPhoneValid] = useState(true);
   const [regNotifyWhatsApp, setRegNotifyWhatsApp] = useState(false);
 
-  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
-
-  const handleRegPhoneChange = (value: string) => {
+  const handleRegPhoneChange = (value: string, e164?: string) => {
     setRegPhone(value);
-    if (!value) { setRegPhoneError(''); return; }
-    if (!isValidPhone(value)) {
-      setRegPhoneError('Formato: 549XXXXXXXXXX (13 dígitos)');
-    } else {
-      setRegPhoneError('');
-    }
+    setRegPhoneValid(!value || !!e164);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -70,7 +64,7 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
       setError('La contraseña debe tener al menos 6 caracteres');
       return;
     }
-    if (regPhoneError) {
+    if (!regPhoneValid) {
       setError('El teléfono no tiene el formato correcto');
       return;
     }
@@ -234,17 +228,12 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500">WhatsApp / Teléfono</label>
                   <div className="relative">
-                    <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="tel"
-                      className="w-full pl-12 pr-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-                      placeholder="549XXXXXXXXXX"
+                    <PhoneInput
                       value={regPhone}
-                      onChange={e => handleRegPhoneChange(e.target.value)}
+                      onChange={handleRegPhoneChange}
+                      placeholder="549XXXXXXXXXX"
+                      className="bg-brand-bg"
                     />
-                    {regPhoneError && (
-                      <p className="text-xs text-red-500 mt-1">{regPhoneError}</p>
-                    )}
                   </div>
                 </div>
 
@@ -307,7 +296,7 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
 
                 <button
                   type="submit"
-                  disabled={loading || !!regPhoneError}
+                  disabled={loading || !regPhoneValid}
                   className="w-full py-5 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 font-serif text-xl"
                 >
                   {loading ? <Loader2 className="animate-spin w-6 h-6" /> : <UserPlus className="w-6 h-6" />}

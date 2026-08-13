@@ -16,6 +16,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import AuthGate from '@/src/components/AuthGate';
 import MemberCardPage from '@/src/pages/MemberCardPage';
+import { PhoneInput } from '@/src/components/PhoneInput';
+import { toE164 } from '@/src/lib/phone';
 import { Helmet } from 'react-helmet-async';
 
 export default function Join() {
@@ -42,11 +44,13 @@ export default function Join() {
 
   useEffect(() => {
     if (user && !prefilled.current) {
+      const whatsapp = user.phone || '';
       setFormData({
         fullName: user.display_name || '',
         residenceZone: '',
-        whatsapp: user.phone || ''
+        whatsapp
       });
+      setPhoneValid(!!toE164(whatsapp));
       prefilled.current = true;
     }
   }, [user]);
@@ -57,18 +61,11 @@ export default function Join() {
     whatsapp: ''
   });
   const [contributionAreas, setContributionAreas] = useState<string[]>([]);
-  const [phoneError, setPhoneError] = useState('');
+  const [phoneValid, setPhoneValid] = useState(false);
 
-  const isValidPhone = (p: string) => /^549\d{10}$/.test(p.replace(/\D/g, ''));
-
-  const handleWhatsappChange = (value: string) => {
+  const handleWhatsappChange = (value: string, e164?: string) => {
     setFormData(prev => ({ ...prev, whatsapp: value }));
-    if (!value) { setPhoneError(''); return; }
-    if (!isValidPhone(value)) {
-      setPhoneError('Formato: 549XXXXXXXXXX (13 dígitos)');
-    } else {
-      setPhoneError('');
-    }
+    setPhoneValid(!!e164);
   };
 
   const toggleArea = (code: string) => {
@@ -87,7 +84,7 @@ export default function Join() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    if (phoneError) {
+    if (!phoneValid) {
       setError('El teléfono no tiene el formato correcto');
       return;
     }
@@ -287,19 +284,12 @@ export default function Join() {
                     Número de WhatsApp *
                   </label>
                   <div className="relative">
-          <input
-            id="volunteerWhatsapp"
-            name="whatsapp"
-            required
-            type="tel"
-            className="w-full px-4 py-4 bg-brand-bg rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/10 transition-all outline-none"
-            placeholder="549XXXXXXXXXX"
+          <PhoneInput
             value={formData.whatsapp}
-            onChange={e => handleWhatsappChange(e.target.value)}
+            onChange={handleWhatsappChange}
+            placeholder="549XXXXXXXXXX"
+            className="bg-brand-bg"
           />
-          {phoneError && (
-            <p className="text-xs text-red-500 mt-1">{phoneError}</p>
-          )}
                     {user?.phone && (
                       <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400" />
                     )}
@@ -360,7 +350,7 @@ export default function Join() {
 
               <button
                 type="submit"
-                disabled={loading || !!phoneError}
+                disabled={loading || !phoneValid}
                 className="w-full py-5 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 font-serif text-xl"
               >
                 {loading ? <Loader2 className="animate-spin" /> : <Users className="w-6 h-6" />}

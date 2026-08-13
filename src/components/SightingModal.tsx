@@ -3,6 +3,7 @@ import { X, Eye, Loader2, MapPin, LocateFixed } from 'lucide-react';
 import { motion } from 'motion/react';
 import { api } from '@/src/lib/api';
 import { filesToBase64 } from '@/src/lib/storageService';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 interface SightingModalProps {
   caseId: string;
@@ -13,6 +14,7 @@ interface SightingModalProps {
 export default function SightingModal({ caseId, onClose, onSaved }: SightingModalProps) {
   const [name, setName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  const [whatsappValid, setWhatsappValid] = useState(true);
   const [description, setDescription] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoMime, setPhotoMime] = useState('image/jpeg');
@@ -45,6 +47,7 @@ export default function SightingModal({ caseId, onClose, onSaved }: SightingModa
     e.preventDefault();
     if (!coords) { alert('Primero obtené tu ubicación GPS'); return; }
     if (!name.trim()) { alert('Ingresá tu nombre'); return; }
+    if (!whatsappValid) { alert('WhatsApp inválido. Formato: 549XXXXXXXXXX'); return; }
     setSaving(true);
     try {
       await api.cases.createSighting(caseId, {
@@ -96,7 +99,7 @@ export default function SightingModal({ caseId, onClose, onSaved }: SightingModa
 
           <div>
             <label className="text-xs font-bold uppercase text-gray-500">Tu WhatsApp (opcional)</label>
-            <input type="tel" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} placeholder="+54 9 221 ..." className="w-full mt-1 px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none" />
+            <PhoneInput value={whatsapp} onChange={(value, e164) => { setWhatsapp(value); setWhatsappValid(!value || !!e164); }} placeholder="+54 9 221 ..." className="mt-1 bg-brand-bg" />
             <p className="text-[10px] text-gray-400 mt-1">El dueño podría contactarte si tiene preguntas.</p>
           </div>
 

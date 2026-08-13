@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Helmet } from 'react-helmet-async';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 const SPECIES_OPTIONS = [
   { value: 'dog', label: 'Perro', icon: <Dog className="w-5 h-5" /> },
@@ -71,6 +72,7 @@ export default function SolicitarChapita() {
   const [forAdopter, setForAdopter] = useState(false);
   const [adopterName, setAdopterName] = useState('');
   const [adopterPhone, setAdopterPhone] = useState('');
+  const [adopterPhoneValid, setAdopterPhoneValid] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -127,13 +129,8 @@ export default function SolicitarChapita() {
     }
 
     if (forAdopter) {
-      if (!adopterName || !adopterPhone) {
-        setError('Completá el nombre y WhatsApp del adoptante');
-        setLoading(false);
-        return;
-      }
-      if (!/^549\d{10}$/.test(adopterPhone.replace(/\D/g, ''))) {
-        setError('WhatsApp del adoptante inválido. Formato: 549 + código de área sin 0 + teléfono');
+      if (!adopterName || !adopterPhoneValid) {
+        setError('Completá el nombre y un WhatsApp válido del adoptante (549XXXXXXXXXX)');
         setLoading(false);
         return;
       }
@@ -660,9 +657,9 @@ export default function SolicitarChapita() {
 
               <div>
                 <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block">Teléfono de emergencia</label>
-                <input type="tel" value={pet.emergency_phone || ''} onChange={e => setPet(prev => ({ ...prev, emergency_phone: e.target.value }))}
-                  className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm"
-                  placeholder="Teléfono alternativo (opcional)" />
+                <PhoneInput value={pet.emergency_phone || ''} onChange={(value, e164) => setPet(prev => ({ ...prev, emergency_phone: e164 || value }))}
+                  placeholder="Teléfono alternativo (opcional)" className="bg-brand-bg"
+                />
               </div>
             </div>
           </div>
@@ -696,8 +693,7 @@ export default function SolicitarChapita() {
                       <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
                         <Phone className="w-3 h-3" /> WhatsApp *
                       </label>
-                      <input type="tel" required value={adopterPhone} onChange={e => setAdopterPhone(e.target.value)}
-                        className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm"
+                      <PhoneInput value={adopterPhone} onChange={(value, e164) => { setAdopterPhone(value); setAdopterPhoneValid(!!e164); }}
                         placeholder="+54 9 221 123456" />
                     </div>
                   </div>
@@ -733,8 +729,7 @@ export default function SolicitarChapita() {
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
                     <Phone className="w-3 h-3" /> WhatsApp / Teléfono
                   </label>
-                  <input type="tel" className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm"
-                    placeholder="+54 9 221 123456" value={phone} onChange={e => setPhone(e.target.value)} />
+                  <PhoneInput value={phone} onChange={(value, e164) => setPhone(e164 || value)} placeholder="+54 9 221 123456" className="bg-brand-bg" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 flex items-center gap-2">
