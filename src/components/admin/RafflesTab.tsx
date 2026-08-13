@@ -1269,130 +1269,128 @@ export default function RafflesTab() {
                   </div>
                 )}
 
-                {/* Draw Results Section (cuando status === 'drawn') */}
-                {detailRaffle.status === 'drawn' && (
-                  <div className="border-2 border-purple-200 rounded-xl p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-bold text-purple-700 uppercase flex items-center gap-2">
-                        <Trophy className="w-4 h-4" /> Resultados del sorteo
-                      </h4>
-                      <div className="flex gap-2">
-                        {!editingDrawResults && detailRaffle.draw_results && (
-                          <>
-                            <button onClick={() => initDrawResultsForm(detailRaffle)}
-                              className="flex items-center gap-1 px-3 py-1.5 border border-purple-300 text-purple-700 rounded-lg text-[10px] font-bold hover:bg-purple-50">
-                              <Edit2 className="w-3 h-3" /> Editar
-                            </button>
-                            <button onClick={() => api.raffles.drawFlyer(detailRaffle.id)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-[10px] font-bold hover:bg-purple-700">
-                              <FileText className="w-3 h-3" /> Flyer de resultados
-                            </button>
-                          </>
-                        )}
-                        {!editingDrawResults && !detailRaffle.draw_results && detailRaffle.tickets && detailRaffle.tickets.length > 0 && (
+                {/* Draw Results Section */}
+                <div className="border-2 border-purple-200 rounded-xl p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-purple-700 uppercase flex items-center gap-2">
+                      <Trophy className="w-4 h-4" /> Resultados del sorteo
+                    </h4>
+                    <div className="flex gap-2">
+                      {!editingDrawResults && detailRaffle.draw_results && (
+                        <>
                           <button onClick={() => initDrawResultsForm(detailRaffle)}
+                            className="flex items-center gap-1 px-3 py-1.5 border border-purple-300 text-purple-700 rounded-lg text-[10px] font-bold hover:bg-purple-50">
+                            <Edit2 className="w-3 h-3" /> Editar
+                          </button>
+                          <button onClick={() => api.raffles.drawFlyer(detailRaffle.id)}
                             className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-[10px] font-bold hover:bg-purple-700">
-                            <Trophy className="w-3 h-3" /> Cargar ganadores
+                            <FileText className="w-3 h-3" /> Flyer de resultados
                           </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Edit form */}
-                    {editingDrawResults && (
-                      <div className="space-y-3">
-                        {drawResultsForm.map((w, i) => (
-                          <div key={i} className="bg-purple-50/50 rounded-lg p-3 space-y-2">
-                            <p className="text-xs font-bold text-purple-700">🏆 {w.prize_title || `${w.position}° Premio`}{w.prize_amount ? ` — $${w.prize_amount.toLocaleString('es-AR')}` : ''}</p>
-                            <div className="grid grid-cols-3 gap-2">
-                              <input type="number" placeholder="N°" value={w.ticket_number}
-                                onChange={e => updateDrawResultField(i, 'ticket_number', Number(e.target.value))}
-                                className="px-2 py-1.5 border border-purple-200 rounded-lg text-sm font-bold focus:outline-none focus:border-purple-400" />
-                              <input type="text" placeholder="Nombre" value={w.buyer_name}
-                                onChange={e => updateDrawResultField(i, 'buyer_name', e.target.value)}
-                                className="px-2 py-1.5 border border-purple-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
-                              <input type="text" placeholder="Teléfono" value={w.buyer_phone}
-                                onChange={e => updateDrawResultField(i, 'buyer_phone', e.target.value)}
-                                className="px-2 py-1.5 border border-purple-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
-                            </div>
-                          </div>
-                        ))}
-                        <div className="flex gap-2">
-                          <button onClick={() => handleSaveDrawResults(detailRaffle.id)} disabled={savingDrawResults}
-                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 disabled:opacity-50">
-                            {savingDrawResults ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                            Guardar resultados
-                          </button>
-                          <button onClick={() => setEditingDrawResults(false)}
-                            className="px-4 py-2 border border-gray-300 rounded-xl text-sm font-bold hover:bg-gray-50">Cancelar</button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Display saved results */}
-                    {!editingDrawResults && detailRaffle.draw_results && (
-                      <div className="space-y-2">
-                        {detailRaffle.draw_results.map((w: any, i: number) => (
-                          <div key={i} className="flex items-center gap-3 bg-purple-50/50 p-3 rounded-lg">
-                            <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 text-sm font-bold shrink-0">
-                              {w.position}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-purple-800">{w.prize_title || `${w.position}° Premio`}</p>
-                              <p className="text-xs text-gray-500">N° {w.ticket_number} — {w.buyer_name}{w.buyer_phone ? ` · ${w.buyer_phone}` : ''}</p>
-                            </div>
-                            {w.prize_amount && <span className="text-sm font-bold text-purple-600">${w.prize_amount.toLocaleString('es-AR')}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Video upload */}
-                    <div className="border-t border-purple-100 pt-4">
-                      <h5 className="text-xs font-bold text-gray-500 uppercase mb-2">Video del sorteo</h5>
-                      {detailRaffle.draw_video_url ? (
-                        <div className="rounded-xl overflow-hidden border border-gray-200">
-                          <video controls className="w-full max-h-[400px] bg-black" src={detailRaffle.draw_video_url} />
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <input type="file" accept="video/mp4,video/webm"
-                            onChange={e => {
-                              const f = e.target.files?.[0] || null;
-                              setVideoFile(f);
-                              setVideoPreview(f ? URL.createObjectURL(f) : null);
-                            }}
-                            className="w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-purple-600 file:text-white hover:file:opacity-90" />
-                          {videoPreview && (
-                            <div className="relative inline-block">
-                              <video src={videoPreview} className="w-full max-h-[300px] rounded-xl" controls />
-                              <button onClick={() => { setVideoFile(null); setVideoPreview(null); }}
-                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3" /></button>
-                            </div>
-                          )}
-                          {videoFile && (
-                            <button onClick={() => handleUploadVideo(detailRaffle.id)} disabled={uploadingVideo}
-                              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 disabled:opacity-50">
-                              {uploadingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                              Subir video
-                            </button>
-                          )}
-                          <p className="text-[10px] text-gray-400">Formatos: MP4 o WebM, máximo 50MB. Proporción 9:16 o 16:9.</p>
-                        </div>
+                        </>
+                      )}
+                      {!editingDrawResults && !detailRaffle.draw_results && detailRaffle.tickets && detailRaffle.tickets.length > 0 && (
+                        <button onClick={() => initDrawResultsForm(detailRaffle)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-[10px] font-bold hover:bg-purple-700">
+                          <Trophy className="w-3 h-3" /> Cargar ganadores
+                        </button>
                       )}
                     </div>
+                  </div>
 
-                    {/* Notify participants button */}
-                    {detailRaffle.draw_results && (
-                      <div className="border-t border-purple-100 pt-4">
-                        <button onClick={() => openNotifyModal(detailRaffle)}
-                          className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 w-full justify-center">
-                          <MessageSquare className="w-4 h-4" /> Notificar participantes por WhatsApp
+                  {/* Edit form */}
+                  {editingDrawResults && (
+                    <div className="space-y-3">
+                      {drawResultsForm.map((w, i) => (
+                        <div key={i} className="bg-purple-50/50 rounded-lg p-3 space-y-2">
+                          <p className="text-xs font-bold text-purple-700">🏆 {w.prize_title || `${w.position}° Premio`}{w.prize_amount ? ` — $${w.prize_amount.toLocaleString('es-AR')}` : ''}</p>
+                          <div className="grid grid-cols-3 gap-2">
+                            <input type="number" placeholder="N°" value={w.ticket_number}
+                              onChange={e => updateDrawResultField(i, 'ticket_number', Number(e.target.value))}
+                              className="px-2 py-1.5 border border-purple-200 rounded-lg text-sm font-bold focus:outline-none focus:border-purple-400" />
+                            <input type="text" placeholder="Nombre" value={w.buyer_name}
+                              onChange={e => updateDrawResultField(i, 'buyer_name', e.target.value)}
+                              className="px-2 py-1.5 border border-purple-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
+                            <input type="text" placeholder="Teléfono" value={w.buyer_phone}
+                              onChange={e => updateDrawResultField(i, 'buyer_phone', e.target.value)}
+                              className="px-2 py-1.5 border border-purple-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex gap-2">
+                        <button onClick={() => handleSaveDrawResults(detailRaffle.id)} disabled={savingDrawResults}
+                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 disabled:opacity-50">
+                          {savingDrawResults ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                          Guardar resultados
                         </button>
+                        <button onClick={() => setEditingDrawResults(false)}
+                          className="px-4 py-2 border border-gray-300 rounded-xl text-sm font-bold hover:bg-gray-50">Cancelar</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Display saved results */}
+                  {!editingDrawResults && detailRaffle.draw_results && (
+                    <div className="space-y-2">
+                      {detailRaffle.draw_results.map((w: any, i: number) => (
+                        <div key={i} className="flex items-center gap-3 bg-purple-50/50 p-3 rounded-lg">
+                          <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 text-sm font-bold shrink-0">
+                            {w.position}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-purple-800">{w.prize_title || `${w.position}° Premio`}</p>
+                            <p className="text-xs text-gray-500">N° {w.ticket_number} — {w.buyer_name}{w.buyer_phone ? ` · ${w.buyer_phone}` : ''}</p>
+                          </div>
+                          {w.prize_amount && <span className="text-sm font-bold text-purple-600">${w.prize_amount.toLocaleString('es-AR')}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Video upload */}
+                  <div className="border-t border-purple-100 pt-4">
+                    <h5 className="text-xs font-bold text-gray-500 uppercase mb-2">Video del sorteo</h5>
+                    {detailRaffle.draw_video_url ? (
+                      <div className="rounded-xl overflow-hidden border border-gray-200">
+                        <video controls className="w-full max-h-[400px] bg-black" src={detailRaffle.draw_video_url} />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <input type="file" accept="video/mp4,video/webm"
+                          onChange={e => {
+                            const f = e.target.files?.[0] || null;
+                            setVideoFile(f);
+                            setVideoPreview(f ? URL.createObjectURL(f) : null);
+                          }}
+                          className="w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-purple-600 file:text-white hover:file:opacity-90" />
+                        {videoPreview && (
+                          <div className="relative inline-block">
+                            <video src={videoPreview} className="w-full max-h-[300px] rounded-xl" controls />
+                            <button onClick={() => { setVideoFile(null); setVideoPreview(null); }}
+                              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3" /></button>
+                          </div>
+                        )}
+                        {videoFile && (
+                          <button onClick={() => handleUploadVideo(detailRaffle.id)} disabled={uploadingVideo}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 disabled:opacity-50">
+                            {uploadingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                            Subir video
+                          </button>
+                        )}
+                        <p className="text-[10px] text-gray-400">Formatos: MP4 o WebM, máximo 50MB. Proporción 9:16 o 16:9.</p>
                       </div>
                     )}
                   </div>
-                )}
+
+                  {/* Notify participants button */}
+                  {detailRaffle.draw_results && (
+                    <div className="border-t border-purple-100 pt-4">
+                      <button onClick={() => openNotifyModal(detailRaffle)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 w-full justify-center">
+                        <MessageSquare className="w-4 h-4" /> Notificar participantes por WhatsApp
+                      </button>
+                    </div>
+                  )}
+                </div>
 
               </div>
             </motion.div>
