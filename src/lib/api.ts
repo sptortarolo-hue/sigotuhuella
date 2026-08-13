@@ -561,6 +561,38 @@ export const api = {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
           },
+          saveDrawResults: (id: string, winners: any[]) =>
+            request(`/raffles/${id}/draw-results`, { method: 'PUT', body: JSON.stringify({ winners }) }),
+          uploadVideo: async (id: string, file: File) => {
+            const formData = new FormData();
+            formData.append('video', file);
+            const token = getToken();
+            const res = await fetch(`${BASE_URL}/raffles/${id}/video`, {
+              method: 'POST',
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+              body: formData,
+            });
+            if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Error al subir video'); }
+            return res.json();
+          },
+          drawFlyer: async (id: string) => {
+            const token = getToken();
+            const res = await fetch(apiUrl(`/api/raffles/${id}/draw-flyer`), {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Error al descargar flyer'); }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `resultados-${id}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          },
+          notifyParticipants: (id: string, data: { text: string }) =>
+            request(`/raffles/${id}/notify-participants`, { method: 'POST', body: JSON.stringify(data) }),
         },
         backup: {
           list: () => request('/backup/list'),

@@ -1728,6 +1728,14 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_phone_blacklist_phone ON phone_blacklist(phone);
     `, 'phone_blacklist');
 
+    // ─── Raffle draw results + video ───
+    await migrate(client, `
+      ALTER TABLE raffles ADD COLUMN IF NOT EXISTS draw_results JSONB;
+    `, 'raffles draw_results');
+    await migrate(client, `
+      ALTER TABLE raffles ADD COLUMN IF NOT EXISTS draw_video_url TEXT;
+    `, 'raffles draw_video_url');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

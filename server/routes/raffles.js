@@ -5,9 +5,10 @@ import { reserveTickets, confirmPayment, cancelExpiredReservations, confirmManua
 import { enqueue, getAllGroups } from '../services/phoneRelayService.js';
 import { renderRaffleFlyer } from '../services/raffleFlyerRenderer.js';
 import PDFDocument from 'pdfkit';
-import { readFileSync } from 'fs';
+import { readFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import multer from 'multer';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -493,6 +494,143 @@ router.post('/:id/draw', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('POST /raffles/:id/draw error:', err);
     res.status(500).json({ error: 'Error al sortear' });
+  }
+});
+
+// Admin: save draw results (winners) after physical draw
+router.put('/:id/draw-results', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { winners } = req.body;
+    if (!Array.isArray(winners) || winners.length === 0) {
+      return res.status(400).json({ error: 'Se requiere un array de ganadores' });
+    }
+    for (const w of winners) {
+      if (!w.position || !w.ticket_number || !w.buyer_name) {
+        return res.status(400).json({ error: 'Cada ganador debe tener position, ticket_number y buyer_name' });
+      }
+    }
+    await pool.query(
+      `UPDATE raffles SET draw_results = $1, status = 'drawn', updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(winners), id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('PUT /raffles/:id/draw-results error:', err);
+    res.status(500).json({ error: 'Error al guardar resultados' });
+  }
+});
+
+// Admin: upload draw video
+const videoUploadDir = join(__dirname, '..', '..', 'public', 'uploads', 'raffle-videos');
+if (!existsSync(videoUploadDir)) mkdirSync(videoUploadDir, { recursive: true });
+const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: videoUploadDir,
+    filename: (_req, file, cb) => {
+      const ext = file.originalname.split('.').pop() || 'mp4';
+      cb(null, `draw-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
+    },
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (['video/mp4', 'video/webm'].includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Formato no soportado. Usá MP4 o WebM.'));
+  },
+});
+router.post('/:id/video', requireAdmin, (req, res, next) => {
+  videoUpload.single('video')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!req.file) return res.status(400).json({ error: 'No se envió video' });
+    const videoUrl = `/uploads/raffle-videos/${req.file.filename}`;
+    await pool.query('UPDATE raffles SET draw_video_url = $1 WHERE id = $2', [videoUrl, id]);
+    res.json({ ok: true, videoUrl });
+  } catch (err) {
+    console.error('POST /raffles/:id/video error:', err);
+    res.status(500).json({ error: 'Error al subir video' });
+  }
+});
+
+// Public: draw result flyer (PNG)
+router.get('/:id/draw-flyer', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const raffleRes = await pool.query('SELECT * FROM raffles WHERE id = $1', [id]);
+    if (raffleRes.rows.length === 0) return res.status(404).json({ error: 'Rifa no encontrada' });
+    const raffle = raffleRes.rows[0];
+    if (!raffle.draw_results || raffle.draw_results.length === 0) {
+      return res.status(400).json({ error: 'La rifa aún no tiene resultados del sorteo' });
+    }
+    const prizes = await pool.query('SELECT * FROM raffle_prizes WHERE raffle_id = $1 ORDER BY position', [id]);
+    const logoImage = await getLogoImage();
+    const { renderDrawResultFlyer } = await import('../services/drawResultFlyerRenderer.js');
+    const pngBuffer = await renderDrawResultFlyer({
+      title: raffle.title,
+      prizes: prizes.rows,
+      winners: raffle.draw_results,
+      logoImage,
+    });
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.set('Access-Control-Allow-Origin', '*');
+    res.end(pngBuffer);
+  } catch (err) {
+    console.error('GET /raffles/:id/draw-flyer error:', err);
+    res.status(500).json({ error: 'Error al generar flyer de resultados: ' + err.message });
+  }
+});
+
+// Admin: notify participants via WhatsApp
+router.post('/:id/notify-participants', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text } = req.body;
+    const raffleRes = await pool.query('SELECT * FROM raffles WHERE id = $1', [id]);
+    if (raffleRes.rows.length === 0) return res.status(404).json({ error: 'Rifa no encontrada' });
+    const raffle = raffleRes.rows[0];
+
+    const phoneRes = await pool.query(
+      `SELECT DISTINCT buyer_phone FROM raffle_tickets
+       WHERE raffle_id = $1 AND status = 'paid' AND buyer_phone IS NOT NULL AND buyer_phone != ''`,
+      [id]
+    );
+    if (phoneRes.rows.length === 0) {
+      return res.status(400).json({ error: 'No hay participantes con teléfono para notificar' });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+    const drawFlyerUrl = `${frontendUrl}/api/raffles/${id}/draw-flyer`;
+
+    let msg = text || '';
+    if (!msg) {
+      const winnersList = (raffle.draw_results || [])
+        .map((w, i) => `${i + 1}° ${w.prize_title}: N° ${w.ticket_number} - ${w.buyer_name}`)
+        .join('\n');
+      msg = `🎉 ¡Sorteo de "${raffle.title}" realizado!\n\n🏆 Ganadores:\n${winnersList}`;
+      if (raffle.draw_video_url) {
+        msg += `\n\n🎥 Mirá el video del sorteo: ${frontendUrl}${raffle.draw_video_url}`;
+      }
+    }
+
+    let enqueued = 0;
+    for (const row of phoneRes.rows) {
+      try {
+        await enqueue(row.buyer_phone, msg, drawFlyerUrl);
+        enqueued++;
+      } catch (e) {
+        console.error(`Error encolando a ${row.buyer_phone}:`, e.message);
+      }
+    }
+
+    res.json({ enqueued, total: phoneRes.rows.length, totalPaid: raffle.stats?.sold || phoneRes.rows.length });
+  } catch (err) {
+    console.error('POST /raffles/:id/notify-participants error:', err);
+    res.status(500).json({ error: 'Error al notificar participantes' });
   }
 });
 

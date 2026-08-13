@@ -5,7 +5,7 @@ import { cn } from '@/src/lib/utils';
 import {
   Plus, X, Loader2, Trash2, Edit2, Eye, Trophy, Calendar, Ticket,
   ChevronDown, ChevronUp, AlertCircle, Check, Pause, Play, Award, Users,
-  HandCoins, Upload, CheckCircle, XCircle, MessageSquare, Share2, FileText
+  HandCoins, Upload, CheckCircle, XCircle, MessageSquare, Share2, FileText, Video
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import RafflePublishModal from './RafflePublishModal';
@@ -33,8 +33,10 @@ interface Raffle {
   prizes: Prize[];
   sold_count?: number;
   stats?: { sold: number; reservedMp: number; pendingTransfer: number; pendingManual: number; available: number };
-  tickets?: { number: number; status: string; buyer_name: string; payment_method: string; payment_status: string }[];
+  tickets?: { number: number; status: string; buyer_name: string; buyer_phone: string; payment_method: string; payment_status: string }[];
   receipts?: any[];
+  draw_results?: { position: number; prize_title: string; prize_description: string; prize_amount: number; ticket_number: number; buyer_name: string; buyer_phone: string }[];
+  draw_video_url?: string | null;
 }
 
 export default function RafflesTab() {
@@ -76,6 +78,16 @@ export default function RafflesTab() {
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [uploadingReceiptConfirm, setUploadingReceiptConfirm] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [editingDrawResults, setEditingDrawResults] = useState(false);
+  const [drawResultsForm, setDrawResultsForm] = useState<any[]>([]);
+  const [savingDrawResults, setSavingDrawResults] = useState(false);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [notifyText, setNotifyText] = useState('');
+  const [notifying, setNotifying] = useState(false);
+  const [notifyResult, setNotifyResult] = useState<any>(null);
 
   async function fetchUnmatchedReceipts() {
     try {
@@ -190,6 +202,96 @@ export default function RafflesTab() {
       alert(err.message || 'Error al generar el PDF');
     } finally {
       setGeneratingPdf(false);
+    }
+  }
+
+  function initDrawResultsForm(raffle: Raffle) {
+    const existing = raffle.draw_results || raffle.prizes?.map((p: any) => ({
+      position: p.position,
+      prize_title: p.title,
+      prize_description: p.description || '',
+      prize_amount: p.amount,
+      ticket_number: '',
+      buyer_name: '',
+      buyer_phone: '',
+    })) || [];
+    setDrawResultsForm(existing);
+    setEditingDrawResults(true);
+  }
+
+  async function handleSaveDrawResults(raffleId: string) {
+    const incomplete = drawResultsForm.find(w => !w.ticket_number || !w.buyer_name);
+    if (incomplete) {
+      alert(`Faltan datos en el premio: ${incomplete.prize_title || `Posición ${incomplete.position}`}. Completá número y nombre.`);
+      return;
+    }
+    try {
+      setSavingDrawResults(true);
+      await api.raffles.saveDrawResults(raffleId, drawResultsForm);
+      setEditingDrawResults(false);
+      openDetail({ id: raffleId } as Raffle);
+      fetchRaffles();
+    } catch (err: any) {
+      alert(err.message || 'Error al guardar resultados');
+    } finally {
+      setSavingDrawResults(false);
+    }
+  }
+
+  function updateDrawResultField(index: number, field: string, value: any) {
+    setDrawResultsForm(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      if (field === 'ticket_number' && detailRaffle?.tickets) {
+        const ticket = detailRaffle.tickets.find((t: any) => t.number === Number(value));
+        if (ticket) {
+          next[index].buyer_name = ticket.buyer_name || '';
+          next[index].buyer_phone = ticket.buyer_phone || '';
+        }
+      }
+      return next;
+    });
+  }
+
+  async function handleUploadVideo(raffleId: string) {
+    if (!videoFile) return;
+    try {
+      setUploadingVideo(true);
+      const data = await api.raffles.uploadVideo(raffleId, videoFile);
+      setVideoFile(null);
+      setVideoPreview(null);
+      openDetail({ id: raffleId } as Raffle);
+    } catch (err: any) {
+      alert(err.message || 'Error al subir video');
+    } finally {
+      setUploadingVideo(false);
+    }
+  }
+
+  function openNotifyModal(raffle: Raffle) {
+    const winnersList = (raffle.draw_results || [])
+      .map((w, i) => `${i + 1}° ${w.prize_title || `${w.position}° Premio`}: N° ${w.ticket_number} - ${w.buyer_name}`)
+      .join('\n');
+    const frontendUrl = window.location.origin;
+    let text = `🎉 ¡Sorteo de "${raffle.title}" realizado!\n\n🏆 Ganadores:\n${winnersList}`;
+    if (raffle.draw_video_url) {
+      text += `\n\n🎥 Mirá el video del sorteo: ${frontendUrl}${raffle.draw_video_url}`;
+    }
+    setNotifyText(text);
+    setNotifyResult(null);
+    setShowNotifyModal(true);
+  }
+
+  async function handleNotifyParticipants(raffleId: string) {
+    try {
+      setNotifying(true);
+      const data = await api.raffles.notifyParticipants(raffleId, { text: notifyText });
+      setNotifyResult(data);
+      fetchRaffles();
+    } catch (err: any) {
+      alert(err.message || 'Error al notificar');
+    } finally {
+      setNotifying(false);
     }
   }
 
@@ -1163,6 +1265,132 @@ export default function RafflesTab() {
                         {w.prizeAmount && <span className="text-purple-500 ml-1">(${w.prizeAmount.toLocaleString('es-AR')})</span>}
                       </div>
                     ))}
+                    <p className="text-xs text-purple-500 mt-2 italic">Estos resultados no están guardados. Usá "Guardar resultados" para persistirlos.</p>
+                  </div>
+                )}
+
+                {/* Draw Results Section (cuando status === 'drawn') */}
+                {detailRaffle.status === 'drawn' && (
+                  <div className="border-2 border-purple-200 rounded-xl p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-purple-700 uppercase flex items-center gap-2">
+                        <Trophy className="w-4 h-4" /> Resultados del sorteo
+                      </h4>
+                      <div className="flex gap-2">
+                        {!editingDrawResults && detailRaffle.draw_results && (
+                          <>
+                            <button onClick={() => initDrawResultsForm(detailRaffle)}
+                              className="flex items-center gap-1 px-3 py-1.5 border border-purple-300 text-purple-700 rounded-lg text-[10px] font-bold hover:bg-purple-50">
+                              <Edit2 className="w-3 h-3" /> Editar
+                            </button>
+                            <button onClick={() => api.raffles.drawFlyer(detailRaffle.id)}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-[10px] font-bold hover:bg-purple-700">
+                              <FileText className="w-3 h-3" /> Flyer de resultados
+                            </button>
+                          </>
+                        )}
+                        {!editingDrawResults && !detailRaffle.draw_results && (
+                          <button onClick={() => initDrawResultsForm(detailRaffle)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-[10px] font-bold hover:bg-purple-700">
+                            <Trophy className="w-3 h-3" /> Cargar ganadores
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Edit form */}
+                    {editingDrawResults && (
+                      <div className="space-y-3">
+                        {drawResultsForm.map((w, i) => (
+                          <div key={i} className="bg-purple-50/50 rounded-lg p-3 space-y-2">
+                            <p className="text-xs font-bold text-purple-700">🏆 {w.prize_title || `${w.position}° Premio`}{w.prize_amount ? ` — $${w.prize_amount.toLocaleString('es-AR')}` : ''}</p>
+                            <div className="grid grid-cols-3 gap-2">
+                              <input type="number" placeholder="N°" value={w.ticket_number}
+                                onChange={e => updateDrawResultField(i, 'ticket_number', Number(e.target.value))}
+                                className="px-2 py-1.5 border border-purple-200 rounded-lg text-sm font-bold focus:outline-none focus:border-purple-400" />
+                              <input type="text" placeholder="Nombre" value={w.buyer_name}
+                                onChange={e => updateDrawResultField(i, 'buyer_name', e.target.value)}
+                                className="px-2 py-1.5 border border-purple-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
+                              <input type="text" placeholder="Teléfono" value={w.buyer_phone}
+                                onChange={e => updateDrawResultField(i, 'buyer_phone', e.target.value)}
+                                className="px-2 py-1.5 border border-purple-200 rounded-lg text-sm focus:outline-none focus:border-purple-400" />
+                            </div>
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <button onClick={() => handleSaveDrawResults(detailRaffle.id)} disabled={savingDrawResults}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 disabled:opacity-50">
+                            {savingDrawResults ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            Guardar resultados
+                          </button>
+                          <button onClick={() => setEditingDrawResults(false)}
+                            className="px-4 py-2 border border-gray-300 rounded-xl text-sm font-bold hover:bg-gray-50">Cancelar</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Display saved results */}
+                    {!editingDrawResults && detailRaffle.draw_results && (
+                      <div className="space-y-2">
+                        {detailRaffle.draw_results.map((w: any, i: number) => (
+                          <div key={i} className="flex items-center gap-3 bg-purple-50/50 p-3 rounded-lg">
+                            <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 text-sm font-bold shrink-0">
+                              {w.position}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-purple-800">{w.prize_title || `${w.position}° Premio`}</p>
+                              <p className="text-xs text-gray-500">N° {w.ticket_number} — {w.buyer_name}{w.buyer_phone ? ` · ${w.buyer_phone}` : ''}</p>
+                            </div>
+                            {w.prize_amount && <span className="text-sm font-bold text-purple-600">${w.prize_amount.toLocaleString('es-AR')}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Video upload */}
+                    <div className="border-t border-purple-100 pt-4">
+                      <h5 className="text-xs font-bold text-gray-500 uppercase mb-2">Video del sorteo</h5>
+                      {detailRaffle.draw_video_url ? (
+                        <div className="rounded-xl overflow-hidden border border-gray-200">
+                          <video controls className="w-full max-h-[400px] bg-black" src={detailRaffle.draw_video_url} />
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <input type="file" accept="video/mp4,video/webm"
+                            onChange={e => {
+                              const f = e.target.files?.[0] || null;
+                              setVideoFile(f);
+                              setVideoPreview(f ? URL.createObjectURL(f) : null);
+                            }}
+                            className="w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-purple-600 file:text-white hover:file:opacity-90" />
+                          {videoPreview && (
+                            <div className="relative inline-block">
+                              <video src={videoPreview} className="w-full max-h-[300px] rounded-xl" controls />
+                              <button onClick={() => { setVideoFile(null); setVideoPreview(null); }}
+                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3" /></button>
+                            </div>
+                          )}
+                          {videoFile && (
+                            <button onClick={() => handleUploadVideo(detailRaffle.id)} disabled={uploadingVideo}
+                              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 disabled:opacity-50">
+                              {uploadingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                              Subir video
+                            </button>
+                          )}
+                          <p className="text-[10px] text-gray-400">Formatos: MP4 o WebM, máximo 50MB. Proporción 9:16 o 16:9.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Notify participants button */}
+                    {detailRaffle.draw_results && (
+                      <div className="border-t border-purple-100 pt-4">
+                        <button onClick={() => openNotifyModal(detailRaffle)}
+                          className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 w-full justify-center">
+                          <MessageSquare className="w-4 h-4" /> Notificar participantes por WhatsApp
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1232,6 +1460,37 @@ export default function RafflesTab() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notify Participants Modal */}
+      {showNotifyModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => !notifying && setShowNotifyModal(false)}>
+          <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+          <div className="relative w-full max-w-lg bg-white rounded-[2.5rem] max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 pb-0">
+              <h3 className="text-lg font-bold flex items-center gap-2"><MessageSquare className="w-5 h-5 text-green-600" /> Notificar participantes</h3>
+              <button onClick={() => setShowNotifyModal(false)} className="p-2 hover:bg-brand-accent/20 rounded-full"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {notifyResult ? (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                  <p className="text-green-700 font-bold text-sm">✅ Se encolaron {notifyResult.enqueued} mensajes de {notifyResult.total} participantes con teléfono.</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-500">El mensaje se enviará a todos los participantes que tengan número de WhatsApp registrado.</p>
+                  <textarea value={notifyText} onChange={e => setNotifyText(e.target.value)} rows={8}
+                    className="w-full p-3 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary resize-none" />
+                  <button onClick={() => handleNotifyParticipants(detailRaffle!.id)} disabled={notifying || !notifyText}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 disabled:opacity-50 w-full justify-center">
+                    {notifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
+                    Enviar a participantes
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
