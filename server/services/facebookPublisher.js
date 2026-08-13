@@ -587,13 +587,13 @@ export async function publishPetToGroups(petId, options = {}) {
       .filter(g => g.success && g.groupPostId)
       .map(g => g.groupPostId);
 
-    const status = pageResult.success ? 'published' : pageResult.error ? 'failed' : 'published';
-    const errorMsg = pageResult.error || results.groups.find(g => g.error)?.error || null;
+    const status = results.page?.success ? 'published' : results.page?.error ? 'failed' : 'published';
+    const errorMsg = results.page?.error || results.groups.find(g => g.error)?.error || null;
 
     await pool.query(
       `INSERT INTO facebook_page_posts (pet_id, page_post_id, group_post_ids, message, status, error_message, published_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-      [petId, pageResult.pagePostId || null, groupPostIds, message, status, errorMsg]
+      [petId, results.page?.pagePostId || null, groupPostIds, message, status, errorMsg]
     );
 
     if (status === 'published') {
