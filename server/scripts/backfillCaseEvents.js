@@ -108,7 +108,7 @@ async function fixInstagramPermalinks(caseId, petId) {
       await pool.query(`UPDATE instagram_posts SET ig_permalink = $1 WHERE id = $2`, [permalink, row.id]);
       // Corrige también el payload del evento instagram_published del caso
       await pool.query(
-        `UPDATE case_events SET payload = payload || jsonb_build_object('permalink', $1)
+        `UPDATE case_events SET payload = payload || jsonb_build_object('permalink', $1::text)
          WHERE case_id = $2 AND event_type = 'instagram_published'`,
         [permalink, caseId]
       );
