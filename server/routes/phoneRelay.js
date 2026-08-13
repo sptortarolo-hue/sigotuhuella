@@ -360,11 +360,23 @@ router.post('/broadcast-pet', requireAdmin, async (req, res) => {
     const { caption, coverUrl } = generateBroadcastCaption(pet);
     const results = [];
 
+    // Asocia el evento de difusión al caso de la mascota (si tiene uno)
+    const caseRes = await pool.query('SELECT id FROM pet_cases WHERE pet_id = $1 LIMIT 1', [petId]);
+    const caseId = caseRes.rows[0]?.id || null;
+
     for (const groupId of groupIds) {
       try {
         const type = groupId.includes('@newsletter') ? 'channel' : 'message';
         const id = await enqueue(groupId, caption, coverUrl, type);
         results.push({ groupId, status: 'queued', id });
+        if (caseId) {
+          const groupRes = await pool.query('SELECT name FROM whatsapp_groups WHERE group_id = $1 LIMIT 1', [groupId]);
+          await pool.query(
+            `INSERT INTO case_events (case_id, event_type, payload)
+             VALUES ($1, 'whatsapp_group_sent', $2)`,
+            [caseId, JSON.stringify({ group_id: groupId, group_name: groupRes.rows[0]?.name || groupId, relay_message_id: id, reached: true })]
+          );
+        }
       } catch (err) {
         results.push({ groupId, status: 'error', error: err.message });
       }

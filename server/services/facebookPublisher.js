@@ -419,6 +419,13 @@ export async function replicateInstagramToFacebook(instagramPostId) {
 
   if (status === 'published') {
     await pool.query(`UPDATE instagram_posts SET fb_replicated = true WHERE id = $1`, [instagramPostId]);
+    await recordPublicationEvent(post.pet_id, 'facebook_published', {
+      page_post_id: pagePostId || null,
+      page_post_url: pagePostId && pageResult.pageId
+        ? `https://www.facebook.com/${pageResult.pageId}/posts/${pagePostId}`
+        : null,
+      group_post_ids: groupPostIds,
+    }).catch(e => console.error(`[FB Publisher] replicate recordPublicationEvent error: ${e.message}`));
   }
 
   return results;
@@ -582,27 +589,29 @@ export async function publishPetToGroups(petId, options = {}) {
     }
   }
 
+  const groupPostIds = results.groups
+    .filter(g => g.success && g.groupPostId)
+    .map(g => g.groupPostId);
+
+  const status = results.page?.success ? 'published' : results.page?.error ? 'failed' : 'published';
+  const errorMsg = results.page?.error || results.groups.find(g => g.error)?.error || null;
+
   if (!skipPagePublish) {
-    const groupPostIds = results.groups
-      .filter(g => g.success && g.groupPostId)
-      .map(g => g.groupPostId);
-
-    const status = results.page?.success ? 'published' : results.page?.error ? 'failed' : 'published';
-    const errorMsg = results.page?.error || results.groups.find(g => g.error)?.error || null;
-
     await pool.query(
       `INSERT INTO facebook_page_posts (pet_id, page_post_id, group_post_ids, message, status, error_message, published_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
       [petId, results.page?.pagePostId || null, groupPostIds, message, status, errorMsg]
     );
+  }
 
-    if (status === 'published') {
-      await recordPublicationEvent(petId, 'facebook_published', {
-        page_post_id: results.page?.pagePostId || null,
-        page_post_url: pagePostUrl || null,
-        group_post_ids: groupPostIds,
-      }).catch(e => console.error(`[FB Publisher] recordPublicationEvent error: ${e.message}`));
-    }
+  // Evento de trazabilidad si se publicó en la página y/o en grupos (aplica también
+  // al flujo con skipPagePublish=true, donde la página ya la publicó el route).
+  if (status === 'published' || groupPostIds.length > 0) {
+    await recordPublicationEvent(petId, 'facebook_published', {
+      page_post_id: results.page?.pagePostId || null,
+      page_post_url: pagePostUrl || null,
+      group_post_ids: groupPostIds,
+    }).catch(e => console.error(`[FB Publisher] recordPublicationEvent error: ${e.message}`));
   }
 
   return results;
