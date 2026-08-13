@@ -203,7 +203,8 @@ router.post('/login', async (req, res) => {
         avatar_data: user.avatar_data, avatar_mime_type: user.avatar_mime_type,
         avatar_type: user.avatar_type, member_number: user.member_number,
         volunteer_status: user.volunteer_status, badges: user.badges || [],
-        notification_preference: user.notification_preference || 'email'
+        notification_preference: user.notification_preference || 'email',
+        notify_case_updates: user.notify_case_updates !== false,
       }
     });
   } catch (err) {

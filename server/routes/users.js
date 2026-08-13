@@ -117,7 +117,7 @@ router.put('/:id/set-password', requireAdmin, async (req, res) => {
 router.put('/:id', requireAuth, async (req, res) => {
   const { displayName, phone, role, badges, notificationPreference, neighborhoods,
           email, memberNumber, volunteerStatus, contributionAreas,
-          points, level, emailVerified, registrationPending, avatarType } = req.body;
+          points, level, emailVerified, registrationPending, avatarType, notifyCaseUpdates } = req.body;
   const isSelf = req.user.id === req.params.id;
   const isAdmin = req.user.role === 'admin';
   if (!isSelf && !isAdmin) {
@@ -145,6 +145,10 @@ router.put('/:id', requireAuth, async (req, res) => {
       }
       fields.push(`notification_preference = $${idx++}`);
       values.push(notificationPreference);
+    }
+    if (notifyCaseUpdates !== undefined) {
+      fields.push(`notify_case_updates = $${idx++}`);
+      values.push(!!notifyCaseUpdates);
     }
     if (neighborhoods !== undefined) {
       const nArr = Array.isArray(neighborhoods) ? neighborhoods : [];
@@ -213,7 +217,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     fields.push(`updated_at = NOW()`);
     values.push(req.params.id);
     const result = await pool.query(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, phone, role, created_at, avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges, notification_preference, neighborhoods, contribution_areas, points, level, email_verified, registration_pending`,
+      `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, email, display_name, phone, role, created_at, avatar_data, avatar_mime_type, avatar_type, member_number, volunteer_status, badges, notification_preference, notify_case_updates, neighborhoods, contribution_areas, points, level, email_verified, registration_pending`,
       values
     );
     if (result.rows.length === 0) {

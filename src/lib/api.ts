@@ -206,6 +206,8 @@ export const api = {
     unfollow: (id: string) => request(`/cases/${id}/follow`, { method: 'DELETE' }),
     followed: () => request('/cases/followed'),
     renew: (id: string) => request(`/cases/${id}/renew`, { method: 'POST' }),
+    replyComment: (id: string, commentId: string, text: string) =>
+      request(`/cases/${id}/comments/${commentId}/reply`, { method: 'POST', body: JSON.stringify({ text }) }),
   },
   gamification: {
     myStats: () => request('/my-stats'),

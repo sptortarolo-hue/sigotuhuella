@@ -1,0 +1,153 @@
+import axios from 'axios';
+import pool from '../db.js';
+import { getStoredToken, getComments, getMediaInsights, getInstagramOEmbed } from './instagramService.js';
+
+const GRAPH_API = 'https://graph.facebook.com/v22.0';
+const BATCH_SIZE = 10;
+const BATCH_DELAY_MS = 400;
+
+async function getSetting(key) {
+  const result = await pool.query('SELECT value FROM settings WHERE key = $1', [key]);
+  return result.rows[0]?.value || '';
+}
+
+async function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+function metricValue(insights, name) {
+  const m = (insights || []).find(i => i.name === name);
+  return m ? parseInt(m.values?.[0]?.value, 10) || 0 : 0;
+}
+
+// ---- Instagram ----
+
+export async function syncInstagramEngagement() {
+  const token = await getStoredToken();
+  if (!token) return { posts: 0, comments: 0, embeds: 0 };
+
+  const postsRes = await pool.query(
+    `SELECT id, ig_media_id, ig_permalink, embed_html FROM instagram_posts
+     WHERE status = 'published' AND ig_media_id IS NOT NULL
+     ORDER BY published_at DESC NULLS LAST LIMIT 100`
+  );
+
+  let posts = 0, comments = 0, embeds = 0;
+  for (let i = 0; i < postsRes.rows.length; i += BATCH_SIZE) {
+    const batch = postsRes.rows.slice(i, i + BATCH_SIZE);
+    for (const post of batch) {
+      try {
+        const { data } = await axios.get(`${GRAPH_API}/${post.ig_media_id}`, {
+          params: { fields: 'id,like_count,comments_count,permalink', access_token: token },
+        });
+        const insights = await getMediaInsights(post.ig_media_id);
+        const likeCount = parseInt(data.like_count, 10) || 0;
+        const commentCount = parseInt(data.comments_count, 10) || 0;
+        const shareCount = metricValue(insights, 'shares');
+        const reach = metricValue(insights, 'reach') || metricValue(insights, 'impressions');
+        const permalink = data.permalink || post.ig_permalink || null;
+
+        await pool.query(
+          `UPDATE instagram_posts SET
+             like_count = $1, comment_count = $2, share_count = $3, reach = $4,
+             ig_permalink = COALESCE($5, ig_permalink),
+             metrics_updated_at = NOW()
+           WHERE id = $6`,
+          [likeCount, commentCount, shareCount, reach, permalink, post.id]
+        );
+        posts++;
+
+        // Backfill de comentarios (upsert, vincula ig_post_id)
+        const cmts = await getComments(post.ig_media_id);
+        for (const c of cmts) {
+          await pool.query(
+            `INSERT INTO instagram_comments (ig_comment_id, ig_media_id, ig_post_id, username, text, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (ig_comment_id) DO UPDATE SET ig_post_id = EXCLUDED.ig_post_id`,
+            [c.id, post.ig_media_id, post.id, c.username || 'unknown', c.text || '', new Date(c.timestamp).toISOString()]
+          ).catch(() => {});
+          comments++;
+        }
+
+        // Cache del embed (oEmbed) si todavía no se generó
+        if (permalink && !post.embed_html) {
+          try {
+            const oembed = await getInstagramOEmbed(permalink);
+            if (oembed?.html) {
+              await pool.query('UPDATE instagram_posts SET embed_html = $1 WHERE id = $2', [oembed.html, post.id]);
+              embeds++;
+            }
+          } catch {
+            // oEmbed puede fallar si el post no es público; no es crítico
+          }
+        }
+      } catch (err) {
+        console.error(`[MetaEngagement] IG post ${post.id}: ${err.response?.data?.error?.message || err.message}`);
+      }
+      await sleep(BATCH_DELAY_MS);
+    }
+  }
+
+  return { posts, comments, embeds };
+}
+
+// ---- Facebook (página) ----
+
+export async function syncFacebookEngagement() {
+  const token = await getStoredToken();
+  if (!token) return { posts: 0, comments: 0 };
+
+  const postsRes = await pool.query(
+    `SELECT id, page_post_id FROM facebook_page_posts
+     WHERE status = 'published' AND page_post_id IS NOT NULL
+     ORDER BY published_at DESC NULLS LAST LIMIT 100`
+  );
+
+  let posts = 0, comments = 0;
+  for (const post of postsRes.rows) {
+    try {
+      const params = { access_token: token, fields: 'id,like_count,comment_count,share_count' };
+      const { data } = await axios.get(`${GRAPH_API}/${post.page_post_id}`, { params });
+      await pool.query(
+        `UPDATE facebook_page_posts SET
+           like_count = $1, comment_count = $2, share_count = $3, metrics_updated_at = NOW()
+         WHERE id = $4`,
+        [parseInt(data.like_count, 10) || 0, parseInt(data.comment_count, 10) || 0, parseInt(data.share_count, 10) || 0, post.id]
+      );
+      posts++;
+
+      const cmtsRes = await axios.get(`${GRAPH_API}/${post.page_post_id}/comments`, {
+        params: { access_token: token, fields: 'id,message,from{name},like_count,created_time' },
+      });
+      for (const c of cmtsRes.data.data || []) {
+        await pool.query(
+          `INSERT INTO facebook_page_comments (fb_comment_id, page_post_id, author_name, text, like_count, posted_at)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (fb_comment_id) DO NOTHING`,
+          [c.id, post.id, c.from?.name || 'unknown', c.message || '', parseInt(c.like_count, 10) || 0, new Date(c.created_time).toISOString()]
+        ).catch(() => {});
+        comments++;
+      }
+    } catch (err) {
+      console.error(`[MetaEngagement] FB page post ${post.id}: ${err.response?.data?.error?.message || err.message}`);
+    }
+    await sleep(BATCH_DELAY_MS);
+  }
+
+  return { posts, comments };
+}
+
+export async function runEngagementSync() {
+  const enabled = await getSetting('engagement_sync_enabled');
+  if (enabled !== 'true') {
+    console.log('[MetaEngagement] Sync deshabilitado (engagement_sync_enabled != true)');
+    return null;
+  }
+  const ig = await syncInstagramEngagement();
+  const fb = await syncFacebookEngagement();
+  const total = {
+    instagram: ig, facebook: fb,
+  };
+  console.log(`[MetaEngagement] IG: ${ig.posts} posts / ${ig.comments} comentarios / ${ig.embeds} embeds · FB: ${fb.posts} posts / ${fb.comments} comentarios`);
+  return total;
+}

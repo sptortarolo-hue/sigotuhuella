@@ -187,6 +187,90 @@ export async function getCaseDashboard(caseId, viewerUserId = null) {
     searchAreas: areasRes.rows,
     followerCount: await countFollowers(caseId),
     is_following: await isFollowing(caseId, viewerUserId),
+    impact: await getCaseImpact(caseId, petCase.pet_id),
+  };
+}
+
+// Métricas de engagement + comentarios de las publicaciones IG/FB vinculadas al pet del caso.
+export async function getCaseImpact(caseId, petId) {
+  const [igRes, fbRes] = await Promise.all([
+    pool.query(
+      `SELECT ip.ig_permalink, ip.embed_html, ip.like_count, ip.comment_count, ip.share_count,
+              ip.reach, ip.metrics_updated_at, ip.caption, ip.ig_media_id
+       FROM instagram_posts ip
+       WHERE ip.pet_id = $1 AND ip.status = 'published'
+       ORDER BY ip.published_at DESC NULLS LAST
+       LIMIT 1`,
+      [petId]
+    ),
+    pool.query(
+      `SELECT fp.page_post_id, fp.like_count, fp.comment_count, fp.share_count, fp.reach,
+              fp.metrics_updated_at, fp.message
+       FROM facebook_page_posts fp
+       WHERE fp.pet_id = $1 AND fp.status = 'published'
+       ORDER BY fp.published_at DESC NULLS LAST
+       LIMIT 1`,
+      [petId]
+    ),
+  ]);
+
+  const ig = igRes.rows[0] || null;
+  const fb = fbRes.rows[0] || null;
+
+  let igComments = [];
+  if (ig?.ig_media_id) {
+    const cmts = await pool.query(
+      `SELECT ic.id, ic.ig_comment_id, ic.username, ic.text, ic.replied, ic.created_at
+       FROM instagram_comments ic
+       WHERE ic.ig_post_id = $1
+       ORDER BY ic.created_at DESC
+       LIMIT 50`,
+      [igRes.rows[0].id]
+    );
+    igComments = cmts.rows;
+  }
+
+  let fbComments = [];
+  if (fb?.page_post_id) {
+    const cmts = await pool.query(
+      `SELECT fc.id, fc.fb_comment_id, fc.author_name, fc.text, fc.like_count, fc.posted_at
+       FROM facebook_page_comments fc
+       WHERE fc.page_post_id = $1
+       ORDER BY fc.posted_at DESC
+       LIMIT 50`,
+      [fbRes.rows[0].id]
+    );
+    fbComments = cmts.rows;
+  }
+
+  return {
+    instagram: ig
+      ? {
+          permalink: ig.ig_permalink,
+          embed_html: ig.embed_html,
+          like_count: ig.like_count,
+          comment_count: ig.comment_count,
+          share_count: ig.share_count,
+          reach: ig.reach,
+          metrics_updated_at: ig.metrics_updated_at,
+          caption: ig.caption,
+        }
+      : null,
+    facebook: fb
+      ? {
+          page_post_id: fb.page_post_id,
+          like_count: fb.like_count,
+          comment_count: fb.comment_count,
+          share_count: fb.share_count,
+          reach: fb.reach,
+          metrics_updated_at: fb.metrics_updated_at,
+          message: fb.message,
+        }
+      : null,
+    comments: {
+      instagram: igComments,
+      facebook: fbComments,
+    },
   };
 }
 

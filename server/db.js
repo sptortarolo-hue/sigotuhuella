@@ -55,6 +55,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR(255)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires TIMESTAMP;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_preference VARCHAR(20) DEFAULT 'email';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_case_updates BOOLEAN DEFAULT TRUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_notice_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS volunteer_requests (
@@ -419,6 +420,17 @@ CREATE TABLE IF NOT EXISTS facebook_comments (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS facebook_page_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  fb_comment_id VARCHAR(255) UNIQUE,
+  page_post_id UUID REFERENCES facebook_page_posts(id) ON DELETE CASCADE,
+  author_name VARCHAR(255),
+  text TEXT,
+  like_count INT DEFAULT 0,
+  posted_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS facebook_matches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   source_type VARCHAR(50) NOT NULL,
@@ -456,6 +468,8 @@ INSERT INTO settings (key, value) VALUES
   ('instagram_auto_reply_enabled', 'false'),
   ('facebook_page_id', ''),
   ('facebook_page_publisher_enabled', 'false'),
+  ('engagement_sync_enabled', 'true'),
+  ('engagement_sync_interval', '30'),
   ('facebook_publisher_interval', '30')
 ON CONFLICT (key) DO NOTHING;
 
@@ -471,6 +485,11 @@ CREATE TABLE IF NOT EXISTS facebook_page_posts (
   published_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW()
 );
+ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS like_count INT DEFAULT 0;
+ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS comment_count INT DEFAULT 0;
+ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS share_count INT DEFAULT 0;
+ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS reach INT DEFAULT 0;
+ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS metrics_updated_at TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS instagram_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -487,6 +506,12 @@ CREATE TABLE IF NOT EXISTS instagram_posts (
   published_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW()
 );
+ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS like_count INT DEFAULT 0;
+ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS comment_count INT DEFAULT 0;
+ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS share_count INT DEFAULT 0;
+ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS reach INT DEFAULT 0;
+ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS metrics_updated_at TIMESTAMP;
+ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS embed_html TEXT;
 
 CREATE TABLE IF NOT EXISTS instagram_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

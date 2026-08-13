@@ -392,7 +392,7 @@ export async function getMediaInsights(mediaId) {
   try {
     const { data } = await axios.get(`${GRAPH_API}/${mediaId}/insights`, {
       params: {
-        metric: 'engagement,impressions,reach,saved',
+        metric: 'engagement,impressions,reach,saved,shares',
         access_token: accessToken,
       },
     });
@@ -400,6 +400,14 @@ export async function getMediaInsights(mediaId) {
   } catch {
     return [];
   }
+}
+
+export async function getInstagramOEmbed(permalink) {
+  const accessToken = await getStoredToken();
+  const { data } = await axios.get(`${GRAPH_API}/instagram_oembed`, {
+    params: { url: permalink, access_token: accessToken },
+  });
+  return data;
 }
 
 export function verifyWebhook(mode, token, challenge) {

@@ -27,6 +27,7 @@ export default function Profile() {
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [notificationPreference, setNotificationPreference] = useState(user?.notification_preference || 'both');
+  const [notifyCaseUpdates, setNotifyCaseUpdates] = useState(user?.notify_case_updates !== false);
   const [neighborhoods, setNeighborhoods] = useState<string[]>(
     Array.isArray(user?.neighborhoods) ? user.neighborhoods : (() => {
       try { return JSON.parse(user?.neighborhoods || '[]'); } catch { return []; }
@@ -105,8 +106,8 @@ export default function Profile() {
     setProfileMsg('');
     setProfileError('');
     try {
-      const data = await api.users.update(user.id, { displayName, phone, notificationPreference, neighborhoods });
-      updateUser({ display_name: data.user.display_name, phone: data.user.phone, notification_preference: data.user.notification_preference, neighborhoods: data.user.neighborhoods });
+      const data = await api.users.update(user.id, { displayName, phone, notificationPreference, notifyCaseUpdates, neighborhoods });
+      updateUser({ display_name: data.user.display_name, phone: data.user.phone, notification_preference: data.user.notification_preference, notify_case_updates: data.user.notify_case_updates, neighborhoods: data.user.neighborhoods });
       setProfileMsg('Datos actualizados');
     } catch (err: any) {
       setProfileError(err.message || 'Error al actualizar');
@@ -401,6 +402,28 @@ export default function Profile() {
                             </label>
                           ))}
                         </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1 block">Novedades de mis casos</label>
+                        <p className="text-xs text-gray-400 mb-3">Recibir por WhatsApp avisos de comentarios nuevos en las publicaciones de mascotas que reporté.</p>
+                        <label className="flex items-center justify-between p-3 bg-white rounded-xl border border-brand-accent cursor-pointer">
+                          <span className="text-sm text-gray-700">Avisarme cuando alguien comenta</span>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={notifyCaseUpdates}
+                            onClick={() => setNotifyCaseUpdates(v => !v)}
+                            className={cn(
+                              'relative w-11 h-6 rounded-full transition-colors shrink-0',
+                              notifyCaseUpdates ? 'bg-brand-primary' : 'bg-gray-300'
+                            )}
+                          >
+                            <span className={cn(
+                              'absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform',
+                              notifyCaseUpdates && 'translate-x-5'
+                            )} />
+                          </button>
+                        </label>
                       </div>
                       <div>
                         <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1 block">Alertas de mi barrio</label>

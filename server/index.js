@@ -49,6 +49,7 @@ import { broadcastNextAdoptionPet, broadcastFbAdoptionPets, broadcastAdoptionPet
 import { processInviteReminders } from './services/reminderService.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
+import { runEngagementSync } from './services/metaEngagement.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -792,6 +793,17 @@ async function start() {
   }
   setTimeout(checkAdoptionBroadcast, 10_000);
   setInterval(checkAdoptionBroadcast, 60 * 60 * 1000);
+
+  // Engagement sync (métricas IG/FB): intervalo configurable, default 30 min
+  async function checkEngagementSync() {
+    try {
+      await runEngagementSync();
+    } catch (err) {
+      console.error('[Engagement Scheduler] Error:', err.message);
+    }
+  }
+  setTimeout(checkEngagementSync, 2 * 60 * 1000);
+  setInterval(checkEngagementSync, 30 * 60 * 1000);
 }
 
 start().catch(err => {

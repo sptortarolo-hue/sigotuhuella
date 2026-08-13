@@ -9,6 +9,7 @@ import {
   verifyWebhook, getInstagramUserId, manualConnect, publishStory,
 } from '../services/instagramService.js';
 import { processQueue } from '../services/instagramPublisher.js';
+import { enqueue } from '../services/phoneRelayService.js';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
@@ -310,6 +311,17 @@ router.get('/posts', requireAdmin, async (req, res) => {
   }
 });
 
+router.post('/refresh-metrics', requireAdmin, async (_req, res) => {
+  try {
+    const { syncInstagramEngagement } = await import('../services/metaEngagement.js');
+    const result = await syncInstagramEngagement();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Error refreshing IG metrics:', err);
+    res.status(500).json({ error: 'Error al refrescar métricas de Instagram' });
+  }
+});
+
 router.get('/comments', requireAdmin, async (req, res) => {
   try {
     const { limit = 50, offset = 0, mediaId } = req.query;
@@ -399,15 +411,65 @@ async function handleCommentEvent(value) {
   const { id: commentId, text, from, media_id: mediaId, timestamp } = value;
   const username = from?.username || 'unknown';
   try {
+    const postRes = await pool.query(
+      'SELECT id, pet_id FROM instagram_posts WHERE ig_media_id = $1',
+      [mediaId]
+    );
+    const post = postRes.rows[0] || null;
+
     await pool.query(
-      `INSERT INTO instagram_comments (ig_comment_id, ig_media_id, username, text, created_at)
-       VALUES ($1, $2, $3, $4, to_timestamp($5::double precision))
-       ON CONFLICT (ig_comment_id) DO NOTHING`,
-      [commentId, mediaId, username, text, timestamp || Math.floor(Date.now() / 1000)]
+      `INSERT INTO instagram_comments (ig_comment_id, ig_media_id, ig_post_id, username, text, created_at)
+       VALUES ($1, $2, $3, $4, $5, to_timestamp($6::double precision))
+       ON CONFLICT (ig_comment_id) DO UPDATE SET ig_post_id = COALESCE(EXCLUDED.ig_post_id, instagram_comments.ig_post_id)`,
+      [commentId, mediaId, post?.id || null, username, text, timestamp || Math.floor(Date.now() / 1000)]
     );
     await processAutoReply(commentId, text, username, mediaId);
+
+    if (post?.pet_id) {
+      await notifyCaseReporterOfComment(post.pet_id, text, username, commentId);
+    }
   } catch (err) {
     console.error('Error saving comment:', err);
+  }
+}
+
+async function notifyCaseReporterOfComment(petId, commentText, username, commentId) {
+  try {
+    const caseRes = await pool.query(
+      `SELECT pc.id, pc.reporter_id, pc.reporter_source, p.contact_info AS pet_contact,
+              u.phone, u.notification_preference, u.notify_case_updates
+       FROM pet_cases pc
+       JOIN pets p ON p.id = pc.pet_id
+       LEFT JOIN users u ON u.id = pc.reporter_id
+       WHERE pc.pet_id = $1 AND pc.status = 'active'
+       ORDER BY pc.created_at DESC LIMIT 1`,
+      [petId]
+    );
+    const row = caseRes.rows[0];
+    if (!row) return;
+
+    let phone = null;
+    let sendWa = false;
+
+    if (row.reporter_id && row.notify_case_updates !== false) {
+      const pref = row.notification_preference || 'email';
+      sendWa = pref === 'whatsapp' || pref === 'both';
+      phone = row.phone;
+    } else if (row.reporter_source === 'whatsapp_bot' && row.pet_contact) {
+      const { normalizePhone } = await import('../services/phoneUtils.js');
+      const normalized = normalizePhone(row.pet_contact);
+      sendWa = !!(normalized && normalized.length >= 12);
+      phone = normalized;
+    }
+
+    if (!sendWa || !phone) return;
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+    const caseUrl = `${frontendUrl}/caso/${row.id}`;
+    const message = `📢 *Nuevo comentario en la publicación de tu mascota*\n\n"@${username}": "${commentText}"\n\nPuede ser una pista importante. Miralo y respondé acá 👇\n${caseUrl}`;
+    await enqueue(phone, message);
+  } catch (err) {
+    console.error('[IG Webhook] notifyCaseReporterOfComment error:', err.message);
   }
 }
 

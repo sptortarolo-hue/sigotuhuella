@@ -891,6 +891,17 @@ router.get('/page-posts', requireAdmin, async (req, res) => {
   }
 });
 
+router.post('/refresh-metrics', requireAdmin, async (_req, res) => {
+  try {
+    const { syncFacebookEngagement } = await import('../services/metaEngagement.js');
+    const result = await syncFacebookEngagement();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Error refreshing FB metrics:', err);
+    res.status(500).json({ error: 'Error al refrescar métricas de Facebook' });
+  }
+});
+
 router.put('/groups/:id/page-member', requireAdmin, async (req, res) => {
   try {
     const { page_is_member, fb_group_id, publish_on_create } = req.body;

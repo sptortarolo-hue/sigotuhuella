@@ -83,6 +83,50 @@ router.get('/:id/shares', async (req, res) => {
   }
 });
 
+// POST /api/cases/:id/comments/:commentId/reply — respuesta pública del owner/admin a un comentario IG o FB.
+router.post('/:id/comments/:commentId/reply', requireAuth, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'El texto de la respuesta es obligatorio' });
+
+    const can = await canManageCase(req.params.id, req.user.id);
+    if (!can) return res.status(403).json({ error: 'No tenés permisos para responder este caso' });
+
+    const commentId = req.params.commentId;
+    const ig = await pool.query(
+      'SELECT id, ig_comment_id FROM instagram_comments WHERE id = $1',
+      [commentId]
+    );
+    if (ig.rows.length > 0) {
+      const { replyToComment } = await import('../services/instagramService.js');
+      await replyToComment(ig.rows[0].ig_comment_id, text.trim());
+      await pool.query('UPDATE instagram_comments SET replied = TRUE WHERE id = $1', [ig.rows[0].id]);
+      return res.json({ success: true, platform: 'instagram' });
+    }
+
+    const fb = await pool.query(
+      'SELECT id, fb_comment_id FROM facebook_page_comments WHERE id = $1',
+      [commentId]
+    );
+    if (fb.rows.length > 0) {
+      const { getStoredToken } = await import('../services/instagramService.js');
+      const { default: axios } = await import('axios');
+      const token = await getStoredToken();
+      if (!token) return res.status(400).json({ error: 'Meta no conectado' });
+      const { data } = await axios.post(
+        `https://graph.facebook.com/v22.0/${fb.rows[0].fb_comment_id}/comments`,
+        { message: text.trim(), access_token: token }
+      );
+      return res.json({ success: true, platform: 'facebook', replyId: data.id });
+    }
+
+    res.status(404).json({ error: 'Comentario no encontrado' });
+  } catch (err) {
+    console.error('reply comment error:', err);
+    res.status(500).json({ error: err.response?.data?.error?.message || 'Error al responder el comentario' });
+  }
+});
+
 // GET /api/cases/:id — dashboard público del caso (timeline completo visible).
 // Acepta UUID o número de caso invocable (STH#####).
 router.get('/:id', async (req, res) => {

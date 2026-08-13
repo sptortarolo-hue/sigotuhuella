@@ -10,6 +10,7 @@ import CaseMap from '@/src/components/CaseMap';
 import SightingModal from '@/src/components/SightingModal';
 import CaseShares from '@/src/components/CaseShares';
 import CaseActions from '@/src/components/CaseActions';
+import CaseImpact from '@/src/components/CaseImpact';
 
 const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
 
@@ -335,6 +336,9 @@ export default function CaseDashboard() {
           )}
         </div>
       ) : null}
+
+      {/* Impacto de la publicación (métricas + comentarios) */}
+      <CaseImpact caseId={data.id} impact={data.impact} canReply={isOwner || !!isAdmin} />
 
       <div className="mb-8">
         <CaseShares caseId={data.id} />
