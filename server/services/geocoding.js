@@ -78,6 +78,7 @@ function matchNeighborhoodCenter(address) {
 const OVERPASS_URLS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
 ];
 
 async function overpassQuery(query) {
@@ -85,7 +86,10 @@ async function overpassQuery(query) {
     try {
       const resp = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'SigoTuHuella/1.0 (WhatsApp bot geocoding; contact: sigotuhuella.com.ar)',
+        },
         body: `data=${encodeURIComponent(query)}`,
         signal: AbortSignal.timeout(10000),
       });
@@ -107,37 +111,139 @@ function streetName(raw) {
   return /bis|b$/i.test(raw) ? `Calle ${base} bis` : `Calle ${base}`;
 }
 
-function streetRegex(name) {
-  const m = name.match(/^Calle\s+(\d+)/);
+// Regex para Overpass (engine ICU): acepta prefijos "Calle", "Av" o "Avenida".
+// Sin grupos no-capturadores ni \s (verificado en vivo).
+function overpassStreetRegex(name) {
+  const m = name.match(/^(?:Calle|Av|Avenida)?\s*(\d{1,3})/i);
   const num = m ? m[1] : '';
-  return `^(Calle\\s+)?${num}(\\s+(bis|b))?$`;
+  if (!num) return null;
+  return `^(Calle |Av |Avenida )?${num}( (Bis|bis|BIS))?$`;
 }
 
-function overpassBbox() {
-  return `${INFLUENCE_BBOX.minLat},${INFLUENCE_BBOX.minLng},${INFLUENCE_BBOX.maxLat},${INFLUENCE_BBOX.maxLng}`;
+function streetRegex(name) {
+  const m = name.match(/^(?:Calle|Av|Avenida)?\s*(\d{1,3})/i);
+  const num = m ? m[1] : '';
+  return `^(?:Calle\\s+|Av\\s+|Avenida\\s+)?${num}(?:\\s+(?:[Bb][Ii][Ss]|[Bb]))?$`;
 }
 
-// Intersección exacta de dos calles (way "name" compartiendo un nodo).
-async function overpassIntersectionCoords(name1, name2) {
-  const query = `[out:json][timeout:10];
-way["name"~"${streetRegex(name1)}"](${overpassBbox()})->.a;
-way["name"~"${streetRegex(name2)}"](${overpassBbox()})->.b;
-node.a.b;
-out body;`;
-  const data = await overpassQuery(query);
-  if (!data || !data.elements) return null;
-  const nodes = data.elements.filter(e => e.type === 'node' && e.lat != null && e.lon != null);
-  if (nodes.length === 0) return null;
-  return {
-    lat: nodes.reduce((s, n) => s + n.lat, 0) / nodes.length,
-    lng: nodes.reduce((s, n) => s + n.lon, 0) / nodes.length,
-  };
+// Regex combinado para buscar N calles en una sola consulta Overpass.
+// Regex combinado para Overpass (engine ICU): NO usar grupos no-capturadores
+// `(?:...)` (da 400) ni `\s` (no matchea). Solo grupos capturadores y espacios
+// literales (verificado en vivo contra overpass-api.de).
+function streetRegexes(names) {
+  const nums = names.map((n) => {
+    const m = n.match(/^(?:Calle|Av|Avenida)?\s*(\d{1,3})/i);
+    return m ? m[1] : n.match(/\d{1,3}/)?.[0] || '';
+  }).filter(Boolean);
+  if (nums.length === 0) return null;
+  return `^(Calle |Av |Avenida )?(${nums.join('|')})( (Bis|bis|BIS))?$`;
 }
 
-// Punto medio de una calle entre dos calles transversales (o la única intersección).
-async function overpassBetweenCoords(road, from, to) {
-  const p1 = await overpassIntersectionCoords(road, from);
-  const p2 = await overpassIntersectionCoords(road, to);
+// Intersección punto-segmento exacta (geometría), en lugar de depender de que
+// dos ways compartan un nodo (fragmentación de OSM rompe node.a.b).
+function segmentIntersection(a, b, c, d) {
+  const denom = (b.lon - a.lon) * (d.lat - c.lat) - (b.lat - a.lat) * (d.lon - c.lon);
+  if (denom === 0) return null;
+  const t = ((c.lon - a.lon) * (d.lat - c.lat) - (c.lat - a.lat) * (d.lon - c.lon)) / denom;
+  const u = ((c.lon - a.lon) * (b.lat - a.lat) - (c.lat - a.lat) * (b.lon - a.lon)) / denom;
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+  return { lat: a.lat + t * (b.lat - a.lat), lng: a.lon + t * (b.lon - a.lon) };
+}
+
+// Localiza los ways de las calles dadas en TODO el bbox de influencia.
+// Fase 1: `out center` (rápido, sin geometría) para descubrir qué ways existen.
+// Fase 2: `way(id:...)` + `out body geom` para traer solo la geometría real.
+async function overpassWaysByNames(names) {
+  const re = streetRegexes(names);
+  if (!re) return [];
+  const bbox = `${INFLUENCE_BBOX.minLat},${INFLUENCE_BBOX.minLng},${INFLUENCE_BBOX.maxLat},${INFLUENCE_BBOX.maxLng}`;
+  const q1 = `[out:json][timeout:20];
+way["name"~"${re}"](${bbox});
+out center;`;
+  const d1 = await overpassQuery(q1);
+  if (!d1 || !d1.elements) return [];
+  const ids = d1.elements.filter(e => e.type === 'way' && e.id).map(e => e.id);
+  if (ids.length === 0) return [];
+  if (ids.length > 600) ids.length = 600;
+  const q2 = `[out:json][timeout:20];
+way(id:${ids.join(',')});
+out body geom;`;
+  const d2 = await overpassQuery(q2);
+  if (!d2 || !d2.elements) return [];
+  return d2.elements.filter(e => e.type === 'way' && Array.isArray(e.geometry) && e.geometry.length >= 2);
+}
+
+// Promedio de intersecciones geométricas entre dos conjuntos de ways.
+// Se agrupan los cruces y se elige el grupo más cercano al punto ancla (el grid
+// o el centro del barrio): evita cruces de calles homónimas de otros barrios.
+function intersectWaySets(waysA, waysB, anchor) {
+  if (waysA.length === 0 || waysB.length === 0) return null;
+  const hits = [];
+  for (const w1 of waysA) {
+    const g1 = w1.geometry;
+    for (let i = 0; i < g1.length - 1; i++) {
+      const a = g1[i], b = g1[i + 1];
+      for (const w2 of waysB) {
+        const g2 = w2.geometry;
+        for (let j = 0; j < g2.length - 1; j++) {
+          const hit = segmentIntersection(a, b, g2[j], g2[j + 1]);
+          if (hit) hits.push(hit);
+        }
+      }
+    }
+  }
+  if (hits.length === 0) return null;
+  // Agrupamos los cruces cercanos (~300m) para promediar cada cruce real.
+  const groups = [];
+  for (const h of hits) {
+    const g = groups.find(x => Math.hypot(x.lat - h.lat, x.lng - h.lng) < 0.003);
+    if (g) { g.hits++; g.lat += h.lat; g.lng += h.lng; }
+    else groups.push({ hits: 1, lat: h.lat, lng: h.lng });
+  }
+  const cents = groups.map(g => ({ lat: g.lat / g.hits, lng: g.lng / g.hits, hits: g.hits }));
+  // Elegimos el grupo más cercano al ancla. Si hay ancla y ningún cruce está
+  // cerca (<2.5km), descartamos Overpass: es una calle homónima de otra
+  // localidad (La Plata repite numeración en todos sus barrios).
+  if (anchor) {
+    cents.sort((a, b) => Math.hypot(a.lat - anchor.lat, a.lng - anchor.lng) - Math.hypot(b.lat - anchor.lat, b.lng - anchor.lng));
+    const best = cents[0];
+    if (Math.hypot(best.lat - anchor.lat, best.lng - anchor.lng) > 0.022) return null;
+    return { lat: best.lat, lng: best.lng };
+  }
+  const best = cents.reduce((a, b) => (b.hits > a.hits ? b : a), cents[0]);
+  return { lat: best.lat, lng: best.lng };
+}
+
+// Centro aproximado (grid fallback o centro de barrio) que sirve de ancla para
+// elegir entre cruces de calles homónimas en distintos barrios del partido.
+function searchCenter(lp, address) {
+  const neighborhoods = extractNeighborhoods(address);
+  if (neighborhoods.length > 0) {
+    const center = NEIGHBORHOOD_CENTERS[neighborhoods[0]];
+    if (center) return center;
+  }
+  return gridFallback(lp) || LA_PLATA_CENTER;
+}
+
+// Resuelve una dirección estilo La Plata vía Overpass (intersección o tramo).
+async function overpassLPCoords(lp, address) {
+  const roadName = streetName(lp.road);
+  const crossNames = lp.type === 'intersection' ? [lp.cross] : [lp.from, lp.to];
+  const ways = await overpassWaysByNames([lp.road, ...crossNames]);
+  if (ways.length === 0) return null;
+  const anchor = searchCenter(lp, address);
+
+  const roadWays = ways.filter(w => new RegExp(streetRegex(roadName)).test(w.tags?.name || ''));
+
+  if (lp.type === 'intersection') {
+    const crossWays = ways.filter(w => new RegExp(streetRegex(streetName(lp.cross))).test(w.tags?.name || ''));
+    return intersectWaySets(roadWays, crossWays, anchor);
+  }
+
+  const fromWays = ways.filter(w => new RegExp(streetRegex(streetName(lp.from))).test(w.tags?.name || ''));
+  const toWays = ways.filter(w => new RegExp(streetRegex(streetName(lp.to))).test(w.tags?.name || ''));
+  const p1 = intersectWaySets(roadWays, fromWays, anchor);
+  const p2 = intersectWaySets(roadWays, toWays, anchor);
   if (!p1 && !p2) return null;
   if (!p1) return p2;
   if (!p2) return p1;
@@ -197,40 +303,57 @@ function gridFallback(lp) {
 // Geocodifica una dirección con bias a La Plata. Nunca devuelve un punto
 // fuera del área de influencia: si no se puede resolver, cae al centro del
 // barrio coincidente o al centro de La Plata. Retorna null solo si no hay texto.
+const geocodeCache = new Map();
+const GEOCODE_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 días
+
 export async function geocodeAddress(address) {
   if (!address || address.trim().length < 3) return null;
+  const key = address.trim().toLowerCase();
+  const cached = geocodeCache.get(key);
+  if (cached) {
+    if (Date.now() - cached.ts < GEOCODE_CACHE_TTL) return cached.value;
+    geocodeCache.delete(key);
+  }
+  let result;
   try {
     // 1) Dirección estilo La Plata: intersección / tramo con Overpass + grid fallback.
     const lp = parseLaPlataAddress(address);
     if (lp) {
-      const roadName = streetName(lp.road);
-      if (lp.type === 'intersection') {
-        const overpass = await overpassIntersectionCoords(roadName, streetName(lp.cross));
-        if (overpass && isInInfluenceZone(overpass.lat, overpass.lng)) return overpass;
+      const overpass = await overpassLPCoords(lp, address);
+      if (overpass && isInInfluenceZone(overpass.lat, overpass.lng)) {
+        result = overpass;
       } else {
-        const overpass = await overpassBetweenCoords(roadName, streetName(lp.from), streetName(lp.to));
-        if (overpass && isInInfluenceZone(overpass.lat, overpass.lng)) return overpass;
+        // Si se mencionó un barrio, el centro del barrio es más confiable que el
+        // grid global (el grid asume una cuadrícula única y puede quedar lejos).
+        const neighborhoodCenter = matchNeighborhoodCenter(address);
+        if (neighborhoodCenter) result = neighborhoodCenter;
+        else {
+          const grid = gridFallback(lp);
+          result = grid && isInInfluenceZone(grid.lat, grid.lng) ? grid : null;
+        }
       }
-      const grid = gridFallback(lp);
-      if (grid && isInInfluenceZone(grid.lat, grid.lng)) return grid;
     }
 
-    // 2) Fallback: Nominatim con variantes de contexto.
-    const variants = [
-      address + ', La Plata, Buenos Aires, Argentina',
-      address + ', Buenos Aires, Argentina',
-      address + ', Argentina',
-      address,
-    ];
-    for (const v of variants) {
-      const coords = await tryGeocode(v);
-      if (coords) return coords;
+    if (!result) {
+      // 2) Fallback: Nominatim con variantes de contexto.
+      const variants = [
+        address + ', La Plata, Buenos Aires, Argentina',
+        address + ', Buenos Aires, Argentina',
+        address + ', Argentina',
+        address,
+      ];
+      for (const v of variants) {
+        const coords = await tryGeocode(v);
+        if (coords) { result = coords; break; }
+      }
     }
     // 3) Fallback: barrio coincidente en el texto, si no centro de La Plata.
-    return matchNeighborhoodCenter(address) || LA_PLATA_CENTER;
+    if (!result) result = matchNeighborhoodCenter(address) || LA_PLATA_CENTER;
   } catch {
-    return matchNeighborhoodCenter(address) || LA_PLATA_CENTER;
+    result = matchNeighborhoodCenter(address) || LA_PLATA_CENTER;
   }
+  geocodeCache.set(key, { ts: Date.now(), value: result });
+  return result;
 }
 
 export function extractNeighborhoods(text) {
