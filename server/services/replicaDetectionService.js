@@ -2,13 +2,13 @@ import pool from '../db.js';
 import { createCaseEvent } from './caseService.js';
 
 const STH_REGEX = /\b(STH\d{5})\b/;
-const MARKER_REGEX = /\[MKR-([0-9a-f]{5})\]/i;
 
-export function extractFbPostId(url) {
-  if (!url) return '';
-  const m = url.match(/(\d{10,})\/?$/);
-  return m ? m[1] : url.replace(/\/+$/, '').trim();
-}
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+const escapedHost = FRONTEND_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const PET_URL_REGEX = new RegExp(
+  `${escapedHost}/pet/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})`,
+  'i'
+);
 
 async function isEnabled() {
   const res = await pool.query("SELECT value FROM settings WHERE key = 'replica_detection_enabled'");
@@ -74,7 +74,7 @@ export async function detectReplicaByTask(post) {
 
     const { content, fb_post_url, group_id, group_name } = post;
 
-    // 1) Número de caso STH##### en el contenido (copias del relay + reshares con texto)
+    // 1) Número de caso STH##### en el contenido (publicaciones nuevas que lo incluyen)
     const sthMatch = content?.match(STH_REGEX);
     if (sthMatch) {
       const petRes = await pool.query('SELECT id FROM pets WHERE case_number = $1 LIMIT 1', [sthMatch[1]]);
@@ -88,44 +88,20 @@ export async function detectReplicaByTask(post) {
       }
     }
 
-    // 2) Marker [MKR-xxxxx] del relay (copias históricas del relay)
-    const markerMatch = content?.match(MARKER_REGEX);
-    if (markerMatch) {
-      const taskRes = await pool.query(
-        'SELECT pet_id FROM fb_relay_tasks WHERE marker = $1 AND pet_id IS NOT NULL LIMIT 1',
-        [markerMatch[1]]
-      );
-      if (taskRes.rows.length > 0) {
-        const petId = taskRes.rows[0].pet_id;
+    // 2) Link del pet (https://sigotuhuella.com.ar/pet/{uuid}) en el contenido
+    const petUrlMatch = content?.match(PET_URL_REGEX);
+    if (petUrlMatch) {
+      const petRes = await pool.query('SELECT id FROM pets WHERE id = $1 LIMIT 1', [petUrlMatch[1]]);
+      if (petRes.rows.length > 0) {
+        const petId = petRes.rows[0].id;
         const caseId = await findCaseForPet(petId);
         if (caseId) {
-          await recordReplica({ fbPostId: post.id, petId, caseId, method: 'marker', groupId: group_id, groupName: group_name, fbPostUrl: fb_post_url });
-          return 'marker';
+          await recordReplica({ fbPostId: post.id, petId, caseId, method: 'pet_url', groupId: group_id, groupName: group_name, fbPostUrl: fb_post_url });
+          return 'pet_url';
         }
       }
     }
 
-    // 3) URL del post = URL de una tarea completada del relay
-    if (fb_post_url) {
-      const postIdPart = extractFbPostId(fb_post_url);
-      if (postIdPart) {
-        const taskRes = await pool.query(
-          `SELECT pet_id FROM fb_relay_tasks
-           WHERE status = 'completed' AND pet_id IS NOT NULL AND fb_post_url IS NOT NULL
-             AND regexp_replace(fb_post_url, '.*?(\\d{10,})/?$', '\\1') = $1
-           LIMIT 1`,
-          [postIdPart]
-        );
-        if (taskRes.rows.length > 0) {
-          const petId = taskRes.rows[0].pet_id;
-          const caseId = await findCaseForPet(petId);
-          if (caseId) {
-            await recordReplica({ fbPostId: post.id, petId, caseId, method: 'url', groupId: group_id, groupName: group_name, fbPostUrl: fb_post_url });
-            return 'url';
-          }
-        }
-      }
-    }
     return null;
   } catch (err) {
     console.error('[Replica] detect error:', err.message);

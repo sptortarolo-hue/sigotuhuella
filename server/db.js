@@ -1675,7 +1675,7 @@ export async function initDb() {
         fb_post_id UUID NOT NULL UNIQUE REFERENCES facebook_posts(id) ON DELETE CASCADE,
         pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
         case_id UUID REFERENCES pet_cases(id) ON DELETE CASCADE,
-        method VARCHAR(20) NOT NULL CHECK (method IN ('sth','marker','url')),
+        method VARCHAR(20) NOT NULL CHECK (method IN ('sth','pet_url')),
         group_id UUID REFERENCES facebook_groups(id) ON DELETE SET NULL,
         group_name VARCHAR(255),
         fb_post_url TEXT,
@@ -1684,6 +1684,8 @@ export async function initDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_facebook_replicas_case ON facebook_replicas(case_id);
       CREATE INDEX IF NOT EXISTS idx_facebook_replicas_group ON facebook_replicas(group_id);
+      ALTER TABLE facebook_replicas DROP CONSTRAINT IF EXISTS facebook_replicas_method_check;
+      ALTER TABLE facebook_replicas ADD CONSTRAINT facebook_replicas_method_check CHECK (method IN ('sth','pet_url'));
     `, 'facebook_replicas');
 
     // ─── Case sightings + search areas (Sprint 2: avistamientos colaborativos) ───
