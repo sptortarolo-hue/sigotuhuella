@@ -99,6 +99,8 @@ export const api = {
       }),
   get: (path: string) => request(path),
   post: (path: string, body?: any) => request(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  put: (path: string, body?: any) => request(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
+  delete: (path: string) => request(path, { method: 'DELETE' }),
   auth: {
     login: (email: string, password: string) =>
       request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
