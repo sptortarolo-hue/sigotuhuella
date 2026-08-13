@@ -1,4 +1,5 @@
 import pool from '../db.js';
+import { addPetHistory, celebrateStatusChange } from './reunionCelebration.js';
 
 // Mapeo pets.status -> (tipo de caso, estado de caso)
 export function petCaseMapping(status) {
@@ -675,14 +676,18 @@ export async function proposeMeeting(caseId, userId, { lat, lng, time, location 
   return { event };
 }
 
-// Sprint 4 — Confirma la reunión, cierra el caso como reunited y avisa a colaboradores
-export async function confirmReunion(caseId, userId, { photoData, photoMime } = {}) {
+// Confirma la reunión, cierra el caso, avisa a colaboradores y dispara la celebración completa
+export async function confirmReunion(caseId, userId, { photoData, photoMime, ownerName, ownerPhone, ownerEmail, ownerAddress } = {}) {
   const caseRes = await pool.query(
     `SELECT pc.*, p.name AS pet_name FROM pet_cases pc JOIN pets p ON p.id = pc.pet_id WHERE pc.id = $1`,
     [caseId]
   );
   if (caseRes.rows.length === 0) return { error: 'Caso no encontrado' };
   const petCase = caseRes.rows[0];
+
+  // Pet status before transaction (for celebrateStatusChange fromStatus)
+  const petRes = await pool.query('SELECT status FROM pets WHERE id = $1', [petCase.pet_id]);
+  const previousStatus = petRes.rows[0]?.status || 'lost';
 
   const client = await pool.connect();
   try {
@@ -708,7 +713,7 @@ export async function confirmReunion(caseId, userId, { photoData, photoMime } = 
     client.release();
   }
 
-  // Avisar a colaboradores (usuarios que registraron áreas o avistaron con cuenta)
+  // Avisar a colaboradores + followers
   try {
     const collabRes = await pool.query(
       `SELECT DISTINCT user_id FROM case_search_areas WHERE case_id = $1 AND user_id IS NOT NULL`,
@@ -721,6 +726,19 @@ export async function confirmReunion(caseId, userId, { photoData, photoMime } = 
     console.error('confirmReunion notify collaborators error:', err.message);
   }
 
+  // Celebración completa (news, IG/FB, broadcast, badges, etc.)
+  try {
+    await celebrateStatusChange({
+      petId: petCase.pet_id,
+      userId,
+      fromStatus: previousStatus,
+      toStatus: 'reunited',
+      ownerFields: { owner_name: ownerName, owner_phone: ownerPhone, owner_email: ownerEmail, owner_address: ownerAddress },
+    });
+  } catch (err) {
+    console.error('confirmReunion celebrateStatusChange error:', err.message);
+  }
+
   return { success: true };
 }
 
@@ -730,6 +748,10 @@ export async function closeCase(caseId, userId, reason) {
   const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [caseId]);
   if (caseRes.rows.length === 0) return { error: 'Caso no encontrado' };
   const petCase = caseRes.rows[0];
+
+  // Pet status before transaction
+  const petRes = await pool.query('SELECT status FROM pets WHERE id = $1', [petCase.pet_id]);
+  const previousStatus = petRes.rows[0]?.status || 'lost';
 
   const client = await pool.connect();
   try {
@@ -756,6 +778,33 @@ export async function closeCase(caseId, userId, reason) {
   } finally {
     client.release();
   }
+
+  // Celebración completa + push para reunited/adopted
+  if (reason === 'reunited' || reason === 'adopted') {
+    try {
+      const collabRes = await pool.query(
+        `SELECT DISTINCT user_id FROM case_search_areas WHERE case_id = $1 AND user_id IS NOT NULL`,
+        [caseId]
+      );
+      const collaboratorIds = collabRes.rows.map(r => r.user_id);
+      const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+      await notifyCollaborators(caseId, petCase, collaboratorIds, userId, petCase.pet_name || null, frontendUrl);
+    } catch (err) {
+      console.error('closeCase notify collaborators error:', err.message);
+    }
+
+    try {
+      await celebrateStatusChange({
+        petId: petCase.pet_id,
+        userId,
+        fromStatus: previousStatus,
+        toStatus: reason,
+      });
+    } catch (err) {
+      console.error('closeCase celebrateStatusChange error:', err.message);
+    }
+  }
+
   return { success: true };
 }
 

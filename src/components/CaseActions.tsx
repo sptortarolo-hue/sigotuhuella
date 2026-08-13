@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { ReactNode, FormEvent, ChangeEvent } from 'react';
-import { X, Loader2, HandHeart, PartyPopper, Lock, LocateFixed, Camera, CheckCircle2 } from 'lucide-react';
+import { X, Loader2, HandHeart, PartyPopper, Lock, LocateFixed, Camera, CheckCircle2, User, Phone, Mail, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
 import { api } from '@/src/lib/api';
 import { getCurrentPosition } from '@/src/lib/geolocation';
 import { filesToBase64 } from '@/src/lib/storageService';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 const CLOSE_REASONS: { value: string; label: string; emoji: string }[] = [
   { value: 'reunited', label: 'Se reencontró', emoji: '🎉' },
@@ -124,6 +125,11 @@ function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoMime, setPhotoMime] = useState('image/jpeg');
   const [saving, setSaving] = useState(false);
+  const [ownerName, setOwnerName] = useState('');
+  const [ownerPhone, setOwnerPhone] = useState('');
+  const [ownerPhoneValid, setOwnerPhoneValid] = useState(true);
+  const [ownerEmail, setOwnerEmail] = useState('');
+  const [ownerAddress, setOwnerAddress] = useState('');
 
   const handlePhoto = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -138,7 +144,14 @@ function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
     if (!confirm('¿Confirmás que la mascota volvió a casa? Se cerrará el caso y se avisará a quienes colaboraron.')) return;
     setSaving(true);
     try {
-      await api.cases.reunite(caseId, { photo_data: photo, photo_mime: photoMime });
+      await api.cases.reunite(caseId, {
+        photo_data: photo,
+        photo_mime: photoMime,
+        owner_name: ownerName || null,
+        owner_phone: ownerPhone || null,
+        owner_email: ownerEmail || null,
+        owner_address: ownerAddress || null,
+      });
       onDone();
     } catch (err: any) {
       alert(err.message || 'Error al confirmar la reunión');
@@ -150,7 +163,7 @@ function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
   return (
     <ModalShell title="Confirmar reunión" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <p className="text-sm text-gray-500">Registrá el reencuentro. Opcionalmente subí una foto para documentarlo.</p>
+        <p className="text-sm text-gray-500">Registrá el reencuentro. Opcionalmente subí una foto y completá los datos del dueño.</p>
         <div>
           <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1 block">Foto (opcional)</label>
           <div className="flex items-center gap-3">
@@ -161,6 +174,57 @@ function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
             {photo && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
           </div>
         </div>
+
+        <div>
+          <label className="text-xs font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 mb-1">
+            <User className="w-3 h-3" /> Nombre del dueño
+          </label>
+          <input
+            type="text"
+            value={ownerName}
+            onChange={e => setOwnerName(e.target.value)}
+            placeholder="Ej: Juan Pérez"
+            className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm focus:border-brand-primary transition-colors"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 mb-1">
+            <Phone className="w-3 h-3" /> Teléfono
+          </label>
+          <PhoneInput
+            value={ownerPhone}
+            onChange={(value, e164) => { setOwnerPhone(value); setOwnerPhoneValid(!value || !!e164); }}
+            placeholder="Ej: 2215551234"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 mb-1">
+            <Mail className="w-3 h-3" /> Email
+          </label>
+          <input
+            type="email"
+            value={ownerEmail}
+            onChange={e => setOwnerEmail(e.target.value)}
+            placeholder="Ej: juan@email.com"
+            className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm focus:border-brand-primary transition-colors"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5 mb-1">
+            <MapPin className="w-3 h-3" /> Dirección
+          </label>
+          <input
+            type="text"
+            value={ownerAddress}
+            onChange={e => setOwnerAddress(e.target.value)}
+            placeholder="Ej: Calle 7 entre 52 y 53"
+            className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent outline-none text-sm focus:border-brand-primary transition-colors"
+          />
+        </div>
+
         <button type="submit" disabled={saving} className="w-full px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold text-sm hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
           {saving && <Loader2 className="w-4 h-4 animate-spin" />} Confirmar reunión
         </button>

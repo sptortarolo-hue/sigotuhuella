@@ -2,15 +2,13 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
 import { matchPetToPosts, matchWhatsAppToPets } from '../services/geminiMatching.js';
-import { createPetCase, syncCaseStatus, generateCaseNumber } from '../services/caseService.js';
-import { broadcastPetToGroups } from '../services/whatsappService.js';
+import { createPetCase, generateCaseNumber, celebrateStatusChange } from '../services/caseService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { notifyPetPublication } from '../services/petPublicationNotification.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
-import { isConnected, replyToComment, commentOnMedia } from '../services/instagramService.js';
-import { commentOnPagePost, publishPetToGroups } from '../services/facebookPublisher.js';
-import { generateCelebrationText } from '../services/textTemplates.js';
+import { replyToComment } from '../services/instagramService.js';
+import { addPetHistory, awardBadgeIfMissing } from '../services/reunionCelebration.js';
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
@@ -26,18 +24,6 @@ async function canEditPet(userId, petId) {
   if (result.rows.length === 0) return false;
   const row = result.rows[0];
   return row.created_by === userId || row.is_shared;
-}
-
-async function addPetHistory({ petId, eventType, description, fromStatus, toStatus, relatedPetId, relatedUserId, changedBy }) {
-  try {
-    await pool.query(
-      `INSERT INTO pet_history (pet_id, event_type, description, from_status, to_status, related_pet_id, related_user_id, changed_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [petId, eventType, description || null, fromStatus || null, toStatus || null, relatedPetId || null, relatedUserId || null, changedBy || null]
-    );
-  } catch (err) {
-    console.error('addPetHistory error:', err.message);
-  }
 }
 
 async function processImage(imageData, mimeType, size = 800) {
@@ -57,168 +43,6 @@ async function processImage(imageData, mimeType, size = 800) {
   }
 }
 
-async function createCollage(images) {
-  const imgs = images.slice(0, 3);
-  const buffers = imgs.map(img => Buffer.from(img.image_data, 'base64'));
-
-  if (imgs.length === 2) {
-    const resized = await Promise.all(
-      buffers.map(buf => sharp(buf).resize(400, 400, { fit: 'cover', position: 'attention' }).toBuffer())
-    );
-    const collage = await sharp({
-      create: { width: 800, height: 400, channels: 3, background: { r: 240, g: 240, b: 240 } }
-    })
-    .composite([
-      { input: resized[0], top: 0, left: 0 },
-      { input: resized[1], top: 0, left: 400 },
-    ])
-    .jpeg({ quality: 85 })
-    .toBuffer();
-    return { data: collage.toString('base64'), mimeType: 'image/jpeg' };
-  }
-
-  if (imgs.length >= 3) {
-    const resized = await Promise.all(
-      buffers.map(buf => sharp(buf).resize(300, 300, { fit: 'cover', position: 'attention' }).toBuffer())
-    );
-    const collage = await sharp({
-      create: { width: 600, height: 600, channels: 3, background: { r: 240, g: 240, b: 240 } }
-    })
-    .composite([
-      { input: resized[0], top: 0, left: 0 },
-      { input: resized[1], top: 0, left: 300 },
-      { input: resized[2], top: 300, left: 150 },
-    ])
-    .jpeg({ quality: 85 })
-    .toBuffer();
-    return { data: collage.toString('base64'), mimeType: 'image/jpeg' };
-  }
-
-  if (imgs.length === 1) {
-    return { data: imgs[0].image_data, mimeType: imgs[0].mime_type };
-  }
-
-  return { data: null, mimeType: null };
-}
-
-async function autoCreateNews(pet, newsType) {
-  try {
-    let title = '';
-    const isFemale = pet.gender === 'female';
-    if (newsType === 'reunited') {
-      if (pet.name) {
-        const action = isFemale ? 'reencontrada' : 'reencontrado';
-        title = `¡${pet.name} fue ${action}! 🎉`;
-      } else {
-        title = `¡Una mascota fue reencontrada! 🎉`;
-      }
-    } else { // adopted
-      if (pet.name) {
-        const action = isFemale ? 'adoptada' : 'adoptado';
-        title = `¡${pet.name} fue ${action}! 🏡`;
-      } else {
-        title = `¡Una mascota fue adoptada! 🏡`;
-      }
-    }
-    const content = generateCelebrationText(pet, newsType);
-    // Fetch pet images for news image
-    const imagesResult = await pool.query(
-      'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 3',
-      [pet.id]
-    );
-    const { data: imageData, mimeType } = await createCollage(imagesResult.rows);
-    if (imageData && mimeType) {
-      await pool.query(
-        `INSERT INTO news (title, content, image_data, mime_type, type, related_pet_id, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [title, content, imageData, mimeType, newsType, pet.id, pet.created_by]
-      );
-    } else {
-      await pool.query(
-        `INSERT INTO news (title, content, type, related_pet_id, created_by)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [title, content, newsType, pet.id, pet.created_by]
-      );
-    }
-  } catch (err) {
-    console.error('Auto-create news error:', err);
-  }
-}
-
-async function autoInstagramComment(pet, newsType) {
-  try {
-    const connected = await isConnected();
-    if (!connected) return;
-    const igPost = await pool.query(
-      "SELECT ig_media_id, ig_permalink FROM instagram_posts WHERE pet_id = $1 AND status = 'published' ORDER BY published_at DESC LIMIT 1",
-      [pet.id]
-    );
-    if (igPost.rows.length === 0) return;
-    const commentText = generateCelebrationText(pet, newsType);
-    if (!commentText) return;
-    await commentOnMedia(igPost.rows[0].ig_media_id, commentText);
-    console.log(`[Instagram] Auto-commented on pet ${pet.id}: ${commentText.slice(0, 60)}...`);
-  } catch (err) {
-    console.error('[Instagram] Auto-comment error:', err);
-  }
-}
-
-async function autoFacebookPageComment(pet, newsType) {
-  try {
-    const pagePost = await pool.query(
-      "SELECT page_post_id FROM facebook_page_posts WHERE pet_id = $1 AND page_post_id IS NOT NULL ORDER BY published_at DESC LIMIT 1",
-      [pet.id]
-    );
-    if (pagePost.rows.length === 0) return;
-    const commentText = generateCelebrationText(pet, newsType);
-    if (!commentText) return;
-    await commentOnPagePost(pagePost.rows[0].page_post_id, commentText);
-    console.log(`[Facebook Page] Auto-commented on pet ${pet.id}: ${commentText.slice(0, 60)}...`);
-  } catch (err) {
-    console.error('[Facebook Page] Auto-comment error:', err);
-  }
-}
-
-async function autoQueueCelebrationPost(pet, newsType) {
-  try {
-    const connected = await isConnected();
-    if (!connected) return;
-    const imagesResult = await pool.query(
-      'SELECT COUNT(*) as cnt FROM pet_images WHERE pet_id = $1', [pet.id]
-    );
-    if (parseInt(imagesResult.rows[0].cnt) === 0) return;
-    const hashtags = await pool.query("SELECT value FROM settings WHERE key = 'instagram_default_hashtags'");
-    const htag = hashtags.rows[0]?.value || '#SigoTuHuella';
-    const caption = generateCelebrationText(pet, newsType);
-    if (!caption) return;
-    await pool.query(
-      `INSERT INTO instagram_posts (pet_id, media_type, caption, status, created_at)
-       VALUES ($1, 'IMAGE', $2, 'queued', NOW())`,
-      [pet.id, `${caption}\n\n${htag}`]
-    );
-    console.log(`[Instagram] Queued celebration post for pet ${pet.id}`);
-  } catch (err) {
-    console.error('[Instagram] Auto-queue celebration error:', err);
-  }
-}
-
-// ── Gamification helper ──────────────────────────────────────────────────────
-async function awardBadgeIfMissing(userId, code) {
-  if (!userId) return;
-  try {
-    const userRes = await pool.query('SELECT badges, volunteer_status FROM users WHERE id = $1', [userId]);
-    if (userRes.rows.length === 0) return;
-    const { badges, volunteer_status } = userRes.rows[0];
-    if (volunteer_status === 'none' || !volunteer_status) return; // only members earn auto-badges
-    const existing = Array.isArray(badges) ? badges : [];
-    if (existing.find(b => b.code === code)) return;
-    const updated = JSON.stringify([...existing, { code, awarded_at: new Date().toISOString() }]);
-    await pool.query('UPDATE users SET badges = $1::jsonb WHERE id = $2', [updated, userId]);
-  } catch (err) {
-    console.error('awardBadgeIfMissing error:', err);
-  }
-}
-
 const statusLabels = {
   lost: '🐾 PERDIDO', retained: '🔄 RETENIDO', sighted: '👀 AVISTADO',
   for_adoption: '❤️ EN ADOPCIÓN', for_adoption_simple: '📢 EN ADOPCIÓN (DIFUSIÓN)',
@@ -230,30 +54,6 @@ const speciesLabel = { dog: 'Perro', cat: 'Gato', other: 'Otra mascota' };
 const genderLabel = { male: 'Macho', female: 'Hembra', unknown: '' };
 
 
-
-async function enqueueFbGroupComment(pet, newsType) {
-  try {
-    const fbRelay = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_enabled'");
-    if (fbRelay.rows[0]?.value !== 'true') return;
-    const tasks = await pool.query(
-      "SELECT DISTINCT ON (group_id) id, fb_group_id, fb_post_url FROM fb_relay_tasks WHERE pet_id = $1 AND status = 'completed' AND fb_post_url != '' ORDER BY group_id, completed_at DESC",
-      [pet.id]
-    );
-    if (tasks.rows.length === 0) return;
-    const commentText = generateCelebrationText(pet, newsType);
-    if (!commentText) return;
-    for (const task of tasks.rows) {
-      await pool.query(
-        `INSERT INTO fb_relay_tasks (pet_id, group_id, fb_group_id, action, target_url, message, status, created_at)
-         VALUES ($1, $2, $3, 'comment', $4, $5, 'pending', NOW())`,
-        [pet.id, task.group_id, task.fb_group_id, task.fb_post_url, commentText]
-      );
-    }
-    console.log(`[FB Relay] Enqueued ${tasks.rows.length} comment task(s) for pet ${pet.id}`);
-  } catch (err) {
-    console.error('[FB Relay] enqueueFbGroupComment error:', err.message);
-  }
-}
 
 const router = Router();
 
@@ -590,61 +390,20 @@ router.put('/:id', requireAuth, async (req, res) => {
         );
       }
     }
-    // Auto-generate news on status change to REUNITED or ADOPTED
-    const isReunited = pet.status !== 'reunited' && req.body.status === 'reunited';
-    const isAdopted = pet.status !== 'adopted' && req.body.status === 'adopted';
+    // Status change → celebración completa (news, IG/FB, broadcast, badges, etc.)
     if (req.body.status && req.body.status !== pet.status) {
-      await addPetHistory({
+      await celebrateStatusChange({
         petId,
-        eventType: 'status_change',
+        userId: req.user.id,
         fromStatus: pet.status,
         toStatus: req.body.status,
-        changedBy: req.user.id,
+        ownerFields: {
+          owner_name: req.body.owner_name,
+          owner_phone: req.body.owner_phone,
+          owner_email: req.body.owner_email,
+          owner_address: req.body.owner_address,
+        },
       });
-      syncCaseStatus(petId, req.body.status);
-    }
-    if ((isReunited || isAdopted) && !pet.reunited_at) {
-      await pool.query('UPDATE pets SET reunited_at = NOW() WHERE id = $1', [petId]);
-    }
-    if ((isReunited || isAdopted) && pet.created_by && (!req.body.owner_name && !req.body.owner_phone)) {
-      try {
-        const userRes = await pool.query('SELECT display_name, email, phone FROM users WHERE id = $1', [pet.created_by]);
-        const user = userRes.rows[0];
-        if (user) {
-          const autoFields = [];
-          const autoVals = [];
-          let aidx = 1;
-          if (user.display_name) { autoFields.push(`owner_name = $${aidx++}`); autoVals.push(user.display_name); }
-          if (user.phone) { autoFields.push(`owner_phone = $${aidx++}`); autoVals.push(user.phone); }
-          if (user.email) { autoFields.push(`owner_email = $${aidx++}`); autoVals.push(user.email); }
-          if (autoFields.length > 0) {
-            autoVals.push(petId);
-            await pool.query(`UPDATE pets SET ${autoFields.join(', ')} WHERE id = $${aidx}`, autoVals);
-          }
-        }
-      } catch (_) {}
-    }
-    // Re-fetch pet with updated data for news generation
-    if (isReunited || isAdopted) {
-      const updatedPet = await pool.query('SELECT * FROM pets WHERE id = $1', [petId]);
-      const newsType = isReunited ? 'reunited' : 'adopted';
-      await autoCreateNews(updatedPet.rows[0], newsType);
-      await autoInstagramComment(updatedPet.rows[0], newsType);
-      await autoFacebookPageComment(updatedPet.rows[0], newsType);
-      await autoQueueCelebrationPost(updatedPet.rows[0], newsType);
-      broadcastPetToGroups(petId).catch(e => console.error('Broadcast reunion/adoption error:', e));
-      publishPetToGroups(updatedPet.rows[0].id).catch(e => console.error('[FB Relay] publishPetToGroups error:', e));
-      enqueueFbGroupComment(updatedPet.rows[0], newsType).catch(e => console.error('[FB Relay] enqueueFbGroupComment error:', e));
-    }
-    // Auto-badge: reunited_hero (first reunion)
-    if (isReunited && pet.created_by) {
-      const reunitedCount = await pool.query(
-        "SELECT COUNT(*) as cnt FROM pets WHERE created_by = $1 AND status = 'reunited'",
-        [pet.created_by]
-      );
-      const rc = parseInt(reunitedCount.rows[0].cnt);
-      if (rc >= 1) await awardBadgeIfMissing(pet.created_by, 'reunited_hero');
-      if (rc >= 5) await awardBadgeIfMissing(pet.created_by, 'reunited_legend');
     }
     // Return pet with images
     const updated = await pool.query(
