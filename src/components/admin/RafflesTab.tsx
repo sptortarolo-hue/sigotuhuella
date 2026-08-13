@@ -1289,7 +1289,7 @@ export default function RafflesTab() {
                             </button>
                           </>
                         )}
-                        {!editingDrawResults && !detailRaffle.draw_results && (
+                        {!editingDrawResults && !detailRaffle.draw_results && detailRaffle.tickets && detailRaffle.tickets.length > 0 && detailRaffle.tickets.every(t => t.status === 'sold') && (
                           <button onClick={() => initDrawResultsForm(detailRaffle)}
                             className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-[10px] font-bold hover:bg-purple-700">
                             <Trophy className="w-3 h-3" /> Cargar ganadores
