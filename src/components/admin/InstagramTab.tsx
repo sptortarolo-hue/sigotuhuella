@@ -335,9 +335,14 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
                 <Camera className="w-5 h-5" /> Conectar Instagram
               </button>
             ) : (
-              <button onClick={handleDisconnect} className="flex items-center gap-2 px-4 py-2 text-sm bg-red-50 text-red-600 font-bold rounded-2xl hover:bg-red-100 transition-all">
-                <XCircle className="w-4 h-4" /> Desconectar
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button onClick={handleConnect} className="flex items-center justify-center gap-2 px-4 py-2 text-sm bg-brand-primary text-white font-bold rounded-2xl hover:opacity-90 transition-all">
+                  <RefreshCw className="w-4 h-4" /> Reconectar
+                </button>
+                <button onClick={handleDisconnect} className="flex items-center justify-center gap-2 px-4 py-2 text-sm bg-red-50 text-red-600 font-bold rounded-2xl hover:bg-red-100 transition-all">
+                  <XCircle className="w-4 h-4" /> Desconectar
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -778,8 +783,12 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
             <p className="text-amber-700 text-sm">
               Para usar en producción, la app de Meta necesita pasar App Review con los permisos:
               <code className="block mt-2 bg-amber-100 px-3 py-2 rounded-lg text-xs">
-                instagram_basic, instagram_content_publish, instagram_manage_comments, instagram_manage_messages
+                instagram_basic, instagram_content_publish, instagram_manage_comments, instagram_manage_messages, instagram_manage_insights
               </code>
+              <span className="block mt-2 text-xs">
+                <RefreshCw className="inline w-3.5 h-3.5 mr-1" />
+                <code>instagram_manage_insights</code> habilita la métrica de reenvíos (shares). Si tras reconectar los reenvíos siguen en 0, verificá que este permiso esté aprobado en App Review.
+              </span>
             </p>
           </div>
         </div>

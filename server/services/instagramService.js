@@ -34,6 +34,7 @@ const FB_SCOPES = [
   'instagram_basic',
   'instagram_content_publish',
   'instagram_manage_comments',
+  'instagram_manage_insights',
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_metadata',
@@ -397,7 +398,11 @@ export async function getMediaInsights(mediaId) {
       },
     });
     return data.data || [];
-  } catch {
+  } catch (err) {
+    const msg = err.response?.data?.error?.message || err.message || '';
+    if (/permission|instagram_manage_insights|not.*authorized|error.*code.*(200|10)/i.test(msg)) {
+      console.error('[IG Insights] Falta el permiso instagram_manage_insights en el token. Reconectar Instagram desde el admin para habilitar la métrica de reenvíos (shares). Detalle:', msg);
+    }
     return [];
   }
 }
