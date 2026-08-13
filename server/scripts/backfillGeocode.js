@@ -1,9 +1,49 @@
 import 'dotenv/config';
 import pool from '../db.js';
-import { geocodeAddress, isInInfluenceZone } from '../services/geocoding.js';
+import { geocodeAddress, isInInfluenceZone, parseLaPlataAddress, extractNeighborhoods } from '../services/geocoding.js';
 
-const FALLBACK_LAT = -34.9155;
-const FALLBACK_LNG = -57.9480;
+const MIN_DISTANCE_DEG = 0.003; // ~300m: por debajo no actualizamos
+const BATCH_SIZE = 5;
+const BATCH_DELAY_MS = 200;
+
+const PLACE_KEYWORDS = [
+  'plaza', 'parque', 'catedral', 'estacion', 'estación', 'hospital',
+  'club', 'diag', 'colegio', 'escuela', 'iglesia', 'parroquia',
+  'terminal', 'hipermercado', 'shopping', 'centro comercial', 'cementerio',
+];
+
+function looksLikeAddress(location) {
+  if (!location) return false;
+  const s = location.trim();
+  if (parseLaPlataAddress(s)) return true;
+  if (extractNeighborhoods(s).length > 0) return true;
+  const lower = s.toLowerCase();
+  if (PLACE_KEYWORDS.some(k => lower.includes(k))) return true;
+  return /\d/.test(s);
+}
+
+function distanceDeg(aLat, aLng, bLat, bLng) {
+  return Math.hypot(aLat - bLat, aLng - bLng);
+}
+
+async function processPet(pet, index, total) {
+  const coords = await geocodeAddress(pet.location);
+  if (!coords || !isInInfluenceZone(coords.lat, coords.lng)) {
+    console.log(`[${index}/${total}] ✗ ${pet.location} → sin resultados en zona de influencia`);
+    return { status: 'failed' };
+  }
+  const hasCoords = pet.latitude != null && pet.longitude != null;
+  if (hasCoords && distanceDeg(coords.lat, coords.lng, pet.latitude, pet.longitude) < MIN_DISTANCE_DEG) {
+    console.log(`[${index}/${total}] = ${pet.location} → sin cambio (${coords.lat}, ${coords.lng})`);
+    return { status: 'unchanged' };
+  }
+  await pool.query(
+    'UPDATE pets SET latitude = $1, longitude = $2 WHERE id = $3',
+    [coords.lat, coords.lng, pet.id]
+  );
+  console.log(`[${index}/${total}] ✓ ${pet.location} → ${coords.lat}, ${coords.lng}`);
+  return { status: 'updated' };
+}
 
 async function main() {
   const result = await pool.query(
@@ -11,43 +51,29 @@ async function main() {
      WHERE location IS NOT NULL
        AND location != ''
        AND location != 'Sin ubicación'
-       AND (
-         latitude IS NULL OR longitude IS NULL
-         OR (latitude = $1 AND longitude = $2)
-         OR latitude < -35.10 OR latitude > -34.82
-         OR longitude < -58.20 OR longitude > -57.80
-       )
-     ORDER BY created_at DESC`,
-    [FALLBACK_LAT, FALLBACK_LNG]
+     ORDER BY created_at DESC`
   );
 
-  const rows = result.rows;
-  console.log(`Pets a re-geocodificar: ${rows.length}\n`);
+  const all = result.rows;
+  const rows = all.filter(p => looksLikeAddress(p.location));
+  const skipped = all.length - rows.length;
+  console.log(`Pets con ubicación: ${all.length} | a re-geocodificar: ${rows.length} | sin dirección (saltados): ${skipped}\n`);
 
-  let geocoded = 0, failed = 0;
-  for (let i = 0; i < rows.length; i++) {
-    const pet = rows[i];
-    try {
-      const coords = await geocodeAddress(pet.location);
-      if (coords && isInInfluenceZone(coords.lat, coords.lng)) {
-        await pool.query(
-          'UPDATE pets SET latitude = $1, longitude = $2 WHERE id = $3',
-          [coords.lat, coords.lng, pet.id]
-        );
-        console.log(`[${i + 1}/${rows.length}] ✓ ${pet.location} → ${coords.lat}, ${coords.lng}`);
-        geocoded++;
-      } else {
-        console.log(`[${i + 1}/${rows.length}] ✗ ${pet.location} → sin resultados en zona de influencia`);
-        failed++;
-      }
-    } catch (err) {
-      console.log(`[${i + 1}/${rows.length}] ✗ ${pet.location} → error: ${err.message}`);
-      failed++;
+  let updated = 0, unchanged = 0, failed = 0;
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const batch = rows.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(batch.map((pet, j) => processPet(pet, i + j + 1, rows.length)));
+    for (const r of results) {
+      if (r.status === 'updated') updated++;
+      else if (r.status === 'unchanged') unchanged++;
+      else failed++;
     }
-    await new Promise(r => setTimeout(r, 1200));
+    if (i + BATCH_SIZE < rows.length) {
+      await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
+    }
   }
 
-  console.log(`\nRe-geocodificados: ${geocoded} | Sin resultado: ${failed}`);
+  console.log(`\nActualizados: ${updated} | Sin cambio: ${unchanged} | Sin resultado: ${failed} | Saltados: ${skipped}`);
   process.exit(0);
 }
 
