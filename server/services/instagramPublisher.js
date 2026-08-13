@@ -1,7 +1,7 @@
 import pool from '../db.js';
 import {
   getStoredToken, isConnected, createContainer, publishContainer, waitForContainer,
-  publishImageStory,
+  publishImageStory, getMedia,
 } from './instagramService.js';
 import { enqueue } from './phoneRelayService.js';
 import { recordPublicationEvent } from './caseService.js';
@@ -14,6 +14,18 @@ const RELAY_PHONE = '5492213144558';
 async function getSetting(key) {
   const result = await pool.query("SELECT value FROM settings WHERE key = $1", [key]);
   return result.rows[0]?.value || '';
+}
+
+// Resuelve el permalink real de Instagram tras publicar. publishContainer solo
+// devuelve { id }; el permalink hay que pedirlo a /{media-id}?fields=permalink.
+async function resolvePermalink(mediaId) {
+  try {
+    const media = await getMedia(mediaId);
+    if (media?.permalink) return media.permalink;
+  } catch (err) {
+    console.error(`[Instagram Publisher] getMedia permalink error: ${err.message}`);
+  }
+  return null;
 }
 
 const statusLabels = {
@@ -102,7 +114,7 @@ export async function publishSinglePost(petId) {
     const containerId = await createContainer(imageUrls, caption);
     await waitForContainer(containerId, 'IMAGE');
     const result = await publishContainer(containerId);
-    const permalink = result.permalink || `https://www.instagram.com/p/${result.id}/`;
+    const permalink = (await resolvePermalink(result.id)) || null;
     await pool.query(
       `UPDATE instagram_posts SET ig_media_id = $1, ig_permalink = $2, image_urls = $3, status = 'published', published_at = NOW()
        WHERE pet_id = $4 AND status = 'queued'`,
@@ -158,7 +170,7 @@ export async function processQueue() {
       const containerId = await createContainer(imageUrls, caption, mt);
       await waitForContainer(containerId, mt);
       const result = await publishContainer(containerId);
-      const permalink = result.permalink || `https://www.instagram.com/p/${result.id}/`;
+      const permalink = (await resolvePermalink(result.id)) || null;
       await pool.query(
         `UPDATE instagram_posts SET ig_media_id = $1, ig_permalink = $2, status = 'published', published_at = NOW(), image_urls = $3
          WHERE id = $4`,

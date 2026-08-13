@@ -1388,7 +1388,7 @@ router.post('/public', async (req, res) => {
         // Run matching in background
         matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
         matchWhatsAppToPets(pet.id).catch(e => console.error('Matching WhatsApp->pets error:', e));
-        createPetCase(pet, { source: 'app_anon' });
+        await createPetCase(pet, { source: 'app_anon' });
 
         // Auto-broadcast to WhatsApp groups for active statuses
         const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];

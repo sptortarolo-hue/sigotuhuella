@@ -19,6 +19,17 @@ import { dirname, join } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const execFileAsync = promisify(execFile);
 
+// publishContainer solo devuelve { id }; el permalink real se pide a /{media-id}
+async function resolvePermalink(mediaId) {
+  try {
+    const media = await getMedia(mediaId);
+    return media?.permalink || null;
+  } catch (err) {
+    console.error('[Instagram] getMedia permalink error:', err.message);
+    return null;
+  }
+}
+
 const router = Router();
 
 router.get('/auth-url', requireAdmin, async (_req, res) => {
@@ -155,15 +166,16 @@ router.post('/publish', requireAdmin, async (req, res) => {
     const containerId = await createContainer(imageUrls, caption || '', mt);
     await waitForContainer(containerId, mt);
     const result = await publishContainer(containerId);
+    const permalink = await resolvePermalink(result.id || containerId);
     await pool.query(
       `INSERT INTO instagram_posts (pet_id, media_type, caption, status, ig_media_id, ig_permalink, published_at, created_at)
        VALUES ($1, $2, $3, 'published', $4, $5, NOW(), NOW())`,
-      [petId, mediaType || 'IMAGE', caption || '', result.id || containerId, result.permalink || '']
+      [petId, mediaType || 'IMAGE', caption || '', result.id || containerId, permalink]
     );
     if (petId) {
       // instagram field kept for user-entered handles only
     }
-    res.json({ success: true, mediaId: result.id, permalink: result.permalink });
+    res.json({ success: true, mediaId: result.id, permalink });
   } catch (err) {
     console.error('Error publishing:', err);
     res.status(500).json({ error: err.message });

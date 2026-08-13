@@ -46,8 +46,8 @@ function eventLabel(type: string, payload: any) {
     case 'case_created': return 'Caso creado';
     case 'flyer_generated': return 'Flyer generado';
     case 'instagram_published': return 'Publicado en Instagram';
-    case 'facebook_published': return 'Publicado en Facebook';
-    case 'whatsapp_group_sent': return 'Enviado por WhatsApp';
+    case 'facebook_published': return 'Publicado en Facebook (página y grupos)';
+    case 'whatsapp_group_sent': return 'Publicado en grupos de WhatsApp';
     case 'neighborhood_alert_sent': return 'Alerta vecinal enviada';
     case 'social_shared': return 'Compartido en redes';
     case 'match_confirmed': return 'Coincidencia confirmada';
@@ -72,9 +72,12 @@ function eventDetail(type: string, payload: any) {
     case 'instagram_published': return payload?.permalink ? `Ver publicación en Instagram` : null;
     case 'flyer_generated':
       return payload?.flyer_url ? `Volante 4x5 listo para imprimir` : null;
-    case 'facebook_published':
-      if (payload?.page_post_id) return 'Publicaciones en la página y grupos de Facebook';
+    case 'facebook_published': {
+      const groups = Array.isArray(payload?.group_post_ids) ? payload.group_post_ids.length : 0;
+      if (payload?.page_post_id) return `Publicado en la página${groups > 0 ? ` y ${groups} grupo${groups === 1 ? '' : 's'}` : ''} de Facebook`;
+      if (groups > 0) return `Publicado en ${groups} grupo${groups === 1 ? '' : 's'} de Facebook`;
       return null;
+    }
     case 'whatsapp_group_sent':
       if (payload?.group_name) return `Grupo "${payload.group_name}"${payload?.reach_estimate ? ` (~${payload.reach_estimate} alcanzados)` : ''}`;
       return null;
@@ -141,6 +144,9 @@ export default function CaseTimeline({ events }: { events: any[] }) {
               )}
               {ev.event_type === 'instagram_published' && dest(ev.payload) && (
                 <a href={dest(ev.payload)} target="_blank" rel="noreferrer" className="text-xs text-brand-primary underline mt-1 inline-block">Ver en Instagram</a>
+              )}
+              {ev.event_type === 'facebook_published' && ev.payload?.page_post_url && (
+                <a href={ev.payload.page_post_url} target="_blank" rel="noreferrer" className="text-xs text-brand-primary underline mt-1 inline-block">Ver en Facebook</a>
               )}
               {ev.user_name && <p className="text-xs text-gray-400 mt-1.5">por {ev.user_name}</p>}
             </div>

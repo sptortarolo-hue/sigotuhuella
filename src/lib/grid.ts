@@ -40,6 +40,7 @@ export function parseRoad(road: string): RoadInfo {
   if (!m) return { axis: 'unknown', num: null };
   const n = parseInt(m[1]);
   if (n >= 1 && n <= 31) return { axis: 'a1', num: n };
+  if (n >= 81 && n <= 129) return { axis: 'a1', num: n };
   if ((n >= 32 && n <= 80) || (n >= 130 && n <= 170) || (n >= 400 && n <= 530) || (n >= 600 && n <= 720)) return { axis: 'a2', num: n };
   return { axis: 'unknown', num: null };
 }
@@ -76,6 +77,6 @@ export function addressToLatlng(road: string, from: string, to: string): { lat: 
   const p = parseRoad(road);
   if (p.axis === 'unknown' || p.num === null) return null;
   const mid = (xstreetToNum(from) + xstreetToNum(to)) / 2;
-  if (p.axis === 'a1') return gridToLatlng(p.num, mid);
-  return gridToLatlng(mid, p.num);
+  if (p.axis === 'a1') return gridToLatlng(p.num - REF_A, mid - REF_B);
+  return gridToLatlng(mid - REF_A, p.num - REF_B);
 }

@@ -598,6 +598,7 @@ export async function publishPetToGroups(petId, options = {}) {
 
     if (status === 'published') {
       await recordPublicationEvent(petId, 'facebook_published', {
+        page_post_id: results.page?.pagePostId || null,
         page_post_url: pagePostUrl || null,
         group_post_ids: groupPostIds,
       }).catch(e => console.error(`[FB Publisher] recordPublicationEvent error: ${e.message}`));

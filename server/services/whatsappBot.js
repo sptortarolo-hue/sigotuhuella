@@ -4,7 +4,7 @@ import { matchWhatsAppToPets, matchPetToPosts, processImageCaption, classifyText
 import { classifyPost } from './geminiClassifier.js';
 import { sendWhatsAppRegistrationEmail } from '../auth.js';
 import { fetchFbPost } from './fbPostFetcher.js';
-import { geocodeAddress, extractNeighborhoods } from './geocoding.js';
+import { geocodeAddress, extractNeighborhoods, isInInfluenceZone } from './geocoding.js';
 import { notifyPetPublication } from './petPublicationNotification.js';
 import { createPetCase } from './caseService.js';
 import axios from 'axios';
@@ -865,8 +865,8 @@ ${description ? `📝 *Descripción:* ${description}` : ''}
 async function rlConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
-    if (!ctx.latitude && ctx.location) {
-      const coords = await geocodeAddress(ctx.location + ', La Plata, Buenos Aires, Argentina').catch(() => null);
+    if ((!ctx.latitude || !isInInfluenceZone(ctx.latitude, ctx.longitude)) && ctx.location) {
+      const coords = await geocodeAddress(ctx.location).catch(() => null);
       if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
     }
     const neighborhoods = extractNeighborhoods(ctx.location);
@@ -895,9 +895,9 @@ async function rlConfirm(conv, parsed, intent) {
     })();
     (async () => {
       const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
-      if (p) createPetCase(p, { source: 'whatsapp_bot' });
+      if (p) await createPetCase(p, { source: 'whatsapp_bot' });
+      broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     })();
-    broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     try {
       await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte creado con éxito! Ya lo publicamos en nuestra red.`);
@@ -1060,8 +1060,8 @@ async function rsContact(conv, parsed) {
 async function rsConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
-    if (!ctx.latitude && ctx.location) {
-      const coords = await geocodeAddress(ctx.location + ', La Plata, Buenos Aires, Argentina').catch(() => null);
+    if ((!ctx.latitude || !isInInfluenceZone(ctx.latitude, ctx.longitude)) && ctx.location) {
+      const coords = await geocodeAddress(ctx.location).catch(() => null);
       if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
     }
     const neighborhoods = extractNeighborhoods(ctx.location);
@@ -1262,8 +1262,8 @@ async function rfShowConfirm(conv) {
 async function rfConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
-    if (!ctx.latitude && ctx.location) {
-      const coords = await geocodeAddress(ctx.location + ', La Plata, Buenos Aires, Argentina').catch(() => null);
+    if ((!ctx.latitude || !isInInfluenceZone(ctx.latitude, ctx.longitude)) && ctx.location) {
+      const coords = await geocodeAddress(ctx.location).catch(() => null);
       if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
     }
     const neighborhoods = extractNeighborhoods(ctx.location);
@@ -1293,9 +1293,9 @@ async function rfConfirm(conv, parsed, intent) {
     })();
     (async () => {
       const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
-      if (p) createPetCase(p, { source: 'whatsapp_bot' });
+      if (p) await createPetCase(p, { source: 'whatsapp_bot' });
+      broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     })();
-    broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
     try {
       await sendMessage(conv.wa_from, `✅ *${conv.bot_name}:* ¡Reporte de mascota encontrada registrado! Ya visibilizamos la info para encontrar a su dueño.`);
@@ -2408,8 +2408,8 @@ async function fbConfirm(conv, parsed, intent) {
 
   let fbLat = ctx.fbLatitude || null;
   let fbLng = ctx.fbLongitude || null;
-  if (!fbLat && location && location !== 'Sin ubicación') {
-    const coords = await geocodeAddress(location + ', La Plata, Buenos Aires, Argentina').catch(() => null);
+  if ((!fbLat || !isInInfluenceZone(fbLat, fbLng)) && location && location !== 'Sin ubicación') {
+    const coords = await geocodeAddress(location).catch(() => null);
     if (coords) { fbLat = coords.lat; fbLng = coords.lng; }
   }
   const neighborhoods = extractNeighborhoods(location);
@@ -2789,8 +2789,8 @@ async function apDescription(conv, parsed) {
 async function apConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
-    if (!ctx.latitude && ctx.location) {
-      const coords = await geocodeAddress(ctx.location + ', La Plata, Buenos Aires, Argentina').catch(() => null);
+    if ((!ctx.latitude || !isInInfluenceZone(ctx.latitude, ctx.longitude)) && ctx.location) {
+      const coords = await geocodeAddress(ctx.location).catch(() => null);
       if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
     }
     const neighborhoods = extractNeighborhoods(ctx.location);
