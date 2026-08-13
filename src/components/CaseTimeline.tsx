@@ -7,6 +7,7 @@ const EVENT_ICONS: Record<string, any> = {
   instagram_published: Instagram,
   facebook_published: Facebook,
   whatsapp_group_sent: MessageCircle,
+  whatsapp_sent_reporter: MessageCircle,
   neighborhood_alert_sent: BellRing,
   social_shared: Users,
   match_confirmed: Users,
@@ -27,6 +28,7 @@ const EVENT_STYLES: Record<string, string> = {
   instagram_published: 'bg-pink-500/10 text-pink-600',
   facebook_published: 'bg-blue-500/10 text-blue-600',
   whatsapp_group_sent: 'bg-emerald-500/10 text-emerald-600',
+  whatsapp_sent_reporter: 'bg-emerald-500/10 text-emerald-600',
   neighborhood_alert_sent: 'bg-amber-500/10 text-amber-600',
   social_shared: 'bg-purple-500/10 text-purple-600',
   match_confirmed: 'bg-cyan-500/10 text-cyan-600',
@@ -48,6 +50,7 @@ function eventLabel(type: string, payload: any) {
     case 'instagram_published': return 'Publicado en Instagram';
     case 'facebook_published': return 'Publicado en Facebook (página y grupos)';
     case 'whatsapp_group_sent': return 'Publicado en grupos de WhatsApp';
+    case 'whatsapp_sent_reporter': return 'WhatsApp enviado al reportante';
     case 'neighborhood_alert_sent': return 'Alerta vecinal enviada';
     case 'social_shared': return 'Compartido en redes';
     case 'match_confirmed': return 'Coincidencia confirmada';
@@ -81,6 +84,8 @@ function eventDetail(type: string, payload: any) {
     case 'whatsapp_group_sent':
       if (payload?.group_name) return `Grupo "${payload.group_name}"${payload?.reach_estimate ? ` (~${payload.reach_estimate} alcanzados)` : ''}`;
       return null;
+    case 'whatsapp_sent_reporter':
+      return payload?.message || 'Se envió la publicación al reportante por WhatsApp';
     case 'neighborhood_alert_sent':
       return payload?.recipients ? `${payload.recipients} vecinos notificados en un radio de ${payload.radius_km ?? 5}km` : null;
     case 'social_shared':

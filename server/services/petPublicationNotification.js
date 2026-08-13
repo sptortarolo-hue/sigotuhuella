@@ -2,6 +2,7 @@ import pool from '../db.js';
 import { enqueue } from './phoneRelayService.js';
 import { normalizePhone } from './phoneUtils.js';
 import { buildPetBroadcastCaption } from './whatsappService.js';
+import { recordPublicationEvent } from './caseService.js';
 
 export async function notifyPetPublication(petId, phone) {
   if (!phone) return;
@@ -22,4 +23,8 @@ export async function notifyPetPublication(petId, phone) {
 
   await enqueue(normalized, caption, coverUrl);
   await enqueue(normalized, '✅ El reporte ya fue publicado en la app y se está replicando en Instagram, Facebook y grupos de WhatsApp del barrio.');
+  // Evento de trazabilidad: se avisó al reportante por WhatsApp (sin exponer el número).
+  await recordPublicationEvent(petId, 'whatsapp_sent_reporter', {
+    message: 'Publicación enviada al reportante',
+  }).catch(e => console.error(`[Notify Reporter] recordPublicationEvent error: ${e.message}`));
 }

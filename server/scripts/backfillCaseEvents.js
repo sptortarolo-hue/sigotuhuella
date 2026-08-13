@@ -70,15 +70,28 @@ async function backfillWhatsApp(caseId, petId, petName) {
   );
   let inserted = 0;
   for (const row of rows.rows) {
-    const ok = await ensureCase(caseId, 'whatsapp_group_sent', {
-      group_id: row.wa_to,
-      group_name: row.group_name || row.wa_to,
-      relay_message_id: row.id,
-      reached: true,
-    }, row.created_at);
-    if (ok) {
-      inserted++;
-      console.log(`  WA: evento whatsapp_group_sent para grupo ${row.group_name || row.wa_to}`);
+    // Solo un broadcast real (wa_to coincide con un grupo) es un "whatsapp_group_sent".
+    // Si wa_to es un teléfono del reportante (no está en whatsapp_groups), fue la
+    // notificación al reportante, no una publicación en grupos: no expone el número.
+    if (row.group_name) {
+      const ok = await ensureCase(caseId, 'whatsapp_group_sent', {
+        group_id: row.wa_to,
+        group_name: row.group_name,
+        relay_message_id: row.id,
+        reached: true,
+      }, row.created_at);
+      if (ok) {
+        inserted++;
+        console.log(`  WA: evento whatsapp_group_sent para grupo ${row.group_name}`);
+      }
+    } else {
+      const ok = await ensureCase(caseId, 'whatsapp_sent_reporter', {
+        relay_message_id: row.id,
+      }, row.created_at);
+      if (ok) {
+        inserted++;
+        console.log(`  WA: evento whatsapp_sent_reporter (notificación al reportante)`);
+      }
     }
   }
   if (rows.rows.length === 0) {
@@ -124,6 +137,23 @@ async function fixInstagramPermalinks(caseId, petId) {
 }
 
 async function main() {
+  // Migra eventos whatsapp_group_sent mal etiquetados en backfills previos:
+  // un group_id que no existe en whatsapp_groups es en realidad la notificación
+  // al reportante (se enviaba el número de teléfono como nombre de grupo).
+  const migrated = await pool.query(
+    `UPDATE case_events
+     SET event_type = 'whatsapp_sent_reporter',
+         payload = jsonb_build_object('relay_message_id', payload->>'relay_message_id')
+     WHERE event_type = 'whatsapp_group_sent'
+       AND NOT EXISTS (
+         SELECT 1 FROM whatsapp_groups wg WHERE wg.group_id = payload->>'group_id'
+       )
+     RETURNING id`
+  );
+  if (migrated.rowCount > 0) {
+    console.log(`Migrados ${migrated.rowCount} eventos whatsapp_group_sent → whatsapp_sent_reporter\n`);
+  }
+
   const cases = await pool.query(
     `SELECT pc.id AS case_id, pc.pet_id, p.name AS pet_name
      FROM pet_cases pc
