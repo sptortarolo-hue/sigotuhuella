@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
-import { Pet, PetStatus, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
+import { Pet, PetStatus, getPetImageUrls, formatPetDate, getPetCoordinates } from '@/src/lib/petService';
 import { api, apiUrl } from '@/src/lib/api';
-import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock, Flag } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock, Flag, BadgeCheck, Star, BellRing, ExternalLink, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn, formatDateOnly } from '@/src/lib/utils';
@@ -18,12 +18,35 @@ import ImageLightbox from '@/src/components/admin/ImageLightbox';
 import { Helmet } from 'react-helmet-async';
 import { PhoneInput } from '@/src/components/PhoneInput';
 import ReportModal from '@/src/components/ReportModal';
+import CaseMap from '@/src/components/CaseMap';
+import CaseTimeline from '@/src/components/CaseTimeline';
+import SightingModal from '@/src/components/SightingModal';
 
 function parseNeighborhoods(n: any): string[] {
   if (Array.isArray(n)) return n;
   if (typeof n === 'string') try { return JSON.parse(n); } catch { return []; }
   return [];
 }
+
+function getApproxCenter(pet: any): { lat: number; lng: number } | null {
+  const ns = parseNeighborhoods(pet?.neighborhoods);
+  const centers = ns.map((id: string) => NEIGHBORHOODS.find(n => n.id === id)?.center).filter(Boolean) as { lat: number; lng: number }[];
+  if (centers.length === 0) return null;
+  return { lat: centers.reduce((s, c) => s + c.lat, 0) / centers.length, lng: centers.reduce((s, c) => s + c.lng, 0) / centers.length };
+}
+
+const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
+
+const CASE_STATUS_LABELS: Record<string, string> = {
+  active: 'En búsqueda',
+  closed: 'Cerrado',
+  pause: 'Pausado',
+};
+
+const CASE_TYPE_LABELS: Record<string, string> = {
+  lost: 'Perdida',
+  found: 'Encontrada',
+};
 
 export default function PetDetail() {
   const { id } = useParams();
@@ -47,6 +70,11 @@ export default function PetDetail() {
   const [sharePhoneValid, setSharePhoneValid] = useState(true);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareResult, setShareResult] = useState<any>(null);
+  const [caseData, setCaseData] = useState<any>(null);
+  const [showSightingModal, setShowSightingModal] = useState(false);
+  const [caseCopied, setCaseCopied] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [caseError, setCaseError] = useState(false);
 
   const handleSharePhoneChange = (value: string, e164?: string) => {
     setSharePhone(value);
@@ -66,6 +94,14 @@ export default function PetDetail() {
         setMyPetPhotos(data.my_pet_photos || []);
         if (found) {
           fetch(apiUrl(`/api/pets/${id}/view`), { method: 'POST' }).catch(() => {});
+          if (found.case_number) {
+            try {
+              const caseRes = await api.cases.get(found.case_number);
+              if (caseRes.case) setCaseData(caseRes.case);
+            } catch (e) {
+              setCaseError(true);
+            }
+          }
         }
       } catch (e) {
         console.error(e);
@@ -93,6 +129,32 @@ export default function PetDetail() {
       else alert(data.error || 'Error');
     } catch (e) { alert('Error al compartir'); }
     finally { setShareLoading(false); }
+  };
+
+  const refreshCase = async () => {
+    if (!pet?.case_number) return;
+    try {
+      const caseRes = await api.cases.get(pet.case_number);
+      if (caseRes.case) setCaseData(caseRes.case);
+    } catch (e) { setCaseError(true); }
+  };
+
+  const isCaseOwner = !!caseData && !!user && (caseData.reporter_id === user.id || caseData.pet?.created_by === user.id);
+  const isFollowingCase = !!caseData?.is_following;
+
+  const handleToggleFollow = async () => {
+    if (!user) { navigate('/login'); return; }
+    if (!caseData) return;
+    setFollowBusy(true);
+    try {
+      if (isFollowingCase) await api.cases.unfollow(caseData.id);
+      else await api.cases.follow(caseData.id);
+      await refreshCase();
+    } catch (e: any) {
+      alert(e.message || 'Error al actualizar el seguimiento');
+    } finally {
+      setFollowBusy(false);
+    }
   };
 
   const petImagesToUrls = (petId: string, images: any[]) =>
@@ -294,6 +356,17 @@ Me gustaría obtener más información.`;
               {pet.species && pet.gender && <span className="text-gray-300">•</span>}
               {pet.gender === 'male' ? 'Macho' : pet.gender === 'female' ? 'Hembra' : ''}
             </p>
+            {pet.case_number && (
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(pet.case_number).then(() => { setCaseCopied(true); setTimeout(() => setCaseCopied(false), 2000); });
+                }}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-primary/10 text-brand-primary text-xs font-bold hover:bg-brand-primary/20 transition-colors"
+              >
+                <BadgeCheck className="w-3.5 h-3.5" /> {pet.case_number}
+                <span className="font-medium">{caseCopied ? '✓ copiado' : 'copiar'}</span>
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
@@ -403,6 +476,100 @@ Me gustaría obtener más información.`;
               </div>
             )}
           </div>
+
+          {caseData && !caseError && (
+            <div className="bg-white p-6 rounded-[2rem] border border-brand-accent mb-8 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                <h3 className="text-lg sm:text-xl font-serif font-bold text-brand-primary flex items-center gap-2">
+                  <BadgeCheck className="w-5 h-5" /> Caso de seguimiento
+                </h3>
+                <div className="flex items-center gap-2">
+                  <span className={cn("px-3 py-1 rounded-full text-xs font-bold text-white",
+                    caseData.status === 'active' ? 'bg-brand-primary' : 'bg-gray-600')}>
+                    {CASE_STATUS_LABELS[caseData.status] || caseData.status}
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-bold text-white bg-black/50">
+                    {CASE_TYPE_LABELS[caseData.type] || caseData.type}
+                  </span>
+                </div>
+              </div>
+
+              {caseData.status === 'active' && typeof caseData.days_left === 'number' && caseData.days_left <= 3 && (
+                <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                  <p className="text-sm font-bold text-amber-800 mb-1 flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    {caseData.expired ? 'Este caso venció' : 'Este caso está por vencer'}
+                  </p>
+                  <p className="text-xs text-amber-700">
+                    {caseData.expired
+                      ? `La publicación venció hace ${Math.abs(caseData.days_left) || 1} día(s).`
+                      : `Quedan ${caseData.days_left} día(s) de publicación.`}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2 mb-5">
+                {(caseData.sightings?.length > 0) && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs font-bold text-amber-700">
+                    <BellRing className="w-3.5 h-3.5" />
+                    {caseData.sightings.length} avistamiento{caseData.sightings.length === 1 ? '' : 's'}
+                  </span>
+                )}
+                <button
+                  onClick={() => setShowSightingModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-primary/10 text-brand-primary text-xs font-bold hover:bg-brand-primary/20 transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5" /> Reportar avistamiento
+                </button>
+                {user && !isCaseOwner && caseData.status !== 'closed' && (
+                  <button
+                    onClick={handleToggleFollow}
+                    disabled={followBusy}
+                    className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-colors border",
+                      isFollowingCase ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white text-brand-primary border-brand-accent hover:bg-brand-bg')}
+                  >
+                    {followBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Star className={`w-3.5 h-3.5 ${isFollowingCase ? 'fill-current' : ''}`} />}
+                    {isFollowingCase ? 'Siguiendo' : 'Seguir caso'}
+                    {caseData?.followerCount > 0 && <span className="text-xs">{caseData.followerCount}</span>}
+                  </button>
+                )}
+                <a
+                  href={`/caso/${caseData.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-bg border border-brand-accent text-brand-primary text-xs font-bold hover:bg-brand-primary/10 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Ver caso completo
+                </a>
+              </div>
+
+              {(caseData.sightings?.length > 0 || caseData.searchAreas?.length > 0) && (
+                <CaseMap
+                  center={getPetCoordinates(pet) || getApproxCenter(pet) || DEFAULT_CENTER}
+                  sightings={caseData.sightings || []}
+                  searchAreas={caseData.searchAreas || []}
+                  isAdmin={false}
+                  onReportClick={() => setShowSightingModal(true)}
+                  onToggleSighting={() => {}}
+                />
+              )}
+
+              {caseData.events?.length > 0 && (
+                <div className="mt-6">
+                  <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-3">Trazabilidad del caso</p>
+                  <CaseTimeline events={caseData.events} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {showSightingModal && caseData && (
+            <SightingModal
+              caseId={caseData.id}
+              onClose={() => setShowSightingModal(false)}
+              onSaved={async () => { setShowSightingModal(false); await refreshCase(); }}
+            />
+          )}
 
           <div className="mt-auto space-y-6">
             <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
