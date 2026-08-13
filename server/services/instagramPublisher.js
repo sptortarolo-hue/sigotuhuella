@@ -43,6 +43,7 @@ function buildPetCaption(pet, hashtags) {
   const statusTag = statusLabels[pet.status] || '🐾 MASCOTA';
   return [
     `${statusTag}`,
+    pet.case_number ? `🔖 Caso: ${pet.case_number}` : '',
     `${pet.name ? 'Nombre: ' + pet.name : ''}`,
     `${speciesLabel[pet.species] || 'Mascota'}${pet.breed ? ' - ' + pet.breed : ''}`,
     `${genderLabel[pet.gender] ? genderLabel[pet.gender] + (pet.age ? ' · ' + pet.age : '') : (pet.age || '')}`,

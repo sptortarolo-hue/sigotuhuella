@@ -50,6 +50,7 @@ import { processInviteReminders } from './services/reminderService.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
 import { runEngagementSync } from './services/metaEngagement.js';
+import { runReplicaDetection } from './services/replicaDetectionService.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -798,6 +799,7 @@ async function start() {
   async function checkEngagementSync() {
     try {
       await runEngagementSync();
+      await runReplicaDetection({ days: 7 });
     } catch (err) {
       console.error('[Engagement Scheduler] Error:', err.message);
     }

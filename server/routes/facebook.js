@@ -9,6 +9,7 @@ import { enqueue } from '../services/phoneRelayService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { publishToPage, publishPetToGroups } from '../services/facebookPublisher.js';
 import { createCaseEvent } from '../services/caseService.js';
+import { detectReplicaByTask, runReplicaDetection } from '../services/replicaDetectionService.js';
 
 const router = Router();
 
@@ -391,6 +392,17 @@ router.post('/webhook', async (req, res) => {
           }
         }
 
+        if (postId) {
+          detectReplicaByTask({
+            id: postId,
+            fb_post_id,
+            fb_post_url,
+            content,
+            group_id: resolvedGroupId,
+            group_name: null,
+          }).catch(err => console.error('Replica detection error:', err));
+        }
+
       } catch (err) {
         console.error('Error processing webhook post:', err.message);
         results.errors++;
@@ -498,6 +510,17 @@ router.post('/run-matching', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Error running matching:', err);
     res.status(500).json({ error: 'Error al ejecutar matching' });
+  }
+});
+
+router.post('/run-replica-backfill', requireAdmin, async (req, res) => {
+  try {
+    const { days = 7, limit = 500 } = req.body;
+    const result = await runReplicaDetection({ days: Number(days) || 7, limit: Number(limit) || 500 });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('Error running replica backfill:', err);
+    res.status(500).json({ error: 'Error al detectar réplicas' });
   }
 });
 

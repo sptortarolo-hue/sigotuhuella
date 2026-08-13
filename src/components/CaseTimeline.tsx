@@ -1,4 +1,4 @@
-import { FilePlus2, Instagram, Facebook, MessageCircle, Users, MapPin, Radar, HandHeart, PartyPopper, Lock, Info, BellRing, QrCode, RefreshCw } from 'lucide-react';
+import { FilePlus2, Instagram, Facebook, MessageCircle, Users, MapPin, Radar, HandHeart, PartyPopper, Lock, Info, BellRing, QrCode, RefreshCw, Copy } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 const EVENT_ICONS: Record<string, any> = {
@@ -6,6 +6,7 @@ const EVENT_ICONS: Record<string, any> = {
   flyer_generated: FilePlus2,
   instagram_published: Instagram,
   facebook_published: Facebook,
+  facebook_replica: Copy,
   whatsapp_group_sent: MessageCircle,
   whatsapp_sent_reporter: MessageCircle,
   neighborhood_alert_sent: BellRing,
@@ -27,6 +28,7 @@ const EVENT_STYLES: Record<string, string> = {
   flyer_generated: 'bg-brand-secondary/10 text-brand-secondary',
   instagram_published: 'bg-pink-500/10 text-pink-600',
   facebook_published: 'bg-blue-500/10 text-blue-600',
+  facebook_replica: 'bg-cyan-500/10 text-cyan-600',
   whatsapp_group_sent: 'bg-emerald-500/10 text-emerald-600',
   whatsapp_sent_reporter: 'bg-emerald-500/10 text-emerald-600',
   neighborhood_alert_sent: 'bg-amber-500/10 text-amber-600',
@@ -49,6 +51,7 @@ function eventLabel(type: string, payload: any) {
     case 'flyer_generated': return 'Flyer generado';
     case 'instagram_published': return 'Publicado en Instagram';
     case 'facebook_published': return 'Publicado en Facebook (página y grupos)';
+    case 'facebook_replica': return 'Replicado en un grupo de Facebook';
     case 'whatsapp_group_sent': return 'Publicado en grupos de WhatsApp';
     case 'whatsapp_sent_reporter': return 'WhatsApp enviado al reportante';
     case 'neighborhood_alert_sent': return 'Alerta vecinal enviada';
@@ -80,6 +83,10 @@ function eventDetail(type: string, payload: any) {
       if (payload?.page_post_id) return `Publicado en la página${groups > 0 ? ` y ${groups} grupo${groups === 1 ? '' : 's'}` : ''} de Facebook`;
       if (groups > 0) return `Publicado en ${groups} grupo${groups === 1 ? '' : 's'} de Facebook`;
       return null;
+    }
+    case 'facebook_replica': {
+      if (payload?.group_name) return `Grupo "${payload.group_name}"`;
+      return 'Apareció una copia del aviso en un grupo de Facebook';
     }
     case 'whatsapp_group_sent':
       if (payload?.group_name) return `Grupo "${payload.group_name}"${payload?.reach_estimate ? ` (~${payload.reach_estimate} alcanzados)` : ''}`;
@@ -152,6 +159,9 @@ export default function CaseTimeline({ events }: { events: any[] }) {
               )}
               {ev.event_type === 'facebook_published' && ev.payload?.page_post_url && (
                 <a href={ev.payload.page_post_url} target="_blank" rel="noreferrer" className="text-xs text-brand-primary underline mt-1 inline-block">Ver en Facebook</a>
+              )}
+              {ev.event_type === 'facebook_replica' && ev.payload?.fb_post_url && (
+                <a href={ev.payload.fb_post_url} target="_blank" rel="noreferrer" className="text-xs text-brand-primary underline mt-1 inline-block">Ver post en Facebook</a>
               )}
               {ev.user_name && <p className="text-xs text-gray-400 mt-1.5">por {ev.user_name}</p>}
             </div>

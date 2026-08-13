@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '@/src/lib/api';
-import { Instagram, Facebook, Heart, MessageCircle, Repeat2, Eye, ExternalLink, Send, Loader2 } from 'lucide-react';
+import { Instagram, Facebook, Heart, MessageCircle, Repeat2, Eye, ExternalLink, Send, Loader2, Copy, ChevronDown } from 'lucide-react';
 
 type PlatformComment = {
   id: string;
@@ -32,6 +32,11 @@ type Impact = {
     reach?: number;
     message?: string;
   } | null;
+  replicas?: {
+    count: number;
+    groups: { group_id?: string | null; group_name?: string; count: number; fb_post_url?: string | null }[];
+    items: { id: string; fb_post_url?: string | null; method?: string; group_name?: string | null; detected_at?: string }[];
+  };
   comments?: {
     instagram?: any[];
     facebook?: any[];
@@ -173,12 +178,15 @@ export default function CaseImpact({ caseId, impact, canReply }: { caseId: strin
     return [...ig, ...fb];
   }, [impact]);
 
-  const hasImpact = !!(impact?.instagram || impact?.facebook);
+  const [showReplicas, setShowReplicas] = useState(false);
+
+  const hasImpact = !!(impact?.instagram || impact?.facebook || (impact?.replicas?.count || 0) > 0);
 
   if (!hasImpact) return null;
 
   const ig = impact?.instagram;
   const fb = impact?.facebook;
+  const replicas = impact?.replicas;
   const totalReach = (ig?.reach || 0) + (fb?.reach || 0);
 
   return (
@@ -202,7 +210,47 @@ export default function CaseImpact({ caseId, impact, canReply }: { caseId: strin
           </>
         )}
         {totalReach > 0 && <MetricChip icon={<Eye className="w-3.5 h-3.5" />} label="Alcance" value={totalReach} color="text-amber-500" />}
+        {(replicas?.count || 0) > 0 && (
+          <button
+            onClick={() => setShowReplicas(!showReplicas)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-50 border border-cyan-200 hover:bg-cyan-100 transition-all"
+          >
+            <Copy className="w-3.5 h-3.5 text-cyan-600" />
+            <span className="text-xs font-bold text-cyan-700">{fmt(replicas?.count)}</span>
+            <span className="text-[10px] text-cyan-500">grupos con el aviso</span>
+            <ChevronDown className={`w-3 h-3 text-cyan-500 transition-transform ${showReplicas ? 'rotate-180' : ''}`} />
+          </button>
+        )}
       </div>
+
+      {/* Réplicas en grupos de Facebook (detectadas por el scraper) */}
+      {showReplicas && replicas && replicas.groups.length > 0 && (
+        <div className="mb-6">
+          <h4 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+            <Copy className="w-4 h-4 text-cyan-600" /> Aviso replicado en {replicas.count} grupo{replicas.count === 1 ? '' : 's'} de Facebook
+          </h4>
+          <div className="space-y-1.5">
+            {replicas.groups.map((g, i) => (
+              <div key={g.group_id || `g-${i}`} className="flex items-center justify-between gap-2 bg-cyan-50/50 border border-cyan-100 rounded-xl px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-700 truncate">{g.group_name || 'Grupo de Facebook'}</p>
+                  <p className="text-[11px] text-gray-400">{g.count} copia{g.count === 1 ? '' : 's'}</p>
+                </div>
+                {g.fb_post_url && (
+                  <a
+                    href={g.fb_post_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 shrink-0 text-xs font-bold text-brand-primary hover:underline"
+                  >
+                    Ver post <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Embed de Instagram */}
       {ig?.embed_html && (

@@ -243,6 +243,39 @@ export async function getCaseImpact(caseId, petId) {
     fbComments = cmts.rows;
   }
 
+  // Réplicas del flyer detectadas por el scraper en grupos de Facebook
+  const replicaRows = (await pool.query(
+    `SELECT fr.id, fr.group_id, fr.group_name, fr.fb_post_url, fr.method, fr.detected_at,
+            fp.fb_post_id AS fb_post_external_id, fp.posted_at
+     FROM facebook_replicas fr
+     LEFT JOIN facebook_posts fp ON fp.id = fr.fb_post_id
+     WHERE fr.case_id = $1
+     ORDER BY fr.detected_at DESC
+     LIMIT 50`,
+    [caseId]
+  )).rows;
+
+  const replicaGroups = new Map();
+  for (const r of replicaRows) {
+    const key = r.group_id || '__unknown__';
+    const cur = replicaGroups.get(key) || { group_id: r.group_id, group_name: r.group_name || 'Grupo desconocido', count: 0, fb_post_url: r.fb_post_url || null };
+    cur.count++;
+    if (!cur.fb_post_url && r.fb_post_url) cur.fb_post_url = r.fb_post_url;
+    replicaGroups.set(key, cur);
+  }
+
+  const replicas = {
+    count: replicaRows.length,
+    groups: [...replicaGroups.values()].sort((a, b) => b.count - a.count),
+    items: replicaRows.map(r => ({
+      id: r.id,
+      fb_post_url: r.fb_post_url,
+      method: r.method,
+      group_name: r.group_name || null,
+      detected_at: r.detected_at,
+    })),
+  };
+
   return {
     instagram: ig
       ? {
@@ -267,6 +300,7 @@ export async function getCaseImpact(caseId, petId) {
           message: fb.message,
         }
       : null,
+    replicas,
     comments: {
       instagram: igComments,
       facebook: fbComments,

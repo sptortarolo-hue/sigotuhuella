@@ -470,7 +470,8 @@ INSERT INTO settings (key, value) VALUES
   ('facebook_page_publisher_enabled', 'false'),
   ('engagement_sync_enabled', 'true'),
   ('engagement_sync_interval', '30'),
-  ('facebook_publisher_interval', '30')
+  ('facebook_publisher_interval', '30'),
+  ('replica_detection_enabled', 'true')
 ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS facebook_page_posts (
@@ -1667,6 +1668,23 @@ export async function initDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_case_events_case ON case_events(case_id, created_at);
     `, 'case_events');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS facebook_replicas (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        fb_post_id UUID NOT NULL UNIQUE REFERENCES facebook_posts(id) ON DELETE CASCADE,
+        pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
+        case_id UUID REFERENCES pet_cases(id) ON DELETE CASCADE,
+        method VARCHAR(20) NOT NULL CHECK (method IN ('sth','marker','url')),
+        group_id UUID REFERENCES facebook_groups(id) ON DELETE SET NULL,
+        group_name VARCHAR(255),
+        fb_post_url TEXT,
+        detected_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(fb_post_id, case_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_facebook_replicas_case ON facebook_replicas(case_id);
+      CREATE INDEX IF NOT EXISTS idx_facebook_replicas_group ON facebook_replicas(group_id);
+    `, 'facebook_replicas');
 
     // ─── Case sightings + search areas (Sprint 2: avistamientos colaborativos) ───
     await migrate(client, `

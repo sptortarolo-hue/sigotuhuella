@@ -64,6 +64,7 @@ function buildPetMessage(pet, hashtags, originalUrl, authorName) {
 
   return [
     `${statusTag}`,
+    pet.case_number ? `🔖 Caso: ${pet.case_number}` : '',
     `${pet.name ? 'Nombre: ' + pet.name : ''}`,
     `${species}${pet.breed ? ' - ' + pet.breed : ''}`,
     `${ageGender ? ageGender : ''}`,
