@@ -81,8 +81,19 @@ const OVERPASS_URLS = [
   'https://overpass.private.coffee/api/interpreter',
 ];
 
+// Circuit breaker: si un mirror falla (timeout/error), no volver a intentarlo
+// durante 60s. Overpass es inestable y un mirror caído quema 25s por consulta.
+const OVERPASS_COOLDOWN_MS = 60 * 1000;
+const overpassFailureAt = new Map();
+
+function overpassMirrorDown(url) {
+  const t = overpassFailureAt.get(url);
+  return t && Date.now() - t < OVERPASS_COOLDOWN_MS;
+}
+
 async function overpassQuery(query) {
   for (const url of OVERPASS_URLS) {
+    if (overpassMirrorDown(url)) continue;
     try {
       const resp = await fetch(url, {
         method: 'POST',
@@ -91,16 +102,22 @@ async function overpassQuery(query) {
           'User-Agent': 'SigoTuHuella/1.0 (WhatsApp bot geocoding; contact: sigotuhuella.com.ar)',
         },
         body: `data=${encodeURIComponent(query)}`,
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(25000),
       });
-      if (!resp.ok) continue;
+      if (!resp.ok) { overpassFailureAt.set(url, Date.now()); continue; }
       const text = await resp.text();
-      if (!text || text.includes('runtime error') || text.trimStart().startsWith('<')) continue;
+      if (!text || text.includes('runtime error') || text.trimStart().startsWith('<')) {
+        overpassFailureAt.set(url, Date.now());
+        continue;
+      }
       try {
         const data = JSON.parse(text);
-        if (data && data.elements) return data;
-      } catch { continue; }
-    } catch { continue; }
+        if (data && data.elements) {
+          overpassFailureAt.delete(url);
+          return data;
+        }
+      } catch { overpassFailureAt.set(url, Date.now()); continue; }
+    } catch { overpassFailureAt.set(url, Date.now()); continue; }
   }
   return null;
 }
@@ -157,7 +174,7 @@ async function overpassWaysByNames(names) {
   const re = streetRegexes(names);
   if (!re) return [];
   const bbox = `${INFLUENCE_BBOX.minLat},${INFLUENCE_BBOX.minLng},${INFLUENCE_BBOX.maxLat},${INFLUENCE_BBOX.maxLng}`;
-  const q1 = `[out:json][timeout:20];
+  const q1 = `[out:json][timeout:40];
 way["name"~"${re}"](${bbox});
 out center;`;
   const d1 = await overpassQuery(q1);
@@ -165,7 +182,7 @@ out center;`;
   const ids = d1.elements.filter(e => e.type === 'way' && e.id).map(e => e.id);
   if (ids.length === 0) return [];
   if (ids.length > 600) ids.length = 600;
-  const q2 = `[out:json][timeout:20];
+  const q2 = `[out:json][timeout:40];
 way(id:${ids.join(',')});
 out body geom;`;
   const d2 = await overpassQuery(q2);
@@ -176,7 +193,11 @@ out body geom;`;
 // Promedio de intersecciones geométricas entre dos conjuntos de ways.
 // Se agrupan los cruces y se elige el grupo más cercano al punto ancla (el grid
 // o el centro del barrio): evita cruces de calles homónimas de otros barrios.
-function intersectWaySets(waysA, waysB, anchor) {
+// `anchorStrict` (true cuando el ancla viene de un barrio mencionado): si ningún
+// cruce queda a <2.5km del ancla, se descarta Overpass (homónimos). En modo no
+// estricto (ancla = grid, poco confiable en numeración externa 600-720/130-170),
+// un cruce único real se acepta aunque quede lejos del grid.
+function intersectWaySets(waysA, waysB, anchor, anchorStrict = true) {
   if (waysA.length === 0 || waysB.length === 0) return null;
   const hits = [];
   for (const w1 of waysA) {
@@ -194,21 +215,28 @@ function intersectWaySets(waysA, waysB, anchor) {
   }
   if (hits.length === 0) return null;
   // Agrupamos los cruces cercanos (~300m) para promediar cada cruce real.
+  // OJO: comparamos contra el centroide (x.lat/x.hits), no contra la suma
+  // acumulada, o los cruces se fragmentan en grupos espurios.
   const groups = [];
   for (const h of hits) {
-    const g = groups.find(x => Math.hypot(x.lat - h.lat, x.lng - h.lng) < 0.003);
+    const g = groups.find(x => Math.hypot(x.lat / x.hits - h.lat, x.lng / x.hits - h.lng) < 0.003);
     if (g) { g.hits++; g.lat += h.lat; g.lng += h.lng; }
     else groups.push({ hits: 1, lat: h.lat, lng: h.lng });
   }
   const cents = groups.map(g => ({ lat: g.lat / g.hits, lng: g.lng / g.hits, hits: g.hits }));
-  // Elegimos el grupo más cercano al ancla. Si hay ancla y ningún cruce está
-  // cerca (<2.5km), descartamos Overpass: es una calle homónima de otra
-  // localidad (La Plata repite numeración en todos sus barrios).
+  // Elegimos el grupo más cercano al ancla.
   if (anchor) {
     cents.sort((a, b) => Math.hypot(a.lat - anchor.lat, a.lng - anchor.lng) - Math.hypot(b.lat - anchor.lat, b.lng - anchor.lng));
     const best = cents[0];
-    if (Math.hypot(best.lat - anchor.lat, best.lng - anchor.lng) > 0.022) return null;
-    return { lat: best.lat, lng: best.lng };
+    const dist = Math.hypot(best.lat - anchor.lat, best.lng - anchor.lng);
+    // Cruce cerca del ancla: confiable (resuelve homónimos del centro).
+    if (dist <= 0.022) return { lat: best.lat, lng: best.lng };
+    // Cruce lejos del ancla.
+    if (anchorStrict) return null; // homónimo de otro barrio
+    // Modo no estricto: con un único cruce real, lo aceptamos aunque el grid
+    // (ancla) quede lejos — el grid no modela bien la numeración externa.
+    if (cents.length === 1) return { lat: best.lat, lng: best.lng };
+    return null; // varios cruces ambiguos lejos del ancla
   }
   const best = cents.reduce((a, b) => (b.hits > a.hits ? b : a), cents[0]);
   return { lat: best.lat, lng: best.lng };
@@ -232,18 +260,25 @@ async function overpassLPCoords(lp, address) {
   const ways = await overpassWaysByNames([lp.road, ...crossNames]);
   if (ways.length === 0) return null;
   const anchor = searchCenter(lp, address);
+  // El filtro por ancla es estricto si el texto menciona un barrio (ancla =
+  // centro del barrio, confiable) o si todos los números son del casco (<=80,
+  // donde el grid es confiable). Se relaja solo con números externos (>80):
+  // ahí el grid se desvía 3-8km y el cruce Overpass único real le gana al grid.
+  const nums = [lp.road, ...crossNames].map(n => parseInt(n)).filter(n => !isNaN(n));
+  const hasOuterNumbers = nums.some(n => n > 80);
+  const anchorStrict = extractNeighborhoods(address).length > 0 || !hasOuterNumbers;
 
   const roadWays = ways.filter(w => new RegExp(streetRegex(roadName)).test(w.tags?.name || ''));
 
   if (lp.type === 'intersection') {
     const crossWays = ways.filter(w => new RegExp(streetRegex(streetName(lp.cross))).test(w.tags?.name || ''));
-    return intersectWaySets(roadWays, crossWays, anchor);
+    return intersectWaySets(roadWays, crossWays, anchor, anchorStrict);
   }
 
   const fromWays = ways.filter(w => new RegExp(streetRegex(streetName(lp.from))).test(w.tags?.name || ''));
   const toWays = ways.filter(w => new RegExp(streetRegex(streetName(lp.to))).test(w.tags?.name || ''));
-  const p1 = intersectWaySets(roadWays, fromWays, anchor);
-  const p2 = intersectWaySets(roadWays, toWays, anchor);
+  const p1 = intersectWaySets(roadWays, fromWays, anchor, anchorStrict);
+  const p2 = intersectWaySets(roadWays, toWays, anchor, anchorStrict);
   if (!p1 && !p2) return null;
   if (!p1) return p2;
   if (!p2) return p1;
@@ -257,11 +292,14 @@ export function parseLaPlataAddress(text) {
   const re1 = /(?:^|\s)(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+entre\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+y\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)(?:\s|$)/;
   const re2 = /(?:^|\s)(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+y\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)(?:\s|$)/;
   const re3 = /(?:^|\s)(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+y\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)(?:\s|$)/;
+  const re4 = /(?:^|\s)(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+esquina\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)(?:\s|$)/;
   let m = t.match(re1);
   if (m) return { type: 'between', road: m[1], from: m[2], to: m[3] };
   m = t.match(re2);
   if (m) return { type: 'between', road: m[1], from: m[2], to: m[3] };
   m = t.match(re3);
+  if (m) return { type: 'intersection', road: m[1], cross: m[2] };
+  m = t.match(re4);
   if (m) return { type: 'intersection', road: m[1], cross: m[2] };
   return null;
 }
