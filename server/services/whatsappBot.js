@@ -1066,9 +1066,6 @@ async function rsConfirm(conv, parsed, intent) {
       if (coords) {
         ctx.latitude = coords.lat;
         ctx.longitude = coords.lng;
-      } else {
-        ctx.latitude = -34.9155;
-        ctx.longitude = -57.9480;
       }
     }
     const neighborhoods = extractNeighborhoods(ctx.location);
@@ -1275,9 +1272,6 @@ async function rfConfirm(conv, parsed, intent) {
       if (coords) {
         ctx.latitude = coords.lat;
         ctx.longitude = coords.lng;
-      } else {
-        ctx.latitude = -34.9155;
-        ctx.longitude = -57.9480;
       }
     }
     const neighborhoods = extractNeighborhoods(ctx.location);
@@ -2809,9 +2803,6 @@ async function apConfirm(conv, parsed, intent) {
       if (coords) {
         ctx.latitude = coords.lat;
         ctx.longitude = coords.lng;
-      } else {
-        ctx.latitude = -34.9155;
-        ctx.longitude = -57.9480;
       }
     }
     const neighborhoods = extractNeighborhoods(ctx.location);
