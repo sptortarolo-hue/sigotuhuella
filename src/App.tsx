@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import PwaHandler from '@/src/components/PwaHandler';
 import ScrollToTop from '@/src/components/ScrollToTop';
 import PublicLayout from '@/src/components/PublicLayout';
@@ -46,9 +46,33 @@ const ManualAdopcion = lazy(() => import('@/src/pages/ManualAdopcion'));
 const ManualChapita = lazy(() => import('@/src/pages/ManualChapita'));
 const VerifyEmail = lazy(() => import('@/src/pages/VerifyEmail'));
 const FlyerPage = lazy(() => import('@/src/pages/FlyerPage'));
-const CaseDashboard = lazy(() => import('@/src/pages/CaseDashboard'));
 const MyCases = lazy(() => import('@/src/pages/MyCases'));
 const IS_PLAY_BUILD = import.meta.env.VITE_PLAY_BUILD === 'true';
+
+function CaseRedirect() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    if (!id) { navigate('/', { replace: true }); return; }
+    fetch(`/api/cases/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.case?.pet_id) navigate(`/pet/${data.case.pet_id}`, { replace: true });
+        else setError(true);
+      })
+      .catch(() => setError(true));
+  }, [id, navigate]);
+  if (error) return <Navigate to="/" replace />;
+  return (
+    <div className="h-[60vh] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full animate-spin" />
+        <span className="font-bold uppercase tracking-widest text-xs text-brand-primary">Cargando caso...</span>
+      </div>
+    </div>
+  );
+}
 
 // En el build de Google Play se elimina toda funcionalidad de dinero real
 // (rifas y sorteos) para no disparar la política de "real-money gambling".
@@ -82,7 +106,7 @@ export default function App() {
               <Route path="/novedades" element={<Novedades />} />
               <Route path="/novedad/:id" element={<NovedadDetail />} />
               <Route path="/perdiste-a-tu-mascota" element={<LostPetGuide />} />
-              <Route path="/caso/:id" element={<CaseDashboard />} />
+              <Route path="/caso/:id" element={<CaseRedirect />} />
               <Route path="/reportar" element={<ReportPet />} />
               <Route path="/reportar-rapido" element={<QuickReport />} />
               <Route path="/perdi-mi-mascota" element={<LostPetReport />} />
@@ -128,7 +152,7 @@ export default function App() {
               <Route path="/mi-mascota/:id" element={<MyPetDetail />} />
               <Route path="/mis-publicaciones" element={<MyPets />} />
               <Route path="/mis-casos" element={<MyCases />} />
-              <Route path="/mis-casos/:id" element={<CaseDashboard />} />
+              <Route path="/mis-casos/:id" element={<CaseRedirect />} />
               <Route path="/feed" element={<Feed />} />
               <Route path="/concursos" element={<Contests />} />
               <Route path="/perfil" element={<Profile />} />

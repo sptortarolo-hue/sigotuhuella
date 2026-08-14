@@ -143,7 +143,7 @@ export default function CasesTab() {
                   <td className="p-3 text-gray-500 whitespace-nowrap">{new Date(c.created_at).toLocaleDateString('es-AR')}</td>
                   <td className="p-3">
                     <div className="flex flex-wrap gap-2">
-                      <Link to={`/caso/${c.id}`} target="_blank"
+                      <Link to={`/pet/${c.pet_id}`} target="_blank"
                         className="inline-flex items-center gap-1 text-brand-primary font-bold hover:underline">
                         <ExternalLink className="w-3.5 h-3.5" /> Ver
                       </Link>

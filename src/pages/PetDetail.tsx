@@ -4,7 +4,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { Pet, PetStatus, getPetImageUrls, formatPetDate, getPetCoordinates } from '@/src/lib/petService';
 import { api, apiUrl } from '@/src/lib/api';
-import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock, Flag, BadgeCheck, Star, BellRing, ExternalLink, Eye } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock, Flag, BadgeCheck, Star, BellRing, ExternalLink, Eye, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn, formatDateOnly } from '@/src/lib/utils';
@@ -21,6 +21,9 @@ import ReportModal from '@/src/components/ReportModal';
 import SocialShareModal from '@/src/components/SocialShareModal';
 import CaseMap from '@/src/components/CaseMap';
 import CaseTimeline from '@/src/components/CaseTimeline';
+import CaseActions from '@/src/components/CaseActions';
+import CaseImpact from '@/src/components/CaseImpact';
+import CaseShares from '@/src/components/CaseShares';
 import SightingModal from '@/src/components/SightingModal';
 
 function parseNeighborhoods(n: any): string[] {
@@ -77,6 +80,10 @@ export default function PetDetail() {
   const [caseCopied, setCaseCopied] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [caseError, setCaseError] = useState(false);
+  const [sendingAlert, setSendingAlert] = useState(false);
+  const [alertMsg, setAlertMsg] = useState('');
+  const [renewing, setRenewing] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
 
   const handleSharePhoneChange = (value: string, e164?: string) => {
     setSharePhone(value);
@@ -157,6 +164,58 @@ export default function PetDetail() {
     } finally {
       setFollowBusy(false);
     }
+  };
+
+  const handleSendNeighborhoodAlert = async () => {
+    if (!caseData || !pet?.neighborhoods?.length) { alert('Esta mascota no tiene barrios configurados.'); return; }
+    setSendingAlert(true); setAlertMsg('');
+    try {
+      const res = await fetch(apiUrl(`/api/cases/${caseData.id}/neighborhood-alert`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (res.ok && data.sent > 0) setAlertMsg(`✅ Alerta enviada a ${data.sent} personas en ${data.recipients} barrios.`);
+      else if (data.error) setAlertMsg(`⚠️ ${data.error}`);
+      else setAlertMsg('No se encontraron personas para notificar en estos barrios.');
+    } catch { setAlertMsg('Error al enviar la alerta.'); }
+    finally { setSendingAlert(false); }
+  };
+
+  const handleRenew = async () => {
+    if (!caseData || renewing) return;
+    if (!confirm('¿Renovar la publicación por 45 días más?')) return;
+    setRenewing(true);
+    try {
+      const res = await fetch(apiUrl(`/api/cases/${caseData.id}/renew`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      const data = await res.json();
+      if (res.ok) { await refreshCase(); alert(data.message || '¡Caso renovado por 45 días!'); }
+      else alert(data.error || 'Error al renovar');
+    } catch { alert('Error al renovar el caso.'); }
+    finally { setRenewing(false); }
+  };
+
+  const handleReportPhone = async () => {
+    if (!user) { navigate('/login'); return; }
+    const phone = prompt('Ingresá el número de teléfono sospechoso (ej: 5492211234567):');
+    if (!phone) return;
+    const reason = prompt('¿Por qué lo reportás? (opcional)');
+    setReportBusy(true);
+    try {
+      const res = await fetch(apiUrl('/api/blacklist/report'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ phone, context_type: 'sighting', context_id: caseData?.id, reason }),
+      });
+      const data = await res.json();
+      if (res.ok) alert(data.duplicate ? 'Ya habías reportado este número. Será revisado por el equipo.' : 'Número reportado. Será revisado por el equipo.');
+      else alert(data.error || 'Error al reportar');
+    } catch { alert('Error al reportar el teléfono.'); }
+    finally { setReportBusy(false); }
   };
 
   const petImagesToUrls = (petId: string, images: any[]) =>
@@ -331,7 +390,7 @@ Me gustaría obtener más información.`;
         </div>
 
         {/* Información Detallada */}
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full lg:sticky lg:top-6">
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-4 flex-wrap">
               <div className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide", statusColors[displayStatus])}>
@@ -535,32 +594,103 @@ Me gustaría obtener más información.`;
                     {caseData?.followerCount > 0 && <span className="text-xs">{caseData.followerCount}</span>}
                   </button>
                 )}
-                <a
-                  href={`/caso/${caseData.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-bg border border-brand-accent text-brand-primary text-xs font-bold hover:bg-brand-primary/10 transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" /> Ver caso completo
-                </a>
               </div>
 
-              {(caseData.sightings?.length > 0 || caseData.searchAreas?.length > 0) && (
-                <CaseMap
-                  center={getPetCoordinates(pet) || getApproxCenter(pet) || DEFAULT_CENTER}
-                  sightings={caseData.sightings || []}
-                  searchAreas={caseData.searchAreas || []}
-                  isAdmin={false}
-                  onReportClick={() => setShowSightingModal(true)}
-                  onToggleSighting={() => {}}
-                />
+              {/* CaseActions: proponer encuentro, confirmar reunión, cerrar caso */}
+              {isCaseOwner && caseData.status !== 'closed' && (
+                <div className="mb-5">
+                  <CaseActions caseId={caseData.id} onChanged={refreshCase} />
+                </div>
               )}
 
-              {caseData.events?.length > 0 && (
-                <div className="mt-6">
-                  <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-3">Trazabilidad del caso</p>
-                  <CaseTimeline events={caseData.events} />
+              {/* Alerta vecinal + Renovar caso */}
+              {isCaseOwner && caseData.status !== 'closed' && (
+                <div className="flex flex-col sm:flex-row gap-2 mb-5">
+                  <button
+                    onClick={handleSendNeighborhoodAlert}
+                    disabled={sendingAlert}
+                    className="flex-1 px-4 py-3 bg-amber-500 text-white rounded-xl font-bold text-sm hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {sendingAlert ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
+                    {sendingAlert ? 'Enviando...' : 'Alerta vecinal'}
+                  </button>
+                  {(caseData.expired || (typeof caseData.days_left === 'number' && caseData.days_left <= 7)) && (
+                    <button
+                      onClick={handleRenew}
+                      disabled={renewing}
+                      className="flex-1 px-4 py-3 bg-indigo-500 text-white rounded-xl font-bold text-sm hover:bg-indigo-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {renewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
+                      {renewing ? 'Renovando...' : 'Renovar caso (45 días)'}
+                    </button>
+                  )}
                 </div>
+              )}
+              {alertMsg && <p className="text-xs text-gray-600 mb-4 flex items-center gap-2"><BellRing className="w-3.5 h-3.5 text-amber-500" /> {alertMsg}</p>}
+
+              {/* Merged cases banner */}
+              {caseData.merged_cases?.length > 0 && (
+                <div className="mb-5 bg-cyan-50 border border-cyan-200 rounded-2xl p-4">
+                  <p className="text-sm font-bold text-cyan-800 flex items-center gap-2">
+                    <BadgeCheck className="w-4 h-4" /> Casos consolidados ({caseData.merged_cases.length})
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {caseData.merged_cases.map((mc: any) => (
+                      <p key={mc.merged_pet_id} className="text-xs text-cyan-700">
+                        STH{String(mc.merged_case_number).replace(/^STH/i, '')} — unificado
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mapa + Trazabilidad lado a lado en desktop */}
+              {(caseData.sightings?.length > 0 || caseData.searchAreas?.length > 0 || caseData.events?.length > 0) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-5">
+                  {(caseData.sightings?.length > 0 || caseData.searchAreas?.length > 0) && (
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-3">Mapa de avistamientos</p>
+                      <CaseMap
+                        center={getPetCoordinates(pet) || getApproxCenter(pet) || DEFAULT_CENTER}
+                        sightings={caseData.sightings || []}
+                        searchAreas={caseData.searchAreas || []}
+                        isAdmin={false}
+                        onReportClick={() => setShowSightingModal(true)}
+                        onToggleSighting={() => {}}
+                      />
+                    </div>
+                  )}
+                  {caseData.events?.length > 0 && (
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-3">Trazabilidad del caso</p>
+                      <CaseTimeline events={caseData.events} />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* CaseImpact: métricas IG/FB */}
+              {caseData.impact && (
+                <div className="mb-5">
+                  <CaseImpact caseId={caseData.id} impact={caseData.impact} canReply={isCaseOwner || !!user?.admin} />
+                </div>
+              )}
+
+              {/* CaseShares: difusión */}
+              <div className="mb-5">
+                <CaseShares caseId={caseData.id} />
+              </div>
+
+              {/* Reportar teléfono sospechoso */}
+              {user && (
+                <button
+                  onClick={handleReportPhone}
+                  disabled={reportBusy}
+                  className="w-full py-3 rounded-xl text-xs font-bold text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                  {reportBusy ? 'Reportando...' : 'Reportar número sospechoso'}
+                </button>
               )}
             </div>
           )}
@@ -610,27 +740,27 @@ Me gustaría obtener más información.`;
               )}
             </div>
 
-            <div className="border-t border-brand-accent pt-4 space-y-3">
+            <div className="border-t border-brand-accent pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => setShowImageModal(true)}
                 className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-lg"
               >
                 <MessageCircle className="w-5 h-5" />
-                Generar cartel para compartir
+                Generar cartel
               </button>
               <button
                 onClick={() => shareOnWhatsApp(pet)}
                 className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-lg hover:from-green-600 hover:to-emerald-700"
               >
                 <Share2 className="w-5 h-5" />
-                Difundir en WhatsApp
+                WhatsApp
               </button>
               <button
                 onClick={() => shareOnFacebook(pet)}
                 className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-blue-600 text-white hover:shadow-lg hover:bg-blue-700"
               >
                 <Share2 className="w-5 h-5" />
-                Compartir en Facebook
+                Facebook
               </button>
               <button
                 onClick={() => { if (!user) { navigate('/login'); return; } setShowReportModal(true); }}
@@ -642,7 +772,7 @@ Me gustaría obtener más información.`;
               {user && user.id === pet.created_by && (
                 <button
                   onClick={() => { setShareEmail(''); setSharePhone(''); setShareMsg(''); setShareResult(null); setShowShareModal(true); }}
-                  className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-brand-primary/10 text-brand-primary border border-brand-accent hover:bg-brand-primary/20"
+                  className="sm:col-span-2 w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-brand-primary/10 text-brand-primary border border-brand-accent hover:bg-brand-primary/20"
                 >
                   <Share2 className="w-5 h-5" />
                   Compartir acceso

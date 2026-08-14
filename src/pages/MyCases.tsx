@@ -103,7 +103,7 @@ export default function MyCases() {
             return (
               <Link
                 key={c.id}
-                to={`/caso/${c.id}`}
+                to={`/pet/${c.pet_id}`}
                 className="flex items-center gap-4 bg-white rounded-2xl border border-brand-accent p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all"
               >
                 <div className="w-16 h-16 rounded-2xl overflow-hidden bg-brand-bg shrink-0">
