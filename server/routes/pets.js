@@ -77,7 +77,7 @@ router.get('/', async (req, res) => {
         (SELECT json_build_object('post_id', fp.page_post_id, 'likes', fp.like_count, 'comments', fp.comment_count, 'shares', fp.share_count)
          FROM facebook_page_posts fp WHERE fp.pet_id = p.id AND fp.status = 'published'
          ORDER BY fp.published_at DESC NULLS LAST LIMIT 1) as fb_impact,
-        (SELECT pc.case_number FROM pet_cases pc WHERE pc.pet_id = p.id ORDER BY pc.created_at DESC LIMIT 1) as case_number
+        p.case_number as case_number
       FROM pets p
       LEFT JOIN pet_images pi ON pi.pet_id = p.id
     `;
