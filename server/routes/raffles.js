@@ -550,6 +550,7 @@ router.put('/:id/draw-results', requireAdmin, async (req, res) => {
 });
 
 // Admin: upload draw video
+const MAX_VIDEO_MB = parseInt(process.env.RAFFLE_VIDEO_MAX_MB || '200', 10);
 const videoUploadDir = join(__dirname, '..', '..', 'public', 'uploads', 'raffle-videos');
 if (!existsSync(videoUploadDir)) mkdirSync(videoUploadDir, { recursive: true });
 const videoUpload = multer({
@@ -560,7 +561,7 @@ const videoUpload = multer({
       cb(null, `draw-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`);
     },
   }),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: MAX_VIDEO_MB * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (['video/mp4', 'video/webm'].includes(file.mimetype)) cb(null, true);
     else cb(new Error('Formato no soportado. Usá MP4 o WebM.'));
@@ -568,7 +569,12 @@ const videoUpload = multer({
 });
 router.post('/:id/video', requireAdmin, (req, res, next) => {
   videoUpload.single('video')(req, res, (err) => {
-    if (err) return res.status(400).json({ error: err.message });
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: `El video supera el tamaño máximo de ${MAX_VIDEO_MB}MB` });
+      }
+      return res.status(400).json({ error: err.message });
+    }
     next();
   });
 }, async (req, res) => {

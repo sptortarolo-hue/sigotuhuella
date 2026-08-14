@@ -1376,7 +1376,7 @@ export default function RafflesTab() {
                             Subir video
                           </button>
                         )}
-                        <p className="text-[10px] text-gray-400">Formatos: MP4 o WebM, máximo 50MB. Proporción 9:16 o 16:9.</p>
+                        <p className="text-[10px] text-gray-400">Formatos: MP4 o WebM, máximo 200MB. Proporción 9:16 o 16:9.</p>
                       </div>
                     )}
                   </div>

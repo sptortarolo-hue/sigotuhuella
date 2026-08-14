@@ -53,6 +53,7 @@ echo "Tar filesystem -> $fs_file"
 cd "$APP_DIR" || exit 1
 tar_excludes=(
   --exclude='public/generated'
+  --exclude='public/uploads/raffle-videos'
   --exclude='node_modules'
   --exclude='dist'
 )
