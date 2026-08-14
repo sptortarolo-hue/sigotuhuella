@@ -1088,6 +1088,7 @@ async function rsConfirm(conv, parsed, intent) {
     (async () => {
       const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
       if (p) matchPetToPosts(p).catch(e => console.error('Matching pet->FB error:', e));
+      if (p) matchPetToPets(p).catch(e => console.error('Pet↔pet matching error:', e));
     })();
     broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
