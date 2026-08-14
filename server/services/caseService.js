@@ -129,7 +129,7 @@ export async function syncCaseStatus(petId, newStatus) {
 }
 
 // Dashboard completo del caso: caso + mascota + timeline + reporter
-export async function getCaseDashboard(caseId, viewerUserId = null) {
+export async function getCaseDashboard(caseId, viewerUserId = null, _visited = new Set()) {
   const caseRes = await pool.query(
     `SELECT pc.*,
             u.display_name AS reporter_name, u.email AS reporter_email, u.phone AS reporter_phone
@@ -141,8 +141,8 @@ export async function getCaseDashboard(caseId, viewerUserId = null) {
   if (caseRes.rows.length === 0) return null;
   const petCase = caseRes.rows[0];
 
-  // Si el caso está cerrado por "grouped", redirige al caso principal.
-  if (petCase.status === 'closed') {
+  // Si el caso está cerrado por "grouped", redirige al caso principal (con protección anti-recursión).
+  if (petCase.status === 'closed' && !_visited.has(caseId)) {
     const closeEvt = await pool.query(
       `SELECT payload FROM case_events
        WHERE case_id = $1 AND event_type = 'case_closed' AND payload->>'reason' = 'grouped'
@@ -150,9 +150,8 @@ export async function getCaseDashboard(caseId, viewerUserId = null) {
       [caseId]
     );
     const mergedInto = closeEvt.rows[0]?.payload?.merged_into;
-    if (mergedInto) {
-      // Devolver el caso principal completo, marcando que viene de redirección.
-      const main = await getCaseDashboard(mergedInto, viewerUserId);
+    if (mergedInto && mergedInto !== caseId && !_visited.has(mergedInto) && _visited.size < 3) {
+      const main = await getCaseDashboard(mergedInto, viewerUserId, new Set([..._visited, caseId]));
       if (main) return { ...main, redirected_from: { case_id: caseId, case_number: petCase.case_number } };
     }
   }
@@ -198,10 +197,11 @@ export async function getCaseDashboard(caseId, viewerUserId = null) {
 
   // Casos que fueron mergeados EN este caso (para mostrar en el dashboard principal).
   const mergedRes = await pool.query(
-    `SELECT pc.id, pc.case_number, ce.created_at AS merged_at, ce.payload
+    `SELECT ce.payload->>'merged_pet_id' AS merged_pet_id,
+            ce.payload->>'merged_case_number' AS merged_case_number,
+            ce.created_at AS merged_at
      FROM case_events ce
-     JOIN pet_cases pc ON pc.id = ce.case_id
-     WHERE ce.event_type = 'case_merged' AND ce.payload->>'merged_into' = $1::text
+     WHERE ce.case_id = $1 AND ce.event_type = 'case_merged'
      ORDER BY ce.created_at DESC`,
     [caseId]
   );

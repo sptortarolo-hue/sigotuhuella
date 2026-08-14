@@ -49,9 +49,8 @@ export default function PetDuplicateGroupModal({ petId, petName, onClose, onSave
     setSaving(true);
     setError('');
     try {
-      // selected = el pet duplicado encontrado; petId = el actual.
-      // La API determina automáticamente cuál es root (el que tiene case, más viejo, etc).
-      await api.pets.group(selected, petId);
+      // petId es el root (la ficha que estoy viendo), selected es el duplicado a agrupar.
+      await api.pets.group(petId, selected);
       onSaved();
       onClose();
     } catch (e: any) {

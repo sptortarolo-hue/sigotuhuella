@@ -89,7 +89,10 @@ router.post('/:id/comments/:commentId/reply', requireAuth, async (req, res) => {
     const { text } = req.body;
     if (!text || !text.trim()) return res.status(400).json({ error: 'El texto de la respuesta es obligatorio' });
 
-    const can = await canManageCase(req.params.id, req.user.id);
+    const caseRes = await pool.query('SELECT * FROM pet_cases WHERE id = $1', [req.params.id]);
+    if (caseRes.rows.length === 0) return res.status(404).json({ error: 'Caso no encontrado' });
+    const petCase = caseRes.rows[0];
+    const can = await canManageCase(req.user.id, petCase);
     if (!can) return res.status(403).json({ error: 'No tenés permisos para responder este caso' });
 
     const commentId = req.params.commentId;
