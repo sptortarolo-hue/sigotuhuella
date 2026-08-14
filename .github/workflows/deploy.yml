@@ -120,6 +120,10 @@ jobs:
           if [ -f /root/.sihuella-fcm.json ]; then
             grep -q 'GOOGLE_APPLICATION_CREDENTIALS' server/.env 2>/dev/null || echo "GOOGLE_APPLICATION_CREDENTIALS=/root/.sihuella-fcm.json" >> server/.env
           fi
+          # Restore VAPID keys (never overwritten by deploy)
+          if [ -f /root/.sihuella-vapid.env ]; then
+            grep -q 'VAPID_PUBLIC_KEY' server/.env 2>/dev/null || cat /root/.sihuella-vapid.env >> server/.env
+          fi
           # Start our app with PM2
           pm2 delete sigotuhuella 2>/dev/null || true
           pm2 start npm --name sigotuhuella --update-env -- start
