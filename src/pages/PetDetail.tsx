@@ -323,7 +323,7 @@ Me gustaría obtener más información.`;
     : pet.status;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-brand-primary font-bold mb-8 transition-colors">
         <ArrowLeft className="w-4 h-4" /> Volver
       </button>
@@ -340,9 +340,9 @@ Me gustaría obtener más información.`;
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
         {/* Galería de Imágenes */}
-        <div className="space-y-4">
+        <div className="lg:col-span-7 space-y-4">
           <div className="relative aspect-square rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-xl group cursor-pointer"
             onClick={() => { if (allImages.length > 0) { setLightboxImages(allImages); setLightboxIndex(currentImageIdx); } }}>
             {allImages.length > 0 ? (
@@ -390,7 +390,7 @@ Me gustaría obtener más información.`;
         </div>
 
         {/* Información Detallada */}
-        <div className="flex flex-col h-full lg:sticky lg:top-6">
+        <div className="flex flex-col lg:col-span-5 lg:self-start lg:sticky lg:top-6">
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-4 flex-wrap">
               <div className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide", statusColors[displayStatus])}>
@@ -537,9 +537,96 @@ Me gustaría obtener más información.`;
               </div>
             )}
           </div>
+        </div>
 
+        {/* CTAs: Impacto + Difusión + Contactar + botones (bajo la foto en desktop) */}
+        <div className="lg:col-span-7 order-4 lg:order-none space-y-6">
           {caseData && !caseError && (
-            <div className="bg-white p-6 rounded-[2rem] border border-brand-accent mb-8 shadow-sm">
+            <>
+              <CaseImpact caseId={caseData.id} impact={caseData.impact} canReply={isCaseOwner || !!user?.admin} />
+              <CaseShares caseId={caseData.id} />
+            </>
+          )}
+
+          <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
+            {pet.contact_info ? (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => contactWhatsApp('contact_info')}
+                  className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
+                >
+                  <MessageCircle className="w-5 h-5 shrink-0" />
+                  <span className="text-sm">{pet.contact_info_2 ? 'Contactar 1' : 'Contactar'}</span>
+                </button>
+                {pet.contact_info_2 && (
+                  <button
+                    onClick={() => contactWhatsApp('contact_info_2')}
+                    className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
+                  >
+                    <MessageCircle className="w-5 h-5 shrink-0" />
+                    <span className="text-sm">Contactar 2</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <button
+                  disabled
+                  className="w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all bg-gray-200 text-gray-400 cursor-not-allowed"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  Contactar
+                </button>
+                <p className="text-center text-xs text-gray-400">
+                  El contacto no está disponible para esta publicación.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-brand-accent pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              onClick={() => setShowImageModal(true)}
+              className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-lg"
+            >
+              <MessageCircle className="w-5 h-5" />
+              Generar cartel
+            </button>
+            <button
+              onClick={() => shareOnWhatsApp(pet)}
+              className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-lg hover:from-green-600 hover:to-emerald-700"
+            >
+              <Share2 className="w-5 h-5" />
+              WhatsApp
+            </button>
+            <button
+              onClick={() => shareOnFacebook(pet)}
+              className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-blue-600 text-white hover:shadow-lg hover:bg-blue-700"
+            >
+              <Share2 className="w-5 h-5" />
+              Facebook
+            </button>
+            <button
+              onClick={() => { if (!user) { navigate('/login'); return; } setShowReportModal(true); }}
+              className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gray-50 text-gray-600 border border-brand-accent hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+            >
+              <Flag className="w-5 h-5" />
+              Reportar
+            </button>
+            {user && user.id === pet.created_by && (
+              <button
+                onClick={() => { setShareEmail(''); setSharePhone(''); setShareMsg(''); setShareResult(null); setShowShareModal(true); }}
+                className="sm:col-span-2 w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-brand-primary/10 text-brand-primary border border-brand-accent hover:bg-brand-primary/20"
+              >
+                <Share2 className="w-5 h-5" />
+                Compartir acceso
+              </button>
+            )}
+          </div>
+        </div>
+
+        {caseData && !caseError && (
+          <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-sm order-3 lg:order-none lg:col-span-12">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                 <h3 className="text-lg sm:text-xl font-serif font-bold text-brand-primary flex items-center gap-2">
                   <BadgeCheck className="w-5 h-5" /> Caso de seguimiento
@@ -669,18 +756,6 @@ Me gustaría obtener más información.`;
                 </div>
               )}
 
-              {/* CaseImpact: métricas IG/FB */}
-              {caseData.impact && (
-                <div className="mb-5">
-                  <CaseImpact caseId={caseData.id} impact={caseData.impact} canReply={isCaseOwner || !!user?.admin} />
-                </div>
-              )}
-
-              {/* CaseShares: difusión */}
-              <div className="mb-5">
-                <CaseShares caseId={caseData.id} />
-              </div>
-
               {/* Reportar teléfono sospechoso */}
               {user && (
                 <button
@@ -702,85 +777,6 @@ Me gustaría obtener más información.`;
               onSaved={async () => { setShowSightingModal(false); await refreshCase(); }}
             />
           )}
-
-          <div className="mt-auto space-y-6">
-            <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
-              {pet.contact_info ? (
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => contactWhatsApp('contact_info')}
-                    className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
-                  >
-                    <MessageCircle className="w-5 h-5 shrink-0" />
-                    <span className="text-sm">{pet.contact_info_2 ? 'Contactar 1' : 'Contactar'}</span>
-                  </button>
-                  {pet.contact_info_2 && (
-                    <button
-                      onClick={() => contactWhatsApp('contact_info_2')}
-                      className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
-                    >
-                      <MessageCircle className="w-5 h-5 shrink-0" />
-                      <span className="text-sm">Contactar 2</span>
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <button
-                    disabled
-                    className="w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all bg-gray-200 text-gray-400 cursor-not-allowed"
-                  >
-                    <MessageCircle className="w-5 h-5" />
-                    Contactar
-                  </button>
-                  <p className="text-center text-xs text-gray-400">
-                    El contacto no está disponible para esta publicación.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-brand-accent pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                onClick={() => setShowImageModal(true)}
-                className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-lg"
-              >
-                <MessageCircle className="w-5 h-5" />
-                Generar cartel
-              </button>
-              <button
-                onClick={() => shareOnWhatsApp(pet)}
-                className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-lg hover:from-green-600 hover:to-emerald-700"
-              >
-                <Share2 className="w-5 h-5" />
-                WhatsApp
-              </button>
-              <button
-                onClick={() => shareOnFacebook(pet)}
-                className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-blue-600 text-white hover:shadow-lg hover:bg-blue-700"
-              >
-                <Share2 className="w-5 h-5" />
-                Facebook
-              </button>
-              <button
-                onClick={() => { if (!user) { navigate('/login'); return; } setShowReportModal(true); }}
-                className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gray-50 text-gray-600 border border-brand-accent hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-              >
-                <Flag className="w-5 h-5" />
-                Reportar
-              </button>
-              {user && user.id === pet.created_by && (
-                <button
-                  onClick={() => { setShareEmail(''); setSharePhone(''); setShareMsg(''); setShareResult(null); setShowShareModal(true); }}
-                  className="sm:col-span-2 w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-brand-primary/10 text-brand-primary border border-brand-accent hover:bg-brand-primary/20"
-                >
-                  <Share2 className="w-5 h-5" />
-                  Compartir acceso
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Reportes relacionados (agrupados) */}
