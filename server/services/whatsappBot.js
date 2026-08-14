@@ -1061,9 +1061,15 @@ async function rsContact(conv, parsed) {
 async function rsConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
-    if ((!ctx.latitude || !isInInfluenceZone(ctx.latitude, ctx.longitude)) && ctx.location) {
+    if (ctx.location) {
       const coords = await geocodeAddress(ctx.location).catch(() => null);
-      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+      if (coords) {
+        ctx.latitude = coords.lat;
+        ctx.longitude = coords.lng;
+      } else {
+        ctx.latitude = -34.9155;
+        ctx.longitude = -57.9480;
+      }
     }
     const neighborhoods = extractNeighborhoods(ctx.location);
     const species = ctx.species || 'dog';
@@ -1264,9 +1270,15 @@ async function rfShowConfirm(conv) {
 async function rfConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
-    if ((!ctx.latitude || !isInInfluenceZone(ctx.latitude, ctx.longitude)) && ctx.location) {
+    if (ctx.location) {
       const coords = await geocodeAddress(ctx.location).catch(() => null);
-      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+      if (coords) {
+        ctx.latitude = coords.lat;
+        ctx.longitude = coords.lng;
+      } else {
+        ctx.latitude = -34.9155;
+        ctx.longitude = -57.9480;
+      }
     }
     const neighborhoods = extractNeighborhoods(ctx.location);
     const species = ctx.species || 'dog';
@@ -2792,9 +2804,15 @@ async function apDescription(conv, parsed) {
 async function apConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
-    if ((!ctx.latitude || !isInInfluenceZone(ctx.latitude, ctx.longitude)) && ctx.location) {
+    if (ctx.location) {
       const coords = await geocodeAddress(ctx.location).catch(() => null);
-      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
+      if (coords) {
+        ctx.latitude = coords.lat;
+        ctx.longitude = coords.lng;
+      } else {
+        ctx.latitude = -34.9155;
+        ctx.longitude = -57.9480;
+      }
     }
     const neighborhoods = extractNeighborhoods(ctx.location);
     const petResult = await pool.query(
