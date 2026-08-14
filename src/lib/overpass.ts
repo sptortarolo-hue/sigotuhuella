@@ -10,11 +10,14 @@ function extractNum(name: string): string {
   return m ? m[1].trim() : name;
 }
 
+// Regex compatible con el engine de Overpass (verificado en vivo): NO acepta
+// grupos no-capturadores `(?:...)` (400) ni escapes como `\s` o `\d`. Solo
+// grupos capturadores, caracteres literales y clases `[...]`.
 function streetRegex(road: string): string {
   const m = road.match(/^Calle\s+(\d+)/i);
   const num = m ? m[1] : road.replace(/\D+/g, '');
   if (!num) return '';
-  return `^(?:Calle\\s+)?${num}(?:\\s+(?:[Bb][Ii][Ss]|[Bb]))?$`;
+  return `^(Calle |Av |Avenida )?${num}( (Bis|bis|BIS))?$`;
 }
 
 function segmentIntersection(
@@ -86,7 +89,17 @@ export async function fetchEntreCalles(
   const roadWays = await fetchNearbyWays(road, lat, lng);
   if (roadWays.length === 0) return null;
 
-  const roadGeom = roadWays[0].geometry as { lat: number; lon: number }[];
+  // Las calles de La Plata están fragmentadas en muchos ways: usar roadWays[0]
+  // puede tomar un tramo lejano al click. Elegimos el way más cercano.
+  const geom = (w: any) => w.geometry as { lat: number; lon: number }[];
+  let roadGeom = geom(roadWays[0]);
+  let nearest = Infinity;
+  for (const w of roadWays) {
+    for (const p of geom(w)) {
+      const d = (p.lat - lat) ** 2 + (p.lon - lng) ** 2;
+      if (d < nearest) { nearest = d; roadGeom = geom(w); }
+    }
+  }
 
   // Punto más cercano de la calle al click (índice de segmento).
   let minSegIdx = 0;
@@ -107,7 +120,7 @@ export async function fetchEntreCalles(
 
   // Buscar cruces geométricos de la calle con transversales nombradas.
   // Para eso traemos las transversales alrededor del punto del click.
-  const crossRe = `^(?:Calle\\s+)?(\\d{1,3}(?:\\s+(?:[Bb][Ii][Ss]|[Bb]))?)$`;
+  const crossRe = `^(Calle |Av |Avenida )?[0-9]{1,3}( (Bis|bis|BIS))?$`;
   const query = `[out:json][timeout:15];
 way["name"~"${crossRe}"](around:250,${lat},${lng});
 out body geom;`;
