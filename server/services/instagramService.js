@@ -7,8 +7,8 @@ let lastCreateContainerResponse = null;
 
 function getSettings() {
   return {
-    appId: process.env.INSTAGRAM_APP_ID || process.env.FACEBOOK_APP_ID || '',
-    appSecret: process.env.INSTAGRAM_APP_SECRET || process.env.FACEBOOK_APP_SECRET || '',
+    appId: process.env.FACEBOOK_APP_ID || '',
+    appSecret: process.env.FACEBOOK_APP_SECRET || '',
     redirectUri: process.env.INSTAGRAM_REDIRECT_URI || 'https://sigotuhuella.com.ar/api/instagram/callback',
   };
 }
