@@ -103,7 +103,7 @@ export default function RafflesTab() {
   async function fetchRaffles() {
     try {
       setLoading(true);
-      const data = await api.raffles.list();
+      const data = await api.raffles.adminList();
       setRaffles(data.raffles);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }

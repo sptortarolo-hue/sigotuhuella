@@ -528,6 +528,7 @@ export const api = {
     : {
         raffles: {
           list: () => request('/raffles'),
+          adminList: () => request('/raffles/admin'),
           get: (id: string) => request(`/raffles/${id}`),
           create: (data: any) => request('/raffles', { method: 'POST', body: JSON.stringify(data) }),
           update: (id: string, data: any) => request(`/raffles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

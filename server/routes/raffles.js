@@ -43,29 +43,57 @@ function formatPhone(phone) {
   return phone.replace(/[^0-9]/g, '');
 }
 
+async function fetchRafflesList(statusFilter) {
+  const result = await pool.query(
+    `SELECT r.*,
+      (SELECT COUNT(*) FROM raffle_tickets t WHERE t.raffle_id = r.id AND t.status = 'paid') AS sold_count,
+      (SELECT COUNT(*) FROM raffle_prizes p WHERE p.raffle_id = r.id) AS prize_count
+     FROM raffles r
+     ${statusFilter}
+     ORDER BY r.created_at DESC`
+  );
+  const raffles = result.rows;
+  for (const r of raffles) {
+    const prizes = await pool.query(
+      'SELECT * FROM raffle_prizes WHERE raffle_id = $1 ORDER BY position',
+      [r.id]
+    );
+    r.prizes = prizes.rows;
+  }
+  return raffles;
+}
+
 // Public: list active raffles
 router.get('/', async (_req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT r.*,
-        (SELECT COUNT(*) FROM raffle_tickets t WHERE t.raffle_id = r.id AND t.status = 'paid') AS sold_count,
-        (SELECT COUNT(*) FROM raffle_prizes p WHERE p.raffle_id = r.id) AS prize_count
-       FROM raffles r
-       WHERE r.status IN ('active', 'paused')
-       ORDER BY r.created_at DESC`
-    );
-    const raffles = result.rows;
-    for (const r of raffles) {
-      const prizes = await pool.query(
-        'SELECT * FROM raffle_prizes WHERE raffle_id = $1 ORDER BY position',
-        [r.id]
-      );
-      r.prizes = prizes.rows;
-    }
-    res.json({ raffles });
+    res.json({ raffles: await fetchRafflesList(`WHERE r.status IN ('active', 'paused')`) });
   } catch (err) {
     console.error('GET /raffles error:', err);
     res.status(500).json({ error: 'Error al listar rifas' });
+  }
+});
+
+// Admin: list all raffles (including drawn/closed), same shape as public list
+router.get('/admin', requireAdmin, async (_req, res) => {
+  try {
+    res.json({ raffles: await fetchRafflesList('') });
+  } catch (err) {
+    console.error('GET /raffles/admin error:', err);
+    res.status(500).json({ error: 'Error al listar rifas' });
+  }
+});
+
+// Admin: get unmatched raffle receipts (no raffle_id)
+// Debe ir antes de GET /:id para no colisionar con el param id.
+router.get('/unmatched-receipts', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM raffle_receipts WHERE raffle_id IS NULL ORDER BY created_at DESC LIMIT 50`
+    );
+    res.json({ receipts: result.rows });
+  } catch (err) {
+    console.error('GET /raffles/unmatched-receipts error:', err);
+    res.status(500).json({ error: 'Error al obtener recibos sin asignar' });
   }
 });
 
@@ -642,19 +670,6 @@ router.post('/cleanup', requireAdmin, async (_req, res) => {
   } catch (err) {
     console.error('POST /raffles/cleanup error:', err);
     res.status(500).json({ error: 'Error al limpiar reservas' });
-  }
-});
-
-// Admin: get unmatched raffle receipts (no raffle_id)
-router.get('/unmatched-receipts', requireAdmin, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT * FROM raffle_receipts WHERE raffle_id IS NULL ORDER BY created_at DESC LIMIT 50`
-    );
-    res.json({ receipts: result.rows });
-  } catch (err) {
-    console.error('GET /raffles/unmatched-receipts error:', err);
-    res.status(500).json({ error: 'Error al obtener recibos sin asignar' });
   }
 });
 
