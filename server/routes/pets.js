@@ -66,11 +66,18 @@ router.get('/', async (req, res) => {
       ? `json_build_object('id', pi.id, 'has_image', pi.image_data IS NOT NULL, 'mime_type', pi.mime_type, 'external_url', pi.external_url)`
       : `json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL)`;
     let query = `
-      SELECT p.*, 
+      SELECT p.*,
         COALESCE(json_agg(${imageFields} ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images,
         EXISTS(SELECT 1 FROM adoption_assignments aa
                WHERE aa.pet_id = p.id
-                 AND (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))) as has_pending_adoption
+                 AND (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))) as has_pending_adoption,
+        (SELECT json_build_object('permalink', ip.ig_permalink, 'likes', ip.like_count, 'comments', ip.comment_count, 'shares', ip.share_count)
+         FROM instagram_posts ip WHERE ip.pet_id = p.id AND ip.status = 'published'
+         ORDER BY ip.published_at DESC NULLS LAST LIMIT 1) as ig_impact,
+        (SELECT json_build_object('post_id', fp.page_post_id, 'likes', fp.like_count, 'comments', fp.comment_count, 'shares', fp.share_count)
+         FROM facebook_page_posts fp WHERE fp.pet_id = p.id AND fp.status = 'published'
+         ORDER BY fp.published_at DESC NULLS LAST LIMIT 1) as fb_impact,
+        (SELECT pc.case_number FROM pet_cases pc WHERE pc.pet_id = p.id ORDER BY pc.created_at DESC LIMIT 1) as case_number
       FROM pets p
       LEFT JOIN pet_images pi ON pi.pet_id = p.id
     `;

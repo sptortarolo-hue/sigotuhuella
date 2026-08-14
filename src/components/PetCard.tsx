@@ -1,17 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Phone, MessageCircle, Share2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, ChevronLeft, ChevronRight, Heart, Repeat2, Eye, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
 import PetImage from '@/src/components/PetImage';
-import SocialShareModal from '@/src/components/SocialShareModal';
-import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
-import { shareOnFacebook } from '@/src/lib/facebookShare';
 import { LinkifiedText } from '@/src/lib/linkify';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
-import { AnimatePresence } from 'motion/react';
 
 interface PetCardProps {
   key?: React.Key;
@@ -23,7 +19,6 @@ interface PetCardProps {
 
 export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: PetCardProps) {
     const navigate = useNavigate();
-    const [showShareModal, setShowShareModal] = useState(false);
     const [currentIdx, setCurrentIdx] = useState(0);
     const touchStartX = useRef(0);
     const petNeighborhoods: string[] = (() => {
@@ -213,50 +208,60 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
           </p>
         )}
 
-        <div className="flex flex-wrap gap-2 pt-4 border-t border-brand-accent">
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowShareModal(true); }}
-            className="flex-1 min-w-[130px] px-4 py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:shadow-lg transition-all"
-          >
-            <MessageCircle className="w-4 h-4" />
-            Imagen para Compartir
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); shareOnWhatsApp(pet); }}
-            className="flex-1 min-w-[130px] px-4 py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-600 hover:shadow-lg transition-all"
-          >
-            <Share2 className="w-4 h-4" />
-            WhatsApp
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); shareOnFacebook(pet); }}
-            className="flex-1 min-w-[130px] px-4 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-blue-700 hover:shadow-lg transition-all"
-          >
-            <Share2 className="w-4 h-4" />
-            Facebook
-          </button>
-          {showAdminActions && (
-            <>
-              <button
-                onClick={() => onEdit?.(pet)}
-                className="flex-1 min-w-[130px] px-4 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-bold hover:bg-brand-primary hover:text-white transition-colors"
-              >
-                Editar
-              </button>
-              <button
-                onClick={() => onDelete?.(pet.id)}
-                className="flex-1 min-w-[130px] px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-colors"
-              >
-                Borrar
-              </button>
-            </>
-          )}
-        </div>
-        <AnimatePresence>
-          {showShareModal && (
-            <SocialShareModal pet={pet} onClose={() => setShowShareModal(false)} />
-          )}
-        </AnimatePresence>
+        {(pet.ig_impact || pet.fb_impact || (pet.view_count ?? 0) > 0) && (
+          <div className="pt-4 border-t border-brand-accent">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">🚀 Impacto de la publicación</p>
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
+              {pet.ig_impact && (
+                <>
+                  <span className="flex items-center gap-1 text-xs"><Heart className="w-3 h-3 text-pink-500" /> <span className="font-bold text-gray-700">{pet.ig_impact.likes}</span> <span className="text-gray-400">IG likes</span></span>
+                  <span className="flex items-center gap-1 text-xs"><MessageCircle className="w-3 h-3 text-pink-500" /> <span className="font-bold text-gray-700">{pet.ig_impact.comments}</span> <span className="text-gray-400">IG coments</span></span>
+                  <span className="flex items-center gap-1 text-xs"><Repeat2 className="w-3 h-3 text-pink-500" /> <span className="font-bold text-gray-700">{pet.ig_impact.shares}</span> <span className="text-gray-400">IG reenv.</span></span>
+                </>
+              )}
+              {pet.fb_impact && (
+                <>
+                  <span className="flex items-center gap-1 text-xs"><Heart className="w-3 h-3 text-blue-600" /> <span className="font-bold text-gray-700">{pet.fb_impact.likes}</span> <span className="text-gray-400">FB likes</span></span>
+                  <span className="flex items-center gap-1 text-xs"><MessageCircle className="w-3 h-3 text-blue-600" /> <span className="font-bold text-gray-700">{pet.fb_impact.comments}</span> <span className="text-gray-400">FB coments</span></span>
+                  <span className="flex items-center gap-1 text-xs"><Repeat2 className="w-3 h-3 text-blue-600" /> <span className="font-bold text-gray-700">{pet.fb_impact.shares}</span> <span className="text-gray-400">FB comp.</span></span>
+                </>
+              )}
+              {(pet.view_count ?? 0) > 0 && (
+                <span className="flex items-center gap-1 text-xs"><Eye className="w-3 h-3 text-amber-500" /> <span className="font-bold text-gray-700">{pet.view_count}</span> <span className="text-gray-400">vistas</span></span>
+              )}
+            </div>
+            {(pet.ig_impact?.permalink || pet.fb_impact?.post_id) && (
+              <div className="flex gap-3 mt-2">
+                {pet.ig_impact?.permalink && (
+                  <a href={pet.ig_impact.permalink} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-[10px] text-pink-600 font-bold hover:underline">
+                    <ExternalLink className="w-3 h-3" /> Instagram
+                  </a>
+                )}
+                {pet.fb_impact?.post_id && (
+                  <a href={`https://facebook.com/${pet.fb_impact.post_id}`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-[10px] text-blue-600 font-bold hover:underline">
+                    <ExternalLink className="w-3 h-3" /> Facebook
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {showAdminActions && (
+          <div className="flex gap-2 pt-4 border-t border-brand-accent">
+            <button
+              onClick={() => onEdit?.(pet)}
+              className="flex-1 min-w-[130px] px-4 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl text-xs font-bold hover:bg-brand-primary hover:text-white transition-colors"
+            >
+              Editar
+            </button>
+            <button
+              onClick={() => onDelete?.(pet.id)}
+              className="flex-1 min-w-[130px] px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-colors"
+            >
+              Borrar
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

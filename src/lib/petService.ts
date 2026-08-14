@@ -61,6 +61,10 @@ export interface Pet {
   group_id?: string | null;
   transit_caregiver_id?: string | null;
   transit_assigned_at?: string | null;
+  view_count?: number;
+  ig_impact?: { permalink: string; likes: number; comments: number; shares: number } | null;
+  fb_impact?: { post_id: string; likes: number; comments: number; shares: number } | null;
+  case_number?: string | null;
 }
 
 export function getPetImageUrl(pet: Pet): string | undefined {

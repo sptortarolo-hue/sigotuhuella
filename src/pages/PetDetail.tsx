@@ -18,6 +18,7 @@ import ImageLightbox from '@/src/components/admin/ImageLightbox';
 import { Helmet } from 'react-helmet-async';
 import { PhoneInput } from '@/src/components/PhoneInput';
 import ReportModal from '@/src/components/ReportModal';
+import SocialShareModal from '@/src/components/SocialShareModal';
 import CaseMap from '@/src/components/CaseMap';
 import CaseTimeline from '@/src/components/CaseTimeline';
 import SightingModal from '@/src/components/SightingModal';
@@ -64,6 +65,7 @@ export default function PetDetail() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const [shareEmail, setShareEmail] = useState('');
   const [sharePhone, setSharePhone] = useState('');
   const [shareMsg, setShareMsg] = useState('');
@@ -610,6 +612,13 @@ Me gustaría obtener más información.`;
 
             <div className="border-t border-brand-accent pt-4 space-y-3">
               <button
+                onClick={() => setShowImageModal(true)}
+                className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-lg"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Generar cartel para compartir
+              </button>
+              <button
                 onClick={() => shareOnWhatsApp(pet)}
                 className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-lg hover:from-green-600 hover:to-emerald-700"
               >
@@ -848,6 +857,10 @@ Me gustaría obtener más información.`;
         targetId={id || ''}
         onClose={() => setShowReportModal(false)}
       />
+
+      {showImageModal && pet && (
+        <SocialShareModal pet={pet} onClose={() => setShowImageModal(false)} />
+      )}
     </div>
   );
 }
