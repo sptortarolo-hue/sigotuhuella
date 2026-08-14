@@ -1,6 +1,6 @@
 import pool from '../db.js';
 import { sendMessage, sendInteractiveButtons, sendImage, downloadMedia, uploadMedia, broadcastPetToGroups, sendListMessage } from './whatsappService.js';
-import { matchWhatsAppToPets, matchPetToPosts, processImageCaption, classifyTextIntent, detectAndCropPetFace } from './geminiMatching.js';
+import { matchWhatsAppToPets, matchPetToPosts, matchPetToPets, processImageCaption, classifyTextIntent, detectAndCropPetFace } from './geminiMatching.js';
 import { classifyPost } from './geminiClassifier.js';
 import { sendWhatsAppRegistrationEmail } from '../auth.js';
 import { fetchFbPost } from './fbPostFetcher.js';
@@ -896,6 +896,7 @@ async function rlConfirm(conv, parsed, intent) {
     (async () => {
       const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
       if (p) await createPetCase(p, { source: 'whatsapp_bot' });
+      if (p) matchPetToPets(p).catch(e => console.error('Pet↔pet matching error:', e));
       broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     })();
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));
@@ -1294,6 +1295,7 @@ async function rfConfirm(conv, parsed, intent) {
     (async () => {
       const p = (await pool.query('SELECT * FROM pets WHERE id = $1', [petId])).rows[0];
       if (p) await createPetCase(p, { source: 'whatsapp_bot' });
+      if (p) matchPetToPets(p).catch(e => console.error('Pet↔pet matching error:', e));
       broadcastPetToGroups(petId).catch(e => console.error('Broadcast error:', e));
     })();
     notifyPetPublication(petId, conv.wa_from).catch(e => console.error('Publication notify error:', e));

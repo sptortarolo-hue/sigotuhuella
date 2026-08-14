@@ -130,10 +130,14 @@ export const api = {
     update: (id: string, data: any) => request(`/pets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) => request(`/pets/${id}`, { method: 'DELETE' }),
     relations: (id: string) => request(`/pets/${id}/relations`),
-    group: (id: string, memberId: string) =>
-      request(`/pets/${id}/group`, { method: 'POST', body: JSON.stringify({ memberId }) }),
+    group: (id: string, rootId: string) =>
+      request(`/pets/${id}/group`, { method: 'POST', body: JSON.stringify({ rootId }) }),
     ungroup: (id: string, memberId: string) =>
       request(`/pets/${id}/ungroup`, { method: 'POST', body: JSON.stringify({ memberId }) }),
+    similar: (id: string) => request(`/pets/${id}/similar`),
+    rejectMatch: (id: string, matchId: string) =>
+      request(`/pets/${id}/match-reject`, { method: 'POST', body: JSON.stringify({ matchId }) }),
+    groupedMembers: (id: string) => request(`/pets/${id}/grouped-members`),
     transit: (id: string, userId?: string | null, caregiver?: { caregiverName?: string; caregiverPhone?: string; caregiverEmail?: string }) =>
       request(`/pets/${id}/transit`, { method: 'POST', body: JSON.stringify({ userId: userId || null, caregiverName: caregiver?.caregiverName || null, caregiverPhone: caregiver?.caregiverPhone || null, caregiverEmail: caregiver?.caregiverEmail || null }) }),
     exitTransit: (id: string) =>

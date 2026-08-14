@@ -11,6 +11,7 @@ import ReunionModal from '@/src/components/ReunionModal';
 import { getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';
 import { api, apiUrl } from '@/src/lib/api';
 import PetGroupTransitModal from '@/src/components/admin/PetGroupTransitModal';
+import PetDuplicateGroupModal from '@/src/components/admin/PetDuplicateGroupModal';
 
 function petImageAt(pet: any, idx: number): string | undefined {
   if (!pet?.images?.[idx]) return undefined;
@@ -75,6 +76,7 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'images' | 'owner' | 'relations' | 'group' | 'history'>('info');
   const [showReunionModal, setShowReunionModal] = useState(false);
   const [showModal, setShowModal] = useState<null | 'group' | 'transit'>(null);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const { pet, created_by_user, facebook_posts, instagram_posts, whatsapp_messages, facebook_matches, qr_identifiers, group_members, history } = data;
 
   const refresh = () => { onRefresh?.(); };
@@ -505,12 +507,20 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
                     ))}
                   </div>
                 )}
-                <button
-                  onClick={() => setShowModal('group')}
-                  className="mt-3 w-full py-2.5 rounded-xl bg-brand-primary text-white text-xs font-bold hover:bg-brand-primary/90 transition-colors"
-                >
-                  + Agrupar reporte
-                </button>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => setShowDuplicateModal(true)}
+                    className="flex-1 py-2.5 rounded-xl bg-brand-primary text-white text-xs font-bold hover:bg-brand-primary/90 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Layers className="w-3.5 h-3.5" /> Buscar duplicados
+                  </button>
+                  <button
+                    onClick={() => setShowModal('group')}
+                    className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 transition-colors"
+                  >
+                    + Agrupar manual
+                  </button>
+                </div>
               </>
             )}
           </Section>
@@ -696,6 +706,15 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
             onSaved={refresh}
           />
         </AnimatePresence>
+      )}
+
+      {showDuplicateModal && (
+        <PetDuplicateGroupModal
+          petId={pet.id}
+          petName={pet.name || 'Mascota'}
+          onClose={() => setShowDuplicateModal(false)}
+          onSaved={refresh}
+        />
       )}
     </div>
   );

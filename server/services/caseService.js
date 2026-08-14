@@ -141,6 +141,22 @@ export async function getCaseDashboard(caseId, viewerUserId = null) {
   if (caseRes.rows.length === 0) return null;
   const petCase = caseRes.rows[0];
 
+  // Si el caso está cerrado por "grouped", redirige al caso principal.
+  if (petCase.status === 'closed') {
+    const closeEvt = await pool.query(
+      `SELECT payload FROM case_events
+       WHERE case_id = $1 AND event_type = 'case_closed' AND payload->>'reason' = 'grouped'
+       ORDER BY created_at DESC LIMIT 1`,
+      [caseId]
+    );
+    const mergedInto = closeEvt.rows[0]?.payload?.merged_into;
+    if (mergedInto) {
+      // Devolver el caso principal completo, marcando que viene de redirección.
+      const main = await getCaseDashboard(mergedInto, viewerUserId);
+      if (main) return { ...main, redirected_from: { case_id: caseId, case_number: petCase.case_number } };
+    }
+  }
+
   const petRes = await pool.query(
     `SELECT p.*,
        COALESCE(json_agg(
@@ -180,6 +196,16 @@ export async function getCaseDashboard(caseId, viewerUserId = null) {
     [caseId]
   );
 
+  // Casos que fueron mergeados EN este caso (para mostrar en el dashboard principal).
+  const mergedRes = await pool.query(
+    `SELECT pc.id, pc.case_number, ce.created_at AS merged_at, ce.payload
+     FROM case_events ce
+     JOIN pet_cases pc ON pc.id = ce.case_id
+     WHERE ce.event_type = 'case_merged' AND ce.payload->>'merged_into' = $1::text
+     ORDER BY ce.created_at DESC`,
+    [caseId]
+  );
+
   return {
     ...withExpiry(petCase),
     pet: petRes.rows[0] || null,
@@ -189,6 +215,7 @@ export async function getCaseDashboard(caseId, viewerUserId = null) {
     followerCount: await countFollowers(caseId),
     is_following: await isFollowing(caseId, viewerUserId),
     impact: await getCaseImpact(caseId, petCase.pet_id),
+    merged_cases: mergedRes.rows,
   };
 }
 

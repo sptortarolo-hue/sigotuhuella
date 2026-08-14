@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api } from '@/src/lib/api';
 import { useAuth } from '@/src/hooks/useAuth';
 import { getPetCoordinates } from '@/src/lib/petService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
-import { Loader2, MapPin, Calendar, Heart, ArrowLeft, Share2, BadgeCheck, Eye, BellRing, Star, ShieldAlert } from 'lucide-react';
+import { Loader2, MapPin, Calendar, Heart, ArrowLeft, Share2, BadgeCheck, Eye, BellRing, Star, ShieldAlert, Layers } from 'lucide-react';
 import CaseTimeline from '@/src/components/CaseTimeline';
 import CaseMap from '@/src/components/CaseMap';
 import SightingModal from '@/src/components/SightingModal';
@@ -40,6 +40,7 @@ const PET_STATUS_LABELS: Record<string, string> = {
 
 export default function CaseDashboard() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -62,7 +63,13 @@ export default function CaseDashboard() {
     const fetchCase = async () => {
       try {
         const res = await api.cases.get(id!);
-        if (alive) setData(res.case);
+        if (!alive) return;
+        // Redirect si el caso fue unificado en otro (cerrado por 'grouped')
+        if (res.case?.redirected_from) {
+          navigate(`/caso/${res.case.id}`, { replace: true });
+          return;
+        }
+        setData(res.case);
       } catch (e: any) {
         if (alive) setError(e.message || 'Caso no encontrado');
       } finally {
@@ -71,7 +78,7 @@ export default function CaseDashboard() {
     };
     fetchCase();
     return () => { alive = false; };
-  }, [id]);
+  }, [id, navigate]);
 
   const handleToggleSighting = async (sightingId: string, hidden: boolean) => {
     try {
@@ -199,6 +206,20 @@ export default function CaseDashboard() {
           </div>
         </div>
         <div className="p-5 sm:p-8">
+          {data.merged_cases && data.merged_cases.length > 0 && (
+            <div className="mb-4 bg-cyan-50 border border-cyan-200 rounded-2xl p-4 sm:p-5">
+              <p className="text-sm font-bold text-cyan-800 flex items-center gap-2">
+                <Layers className="w-4 h-4" /> Casos consolidados en este ({data.merged_cases.length})
+              </p>
+              <div className="mt-2 space-y-1">
+                {data.merged_cases.map((mc: any) => (
+                  <p key={mc.id} className="text-xs text-cyan-700">
+                    STH{String(mc.case_number).replace(/^STH/i, '')} — unificado el {new Date(mc.merged_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-3xl sm:text-4xl font-serif font-bold text-brand-primary">{pet.name || 'Mascota sin identificar'}</h1>

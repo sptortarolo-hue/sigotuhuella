@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import pool from '../db.js';
 import { sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from './pushService.js';
-import { embedAndMatch } from './embeddingService.js';
+import { embedAndMatch, generateImageEmbedding, generateTextEmbedding, classifyPetAttributes } from './embeddingService.js';
 import { textIntentAI, imageCaptionAI, faceCropAI } from './aiProvider.js';
 
 // ─── Reunion detection (keyword-based, no AI) ───
@@ -432,5 +432,184 @@ export async function detectAndCropPetFace(imageBase64, mimeType) {
   } catch (err) {
     console.error('detectAndCropPetFace error:', err);
     return null;
+  }
+}
+
+// ─── Pet ↔ Pet duplicate detection ───
+
+// Estados que generan pet_cases (para la lógica de root/member).
+const CASE_STATUSES = ['lost', 'transitada', 'found', 'retained', 'accidented', 'needs_attention'];
+const NEW_EVENT_DAYS = 7;
+
+function cosineSim(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dot = 0;
+  for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
+  return dot; // embeddings ya normalizados
+}
+
+export async function matchPetToPets(pet) {
+  try {
+    const imgRes = await pool.query(
+      'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1',
+      [pet.id]
+    );
+    let imageBuffer = null;
+    let mimeType = 'image/jpeg';
+    if (imgRes.rows.length > 0 && imgRes.rows[0].image_data) {
+      imageBuffer = Buffer.from(imgRes.rows[0].image_data, 'base64');
+      mimeType = imgRes.rows[0].mime_type || 'image/jpeg';
+    }
+    if (!imageBuffer) return [];
+
+    let croppedFaceBuffer = null;
+    const cropped = await detectAndCropPetFace(imageBuffer.toString('base64'), mimeType);
+    if (cropped) croppedFaceBuffer = Buffer.from(cropped.cropped, 'base64');
+
+    const embeddingBuffer = croppedFaceBuffer || imageBuffer;
+    const embedding = await generateImageEmbedding(embeddingBuffer);
+
+    const enrichedText = [pet.name, pet.breed, pet.color, pet.species, pet.gender, pet.description].filter(Boolean).join('. ');
+    const srcTextEmb = enrichedText.length > 3 ? await generateTextEmbedding(enrichedText) : null;
+
+    const vecStr = '[' + embedding.map(v => String(v)).join(',') + ']';
+
+    const settingsRes = await pool.query(
+      "SELECT key, value FROM settings WHERE key = ANY($1::text[])",
+      [['matching_pet_dup_score', 'matching_radius_km', 'matching_weight_visual', 'matching_weight_text']]
+    );
+    const s = {};
+    for (const row of settingsRes.rows) s[row.key] = row.value;
+    const minScore = parseInt(s.matching_pet_dup_score || '85');
+    const radiusKm = parseFloat(s.matching_radius_km || '20');
+    const wVisual = parseInt(s.matching_weight_visual || '55');
+    const wText = parseInt(s.matching_weight_text || '10');
+
+    const srcLat = pet.latitude;
+    const srcLng = pet.longitude;
+
+    const candidates = await pool.query(
+      `SELECT id, name, species, breed, color, gender, description, status, case_number, created_at,
+              reunited_at, latitude, longitude, text_embedding,
+              1 - (embedding <=> $1::vector) AS visual_sim
+       FROM pets
+       WHERE embedding IS NOT NULL
+         AND id != $2
+         AND group_id IS NULL
+         AND status = ANY($3::text[])
+         AND 1 - (embedding <=> $1::vector) > 0.70
+       ORDER BY embedding <=> $1::vector
+       LIMIT 20`,
+      [vecStr, pet.id, CASE_STATUSES]
+    );
+
+    const matches = [];
+    for (const c of candidates.rows) {
+      if (srcLat != null && srcLng != null && c.latitude != null && c.longitude != null) {
+        const distKm = 6371 * Math.acos(
+          Math.cos(srcLat * Math.PI / 180) * Math.cos(c.latitude * Math.PI / 180) *
+          Math.cos(c.longitude * Math.PI / 180 - srcLng * Math.PI / 180) +
+          Math.sin(srcLat * Math.PI / 180) * Math.sin(c.latitude * Math.PI / 180)
+        );
+        if (distKm > radiusKm) continue;
+        c.distance_km = distKm;
+      }
+
+      const visualScore = Math.round(c.visual_sim * 100);
+      let textScore = 0;
+      if (srcTextEmb && c.text_embedding) {
+        let tVec = c.text_embedding;
+        if (typeof tVec === 'string') { try { tVec = JSON.parse(tVec); } catch { tVec = null; } }
+        if (tVec) textScore = Math.round(cosineSim(srcTextEmb, tVec) * 100);
+      }
+
+      let bonus = 0;
+      if (pet.name && c.name && pet.name.toLowerCase() === c.name.toLowerCase()) bonus += 15;
+      if (pet.breed && c.breed && pet.breed.toLowerCase() === c.breed.toLowerCase()) bonus += 5;
+      if (pet.color && c.color && pet.color.toLowerCase() === c.color.toLowerCase()) bonus += 3;
+      if (pet.gender && c.gender && pet.gender.toLowerCase() === c.gender.toLowerCase()) bonus += 2;
+
+      const imgTextTotal = wVisual + wText;
+      const score = imgTextTotal > 0
+        ? Math.round((visualScore * wVisual + textScore * wText) / imgTextTotal + bonus)
+        : visualScore + bonus;
+
+      if (score < minScore) continue;
+
+      const matchRow = {
+        target_pet_id: c.id,
+        target_case_number: c.case_number,
+        target_status: c.status,
+        score,
+        visual_score: visualScore,
+        text_score: textScore,
+        distance_km: c.distance_km || null,
+      };
+      matches.push({ ...matchRow, c });
+    }
+
+    matches.sort((a, b) => b.score - a.score);
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+
+    for (const m of matches) {
+      // Determinar root automático (regla 1)
+      const sourceHasCase = CASE_STATUSES.includes(pet.status);
+      const targetHasCase = CASE_STATUSES.includes(m.c.status);
+      let rootPetId, memberPetId;
+      if (sourceHasCase && targetHasCase) {
+        if (new Date(pet.created_at) <= new Date(m.c.created_at)) {
+          rootPetId = pet.id; memberPetId = m.target_pet_id;
+        } else {
+          rootPetId = m.target_pet_id; memberPetId = pet.id;
+        }
+      } else if (sourceHasCase) {
+        rootPetId = pet.id; memberPetId = m.target_pet_id;
+      } else if (targetHasCase) {
+        rootPetId = m.target_pet_id; memberPetId = pet.id;
+      } else {
+        continue; // ninguno tiene case — solo informativo, no sugerir agrupar
+      }
+
+      // Determinar acción (regla 2): new_event vs pending
+      let status = 'pending';
+      let newEventReason = null;
+      const rootRow = rootPetId === pet.id ? pet : m.c;
+      if (rootRow.status === 'reunited' || rootRow.status === 'adopted') {
+        const reunitedAt = rootRow.reunited_at ? new Date(rootRow.reunited_at) : null;
+        const memberCreated = new Date((memberPetId === pet.id ? pet : m.c).created_at);
+        if (reunitedAt) {
+          const daysAfter = (memberCreated - reunitedAt) / (1000 * 60 * 60 * 24);
+          if (daysAfter > NEW_EVENT_DAYS) {
+            status = 'new_event';
+            newEventReason = `Reportado ${Math.round(daysAfter)} días después del reencuentro del caso principal`;
+          }
+        }
+      }
+
+      await pool.query(
+        `INSERT INTO pet_matches (source_pet_id, target_pet_id, score, visual_score, text_score, distance_km, status, new_event_reason)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (source_pet_id, target_pet_id)
+         DO UPDATE SET score = EXCLUDED.score, visual_score = EXCLUDED.visual_score,
+                       text_score = EXCLUDED.text_score, distance_km = EXCLUDED.distance_km,
+                       status = EXCLUDED.status, new_event_reason = EXCLUDED.new_event_reason,
+                       updated_at = NOW()`,
+        [pet.id, m.target_pet_id, m.score, m.visual_score, m.text_score, m.distance_km, status, newEventReason]
+      );
+
+      if (status === 'pending' && m.score >= minScore) {
+        sendPushToAdmins({
+          title: '📋 Posible reporte duplicado',
+          body: `STH${pet.case_number} (${m.score}%) ↔ ${m.target_case_number}`,
+          url: `${frontendUrl}/admin`,
+        }).catch(() => {});
+      }
+    }
+
+    return matches;
+  } catch (err) {
+    console.error('matchPetToPets error:', err);
+    return [];
   }
 }

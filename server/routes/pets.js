@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
-import { matchPetToPosts, matchWhatsAppToPets } from '../services/geminiMatching.js';
+import { matchPetToPosts, matchWhatsAppToPets, matchPetToPets } from '../services/geminiMatching.js';
 import { createPetCase, generateCaseNumber } from '../services/caseService.js';
 import { celebrateStatusChange } from '../services/reunionCelebration.js';
 import { normalizePhone } from '../services/phoneUtils.js';
@@ -305,6 +305,7 @@ router.post('/', requireAuth, async (req, res) => {
     notifyPetPublication(pet.id, req.user.phone).catch(e => console.error('Publication notify error:', e));
     matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
     matchWhatsAppToPets(pet.id).catch(e => console.error('WhatsApp matching error:', e));
+    matchPetToPets(pet).catch(e => console.error('Pet↔pet matching error:', e));
     createPetCase(pet, { source: 'app_auth' });
 
     res.status(201).json({ pet });
@@ -457,53 +458,412 @@ router.delete('/:id', requireAuth, async (req, res) => {
 });
 
 // ── Admin: group duplicate reports ───────────────────────────────────────────
-router.post('/:id/group', requireAdmin, async (req, res) => {
+
+// GET /pets/:id/similar — reportes similares sugeridos para agrupar
+router.get('/:id/similar', requireAdmin, async (req, res) => {
   const petId = req.params.id;
+  try {
+    const res_ = await pool.query(
+      `SELECT pm.score, pm.status, pm.new_event_reason, pm.created_at AS match_created_at,
+              p.id, p.name, p.case_number, p.species, p.status AS pet_status,
+              p.location, p.created_at, p.reunited_at,
+              (SELECT image_data FROM pet_images WHERE pet_id = p.id ORDER BY created_at LIMIT 1) AS image_data,
+              (SELECT mime_type FROM pet_images WHERE pet_id = p.id ORDER BY created_at LIMIT 1) AS image_mime
+       FROM pet_matches pm
+       JOIN pets p ON p.id = CASE
+         WHEN pm.source_pet_id = $1 THEN pm.target_pet_id
+         ELSE pm.source_pet_id
+       END
+       WHERE (pm.source_pet_id = $1 OR pm.target_pet_id = $1)
+         AND pm.status IN ('pending','new_event')
+         AND p.group_id IS NULL
+       ORDER BY pm.score DESC LIMIT 10`,
+      [petId]
+    );
+    const matches = res_.rows.map(r => ({
+      score: r.score,
+      status: r.status,
+      new_event_reason: r.new_event_reason,
+      match_created_at: r.match_created_at,
+      pet: {
+        id: r.id, name: r.name, case_number: r.case_number,
+        species: r.species, status: r.pet_status, location: r.location,
+        created_at: r.created_at, reunited_at: r.reunited_at,
+        image_data: r.image_data, image_mime: r.image_mime,
+      },
+    }));
+    res.json({ matches });
+  } catch (err) {
+    console.error('Get similar pets error:', err);
+    res.status(500).json({ error: 'Error al buscar reportes similares' });
+  }
+});
+
+// POST /pets/:id/match-reject — descartar sugerencia de agrupamiento
+router.post('/:id/match-reject', requireAdmin, async (req, res) => {
+  const { otherId } = req.body;
+  if (!otherId) return res.status(400).json({ error: 'otherId es requerido' });
+  try {
+    await pool.query(
+      `UPDATE pet_matches SET status = 'rejected', updated_at = NOW()
+       WHERE (source_pet_id = $1 AND target_pet_id = $2)
+          OR (source_pet_id = $2 AND target_pet_id = $1)`,
+      [req.params.id, otherId]
+    );
+    res.json({ message: 'Sugerencia descartada' });
+  } catch (err) {
+    console.error('Reject match error:', err);
+    res.status(500).json({ error: 'Error al descartar sugerencia' });
+  }
+});
+
+// GET /pets/:id/grouped-members — miembros agrupados bajo este root (para desagrupar)
+router.get('/:id/grouped-members', requireAdmin, async (req, res) => {
+  try {
+    const res_ = await pool.query(
+      `SELECT p.id, p.name, p.case_number, p.species, p.status, p.created_at,
+              pgh.member_case_id, pgh.member_case_number, pgh.grouped_at
+       FROM pets p
+       JOIN pet_group_history pgh ON pgh.member_pet_id = p.id
+       WHERE pgh.root_pet_id = $1
+       ORDER BY pgh.grouped_at DESC`,
+      [req.params.id]
+    );
+    res.json({ members: res_.rows });
+  } catch (err) {
+    console.error('Get grouped members error:', err);
+    res.status(500).json({ error: 'Error al obtener miembros agrupados' });
+  }
+});
+
+const CASE_STATUSES = ['lost', 'transitada', 'found', 'retained', 'accidented', 'needs_attention'];
+
+// POST /pets/:id/group — agrupar reporte + consolidar caso (transacción)
+router.post('/:id/group', requireAdmin, async (req, res) => {
+  const reqRootId = req.params.id;
   const { memberId } = req.body;
   try {
     if (!memberId) return res.status(400).json({ error: 'memberId es requerido' });
-    if (memberId === petId) return res.status(400).json({ error: 'No se puede agrupar consigo mismo' });
+    if (memberId === reqRootId) return res.status(400).json({ error: 'No se puede agrupar consigo mismo' });
 
     const [rootRes, memberRes] = await Promise.all([
-      pool.query('SELECT id, group_id FROM pets WHERE id = $1', [petId]),
-      pool.query('SELECT id, group_id FROM pets WHERE id = $1', [memberId]),
+      pool.query('SELECT id, group_id, created_at, status FROM pets WHERE id = $1', [reqRootId]),
+      pool.query('SELECT id, group_id, created_at, status FROM pets WHERE id = $1', [memberId]),
     ]);
     if (rootRes.rows.length === 0 || memberRes.rows.length === 0) {
       return res.status(404).json({ error: 'Mascota no encontrada' });
     }
-    if (rootRes.rows[0].group_id) {
-      return res.status(400).json({ error: 'La mascota raíz no puede ser un reporte agrupado' });
-    }
-    if (memberRes.rows[0].group_id && memberRes.rows[0].group_id !== petId) {
-      return res.status(400).json({ error: 'Ese reporte ya pertenece a otra agrupación' });
-    }
-    if (memberRes.rows[0].group_id === petId) {
-      return res.status(400).json({ error: 'Ese reporte ya está agrupado aquí' });
+    const rootRowReq = rootRes.rows[0];
+    const memberRow = memberRes.rows[0];
+
+    if (rootRowReq.group_id) return res.status(400).json({ error: 'La mascota raíz no puede ser un reporte agrupado' });
+    if (memberRow.group_id) return res.status(400).json({ error: 'Ese reporte ya pertenece a otra agrupación' });
+
+    // Determinar root automático: el que tiene case; si ambos, el más viejo.
+    const rootHasCase = CASE_STATUSES.includes(rootRowReq.status);
+    const memberHasCase = CASE_STATUSES.includes(memberRow.status);
+    let rootId, otherId;
+    if (rootHasCase && memberHasCase) {
+      if (new Date(rootRowReq.created_at) <= new Date(memberRow.created_at)) {
+        rootId = reqRootId; otherId = memberId;
+      } else {
+        rootId = memberId; otherId = reqRootId; // swap
+      }
+    } else if (rootHasCase) {
+      rootId = reqRootId; otherId = memberId;
+    } else if (memberHasCase) {
+      rootId = memberId; otherId = reqRootId; // swap
+    } else {
+      return res.status(400).json({ error: 'Ningún reporte tiene caso activo para consolidar' });
     }
 
-    await pool.query('UPDATE pets SET group_id = $1, updated_at = NOW() WHERE id = $2', [petId, memberId]);
-    await addPetHistory({ petId, eventType: 'grouped', description: 'Reporte agregado a esta agrupación', relatedPetId: memberId, changedBy: req.user.id });
-    await addPetHistory({ petId: memberId, eventType: 'grouped', description: 'Reporte agrupado bajo la ficha principal', relatedPetId: petId, changedBy: req.user.id });
-    res.json({ message: 'Reporte agrupado' });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Root case activo
+      let rootCaseRes = await client.query(
+        "SELECT id FROM pet_cases WHERE pet_id = $1 AND status = 'active' LIMIT 1", [rootId]
+      );
+      let rootCaseId;
+      if (rootCaseRes.rows.length === 0) {
+        // Crear case para el root
+        const rootPetRes = await client.query(
+          'SELECT status, created_by FROM pets WHERE id = $1', [rootId]
+        );
+        const rp = rootPetRes.rows[0];
+        const mapping = rp.status === 'lost' || rp.status === 'transitada'
+          ? { type: 'lost', caseStatus: 'active' }
+          : { type: 'found', caseStatus: 'active' };
+        const newCase = await client.query(
+          `INSERT INTO pet_cases (pet_id, reporter_id, reporter_source, type, status, active_until)
+           VALUES ($1, $2, 'grouped', $3, $4, NOW() + INTERVAL '45 days')
+           RETURNING id`,
+          [rootId, rp.created_by || null, mapping.type, mapping.caseStatus]
+        );
+        rootCaseId = newCase.rows[0].id;
+      } else {
+        rootCaseId = rootCaseRes.rows[0].id;
+      }
+
+      // Child case
+      const childCaseRes = await client.query(
+        "SELECT id, status FROM pet_cases WHERE pet_id = $1 AND status = 'active' LIMIT 1", [otherId]
+      );
+      let childCaseId = null;
+      let memberCaseNumber = null;
+      if (childCaseRes.rows.length === 0) {
+        // Sin child case activo (sighted sin case, o ya cerrado). Intentamos cualquier case existente.
+        const anyCase = await client.query(
+          "SELECT id FROM pet_cases WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 1", [otherId]
+        );
+        childCaseId = anyCase.rows[0]?.id || null;
+      } else {
+        childCaseId = childCaseRes.rows[0].id;
+      }
+      const memberCaseNumberRes = await client.query('SELECT case_number FROM pets WHERE id = $1', [otherId]);
+      memberCaseNumber = memberCaseNumberRes.rows[0]?.case_number || null;
+
+      // Migrar datos (guardar IDs para desagrupar)
+      let migratedSightings = [], migratedAreas = [], migratedFollowers = [], migratedIg = [], migratedFb = [];
+
+      if (childCaseId) {
+        const sRes = await client.query(
+          `WITH moved AS (
+             UPDATE case_sightings SET case_id = $1
+             WHERE case_id = $2 RETURNING id
+           ) SELECT array_agg(id) FROM moved`,
+          [rootCaseId, childCaseId]
+        );
+        migratedSightings = sRes.rows[0].array_agg || [];
+
+        const aRes = await client.query(
+          `WITH moved AS (
+             UPDATE case_search_areas SET case_id = $1
+             WHERE case_id = $2 RETURNING id
+           ) SELECT array_agg(id) FROM moved`,
+          [rootCaseId, childCaseId]
+        );
+        migratedAreas = aRes.rows[0].array_agg || [];
+
+        await client.query(
+          'UPDATE neighborhood_alerts SET case_id = $1 WHERE case_id = $2',
+          [rootCaseId, childCaseId]
+        );
+        await client.query(
+          'UPDATE facebook_replicas SET case_id = $1 WHERE case_id = $2',
+          [rootCaseId, childCaseId]
+        );
+
+        const fRes = await client.query(
+          `WITH moved AS (
+             INSERT INTO case_followers (case_id, user_id)
+             SELECT $1, user_id FROM case_followers WHERE case_id = $2
+             ON CONFLICT (case_id, user_id) DO NOTHING RETURNING user_id
+           ) SELECT array_agg(user_id) FROM moved`,
+          [rootCaseId, childCaseId]
+        );
+        migratedFollowers = fRes.rows[0].array_agg || [];
+        await client.query('DELETE FROM case_followers WHERE case_id = $1', [childCaseId]);
+      }
+
+      // Publicaciones IG/FB → root pet
+      const igRes = await client.query(
+        `WITH moved AS (
+           UPDATE instagram_posts SET pet_id = $1 WHERE pet_id = $2 RETURNING id
+         ) SELECT array_agg(id) FROM moved`,
+        [rootId, otherId]
+      );
+      migratedIg = igRes.rows[0].array_agg || [];
+
+      const fbRes = await client.query(
+        `WITH moved AS (
+           UPDATE facebook_page_posts SET pet_id = $1 WHERE pet_id = $2 RETURNING id
+         ) SELECT array_agg(id) FROM moved`,
+        [rootId, otherId]
+      );
+      migratedFb = fbRes.rows[0].array_agg || [];
+
+      // Set group_id
+      await client.query('UPDATE pets SET group_id = $1, updated_at = NOW() WHERE id = $2', [rootId, otherId]);
+
+      // Cerrar child case
+      if (childCaseId) {
+        const childStatusRes = await client.query('SELECT status FROM pet_cases WHERE id = $1', [childCaseId]);
+        const childStatus = childStatusRes.rows[0]?.status;
+        if (childStatus === 'active') {
+          await client.query("UPDATE pet_cases SET status = 'closed' WHERE id = $1", [childCaseId]);
+        }
+        await client.query(
+          `INSERT INTO case_events (case_id, event_type, payload)
+           VALUES ($1, 'case_closed', $2)`,
+          [childCaseId, JSON.stringify({ reason: 'grouped', closed_by: req.user.id, merged_into: rootCaseId })]
+        );
+      }
+
+      // Evento de merge en root case
+      await client.query(
+        `INSERT INTO case_events (case_id, user_id, event_type, payload)
+         VALUES ($1, $2, 'case_merged', $3)`,
+        [rootCaseId, req.user.id, JSON.stringify({
+          merged_pet_id: otherId,
+          merged_case_number: memberCaseNumber,
+          sightings_moved: migratedSightings.length,
+          followers_moved: migratedFollowers.length,
+          search_areas_moved: migratedAreas.length,
+        })]
+      );
+
+      // Guardar historia para desagrupar
+      await client.query(
+        `INSERT INTO pet_group_history
+          (root_pet_id, member_pet_id, root_case_id, member_case_id, member_case_number, grouped_by,
+           migrated_sighting_ids, migrated_search_area_ids, migrated_follower_ids,
+           migrated_ig_post_ids, migrated_fb_post_ids)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [rootId, otherId, rootCaseId, childCaseId, memberCaseNumber, req.user.id,
+         migratedSightings, migratedAreas, migratedFollowers, migratedIg, migratedFb]
+      );
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    // Pet history (fuera de la transacción, tolera fallos)
+    await addPetHistory({ petId: rootId, eventType: 'grouped', description: 'Reporte agregado a esta agrupación', relatedPetId: otherId, changedBy: req.user.id });
+    await addPetHistory({ petId: otherId, eventType: 'grouped', description: 'Reporte agrupado bajo la ficha principal', relatedPetId: rootId, changedBy: req.user.id });
+
+    // pet_matches → grouped
+    await pool.query(
+      `UPDATE pet_matches SET status = 'grouped', updated_at = NOW()
+       WHERE (source_pet_id = $1 AND target_pet_id = $2)
+          OR (source_pet_id = $2 AND target_pet_id = $1)`,
+      [rootId, otherId]
+    );
+
+    res.json({ message: 'Reporte agrupado y caso consolidado', root_id: rootId, member_id: otherId });
   } catch (err) {
     console.error('Group pet error:', err);
     res.status(500).json({ error: 'Failed to group pet' });
   }
 });
 
+// POST /pets/:id/ungroup — desagrupar (reabre child case + migra datos de vuelta)
 router.post('/:id/ungroup', requireAdmin, async (req, res) => {
-  const petId = req.params.id;
+  const rootId = req.params.id;
   const { memberId } = req.body;
   try {
     if (!memberId) return res.status(400).json({ error: 'memberId es requerido' });
-    const memberRes = await pool.query('SELECT id, group_id FROM pets WHERE id = $1', [memberId]);
-    if (memberRes.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
-    if (!memberRes.rows[0].group_id) return res.status(400).json({ error: 'Este reporte no está agrupado' });
 
-    await pool.query('UPDATE pets SET group_id = NULL, updated_at = NOW() WHERE id = $1', [memberId]);
-    await addPetHistory({ petId, eventType: 'ungrouped', description: 'Reporte removido de la agrupación', relatedPetId: memberId, changedBy: req.user.id });
-    await addPetHistory({ petId: memberId, eventType: 'ungrouped', description: 'Reporte separado de la ficha principal', relatedPetId: petId, changedBy: req.user.id });
-    res.json({ message: 'Reporte desagrupado' });
+    const historyRes = await pool.query(
+      `SELECT * FROM pet_group_history
+       WHERE root_pet_id = $1 AND member_pet_id = $2
+       ORDER BY grouped_at DESC LIMIT 1`,
+      [rootId, memberId]
+    );
+    if (historyRes.rows.length === 0) {
+      return res.status(404).json({ error: 'No se encontró registro de agrupamiento' });
+    }
+    const record = historyRes.rows[0];
+    const childCaseId = record.member_case_id;
+    const rootCaseId = record.root_case_id;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Reabrir child case
+      if (childCaseId) {
+        await client.query(
+          `UPDATE pet_cases SET status = 'active', active_until = NOW() + INTERVAL '45 days', updated_at = NOW()
+           WHERE id = $1`, [childCaseId]
+        );
+      }
+
+      // Devolver sightings
+      if (childCaseId && record.migrated_sighting_ids?.length) {
+        await client.query(
+          'UPDATE case_sightings SET case_id = $1 WHERE id = ANY($2::uuid[])',
+          [childCaseId, record.migrated_sighting_ids]
+        );
+      }
+      // Devolver search areas
+      if (childCaseId && record.migrated_search_area_ids?.length) {
+        await client.query(
+          'UPDATE case_search_areas SET case_id = $1 WHERE id = ANY($2::uuid[])',
+          [childCaseId, record.migrated_search_area_ids]
+        );
+      }
+      // Devolver seguidores al child
+      if (childCaseId && record.migrated_follower_ids?.length) {
+        for (const uid of record.migrated_follower_ids) {
+          await client.query(
+            `INSERT INTO case_followers (case_id, user_id) VALUES ($1, $2)
+             ON CONFLICT (case_id, user_id) DO NOTHING`,
+            [childCaseId, uid]
+          );
+        }
+      }
+      // Devolver IG posts
+      if (record.migrated_ig_post_ids?.length) {
+        await client.query(
+          'UPDATE instagram_posts SET pet_id = $1 WHERE id = ANY($2::uuid[])',
+          [memberId, record.migrated_ig_post_ids]
+        );
+      }
+      // Devolver FB posts
+      if (record.migrated_fb_post_ids?.length) {
+        await client.query(
+          'UPDATE facebook_page_posts SET pet_id = $1 WHERE id = ANY($2::uuid[])',
+          [memberId, record.migrated_fb_post_ids]
+        );
+      }
+
+      // Quitar group_id
+      await client.query('UPDATE pets SET group_id = NULL, updated_at = NOW() WHERE id = $1', [memberId]);
+
+      // Eventos
+      await client.query(
+        `INSERT INTO case_events (case_id, user_id, event_type, payload)
+         VALUES ($1, $2, 'case_unmerged', $3)`,
+        [rootCaseId, req.user.id, JSON.stringify({ separated_pet_id: memberId, separated_case_id: childCaseId })]
+      );
+      if (childCaseId) {
+        await client.query(
+          `INSERT INTO case_events (case_id, event_type, payload)
+           VALUES ($1, 'case_reopened', $2)`,
+          [childCaseId, JSON.stringify({ reason: 'ungrouped', reopened_by: req.user.id })]
+        );
+      }
+
+      // Eliminar pet_group_history
+      await client.query('DELETE FROM pet_group_history WHERE id = $1', [record.id]);
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    // Pet history
+    await addPetHistory({ petId: rootId, eventType: 'ungrouped', description: 'Reporte removido de la agrupación', relatedPetId: memberId, changedBy: req.user.id });
+    await addPetHistory({ petId: memberId, eventType: 'ungrouped', description: 'Reporte separado de la ficha principal', relatedPetId: rootId, changedBy: req.user.id });
+
+    // pet_matches → rejected (no sugerir de vuelta automáticamente)
+    await pool.query(
+      `UPDATE pet_matches SET status = 'rejected', updated_at = NOW()
+       WHERE (source_pet_id = $1 AND target_pet_id = $2)
+          OR (source_pet_id = $2 AND target_pet_id = $1)`,
+      [rootId, memberId]
+    );
+
+    res.json({ message: 'Reporte desagrupado y caso reabierto' });
   } catch (err) {
     console.error('Ungroup pet error:', err);
     res.status(500).json({ error: 'Failed to ungroup pet' });
@@ -1148,6 +1508,7 @@ router.post('/public', async (req, res) => {
         // Run matching in background
         matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
         matchWhatsAppToPets(pet.id).catch(e => console.error('Matching WhatsApp->pets error:', e));
+        matchPetToPets(pet).catch(e => console.error('Pet↔pet matching error:', e));
         await createPetCase(pet, { source: 'app_anon' });
 
         // Auto-broadcast to WhatsApp groups for active statuses

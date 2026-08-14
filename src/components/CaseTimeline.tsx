@@ -1,4 +1,4 @@
-import { FilePlus2, Instagram, Facebook, MessageCircle, Users, MapPin, Radar, HandHeart, PartyPopper, Lock, Info, BellRing, QrCode, RefreshCw, Copy } from 'lucide-react';
+import { FilePlus2, Instagram, Facebook, MessageCircle, Users, MapPin, Radar, HandHeart, PartyPopper, Lock, Info, BellRing, QrCode, RefreshCw, Copy, Layers, SplitSquareHorizontal, FolderOpen } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 
 const EVENT_ICONS: Record<string, any> = {
@@ -21,6 +21,9 @@ const EVENT_ICONS: Record<string, any> = {
   case_closed: Lock,
   case_renewed: RefreshCw,
   status_changed: Info,
+  case_merged: Layers,
+  case_unmerged: SplitSquareHorizontal,
+  case_reopened: FolderOpen,
 };
 
 const EVENT_STYLES: Record<string, string> = {
@@ -43,6 +46,9 @@ const EVENT_STYLES: Record<string, string> = {
   case_closed: 'bg-gray-500/10 text-gray-600',
   case_renewed: 'bg-indigo-500/10 text-indigo-600',
   status_changed: 'bg-blue-500/10 text-blue-600',
+  case_merged: 'bg-cyan-500/10 text-cyan-600',
+  case_unmerged: 'bg-orange-500/10 text-orange-600',
+  case_reopened: 'bg-emerald-500/10 text-emerald-600',
 };
 
 function eventLabel(type: string, payload: any) {
@@ -64,11 +70,14 @@ function eventLabel(type: string, payload: any) {
     case 'reunited': return 'Reencontrada';
     case 'reunion_announced': return '¡Volvió a casa!';
     case 'case_closed': {
-      const reasonMap: any = { reunited: 'reunida', adopted: 'adoptada', deceased: 'fallecida', transferred: 'traspasada' };
+      const reasonMap: any = { reunited: 'reunida', adopted: 'adoptada', deceased: 'fallecida', transferred: 'traspasada', grouped: 'unificado en otro caso' };
       return `Caso cerrado (${reasonMap[payload?.reason] || payload?.reason || 'motivo'})`;
     }
     case 'status_changed': return 'Estado del caso actualizado';
     case 'case_renewed': return 'Publicación renovada';
+    case 'case_merged': return 'Caso unificado';
+    case 'case_unmerged': return 'Reporte separado del caso';
+    case 'case_reopened': return 'Caso reabierto';
     default: return type;
   }
 }
@@ -119,6 +128,18 @@ function eventDetail(type: string, payload: any) {
       if (isNaN(d.getTime())) return null;
       return `El caso queda activo hasta el ${d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })}`;
     }
+    case 'case_merged': {
+      const parts: string[] = [];
+      if (payload?.merged_case_number) parts.push(`STH${String(payload.merged_case_number).replace(/^STH/i, '')}`);
+      if (payload?.sightings_moved) parts.push(`${payload.sightings_moved} avistamiento(s)`);
+      if (payload?.followers_moved) parts.push(`${payload.followers_moved} colaborador(es)`);
+      if (payload?.search_areas_moved) parts.push(`${payload.search_areas_moved} zona(s)`);
+      return parts.length ? `Se integró ${parts.join(', ')}` : 'Reporte duplicado consolidado';
+    }
+    case 'case_unmerged':
+      return payload?.separated_case_id ? 'El reporte se separó y reabrió su caso' : null;
+    case 'case_reopened':
+      return payload?.reason === 'ungrouped' ? 'Separado de otro caso tras desagrupar' : 'El caso volvió a estar activo';
     default: return null;
   }
 }

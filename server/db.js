@@ -1781,6 +1781,47 @@ export async function initDb() {
       ALTER TABLE raffles ADD COLUMN IF NOT EXISTS draw_video_url TEXT;
     `, 'raffles draw_video_url');
 
+    // ─── Pet duplicate matching (pet↔pet) ───
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS pet_matches (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        source_pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        target_pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        score INT NOT NULL,
+        visual_score INT,
+        text_score INT,
+        distance_km FLOAT,
+        status VARCHAR(20) DEFAULT 'pending',
+        new_event_reason TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(source_pet_id, target_pet_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_pet_matches_target ON pet_matches(target_pet_id, status);
+      CREATE INDEX IF NOT EXISTS idx_pet_matches_source ON pet_matches(source_pet_id, status);
+    `, 'pet_matches');
+
+    // Guarda qué se migró para poder desagrupar exacto
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS pet_group_history (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        root_pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        member_pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        root_case_id UUID NOT NULL REFERENCES pet_cases(id) ON DELETE CASCADE,
+        member_case_id UUID,
+        member_case_number VARCHAR(20),
+        grouped_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        grouped_at TIMESTAMP DEFAULT NOW(),
+        migrated_sighting_ids UUID[] DEFAULT '{}',
+        migrated_search_area_ids UUID[] DEFAULT '{}',
+        migrated_follower_ids UUID[] DEFAULT '{}',
+        migrated_ig_post_ids UUID[] DEFAULT '{}',
+        migrated_fb_post_ids UUID[] DEFAULT '{}'
+      );
+      CREATE INDEX IF NOT EXISTS idx_pet_group_history_root ON pet_group_history(root_pet_id);
+      CREATE INDEX IF NOT EXISTS idx_pet_group_history_member ON pet_group_history(member_pet_id);
+    `, 'pet_group_history');
+
     console.log('Database migrations complete');
   } finally {
     client.release();
