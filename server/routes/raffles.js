@@ -605,8 +605,11 @@ router.get('/:id/draw-flyer', async (req, res) => {
     const { renderDrawResultFlyer } = await import('../services/drawResultFlyerRenderer.js');
     const pngBuffer = await renderDrawResultFlyer({
       title: raffle.title,
+      description: raffle.description,
       prizes: prizes.rows,
       winners: raffle.draw_results,
+      pricePerNumber: raffle.price_per_number,
+      drawDate: raffle.draw_date,
       logoImage,
     });
     res.set('Content-Type', 'image/png');

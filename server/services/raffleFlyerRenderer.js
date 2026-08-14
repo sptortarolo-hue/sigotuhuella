@@ -1,106 +1,22 @@
-import { readFileSync, existsSync } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const FONT = 'sans-serif';
-const EMOJI_FONT = 'Noto Color Emoji';
-const W = 1080;
-const H = 1350;
-const COLS = 10;
-const BRAND_BAR_H = 70;
-const BRAND_BAR_Y = H - BRAND_BAR_H;
-const TOP_PAD = 50;
-const MAX_CELL_SIZE = 80;
-
-function defaultPrizeTitle(n) {
-  if (n === 1) return '1er Premio';
-  if (n === 2) return '2do Premio';
-  if (n === 3) return '3er Premio';
-  return `${n}to Premio`;
-}
-let _canvasModule = null;
-
-async function getCanvas() {
-  if (!_canvasModule) {
-    _canvasModule = await import('canvas').catch(() => {
-      throw new Error('canvas (node-canvas) no disponible en este servidor');
-    });
-    try {
-      const fontPath = '/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf';
-      if (existsSync(fontPath)) {
-        _canvasModule.registerFont(fontPath, { family: 'Noto Color Emoji' });
-      }
-    } catch (e) { /* ignore */ }
-  }
-  return _canvasModule;
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-}
-
-function drawBgDecorations(ctx, colorStart, colorEnd) {
-  ctx.clearRect(0, 0, W, H);
-  const bgGrad = ctx.createLinearGradient(0, 0, W * 0.3, H);
-  bgGrad.addColorStop(0, colorStart);
-  bgGrad.addColorStop(1, colorEnd);
-  ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, W, H);
-  ctx.globalAlpha = 0.06;
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(W * 0.85, H * 0.12, W * 0.3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(W * 0.1, H * 0.88, W * 0.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(W * 0.75, H * 0.75, W * 0.08, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(W * 0.15, H * 0.12, W * 0.06, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-}
-
-function drawWrappedText(ctx, text, cx, y, maxWidth, fontSize, maxLines, color, lineSpacing) {
-  ctx.font = `600 ${fontSize}px ${FONT}`;
-  ctx.fillStyle = color || '#ffffff';
-  ctx.textBaseline = 'top';
-  const words = text.split(' ');
-  const lines = [[]];
-  let lineW = 0;
-  for (const word of words) {
-    const wordW = ctx.measureText(word + ' ').width;
-    if (lineW + wordW > maxWidth && lines[lines.length - 1].length > 0) {
-      if (lines.length >= maxLines) break;
-      lines.push([]);
-      lineW = 0;
-    }
-    lines[lines.length - 1].push(word);
-    lineW += wordW;
-  }
-  let curY = y;
-  for (let i = 0; i < lines.length && i < maxLines; i++) {
-    const lineText = lines[i].join(' ');
-    if (!lineText) continue;
-    ctx.textAlign = 'center';
-    ctx.fillText(lineText, cx, curY);
-    curY += fontSize * lineSpacing;
-  }
-  return curY;
-}
+import {
+  FONT,
+  EMOJI_FONT,
+  W,
+  H,
+  COLS,
+  MAX_CELL_SIZE,
+  BRAND_BAR_H,
+  BRAND_BAR_Y,
+  TOP_PAD,
+  BRAND_START,
+  BRAND_END,
+  getCanvas,
+  roundRect,
+  drawBgDecorations,
+  drawWrappedText,
+  drawBrandBar,
+  defaultPrizeTitle,
+} from './flyerUtils.js';
 
 function drawNumberGrid(ctx, startY, gridHeight, tickets, totalNumbers) {
   const gap = 3;
@@ -164,66 +80,23 @@ function drawNumberGrid(ctx, startY, gridHeight, tickets, totalNumbers) {
   return gridBottom;
 }
 
-function drawBrandBar(ctx, logoImg) {
-  const brandY = BRAND_BAR_Y;
-  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(W * 0.1, brandY);
-  ctx.lineTo(W * 0.9, brandY);
-  ctx.stroke();
-
-  const logoR = 30;
-  const logoY = brandY + 30;
-  if (logoImg) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(W * 0.32, logoY, logoR, 0, Math.PI * 2);
-    ctx.clip();
-    const la = logoImg.naturalWidth / logoImg.naturalHeight;
-    let lw, lh;
-    if (la > 1) { lh = logoR * 2.2; lw = lh * la; }
-    else { lw = logoR * 2.2; lh = lw / la; }
-    ctx.drawImage(logoImg, W * 0.32 - lw / 2, logoY - lh / 2, lw, lh);
-    ctx.restore();
-    ctx.beginPath();
-    ctx.arc(W * 0.32, logoY, logoR, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.font = `${logoR * 1.5}px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🐾', W * 0.32, logoY);
-  }
-
-  ctx.font = `800 ${38}px ${FONT}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('SIGO TU HUELLA', W * 0.32 + logoR + 15, logoY);
-
-  ctx.font = `600 ${26}px ${FONT}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('sigotuhuella.com.ar', W * 0.88, logoY);
-}
-
 export async function renderRaffleFlyer({
-  title, description, prizes, stats, totalNumbers, pricePerNumber, tickets, drawDate, logoImage,
+  title,
+  description,
+  prizes,
+  stats,
+  totalNumbers,
+  pricePerNumber,
+  tickets,
+  drawDate,
+  logoImage,
 }) {
   const canvasModule = await getCanvas();
   const { createCanvas } = canvasModule;
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
-  const colorStart = '#4F46E5';
-  const colorEnd = '#7C3AED';
-
-  drawBgDecorations(ctx, colorStart, colorEnd);
+  drawBgDecorations(ctx);
 
   let y = TOP_PAD;
 
@@ -406,8 +279,8 @@ export async function renderRaffleFlyer({
     totalH += fs * 1.25;
   }
 
-  const boxW = maxW + ctaBoxPad * 2;
-  const boxH = totalH + ctaBoxPad * 2;
+  const boxW = maxW + 36;
+  const boxH = totalH + 36;
   const boxX = (W - boxW) / 2;
 
   ctx.save();
@@ -417,10 +290,10 @@ export async function renderRaffleFlyer({
   ctx.fill();
   ctx.restore();
 
-  y += ctaBoxPad;
+  y += 18;
   ctx.textBaseline = 'top';
   for (const { text, color } of ctaLines) {
-    let fs = ctaFontSize;
+    let fs = 30;
     ctx.font = `800 ${fs}px ${FONT}`;
     const maxCtaW = W * 0.88;
     if (ctx.measureText(text).width > maxCtaW) {
@@ -431,7 +304,7 @@ export async function renderRaffleFlyer({
     ctx.fillText(text, W / 2, y);
     y += fs * 1.25;
   }
-  y += ctaBoxPad;
+  y += 18;
 
   drawBrandBar(ctx, logoImage || null);
 
