@@ -14,8 +14,8 @@ export const BRAND_BAR_H = 70;
 export const BRAND_BAR_Y = H - BRAND_BAR_H;
 export const TOP_PAD = 50;
 
-const BRAND_START = '#4F46E5';
-const BRAND_END = '#7C3AED';
+export const BRAND_START = '#4F46E5';
+export const BRAND_END = '#7C3AED';
 
 function defaultPrizeTitle(n) {
   if (n === 1) return '1er Premio';
