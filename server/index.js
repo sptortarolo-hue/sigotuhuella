@@ -2,7 +2,7 @@ import './env-loader.js';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { dirname, join } from 'path';
-import { readFileSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
 import pool, { initDb } from './db.js';
@@ -270,7 +270,12 @@ function stripOgTags(html) {
   return html.replace(/<meta\s+(?:property|name)="(?:og:|twitter:)[^"]*"[^>]*\/?>/gi, '');
 }
 
-const indexHtml = readFileSync(join(__dirname, '..', 'dist', 'index.html'), 'utf-8');
+let indexHtml = '';
+try {
+  indexHtml = readFileSync(join(__dirname, '..', 'dist', 'index.html'), 'utf-8');
+} catch (e) {
+  console.warn('[deploy] dist/index.html aún no disponible al arrancar:', e.code || e.message);
+}
 
 app.get('/pet/:id', ogLimiter, async (req, res) => {
   if (!isValidUuid(req.params.id)) {
@@ -595,7 +600,11 @@ app.use('/', sitemapRoutes);
  });
 
  app.get('*', (_req, res) => {
-  res.sendFile(join(__dirname, '..', 'dist', 'index.html'));
+  const indexPath = join(__dirname, '..', 'dist', 'index.html');
+  if (existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+  res.status(503).send('Estamos actualizando la plataforma, volvé a intentar en unos segundos.');
 });
 
 async function seedAdmin() {

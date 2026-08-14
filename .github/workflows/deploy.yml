@@ -83,8 +83,14 @@ jobs:
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /var/www/sigotuhuella && rm -rf /var/www/sigotuhuella/dist"
-        tar czf - dist/ server/ relay.cjs fb-relay.js fb-graphql-scraper.js package.json scripts/backup.sh --exclude='public/generated/music' --exclude='public/generated/videos' public/ | ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf -"
+        SSHOPTS="-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
+        # 1. Stage del nuevo dist en .deploy (el server viejo sigue sirviendo)
+        ssh $SSHOPTS -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /var/www/sigotuhuella && rm -rf /var/www/sigotuhuella/.deploy && mkdir -p /var/www/sigotuhuella/.deploy"
+        tar czf - dist/ | ssh $SSHOPTS -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf - -C .deploy"
+        # 2. Swap atómico de dist (renombre: ventana de milisegundos, no de segundos)
+        ssh $SSHOPTS -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && rm -rf dist.bak && (mv dist dist.bak 2>/dev/null || true) && mv .deploy/dist dist && rm -rf dist.bak .deploy"
+        # 3. Resto de archivos (server, public, scripts) se sobrescriben en su lugar
+        tar czf - server/ relay.cjs fb-relay.js fb-graphql-scraper.js package.json scripts/backup.sh --exclude='public/generated/music' --exclude='public/generated/videos' public/ | ssh $SSHOPTS -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf -"
       shell: bash
 
     - name: Restart server
