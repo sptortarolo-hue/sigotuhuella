@@ -218,6 +218,25 @@ export default function PetDetail() {
     finally { setReportBusy(false); }
   };
 
+  const handleToggleSighting = async (sightingId: string, hidden: boolean) => {
+    try {
+      await api.cases.hideSighting(sightingId, hidden);
+      await refreshCase();
+    } catch (e: any) {
+      alert(e.message || 'Error al actualizar avistamiento');
+    }
+  };
+
+  const handleShareCase = () => {
+    if (!caseData) return;
+    const url = `${window.location.origin}/caso/${caseData.id}`;
+    if (navigator.share) {
+      navigator.share({ title: `${pet.name || 'Mascota'} — Sigo Tu Huella`, text: pet.description || '', url }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(url).then(() => { setCaseCopied(true); setTimeout(() => setCaseCopied(false), 2000); });
+    }
+  };
+
   const petImagesToUrls = (petId: string, images: any[]) =>
     (images || []).map((img: any, idx: number) => {
       if (img.has_original) return apiUrl(`/og-image/${petId}/${idx}?full=1`);
@@ -539,15 +558,8 @@ Me gustaría obtener más información.`;
           </div>
         </div>
 
-        {/* CTAs: Impacto + Difusión + Contactar + botones (bajo la foto en desktop) */}
+        {/* CTAs: Contactar + botones (bajo la foto en desktop) */}
         <div className="lg:col-span-7 order-4 lg:order-none space-y-6">
-          {caseData && !caseError && (
-            <>
-              <CaseImpact caseId={caseData.id} impact={caseData.impact} canReply={isCaseOwner || !!user?.admin} />
-              <CaseShares caseId={caseData.id} />
-            </>
-          )}
-
           <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
             {pet.contact_info ? (
               <div className="flex gap-3">
@@ -639,6 +651,12 @@ Me gustaría obtener más información.`;
                   <span className="px-3 py-1 rounded-full text-xs font-bold text-white bg-black/50">
                     {CASE_TYPE_LABELS[caseData.type] || caseData.type}
                   </span>
+                  <button
+                    onClick={handleShareCase}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors"
+                  >
+                    <Share2 className="w-3.5 h-3.5" /> {caseCopied ? '✓ copiado' : 'Compartir caso'}
+                  </button>
                 </div>
               </div>
 
@@ -724,29 +742,33 @@ Me gustaría obtener más información.`;
                   <div className="mt-2 space-y-1">
                     {caseData.merged_cases.map((mc: any) => (
                       <p key={mc.merged_pet_id} className="text-xs text-cyan-700">
-                        STH{String(mc.merged_case_number).replace(/^STH/i, '')} — unificado
+                        STH{String(mc.merged_case_number).replace(/^STH/i, '')} — unificado{mc.merged_at ? ` el ${new Date(mc.merged_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
                       </p>
                     ))}
                   </div>
                 </div>
               )}
 
+              {/* Impacto de la publicación */}
+              <CaseImpact caseId={caseData.id} impact={caseData.impact} canReply={isCaseOwner || !!user?.admin} />
+
+              {/* Difusión del caso */}
+              <CaseShares caseId={caseData.id} />
+
               {/* Mapa + Trazabilidad lado a lado en desktop */}
-              {(caseData.sightings?.length > 0 || caseData.searchAreas?.length > 0 || caseData.events?.length > 0) && (
+              {(caseData.status === 'active' || caseData.sightings?.length > 0 || caseData.searchAreas?.length > 0 || caseData.events?.length > 0) && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-5">
-                  {(caseData.sightings?.length > 0 || caseData.searchAreas?.length > 0) && (
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-3">Mapa de avistamientos</p>
-                      <CaseMap
-                        center={getPetCoordinates(pet) || getApproxCenter(pet) || DEFAULT_CENTER}
-                        sightings={caseData.sightings || []}
-                        searchAreas={caseData.searchAreas || []}
-                        isAdmin={false}
-                        onReportClick={() => setShowSightingModal(true)}
-                        onToggleSighting={() => {}}
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-3">Mapa de avistamientos</p>
+                    <CaseMap
+                      center={getPetCoordinates(pet) || getApproxCenter(pet) || DEFAULT_CENTER}
+                      sightings={caseData.sightings || []}
+                      searchAreas={caseData.searchAreas || []}
+                      isAdmin={!!user?.admin}
+                      onReportClick={() => setShowSightingModal(true)}
+                      onToggleSighting={handleToggleSighting}
+                    />
+                  </div>
                   {caseData.events?.length > 0 && (
                     <div>
                       <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-3">Trazabilidad del caso</p>
