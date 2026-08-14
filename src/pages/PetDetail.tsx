@@ -56,6 +56,7 @@ export default function PetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isAdmin = !!user?.admin;
   const [pet, setPet] = useState<Pet | null>(null);
   const [groupMembers, setGroupMembers] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -409,7 +410,7 @@ Me gustaría obtener más información.`;
         </div>
 
         {/* Información Detallada */}
-        <div className="flex flex-col lg:col-span-5 lg:self-start lg:sticky lg:top-6">
+        <div className="flex flex-col lg:col-span-5">
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-4 flex-wrap">
               <div className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide", statusColors[displayStatus])}>
@@ -702,14 +703,14 @@ Me gustaría obtener más información.`;
               </div>
 
               {/* CaseActions: proponer encuentro, confirmar reunión, cerrar caso */}
-              {isCaseOwner && caseData.status !== 'closed' && (
+              {(isCaseOwner || isAdmin) && caseData.status !== 'closed' && (
                 <div className="mb-5">
                   <CaseActions caseId={caseData.id} onChanged={refreshCase} />
                 </div>
               )}
 
               {/* Alerta vecinal + Renovar caso */}
-              {isCaseOwner && caseData.status !== 'closed' && (
+              {(isCaseOwner || isAdmin) && caseData.status !== 'closed' && (
                 <div className="flex flex-col sm:flex-row gap-2 mb-5">
                   <button
                     onClick={handleSendNeighborhoodAlert}
