@@ -40,6 +40,7 @@ import adminDashboardRoutes from './routes/adminDashboard.js';
 import rafflesRoutes from './routes/raffles.js';
 import backupRoutes from './routes/backup.js';
 import sitemapRoutes from './routes/sitemap.js';
+import geocodeRoutes from './routes/geocode.js';
 import { startScreenshotScheduler } from './services/autoScreenshots.js';
 import { renderAdoptionOg } from './services/adoptionOgRenderer.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
@@ -251,6 +252,7 @@ app.use('/api/raffles', rafflesRoutes);
 app.use('/api/backup', backupRoutes);
 app.use('/api/relay', phoneRelayRoutes);
 app.use('/api/relay', facebookRelayRoutes);
+app.use('/api/geocode', geocodeRoutes);
 
 const APP_VERSION = process.env.APP_VERSION || '1.0.0';
 app.get('/api/app/version', (_req, res) => {

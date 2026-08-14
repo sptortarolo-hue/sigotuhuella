@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Rectangle, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { MapPin, X, ChevronDown, ChevronUp, Crosshair } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { NEIGHBORHOODS, Neighborhood, neighborhoodAt } from '@/src/lib/neighborhoods';
-import { buildAddress, parseAddress, addressToLatlng } from '@/src/lib/grid';
+import { buildAddress, addressToLocation } from '@/src/lib/grid';
+import { api } from '@/src/lib/api';
 import { fetchEntreCalles } from '@/src/lib/overpass';
 import { getCurrentPosition } from '@/src/lib/geolocation';
 
@@ -68,6 +69,9 @@ export default function LocationInput({
   const [mode, setMode] = useState<'exacta' | 'zona'>('zona');
   const [showRest, setShowRest] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef<number | null>(null);
+  const latestQueryRef = useRef('');
 
   const activeMode = exactOnly ? 'exacta' : mode;
 
@@ -138,6 +142,53 @@ export default function LocationInput({
       alert('No se pudo obtener la ubicación. Marcá el punto en el mapa.');
     }
   };
+
+  // Dirección escrita → pin. El grid solo es fiable en el casco (addressToLocation
+  // devuelve null fuera de él); para el resto se usa el geocoding del server.
+  const applyAddressCoords = (c: { lat: number; lng: number }) => {
+    onCoordinatesChange(c);
+    if (exactOnly) setNeighborhoodFromCoords(c);
+  };
+
+  const lookupAddress = async (v: string) => {
+    const trimmed = v.trim();
+    latestQueryRef.current = trimmed;
+    if (trimmed.length === 0) {
+      onCoordinatesChange(null);
+      if (exactOnly) onNeighborhoodsChange([]);
+      return;
+    }
+    const loc = addressToLocation(v);
+    if (loc) {
+      applyAddressCoords({ lat: loc.lat, lng: loc.lng });
+      return;
+    }
+    if (trimmed.length < 4) return;
+    setSearching(true);
+    try {
+      const res = await api.post('/geocode', { address: trimmed });
+      if (latestQueryRef.current !== trimmed) return;
+      const coords = res?.coordinates;
+      if (coords && coords.lat != null && coords.lng != null) {
+        applyAddressCoords({ lat: coords.lat, lng: coords.lng });
+      }
+    } catch {
+      // Sin cambios: se conserva el texto sin pin (nunca un pin inventado).
+    } finally {
+      if (latestQueryRef.current === trimmed) setSearching(false);
+    }
+  };
+
+  const scheduleLookup = (v: string) => {
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      void lookupAddress(v);
+    }, 600);
+  };
+
+  useEffect(() => () => {
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+  }, []);
 
   const areaLabel = (() => {
     if (exactOnly) return null;
@@ -340,20 +391,14 @@ export default function LocationInput({
               onChange={e => {
                 const v = e.target.value;
                 onLocationChange(v);
-                if (exactOnly) {
-                  const p = parseAddress(v);
-                  if (p) {
-                    const c = addressToLatlng(p.road, p.from, p.to);
-                    if (c) {
-                      onCoordinatesChange(c);
-                      setNeighborhoodFromCoords(c);
-                    }
-                  }
-                }
+                scheduleLookup(v);
               }}
               placeholder="Dirección (ej: Calle 12 entre 52 y 53)"
               className="w-full p-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors"
             />
+            {searching && (
+              <p className="text-xs text-gray-400 mt-1.5">Buscando ubicación...</p>
+            )}
           </div>
 
           {exactOnly && coordinates && (

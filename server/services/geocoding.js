@@ -102,7 +102,7 @@ async function overpassQuery(query) {
           'User-Agent': 'SigoTuHuella/1.0 (WhatsApp bot geocoding; contact: sigotuhuella.com.ar)',
         },
         body: `data=${encodeURIComponent(query)}`,
-        signal: AbortSignal.timeout(25000),
+        signal: AbortSignal.timeout(20000),
       });
       if (!resp.ok) { overpassFailureAt.set(url, Date.now()); continue; }
       const text = await resp.text();
@@ -286,13 +286,16 @@ async function overpassLPCoords(lp, address) {
 }
 
 // Parsea direcciones del estilo de La Plata. Devuelve null si no matchea.
+// Acepta prefijos "calle", "av"/"av."/"avenida" (se normalizan) y números sueltos
+// ("12 entre 52 y 53", "12 52 y 53", "12 y 53", "12 esquina 53"). "Diagonal" NO se
+// reduce a número: el grid no la modela y Overpass la confundiría con la calle.
 export function parseLaPlataAddress(text) {
   if (!text || typeof text !== 'string') return null;
-  const t = text.toLowerCase().replace(/[.,;()]+/g, ' ');
-  const re1 = /(?:^|\s)(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+entre\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+y\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)(?:\s|$)/;
-  const re2 = /(?:^|\s)(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+y\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)(?:\s|$)/;
-  const re3 = /(?:^|\s)(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+y\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)(?:\s|$)/;
-  const re4 = /(?:^|\s)(?:calle\s+)?(\d{1,3}(?:bis|b)?)\s+esquina\s+(?:calle\s+)?(\d{1,3}(?:bis|b)?)(?:\s|$)/;
+  const t = text.toLowerCase().replace(/[.,;()]+/g, ' ').replace(/\b(?:calle|avenida|av\.?)\s+/g, ' ');
+  const re1 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}(?:bis|b)?)\s+entre\s+(\d{1,3}(?:bis|b)?)\s+y\s+(\d{1,3}(?:bis|b)?)(?:\s|$)/;
+  const re2 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}(?:bis|b)?)\s+(\d{1,3}(?:bis|b)?)\s+y\s+(\d{1,3}(?:bis|b)?)(?:\s|$)/;
+  const re3 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}(?:bis|b)?)\s+y\s+(\d{1,3}(?:bis|b)?)(?:\s|$)/;
+  const re4 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}(?:bis|b)?)\s+esquina\s+(\d{1,3}(?:bis|b)?)(?:\s|$)/;
   let m = t.match(re1);
   if (m) return { type: 'between', road: m[1], from: m[2], to: m[3] };
   m = t.match(re2);
@@ -328,7 +331,10 @@ function gridAxis(n) {
 
 function gridFallback(lp) {
   const roadNum = parseInt(lp.road);
-  if (isNaN(roadNum)) return null;
+  // El modelo afín solo es fiable en el casco (calles 1-122). Fuera de ahí la
+  // numeración externa se desvía kilómetros (verificado: "137 y 90" ~10km,
+  // "670 y 19" ~4km). Para numeración externa se usa Overpass, no el grid.
+  if (isNaN(roadNum) || roadNum <= 0 || roadNum > 122) return null;
   const crossA = parseInt(lp.from || lp.cross);
   const crossB = parseInt(lp.to || lp.cross);
   const mid = (crossA + crossB) / 2;
@@ -338,42 +344,61 @@ function gridFallback(lp) {
   return null;
 }
 
+// Detección genérica de direcciones LP con números ("N entre X y Y", "N X y Y",
+// "N y X", "N esquina X") que el parser estricto no reconoció (diagonales, calles
+// con nombre). Para estas no hay que inventar un pin: si no se resuelve, null.
+function looksLikeLpAddress(text) {
+  if (!text || typeof text !== 'string') return false;
+  const t = ' ' + text.toLowerCase() + ' ';
+  if (/\d{1,3}\s+entre\s+\d{1,3}\s+y\s+\d{1,3}/.test(t)) return true;
+  if (/\d{1,3}\s+\d{1,3}\s+y\s+\d{1,3}/.test(t)) return true;
+  if (/\d{1,3}\s+y\s+\d{1,3}/.test(t)) return true;
+  if (/\d{1,3}\s+esquina\s+\d{1,3}/.test(t)) return true;
+  return false;
+}
+
 // Geocodifica una dirección con bias a La Plata. Nunca devuelve un punto
-// fuera del área de influencia: si no se puede resolver, cae al centro del
-// barrio coincidente o al centro de La Plata. Retorna null solo si no hay texto.
+// fuera del área de influencia. Para direcciones LP que no se pueden ubicar
+// con precisión devuelve null (nunca un pin inventado); para texto libre cae
+// al centro del barrio coincidente o al centro de La Plata.
 const geocodeCache = new Map();
-const GEOCODE_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 días
+const GEOCODE_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 días para éxitos
+const NEGATIVE_CACHE_TTL = 5 * 60 * 1000; // 5 min para fallos: no re-quemar Overpass
 
 export async function geocodeAddress(address) {
   if (!address || address.trim().length < 3) return null;
   const key = address.trim().toLowerCase();
   const cached = geocodeCache.get(key);
   if (cached) {
-    if (Date.now() - cached.ts < GEOCODE_CACHE_TTL) return cached.value;
+    const ttl = cached.value ? GEOCODE_CACHE_TTL : NEGATIVE_CACHE_TTL;
+    if (Date.now() - cached.ts < ttl) return cached.value;
     geocodeCache.delete(key);
   }
-  let result;
+  const lp = parseLaPlataAddress(address);
+  let result = null;
   try {
-    // 1) Dirección estilo La Plata: intersección / tramo con Overpass + grid fallback.
-    const lp = parseLaPlataAddress(address);
     if (lp) {
-      const overpass = await overpassLPCoords(lp, address);
-      if (overpass && isInInfluenceZone(overpass.lat, overpass.lng)) {
-        result = overpass;
+      const roadNum = parseInt(lp.road);
+      if (!isNaN(roadNum) && roadNum <= 122) {
+        // Casco (1-122): el grid es exacto e instantáneo. Overpass geométrico no
+        // encuentra estos cruces (OSM fragmentado) y solo agrega latencia.
+        const grid = gridFallback(lp);
+        result = grid && isInInfluenceZone(grid.lat, grid.lng) ? grid : null;
       } else {
-        // Si se mencionó un barrio, el centro del barrio es más confiable que el
-        // grid global (el grid asume una cuadrícula única y puede quedar lejos).
-        const neighborhoodCenter = matchNeighborhoodCenter(address);
-        if (neighborhoodCenter) result = neighborhoodCenter;
-        else {
-          const grid = gridFallback(lp);
-          result = grid && isInInfluenceZone(grid.lat, grid.lng) ? grid : null;
+        // Numeración externa: solo Overpass conoce la ubicación real.
+        const overpass = await overpassLPCoords(lp, address);
+        if (overpass && isInInfluenceZone(overpass.lat, overpass.lng)) {
+          result = overpass;
         }
       }
-    }
-
-    if (!result) {
-      // 2) Fallback: Nominatim con variantes de contexto.
+      // No inventar pines: si se mencionó un barrio, su centro; si no, null.
+      if (!result) result = matchNeighborhoodCenter(address) || null;
+    } else if (looksLikeLpAddress(address)) {
+      // Dirección LP que el parser no reconoció (diagonal, calle con nombre):
+      // no inventar un pin con Nominatim/centro de La Plata.
+      result = matchNeighborhoodCenter(address) || null;
+    } else {
+      // No es dirección estilo La Plata: Nominatim con variantes de contexto.
       const variants = [
         address + ', La Plata, Buenos Aires, Argentina',
         address + ', Buenos Aires, Argentina',
@@ -384,11 +409,13 @@ export async function geocodeAddress(address) {
         const coords = await tryGeocode(v);
         if (coords) { result = coords; break; }
       }
+      // Texto libre sin coordenadas: barrio mencionado o centro de La Plata.
+      if (!result) result = matchNeighborhoodCenter(address) || LA_PLATA_CENTER;
     }
-    // 3) Fallback: barrio coincidente en el texto, si no centro de La Plata.
-    if (!result) result = matchNeighborhoodCenter(address) || LA_PLATA_CENTER;
   } catch {
-    result = matchNeighborhoodCenter(address) || LA_PLATA_CENTER;
+    result = lp
+      ? (matchNeighborhoodCenter(address) || null)
+      : (matchNeighborhoodCenter(address) || LA_PLATA_CENTER);
   }
   geocodeCache.set(key, { ts: Date.now(), value: result });
   return result;

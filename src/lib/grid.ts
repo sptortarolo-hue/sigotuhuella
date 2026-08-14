@@ -36,7 +36,7 @@ export function gridToLatlng(a: number, b: number): { lat: number; lng: number }
 }
 
 export function parseRoad(road: string): RoadInfo {
-  const m = road.match(/(?:Calle|Av\.?\.?\s*|Avenida)\s*(\d+)/i);
+  const m = road.match(/(?:Calle|Av\.?\.?\s*|Avenida)?\s*(\d+)/i);
   if (!m) return { axis: 'unknown', num: null };
   const n = parseInt(m[1]);
   if (n >= 1 && n <= 31) return { axis: 'a1', num: n };
@@ -63,10 +63,50 @@ export function buildAddress(road: string, lat: number, lng: number): string {
   return `${road} entre ${entre.from} y ${entre.to}`;
 }
 
+export interface AddressLocation {
+  lat: number;
+  lng: number;
+  road: string;
+  from: string;
+  to: string;
+}
+
+// Parsea direcciones del estilo de La Plata. Devuelve null si no matchea.
+// Acepta prefijos "calle", "av"/"av."/"avenida" y números sueltos:
+//   "Calle 12 entre 52 y 53" / "12 entre 52 y 53" / "12 52 y 53"
+//   "12 y 53" (esquina) / "12 esquina 53"
+// "Diagonal" NO se reduce a número: el grid no la modela.
 export function parseAddress(raw: string): { road: string; from: string; to: string } | null {
-  const m = raw.match(/^(.+?)\s+entre\s+(\S+)\s+y\s+(\S+)$/i);
-  if (!m) return null;
-  return { road: m[1].trim(), from: m[2].trim(), to: m[3].trim() };
+  const t = raw.toLowerCase().replace(/[.,;()]+/g, ' ').replace(/\b(?:calle|avenida|av\.?)\s+/g, ' ').replace(/\s+/g, ' ').trim();
+  const num = '(?:\\d{1,3}(?:bis|b)?)';
+  const re1 = new RegExp(`(?:^|\\s)(?<!\\b(?:diagonal|entre)\\s)(${num})\\s+entre\\s+(${num})\\s+y\\s+(${num})(?:\\s|$)`);
+  const re2 = new RegExp(`(?:^|\\s)(?<!\\b(?:diagonal|entre)\\s)(${num})\\s+(${num})\\s+y\\s+(${num})(?:\\s|$)`);
+  const re3 = new RegExp(`(?:^|\\s)(?<!\\b(?:diagonal|entre)\\s)(${num})\\s+y\\s+(${num})(?:\\s|$)`);
+  const re4 = new RegExp(`(?:^|\\s)(?<!\\b(?:diagonal|entre)\\s)(${num})\\s+esquina\\s+(${num})(?:\\s|$)`);
+  let m = t.match(re1);
+  if (m) return { road: m[1], from: m[2], to: m[3] };
+  m = t.match(re2);
+  if (m) return { road: m[1], from: m[2], to: m[3] };
+  m = t.match(re3);
+  if (m) return { road: m[1], from: m[2], to: m[2] };
+  m = t.match(re4);
+  if (m) return { road: m[1], from: m[2], to: m[2] };
+  return null;
+}
+
+// Convierte una dirección escrita a coordenadas SOLO cuando el grid es fiable
+// (casco urbano, calles <= 122). Para numeración externa devuelve null: ahí el
+// grid se desvía kilómetros y hay que usar el geocoding del server.
+export function addressToLocation(raw: string): AddressLocation | null {
+  const p = parseAddress(raw);
+  if (!p) return null;
+  const road = parseRoad(p.road);
+  if (road.axis === 'unknown' || road.num === null) return null;
+  const nums = [road.num, xstreetToNum(p.from), xstreetToNum(p.to)];
+  if (nums.some(n => n > 122)) return null;
+  const c = addressToLatlng(p.road, p.from, p.to);
+  if (!c) return null;
+  return { lat: c.lat, lng: c.lng, road: p.road, from: p.from, to: p.to };
 }
 
 function xstreetToNum(s: string): number {
