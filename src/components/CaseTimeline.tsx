@@ -24,6 +24,8 @@ const EVENT_ICONS: Record<string, any> = {
   case_merged: Layers,
   case_unmerged: SplitSquareHorizontal,
   case_reopened: FolderOpen,
+  ig_comment_received: Instagram,
+  fb_comment_received: Facebook,
 };
 
 const EVENT_STYLES: Record<string, string> = {
@@ -49,6 +51,8 @@ const EVENT_STYLES: Record<string, string> = {
   case_merged: 'bg-cyan-500/10 text-cyan-600',
   case_unmerged: 'bg-orange-500/10 text-orange-600',
   case_reopened: 'bg-emerald-500/10 text-emerald-600',
+  ig_comment_received: 'bg-pink-500/10 text-pink-600',
+  fb_comment_received: 'bg-blue-500/10 text-blue-600',
 };
 
 function eventLabel(type: string, payload: any) {
@@ -78,6 +82,8 @@ function eventLabel(type: string, payload: any) {
     case 'case_merged': return 'Caso unificado';
     case 'case_unmerged': return 'Reporte separado del caso';
     case 'case_reopened': return 'Caso reabierto';
+    case 'ig_comment_received': return 'Nuevo comentario en Instagram';
+    case 'fb_comment_received': return 'Nuevo comentario en Facebook';
     default: return type;
   }
 }
@@ -140,6 +146,10 @@ function eventDetail(type: string, payload: any) {
       return payload?.separated_case_id ? 'El reporte se separó y reabrió su caso' : null;
     case 'case_reopened':
       return payload?.reason === 'ungrouped' ? 'Separado de otro caso tras desagrupar' : 'El caso volvió a estar activo';
+    case 'ig_comment_received':
+      return payload?.username ? `@${payload.username}` : null;
+    case 'fb_comment_received':
+      return payload?.author_name || null;
     default: return null;
   }
 }

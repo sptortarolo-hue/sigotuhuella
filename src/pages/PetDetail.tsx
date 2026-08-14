@@ -55,8 +55,7 @@ const CASE_TYPE_LABELS: Record<string, string> = {
 export default function PetDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const isAdmin = !!user?.admin;
+  const { user, isAdmin } = useAuth();
   const [pet, setPet] = useState<Pet | null>(null);
   const [groupMembers, setGroupMembers] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);

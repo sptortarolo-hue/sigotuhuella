@@ -1,6 +1,7 @@
 import axios from 'axios';
 import pool from '../db.js';
 import { getStoredToken, getComments, getMediaInsights, getInstagramOEmbed } from './instagramService.js';
+import { createCaseEvent } from './caseService.js';
 
 const GRAPH_API = 'https://graph.facebook.com/v22.0';
 const BATCH_SIZE = 10;
@@ -27,7 +28,7 @@ export async function syncInstagramEngagement() {
   if (!token) return { posts: 0, comments: 0, embeds: 0 };
 
   const postsRes = await pool.query(
-    `SELECT id, ig_media_id, ig_permalink, embed_html FROM instagram_posts
+    `SELECT id, pet_id, ig_media_id, ig_permalink, embed_html FROM instagram_posts
      WHERE status = 'published' AND ig_media_id IS NOT NULL
      ORDER BY published_at DESC NULLS LAST LIMIT 100`
   );
@@ -57,16 +58,30 @@ export async function syncInstagramEngagement() {
         );
         posts++;
 
+        // Buscar case_id para este post
+        let caseId = null;
+        if (post.pet_id) {
+          const caseRes = await pool.query('SELECT id FROM pet_cases WHERE pet_id = $1 LIMIT 1', [post.pet_id]);
+          caseId = caseRes.rows[0]?.id || null;
+        }
+
         // Backfill de comentarios (upsert, vincula ig_post_id)
         const cmts = await getComments(post.ig_media_id);
         for (const c of cmts) {
-          await pool.query(
+          const result = await pool.query(
             `INSERT INTO instagram_comments (ig_comment_id, ig_media_id, ig_post_id, username, text, created_at)
              VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (ig_comment_id) DO UPDATE SET ig_post_id = EXCLUDED.ig_post_id`,
+             ON CONFLICT (ig_comment_id) DO NOTHING`,
             [c.id, post.ig_media_id, post.id, c.username || 'unknown', c.text || '', new Date(c.timestamp).toISOString()]
-          ).catch(() => {});
-          comments++;
+          ).catch(() => ({ rowCount: 0 }));
+          if (result.rowCount > 0) {
+            comments++;
+            if (caseId) {
+              await createCaseEvent(caseId, 'ig_comment_received', {
+                username: c.username || 'unknown',
+              });
+            }
+          }
         }
 
         // Cache del embed (oEmbed) si todavía no se generó
@@ -98,7 +113,7 @@ export async function syncFacebookEngagement() {
   if (!token) return { posts: 0, comments: 0 };
 
   const postsRes = await pool.query(
-    `SELECT id, page_post_id FROM facebook_page_posts
+    `SELECT id, pet_id, page_post_id FROM facebook_page_posts
      WHERE status = 'published' AND page_post_id IS NOT NULL
      ORDER BY published_at DESC NULLS LAST LIMIT 100`
   );
@@ -116,17 +131,31 @@ export async function syncFacebookEngagement() {
       );
       posts++;
 
+      // Buscar case_id para este post
+      let caseId = null;
+      if (post.pet_id) {
+        const caseRes = await pool.query('SELECT id FROM pet_cases WHERE pet_id = $1 LIMIT 1', [post.pet_id]);
+        caseId = caseRes.rows[0]?.id || null;
+      }
+
       const cmtsRes = await axios.get(`${GRAPH_API}/${post.page_post_id}/comments`, {
         params: { access_token: token, fields: 'id,message,from{name},like_count,created_time' },
       });
       for (const c of cmtsRes.data.data || []) {
-        await pool.query(
+        const result = await pool.query(
           `INSERT INTO facebook_page_comments (fb_comment_id, page_post_id, author_name, text, like_count, posted_at)
            VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (fb_comment_id) DO NOTHING`,
           [c.id, post.id, c.from?.name || 'unknown', c.message || '', parseInt(c.like_count, 10) || 0, new Date(c.created_time).toISOString()]
-        ).catch(() => {});
-        comments++;
+        ).catch(() => ({ rowCount: 0 }));
+        if (result.rowCount > 0) {
+          comments++;
+          if (caseId) {
+            await createCaseEvent(caseId, 'fb_comment_received', {
+              author_name: c.from?.name || 'unknown',
+            });
+          }
+        }
       }
     } catch (err) {
       console.error(`[MetaEngagement] FB page post ${post.id}: ${err.response?.data?.error?.message || err.message}`);
