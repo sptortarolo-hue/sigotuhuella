@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Phone, MessageCircle, ChevronLeft, ChevronRight, Heart, Repeat2, Eye, ExternalLink } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, ChevronLeft, ChevronRight, Heart, Repeat2, Eye, ExternalLink, Instagram, Facebook } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
@@ -231,15 +231,17 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
               )}
             </div>
             {(pet.ig_impact?.permalink || pet.fb_impact?.post_id) && (
-              <div className="flex gap-3 mt-2">
+              <div className="flex flex-col sm:flex-row gap-2 mt-3">
                 {pet.ig_impact?.permalink && (
-                  <a href={pet.ig_impact.permalink} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-[10px] text-pink-600 font-bold hover:underline">
-                    <ExternalLink className="w-3 h-3" /> Instagram
+                  <a href={pet.ig_impact.permalink} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                    className="flex items-center justify-center gap-2 px-3 py-2 text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-pink-500 to-purple-600 rounded-xl">
+                    <Instagram className="w-4 h-4" /> Ver en Instagram <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
                 {pet.fb_impact?.post_id && (
-                  <a href={`https://facebook.com/${pet.fb_impact.post_id}`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-[10px] text-blue-600 font-bold hover:underline">
-                    <ExternalLink className="w-3 h-3" /> Facebook
+                  <a href={`https://facebook.com/${pet.fb_impact.post_id}`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                    className="flex items-center justify-center gap-2 px-3 py-2 text-xs sm:text-sm font-bold text-white bg-blue-600 rounded-xl">
+                    <Facebook className="w-4 h-4" /> Ver en Facebook <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
               </div>
