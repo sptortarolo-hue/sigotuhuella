@@ -238,8 +238,11 @@ async function igPost(url, params, accessToken) {
     return data;
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    const isTransient = err.response?.status === 500 || err.response?.data?.error?.is_transient === true;
     console.error(`[Instagram] POST ${url} failed:`, err.response?.status, detail.slice(0, 500));
-    throw new Error(`Instagram API ${err.response?.status || 400}: ${detail}`);
+    const e = new Error(`Instagram API ${err.response?.status || 400}: ${detail}`);
+    e.isTransient = isTransient;
+    throw e;
   }
 }
 

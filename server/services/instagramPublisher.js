@@ -127,6 +127,17 @@ export async function publishSinglePost(petId) {
     await recordPublicationEvent(petId, 'instagram_published', { permalink, media_id: result.id });
     return { success: true, permalink, mediaId: result.id };
   } catch (err) {
+    if (err.isTransient) {
+      await pool.query(
+        `UPDATE instagram_posts
+         SET status = CASE WHEN COALESCE(retry_count, 0) + 1 >= 3 THEN 'failed' ELSE 'queued' END,
+             error_message = $1,
+             retry_count = COALESCE(retry_count, 0) + 1
+         WHERE pet_id = $2 AND status = 'queued'`,
+        [err.message, petId]
+      );
+      return { error: err.message, retrying: true };
+    }
     await pool.query(
       `UPDATE instagram_posts SET status = 'failed', error_message = $1, image_urls = $2
        WHERE pet_id = $3 AND status = 'queued'`,
@@ -182,6 +193,18 @@ export async function processQueue() {
       await recordPublicationEvent(post.pet_id, 'instagram_published', { permalink, media_id: result.id });
       results.push({ postId: post.id, success: true, permalink });
     } catch (err) {
+      if (err.isTransient) {
+        await pool.query(
+          `UPDATE instagram_posts
+           SET status = CASE WHEN COALESCE(retry_count, 0) + 1 >= 3 THEN 'failed' ELSE 'queued' END,
+               error_message = $1,
+               retry_count = COALESCE(retry_count, 0) + 1
+           WHERE id = $2`,
+          [err.message, post.id]
+        );
+        results.push({ postId: post.id, error: err.message, retrying: true });
+        continue;
+      }
       await pool.query(
         "UPDATE instagram_posts SET status = 'failed', error_message = $1 WHERE id = $2",
         [err.message, post.id]
