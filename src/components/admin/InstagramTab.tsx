@@ -6,7 +6,7 @@ import { formatDate } from '@/src/lib/formatDate';
 import {
   Save, Loader2, Plus, X, Trash2, ExternalLink,
   RefreshCw, MessageSquare, Globe, Camera, Send,
-  Settings, BarChart3, Zap, Check, XCircle, Search, ImageIcon,
+  Settings, BarChart3, Zap, Check, XCircle, Search, ImageIcon, Radio,
 } from 'lucide-react';
 
 type SubTab = 'dashboard' | 'publish' | 'comments' | 'rules' | 'config';
@@ -80,6 +80,8 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
   const [retrying, setRetrying] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [republishing, setRepublishing] = useState<Record<string, boolean>>({});
+  const [subscribingWebhook, setSubscribingWebhook] = useState(false);
+  const [webhookMsg, setWebhookMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [showManual, setShowManual] = useState(false);
   const [manualToken, setManualToken] = useState('');
@@ -157,6 +159,19 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
     setConnected(false);
     setExpiresAt('');
     setUsername('');
+  };
+
+  const handleSubscribeWebhook = async () => {
+    setSubscribingWebhook(true);
+    setWebhookMsg(null);
+    try {
+      await api.post('/instagram/subscribe-webhook');
+      setWebhookMsg({ ok: true, text: 'Webhook suscrito. Los comentarios de IG llegarán en tiempo real.' });
+    } catch (e: any) {
+      setWebhookMsg({ ok: false, text: e?.message || 'Error al suscribir el webhook' });
+    } finally {
+      setSubscribingWebhook(false);
+    }
   };
 
   const handleRepublish = async (postId: string) => {
@@ -417,6 +432,17 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
               <p className="text-blue-700 text-sm">
                 Instagram está conectado. Las publicaciones encoladas se procesan automáticamente.
               </p>
+              <button
+                onClick={handleSubscribeWebhook}
+                disabled={subscribingWebhook}
+                className="mt-3 flex items-center gap-1 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50"
+              >
+                {subscribingWebhook ? <Loader2 className="w-3 h-3 animate-spin" /> : <Radio className="w-3 h-3" />}
+                Suscribir webhook (comentarios real-time)
+              </button>
+              {webhookMsg && (
+                <p className={`mt-2 text-xs ${webhookMsg.ok ? 'text-green-700' : 'text-red-600'}`}>{webhookMsg.text}</p>
+              )}
             </div>
           )}
           {!connected && (
