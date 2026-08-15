@@ -292,10 +292,10 @@ async function overpassLPCoords(lp, address) {
 export function parseLaPlataAddress(text) {
   if (!text || typeof text !== 'string') return null;
   const t = text.toLowerCase().replace(/[.,;()]+/g, ' ').replace(/\b(?:calle|avenida|av\.?)\s+/g, ' ');
-  const re1 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}(?:bis|b)?)\s+entre\s+(\d{1,3}(?:bis|b)?)\s+y\s+(\d{1,3}(?:bis|b)?)(?:\s|$)/;
-  const re2 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}(?:bis|b)?)\s+(\d{1,3}(?:bis|b)?)\s+y\s+(\d{1,3}(?:bis|b)?)(?:\s|$)/;
-  const re3 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}(?:bis|b)?)\s+y\s+(\d{1,3}(?:bis|b)?)(?:\s|$)/;
-  const re4 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}(?:bis|b)?)\s+esquina\s+(\d{1,3}(?:bis|b)?)(?:\s|$)/;
+  const re1 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}\s*(?:bis|b)?)\s+entre\s+(\d{1,3}\s*(?:bis|b)?)\s+y\s+(\d{1,3}\s*(?:bis|b)?)(?:\s|$)/;
+  const re2 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}\s*(?:bis|b)?)\s+(\d{1,3}\s*(?:bis|b)?)\s+y\s+(\d{1,3}\s*(?:bis|b)?)(?:\s|$)/;
+  const re3 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}\s*(?:bis|b)?)\s+y\s+(\d{1,3}\s*(?:bis|b)?)(?:\s|$)/;
+  const re4 = /(?:^|\s)(?<!\b(?:diagonal|entre)\s)(\d{1,3}\s*(?:bis|b)?)\s+esquina\s+(\d{1,3}\s*(?:bis|b)?)(?:\s|$)/;
   let m = t.match(re1);
   if (m) return { type: 'between', road: m[1], from: m[2], to: m[3] };
   m = t.match(re2);
