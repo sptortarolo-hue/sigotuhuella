@@ -1,33 +1,30 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { getPets, Pet, PetStatus, getPetImageUrl } from '@/src/lib/petService';
+import { getPets, Pet, PetStatus } from '@/src/lib/petService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import PetCard from '@/src/components/PetCard';
 import PetMap from '@/src/components/PetMap';
 import MapLoader from '@/src/components/MapLoader';
-import { Search, Loader2, Grid, Map as MapIcon, BookOpen, PawPrint, ChevronDown } from 'lucide-react';
+import { Search, Loader2, Grid, Map as MapIcon, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { Helmet } from 'react-helmet-async';
 
 const DEFAULT_CENTER = { lat: -34.9961, lng: -57.8524 };
 
-const BASE_PILLS: { value: string; label: string }[] = [
+const STATUS_CHIPS: { value: string; label: string }[] = [
   { value: 'all', label: 'Todas' },
   { value: PetStatus.LOST, label: 'Perdidas' },
   { value: PetStatus.RETAINED, label: 'Retenidas' },
   { value: PetStatus.SIGHTED, label: 'Avistadas' },
-];
-
-const MORE_PILLS: { value: string; label: string }[] = [
   { value: PetStatus.ACCIDENTED, label: 'Accidentadas' },
   { value: PetStatus.NEEDS_ATTENTION, label: 'Necesita Atención' },
   { value: PetStatus.TRANSITADA, label: 'En Tránsito' },
+  { value: PetStatus.REUNITED, label: 'Reencontradas' },
 ];
 
 export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
   const [pets, setPets] = useState<Pet[]>([]);
-  const [reunitedPets, setReunitedPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -39,16 +36,17 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
       try {
         const data = await getPets();
         if (type === 'lost') {
-          const active = data.filter(p =>
-            p.status === PetStatus.LOST ||
-            p.status === PetStatus.RETAINED ||
-            p.status === PetStatus.SIGHTED ||
-            p.status === PetStatus.ACCIDENTED ||
-            p.status === PetStatus.NEEDS_ATTENTION ||
-            p.status === PetStatus.TRANSITADA
+          setPets(
+            data.filter(p =>
+              p.status === PetStatus.LOST ||
+              p.status === PetStatus.RETAINED ||
+              p.status === PetStatus.SIGHTED ||
+              p.status === PetStatus.ACCIDENTED ||
+              p.status === PetStatus.NEEDS_ATTENTION ||
+              p.status === PetStatus.TRANSITADA ||
+              p.status === PetStatus.REUNITED
+            )
           );
-          setPets(active);
-          setReunitedPets(data.filter(p => p.status === PetStatus.REUNITED));
         } else {
           setPets(
             data.filter(p =>
@@ -56,7 +54,6 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
               && !p.has_pending_adoption
             )
           );
-          setReunitedPets([]);
         }
       } catch (e) {
         console.error(e);
@@ -105,13 +102,26 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
       });
     }
 
+    if (statusFilter === 'all') {
+      result = [...result].sort((a, b) => {
+        const aReunited = a.status === PetStatus.REUNITED ? 1 : 0;
+        const bReunited = b.status === PetStatus.REUNITED ? 1 : 0;
+        return aReunited - bReunited;
+      });
+    }
+
     return result;
   }, [pets, filter, statusFilter]);
 
-  const visiblePills = useMemo(() => {
-    const moreActive = MORE_PILLS.find(m => m.value === statusFilter);
-    return moreActive ? [...BASE_PILLS, moreActive] : BASE_PILLS;
-  }, [statusFilter]);
+  // Chips visibles: "Todas" y el activo siempre; el resto solo si el feed
+  // tiene al menos una mascota con ese estado (basado en `pets`, no en la búsqueda).
+  const visibleChips = useMemo(() => {
+    return STATUS_CHIPS.filter(chip =>
+      chip.value === 'all' ||
+      chip.value === statusFilter ||
+      pets.some(p => p.status === chip.value)
+    );
+  }, [pets, statusFilter]);
 
   return (
     <div>
@@ -129,60 +139,28 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
             {type === 'lost' ? 'Mascotas Reportadas' : 'Mascotas en Adopción'}
           </h1>
           <p className="text-gray-600 leading-relaxed">
-          {type === 'lost'
-            ? 'Mascotas perdidas, retenidas, avistadas o accidentadas en Sicardi, Garibaldi y Correas. Filtra por estado o busca por cualquier dato.'
-            : 'Conoce a los integrantes de "Sigo tu huella" que están buscando un hogar lleno de amor.'}
-        </p>
+            {type === 'lost'
+              ? 'Mascotas perdidas, retenidas, avistadas o accidentadas en Sicardi, Garibaldi y Correas. Filtra por estado o busca por cualquier dato.'
+              : 'Conoce a los integrantes de "Sigo tu huella" que están buscando un hogar lleno de amor.'}
+          </p>
 
-        {type === 'adoption' && (
-          <Link to="/manual/adopcion" className="inline-flex items-center gap-1.5 mt-4 text-xs sm:text-sm text-gray-400 hover:text-brand-primary font-bold transition-colors">
-            <BookOpen className="w-3.5 h-3.5" /> ¿Cómo funciona la adopción? Ver la guía →
-          </Link>
-        )}
+          {type === 'adoption' && (
+            <Link to="/manual/adopcion" className="inline-flex items-center gap-1.5 mt-4 text-xs sm:text-sm text-gray-400 hover:text-brand-primary font-bold transition-colors">
+              <BookOpen className="w-3.5 h-3.5" /> ¿Cómo funciona la adopción? Ver la guía →
+            </Link>
+          )}
         </div>
       </header>
 
-      {/* Barra sticky: pills + buscador + segmented */}
+      {/* Barra sticky: search + toggle integrados, chips debajo */}
       <div className="sticky top-14 lg:top-0 z-40 bg-white/95 backdrop-blur-md border-b border-brand-accent shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 space-y-3">
-          {type === 'lost' && (
-            <div className="flex items-center gap-2 overflow-x-auto -mb-1 pb-1">
-              {visiblePills.map(pill => (
-                <button
-                  key={pill.value}
-                  onClick={() => setStatusFilter(pill.value)}
-                  className={cn(
-                    "shrink-0 px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition-colors",
-                    statusFilter === pill.value
-                      ? "bg-brand-primary text-white"
-                      : "bg-brand-primary/5 text-brand-primary hover:bg-brand-primary/10"
-                  )}
-                >
-                  {pill.label}
-                </button>
-              ))}
-              <div className="relative shrink-0">
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-brand-primary pointer-events-none" />
-                <select
-                  value={MORE_PILLS.some(m => m.value === statusFilter) ? statusFilter : ''}
-                  onChange={(e) => setStatusFilter(e.target.value || 'all')}
-                  className="appearance-none pl-4 pr-9 py-1.5 rounded-full text-xs sm:text-sm font-bold bg-brand-primary/5 text-brand-primary cursor-pointer outline-none border border-brand-accent focus:border-brand-primary"
-                >
-                  <option value="">Más ▾</option>
-                  {MORE_PILLS.map(m => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar por nombre, ubicación, especie, raza, color, contacto..."
+                placeholder="Buscar por nombre, ubicación, raza..."
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 bg-white rounded-xl sm:rounded-2xl border border-brand-accent focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary outline-none transition-all shadow-sm text-sm"
@@ -199,7 +177,7 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
                   )}
                 >
                   <Grid className="w-4 h-4" />
-                  Lista
+                  Grilla
                 </button>
                 <button
                   onClick={() => setViewMode('map')}
@@ -214,6 +192,25 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
               </div>
             )}
           </div>
+
+          {type === 'lost' && (
+            <div className="flex items-center gap-2 overflow-x-auto -mb-1 pb-1">
+              {visibleChips.map(chip => (
+                <button
+                  key={chip.value}
+                  onClick={() => setStatusFilter(chip.value)}
+                  className={cn(
+                    "shrink-0 px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition-colors",
+                    statusFilter === chip.value
+                      ? "bg-brand-primary text-white"
+                      : "bg-brand-primary/5 text-brand-primary hover:bg-brand-primary/10"
+                  )}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -265,69 +262,7 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
             <p className="text-gray-500 font-medium">No se encontraron reportes en esta categoría por el momento.</p>
           </div>
         )}
-
-        {/* Reencuentros (solo lost, debajo del grid) */}
-        {type === 'lost' && viewMode === 'grid' && reunitedPets.length > 0 && (
-          <section className="mt-14">
-            <h2 className="text-2xl sm:text-3xl font-serif font-bold text-brand-primary mb-2">Reencuentros</h2>
-            <p className="text-gray-600 mb-6 text-sm sm:text-base">
-              Mascotas que ya volvieron a casa gracias a la comunidad. ¡Gracias por difundir!
-            </p>
-            <div className="flex gap-4 overflow-x-auto pb-2">
-              {reunitedPets.map(pet => {
-                const img = getPetImageUrl(pet);
-                return (
-                  <Link
-                    key={pet.id}
-                    to={`/pet/${pet.id}`}
-                    className="shrink-0 w-36 sm:w-44 group"
-                  >
-                    <div className="aspect-square rounded-2xl overflow-hidden bg-brand-accent/40">
-                      {img ? (
-                        <img
-                          src={img}
-                          alt={pet.name || 'Mascota reencontrada'}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-brand-primary">
-                          <PawPrint className="w-8 h-8" />
-                        </div>
-                      )}
-                    </div>
-                    <p className="mt-2 text-sm font-bold text-brand-primary truncate">
-                      {pet.name || 'Mascota reencontrada'}
-                    </p>
-                    <p className="text-xs text-gray-400 font-medium">Reencontrado/a</p>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        )}
       </main>
-
-      {/* FAB Mapa (modo grid) */}
-      {type === 'lost' && viewMode === 'grid' && !loading && displayedPets.length > 0 && (
-        <button
-          onClick={() => setViewMode('map')}
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-5 py-3.5 bg-brand-primary text-white rounded-2xl shadow-xl font-bold text-sm sm:text-base hover:-translate-y-0.5 hover:shadow-2xl transition-all"
-        >
-          <MapIcon className="w-5 h-5" />
-          Ver Mapa
-        </button>
-      )}
-
-      {/* Volver a Lista (modo mapa) */}
-      {type === 'lost' && viewMode === 'map' && (
-        <button
-          onClick={() => setViewMode('grid')}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-5 py-3 bg-white text-brand-primary border border-brand-accent rounded-2xl shadow-xl font-bold text-sm sm:text-base hover:shadow-2xl transition-all"
-        >
-          <Grid className="w-4 h-4" />
-          Volver a Lista
-        </button>
-      )}
     </div>
   );
 }
