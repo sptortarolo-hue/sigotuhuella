@@ -652,7 +652,9 @@ router.post('/:id/notify-participants', requireAdmin, async (req, res) => {
     if (!msg.includes('/rifas/')) {
       msg += `\n\nLos ganadores ya están publicados 👇\n🔗 Mirá los resultados: ${resultsUrl}`;
     }
-    msg += `\n\n💛 ¡Gracias por participar! Cada número ayudó a las mascotas de nuestra comunidad. 🙏`;
+    if (!msg.includes('Gracias por participar')) {
+      msg += `\n\n💛 ¡Gracias por participar! Cada número ayudó a las mascotas de nuestra comunidad. 🙏`;
+    }
 
     const seenPhones = new Set();
     let enqueued = 0;
