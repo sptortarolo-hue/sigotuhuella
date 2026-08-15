@@ -228,7 +228,7 @@ export async function getCaseImpact(caseId, petId) {
       `SELECT ip.ig_permalink, ip.embed_html, ip.like_count, ip.comment_count, ip.share_count,
               ip.reach, ip.metrics_updated_at, ip.caption, ip.ig_media_id
        FROM instagram_posts ip
-       WHERE ip.pet_id = $1 AND ip.status = 'published'
+       WHERE ip.pet_id = $1 AND ip.status = 'published' AND ip.is_celebration = FALSE
        ORDER BY ip.published_at DESC NULLS LAST
        LIMIT 1`,
       [petId]
@@ -237,7 +237,7 @@ export async function getCaseImpact(caseId, petId) {
       `SELECT fp.page_post_id, fp.like_count, fp.comment_count, fp.share_count, fp.reach,
               fp.metrics_updated_at, fp.message
        FROM facebook_page_posts fp
-       WHERE fp.pet_id = $1 AND fp.status = 'published'
+       WHERE fp.pet_id = $1 AND fp.status = 'published' AND fp.is_celebration = FALSE
        ORDER BY fp.published_at DESC NULLS LAST
        LIMIT 1`,
       [petId]

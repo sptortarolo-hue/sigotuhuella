@@ -413,9 +413,9 @@ export async function replicateInstagramToFacebook(instagramPostId) {
   const errorMsg = pageResult.error || results.groups.find(g => g.error)?.error || null;
 
   await pool.query(
-    `INSERT INTO facebook_page_posts (instagram_post_id, pet_id, page_post_id, group_post_ids, message, status, error_message, published_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-    [instagramPostId, post.pet_id, pagePostId, groupPostIds, message, status, errorMsg]
+    `INSERT INTO facebook_page_posts (instagram_post_id, pet_id, page_post_id, group_post_ids, message, status, error_message, published_at, is_celebration)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)`,
+    [instagramPostId, post.pet_id, pagePostId, groupPostIds, message, status, errorMsg, !!post.is_celebration]
   );
 
   if (status === 'published') {
@@ -521,7 +521,7 @@ export async function retryFailedFacebookPosts(limit = 10) {
 }
 
 export async function publishPetToGroups(petId, options = {}) {
-  const { skipPagePublish = false, pagePostUrl: externalPagePostUrl = null } = options;
+  const { skipPagePublish = false, pagePostUrl: externalPagePostUrl = null, isCelebration = false } = options;
 
   if (!skipPagePublish) {
     const dupCheck = await pool.query(
@@ -599,9 +599,9 @@ export async function publishPetToGroups(petId, options = {}) {
 
   if (!skipPagePublish) {
     await pool.query(
-      `INSERT INTO facebook_page_posts (pet_id, page_post_id, group_post_ids, message, status, error_message, published_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-      [petId, results.page?.pagePostId || null, groupPostIds, message, status, errorMsg]
+      `INSERT INTO facebook_page_posts (pet_id, page_post_id, group_post_ids, message, status, error_message, published_at, is_celebration)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7)`,
+      [petId, results.page?.pagePostId || null, groupPostIds, message, status, errorMsg, isCelebration]
     );
   }
 
