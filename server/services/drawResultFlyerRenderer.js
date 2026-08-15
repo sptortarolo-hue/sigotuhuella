@@ -62,11 +62,11 @@ export async function renderDrawResultFlyer({
 
   // Title (máx 2 líneas)
   const titleMaxW = RW * 0.86;
-  const titleFontSize = title.length > 30 ? 52 : title.length > 20 ? 58 : 64;
+  const titleFontSize = title.length > 30 ? 60 : title.length > 20 ? 66 : 74;
   let fs = titleFontSize;
   ctx.font = `800 ${fs}px ${FONT}`;
   if (ctx.measureText(title).width > titleMaxW) {
-    while (fs > 30 && ctx.measureText(title).width > titleMaxW) { fs -= 2; ctx.font = `800 ${fs}px ${FONT}`; }
+    while (fs > 34 && ctx.measureText(title).width > titleMaxW) { fs -= 2; ctx.font = `800 ${fs}px ${FONT}`; }
   }
   const words = title.split(' ');
   const titleLines = [];
@@ -89,13 +89,13 @@ export async function renderDrawResultFlyer({
     ctx.fillText(titleDisplay[i], RW / 2, y);
     y += fs * 1.2;
   }
-  y += 12;
+  y += 20;
 
   // Description
   if (description) {
-    const descPadX = 24;
-    const descPadY = 16;
-    ctx.font = `600 28px ${FONT}`;
+    const descPadX = 26;
+    const descPadY = 18;
+    ctx.font = `600 32px ${FONT}`;
     const descMaxW = RW * 0.85 - descPadX * 2;
     const dWords = description.split(' ');
     const descLines = [[]];
@@ -111,7 +111,7 @@ export async function renderDrawResultFlyer({
       lineW += wordW;
     }
     let descH = 0;
-    for (const l of descLines) { if (l.length > 0) descH += 28 * 1.4; }
+    for (const l of descLines) { if (l.length > 0) descH += 32 * 1.4; }
     descH += descPadY * 2;
     const descBoxW = RW * 0.85;
     const descBoxX = (RW - descBoxW) / 2;
@@ -128,22 +128,22 @@ export async function renderDrawResultFlyer({
       if (l.length === 0) continue;
       ctx.textAlign = 'center';
       ctx.fillText(l.join(' '), RW / 2, descY);
-      descY += 28 * 1.4;
+      descY += 32 * 1.4;
     }
-    y += descH + 35;
+    y += descH + 45;
   }
 
   // Subtitle
-  ctx.font = `600 34px ${FONT}`;
+  ctx.font = `600 40px ${FONT}`;
   ctx.fillStyle = '#FDE68A';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillText('🎉 Resultados del sorteo', RW / 2, y);
-  y += 48;
+  y += 58;
 
   // Thank-you participants (bloque destacado)
   const thanksText = '¡Gracias a todos los que participaron y colaboraron adquiriendo un número!';
-  ctx.font = `600 26px ${FONT}`;
+  ctx.font = `600 30px ${FONT}`;
   ctx.fillStyle = 'rgba(255,255,255,0.92)';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
@@ -159,7 +159,7 @@ export async function renderDrawResultFlyer({
     thanksLines[thanksLines.length - 1].push(word);
     tw += wordW;
   }
-  const thanksH = thanksLines.length * 26 * 1.4 + 24;
+  const thanksH = thanksLines.length * 30 * 1.4 + 26;
   const thanksBoxW = RW * 0.86;
   const thanksBoxX = (RW - thanksBoxW) / 2;
   ctx.save();
@@ -168,13 +168,13 @@ export async function renderDrawResultFlyer({
   roundRect(ctx, thanksBoxX, y, thanksBoxW, thanksH, 16);
   ctx.fill();
   ctx.restore();
-  let ty = y + 12;
+  let ty = y + 13;
   for (const l of thanksLines) {
     if (l.length === 0) continue;
     ctx.fillText(l.join(' '), RW / 2, ty);
-    ty += 26 * 1.4;
+    ty += 30 * 1.4;
   }
-  y += thanksH + 20;
+  y += thanksH + 34;
 
   // Divider
   ctx.strokeStyle = 'rgba(253, 230, 138, 0.15)';
@@ -183,19 +183,34 @@ export async function renderDrawResultFlyer({
   ctx.moveTo(RW * 0.2, y);
   ctx.lineTo(RW * 0.8, y);
   ctx.stroke();
-  y += 26;
+  y += 34;
 
   // ─── GANADORES (cards dinámicas) ───
+  // Título destacado de la sección
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 3;
+  ctx.font = `800 46px ${FONT}`;
+  ctx.fillStyle = '#FFD54D';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('🏆 Ganadores', RW / 2, y);
+  ctx.restore();
+  y += 58;
+
   const sortedWinners = [...winners].sort((a, b) => a.position - b.position);
-  const cardX = 70;
-  const cardW = RW - 140;
-  const cardMargin = 30;
+  const cardMargin = 38;
   const brandAccent = ctx.createLinearGradient(0, 0, 0, 120);
   brandAccent.addColorStop(0, BRAND_START);
   brandAccent.addColorStop(1, BRAND_END);
 
+  // Cards centradas (más angostas para destacar el bloque)
+  const cardW = RW - 260;
+  const cardX = (RW - cardW) / 2;
+
   // Espacio disponible para cards (hasta dejar margen antes de agradecimientos finales)
-  const reservedBottom = 220; // agradecimiento a aportantes + precio + fecha + brand bar
+  const reservedBottom = 300; // agradecimiento a aportantes + fecha + CTA + brand bar
   const maxCardsBottom = BRAND_BAR_Y - reservedBottom;
 
   for (let i = 0; i < sortedWinners.length; i++) {
@@ -204,12 +219,12 @@ export async function renderDrawResultFlyer({
     const nameText = w.buyer_name || 'Anónimo';
 
     // Medir alto de la card según wrap
-    const prizeFont = 44;
-    const nameFont = 38;
-    const descFont = 25;
+    const prizeFont = 50;
+    const nameFont = 44;
+    const descFont = 28;
     const prizeLines = [];
     ctx.font = `800 ${prizeFont}px ${FONT}`;
-    const innerPad = 34;
+    const innerPad = 36;
     const prizeMaxW = cardW - innerPad * 2 - 14;
     let pLine = '';
     for (const word of prizeText.split(' ')) {
@@ -246,16 +261,16 @@ export async function renderDrawResultFlyer({
 
     // Nombre con truncado a una línea + N°
     const ticketText = `N° ${w.ticket_number}`;
-    const ticketFont = 26;
+    const ticketFont = 30;
     ctx.font = `700 ${ticketFont}px ${FONT}`;
     const ticketW = ctx.measureText(ticketText).width;
     ctx.font = `700 ${nameFont}px ${FONT}`;
     const nameMaxW = cardW - innerPad * 2;
     const displayName = truncate(ctx, nameText, nameMaxW, nameFont, '700');
 
-    const cardHeight = 34 + prizeLineCount * prizeFont * 1.15
-      + (descLineCount > 0 ? 20 + descLineCount * descFont * 1.2 : 14)
-      + nameFont * 1.25 + 14 + ticketFont * 1.2 + 28;
+    const cardHeight = 38 + prizeLineCount * prizeFont * 1.15
+      + (descLineCount > 0 ? 22 + descLineCount * descFont * 1.2 : 16)
+      + nameFont * 1.25 + 16 + ticketFont * 1.2 + 30;
     const cardY = y;
 
     // Si la card no entra, parar (no dibujar más)
@@ -264,17 +279,17 @@ export async function renderDrawResultFlyer({
     }
 
     // Card background (más opaco para legibilidad)
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    roundRect(ctx, cardX, cardY, cardW, cardHeight, 18);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    roundRect(ctx, cardX, cardY, cardW, cardHeight, 20);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-    ctx.lineWidth = 1.5;
-    roundRect(ctx, cardX, cardY, cardW, cardHeight, 18);
+    ctx.strokeStyle = 'rgba(255, 213, 77, 0.45)';
+    ctx.lineWidth = 2;
+    roundRect(ctx, cardX, cardY, cardW, cardHeight, 20);
     ctx.stroke();
 
     // Accent bar
     ctx.fillStyle = brandAccent;
-    roundRect(ctx, cardX, cardY, 6, cardHeight, 3);
+    roundRect(ctx, cardX, cardY, 7, cardHeight, 3);
     ctx.fill();
 
     // Sombra de texto para legibilidad
@@ -286,7 +301,7 @@ export async function renderDrawResultFlyer({
     ctx.fillStyle = '#FFD54D';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    let py = cardY + 26;
+    let py = cardY + 28;
     for (let li = 0; li < prizeLineCount; li++) {
       ctx.font = `800 ${prizeFont}px ${FONT}`;
       ctx.fillText(prizeLines[li], cardX + innerPad, py);
@@ -295,15 +310,15 @@ export async function renderDrawResultFlyer({
 
     // ── Descripción del premio ──
     if (descLineCount > 0) {
-      const descY = py + 16;
+      const descY = py + 18;
       ctx.font = `500 ${descFont}px ${FONT}`;
-      ctx.fillStyle = 'rgba(255,255,255,0.82)';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
       for (let di = 0; di < descLines.length; di++) {
         ctx.fillText(descLines[di], cardX + innerPad, descY + di * descFont * 1.2);
       }
       py = descY + descLineCount * descFont * 1.2 + 6;
     } else {
-      py += 16;
+      py += 18;
     }
 
     // ── Nombre del ganador (grande, blanco) ──
@@ -325,11 +340,11 @@ export async function renderDrawResultFlyer({
     y = cardY + cardHeight + cardMargin;
   }
 
-  y += 12;
+  y += 18;
 
   // ─── AGRADECIMIENTO A APORTANTES DE PREMIOS ───
   const sponsorText = 'Agradecemos a quienes aportaron los premios, a los que colaboraron y a nuestra comunidad. ¡Gracias por hacerlo posible! 🙏';
-  ctx.font = `500 24px ${FONT}`;
+  ctx.font = `500 28px ${FONT}`;
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
@@ -345,7 +360,7 @@ export async function renderDrawResultFlyer({
     spLines[spLines.length - 1].push(word);
     spw += wordW;
   }
-  const spH = spLines.length * 24 * 1.5 + 22;
+  const spH = spLines.length * 28 * 1.5 + 26;
   const spBoxW = RW * 0.88;
   const spBoxX = (RW - spBoxW) / 2;
   if (y + spH > BRAND_BAR_Y - 20) y = BRAND_BAR_Y - 20 - spH;
@@ -355,24 +370,24 @@ export async function renderDrawResultFlyer({
   roundRect(ctx, spBoxX, y, spBoxW, spH, 16);
   ctx.fill();
   ctx.restore();
-  let spy = y + 11;
+  let spy = y + 13;
   for (const l of spLines) {
     if (l.length === 0) continue;
     ctx.fillText(l.join(' '), RW / 2, spy);
-    spy += 24 * 1.5;
+    spy += 28 * 1.5;
   }
-  y += spH + 18;
+  y += spH + 26;
 
   // Fecha del sorteo
   if (drawDate) {
     const dateObj = new Date(drawDate);
     const dateText = dateObj.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    ctx.font = `600 26px ${FONT}`;
+    ctx.font = `600 30px ${FONT}`;
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(`Sorteo: ${dateText}`, RW / 2, y);
-    y += 40;
+    y += 46;
   }
 
   // CTA: web + chatbot (pie)
@@ -381,7 +396,7 @@ export async function renderDrawResultFlyer({
     { text: 'www.sigotuhuella.com.ar', color: '#67E8F9' },
     { text: 'Consultá por WhatsApp 221 202 5190', color: '#34D399' },
   ];
-  const ctaFontSize = 28;
+  const ctaFontSize = 34;
   let ctaMaxW = 0;
   let ctaTotalH = 0;
   for (const { text } of ctaLines) {
@@ -389,7 +404,7 @@ export async function renderDrawResultFlyer({
     ctx.font = `800 ${fs}px ${FONT}`;
     const maxCtaW = RW * 0.88;
     if (ctx.measureText(text).width > maxCtaW) {
-      while (fs > 20 && ctx.measureText(text).width > maxCtaW) { fs -= 2; ctx.font = `800 ${fs}px ${FONT}`; }
+      while (fs > 24 && ctx.measureText(text).width > maxCtaW) { fs -= 2; ctx.font = `800 ${fs}px ${FONT}`; }
     }
     ctaMaxW = Math.max(ctaMaxW, ctx.measureText(text).width);
     ctaTotalH += fs * 1.2;
@@ -414,7 +429,7 @@ export async function renderDrawResultFlyer({
     ctx.font = `800 ${fs}px ${FONT}`;
     const maxCtaW = RW * 0.88;
     if (ctx.measureText(text).width > maxCtaW) {
-      while (fs > 20 && ctx.measureText(text).width > maxCtaW) { fs -= 2; ctx.font = `800 ${fs}px ${FONT}`; }
+      while (fs > 24 && ctx.measureText(text).width > maxCtaW) { fs -= 2; ctx.font = `800 ${fs}px ${FONT}`; }
     }
     ctx.fillStyle = color;
     ctx.textAlign = 'center';
