@@ -55,9 +55,16 @@ async function getDeviceTokens(whereClause, params = []) {
   return result.rows.map(row => row.fcm_token);
 }
 
+// Normaliza el payload para que SIEMPRE lleve la URL de destino en data.url,
+// tanto si el llamador la pasó como `url` (raíz) o como `data: { url }`.
+function normalizePayload(payload) {
+  const url = payload?.url || payload?.data?.url || '';
+  return { ...payload, data: { ...(payload?.data || {}), url } };
+}
+
 async function sendToSubscriptions(subscriptions, payload) {
   if (!vapidReady || subscriptions.length === 0) return 0;
-  const stringified = JSON.stringify(payload);
+  const stringified = JSON.stringify(normalizePayload(payload));
   const results = await Promise.allSettled(
     subscriptions.map(sub =>
       webpush.sendNotification(sub, stringified).catch(async err => {

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import PwaHandler from '@/src/components/PwaHandler';
+import PushClickHandler from '@/src/components/PushClickHandler';
 import ScrollToTop from '@/src/components/ScrollToTop';
 import PublicLayout from '@/src/components/PublicLayout';
 import PublicMobileLayout from '@/src/components/PublicMobileLayout';
@@ -95,6 +96,7 @@ export default function App() {
       <ScrollToTop />
       <div className="min-h-screen bg-brand-bg">
         <PwaHandler />
+        <PushClickHandler />
         <Suspense fallback={fallback}>
           <Routes>
             {/* Public routes with Navbar + Footer */}
