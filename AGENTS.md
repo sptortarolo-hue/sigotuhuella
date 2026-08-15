@@ -365,3 +365,12 @@ Get-ChildItem dist -Recurse -Filter *.js | Select-String -Pattern "RifaDetail|Co
 
 Los únicos matches esperados: `Collaborate` (donaciones CBU/CVU/MercadoPago, legítimo), `Legales` (política) y falsos positivos de librerías (`reservedBit`/`RESERVED_` de wasm).
 
+### Advertencias de Play Console al subir el AAB (PENDIENTE para próxima versión)
+
+Al subir `app-release.aab`, Play Console muestra 2 advertencias que **no bloquean** las pruebas internas (son típicas de apps Capacitor):
+
+1. **"No hay archivo de desofuscación (R8/ProGuard)"** — porque `minifyEnabled false` en `android/app/build.gradle`. Aviso engañoso (no hay ofuscación). Resolver: activar `minifyEnabled true` + `shrinkResources true` y subir `app/build/outputs/mapping/release/mapping.txt` como "Archivo de desofuscación". Requiere probar login Google + push + cámara (R8 puede romper plugins).
+2. **"Código nativo sin símbolos de depuración"** — normal en Capacitor (librerías nativas). Resolver: agregar `ndk { debugSymbolLevel = 'FULL' }` en `defaultConfig` de `android/app/build.gradle` y subir `app/build/outputs/native-debug-symbols/native-debug-symbols.zip` como "Símbolo de depuración".
+
+Ambos cambios son locales (`android/` está fuera de git). Recordar también bumpear `versionCode`/`versionName` en `android/app/build.gradle` si ya se subió una versión.
+

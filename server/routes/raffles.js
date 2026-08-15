@@ -3,6 +3,7 @@ import pool from '../db.js';
 import { requireAuth, requireAdmin } from '../auth.js';
 import { reserveTickets, confirmPayment, cancelExpiredReservations, confirmManualPayment, rejectManualPayment } from '../services/mpService.js';
 import { enqueue, getAllGroups } from '../services/phoneRelayService.js';
+import { normalizePhone } from '../services/phoneUtils.js';
 import { renderRaffleFlyer } from '../services/raffleFlyerRenderer.js';
 import PDFDocument from 'pdfkit';
 import { readFileSync, mkdirSync, existsSync } from 'fs';
@@ -632,7 +633,7 @@ router.post('/:id/notify-participants', requireAdmin, async (req, res) => {
     const raffle = raffleRes.rows[0];
 
     const phoneRes = await pool.query(
-      `SELECT DISTINCT buyer_phone FROM raffle_tickets
+      `SELECT buyer_phone FROM raffle_tickets
        WHERE raffle_id = $1 AND status = 'paid' AND buyer_phone IS NOT NULL AND buyer_phone != ''`,
       [id]
     );
@@ -641,30 +642,33 @@ router.post('/:id/notify-participants', requireAdmin, async (req, res) => {
     }
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
-    const drawFlyerUrl = `${frontendUrl}/api/raffles/${id}/draw-flyer`;
+    const resultsUrl = `${frontendUrl}/rifas/${id}`;
 
     let msg = text || '';
     if (!msg) {
-      const winnersList = (raffle.draw_results || [])
-        .map((w, i) => `${i + 1}° ${w.prize_title}: N° ${w.ticket_number} - ${w.buyer_name}`)
-        .join('\n');
-      msg = `🎉 ¡Sorteo de "${raffle.title}" realizado!\n\n🏆 Ganadores:\n${winnersList}`;
-      if (raffle.draw_video_url) {
-        msg += `\n\n🎥 Mirá el video del sorteo: ${frontendUrl}${raffle.draw_video_url}`;
-      }
+      msg = `🎉 ¡Sorteo de "${raffle.title}" realizado! 🐾`;
     }
 
+    if (!msg.includes('/rifas/')) {
+      msg += `\n\nLos ganadores ya están publicados 👇\n🔗 Mirá los resultados: ${resultsUrl}`;
+    }
+    msg += `\n\n💛 ¡Gracias por participar! Cada número ayudó a las mascotas de nuestra comunidad. 🙏`;
+
+    const seenPhones = new Set();
     let enqueued = 0;
     for (const row of phoneRes.rows) {
+      const phone = normalizePhone(row.buyer_phone);
+      if (!phone || seenPhones.has(phone)) continue;
+      seenPhones.add(phone);
       try {
-        await enqueue(row.buyer_phone, msg, drawFlyerUrl);
+        await enqueue(phone, msg, null);
         enqueued++;
       } catch (e) {
-        console.error(`Error encolando a ${row.buyer_phone}:`, e.message);
+        console.error(`Error encolando a ${phone}:`, e.message);
       }
     }
 
-    res.json({ enqueued, total: phoneRes.rows.length, totalPaid: raffle.stats?.sold || phoneRes.rows.length });
+    res.json({ enqueued, total: seenPhones.size, totalPaid: raffle.stats?.sold || seenPhones.size });
   } catch (err) {
     console.error('POST /raffles/:id/notify-participants error:', err);
     res.status(500).json({ error: 'Error al notificar participantes' });

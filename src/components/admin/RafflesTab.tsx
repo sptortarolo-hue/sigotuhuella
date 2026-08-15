@@ -271,14 +271,8 @@ export default function RafflesTab() {
   }
 
   function openNotifyModal(raffle: Raffle) {
-    const winnersList = (raffle.draw_results || [])
-      .map((w, i) => `${i + 1}° ${w.prize_title || `${w.position}° Premio`}: N° ${w.ticket_number} - ${w.buyer_name}`)
-      .join('\n');
     const frontendUrl = window.location.origin;
-    let text = `🎉 ¡Sorteo de "${raffle.title}" realizado!\n\n🏆 Ganadores:\n${winnersList}`;
-    if (raffle.draw_video_url) {
-      text += `\n\n🎥 Mirá el video del sorteo: ${frontendUrl}${raffle.draw_video_url}`;
-    }
+    let text = `🎉 ¡Sorteo de "${raffle.title}" realizado! 🐾\n\nLos ganadores ya están publicados 👇\n🔗 Mirá los resultados: ${frontendUrl}/rifas/${raffle.id}\n\n💛 ¡Gracias por participar! Cada número ayudó a las mascotas de nuestra comunidad. 🙏`;
     setNotifyText(text);
     setNotifyResult(null);
     setShowNotifyModal(true);
