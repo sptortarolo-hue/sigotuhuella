@@ -285,6 +285,178 @@ async function overpassLPCoords(lp, address) {
   return { lat: (p1.lat + p2.lat) / 2, lng: (p1.lng + p2.lng) / 2 };
 }
 
+// ---------------------------------------------------------------------------
+// Dataset local de calles de La Plata (numeración externa).
+// La API Georef del gobierno argentino tiene la geometría de TODAS las calles
+// del partido (incluidas las de numeración externa como 672, 636, 137, que
+// Overpass/OSM no tienen mapeadas). Se genera con buildLpCalles.js y se commitea
+// a server/data/lp_calles.json. Esto permite resolver intersecciones offline,
+// sin depender de Overpass (inestable) ni del geocoder de Georef (que solo
+// cubre el casco).
+// ---------------------------------------------------------------------------
+
+import { readFileSync, existsSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const LP_CALLES_FILE = join(__dirname, '..', 'data', 'lp_calles.json');
+let lpCallesCache = null;
+
+function loadLocalCalles() {
+  if (lpCallesCache) return lpCallesCache;
+  if (!existsSync(LP_CALLES_FILE)) {
+    lpCallesCache = null;
+    return null;
+  }
+  try {
+    const raw = readFileSync(LP_CALLES_FILE, 'utf8');
+    lpCallesCache = JSON.parse(raw).calles || null;
+  } catch {
+    lpCallesCache = null;
+  }
+  return lpCallesCache;
+}
+
+// Normaliza una referencia de calle ("672", "20 bis", "20b", "CALLE 672") a la
+// clave canónica del dataset local ("672", "20 bis").
+function normalizeLocalKey(raw) {
+  if (!raw) return null;
+  const m = String(raw).match(/(\d{1,3})\s*(?:bis|b)?/i);
+  if (!m) return null;
+  const num = parseInt(m[1], 10);
+  const bis = /bis|b$/i.test(String(raw).trim()) && !/^b$/i.test(String(raw).trim());
+  return bis ? `${num} bis` : `${num}`;
+}
+
+// Calcula la intersección entre dos conjuntos de segmentos locales.
+// Reutiliza la lógica de agrupación de cruces de intersectWaySets (promedia
+// cruces cercanos y elige el grupo más cercano al ancla).
+// Si no hay cruces exactos (datos fragmentados de Georef), acepta el punto de
+// menor distancia entre segmentos siempre que esté dentro de NEAR_TOLERANCE.
+function intersectSegmentSets(segsA, segsB, anchor, anchorStrict = true) {
+  if (!segsA || segsA.length === 0 || !segsB || segsB.length === 0) return null;
+  const hits = [];
+  let bestNear = null;
+  let bestNearDist = Infinity;
+  for (const [a, b] of segsA) {
+    for (const [c, d] of segsB) {
+      const hit = localSegmentIntersection(a, b, c, d);
+      if (hit) hits.push(hit);
+      const near = closestSegmentPoint(a, b, c, d);
+      if (near && near.dist < bestNearDist) { bestNear = near; bestNearDist = near.dist; }
+    }
+  }
+  if (hits.length === 0) {
+    // Sin cruce exacto: si las geometrías pasan cerca (fragmentación de datos),
+    // usar el punto de menor distancia como aproximación del cruce.
+    if (bestNear && bestNearDist <= NEAR_TOLERANCE) {
+      return { lat: bestNear.lat, lng: bestNear.lng };
+    }
+    return null;
+  }
+  // Agrupar cruces cercanos (~300m).
+  const groups = [];
+  for (const h of hits) {
+    const g = groups.find(x => Math.hypot(x.lat / x.hits - h.lat, x.lng / x.hits - h.lng) < 0.003);
+    if (g) { g.hits++; g.lat += h.lat; g.lng += h.lng; }
+    else groups.push({ hits: 1, lat: h.lat, lng: h.lng });
+  }
+  const cents = groups.map(g => ({ lat: g.lat / g.hits, lng: g.lng / g.hits, hits: g.hits }));
+  if (anchor) {
+    cents.sort((a, b) => Math.hypot(a.lat - anchor.lat, a.lng - anchor.lng) - Math.hypot(b.lat - anchor.lat, b.lng - anchor.lng));
+    const best = cents[0];
+    const dist = Math.hypot(best.lat - anchor.lat, best.lng - anchor.lng);
+    if (dist <= 0.022) return { lat: best.lat, lng: best.lng };
+    if (anchorStrict) return null;
+    if (cents.length === 1) return { lat: best.lat, lng: best.lng };
+    return null;
+  }
+  const best = cents.reduce((a, b) => (b.hits > a.hits ? b : a), cents[0]);
+  return { lat: best.lat, lng: best.lng };
+}
+
+// Tolerancia (en grados) para considerar que dos calles "se cruzan" cuando la
+// geometría está fragmentada/desalineada en los datos de Georef (~1.1km).
+const NEAR_TOLERANCE = 0.01;
+
+// Intersección entre dos segmentos [lng,lat]. Devuelve null si no se cruzan.
+function localSegmentIntersection(a, b, c, d) {
+  const ax = a[0], ay = a[1], bx = b[0], by = b[1];
+  const cx = c[0], cy = c[1], dx = d[0], dy = d[1];
+  const denom = (bx - ax) * (dy - cy) - (by - ay) * (dx - cx);
+  if (denom === 0) return null;
+  const t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / denom;
+  const u = ((cx - ax) * (by - ay) - (cy - ay) * (bx - ax)) / denom;
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+  return { lat: ay + t * (by - ay), lng: ax + t * (bx - ax) };
+}
+
+// Devuelve el punto más cercano entre dos segmentos [lng,lat].
+function closestSegmentPoint(a, b, c, d) {
+  // Mínima distancia punto-segmento entre los 4 extremos.
+  let best = null;
+  let bestDist = Infinity;
+  const check = (p, s1, s2) => {
+    const q = closestPointOnSegment(p, s1, s2);
+    const dist = Math.hypot(p[0] - q[0], p[1] - q[1]);
+    if (dist < bestDist) { bestDist = dist; best = { lat: q[1], lng: q[0] }; }
+  };
+  check(c, a, b);
+  check(d, a, b);
+  check(a, c, d);
+  check(b, c, d);
+  return bestDist <= NEAR_TOLERANCE ? { ...best, dist: bestDist } : null;
+}
+
+function closestPointOnSegment(p, s1, s2) {
+  const ax = s1[0], ay = s1[1], bx = s2[0], by = s2[1];
+  const abx = bx - ax, aby = by - ay;
+  const apx = p[0] - ax, apy = p[1] - ay;
+  const len2 = abx * abx + aby * aby;
+  if (len2 === 0) return [ax, ay];
+  let t = (apx * abx + apy * aby) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return [ax + t * abx, ay + t * aby];
+}
+
+// Resuelve una intersección estilo La Plata usando el dataset local de calles.
+export async function localLPCoords(lp, address) {
+  const calles = loadLocalCalles();
+  if (!calles) return null;
+
+  const roadKey = normalizeLocalKey(lp.road);
+  const crossKeys = lp.type === 'intersection'
+    ? [lp.cross]
+    : [lp.from, lp.to];
+
+  const roadSegs = roadKey ? calles[roadKey] : null;
+  if (!roadSegs) return null;
+
+  const anchor = searchCenter(lp, address);
+  const nums = [lp.road, ...crossKeys].map(n => parseInt(n)).filter(n => !isNaN(n));
+  const hasOuterNumbers = nums.some(n => n > 80);
+  const anchorStrict = extractNeighborhoods(address).length > 0 || !hasOuterNumbers;
+
+  if (lp.type === 'intersection') {
+    const crossKey = normalizeLocalKey(lp.cross);
+    const crossSegs = crossKey ? calles[crossKey] : null;
+    if (!crossSegs) return null;
+    return intersectSegmentSets(roadSegs, crossSegs, anchor, anchorStrict);
+  }
+
+  const fromKey = normalizeLocalKey(lp.from);
+  const toKey = normalizeLocalKey(lp.to);
+  const fromSegs = fromKey ? calles[fromKey] : null;
+  const toSegs = toKey ? calles[toKey] : null;
+  const p1 = fromSegs ? intersectSegmentSets(roadSegs, fromSegs, anchor, anchorStrict) : null;
+  const p2 = toSegs ? intersectSegmentSets(roadSegs, toSegs, anchor, anchorStrict) : null;
+  if (!p1 && !p2) return null;
+  if (!p1) return p2;
+  if (!p2) return p1;
+  return { lat: (p1.lat + p2.lat) / 2, lng: (p1.lng + p2.lng) / 2 };
+}
+
 // Parsea direcciones del estilo de La Plata. Devuelve null si no matchea.
 // Acepta prefijos "calle", "av"/"av."/"avenida" (se normalizan) y números sueltos
 // ("12 entre 52 y 53", "12 52 y 53", "12 y 53", "12 esquina 53"). "Diagonal" NO se
@@ -385,10 +557,16 @@ export async function geocodeAddress(address) {
         const grid = gridFallback(lp);
         result = grid && isInInfluenceZone(grid.lat, grid.lng) ? grid : null;
       } else {
-        // Numeración externa: solo Overpass conoce la ubicación real.
-        const overpass = await overpassLPCoords(lp, address);
-        if (overpass && isInInfluenceZone(overpass.lat, overpass.lng)) {
-          result = overpass;
+        // Numeración externa: primero el dataset local de calles (Georef, offline
+        // y confiable), luego Overpass como fallback.
+        const local = await localLPCoords(lp, address);
+        if (local && isInInfluenceZone(local.lat, local.lng)) {
+          result = local;
+        } else {
+          const overpass = await overpassLPCoords(lp, address);
+          if (overpass && isInInfluenceZone(overpass.lat, overpass.lng)) {
+            result = overpass;
+          }
         }
       }
       // No inventar pines: si se mencionó un barrio, su centro; si no, null.

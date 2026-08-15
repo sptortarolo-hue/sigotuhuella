@@ -36,7 +36,7 @@ export function gridToLatlng(a: number, b: number): { lat: number; lng: number }
 }
 
 export function parseRoad(road: string): RoadInfo {
-  const m = road.match(/(?:Calle|Av\.?\.?\s*|Avenida)?\s*(\d+)/i);
+  const m = road.match(/(?:Calle|Av\.?\.?\s*|Avenida)\s*(\d+)/i);
   if (!m) return { axis: 'unknown', num: null };
   const n = parseInt(m[1]);
   if (n >= 1 && n <= 31) return { axis: 'a1', num: n };
