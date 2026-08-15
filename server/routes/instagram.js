@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import axios from 'axios';
 import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
 import {
@@ -10,6 +11,7 @@ import {
 } from '../services/instagramService.js';
 import { processQueue } from '../services/instagramPublisher.js';
 import { enqueue } from '../services/phoneRelayService.js';
+import { createCaseEvent } from '../services/caseService.js';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
@@ -19,6 +21,7 @@ import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const execFileAsync = promisify(execFile);
+const GRAPH_API = 'https://graph.facebook.com/v22.0';
 
 // publishContainer solo devuelve { id }; el permalink real se pide a /{media-id}
 async function resolvePermalink(mediaId) {
@@ -407,6 +410,35 @@ router.post('/webhook', async (req, res) => {
   }
 });
 
+// Suscribe la app a los webhooks de tiempo real de Instagram (comments + mentions).
+// Requiere que el token tenga instagram_manage_comments. El callback ya existe en
+// GET/POST /api/instagram/webhook con verify token INSTAGRAM_VERIFY_TOKEN.
+router.post('/subscribe-webhook', requireAdmin, async (_req, res) => {
+  try {
+    const connected = await isConnected();
+    if (!connected) return res.status(400).json({ error: 'Instagram no conectado' });
+    const igUserId = await getInstagramUserId();
+    if (!igUserId) return res.status(400).json({ error: 'Falta instagram_user_id' });
+    const token = await getStoredToken();
+    const { data } = await axios.post(
+      `${GRAPH_API}/${igUserId}/subscribed_apps`,
+      null,
+      {
+        params: {
+          subscribed_fields: 'comments,mentions',
+          access_token: token,
+        },
+        timeout: 15000,
+      }
+    );
+    res.json({ success: true, data });
+  } catch (err) {
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    console.error('[Instagram] subscribe-webhook failed:', detail.slice(0, 500));
+    res.status(500).json({ error: `Error al suscribir webhook: ${detail}` });
+  }
+});
+
 async function handleCommentEvent(value) {
   const { id: commentId, text, from, media_id: mediaId, timestamp } = value;
   const username = from?.username || 'unknown';
@@ -423,6 +455,20 @@ async function handleCommentEvent(value) {
        ON CONFLICT (ig_comment_id) DO UPDATE SET ig_post_id = COALESCE(EXCLUDED.ig_post_id, instagram_comments.ig_post_id)`,
       [commentId, mediaId, post?.id || null, username, text, timestamp || Math.floor(Date.now() / 1000)]
     );
+
+    if (post) {
+      await pool.query(
+        'UPDATE instagram_posts SET comment_count = COALESCE(comment_count, 0) + 1 WHERE id = $1',
+        [post.id]
+      );
+      if (post.pet_id) {
+        const caseRes = await pool.query('SELECT id FROM pet_cases WHERE pet_id = $1 LIMIT 1', [post.pet_id]);
+        if (caseRes.rows[0]) {
+          await createCaseEvent(caseRes.rows[0].id, 'ig_comment_received', { username, text });
+        }
+      }
+    }
+
     await processAutoReply(commentId, text, username, mediaId);
 
     if (post?.pet_id) {

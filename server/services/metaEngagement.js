@@ -79,6 +79,7 @@ export async function syncInstagramEngagement() {
             if (caseId) {
               await createCaseEvent(caseId, 'ig_comment_received', {
                 username: c.username || 'unknown',
+                text: c.text || '',
               });
             }
           }
@@ -128,6 +129,45 @@ async function saveSetting(key, value) {
   );
 }
 
+// Fallback sin permisos: engagement de una URL de post de Facebook usando el app token
+// ({app_id}|{app_secret}). Solo actualiza contadores (comment_count/like_count); la
+// API de URL devuelve valores aproximados y puede dar 0 en posts con <100 interacciones.
+async function tryUrlEngagementFallback(post) {
+  const appId = process.env.FACEBOOK_APP_ID;
+  const appSecret = process.env.FACEBOOK_APP_SECRET;
+  if (!appId || !appSecret) return false;
+  if (!post.page_post_id || !/^\d+_\d+$/.test(post.page_post_id)) return false;
+
+  const postUrl = `https://www.facebook.com/${post.page_post_id}`;
+  const url = encodeURIComponent(postUrl);
+  const appToken = `${appId}|${appSecret}`;
+  try {
+    const { data } = await axios.get(`${GRAPH_API}/`, {
+      params: {
+        id: url,
+        fields: 'engagement',
+        access_token: appToken,
+      },
+      timeout: 15000,
+    });
+    const engagement = data?.engagement;
+    if (!engagement) return false;
+    await pool.query(
+      `UPDATE facebook_page_posts SET
+         comment_count = COALESCE($1, comment_count),
+         like_count = COALESCE($2, like_count),
+         metrics_updated_at = NOW()
+       WHERE id = $3`,
+      [parseInt(engagement.comment_count, 10) || 0, parseInt(engagement.reaction_count, 10) || 0, post.id]
+    );
+    console.log(`[MetaEngagement] FB fallback URL engagement OK para ${post.page_post_id}: ${engagement.comment_count} comentarios`);
+    return true;
+  } catch (err) {
+    console.error(`[MetaEngagement] FB fallback URL engagement falló para ${post.page_post_id}: ${err.response?.data?.error?.message || err.message}`);
+    return false;
+  }
+}
+
 export async function syncFacebookEngagement() {
   const token = await getStoredToken();
   if (!token) return { posts: 0, comments: 0 };
@@ -175,6 +215,7 @@ export async function syncFacebookEngagement() {
           if (caseId) {
             await createCaseEvent(caseId, 'fb_comment_received', {
               author_name: c.from?.name || 'unknown',
+              text: c.message || '',
             });
           }
         }
@@ -184,6 +225,11 @@ export async function syncFacebookEngagement() {
       errors[kind]++;
       if (!errorSamples[kind]) {
         errorSamples[kind] = err.response?.data?.error?.message || err.message;
+      }
+      // Sin pages_read_engagement: intentar el contador vía URL engagement con app token.
+      if (kind === 'permission' || kind === 'token' || kind === 'invalid_post') {
+        const ok = await tryUrlEngagementFallback(post);
+        if (ok) posts++;
       }
     }
     await sleep(BATCH_DELAY_MS);

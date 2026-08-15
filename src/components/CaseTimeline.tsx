@@ -185,6 +185,11 @@ export default function CaseTimeline({ events }: { events: any[] }) {
               {eventDetail(ev.event_type, ev.payload) && (
                 <p className="text-sm text-gray-500 mt-1">{eventDetail(ev.event_type, ev.payload)}</p>
               )}
+              {(ev.event_type === 'ig_comment_received' || ev.event_type === 'fb_comment_received') && ev.payload?.text && (
+                <div className="bg-gray-50 border border-brand-accent rounded-xl p-3 mt-2">
+                  <p className="text-sm text-gray-700 break-words">{ev.payload.text}</p>
+                </div>
+              )}
               {ev.event_type === 'instagram_published' && dest(ev.payload) && (
                 <a href={dest(ev.payload)} target="_blank" rel="noreferrer" className="text-xs text-brand-primary underline mt-1 inline-block">Ver en Instagram</a>
               )}
