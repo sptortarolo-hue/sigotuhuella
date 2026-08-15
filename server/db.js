@@ -803,30 +803,6 @@ export async function initDb() {
     `, 'unique wa_message_id index');
 
     await migrate(client, `
-      DELETE FROM instagram_posts ip
-      USING (
-        SELECT pet_id, MAX(created_at) as max_created
-        FROM instagram_posts
-        WHERE status = 'queued' AND pet_id IS NOT NULL
-        GROUP BY pet_id
-        HAVING COUNT(*) > 1
-      ) dup
-      WHERE ip.pet_id = dup.pet_id
-        AND ip.status = 'queued'
-        AND ip.created_at < dup.max_created
-    `, 'cleanup duplicate instagram posts');
-
-    await migrate(client, `
-      DELETE FROM instagram_posts p1
-      USING instagram_posts p2
-      WHERE p1.pet_id = p2.pet_id
-        AND p1.id <> p2.id
-        AND p1.status NOT IN ('failed')
-        AND p2.status NOT IN ('failed')
-        AND p1.created_at < p2.created_at
-    `, 'deduplicate instagram posts');
-
-    await migrate(client, `
       ALTER TABLE promotional_videos ADD COLUMN IF NOT EXISTS story_interval_minutes INTEGER
     `, 'add story_interval_minutes to promotional_videos');
     await migrate(client, `
