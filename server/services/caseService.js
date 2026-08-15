@@ -229,7 +229,7 @@ export async function getCaseImpact(caseId, petId) {
               ip.reach, ip.metrics_updated_at, ip.caption, ip.ig_media_id
        FROM instagram_posts ip
        WHERE ip.pet_id = $1 AND ip.status = 'published'
-       ORDER BY ip.published_at DESC NULLS LAST
+       ORDER BY ip.is_celebration ASC, ip.published_at DESC NULLS LAST
        LIMIT 1`,
       [petId]
     ),
@@ -238,7 +238,7 @@ export async function getCaseImpact(caseId, petId) {
               fp.metrics_updated_at, fp.message
        FROM facebook_page_posts fp
        WHERE fp.pet_id = $1 AND fp.status = 'published'
-       ORDER BY fp.published_at DESC NULLS LAST
+       ORDER BY fp.is_celebration ASC, fp.published_at DESC NULLS LAST
        LIMIT 1`,
       [petId]
     ),
