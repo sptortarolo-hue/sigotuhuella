@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Circle, ZoomControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -75,6 +76,13 @@ const statusLabel = (s: string) => {
 };
 
 export default function PetMap({ pets, center }: PetMapProps) {
+  const navigate = useNavigate();
+
+  const openDetail = (pet: Pet) => {
+    sessionStorage.setItem('pet_list_scroll', window.scrollY.toString());
+    navigate(`/pet/${pet.id}`);
+  };
+
   return (
     <div className="w-full h-[400px] md:h-[600px] rounded-[2.5rem] overflow-hidden border border-brand-accent shadow-xl relative z-0">
       <MapContainer
@@ -116,6 +124,13 @@ export default function PetMap({ pets, center }: PetMapProps) {
                         <a href={`https://wa.me/${pet.contact_info.replace(/\D/g, '')}`} className="flex-1 bg-emerald-500 text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline">WhatsApp</a>
                       </div>
                     )}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); openDetail(pet); }}
+                      className="w-full mt-2 bg-gray-800 text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm hover:bg-gray-700 cursor-pointer"
+                    >
+                      Ver detalle →
+                    </button>
                   </div>
                 </Popup>
               </Marker>
@@ -165,6 +180,13 @@ export default function PetMap({ pets, center }: PetMapProps) {
                         <a href={`https://wa.me/${pet.contact_info.replace(/\D/g, '')}`} className="flex-1 bg-emerald-500 text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline">WhatsApp</a>
                       </div>
                     )}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); openDetail(pet); }}
+                      className="w-full mt-2 bg-gray-800 text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm hover:bg-gray-700 cursor-pointer"
+                    >
+                      Ver detalle →
+                    </button>
                   </div>
                 </Popup>
               </Marker>
