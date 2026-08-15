@@ -108,6 +108,26 @@ export async function syncInstagramEngagement() {
 
 // ---- Facebook (página) ----
 
+function classifyGraphError(err) {
+  const e = err.response?.data?.error || {};
+  const code = e.code;
+  const type = e.type || '';
+  const message = e.message || '';
+  if (code === 190) return { kind: 'token' };
+  if (code === 10 || type === 'OAuthException' && /permission/i.test(message)) return { kind: 'permission' };
+  if (code === 100 && /nonexisting field/i.test(message)) return { kind: 'permission' };
+  if (code === 100) return { kind: 'invalid_post' };
+  return { kind: 'other' };
+}
+
+async function saveSetting(key, value) {
+  await pool.query(
+    `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+    [key, value]
+  );
+}
+
 export async function syncFacebookEngagement() {
   const token = await getStoredToken();
   if (!token) return { posts: 0, comments: 0 };
@@ -119,6 +139,8 @@ export async function syncFacebookEngagement() {
   );
 
   let posts = 0, comments = 0;
+  const errors = { permission: 0, invalid_post: 0, token: 0, other: 0 };
+  const errorSamples = {};
   for (const post of postsRes.rows) {
     try {
       const params = { access_token: token, fields: 'id,like_count,comment_count,share_count' };
@@ -158,9 +180,25 @@ export async function syncFacebookEngagement() {
         }
       }
     } catch (err) {
-      console.error(`[MetaEngagement] FB page post ${post.id}: ${err.response?.data?.error?.message || err.message}`);
+      const { kind } = classifyGraphError(err);
+      errors[kind]++;
+      if (!errorSamples[kind]) {
+        errorSamples[kind] = err.response?.data?.error?.message || err.message;
+      }
     }
     await sleep(BATCH_DELAY_MS);
+  }
+
+  if (errors.permission > 0 || errors.token > 0) {
+    const detail = errors.permission > 0
+      ? 'El token de Facebook no tiene el permiso pages_read_engagement (o la app carece de Page Public Content Access). Reconectar FB desde el admin.'
+      : 'El token de Facebook es inválido o expiró. Reconectar FB desde el admin.';
+    console.error(`[MetaEngagement] FB sync: ${errors.permission} post(s) bloqueados por permisos / ${errors.token} por token. ${detail} Ej.: ${errorSamples.permission || errorSamples.token || ''}`);
+    await saveSetting('fb_sync_auth_error', 'true');
+    await saveSetting('fb_sync_auth_error_at', new Date().toISOString());
+    await saveSetting('fb_sync_auth_error_detail', detail);
+  } else if (postsRes.rows.length > 0 && errors.invalid_post + errors.other === 0) {
+    await saveSetting('fb_sync_auth_error', 'false');
   }
 
   return { posts, comments };

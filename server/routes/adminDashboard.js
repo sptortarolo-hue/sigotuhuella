@@ -100,6 +100,18 @@ router.get('/', requireAdmin, async (_req, res) => {
           ? `Broadcast adopciones: ${settings.fb_adoption_broadcast_enabled === 'true' ? 'ON' : 'OFF'}`
           : 'Desactivado',
       },
+      engagement: {
+        enabled: settings.engagement_sync_enabled === 'true',
+        status: settings.engagement_sync_enabled === 'true'
+          ? (settings.fb_sync_auth_error === 'true' ? 'error' : 'ok')
+          : 'idle',
+        lastRun: null,
+        detail: settings.engagement_sync_enabled !== 'true'
+          ? 'Desactivado'
+          : settings.fb_sync_auth_error === 'true'
+            ? (settings.fb_sync_auth_error_detail || 'Token FB sin permisos — reconectar')
+            : 'Sync IG/FB activo',
+      },
     };
 
     // Last posts per platform
