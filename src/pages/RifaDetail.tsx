@@ -31,6 +31,15 @@ interface Raffle {
   prizes: Prize[];
   tickets: { number: number; status: string; buyer_name: string }[];
   stats: { sold: number; reservedMp: number; pendingTransfer: number; pendingManual: number; available: number };
+  draw_results?: {
+    position: number;
+    prize_title: string;
+    prize_description: string | null;
+    prize_amount: number | null;
+    ticket_number: number;
+    buyer_name: string;
+  }[];
+  draw_video_url?: string | null;
 }
 
 function useCountdown(targetDate: string | null) {
@@ -201,6 +210,7 @@ export default function RifaDetail() {
 
   const soldPercent = Math.round((raffle.stats.sold / raffle.total_numbers) * 100);
   const totalParticipantes = raffle.stats.sold + raffle.stats.reservedMp + raffle.stats.pendingTransfer + raffle.stats.pendingManual;
+  const isDrawn = raffle.status === 'drawn';
 
   if (reserveResult) {
     const reservedNumbers = reserveResult.tickets.map(t => t.number).sort((a, b) => a - b);
@@ -273,7 +283,7 @@ export default function RifaDetail() {
             <div className="flex-1">
               <div className="inline-flex items-center gap-2 bg-amber-100/80 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-full mb-4">
                 <Ticket className="w-3.5 h-3.5" />
-                Rifa Activa
+                {isDrawn ? 'Rifa Sorteada' : 'Rifa Activa'}
               </div>
 
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-brand-primary mb-3 leading-tight">
@@ -296,7 +306,7 @@ export default function RifaDetail() {
                   <div className="bg-white/80 backdrop-blur-sm border border-amber-200/50 rounded-2xl px-4 py-2.5 flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-amber-600" />
                     <div>
-                      <div className="text-xs text-gray-500">Sorteo</div>
+                      <div className="text-xs text-gray-500">{isDrawn ? 'Sorteado' : 'Sorteo'}</div>
                       <div className="font-bold text-brand-primary">{new Date(raffle.draw_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
                     </div>
                   </div>
@@ -311,13 +321,15 @@ export default function RifaDetail() {
                 )}
               </div>
 
-              <button
-                onClick={scrollToGrid}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:shadow-lg hover:scale-[1.02] transition-all"
-              >
-                Elegí tus números
-                <ChevronDown className="w-4 h-4" />
-              </button>
+              {!isDrawn && (
+                <button
+                  onClick={scrollToGrid}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:shadow-lg hover:scale-[1.02] transition-all"
+                >
+                  Elegí tus números
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              )}
               {IS_PLAY_BUILD && (
                 <button
                   onClick={() => handleShare('copy')}
@@ -330,7 +342,7 @@ export default function RifaDetail() {
             </div>
 
             {/* Right: Countdown */}
-            {countdown && !countdown.expired && (
+            {countdown && !countdown.expired && !isDrawn && (
               <div className="lg:w-72 shrink-0">
                 <div className="bg-white/90 backdrop-blur-sm border border-amber-200/50 rounded-3xl p-5 sm:p-6 text-center">
                   <div className="flex items-center justify-center gap-2 mb-3">
@@ -484,8 +496,104 @@ export default function RifaDetail() {
         </div>
         )}
 
+        {/* ─── RESULTADOS (rifa sorteada) ─── */}
+        {isDrawn && (
+          <div className="mb-6 sm:mb-8 space-y-6 sm:space-y-8">
+            {raffle.draw_video_url && (
+              <div className="bg-white rounded-3xl border border-brand-accent p-5 sm:p-6">
+                <h2 className="text-lg sm:text-xl font-bold text-brand-primary mb-4 flex items-center gap-2">
+                  <span className="text-base">🎬</span> Video del sorteo
+                </h2>
+                <div className="rounded-2xl overflow-hidden bg-black">
+                  <video
+                    src={raffle.draw_video_url}
+                    controls
+                    preload="metadata"
+                    className="w-full aspect-video object-contain"
+                  />
+                </div>
+              </div>
+            )}
+
+            {raffle.draw_results && raffle.draw_results.length > 0 && (
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-brand-primary mb-4 flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-amber-500" />
+                  Ganadores
+                </h2>
+                <div className={cn(
+                  "grid gap-3 sm:gap-4",
+                  raffle.draw_results.length === 1 ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"
+                )}>
+                  {[...raffle.draw_results]
+                    .sort((a, b) => a.position - b.position)
+                    .map((w, i) => (
+                      <motion.div
+                        key={`${w.position}-${w.ticket_number}`}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.08 }}
+                        className={cn(
+                          "relative overflow-hidden rounded-2xl border p-4 sm:p-5",
+                          i === 0
+                            ? "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200/50"
+                            : "bg-white border-brand-accent"
+                        )}
+                      >
+                        <div className="flex items-start gap-3 sm:gap-4">
+                          <div className={cn(
+                            "w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0",
+                            i === 0
+                              ? "bg-gradient-to-br from-amber-400 to-orange-400 text-white"
+                              : "bg-amber-100 text-amber-600"
+                          )}>
+                            <Trophy className="w-6 h-6 sm:w-7 sm:h-7" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-1">
+                              {i === 0 ? '🏆 Primer Premio' : `${w.position}º Premio`}
+                            </div>
+                            <h3 className="font-bold text-brand-primary text-base sm:text-lg leading-snug">{w.prize_title}</h3>
+                            {w.prize_description && <p className="text-sm text-gray-500 mt-1">{w.prize_description}</p>}
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-gray-600">
+                              <span>Número: <span className="font-bold text-brand-primary">N° {w.ticket_number}</span></span>
+                              <span>Ganador: <span className="font-bold">{w.buyer_name}</span></span>
+                            </div>
+                          </div>
+                          {w.prize_amount != null && (
+                            <div className="text-right shrink-0">
+                              <div className="text-lg sm:text-xl font-bold text-brand-primary">${w.prize_amount.toLocaleString('es-AR')}</div>
+                              <div className="text-[10px] text-gray-400 uppercase">valor</div>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <a
+                href={`/api/raffles/${raffle.id}/draw-flyer`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:shadow-lg hover:scale-[1.02] transition-all"
+              >
+                📄 Ver flyer de resultados
+              </a>
+              {raffle.draw_date && (
+                <p className="text-sm text-gray-500">
+                  Sorteado el{' '}
+                  {new Date(raffle.draw_date).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ─── GRID DE NÚMEROS ─── */}
-        {IS_PLAY_BUILD && (
+        {!isDrawn && IS_PLAY_BUILD && (
           <div className="bg-white rounded-3xl border border-brand-accent p-6 mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-bold text-brand-primary mb-3">Participá por los canales oficiales</h2>
             <p className="text-sm text-gray-600">
@@ -500,7 +608,7 @@ export default function RifaDetail() {
             </button>
           </div>
         )}
-        {!IS_PLAY_BUILD && (
+        {!IS_PLAY_BUILD && !isDrawn && (
         <div id="raffle-grid" className="bg-white rounded-3xl border border-brand-accent p-5 sm:p-6 mb-6 sm:mb-8 scroll-mt-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg sm:text-xl font-bold text-brand-primary">Elegí tus números</h2>
