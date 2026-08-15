@@ -147,6 +147,7 @@ export const api = {
       request(`/pets/${id}/images/reorder`, { method: 'PUT', body: JSON.stringify({ imageIds }) }),
     deleteImage: (petId: string, imageId: string) =>
       request(`/pets/${petId}/images/${imageId}`, { method: 'DELETE' }),
+    publish: (id: string, platforms: string[]) => request('/pets/' + id + '/publish', { method: 'POST', body: JSON.stringify({ platforms }) }),
     verify: (id: string, verified: boolean) =>
       request(`/pets/${id}/verify`, { method: 'PUT', body: JSON.stringify({ verified }) }),
     ownerData: (id: string) => request(`/pets/${id}/owner-data`),

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   X, PawPrint, MapPin, Phone, Calendar, Shield, MessageSquare, Camera,
   Globe, Instagram, QrCode, ExternalLink, ChevronRight, ChevronDown, User, Heart, HeartHandshake,
-  Layers, Home, History as HistoryIcon, Users, ArrowUpRight
+  Layers, Home, History as HistoryIcon, Users, ArrowUpRight, Send
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { formatDate } from '@/src/lib/formatDate';
@@ -72,7 +72,7 @@ interface PetDetailPanelProps {
   onOpenMyPet?: (myPetId: string) => void;
 }
 
-export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, pets, users, onRefresh, onOpenMyPet }: PetDetailPanelProps) {
+export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, pets, users, onRefresh, onOpenMyPet, onPublish }: PetDetailPanelProps) {
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'images' | 'owner' | 'relations' | 'group' | 'history'>('info');
   const [showReunionModal, setShowReunionModal] = useState(false);
   const [showModal, setShowModal] = useState<null | 'group' | 'transit'>(null);
@@ -186,6 +186,14 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
             className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/30 hover:bg-brand-primary/20 transition-colors"
           >
             <PawPrint className="w-3.5 h-3.5" /> Ver como mascota propia
+          </button>
+        )}
+        {onPublish && (
+          <button
+            onClick={() => onPublish(pet)}
+            className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl bg-brand-primary text-white font-bold hover:bg-brand-primary/90 transition-colors"
+          >
+            <Send className="w-3.5 h-3.5" /> Publicar
           </button>
         )}
       </div>

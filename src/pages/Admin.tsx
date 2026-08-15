@@ -241,6 +241,12 @@ export default function Admin() {
   const [republishPlatforms, setRepublishPlatforms] = useState<string[]>([]);
   const [republishing, setRepublishing] = useState(false);
 
+  // Pet publish modal state
+  const [showPetPublishModal, setShowPetPublishModal] = useState(false);
+  const [petPublishTarget, setPetPublishTarget] = useState<any>(null);
+  const [petPublishPlatforms, setPetPublishPlatforms] = useState<string[]>([]);
+  const [publishingPet, setPublishingPet] = useState(false);
+
   // Banner state
   const [bannerChapitaVisible, setBannerChapitaVisible] = useState(true);
   const [bannerChapitaPrice, setBannerChapitaPrice] = useState('500');
@@ -1223,6 +1229,7 @@ export default function Admin() {
                               <button onClick={() => setConfirmDialog({ isOpen: true, title: 'Eliminar mascota', message: `¿Eliminar ${pet.name || 'esta mascota'} definitivamente?`, actionLabel: 'CONFIRMAR', variant: 'danger', onConfirm: async () => { try { await deletePet(pet.id); fetchPets(); } catch (e) { alert('Error al eliminar: ' + (e.message || 'Error desconocido')); } setConfirmDialog(prev => ({ ...prev, isOpen: false })); } })} className="p-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
                               <button onClick={() => handleTrackPet(pet)} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Seguimiento"><Activity className="w-3.5 h-3.5" /></button>
                               <button onClick={async () => { await updatePet(pet.id, { is_hidden: !pet.is_hidden }); fetchPets(); }} className={`p-1.5 rounded-lg transition-colors ${pet.is_hidden ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-brand-bg text-gray-400 hover:text-brand-primary hover:bg-brand-accent'}`} title={pet.is_hidden ? 'Mostrar' : 'Ocultar'}>{pet.is_hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</button>
+                              <button onClick={() => { setPetPublishTarget(pet); setPetPublishPlatforms([]); setShowPetPublishModal(true); }} className="p-1.5 rounded-lg bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Publicar"><Send className="w-3.5 h-3.5" /></button>
                               {(pet.status === PetStatus.FOR_ADOPTION || pet.status === PetStatus.FOR_ADOPTION_SIMPLE) ? (
                                 <button onClick={async () => { if (confirm('¿Marcar como adoptada?')) { await updatePet(pet.id, { status: PetStatus.ADOPTED }); fetchPets(); } }} className="ml-auto p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Marcar adoptado"><Heart className="w-3.5 h-3.5" /></button>
                               ) : pet.status === PetStatus.REUNITED ? (
@@ -1256,7 +1263,7 @@ export default function Admin() {
                     </div>
                   ) : selectedPetData ? (
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
-                      <PetDetailPanel data={selectedPetData} pets={pets} users={userList} onRefresh={() => fetchPetRelations(selectedPetData.pet.id)} onOpenMyPet={handleOpenMyPetById} />
+                      <PetDetailPanel data={selectedPetData} pets={pets} users={userList} onRefresh={() => fetchPetRelations(selectedPetData.pet.id)} onOpenMyPet={handleOpenMyPetById} onPublish={(pet) => { setPetPublishTarget(pet); setPetPublishPlatforms([]); setShowPetPublishModal(true); }} />
                     </div>
                   ) : selectedMyPetData ? (
                     <div className="bg-white rounded-[2.5rem] border border-brand-accent overflow-y-auto max-h-[calc(100vh-280px)]">
@@ -1348,6 +1355,7 @@ export default function Admin() {
                         <button onClick={() => handleReencuentro(pet.id, pet.name)} className="mt-3 w-full py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"><HeartHandshake className="w-4 h-4" /> Hubo reencuentro</button>
                       )}
                       <button onClick={() => setSharePet(pet)} className="mt-2 w-full py-2.5 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all"><Share2 className="w-4 h-4" /> Redes Sociales</button>
+                      <button onClick={() => { setPetPublishTarget(pet); setPetPublishPlatforms([]); setShowPetPublishModal(true); }} className="mt-2 w-full py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary/90 transition-colors"><Send className="w-4 h-4" /> Publicar</button>
                       <button onClick={() => handleTrackPet(pet)} className="mt-2 w-full py-2.5 bg-brand-bg text-brand-primary border border-brand-accent rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-primary hover:text-white hover:border-brand-primary transition-all"><Activity className="w-4 h-4" /> Seguimiento</button>
                     </div>
                   ))}
@@ -3414,6 +3422,62 @@ export default function Admin() {
                   className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-50">
                   {republishing ? <Loader2 className="animate-spin w-5 h-5" /> : <Send className="w-5 h-5" />}
                   {republishing ? 'Publicando...' : 'Publicar'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+
+        {showPetPublishModal && petPublishTarget && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPetPublishModal(false)} className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden">
+              <div className="p-6 border-b border-brand-accent flex justify-between items-center bg-brand-bg/50">
+                <h2 className="text-xl font-serif font-bold text-brand-primary">Publicar Mascota</h2>
+                <button onClick={() => setShowPetPublishModal(false)} className="p-2 hover:bg-brand-accent rounded-full"><X className="w-6 h-6" /></button>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-gray-600 font-bold">{petPublishTarget.name || 'Sin nombre'} — {petPublishTarget.species === 'dog' ? 'Perro' : petPublishTarget.species === 'cat' ? 'Gato' : 'Otro'}</p>
+                <p className="text-xs text-gray-400">Seleccioná los canales donde querés publicar:</p>
+                <div className="space-y-2">
+                  {[
+                    { key: 'facebook_page', icon: '📘', label: 'Facebook Página' },
+                    { key: 'facebook_groups', icon: '👥', label: 'Facebook Grupos' },
+                    { key: 'instagram', icon: '📷', label: 'Instagram Feed' },
+                    { key: 'whatsapp', icon: '💬', label: 'WhatsApp Grupos' },
+                    { key: 'whatsapp_status', icon: '📱', label: 'WhatsApp Estado' },
+                  ].map(p => (
+                    <label key={p.key} className="flex items-center gap-3 p-3 bg-brand-bg rounded-2xl cursor-pointer hover:bg-brand-accent/50 transition-colors">
+                      <input type="checkbox" checked={petPublishPlatforms.includes(p.key)}
+                        onChange={e => {
+                          if (e.target.checked) setPetPublishPlatforms(prev => [...prev, p.key]);
+                          else setPetPublishPlatforms(prev => prev.filter(k => k !== p.key));
+                        }}
+                        className="w-5 h-5 rounded accent-brand-primary" />
+                      <span className="text-sm">{p.icon} {p.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <button onClick={async () => {
+                  if (petPublishPlatforms.length === 0) { alert('Seleccioná al menos un canal'); return; }
+                  setPublishingPet(true);
+                  try {
+                    const result = await api.pets.publish(petPublishTarget.id, petPublishPlatforms);
+                    const failed = (result.results || []).filter((r: any) => r.status === 'failed');
+                    if (failed.length > 0) {
+                      alert('Algunos canales fallaron:\n' + failed.map((f: any) => f.platform + ': ' + f.error).join('\n'));
+                    }
+                    setShowPetPublishModal(false);
+                  } catch (e: any) {
+                    alert(e.message || 'Error al publicar');
+                  } finally {
+                    setPublishingPet(false);
+                  }
+                }} disabled={publishingPet}
+                  className="w-full py-4 bg-brand-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:shadow-lg transition-all disabled:opacity-50">
+                  {publishingPet ? <Loader2 className="animate-spin w-5 h-5" /> : <Send className="w-5 h-5" />}
+                  {publishingPet ? 'Publicando...' : 'Publicar'}
                 </button>
               </div>
             </motion.div>

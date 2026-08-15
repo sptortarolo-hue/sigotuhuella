@@ -1864,4 +1864,85 @@ router.get('/shared/with-me', requireAuth, async (req, res) => {
   }
 });
 
+
+// ── Publish pet to multiple channels ──────────────────────────────────────
+router.post('/:id/publish', requireAdmin, async (req, res) => {
+  try {
+    const { platforms } = req.body;
+    if (!platforms || !Array.isArray(platforms) || platforms.length === 0) {
+      return res.status(400).json({ error: 'Seleccioná al menos un canal' });
+    }
+    const petResult = await pool.query('SELECT * FROM pets WHERE id = $1', [req.params.id]);
+    if (petResult.rows.length === 0) return res.status(404).json({ error: 'Mascota no encontrada' });
+
+    const results = [];
+
+    for (const platform of platforms) {
+      try {
+        let result;
+        switch (platform) {
+          case 'facebook_page': {
+            const { publishToPage, publishPetToGroups } = await import('../services/facebookPublisher.js');
+            const pageResult = await publishToPage(req.params.id);
+            if (pageResult.error) throw new Error(pageResult.error);
+            let pagePostUrl = null;
+            if (pageResult.pagePostId && pageResult.pageId) {
+              pagePostUrl = 'https://www.facebook.com/' + pageResult.pageId + '/posts/' + pageResult.pagePostId;
+              await pool.query(
+                "INSERT INTO facebook_page_posts (pet_id, page_post_id, message, status, published_at) VALUES ($1, $2, $3, 'published', NOW())",
+                [req.params.id, pageResult.pagePostId, pageResult.message || '']
+              );
+            }
+            publishPetToGroups(req.params.id, { skipPagePublish: true, pagePostUrl }).catch(e => console.error('[Publish] FB groups error:', e));
+            result = { platform, status: 'published' };
+            break;
+          }
+          case 'facebook_groups': {
+            const { publishPetToGroups } = await import('../services/facebookPublisher.js');
+            publishPetToGroups(req.params.id, { skipPagePublish: false }).catch(e => console.error('[Publish] FB groups error:', e));
+            result = { platform, status: 'queued' };
+            break;
+          }
+          case 'instagram': {
+            const { default: instagramService } = await import('../services/instagramPublisher.js');
+            if (instagramService && instagramService.publishPet) {
+              await instagramService.publishPet(req.params.id);
+            } else {
+              const { replicateInstagramToFacebook } = await import('../services/facebookPublisher.js');
+              await replicateInstagramToFacebook(req.params.id);
+            }
+            result = { platform, status: 'published' };
+            break;
+          }
+          case 'whatsapp': {
+            const { broadcastPetToGroups } = await import('../services/whatsappService.js');
+            await broadcastPetToGroups(req.params.id);
+            result = { platform, status: 'published' };
+            break;
+          }
+          case 'whatsapp_status': {
+            const { broadcastToStatus } = await import('../services/phoneRelayService.js');
+            if (broadcastToStatus) {
+              await broadcastToStatus(req.params.id);
+            }
+            result = { platform, status: 'published' };
+            break;
+          }
+          default:
+            result = { platform, status: 'skipped', error: 'Canal no soportado' };
+        }
+        results.push(result);
+      } catch (e) {
+        console.error('[Publish] Error on ' + platform + ':', e.message);
+        results.push({ platform, status: 'failed', error: e.message });
+      }
+    }
+
+    res.json({ results });
+  } catch (err) {
+    console.error('Publish pet error:', err);
+    res.status(500).json({ error: 'Error al publicar mascota' });
+  }
+});
+
 export default router;
