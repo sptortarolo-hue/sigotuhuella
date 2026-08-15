@@ -268,6 +268,12 @@ export default function Admin() {
   const [qrBatchCount, setQrBatchCount] = useState(12);
   const [qrBatchLoading, setQrBatchLoading] = useState(false);
   const [qrAssignLoading, setQrAssignLoading] = useState<string | null>(null);
+  const [reassignModal, setReassignModal] = useState<any | null>(null);
+  const [reassignPets, setReassignPets] = useState<any[]>([]);
+  const [reassignPetId, setReassignPetId] = useState('');
+  const [reassignTyped, setReassignTyped] = useState('');
+  const [reassignStep, setReassignStep] = useState<'select' | 'confirm'>('select');
+  const [reassignLoading, setReassignLoading] = useState(false);
   const [reactivateToken, setReactivateToken] = useState('');
   const [reactivateCode, setReactivateCode] = useState('');
   const [reactivateLoading, setReactivateLoading] = useState(false);
@@ -395,6 +401,42 @@ export default function Admin() {
     } finally {
       setQrNotifyingId(null);
     }
+  };
+
+  const handleOpenReassign = async (qr: any) => {
+    try {
+      const data: any = await api.qr.petsAvailable();
+      setReassignPets(data.pets || []);
+      setReassignModal(qr);
+      setReassignPetId('');
+      setReassignTyped('');
+      setReassignStep('select');
+    } catch (e: any) {
+      alert(e.message || 'Error al cargar mascotas disponibles');
+    }
+  };
+
+  const handleReassign = async () => {
+    if (!reassignModal || !reassignPetId) return;
+    if (reassignTyped !== 'REASIGNAR') return;
+    try {
+      setReassignLoading(true);
+      await api.qr.reassign(reassignModal.id, reassignPetId);
+      setReassignModal(null);
+      await fetchQrData(qrAssignedPage);
+    } catch (e: any) {
+      alert(e.message || 'Error al reasignar QR');
+    } finally {
+      setReassignLoading(false);
+    }
+  };
+
+  const closeReassign = () => {
+    setReassignModal(null);
+    setReassignPetId('');
+    setReassignTyped('');
+    setReassignStep('select');
+    setReassignLoading(false);
   };
 
   const fetchLastCode = async () => {
@@ -2839,6 +2881,13 @@ export default function Admin() {
                           'Notificar'
                         )}
                       </button>
+                      <button
+                        onClick={() => handleOpenReassign(item)}
+                        className="px-3 py-1 text-xs font-bold rounded-full border border-amber-300 text-amber-700 hover:bg-amber-500 hover:text-white transition-all"
+                        title="Reasignar a otra mascota"
+                      >
+                        Reasignar
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -2846,6 +2895,104 @@ export default function Admin() {
             </tbody>
           </table>
         </div>
+        <AnimatePresence>
+          {reassignModal && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={closeReassign}
+                className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-6 sm:p-8"
+              >
+                <button onClick={closeReassign} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+
+                <h3 className="text-lg font-bold text-brand-primary mb-1">Reasignar QR {reassignModal.code}</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Actualmente asignado a <strong>{reassignModal.pet_name}</strong> ({reassignModal.owner_name}). Vas a pasarlo a otra mascota.
+                </p>
+
+                {reassignStep === 'select' ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-2">Mascota destino (sin QR)</label>
+                      <select
+                        value={reassignPetId}
+                        onChange={e => setReassignPetId(e.target.value)}
+                        className="w-full px-4 py-3 border border-brand-accent rounded-xl text-sm outline-none focus:border-brand-primary transition-colors bg-white"
+                      >
+                        <option value="" disabled>Seleccionar mascota...</option>
+                        {reassignPets.map((p: any) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name || 'Sin nombre'} ({p.species === 'dog' ? 'Perro' : p.species === 'cat' ? 'Gato' : 'Otro'}{p.breed ? ` · ${p.breed}` : ''}) — {p.owner_name}
+                          </option>
+                        ))}
+                        {reassignPets.length === 0 && (
+                          <option value="" disabled>No hay mascotas sin QR</option>
+                        )}
+                      </select>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={closeReassign}
+                        className="flex-1 px-4 py-3 border border-brand-accent rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => setReassignStep('confirm')}
+                        disabled={!reassignPetId}
+                        className="flex-1 px-4 py-3 bg-amber-500 text-white rounded-xl text-sm font-bold transition-all hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Continuar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-500">
+                      La chapita <strong>{reassignModal.code}</strong> pasará de <strong>{reassignModal.pet_name}</strong> a la mascota seleccionada. La notificación al nuevo dueño queda pendiente.
+                    </p>
+                    <p className="text-xs text-gray-400 font-medium">
+                      Escribí <span className="font-bold text-amber-600">REASIGNAR</span> para confirmar:
+                    </p>
+                    <input
+                      type="text"
+                      value={reassignTyped}
+                      onChange={e => setReassignTyped(e.target.value)}
+                      placeholder="REASIGNAR"
+                      autoFocus
+                      className="w-full px-4 py-3 border border-brand-accent rounded-xl text-sm outline-none focus:border-amber-500 transition-colors text-center font-bold"
+                    />
+                    <div className="flex gap-3">
+                      <button
+                        onClick={closeReassign}
+                        className="flex-1 px-4 py-3 border border-brand-accent rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50 transition-colors"
+                      >
+                        No
+                      </button>
+                      <button
+                        onClick={handleReassign}
+                        disabled={reassignTyped !== 'REASIGNAR' || reassignLoading}
+                        className="flex-1 px-4 py-3 bg-red-500 text-white rounded-xl text-sm font-bold transition-all hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {reassignLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'REASIGNAR'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
         {qrAssignedPages > 1 && (
           <div className="flex items-center justify-center gap-3 mt-4">
             <button

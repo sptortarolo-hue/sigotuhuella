@@ -226,6 +226,82 @@ router.post('/assign', requireAdmin, async (req, res) => {
   }
 });
 
+// Todas las mascotas sin QR asignado (para reasignar una chapita).
+router.get('/pets-available', requireAdmin, async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT mp.id, mp.name, mp.species, mp.breed, u.display_name AS owner_name
+       FROM my_pets mp
+       JOIN users u ON u.id = mp.user_id
+       WHERE mp.qr_id IS NULL
+       ORDER BY mp.name ASC NULLS LAST, mp.created_at DESC
+       LIMIT 500`
+    );
+    res.json({ pets: result.rows });
+  } catch (err) {
+    console.error('qr pets-available error:', err);
+    res.status(500).json({ error: 'Error al obtener mascotas disponibles' });
+  }
+});
+
+// Reasigna una chapita QR asignada por error a otra mascota (admin).
+router.post('/reassign', requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { qr_id, new_my_pet_id } = req.body;
+    if (!qr_id || !new_my_pet_id) return res.status(400).json({ error: 'qr_id y new_my_pet_id son requeridos' });
+
+    await client.query('BEGIN');
+
+    const qrResult = await client.query('SELECT * FROM qr_identifiers WHERE id = $1', [qr_id]);
+    if (qrResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'QR no encontrado' });
+    }
+
+    const petResult = await client.query('SELECT * FROM my_pets WHERE id = $1', [new_my_pet_id]);
+    if (petResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Mascota no encontrada' });
+    }
+    if (petResult.rows[0].qr_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'La mascota destino ya tiene un QR asignado' });
+    }
+
+    // 1. Desasignar del dueño actual
+    await client.query(
+      'UPDATE my_pets SET qr_id = NULL WHERE qr_id = $1',
+      [qr_id]
+    );
+
+    // 2. Asignar a la nueva mascota
+    await client.query(
+      'UPDATE qr_identifiers SET my_pet_id = $1, assigned_at = NOW() WHERE id = $2',
+      [new_my_pet_id, qr_id]
+    );
+    await client.query(
+      'UPDATE my_pets SET qr_id = $1, qr_requested = false WHERE id = $2',
+      [qr_id, new_my_pet_id]
+    );
+
+    // 3. Resetear notificación para que el nuevo dueño reciba el aviso
+    await client.query(
+      'UPDATE qr_identifiers SET notification_status = NULL, notified_at = NULL WHERE id = $1',
+      [qr_id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ success: true, code: qrResult.rows[0].code });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('qr reassign error:', err);
+    res.status(500).json({ error: 'Error al reasignar QR' });
+  } finally {
+    client.release();
+  }
+});
+
 router.post('/claim', requireAuth, async (req, res) => {
   try {
     const { code, my_pet_id } = req.body;
