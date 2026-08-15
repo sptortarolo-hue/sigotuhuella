@@ -558,7 +558,7 @@ async function handleImageFromMenu(conv, parsed) {
         },
       });
       await sendMessage(conv.wa_from, `${conv.bot_name}: Según tu mensaje, ¿*${labels[result.intent]}* esta mascota?`);
-      if (result.intent === 'found') {
+      if (result.intent === 'found' || result.intent === 'sighted') {
         const pronombre = result.gender === 'female' ? 'la' : result.gender === 'male' ? 'lo' : null;
         if (pronombre) {
           const cap = pronombre === 'la' ? 'La' : 'Lo';
@@ -609,7 +609,7 @@ async function handleImageChoice(conv, parsed, intent) {
 async function handleImageConfirm(conv, parsed, intent) {
   const type = conv.flow.replace('image_confirm_', '');
   if (intent === 'confirm') {
-    if (type === 'found') {
+    if (type === 'found' || type === 'sighted') {
       if (parsed.buttonId === 'confirm_retained') return startReportFound(conv);
       return startReportSighted(conv);
     }
@@ -916,7 +916,7 @@ async function rlConfirm(conv, parsed, intent) {
 // ─── Report Sighted ───
 
 async function startReportSighted(conv) {
-  if (conv.context?.photo_data) {
+  if (conv.context?.photo_data && conv.flow.startsWith('image_confirm_')) {
     return rsPhoto(conv, {
       messageType: 'image',
       imageData: conv.context.photo_data,
