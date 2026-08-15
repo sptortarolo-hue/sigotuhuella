@@ -151,8 +151,8 @@ async function autoQueueCelebrationPost(pet, newsType) {
     const caption = generateCelebrationText(pet, newsType);
     if (!caption) return;
     await pool.query(
-      `INSERT INTO instagram_posts (pet_id, media_type, caption, status, is_celebration, created_at)
-       VALUES ($1, 'IMAGE', $2, 'queued', TRUE, NOW())`,
+      `INSERT INTO instagram_posts (pet_id, media_type, caption, status, created_at)
+       VALUES ($1, 'IMAGE', $2, 'queued', NOW())`,
       [pet.id, `${caption}\n\n${htag}`]
     );
     console.log(`[Instagram] Queued celebration post for pet ${pet.id}`);
@@ -286,7 +286,7 @@ export async function celebrateStatusChange({ petId, userId, fromStatus, toStatu
 
   // 8. Broadcast + relay (fire-and-forget)
   broadcastPetToGroups(petId).catch(e => console.error('Broadcast reunion/adoption error:', e));
-  publishPetToGroups(petId, { isCelebration: true }).catch(e => console.error('[FB Relay] publishPetToGroups error:', e));
+  publishPetToGroups(petId).catch(e => console.error('[FB Relay] publishPetToGroups error:', e));
   enqueueFbGroupComment(pet, newsType).catch(e => console.error('[FB Relay] enqueueFbGroupComment error:', e));
 
   // 9. Badges (solo reunited)

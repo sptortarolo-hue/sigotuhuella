@@ -72,10 +72,10 @@ router.get('/', async (req, res) => {
                WHERE aa.pet_id = p.id
                  AND (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))) as has_pending_adoption,
         (SELECT json_build_object('permalink', ip.ig_permalink, 'likes', ip.like_count, 'comments', ip.comment_count, 'shares', ip.share_count)
-         FROM instagram_posts ip WHERE ip.pet_id = p.id AND ip.status = 'published' AND ip.is_celebration = FALSE
+         FROM instagram_posts ip WHERE ip.pet_id = p.id AND ip.status = 'published'
          ORDER BY ip.published_at DESC NULLS LAST LIMIT 1) as ig_impact,
         (SELECT json_build_object('post_id', fp.page_post_id, 'likes', fp.like_count, 'comments', fp.comment_count, 'shares', fp.share_count)
-         FROM facebook_page_posts fp WHERE fp.pet_id = p.id AND fp.status = 'published' AND fp.is_celebration = FALSE
+         FROM facebook_page_posts fp WHERE fp.pet_id = p.id AND fp.status = 'published'
          ORDER BY fp.published_at DESC NULLS LAST LIMIT 1) as fb_impact,
         p.case_number as case_number
       FROM pets p
