@@ -1605,6 +1605,9 @@ router.post('/lost-report', async (req, res) => {
     await client.query('COMMIT');
     pet.images = imagesResult.rows[0]?.images || [];
 
+    // Genera el caso del reporte (pet_cases + case_created), igual que /api/pets y /api/pets/public.
+    await createPetCase(pet, { source: 'lost_report' });
+
     // Send confirmation email to reporter
     sendLostPetConfirmationEmail(email, { species, name, breed, color, description, location, phone }, registrationToken)
       .catch(err => console.error('Failed to send lost pet confirmation email:', err));
