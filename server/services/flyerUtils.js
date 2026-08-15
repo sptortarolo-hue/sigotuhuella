@@ -55,26 +55,26 @@ export function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-export function drawBgDecorations(ctx) {
-  ctx.clearRect(0, 0, W, H);
-  const bgGrad = ctx.createLinearGradient(0, 0, W * 0.3, H);
+export function drawBgDecorations(ctx, w = W, h = H) {
+  ctx.clearRect(0, 0, w, h);
+  const bgGrad = ctx.createLinearGradient(0, 0, w * 0.3, h);
   bgGrad.addColorStop(0, BRAND_START);
   bgGrad.addColorStop(1, BRAND_END);
   ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, 0, w, h);
   ctx.globalAlpha = 0.06;
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
-  ctx.arc(W * 0.85, H * 0.12, W * 0.3, 0, Math.PI * 2);
+  ctx.arc(w * 0.85, h * 0.12, w * 0.3, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(W * 0.1, H * 0.88, W * 0.2, 0, Math.PI * 2);
+  ctx.arc(w * 0.1, h * 0.88, w * 0.2, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(W * 0.75, H * 0.75, W * 0.08, 0, Math.PI * 2);
+  ctx.arc(w * 0.75, h * 0.75, w * 0.08, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(W * 0.15, H * 0.12, W * 0.06, 0, Math.PI * 2);
+  ctx.arc(w * 0.15, h * 0.12, w * 0.06, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
 }
@@ -107,13 +107,12 @@ export function drawWrappedText(ctx, text, cx, y, maxWidth, fontSize, maxLines, 
   return curY;
 }
 
-export function drawBrandBar(ctx, logoImg) {
-  const brandY = BRAND_BAR_Y;
+export function drawBrandBar(ctx, logoImg, w = W, brandY = BRAND_BAR_Y) {
   ctx.strokeStyle = 'rgba(255,255,255,0.2)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(W * 0.1, brandY);
-  ctx.lineTo(W * 0.9, brandY);
+  ctx.moveTo(w * 0.1, brandY);
+  ctx.lineTo(w * 0.9, brandY);
   ctx.stroke();
 
   const logoR = 30;
@@ -121,16 +120,16 @@ export function drawBrandBar(ctx, logoImg) {
   if (logoImg) {
     ctx.save();
     ctx.beginPath();
-    ctx.arc(W * 0.32, logoY, logoR, 0, Math.PI * 2);
+    ctx.arc(w * 0.32, logoY, logoR, 0, Math.PI * 2);
     ctx.clip();
     const la = logoImg.naturalWidth / logoImg.naturalHeight;
     let lw, lh;
     if (la > 1) { lh = logoR * 2.2; lw = lh * la; }
     else { lw = logoR * 2.2; lh = lw / la; }
-    ctx.drawImage(logoImg, W * 0.32 - lw / 2, logoY - lh / 2, lw, lh);
+    ctx.drawImage(logoImg, w * 0.32 - lw / 2, logoY - lh / 2, lw, lh);
     ctx.restore();
     ctx.beginPath();
-    ctx.arc(W * 0.32, logoY, logoR, 0, Math.PI * 2);
+    ctx.arc(w * 0.32, logoY, logoR, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -139,20 +138,20 @@ export function drawBrandBar(ctx, logoImg) {
     ctx.font = `${logoR * 1.5}px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🐾', W * 0.32, logoY);
+    ctx.fillText('🐾', w * 0.32, logoY);
   }
 
   ctx.font = `800 ${38}px ${FONT}`;
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText('SIGO TU HUELLA', W * 0.32 + logoR + 15, logoY);
+  ctx.fillText('SIGO TU HUELLA', w * 0.32 + logoR + 15, logoY);
 
   ctx.font = `600 ${26}px ${FONT}`;
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
-  ctx.fillText('sigotuhuella.com.ar', W * 0.88, logoY);
+  ctx.fillText('sigotuhuella.com.ar', w * 0.88, logoY);
 }
 
 export async function getLogoImage() {
