@@ -304,15 +304,15 @@ export default function RifaDetail() {
                     </div>
                   </div>
                 )}
-                {raffle.draw_date ? (
+                {!isDrawn && raffle.draw_date ? (
                   <div className="bg-white/80 backdrop-blur-sm border border-amber-200/50 rounded-2xl px-4 py-2.5 flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-amber-600" />
                     <div>
-                      <div className="text-xs text-gray-500">{isDrawn ? 'Sorteado' : 'Sorteo'}</div>
+                      <div className="text-xs text-gray-500">Sorteo</div>
                       <div className="font-bold text-brand-primary">{new Date(raffle.draw_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
                     </div>
                   </div>
-                ) : (
+                ) : !isDrawn ? (
                   <div className="bg-white/80 backdrop-blur-sm border border-green-200/50 rounded-2xl px-4 py-2.5 flex items-center gap-2">
                     <Ticket className="w-5 h-5 text-green-600" />
                     <div>
@@ -320,7 +320,7 @@ export default function RifaDetail() {
                       <div className="font-bold text-green-700 text-sm">Se sorteará cuando se vendan todos los números</div>
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
 
               {!isDrawn && (
@@ -370,10 +370,12 @@ export default function RifaDetail() {
           </div>
 
           {/* Impact message */}
+          {!isDrawn && (
           <div className="mt-6 sm:mt-8 bg-white/60 backdrop-blur-sm border border-amber-200/30 rounded-2xl px-4 py-3 inline-flex items-center gap-2 text-sm text-amber-700 font-medium">
             <span className="text-base">🐾</span>
             Todo lo recaudado va en ayuda de mascotas rescatadas
           </div>
+          )}
         </div>
       </section>
 
@@ -510,8 +512,7 @@ export default function RifaDetail() {
               ¡Gracias por participar!
             </h2>
             <p className="text-gray-600 text-sm sm:text-base max-w-xl mx-auto">
-              Cada número que adquiriste fue una ayuda real para las mascotas rescatadas.
-              Compartimos con vos el resultado del sorteo:
+              Cada número que adquiriste fue una ayuda real para las mascotas de nuestra comunidad. Compartimos con vos el resultado del sorteo:
             </p>
           </div>
         )}
@@ -594,14 +595,6 @@ export default function RifaDetail() {
             )}
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <a
-                href={`/api/raffles/${raffle.id}/draw-flyer`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:shadow-lg hover:scale-[1.02] transition-all"
-              >
-                📄 Ver flyer de resultados
-              </a>
               {raffle.draw_date && (
                 <p className="text-sm text-gray-500">
                   Sorteado el{' '}
