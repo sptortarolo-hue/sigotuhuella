@@ -14,13 +14,12 @@ async function main() {
   const pets = await pool.query(
     `SELECT id, location, latitude, longitude
      FROM pets
-     WHERE location IS NOT NULL AND location != ''
-       AND latitude IS NOT NULL AND longitude IS NOT NULL`
+     WHERE location IS NOT NULL AND location != ''`
   );
 
   console.log(`[Backfill] Pets a procesar: ${pets.rows.length}`);
 
-  let updated = 0, skipped = 0, samePlace = 0;
+  let updated = 0, filled = 0, skipped = 0, samePlace = 0;
   for (let i = 0; i < pets.rows.length; i++) {
     const pet = pets.rows[i];
     const coords = await geocodeAddress(pet.location).catch(() => null);
@@ -30,21 +29,32 @@ async function main() {
       await new Promise(r => setTimeout(r, 500));
       continue;
     }
-    const dist = haversine(pet.latitude, pet.longitude, coords.lat, coords.lng);
-    if (dist > 100) {
+    const hasCoords = pet.latitude != null && pet.longitude != null;
+    if (!hasCoords) {
+      // Franja de pines vacios: asignar las coords geocodificadas.
       await pool.query(
         'UPDATE pets SET latitude = $1, longitude = $2 WHERE id = $3',
         [coords.lat, coords.lng, pet.id]
       );
-      updated++;
-      console.log(`[${i + 1}/${pets.rows.length}] UPDATE ${pet.id}: "${pet.location}" -> ${coords.lat}, ${coords.lng} (corrigio ${Math.round(dist)}m)`);
+      filled++;
+      console.log(`[${i + 1}/${pets.rows.length}] FILL ${pet.id}: "${pet.location}" -> ${coords.lat}, ${coords.lng}`);
     } else {
-      samePlace++;
+      const dist = haversine(pet.latitude, pet.longitude, coords.lat, coords.lng);
+      if (dist > 100) {
+        await pool.query(
+          'UPDATE pets SET latitude = $1, longitude = $2 WHERE id = $3',
+          [coords.lat, coords.lng, pet.id]
+        );
+        updated++;
+        console.log(`[${i + 1}/${pets.rows.length}] UPDATE ${pet.id}: "${pet.location}" -> ${coords.lat}, ${coords.lng} (corrigio ${Math.round(dist)}m)`);
+      } else {
+        samePlace++;
+      }
     }
     await new Promise(r => setTimeout(r, 500));
   }
 
-  console.log(`\n[Backfill] Fin. Actualizados: ${updated} | Sin cambio (<100m): ${samePlace} | Skipped: ${skipped} | Total: ${pets.rows.length}`);
+  console.log(`\n[Backfill] Fin. Actualizados: ${updated} | Rellenados: ${filled} | Sin cambio (<100m): ${samePlace} | Skipped: ${skipped} | Total: ${pets.rows.length}`);
   process.exit(0);
 }
 
