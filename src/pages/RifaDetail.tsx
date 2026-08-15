@@ -8,7 +8,7 @@ import {
   Users, Shield, Share2, Clock, Copy, ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { shareRaffleOnWhatsApp } from '@/src/lib/whatsappShare';
+import { shareRaffleOnWhatsApp, shareRaffleResultsOnWhatsApp } from '@/src/lib/whatsappShare';
 import { PhoneInput } from '@/src/components/PhoneInput';
 import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
@@ -295,13 +295,15 @@ export default function RifaDetail() {
               )}
 
               <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-6">
-                <div className="bg-white/80 backdrop-blur-sm border border-amber-200/50 rounded-2xl px-4 py-2.5 flex items-center gap-2">
-                  <Ticket className="w-5 h-5 text-amber-600" />
-                  <div>
-                    <div className="text-xs text-gray-500">Precio</div>
-                    <div className="font-bold text-brand-primary">${raffle.price_per_number.toLocaleString('es-AR')}<span className="text-xs font-normal text-gray-500"> /número</span></div>
+                {!isDrawn && (
+                  <div className="bg-white/80 backdrop-blur-sm border border-amber-200/50 rounded-2xl px-4 py-2.5 flex items-center gap-2">
+                    <Ticket className="w-5 h-5 text-amber-600" />
+                    <div>
+                      <div className="text-xs text-gray-500">Precio</div>
+                      <div className="font-bold text-brand-primary">${raffle.price_per_number.toLocaleString('es-AR')}<span className="text-xs font-normal text-gray-500"> /número</span></div>
+                    </div>
                   </div>
-                </div>
+                )}
                 {raffle.draw_date ? (
                   <div className="bg-white/80 backdrop-blur-sm border border-amber-200/50 rounded-2xl px-4 py-2.5 flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-amber-600" />
@@ -379,13 +381,15 @@ export default function RifaDetail() {
 
         {/* ─── TRUST + SHARE ─── */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Shield className="w-4 h-4 text-green-600" />
-            <span>Pago por transferencia bancaria</span>
-          </div>
+          {!isDrawn && (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Shield className="w-4 h-4 text-green-600" />
+              <span>Pago por transferencia bancaria</span>
+            </div>
+          )}
           <div className="flex items-center gap-2">
-            <button onClick={() => raffle && shareRaffleOnWhatsApp(raffle.id, raffle.title)} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors">
-              📱 Compartir por WhatsApp
+            <button onClick={() => raffle && (isDrawn ? shareRaffleResultsOnWhatsApp(raffle.id, raffle.title) : shareRaffleOnWhatsApp(raffle.id, raffle.title))} className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors">
+              📱 {isDrawn ? 'Compartir resultados' : 'Compartir por WhatsApp'}
             </button>
             <button onClick={() => handleShare('copy')} className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200 transition-colors" title="Copiar link">
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -394,7 +398,7 @@ export default function RifaDetail() {
         </div>
 
         {/* ─── PREMIOS ─── */}
-        {raffle.prizes?.length > 0 && (
+        {!isDrawn && raffle.prizes?.length > 0 && (
           <div className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-bold text-brand-primary mb-4 flex items-center gap-2">
               <Trophy className="w-5 h-5 text-amber-500" />
@@ -447,6 +451,7 @@ export default function RifaDetail() {
         )}
 
         {/* ─── PROGRESO ─── */}
+        {!isDrawn && (
         <div className="bg-white rounded-3xl border border-brand-accent p-5 sm:p-6 mb-6 sm:mb-8">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
@@ -468,9 +473,10 @@ export default function RifaDetail() {
             <span>{raffle.stats.available} disponibles de {raffle.total_numbers}</span>
           </div>
         </div>
+        )}
 
         {/* ─── CÓMO FUNCIONA ─── */}
-        {!IS_PLAY_BUILD && (
+        {!IS_PLAY_BUILD && !isDrawn && (
         <div className="mb-6 sm:mb-8">
           <h2 className="text-lg sm:text-xl font-bold text-brand-primary mb-4">¿Cómo funciona?</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
@@ -496,25 +502,23 @@ export default function RifaDetail() {
         </div>
         )}
 
+        {/* ─── AGRADECIMIENTO (rifa sorteada) ─── */}
+        {isDrawn && (
+          <div className="bg-white rounded-3xl border border-brand-accent p-6 sm:p-8 text-center mb-6 sm:mb-8">
+            <div className="text-4xl sm:text-5xl mb-3">🙏</div>
+            <h2 className="text-xl sm:text-2xl font-bold text-brand-primary mb-3">
+              ¡Gracias por participar!
+            </h2>
+            <p className="text-gray-600 text-sm sm:text-base max-w-xl mx-auto">
+              Cada número que adquiriste fue una ayuda real para las mascotas rescatadas.
+              Compartimos con vos el resultado del sorteo:
+            </p>
+          </div>
+        )}
+
         {/* ─── RESULTADOS (rifa sorteada) ─── */}
         {isDrawn && (
           <div className="mb-6 sm:mb-8 space-y-6 sm:space-y-8">
-            {raffle.draw_video_url && (
-              <div className="bg-white rounded-3xl border border-brand-accent p-5 sm:p-6">
-                <h2 className="text-lg sm:text-xl font-bold text-brand-primary mb-4 flex items-center gap-2">
-                  <span className="text-base">🎬</span> Video del sorteo
-                </h2>
-                <div className="rounded-2xl overflow-hidden bg-black">
-                  <video
-                    src={raffle.draw_video_url}
-                    controls
-                    preload="metadata"
-                    className="w-full aspect-video object-contain"
-                  />
-                </div>
-              </div>
-            )}
-
             {raffle.draw_results && raffle.draw_results.length > 0 && (
               <div>
                 <h2 className="text-lg sm:text-xl font-bold text-brand-primary mb-4 flex items-center gap-2">
@@ -569,6 +573,22 @@ export default function RifaDetail() {
                         </div>
                       </motion.div>
                     ))}
+                </div>
+              </div>
+            )}
+
+            {raffle.draw_video_url && (
+              <div className="bg-white rounded-3xl border border-brand-accent p-5 sm:p-6">
+                <h2 className="text-lg sm:text-xl font-bold text-brand-primary mb-4 flex items-center gap-2">
+                  <span className="text-base">🎬</span> Video del sorteo
+                </h2>
+                <div className="rounded-2xl overflow-hidden bg-black">
+                  <video
+                    src={raffle.draw_video_url}
+                    controls
+                    preload="metadata"
+                    className="w-full aspect-video object-contain"
+                  />
                 </div>
               </div>
             )}

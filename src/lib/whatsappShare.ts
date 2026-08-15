@@ -77,3 +77,22 @@ export async function shareRaffleOnWhatsApp(raffleId: string, title: string): Pr
   }
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }
+
+export async function shareRaffleResultsOnWhatsApp(raffleId: string, title: string): Promise<void> {
+  const link = `${FRONTEND_URL}/rifas/${raffleId}`;
+  const text = `🎉 ¡Resultados de la rifa "${title}"!\n\nMirá los ganadores del sorteo 👇\n${link}`;
+  const flyerUrl = `${FRONTEND_URL}/api/raffles/${raffleId}/draw-flyer`;
+
+  if (navigator.share) {
+    try {
+      const resp = await fetch(flyerUrl);
+      const blob = await resp.blob();
+      const file = new File([blob], `resultados-${title}.png`, { type: 'image/png' });
+      await navigator.share({ title: `Resultados: ${title}`, text, files: [file] });
+      return;
+    } catch {
+      // fallback si falla la descarga o el share
+    }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+}
