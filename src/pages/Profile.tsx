@@ -11,6 +11,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import ImageCropper from '@/src/components/ImageCropper';
 import { fileToBase64 } from '@/src/lib/storageService';
+import { pickPhoto } from '@/src/lib/cameraService';
+import { isNative } from '@/src/lib/platform';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
 import { cn } from '@/src/lib/utils';
 import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
@@ -120,6 +122,12 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file) return;
     setCropFile(file);
+  };
+
+  const handleNativeAvatarPick = async () => {
+    const picked = await pickPhoto();
+    if (!picked) return;
+    setCropFile(picked.file);
   };
 
   const handleCropComplete = async (croppedBlob: Blob) => {
@@ -290,7 +298,7 @@ export default function Profile() {
             )}
           </div>
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => isNative() ? handleNativeAvatarPick() : fileInputRef.current?.click()}
             className="absolute -bottom-1 -right-1 w-7 h-7 bg-brand-primary text-white rounded-full flex items-center justify-center border-2 border-white"
           >
             <Camera className="w-3.5 h-3.5" />

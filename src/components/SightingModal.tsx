@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { X, Eye, Loader2, MapPin, LocateFixed } from 'lucide-react';
+import { X, Eye, Loader2, MapPin, LocateFixed, Camera } from 'lucide-react';
 import { motion } from 'motion/react';
 import { api } from '@/src/lib/api';
 import { filesToBase64 } from '@/src/lib/storageService';
+import { pickPhoto } from '@/src/lib/cameraService';
+import { isNative } from '@/src/lib/platform';
 import { PhoneInput } from '@/src/components/PhoneInput';
 
 interface SightingModalProps {
@@ -39,6 +41,14 @@ export default function SightingModal({ caseId, onClose, onSaved }: SightingModa
     const file = e.target.files?.[0];
     if (!file) return;
     const [b64] = await filesToBase64([file]);
+    setPhoto(b64.data);
+    setPhotoMime(b64.mimeType || 'image/jpeg');
+  };
+
+  const handleNativePhoto = async () => {
+    const picked = await pickPhoto();
+    if (!picked) return;
+    const [b64] = await filesToBase64([picked.file]);
     setPhoto(b64.data);
     setPhotoMime(b64.mimeType || 'image/jpeg');
   };
@@ -110,7 +120,17 @@ export default function SightingModal({ caseId, onClose, onSaved }: SightingModa
 
           <div>
             <label className="text-xs font-bold uppercase text-gray-500">Foto (opcional)</label>
-            <input type="file" accept="image/*" onChange={handlePhoto} className="w-full mt-1 px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
+            {isNative() ? (
+              <button
+                type="button"
+                onClick={handleNativePhoto}
+                className="w-full mt-1 px-4 py-3 bg-brand-bg rounded-xl border border-dashed border-brand-accent text-sm font-bold text-brand-primary flex items-center justify-center gap-2"
+              >
+                <Camera className="w-4 h-4" /> Agregar foto
+              </button>
+            ) : (
+              <input type="file" accept="image/*" onChange={handlePhoto} className="w-full mt-1 px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
+            )}
             {photo && <img src={`data:${photoMime};base64,${photo}`} className="w-28 h-28 object-cover rounded-xl mt-2 border border-brand-accent" alt="preview" />}
           </div>
 

@@ -3,6 +3,8 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { Pet, PetStatus, getPetCoordinates, deletePet, updatePet, getPetImageUrls } from '@/src/lib/petService';
 import { filesToBase64 } from '@/src/lib/storageService';
+import { pickPhoto } from '@/src/lib/cameraService';
+import { isNative } from '@/src/lib/platform';
 import { useNavigate } from 'react-router-dom';
 import PetCard from '@/src/components/PetCard';
 import PetMap from '@/src/components/PetMap';
@@ -104,6 +106,13 @@ export default function MyPets() {
     setCropFile(null);
     setCroppingIndex(null);
     setPendingFiles([]);
+  };
+
+  const handleNativeAddPhoto = async () => {
+    const picked = await pickPhoto();
+    if (!picked) return;
+    setCropFile(picked.file);
+    setCroppingIndex(selectedFiles.length);
   };
 
   const [formData, setFormData] = useState({
@@ -420,6 +429,12 @@ export default function MyPets() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-500">Imágenes</label>
+                  {isNative() ? (
+                    <button type="button" onClick={handleNativeAddPhoto}
+                      className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-dashed border-brand-accent text-sm text-brand-primary font-bold">
+                      + Agregar foto (cámara / galería)
+                    </button>
+                  ) : (
                   <input type="file" accept="image/*" multiple onChange={e => { 
                     const raw = Array.from(e.target.files || []) as File[];
                     if (raw.length === 0) return;
@@ -427,6 +442,7 @@ export default function MyPets() {
                     setCropFile(raw[0]);
                     setCroppingIndex(selectedFiles.length);
                   }} className="w-full px-4 py-3 bg-brand-bg rounded-xl border border-brand-accent" />
+                  )}
                   {previews.length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {previews.map((src, i) => (

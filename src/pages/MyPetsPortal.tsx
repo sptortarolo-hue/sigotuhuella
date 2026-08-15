@@ -3,6 +3,8 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
 import { api, apiUrl } from '@/src/lib/api';
 import { fileToBase64 } from '@/src/lib/storageService';
+import { pickPhoto } from '@/src/lib/cameraService';
+import { isNative } from '@/src/lib/platform';
 import { formatDate } from '@/src/lib/formatDate';
 import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
 import ImageCropper from '@/src/components/ImageCropper';
@@ -152,10 +154,16 @@ export default function MyPetsPortal() {
   }, [user]);
 
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCropFile(file);
-  };
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setCropFile(file);
+    };
+
+    const handleNativeAvatarPick = async () => {
+      const picked = await pickPhoto();
+      if (!picked) return;
+      setCropFile(picked.file);
+    };
 
   const handleCropComplete = (croppedBlob: Blob) => {
     const file = new File([croppedBlob], 'avatar.jpg', { type: 'image/jpeg' });
@@ -706,10 +714,11 @@ export default function MyPetsPortal() {
 
               <div className="p-6 sm:p-8 overflow-y-auto space-y-5">
                 <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-20 h-20 rounded-2xl border-2 border-dashed border-brand-accent hover:border-brand-primary bg-brand-bg flex items-center justify-center overflow-hidden transition-colors shrink-0"
-                  >
+                    <button
+                      onClick={() => isNative() ? handleNativeAvatarPick() : fileInputRef.current?.click()}
+                      className="w-20 h-20 rounded-2xl border-2 border-dashed border-brand-accent 
+hover:border-brand-primary bg-brand-bg flex items-center justify-center overflow-hidden transition-colors shrink-0"
+                    >
                     {avatarPreview ? (
                       <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (

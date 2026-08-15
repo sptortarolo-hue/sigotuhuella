@@ -7,6 +7,8 @@ import { motion } from 'motion/react';
 import MemberCard, { BADGE_CONFIG } from '@/src/components/MemberCard';
 import ImageCropper from '@/src/components/ImageCropper';
 import { fileToBase64 } from '@/src/lib/storageService';
+import { pickPhoto } from '@/src/lib/cameraService';
+import { isNative } from '@/src/lib/platform';
 
 export default function MemberCardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -49,10 +51,16 @@ export default function MemberCardPage() {
   };
 
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCropFile(file);
-  };
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setCropFile(file);
+    };
+
+    const handleNativeAvatarPick = async () => {
+      const picked = await pickPhoto();
+      if (!picked) return;
+      setCropFile(picked.file);
+    };
 
   const handleCropComplete = async (croppedBlob: Blob) => {
     setCropFile(null);
@@ -220,7 +228,7 @@ export default function MemberCardPage() {
                 : <PawPrint className="w-8 h-8 text-brand-primary" />}
             </div>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarSelect} className="hidden" />
-            <button onClick={() => fileInputRef.current?.click()} disabled={avatarLoading}
+            <button onClick={() => isNative() ? handleNativeAvatarPick() : fileInputRef.current?.click()} disabled={avatarLoading}
               className="px-4 py-2 bg-brand-primary text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:shadow-lg transition-all disabled:opacity-50">
               {avatarLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               {memberData?.avatar_type === 'photo' ? 'Cambiar Foto' : 'Subir Foto'}

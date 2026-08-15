@@ -4,6 +4,8 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api, apiUrl } from '@/src/lib/api';
 import { cn, formatDateOnly } from '@/src/lib/utils';
 import { fileToBase64 } from '@/src/lib/storageService';
+import { pickPhoto } from '@/src/lib/cameraService';
+import { isNative } from '@/src/lib/platform';
 import { formatTag, PERSONALITY_TAG_EMOJIS } from '@/src/lib/personalityTags';
 import ImageCropper from '@/src/components/ImageCropper';
 import {
@@ -374,6 +376,15 @@ export default function MyPetDetail() {
     setRecordCropIndex(recordPhotos.length);
   };
 
+  const handleNativeRecordPhotoSelect = async () => {
+    if (recordPhotos.length >= 3) return;
+    const picked = await pickPhoto();
+    if (!picked) return;
+    setRecordPhotos(prev => [...prev, picked.file]);
+    setRecordCropFile(picked.file);
+    setRecordCropIndex(recordPhotos.length);
+  };
+
   const [recordCropIndex, setRecordCropIndex] = useState<number | null>(null);
 
   const handleRecordCropComplete = (croppedBlob: Blob) => {
@@ -497,6 +508,20 @@ export default function MyPetDetail() {
     setCropMode('avatar');
   };
 
+  const handleNativeAvatarUpload = async () => {
+    const picked = await pickPhoto();
+    if (!picked) return;
+    setCropFile(picked.file);
+    setCropMode('avatar');
+  };
+
+  const handleNativePhotoUpload = async () => {
+    const picked = await pickPhoto();
+    if (!picked) return;
+    setCropFile(picked.file);
+    setCropMode('photo');
+  };
+
   const handleDeletePhoto = async (photoId: string) => {
     if (!confirm('¿Eliminar esta foto?')) return;
     try {
@@ -618,6 +643,13 @@ export default function MyPetDetail() {
     setEditAvatarPreview(URL.createObjectURL(file));
   };
 
+  const handleNativeEditAvatarSelect = async () => {
+    const picked = await pickPhoto();
+    if (!picked) return;
+    setEditAvatarFile(picked.file);
+    setEditAvatarPreview(picked.dataUrl);
+  };
+
   const [qrContactName, setQrContactName] = useState('');
   const [qrContactPhone, setQrContactPhone] = useState('');
   const [qrContactSaving, setQrContactSaving] = useState(false);
@@ -704,7 +736,7 @@ export default function MyPetDetail() {
       <div className="flex items-center gap-4 mb-6">
         <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
         <button
-          onClick={() => avatarInputRef.current?.click()}
+          onClick={() => isNative() ? handleNativeAvatarUpload() : avatarInputRef.current?.click()}
           disabled={avatarLoading}
           className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-brand-accent bg-brand-bg shrink-0 relative group"
           title="Cambiar foto de perfil"
@@ -1019,7 +1051,7 @@ export default function MyPetDetail() {
             <div className="flex justify-end gap-2 mb-4">
               <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
               <button
-                onClick={() => photoInputRef.current?.click()}
+                onClick={() => isNative() ? handleNativePhotoUpload() : photoInputRef.current?.click()}
                 disabled={photoLoading}
                 className="px-4 py-2 bg-brand-primary text-white rounded-xl font-bold text-xs hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
               >
@@ -1037,7 +1069,7 @@ export default function MyPetDetail() {
               <div className="bg-white rounded-[2rem] border border-dashed border-brand-accent p-6 sm:p-8 text-center">
                 <Camera className="w-12 h-12 text-brand-accent mx-auto mb-3" />
                 <p className="text-gray-400">Todavía no hay fotos</p>
-                <button onClick={() => photoInputRef.current?.click()}
+                <button onClick={() => isNative() ? handleNativePhotoUpload() : photoInputRef.current?.click()}
                   className="mt-4 px-4 py-2 bg-brand-primary text-white rounded-xl text-xs font-bold">
                   Subir primera foto
                 </button>
@@ -1495,7 +1527,7 @@ export default function MyPetDetail() {
                             </div>
                           ))}
                           {recordPhotos.length < 3 && (
-                            <button onClick={() => recordPhotoInputRef.current?.click()}
+                            <button onClick={() => isNative() ? handleNativeRecordPhotoSelect() : recordPhotoInputRef.current?.click()}
                               className="w-16 h-16 rounded-xl border-2 border-dashed border-brand-accent flex items-center justify-center text-brand-accent hover:border-brand-primary hover:text-brand-primary transition-colors">
                               <Camera className="w-5 h-5" />
                             </button>
@@ -1704,7 +1736,7 @@ export default function MyPetDetail() {
 
               <div className="p-6 sm:p-8 overflow-y-auto space-y-5">
                 <div className="flex items-center gap-4">
-                  <button onClick={() => editFileInputRef.current?.click()}
+                  <button onClick={() => isNative() ? handleNativeEditAvatarSelect() : editFileInputRef.current?.click()}
                     className="w-20 h-20 rounded-2xl border-2 border-dashed border-brand-accent hover:border-brand-primary bg-brand-bg flex items-center justify-center overflow-hidden transition-colors shrink-0"
                   >
                     {editAvatarPreview ? (

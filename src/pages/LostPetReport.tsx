@@ -4,6 +4,8 @@ import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, PawPrint, Mail, 
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '@/src/lib/api';
+import { pickPhoto } from '@/src/lib/cameraService';
+import { isNative } from '@/src/lib/platform';
 import LocationInput from '@/src/components/LocationInput';
 import ImageCropper from '@/src/components/ImageCropper';
 
@@ -75,6 +77,14 @@ export default function LostPetReport() {
     const file = Array.from(rawFiles).slice(0, 3 - images.length)[0];
     if (!file) return;
     setCropFile(file);
+    setCroppingIndex(images.length);
+  };
+
+  const handleNativePick = async () => {
+    if (images.length >= 3) return;
+    const picked = await pickPhoto();
+    if (!picked) return;
+    setCropFile(picked.file);
     setCroppingIndex(images.length);
   };
 
@@ -464,7 +474,16 @@ export default function LostPetReport() {
                 </div>
               ))}
               {images.length < 3 && (
-                <label className={`w-24 h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-brand-primary transition-colors ${images.length === 0 ? 'border-red-300 bg-red-50' : 'border-brand-accent'}`}>
+                <label
+                  onClick={(e) => {
+                    if (isNative()) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleNativePick();
+                    }
+                  }}
+                  className={`w-24 h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-brand-primary transition-colors ${images.length === 0 ? 'border-red-300 bg-red-50' : 'border-brand-accent'}`}
+                >
                   <Camera className="w-6 h-6 text-gray-400" />
                   <span className="text-xs text-gray-400 mt-1">{images.length === 0 ? 'Agregar' : 'Agregar'}</span>
                   <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />

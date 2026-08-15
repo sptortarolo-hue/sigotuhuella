@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { createPet, PetStatus } from '@/src/lib/petService';
 import { filesToBase64 } from '@/src/lib/storageService';
+import { pickPhoto } from '@/src/lib/cameraService';
+import { isNative } from '@/src/lib/platform';
 import LocationInput from '@/src/components/LocationInput';
 import ImageCropper from '@/src/components/ImageCropper';
 import {
@@ -73,6 +75,19 @@ export default function ReportPet() {
     const startIdx = files.length;
     setFiles(prev => [...prev, ...rawFiles]);
     setCropFile(rawFiles[0]);
+    setCroppingIndex(startIdx);
+  };
+
+  const handleNativePick = async () => {
+    if (files.length >= 3) {
+      alert('Máximo 3 imágenes permitidas');
+      return;
+    }
+    const picked = await pickPhoto();
+    if (!picked) return;
+    const startIdx = files.length;
+    setFiles(prev => [...prev, picked.file]);
+    setCropFile(picked.file);
     setCroppingIndex(startIdx);
   };
 
@@ -335,7 +350,16 @@ const handleSubmit = async (e: React.FormEvent) => {
                   ))}
 
                   {files.length < 3 && (
-                    <label className="aspect-square rounded-2xl border-2 border-dashed border-brand-accent hover:border-brand-primary hover:bg-brand-primary/5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group">
+                    <label
+                      onClick={(e) => {
+                        if (isNative()) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleNativePick();
+                        }
+                      }}
+                      className="aspect-square rounded-2xl border-2 border-dashed border-brand-accent hover:border-brand-primary hover:bg-brand-primary/5 transition-all cursor-pointer flex flex-col items-center justify-center gap-2 group"
+                    >
                       <Camera className="w-8 h-8 text-gray-400 group-hover:text-brand-primary transition-colors" />
                       <span className="text-[10px] uppercase font-bold text-gray-400 group-hover:text-brand-primary">Subir Foto</span>
                       <input

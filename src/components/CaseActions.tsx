@@ -5,6 +5,8 @@ import { motion } from 'motion/react';
 import { api } from '@/src/lib/api';
 import { getCurrentPosition } from '@/src/lib/geolocation';
 import { filesToBase64 } from '@/src/lib/storageService';
+import { pickPhoto } from '@/src/lib/cameraService';
+import { isNative } from '@/src/lib/platform';
 import { PhoneInput } from '@/src/components/PhoneInput';
 
 const CLOSE_REASONS: { value: string; label: string; emoji: string }[] = [
@@ -139,6 +141,14 @@ function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
     setPhotoMime(b64.mimeType || 'image/jpeg');
   };
 
+  const handleNativePhoto = async () => {
+    const picked = await pickPhoto();
+    if (!picked) return;
+    const [b64] = await filesToBase64([picked.file]);
+    setPhoto(b64.data);
+    setPhotoMime(b64.mimeType || 'image/jpeg');
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!confirm('¿Confirmás que la mascota volvió a casa? Se cerrará el caso y se avisará a quienes colaboraron.')) return;
@@ -167,7 +177,16 @@ function ReuniteModal({ caseId, onClose, onDone }: { caseId: string; onClose: ()
         <div>
           <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1 block">Foto (opcional)</label>
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-brand-accent text-sm font-bold text-gray-600 cursor-pointer hover:border-brand-primary">
+            <label
+              onClick={(e) => {
+                if (isNative()) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleNativePhoto();
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-3 rounded-xl border border-brand-accent text-sm font-bold text-gray-600 cursor-pointer hover:border-brand-primary"
+            >
               <Camera className="w-4 h-4" /> Elegir foto
               <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
             </label>
