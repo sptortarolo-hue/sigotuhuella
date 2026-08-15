@@ -34,6 +34,7 @@ export default function PublicPetProfile() {
   const [foundSuccess, setFoundSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
   const [scanSent, setScanSent] = useState(false);
+  const [sendingScan, setSendingScan] = useState(false);
 
   const profileUrl = `${window.location.origin}/mascota/${shareToken}`;
 
@@ -41,18 +42,19 @@ export default function PublicPetProfile() {
     fetchProfile();
   }, [shareToken]);
 
-  useEffect(() => {
-    if (data?.found && !scanSent && !silent) {
+  const reportSighting = async () => {
+    if (sendingScan || scanSent) return;
+    setSendingScan(true);
+    try {
+      const pos = await getCurrentPosition({ timeout: 15000 });
+      await api.qr.scan(shareToken!, { latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+    } catch {
+      await api.qr.scan(shareToken!).catch(() => {});
+    } finally {
       setScanSent(true);
-      getCurrentPosition({ timeout: 15000 })
-        .then((pos) => {
-          api.qr.scan(shareToken!, { latitude: pos.coords.latitude, longitude: pos.coords.longitude }).catch(() => {});
-        })
-        .catch(() => {
-          api.qr.scan(shareToken!).catch(() => {});
-        });
+      setSendingScan(false);
     }
-  }, [data, scanSent, shareToken, silent]);
+  };
 
   const fetchProfile = async () => {
     try {
@@ -288,6 +290,17 @@ export default function PublicPetProfile() {
                 )}
               </div>
               <p className="text-[10px] text-gray-400 mt-2 text-center">{pet.owner_name} — Dueño</p>
+
+              {data.found && !silent && (
+                <button
+                  onClick={reportSighting}
+                  disabled={sendingScan || scanSent}
+                  className="w-full py-3 mt-2 bg-brand-primary/5 text-brand-primary rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  <MapPin className="w-4 h-4 shrink-0" />
+                  {scanSent ? 'Avistamiento reportado' : sendingScan ? 'Reportando...' : 'Reportar que la vi acá (con ubicación)'}
+                </button>
+              )}
             </div>
 
             <hr className="border-brand-accent" />
