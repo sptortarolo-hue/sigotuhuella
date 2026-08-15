@@ -37,13 +37,15 @@ export async function assignCaseNumberIfMissing(petId, client = pool) {
 }
 
 // Crea un caso para un pet nuevo. Retorna null si el status no genera caso (sighted, adopcion simple, etc).
-export async function createPetCase(pet, { source = 'app' } = {}) {
+// createdAt (opcional): respeta la fecha original del reporte (p.ej. backfills), default NOW.
+export async function createPetCase(pet, { source = 'app', createdAt = null } = {}) {
   try {
     const mapping = petCaseMapping(pet.status);
     if (!mapping) return null;
 
     const userId = pet.created_by || null;
     const reporterSource = userId && source === 'app_auth' ? 'app_auth' : source;
+    const created = createdAt ? new Date(createdAt) : new Date();
 
     const client = await pool.connect();
     try {
@@ -51,16 +53,16 @@ export async function createPetCase(pet, { source = 'app' } = {}) {
       // Garantiza número invocable para todos los orígenes (app_auth, app_anon, whatsapp_bot)
       const caseNumber = await assignCaseNumberIfMissing(pet.id, client);
       const caseResult = await client.query(
-        `INSERT INTO pet_cases (pet_id, reporter_id, reporter_source, type, status, active_until)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO pet_cases (pet_id, reporter_id, reporter_source, type, status, active_until, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
-        [pet.id, userId, reporterSource, mapping.type, mapping.caseStatus, new Date(Date.now() + 45 * 24 * 60 * 60 * 1000)]
+        [pet.id, userId, reporterSource, mapping.type, mapping.caseStatus, new Date(created.getTime() + 45 * 24 * 60 * 60 * 1000), created]
       );
       const petCase = caseResult.rows[0];
       await client.query(
-        `INSERT INTO case_events (case_id, user_id, event_type, payload)
-         VALUES ($1, $2, 'case_created', $3)`,
-        [petCase.id, userId, JSON.stringify({ type: petCase.type, source: reporterSource, pet_status: pet.status })]
+        `INSERT INTO case_events (case_id, user_id, event_type, payload, created_at)
+         VALUES ($1, $2, 'case_created', $3, $4)`,
+        [petCase.id, userId, JSON.stringify({ type: petCase.type, source: reporterSource, pet_status: pet.status }), created]
       );
       await client.query('COMMIT');
       return petCase;
