@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/src/lib/api';
-import { Ticket, Trophy, Calendar, Users, Loader2, ArrowRight, Clock, PartyPopper, FileText } from 'lucide-react';
+import { Ticket, Trophy, Calendar, Users, Loader2, ArrowRight, Clock, PartyPopper } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { Helmet } from 'react-helmet-async';
@@ -281,25 +281,14 @@ export default function Rifas() {
                         </div>
                       )}
 
-                      {/* CTAs */}
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <Link
-                          to={`/rifas/${raffle.id}`}
-                          className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:shadow-lg hover:scale-[1.01] transition-all"
-                        >
-                          Ver resultados
-                          <ArrowRight className="w-4 h-4" />
-                        </Link>
-                        <a
-                          href={`/api/raffles/${raffle.id}/draw-flyer`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-white border border-brand-accent text-gray-700 rounded-xl font-bold text-sm hover:bg-brand-accent/20 transition-all"
-                        >
-                          <FileText className="w-4 h-4" />
-                          Ver flyer
-                        </a>
-                      </div>
+                      {/* CTA */}
+                      <Link
+                        to={`/rifas/${raffle.id}`}
+                        className="flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:shadow-lg hover:scale-[1.01] transition-all"
+                      >
+                        Ver resultados
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
                     </div>
                   </div>
                 </motion.div>
