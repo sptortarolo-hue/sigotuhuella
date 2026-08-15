@@ -491,6 +491,7 @@ ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS comment_count INT DEFAU
 ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS share_count INT DEFAULT 0;
 ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS reach INT DEFAULT 0;
 ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS metrics_updated_at TIMESTAMP;
+ALTER TABLE facebook_page_posts DROP COLUMN IF EXISTS is_celebration;
 
 CREATE TABLE IF NOT EXISTS instagram_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -514,6 +515,7 @@ ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS reach INT DEFAULT 0;
 ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS metrics_updated_at TIMESTAMP;
 ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS embed_html TEXT;
 ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS retry_count INT DEFAULT 0;
+ALTER TABLE instagram_posts DROP COLUMN IF EXISTS is_celebration;
 
 CREATE TABLE IF NOT EXISTS instagram_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
