@@ -50,7 +50,7 @@ import { broadcastNextAdoptionPet, broadcastFbAdoptionPets, broadcastAdoptionPet
 import { processInviteReminders } from './services/reminderService.js';
 import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
-import { runEngagementSync } from './services/metaEngagement.js';
+import { runEngagementSync, syncRecentIgComments } from './services/metaEngagement.js';
 import { runReplicaDetection } from './services/replicaDetectionService.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -817,6 +817,17 @@ async function start() {
   }
   setTimeout(checkEngagementSync, 2 * 60 * 1000);
   setInterval(checkEngagementSync, 30 * 60 * 1000);
+
+  // Polling liviano de comentarios IG (~5 min) para aproximar tiempo real
+  async function checkRecentIgComments() {
+    try {
+      await syncRecentIgComments();
+    } catch (err) {
+      console.error('[IG Poll Scheduler] Error:', err.message);
+    }
+  }
+  setTimeout(checkRecentIgComments, 60_000);
+  setInterval(checkRecentIgComments, 5 * 60 * 1000);
 }
 
 start().catch(err => {

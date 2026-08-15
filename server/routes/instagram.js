@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import axios from 'axios';
 import pool from '../db.js';
 import { requireAdmin } from '../auth.js';
 import {
@@ -7,7 +6,7 @@ import {
   createContainer, publishContainer, waitForContainer,
   getComments, replyToComment, sendPrivateReply,
   getUserMedia, getMedia, getMediaInsights,
-  verifyWebhook, getInstagramUserId, manualConnect, publishStory,
+  verifyWebhook, manualConnect, publishStory,
 } from '../services/instagramService.js';
 import { processQueue } from '../services/instagramPublisher.js';
 import { enqueue } from '../services/phoneRelayService.js';
@@ -21,7 +20,6 @@ import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const execFileAsync = promisify(execFile);
-const GRAPH_API = 'https://graph.facebook.com/v22.0';
 
 // publishContainer solo devuelve { id }; el permalink real se pide a /{media-id}
 async function resolvePermalink(mediaId) {
@@ -407,35 +405,6 @@ router.post('/webhook', async (req, res) => {
     }
   } catch (err) {
     console.error('Webhook processing error:', err);
-  }
-});
-
-// Suscribe la app a los webhooks de tiempo real de Instagram (comments + mentions).
-// Requiere que el token tenga instagram_manage_comments. El callback ya existe en
-// GET/POST /api/instagram/webhook con verify token INSTAGRAM_VERIFY_TOKEN.
-router.post('/subscribe-webhook', requireAdmin, async (_req, res) => {
-  try {
-    const connected = await isConnected();
-    if (!connected) return res.status(400).json({ error: 'Instagram no conectado' });
-    const igUserId = await getInstagramUserId();
-    if (!igUserId) return res.status(400).json({ error: 'Falta instagram_user_id' });
-    const token = await getStoredToken();
-    const { data } = await axios.post(
-      `${GRAPH_API}/${igUserId}/subscribed_apps`,
-      null,
-      {
-        params: {
-          subscribed_fields: 'comments,mentions',
-          access_token: token,
-        },
-        timeout: 15000,
-      }
-    );
-    res.json({ success: true, data });
-  } catch (err) {
-    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-    console.error('[Instagram] subscribe-webhook failed:', detail.slice(0, 500));
-    res.status(500).json({ error: `Error al suscribir webhook: ${detail}` });
   }
 });
 

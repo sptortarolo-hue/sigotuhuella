@@ -107,6 +107,59 @@ export async function syncInstagramEngagement() {
   return { posts, comments, embeds };
 }
 
+// Polling liviano de comentarios IG: revisa solo los últimos posts publicados, sin
+// actualizar el resto de métricas. Corre cada ~5 min como complemento al sync pesado
+// de 30 min, para acercar los comentarios a "tiempo real" sin App Review.
+export async function syncRecentIgComments(limit = 10) {
+  const token = await getStoredToken();
+  if (!token) return { posts: 0, comments: 0 };
+
+  const postsRes = await pool.query(
+    `SELECT id, pet_id, ig_media_id FROM instagram_posts
+     WHERE status = 'published' AND ig_media_id IS NOT NULL
+     ORDER BY published_at DESC NULLS LAST LIMIT $1`,
+    [limit]
+  );
+
+  let posts = 0, comments = 0;
+  for (const post of postsRes.rows) {
+    try {
+      let caseId = null;
+      if (post.pet_id) {
+        const caseRes = await pool.query('SELECT id FROM pet_cases WHERE pet_id = $1 LIMIT 1', [post.pet_id]);
+        caseId = caseRes.rows[0]?.id || null;
+      }
+      const cmts = await getComments(post.ig_media_id);
+      posts++;
+      for (const c of cmts) {
+        const result = await pool.query(
+          `INSERT INTO instagram_comments (ig_comment_id, ig_media_id, ig_post_id, username, text, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (ig_comment_id) DO NOTHING`,
+          [c.id, post.ig_media_id, post.id, c.username || 'unknown', c.text || '', new Date(c.timestamp).toISOString()]
+        ).catch(() => ({ rowCount: 0 }));
+        if (result.rowCount > 0) {
+          comments++;
+          if (caseId) {
+            await createCaseEvent(caseId, 'ig_comment_received', {
+              username: c.username || 'unknown',
+              text: c.text || '',
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`[MetaEngagement] IG poll post ${post.id}: ${err.response?.data?.error?.message || err.message}`);
+    }
+    await sleep(BATCH_DELAY_MS);
+  }
+
+  if (posts > 0) {
+    console.log(`[MetaEngagement] IG poll: ${posts} posts / ${comments} comentarios nuevos`);
+  }
+  return { posts, comments };
+}
+
 // ---- Facebook (página) ----
 
 function classifyGraphError(err) {
