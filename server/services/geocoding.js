@@ -551,7 +551,13 @@ export async function geocodeAddress(address) {
   try {
     if (lp) {
       const roadNum = parseInt(lp.road);
-      if (!isNaN(roadNum) && roadNum <= 122) {
+      // Una dirección mezcla casco y numeración externa cuando la calle es del
+      // casco (roadNum <= 122) pero el cruce no. El grid del casco es inválido
+      // para cruces externos (desvía km, p. ej. "8 y 665" ~6km al este), así
+      // que en ese caso se resuelve como numeración externa (dataset local).
+      const crossNum = parseInt(lp.from || lp.cross);
+      const crossExterno = !isNaN(crossNum) && crossNum > 122;
+      if (!isNaN(roadNum) && roadNum <= 122 && !crossExterno) {
         // Casco (1-122): el grid es exacto e instantáneo. Overpass geométrico no
         // encuentra estos cruces (OSM fragmentado) y solo agrega latencia.
         const grid = gridFallback(lp);
