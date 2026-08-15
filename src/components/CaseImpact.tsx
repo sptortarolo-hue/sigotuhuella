@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '@/src/lib/api';
-import { Instagram, Facebook, Heart, MessageCircle, Repeat2, Eye, ExternalLink, Send, Loader2, Copy, ChevronDown } from 'lucide-react';
+import { Instagram, Facebook, Heart, MessageCircle, Eye, ExternalLink, Send, Loader2, Copy, ChevronDown } from 'lucide-react';
 
 type PlatformComment = {
   id: string;
@@ -199,14 +199,12 @@ export default function CaseImpact({ caseId, impact, canReply }: { caseId: strin
           <>
             <MetricChip icon={<Heart className="w-3.5 h-3.5" />} label="IG likes" value={ig.like_count} color="text-pink-500" />
             <MetricChip icon={<MessageCircle className="w-3.5 h-3.5" />} label="IG comentarios" value={ig.comment_count} color="text-pink-500" />
-            <MetricChip icon={<Repeat2 className="w-3.5 h-3.5" />} label="IG reenvíos" value={ig.share_count} color="text-pink-500" />
           </>
         )}
         {fb && (
           <>
             <MetricChip icon={<Heart className="w-3.5 h-3.5" />} label="FB likes" value={fb.like_count} color="text-blue-600" />
             <MetricChip icon={<MessageCircle className="w-3.5 h-3.5" />} label="FB comentarios" value={fb.comment_count} color="text-blue-600" />
-            <MetricChip icon={<Repeat2 className="w-3.5 h-3.5" />} label="FB compartidos" value={fb.share_count} color="text-blue-600" />
           </>
         )}
         {totalReach > 0 && <MetricChip icon={<Eye className="w-3.5 h-3.5" />} label="Alcance" value={totalReach} color="text-amber-500" />}

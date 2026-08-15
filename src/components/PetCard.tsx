@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Phone, MessageCircle, ChevronLeft, ChevronRight, Heart, Repeat2, Eye, ExternalLink, Instagram, Facebook } from 'lucide-react';
+import { MapPin, Calendar, Phone, MessageCircle, ChevronLeft, ChevronRight, Heart, Eye, ExternalLink, Instagram, Facebook } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
@@ -216,14 +216,12 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
                 <>
                   <span className="flex items-center gap-1 text-xs"><Heart className="w-3 h-3 text-pink-500" /> <span className="font-bold text-gray-700">{pet.ig_impact.likes}</span> <span className="text-gray-400">IG likes</span></span>
                   <span className="flex items-center gap-1 text-xs"><MessageCircle className="w-3 h-3 text-pink-500" /> <span className="font-bold text-gray-700">{pet.ig_impact.comments}</span> <span className="text-gray-400">IG coments</span></span>
-                  <span className="flex items-center gap-1 text-xs"><Repeat2 className="w-3 h-3 text-pink-500" /> <span className="font-bold text-gray-700">{pet.ig_impact.shares}</span> <span className="text-gray-400">IG reenv.</span></span>
                 </>
               )}
               {pet.fb_impact && (
                 <>
                   <span className="flex items-center gap-1 text-xs"><Heart className="w-3 h-3 text-blue-600" /> <span className="font-bold text-gray-700">{pet.fb_impact.likes}</span> <span className="text-gray-400">FB likes</span></span>
                   <span className="flex items-center gap-1 text-xs"><MessageCircle className="w-3 h-3 text-blue-600" /> <span className="font-bold text-gray-700">{pet.fb_impact.comments}</span> <span className="text-gray-400">FB coments</span></span>
-                  <span className="flex items-center gap-1 text-xs"><Repeat2 className="w-3 h-3 text-blue-600" /> <span className="font-bold text-gray-700">{pet.fb_impact.shares}</span> <span className="text-gray-400">FB comp.</span></span>
                 </>
               )}
               {(pet.view_count ?? 0) > 0 && (
