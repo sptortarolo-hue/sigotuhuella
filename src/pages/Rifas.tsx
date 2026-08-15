@@ -250,14 +250,31 @@ export default function Rifas() {
                       <h2 className="text-base sm:text-lg font-serif font-bold text-brand-primary leading-snug">
                         {raffle.title}
                       </h2>
-                      {raffle.draw_date && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Sorteado el {new Date(raffle.draw_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                      )}
                     </div>
 
                     <div className="px-5 pb-5">
+                      {raffle.description && (
+                        <p className="text-sm text-gray-500 mb-3 line-clamp-2">{raffle.description}</p>
+                      )}
+
+                      {/* Info de la rifa (como en la ficha antes de sortear) */}
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mb-3">
+                        <span className="flex items-center gap-1 bg-brand-bg rounded-lg px-2 py-1">
+                          <Ticket className="w-3.5 h-3.5 text-amber-600" />
+                          <strong>${raffle.price_per_number.toLocaleString('es-AR')}</strong>/número
+                        </span>
+                        {raffle.draw_date && (
+                          <span className="flex items-center gap-1 bg-brand-bg rounded-lg px-2 py-1">
+                            <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                            Sorteo: {new Date(raffle.draw_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 bg-brand-bg rounded-lg px-2 py-1">
+                          <Users className="w-3.5 h-3.5 text-amber-600" />
+                          {raffle.total_numbers} números
+                        </span>
+                      </div>
+
                       {/* Premios */}
                       {raffle.prizes?.length > 0 && (
                         <div className="mt-3 mb-4">
