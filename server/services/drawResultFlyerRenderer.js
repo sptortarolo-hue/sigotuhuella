@@ -204,11 +204,11 @@ export async function renderDrawResultFlyer({
     const nameText = w.buyer_name || 'Anónimo';
 
     // Medir alto de la card según wrap
-    const prizeFont = 26;
-    const nameFont = 24;
+    const prizeFont = 38;
+    const nameFont = 34;
     const prizeLines = [];
-    ctx.font = `700 ${prizeFont}px ${FONT}`;
-    const innerPad = 28;
+    ctx.font = `800 ${prizeFont}px ${FONT}`;
+    const innerPad = 32;
     const prizeMaxW = cardW - innerPad * 2 - 14;
     let pLine = '';
     for (const word of prizeText.split(' ')) {
@@ -225,13 +225,14 @@ export async function renderDrawResultFlyer({
 
     // Nombre con truncado a una línea + N°
     const ticketText = `N° ${w.ticket_number}`;
-    ctx.font = `800 38px ${FONT}`;
+    const ticketFont = 24;
+    ctx.font = `700 ${ticketFont}px ${FONT}`;
     const ticketW = ctx.measureText(ticketText).width;
-    ctx.font = `600 ${nameFont}px ${FONT}`;
-    const nameMaxW = cardW - innerPad * 2 - ticketW - 16;
-    const displayName = truncate(ctx, nameText, nameMaxW, nameFont, '600');
+    ctx.font = `700 ${nameFont}px ${FONT}`;
+    const nameMaxW = cardW - innerPad * 2;
+    const displayName = truncate(ctx, nameText, nameMaxW, nameFont, '700');
 
-    const cardHeight = 40 + prizeLineCount * prizeFont * 1.25 + 20 + 44;
+    const cardHeight = 30 + prizeLineCount * prizeFont * 1.2 + 24 + nameFont * 1.3 + 18 + ticketFont * 1.2 + 26;
     const cardY = y;
 
     // Si la card no entra, parar (no dibujar más)
@@ -239,12 +240,12 @@ export async function renderDrawResultFlyer({
       break;
     }
 
-    // Card background
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    // Card background (más opaco para legibilidad)
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
     roundRect(ctx, cardX, cardY, cardW, cardHeight, 18);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.lineWidth = 1.5;
     roundRect(ctx, cardX, cardY, cardW, cardHeight, 18);
     ctx.stroke();
 
@@ -253,25 +254,37 @@ export async function renderDrawResultFlyer({
     roundRect(ctx, cardX, cardY, 6, cardHeight, 3);
     ctx.fill();
 
-    // Prize title
-    ctx.fillStyle = '#FDE68A';
+    // Sombra de texto para legibilidad
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 2;
+
+    // ── Premio (protagonista, grande) ──
+    ctx.fillStyle = '#FFD54D';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    let py = cardY + 18;
+    let py = cardY + 24;
     for (let li = 0; li < prizeLineCount; li++) {
-      ctx.font = `700 ${prizeFont}px ${FONT}`;
+      ctx.font = `800 ${prizeFont}px ${FONT}`;
       ctx.fillText(prizeLines[li], cardX + innerPad, py);
-      py += prizeFont * 1.25;
+      py += prizeFont * 1.2;
     }
 
-    // Ticket number + name
-    const nameY = cardY + 20 + prizeLineCount * prizeFont * 1.25;
-    ctx.font = `800 38px ${FONT}`;
+    // ── Nombre del ganador (grande, blanco) ──
+    const nameY = py + 18;
+    ctx.font = `700 ${nameFont}px ${FONT}`;
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(ticketText, cardX + innerPad, nameY);
-    ctx.font = `600 ${nameFont}px ${FONT}`;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillText(displayName, cardX + innerPad + ticketW + 16, nameY + 8);
+    ctx.fillText(displayName, cardX + innerPad, nameY);
+
+    // ── N° de ticket (secundario) ──
+    const ticketY = nameY + nameFont * 1.3 + 10;
+    ctx.font = `700 ${ticketFont}px ${FONT}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText(ticketText, cardX + innerPad, ticketY);
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
     y = cardY + cardHeight + cardMargin;
   }

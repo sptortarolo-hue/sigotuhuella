@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import RafflePublishModal from './RafflePublishModal';
+import RaffleDrawFlyerModal from './RaffleDrawFlyerModal';
 import { shareRaffleOnWhatsApp } from '@/src/lib/whatsappShare';
 import { formatDate, formatDateTime } from '@/src/lib/formatDate';
 import { PhoneInput } from '@/src/components/PhoneInput';
@@ -72,6 +73,7 @@ export default function RafflesTab() {
   const [assigningReceiptId, setAssigningReceiptId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [publishRaffleId, setPublishRaffleId] = useState<string | null>(null);
+  const [showDrawFlyer, setShowDrawFlyer] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [uploadTarget, setUploadTarget] = useState<any | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
@@ -1282,7 +1284,7 @@ export default function RafflesTab() {
                             className="flex items-center gap-1 px-3 py-1.5 border border-purple-300 text-purple-700 rounded-lg text-[10px] font-bold hover:bg-purple-50">
                             <Edit2 className="w-3 h-3" /> Editar
                           </button>
-                          <button onClick={() => api.raffles.drawFlyer(detailRaffle.id)}
+                          <button onClick={() => setShowDrawFlyer(true)}
                             className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-[10px] font-bold hover:bg-purple-700">
                             <FileText className="w-3 h-3" /> Flyer de resultados
                           </button>
@@ -1516,6 +1518,14 @@ export default function RafflesTab() {
         <RafflePublishModal
           raffleId={publishRaffleId}
           onClose={() => setPublishRaffleId(null)}
+        />
+      )}
+
+      {showDrawFlyer && detailRaffle && (
+        <RaffleDrawFlyerModal
+          raffleId={detailRaffle.id}
+          title={detailRaffle.title}
+          onClose={() => setShowDrawFlyer(false)}
         />
       )}
     </div>
