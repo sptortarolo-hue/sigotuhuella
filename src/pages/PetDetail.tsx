@@ -558,7 +558,8 @@ Me gustaría obtener más información.`;
           </div>
         </div>
 
-        {/* CTAs: Contactar + botones (bajo la foto en desktop) */}
+        {/* CTAs: Contactar + botones (bajo la foto en desktop). Ocultos en reencontradas */}
+        {pet.status !== PetStatus.REUNITED && (
         <div className="lg:col-span-7 order-4 lg:order-none space-y-6">
           <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
             {pet.contact_info ? (
@@ -636,6 +637,7 @@ Me gustaría obtener más información.`;
             )}
           </div>
         </div>
+        )}
 
         {caseData && !caseError && (
           <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-sm order-3 lg:order-none lg:col-span-12">
