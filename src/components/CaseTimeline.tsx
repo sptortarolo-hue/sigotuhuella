@@ -199,7 +199,7 @@ export default function CaseTimeline({ events }: { events: any[] }) {
               {ev.event_type === 'facebook_replica' && ev.payload?.fb_post_url && (
                 <a href={ev.payload.fb_post_url} target="_blank" rel="noreferrer" className="text-xs text-brand-primary underline mt-1 inline-block">Ver post en Facebook</a>
               )}
-              {ev.user_name && <p className="text-xs text-gray-400 mt-1.5">por {ev.user_name}</p>}
+              {ev.user_name && !(ev.user_role === 'admin' && (ev.event_type === 'reunited' || ev.event_type === 'reunion_announced')) && <p className="text-xs text-gray-400 mt-1.5">por {ev.user_name}</p>}
             </div>
           </li>
         );

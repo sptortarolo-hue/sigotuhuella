@@ -170,7 +170,7 @@ export async function getCaseDashboard(caseId, viewerUserId = null, _visited = n
   );
 
   const eventsRes = await pool.query(
-    `SELECT ce.*, u.display_name AS user_name
+    `SELECT ce.*, u.display_name AS user_name, u.role AS user_role
      FROM case_events ce
      LEFT JOIN users u ON u.id = ce.user_id
      WHERE ce.case_id = $1
