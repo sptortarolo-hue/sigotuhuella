@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/src/lib/api';
-import { Ticket, Trophy, Calendar, Users, Loader2, ArrowRight, Clock } from 'lucide-react';
+import { Ticket, Trophy, Calendar, Users, Loader2, ArrowRight, Clock, PartyPopper, FileText } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { Helmet } from 'react-helmet-async';
@@ -46,6 +46,9 @@ export default function Rifas() {
     api.raffles.list().then(data => setRaffles(data.raffles)).catch(console.error).finally(() => setLoading(false));
   }, []);
 
+  const activas = useMemo(() => raffles.filter(r => r.status === 'active' || r.status === 'paused'), [raffles]);
+  const finalizadas = useMemo(() => raffles.filter(r => r.status === 'drawn').slice(0, 3), [raffles]);
+
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -75,7 +78,7 @@ export default function Rifas() {
         <p className="text-sm text-amber-600 font-medium mt-3">🐾 Todo lo recaudado va en ayuda de mascotas rescatadas</p>
       </div>
 
-      {raffles.length === 0 && (
+      {activas.length === 0 && finalizadas.length === 0 && (
         <div className="text-center py-16 text-gray-400">
           <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mx-auto mb-4">
             <Ticket className="w-10 h-10 text-amber-300" />
@@ -85,8 +88,14 @@ export default function Rifas() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-        {raffles.map((raffle, idx) => {
+      {/* ─── RIFAS ACTIVAS ─── */}
+      <div className={cn(
+        "grid gap-6 sm:gap-8",
+        activas.length === 1
+          ? "grid-cols-1 max-w-xl mx-auto"
+          : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+      )}>
+        {activas.map((raffle, idx) => {
           const soldPercent = Math.round(((raffle.sold_count || 0) / raffle.total_numbers) * 100);
           const remaining = raffle.total_numbers - (raffle.sold_count || 0);
           const countdown = getCountdown(raffle.draw_date);
@@ -205,6 +214,100 @@ export default function Rifas() {
           );
         })}
       </div>
+
+      {/* ─── RIFAS FINALIZADAS (historial) ─── */}
+      {finalizadas.length > 0 && (
+        <div className="mt-14 sm:mt-16">
+          <div className="border-t border-brand-accent mb-6 sm:mb-8" />
+          <div className="flex items-center gap-2 mb-5 sm:mb-6">
+            <PartyPopper className="w-5 h-5 text-gray-400" />
+            <h2 className="text-xl sm:text-2xl font-bold text-brand-primary">Rifas finalizadas</h2>
+          </div>
+
+          <div className="space-y-4 sm:space-y-6 max-w-xl sm:max-w-2xl">
+            {finalizadas.map((raffle, idx) => {
+              const countdown = getCountdown(raffle.draw_date);
+              return (
+                <motion.div
+                  key={raffle.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.1 }}
+                >
+                  <div className="group block bg-white rounded-2xl border border-brand-accent overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
+                    {/* Card header */}
+                    <div className="bg-gradient-to-br from-gray-50 to-amber-50 px-5 pt-5 pb-3 relative">
+                      <div className="flex items-start justify-between mb-2">
+                        <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs px-2.5 py-1 rounded-full font-bold bg-gray-100 text-gray-600">
+                          Finalizada
+                        </span>
+                        {countdown && countdown.expired && (
+                          <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs px-2.5 py-1 rounded-full font-bold bg-green-100 text-green-700">
+                            🎉 Ya se sorteó
+                          </span>
+                        )}
+                      </div>
+                      <h2 className="text-base sm:text-lg font-serif font-bold text-brand-primary leading-snug">
+                        {raffle.title}
+                      </h2>
+                      {raffle.draw_date && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Sorteado el {new Date(raffle.draw_date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="px-5 pb-5">
+                      {/* Premios */}
+                      {raffle.prizes?.length > 0 && (
+                        <div className="mt-3 mb-4">
+                          <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-2">Premios</div>
+                          <div className="space-y-1.5">
+                            {raffle.prizes.slice(0, 3).map((p, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <div className={cn(
+                                  "w-6 h-6 rounded-md flex items-center justify-center shrink-0",
+                                  i === 0 ? "bg-gradient-to-br from-amber-400 to-orange-400 text-white" : "bg-amber-100 text-amber-600"
+                                )}>
+                                  <Trophy className="w-3 h-3" />
+                                </div>
+                                <span className="font-bold text-xs text-gray-700 block truncate">{p.title}</span>
+                              </div>
+                            ))}
+                            {raffle.prizes.length > 3 && (
+                              <div className="text-xs text-gray-400 pl-8">+{raffle.prizes.length - 3} premio{raffle.prizes.length - 3 > 1 ? 's' : ''} más</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* CTAs */}
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Link
+                          to={`/rifas/${raffle.id}`}
+                          className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm hover:shadow-lg hover:scale-[1.01] transition-all"
+                        >
+                          Ver resultados
+                          <ArrowRight className="w-4 h-4" />
+                        </Link>
+                        <a
+                          href={`/api/raffles/${raffle.id}/draw-flyer`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-white border border-brand-accent text-gray-700 rounded-xl font-bold text-sm hover:bg-brand-accent/20 transition-all"
+                        >
+                          <FileText className="w-4 h-4" />
+                          Ver flyer
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

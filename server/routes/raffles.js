@@ -63,10 +63,10 @@ async function fetchRafflesList(statusFilter) {
   return raffles;
 }
 
-// Public: list active raffles
+// Public: list active raffles (incluye sorteadas para mostrar historial de resultados)
 router.get('/', async (_req, res) => {
   try {
-    res.json({ raffles: await fetchRafflesList(`WHERE r.status IN ('active', 'paused')`) });
+    res.json({ raffles: await fetchRafflesList(`WHERE r.status IN ('active', 'paused', 'drawn')`) });
   } catch (err) {
     console.error('GET /raffles error:', err);
     res.status(500).json({ error: 'Error al listar rifas' });
