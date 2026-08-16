@@ -347,6 +347,7 @@ export const api = {
       return request(`/facebook/search?${q.toString()}`);
     },
     stats: () => request('/facebook/stats'),
+    refreshMetrics: () => request('/facebook/refresh-metrics', { method: 'POST' }),
     publish: (petId: string) => request('/facebook/publish', { method: 'POST', body: JSON.stringify({ petId }) }),
     publishInstagram: (id: string) => request(`/facebook/publish-instagram/${id}`, { method: 'POST' }),
     replicateLatest: (limit = 5) => request(`/facebook/replicate-latest?limit=${limit}`, { method: 'POST' }),

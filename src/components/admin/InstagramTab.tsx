@@ -356,9 +356,14 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
                   ✅ Permiso pages_read_engagement otorgado — likes y comentarios de Facebook sincronizan
                 </p>
               )}
-              {connected && (!hasPagesReadEngagement || fbSyncAuthError) && (
+              {connected && !hasPagesReadEngagement && (
                 <p className="text-xs text-red-600 font-bold">
-                  ❌ Falta permiso pages_read_engagement: reconectá Facebook y activá Page Public Content Access en developers.facebook.com
+                  ❌ El token nuevo NO incluye pages_read_engagement: reconectá aceptando todos los permisos y activá Page Public Content Access en developers.facebook.com
+                </p>
+              )}
+              {connected && hasPagesReadEngagement && fbSyncAuthError && (
+                <p className="text-xs text-amber-600 font-bold">
+                  ⏳ Permiso pages_read_engagement otorgado — esperando el próximo sync para confirmar (≤30 min o "Actualizar comentarios ahora")
                 </p>
               )}
             </div>

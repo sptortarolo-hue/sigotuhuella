@@ -74,6 +74,21 @@ export default function FacebookTab() {
     } catch (e: any) { alert(e.message); }
   };
 
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+
+  const handleRefreshMetrics = async () => {
+    setRefreshing(true);
+    setRefreshMsg(null);
+    try {
+      const res = await api.facebook.refreshMetrics();
+      setRefreshMsg(`Sync OK: ${res.posts} post(s) · ${res.comments} comentario(s)`);
+    } catch (e: any) {
+      setRefreshMsg(`Error: ${e.message || 'no se pudo sincronizar'}`);
+    }
+    setRefreshing(false);
+  };
+
   if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 animate-spin text-brand-primary" /></div>;
 
   return (
@@ -84,6 +99,11 @@ export default function FacebookTab() {
             <Globe className="w-6 h-6" /> Grupos de Facebook
           </h2>
           <div className="flex gap-2">
+            <button onClick={handleRefreshMetrics} disabled={refreshing} title="Refrescar métricas (likes/comentarios) de los posts publicados"
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-50 text-blue-600 font-bold rounded-xl hover:bg-blue-100 transition-all disabled:opacity-50">
+              {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Refrescar métricas
+            </button>
             <button onClick={fetchGroups} className="p-2 text-gray-400 hover:text-brand-primary rounded-xl hover:bg-brand-bg transition-all">
               <RefreshCw className="w-5 h-5" />
             </button>
@@ -93,6 +113,12 @@ export default function FacebookTab() {
             </button>
           </div>
         </div>
+
+        {refreshMsg && (
+          <p className={`text-sm font-bold mb-4 ${refreshMsg.startsWith('Sync OK') ? 'text-green-600' : 'text-red-600'}`}>
+            {refreshMsg}
+          </p>
+        )}
 
         <p className="text-sm text-gray-500 mb-4">{groups.length} grupo(s) · {groups.filter(g => g.is_active).length} activos</p>
 
