@@ -44,7 +44,7 @@ export async function getPendingTasks(limit = 5, opts = {}) {
   const result = await pool.query(
     `SELECT ft.id, ft.pet_id, ft.group_id, ft.fb_group_id, ft.message, ft.image_urls, ft.marker, ft.action, ft.target_url, ft.comment_text, ft.created_at, fg.name as group_name
      FROM fb_relay_tasks ft
-     LEFT JOIN facebook_groups fg ON fg.id = ft.group_id
+     LEFT JOIN facebook_groups fg ON fg.id = ft.group_id OR fg.fb_group_id = ft.fb_group_id
      WHERE ${conds.join(' AND ')} ORDER BY ft.created_at ASC`,
     params
   );
