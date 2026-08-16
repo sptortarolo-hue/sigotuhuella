@@ -176,7 +176,8 @@ function acquireLock() {
   try {
     var lockFile = getLockPath();
     if (files.exists(lockFile)) {
-      var stale = Date.now() - files.lastModified(lockFile);
+      var ts = parseInt(files.read(lockFile), 10);
+      var stale = Date.now() - (isNaN(ts) ? 0 : ts);
       if (stale < 30 * 60 * 1000) return false;
     }
     files.createWithDirs(lockFile);
