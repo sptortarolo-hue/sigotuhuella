@@ -169,7 +169,6 @@ function classifyGraphError(err) {
   const message = e.message || '';
   if (code === 190) return { kind: 'token' };
   if (code === 10 || type === 'OAuthException' && /permission/i.test(message)) return { kind: 'permission' };
-  if (code === 100 && /nonexisting field/i.test(message)) return { kind: 'permission' };
   if (code === 100) return { kind: 'invalid_post' };
   return { kind: 'other' };
 }
@@ -236,13 +235,18 @@ export async function syncFacebookEngagement() {
   const errorSamples = {};
   for (const post of postsRes.rows) {
     try {
-      const params = { access_token: token, fields: 'id,like_count,comment_count,share_count' };
+      const params = { access_token: token, fields: 'id,reactions.summary(true),comments.summary(true),shares' };
       const { data } = await axios.get(`${GRAPH_API}/${post.page_post_id}`, { params });
       await pool.query(
         `UPDATE facebook_page_posts SET
            like_count = $1, comment_count = $2, share_count = $3, metrics_updated_at = NOW()
          WHERE id = $4`,
-        [parseInt(data.like_count, 10) || 0, parseInt(data.comment_count, 10) || 0, parseInt(data.share_count, 10) || 0, post.id]
+        [
+          parseInt(data.reactions?.summary?.total_count, 10) || 0,
+          parseInt(data.comments?.summary?.total_count, 10) || 0,
+          parseInt(data.shares?.count, 10) || 0,
+          post.id,
+        ]
       );
       posts++;
 
