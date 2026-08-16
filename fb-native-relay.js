@@ -39,7 +39,7 @@ var TOKEN = CONFIG.token;
 
 function apiGet(path) {
   var res = http.get(API_BASE + path, {
-    headers: { Authorization: "Bearer " + TOKEN },
+    headers: { Authorization: "Bearer " + TOKEN, Connection: "close" },
     timeout: 60000,
   });
   if (res.statusCode === 200) return res.body.json();
@@ -48,7 +48,7 @@ function apiGet(path) {
 
 function apiPost(path, body) {
   var res = http.postJson(API_BASE + path, body, {
-    headers: { Authorization: "Bearer " + TOKEN },
+    headers: { Authorization: "Bearer " + TOKEN, Connection: "close" },
     timeout: 60000,
   });
   if (res.statusCode !== 200) throw new Error("HTTP " + res.statusCode + " en " + path);
@@ -61,7 +61,7 @@ function rnd(min, max) {
   return min + Math.floor(Math.random() * (max - min + 1));
 }
 
-// Busca un nodo visible por texto (exacto), desc, o textContains, en ese orden.
+// Busca un nodo visible por texto/desc (exacto y por contenido), en ese orden.
 function findNode(labels, timeoutMs) {
   var t = timeoutMs || CONFIG.findTimeoutMs;
   var candidates = [];
@@ -69,6 +69,8 @@ function findNode(labels, timeoutMs) {
     var lab = labels[i];
     candidates.push(text(lab));
     candidates.push(desc(lab));
+    candidates.push(descContains(lab));
+    candidates.push(textContains(lab));
   }
   for (var j = 0; j < candidates.length; j++) {
     var node = candidates[j].findOne(t);
@@ -235,8 +237,17 @@ function shareToGroup(task) {
   var cp = checkCheckpoint();
   if (cp) throw new Error("checkpoint: " + cp);
 
-  // 3) Botón Compartir
-  var ok = clickLabel(["Compartir", "Share"], t, true);
+  // 3) Botón Compartir (icono en app nativa → content-desc)
+  var shareLabels = ["Compartir", "Share", "Compartir publicación", "Compartir esta publicación", "Share post", "Share this post"];
+  var ok = clickLabel(shareLabels, t, true);
+  if (!ok) {
+    // Fallback: menú "..." del post → "Compartir"
+    var moreLabels = ["Más opciones", "More options", "Ver más", "See more", "Más"];
+    if (clickLabel(moreLabels, 8000, true)) {
+      sleep(rnd(1500, 2500));
+      ok = clickLabel(shareLabels, 10000, false);
+    }
+  }
   if (!ok) {
     sendDebug("no-share-btn", url);
     throw new Error("Compartir not found");
