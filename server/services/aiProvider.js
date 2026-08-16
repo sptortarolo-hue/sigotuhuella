@@ -134,7 +134,7 @@ async function callGeminiDirect(systemPrompt, prompt) {
   try {
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
     const geminiPromise = ai.models.generateContent({
-      model: 'gemini-2.0-flash-lite',
+      model: 'gemini-2.5-flash-lite',
       contents: systemPrompt + '\n\n' + prompt,
       config: { responseMimeType: 'application/json' },
     });
@@ -191,7 +191,7 @@ async function callGeminiVisionMessages(messages) {
   try {
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
     const geminiPromise = ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       contents,
       config: {
         responseMimeType: 'application/json',

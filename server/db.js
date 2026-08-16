@@ -1116,7 +1116,12 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_news_publications_news_id ON news_publications(news_id)
     `, 'news_publications index');
     await migrate(client, `
-      ALTER TABLE news_publications ADD CONSTRAINT IF NOT EXISTS news_publications_news_id_platform_key UNIQUE (news_id, platform)
+      DELETE FROM news_publications a
+      USING news_publications b
+      WHERE a.news_id = b.news_id AND a.platform = b.platform AND a.id > b.id
+    `, 'news_publications dedupe');
+    await migrate(client, `
+      CREATE UNIQUE INDEX IF NOT EXISTS news_publications_news_id_platform_key ON news_publications(news_id, platform)
     `, 'news_publications unique');
 
     await migrate(client, `
@@ -1136,7 +1141,12 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_pet_publications_pet_id ON pet_publications(pet_id)
     `, 'pet_publications index');
     await migrate(client, `
-      ALTER TABLE pet_publications ADD CONSTRAINT IF NOT EXISTS pet_publications_pet_id_platform_key UNIQUE (pet_id, platform)
+      DELETE FROM pet_publications a
+      USING pet_publications b
+      WHERE a.pet_id = b.pet_id AND a.platform = b.platform AND a.id > b.id
+    `, 'pet_publications dedupe');
+    await migrate(client, `
+      CREATE UNIQUE INDEX IF NOT EXISTS pet_publications_pet_id_platform_key ON pet_publications(pet_id, platform)
     `, 'pet_publications unique');
 
     await migrate(client, `

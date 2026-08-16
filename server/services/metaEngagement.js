@@ -9,6 +9,21 @@ const BATCH_DELAY_MS = 400;
 
 const syncState = { running: false, source: null, startedAt: null, finishedAt: null, result: null, error: null };
 
+// Set de IDs de media IG que ya logueamos como inexistentes (evita spam en cada ciclo)
+const loggedIgMissing = new Set();
+function logIgError(postId, mediaId, err) {
+  const message = err?.response?.data?.error?.message || err.message || String(err);
+  const isMissing = err?.response?.data?.error?.code === 100 || /does not exist|no longer exist|Unsupported get request/i.test(message);
+  if (isMissing) {
+    if (loggedIgMissing.has(mediaId)) return;
+    loggedIgMissing.add(mediaId);
+    if (loggedIgMissing.size > 200) loggedIgMissing.clear();
+    console.error(`[MetaEngagement] IG post ${postId} (${mediaId}): ${message}`);
+  } else {
+    console.error(`[MetaEngagement] IG post ${postId}: ${message}`);
+  }
+}
+
 // Lanza un sync en background (sin bloquear la request) con lock anti-concurrencia.
 // Devuelve { queued: true } si ya hay uno corriendo, o { started: true } si lo arranca.
 export function runSyncInBackground(syncFn, source) {
@@ -124,7 +139,7 @@ export async function syncInstagramEngagement() {
           }
         }
       } catch (err) {
-        console.error(`[MetaEngagement] IG post ${post.id}: ${err.response?.data?.error?.message || err.message}`);
+        logIgError(post.id, post.ig_media_id, err);
       }
       await sleep(BATCH_DELAY_MS);
     }
@@ -175,7 +190,7 @@ export async function syncRecentIgComments(limit = 10) {
         }
       }
     } catch (err) {
-      console.error(`[MetaEngagement] IG poll post ${post.id}: ${err.response?.data?.error?.message || err.message}`);
+      logIgError(post.id, post.ig_media_id, err);
     }
     await sleep(BATCH_DELAY_MS);
   }
@@ -318,15 +333,17 @@ export async function syncFacebookEngagement() {
     await sleep(BATCH_DELAY_MS);
   }
 
-  if (errors.permission > 0 || errors.token > 0) {
-    const detail = errors.permission > 0
+  const totalPosts = postsRes.rows.length;
+  const massivePermissionFailure = totalPosts > 0 && errors.permission >= totalPosts * 0.5;
+  if (errors.token > 0 || massivePermissionFailure) {
+    const detail = massivePermissionFailure
       ? 'El token de Facebook no tiene el permiso pages_read_engagement (o la app carece de Page Public Content Access). Reconectar FB desde el admin.'
       : 'El token de Facebook es inválido o expiró. Reconectar FB desde el admin.';
     console.error(`[MetaEngagement] FB sync: ${errors.permission} post(s) bloqueados por permisos / ${errors.token} por token. ${detail} Ej.: ${errorSamples.permission || errorSamples.token || ''}`);
     await saveSetting('fb_sync_auth_error', 'true');
     await saveSetting('fb_sync_auth_error_at', new Date().toISOString());
     await saveSetting('fb_sync_auth_error_detail', detail);
-  } else if (postsRes.rows.length > 0 && errors.invalid_post + errors.other === 0) {
+  } else if (totalPosts > 0 && errors.invalid_post + errors.other === 0 && errors.permission === 0 && errors.token === 0) {
     await saveSetting('fb_sync_auth_error', 'false');
   }
 
