@@ -38,21 +38,31 @@ var TOKEN = CONFIG.token;
 // ─── Helpers HTTP ─────────────────────────────────────────────────────────
 
 function apiGet(path) {
-  var res = http.get(API_BASE + path, {
-    headers: { Authorization: "Bearer " + TOKEN, Connection: "close" },
-    timeout: 60000,
-  });
-  if (res.statusCode === 200) return res.body.json();
-  throw new Error("HTTP " + res.statusCode + " en " + path);
+  var res = null;
+  try {
+    res = http.get(API_BASE + path, {
+      headers: { Authorization: "Bearer " + TOKEN, Connection: "close" },
+      timeout: 30000,
+    });
+    if (res.statusCode === 200) return res.body.json();
+    throw new Error("HTTP " + res.statusCode + " en " + path);
+  } finally {
+    try { if (res && res.body && res.body.close) res.body.close(); } catch (e) {}
+  }
 }
 
 function apiPost(path, body) {
-  var res = http.postJson(API_BASE + path, body, {
-    headers: { Authorization: "Bearer " + TOKEN, Connection: "close" },
-    timeout: 60000,
-  });
-  if (res.statusCode !== 200) throw new Error("HTTP " + res.statusCode + " en " + path);
-  return res.body.json();
+  var res = null;
+  try {
+    res = http.postJson(API_BASE + path, body, {
+      headers: { Authorization: "Bearer " + TOKEN, Connection: "close" },
+      timeout: 30000,
+    });
+    if (res.statusCode !== 200) throw new Error("HTTP " + res.statusCode + " en " + path);
+    return res.body.json();
+  } finally {
+    try { if (res && res.body && res.body.close) res.body.close(); } catch (e) {}
+  }
 }
 
 // ─── Helpers de UI (multi-fallback) ────────────────────────────────────────
@@ -179,6 +189,12 @@ function sendDebug(label, url) {
       timestamp: new Date().toISOString(),
       uiNodes: dumpUi(80),
     };
+    // Log del dump en consola para verlo sin depender del server
+    console.log("=== DUMP " + label + " (" + payload.uiNodes.length + " nodos) ===");
+    for (var i = 0; i < payload.uiNodes.length; i++) {
+      var n = payload.uiNodes[i];
+      console.log("  [" + (n.t || "-") + "] | desc: " + (n.d || "-"));
+    }
     try {
       var img = images.captureScreen();
       if (img) {
@@ -189,7 +205,7 @@ function sendDebug(label, url) {
       payload.screenshotError = e2.message;
     }
     apiPost("/fb-debug", payload);
-    console.log("[native] debug enviado: " + label + " (" + payload.uiNodes.length + " nodos)");
+    console.log("[native] debug enviado: " + label);
   } catch (e) {
     console.log("[native] debug falló: " + e.message);
   }
@@ -224,6 +240,30 @@ function acquireLock() {
 
 function releaseLock() {
   try { files.remove(getLockPath()); } catch (e) {}
+}
+
+// Detecta si hay otra instancia de este mismo script corriendo (más robusto
+// que el lock de archivo, que no frenó los duplicados).
+function otherInstanceRunning() {
+  try {
+    var all = engines.all();
+    var me = engines.myEngine();
+    var mineSource = "";
+    try { mineSource = String(me && me.getSource ? me.getSource() : ""); } catch (e) {}
+    var count = 0;
+    for (var i = 0; i < all.length; i++) {
+      try {
+        var src = String(all[i].getSource());
+        if (src.indexOf("fb-native-relay") >= 0) {
+          if (mineSource && src === mineSource) continue; // soy yo
+          count++;
+        }
+      } catch (e2) {}
+    }
+    return count > 0;
+  } catch (e) {
+    return false;
+  }
 }
 
 // ─── Abrir el post en la app nativa ───────────────────────────────────────
@@ -339,6 +379,18 @@ function shareToGroup(task) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
+
+  // Habilitar captura de pantalla para los debug (requestScreenCapture puede fallar)
+  try {
+    images.requestScreenCapture(10000);
+  } catch (e) {
+    console.log("[native] screen capture no disponible: " + e.message);
+  }
+
+  if (otherInstanceRunning()) {
+    console.error("[native] otra instancia corriendo, saliendo");
+    exit();
+  }
 
   if (!acquireLock()) {
     console.error("[native] lock ocupado, saliendo");
