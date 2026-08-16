@@ -365,6 +365,7 @@ export const api = {
     },
     stats: () => request('/facebook/stats'),
     refreshMetrics: () => request('/facebook/refresh-metrics', { method: 'POST' }),
+    syncStatus: () => request('/facebook/sync-status'),
     publish: (petId: string) => request('/facebook/publish', { method: 'POST', body: JSON.stringify({ petId }) }),
     publishInstagram: (id: string) => request(`/facebook/publish-instagram/${id}`, { method: 'POST' }),
     replicateLatest: (limit = 5) => request(`/facebook/replicate-latest?limit=${limit}`, { method: 'POST' }),

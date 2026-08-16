@@ -172,12 +172,31 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
     setRefreshMsg(null);
     try {
       const res = await api.post('/instagram/refresh-metrics');
-      const parts = [];
-      if (res.posts > 0) parts.push(`${res.posts} posts`);
-      if (res.comments > 0) parts.push(`${res.comments} comentarios nuevos`);
-      setRefreshMsg({ ok: true, text: parts.length ? `Métricas actualizadas: ${parts.join(' · ')}.` : 'Métricas actualizadas (sin cambios).' });
-      fetchComments();
-      fetchStats();
+      if (res.queued) {
+        setRefreshMsg({ ok: true, text: 'Ya hay un sync en curso, esperá a que termine…' });
+        setRefreshing(false);
+        return;
+      }
+      setRefreshMsg({ ok: true, text: 'Sync iniciado. Se actualizará en unos minutos…' });
+      const started = Date.now();
+      while (Date.now() - started < 10 * 60 * 1000) {
+        await new Promise(r => setTimeout(r, 5000));
+        const status = await api.get('/instagram/status');
+        if (status.sync && !status.sync.running) {
+          const s = status.sync;
+          if (s.error) {
+            setRefreshMsg({ ok: false, text: `Sync falló: ${s.error}` });
+          } else {
+            const parts = [];
+            if (s.result?.posts > 0) parts.push(`${s.result.posts} posts`);
+            if (s.result?.comments > 0) parts.push(`${s.result.comments} comentarios nuevos`);
+            setRefreshMsg({ ok: true, text: parts.length ? `Métricas actualizadas: ${parts.join(' · ')}.` : 'Métricas actualizadas (sin cambios).' });
+          }
+          fetchComments();
+          fetchStats();
+          break;
+        }
+      }
     } catch (e: any) {
       setRefreshMsg({ ok: false, text: e?.message || 'Error al actualizar métricas' });
     } finally {

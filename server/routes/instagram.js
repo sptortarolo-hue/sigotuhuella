@@ -11,6 +11,7 @@ import {
 import { processQueue } from '../services/instagramPublisher.js';
 import { enqueue } from '../services/phoneRelayService.js';
 import { createCaseEvent } from '../services/caseService.js';
+import { runSyncInBackground, getSyncState } from '../services/metaEngagement.js';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
@@ -111,6 +112,7 @@ router.get('/status', requireAdmin, async (_req, res) => {
       hasPagesReadEngagement: hasEngResult.rows[0]?.value === 'true',
       fbSyncAuthError: syncAuthErrorResult.rows[0]?.value === 'true',
       fbLastAutoCommentError,
+      sync: getSyncState(),
     });
   } catch (err) {
     console.error('Error checking status:', err);
@@ -325,8 +327,8 @@ router.get('/posts', requireAdmin, async (req, res) => {
 router.post('/refresh-metrics', requireAdmin, async (_req, res) => {
   try {
     const { syncInstagramEngagement } = await import('../services/metaEngagement.js');
-    const result = await syncInstagramEngagement();
-    res.json({ success: true, ...result });
+    const state = runSyncInBackground(syncInstagramEngagement, 'ig');
+    res.json({ success: true, ...state });
   } catch (err) {
     console.error('Error refreshing IG metrics:', err);
     res.status(500).json({ error: 'Error al refrescar métricas de Instagram' });

@@ -7,6 +7,32 @@ const GRAPH_API = 'https://graph.facebook.com/v22.0';
 const BATCH_SIZE = 10;
 const BATCH_DELAY_MS = 400;
 
+const syncState = { running: false, source: null, startedAt: null, finishedAt: null, result: null, error: null };
+
+// Lanza un sync en background (sin bloquear la request) con lock anti-concurrencia.
+// Devuelve { queued: true } si ya hay uno corriendo, o { started: true } si lo arranca.
+export function runSyncInBackground(syncFn, source) {
+  if (syncState.running) return { queued: true };
+  syncState.running = true;
+  syncState.source = source;
+  syncState.startedAt = new Date().toISOString();
+  syncState.result = null;
+  syncState.error = null;
+  Promise.resolve()
+    .then(() => syncFn())
+    .then(result => { syncState.result = result; })
+    .catch(err => { syncState.error = err?.message || String(err); })
+    .finally(() => {
+      syncState.finishedAt = new Date().toISOString();
+      syncState.running = false;
+    });
+  return { started: true };
+}
+
+export function getSyncState() {
+  return syncState;
+}
+
 async function getSetting(key) {
   const result = await pool.query('SELECT value FROM settings WHERE key = $1', [key]);
   return result.rows[0]?.value || '';

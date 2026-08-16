@@ -10,6 +10,7 @@ import { normalizePhone } from '../services/phoneUtils.js';
 import { publishToPage, publishPetToGroups } from '../services/facebookPublisher.js';
 import { createCaseEvent } from '../services/caseService.js';
 import { detectReplicaByTask, runReplicaDetection } from '../services/replicaDetectionService.js';
+import { runSyncInBackground, getSyncState } from '../services/metaEngagement.js';
 
 const router = Router();
 
@@ -917,12 +918,16 @@ router.get('/page-posts', requireAdmin, async (req, res) => {
 router.post('/refresh-metrics', requireAdmin, async (_req, res) => {
   try {
     const { syncFacebookEngagement } = await import('../services/metaEngagement.js');
-    const result = await syncFacebookEngagement();
-    res.json({ success: true, ...result });
+    const state = runSyncInBackground(syncFacebookEngagement, 'fb');
+    res.json({ success: true, ...state });
   } catch (err) {
     console.error('Error refreshing FB metrics:', err);
     res.status(500).json({ error: 'Error al refrescar métricas de Facebook' });
   }
+});
+
+router.get('/sync-status', requireAdmin, async (_req, res) => {
+  res.json(getSyncState());
 });
 
 router.put('/groups/:id/page-member', requireAdmin, async (req, res) => {

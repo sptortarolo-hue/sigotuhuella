@@ -82,7 +82,25 @@ export default function FacebookTab() {
     setRefreshMsg(null);
     try {
       const res = await api.facebook.refreshMetrics();
-      setRefreshMsg(`Sync OK: ${res.posts} post(s) · ${res.comments} comentario(s)`);
+      if (res.queued) {
+        setRefreshMsg('Ya hay un sync en curso, esperá a que termine…');
+        setRefreshing(false);
+        return;
+      }
+      setRefreshMsg('Sync iniciado. Se actualizará en unos minutos…');
+      const started = Date.now();
+      while (Date.now() - started < 10 * 60 * 1000) {
+        await new Promise(r => setTimeout(r, 5000));
+        const status = await api.facebook.syncStatus();
+        if (status && !status.running) {
+          if (status.error) {
+            setRefreshMsg(`Sync falló: ${status.error}`);
+          } else {
+            setRefreshMsg(`Sync OK: ${status.result?.posts ?? 0} post(s) · ${status.result?.comments ?? 0} comentario(s)`);
+          }
+          break;
+        }
+      }
     } catch (e: any) {
       setRefreshMsg(`Error: ${e.message || 'no se pudo sincronizar'}`);
     }
