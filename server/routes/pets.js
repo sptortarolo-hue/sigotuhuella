@@ -1904,13 +1904,15 @@ router.post('/:id/publish', requireAdmin, async (req, res) => {
             break;
           }
           case 'instagram': {
-            const { default: instagramService } = await import('../services/instagramPublisher.js');
-            if (instagramService && instagramService.publishPet) {
-              await instagramService.publishPet(req.params.id);
-            } else {
-              const { replicateInstagramToFacebook } = await import('../services/facebookPublisher.js');
-              await replicateInstagramToFacebook(req.params.id);
-            }
+            const { publishSinglePost } = await import('../services/instagramPublisher.js');
+            await pool.query(
+              `INSERT INTO instagram_posts (pet_id, media_type, status, created_at)
+               VALUES ($1, 'IMAGE', 'queued', NOW())
+               ON CONFLICT DO NOTHING`,
+              [req.params.id]
+            );
+            const igResult = await publishSinglePost(req.params.id);
+            if (igResult && igResult.error) throw new Error(igResult.error);
             result = { platform, status: 'published' };
             break;
           }
