@@ -558,8 +558,8 @@ Me gustaría obtener más información.`;
           </div>
         </div>
 
-        {/* CTAs: Contactar + botones (bajo la foto en desktop). Ocultos en reencontradas */}
-        {pet.status !== PetStatus.REUNITED && (
+        {/* CTAs: Contactar + botones (bajo la foto en desktop). Ocultos en reencontradas y adoptadas */}
+        {pet.status !== PetStatus.REUNITED && pet.status !== PetStatus.ADOPTED && (
         <div className="lg:col-span-7 order-4 lg:order-none space-y-6">
           <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
             {(() => {
