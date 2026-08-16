@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Pet, getPetImageUrls } from '@/src/lib/petService';
+import { Pet, getPetImageUrls, getPublicContact } from '@/src/lib/petService';
 import { X, MessageCircle, Camera, Download, Loader2, ImageIcon, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -114,7 +114,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
       gender: pet.gender,
       age: pet.age,
       location: pet.location,
-      contact_info: pet.contact_info,
+      contact_info: getPublicContact(pet).value,
       description: pet.description,
       instagram: undefined,
       case_number: (pet as any).case_number || undefined,

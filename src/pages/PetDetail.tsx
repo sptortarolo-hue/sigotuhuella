@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
-import { Pet, PetStatus, getPetImageUrls, formatPetDate, getPetCoordinates } from '@/src/lib/petService';
+import { Pet, PetStatus, getPetImageUrls, formatPetDate, getPetCoordinates, getPublicContact } from '@/src/lib/petService';
 import { api, apiUrl } from '@/src/lib/api';
-import { MapPin, Calendar, Phone, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock, Flag, BadgeCheck, Star, BellRing, ExternalLink, Eye, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { MapPin, Calendar, Phone, Mail, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock, Flag, BadgeCheck, Star, BellRing, ExternalLink, Eye, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn, formatDateOnly } from '@/src/lib/utils';
@@ -562,39 +562,56 @@ Me gustaría obtener más información.`;
         {pet.status !== PetStatus.REUNITED && (
         <div className="lg:col-span-7 order-4 lg:order-none space-y-6">
           <div className="bg-white rounded-2xl border border-brand-accent shadow-sm p-4">
-            {pet.contact_info ? (
-              <div className="flex gap-3">
-                <button
-                  onClick={() => contactWhatsApp('contact_info')}
-                  className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
-                >
-                  <MessageCircle className="w-5 h-5 shrink-0" />
-                  <span className="text-sm">{pet.contact_info_2 ? 'Contactar 1' : 'Contactar'}</span>
-                </button>
-                {pet.contact_info_2 && (
-                  <button
-                    onClick={() => contactWhatsApp('contact_info_2')}
-                    className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
+            {(() => {
+              const contact = getPublicContact(pet);
+              if (contact.type === 'phone') {
+                return (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => contactWhatsApp('contact_info')}
+                      className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
+                    >
+                      <MessageCircle className="w-5 h-5 shrink-0" />
+                      <span className="text-sm">{pet.contact_info_2 ? 'Contactar 1' : 'Contactar'}</span>
+                    </button>
+                    {pet.contact_info_2 && (
+                      <button
+                        onClick={() => contactWhatsApp('contact_info_2')}
+                        className="flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-500 text-white hover:bg-emerald-600"
+                      >
+                        <MessageCircle className="w-5 h-5 shrink-0" />
+                        <span className="text-sm">Contactar 2</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+              if (contact.type === 'email') {
+                return (
+                  <a
+                    href={`mailto:${contact.value}`}
+                    className="w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md bg-brand-primary text-white hover:opacity-90 no-underline"
                   >
-                    <MessageCircle className="w-5 h-5 shrink-0" />
-                    <span className="text-sm">Contactar 2</span>
+                    <Mail className="w-5 h-5 shrink-0" />
+                    <span className="text-sm">Escribir</span>
+                  </a>
+                );
+              }
+              return (
+                <div className="space-y-3">
+                  <button
+                    disabled
+                    className="w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all bg-gray-200 text-gray-400 cursor-not-allowed"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                    Contactar
                   </button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <button
-                  disabled
-                  className="w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all bg-gray-200 text-gray-400 cursor-not-allowed"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                  Contactar
-                </button>
-                <p className="text-center text-xs text-gray-400">
-                  El contacto no está disponible para esta publicación.
-                </p>
-              </div>
-            )}
+                  <p className="text-center text-xs text-gray-400">
+                    El contacto no está disponible para esta publicación.
+                  </p>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="border-t border-brand-accent pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">

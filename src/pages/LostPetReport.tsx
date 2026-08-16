@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, PawPrint, Mail, Phone, Share2, User, X, Plus } from 'lucide-react';
+import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, PawPrint, Mail, Share2, User, X, Plus } from 'lucide-react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { api } from '@/src/lib/api';
@@ -8,6 +8,7 @@ import { pickPhoto } from '@/src/lib/cameraService';
 import { isNative } from '@/src/lib/platform';
 import LocationInput from '@/src/components/LocationInput';
 import ImageCropper from '@/src/components/ImageCropper';
+import { PhoneInput } from '@/src/components/PhoneInput';
 
 const SPECIES_OPTIONS = [
   { value: 'perro', label: 'Perro', icon: '🐕' },
@@ -52,6 +53,8 @@ export default function LostPetReport() {
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneValid, setPhoneValid] = useState(false);
+  const [contactVisible, setContactVisible] = useState(true);
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<string[]>([]);
   const [reporterName, setReporterName] = useState('');
   const [images, setImages] = useState<string[]>([]);
@@ -69,7 +72,7 @@ export default function LostPetReport() {
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isValid = species && description.trim().length >= 10 && location.trim().length >= 3 &&
-    emailRegex.test(email) && images.length >= 1 && reporterName.trim().length >= 2;
+    emailRegex.test(email) && phoneValid && images.length >= 1 && reporterName.trim().length >= 2;
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFiles = e.target.files;
@@ -151,6 +154,7 @@ export default function LostPetReport() {
       if (coordinates) { body.latitude = coordinates.lat; body.longitude = coordinates.lng; }
       if (phone) body.phone = phone;
       if (selectedNeighborhoods.length > 0) body.neighborhoods = selectedNeighborhoods;
+      body.contact_visible = contactVisible !== false;
       body.images = images.map((data, i) => {
         return { data, mimeType: imageMimeTypes[i] || 'image/jpeg', crop_x: 0.5, crop_y: 0.5 };
       });
@@ -167,7 +171,7 @@ export default function LostPetReport() {
   const handleReset = () => {
     setSpecies(''); setReporterName(''); setName(''); setBreed(''); setColor('');
     setGender(''); setAge(''); setSize(''); setDescription('');
-    setLocation(''); setCoordinates(null); setEmail(''); setPhone('');
+    setLocation(''); setCoordinates(null); setEmail(''); setPhone(''); setPhoneValid(false); setContactVisible(true);
     setSelectedNeighborhoods([]); setImages([]); setImageMimeTypes([]);
     setPageStatus('idle'); setErrorMsg(''); setCreatedId('');
   };
@@ -184,13 +188,17 @@ export default function LostPetReport() {
           } else {
             setReporterName(user.display_name || '');
             setEmail(user.email || '');
-            setPhone(user.phone || '');
+            const prefilledPhone = user.phone || '';
+            setPhone(prefilledPhone);
+            setPhoneValid(!!prefilledPhone);
           }
         })
         .catch(() => {
           setReporterName(user.display_name || '');
           setEmail(user.email || '');
-          setPhone(user.phone || '');
+          const prefilledPhone = user.phone || '';
+          setPhone(prefilledPhone);
+          setPhoneValid(!!prefilledPhone);
         })
         .finally(() => setLoadingPets(false));
     } else {
@@ -223,7 +231,9 @@ export default function LostPetReport() {
     if (user) {
       setReporterName(user.display_name || '');
       setEmail(user.email || '');
-      setPhone(user.phone || '');
+      const prefilledPhone = user.phone || '';
+      setPhone(prefilledPhone);
+      setPhoneValid(!!prefilledPhone);
     }
 
     if (pet.avatar_image) {
@@ -238,7 +248,9 @@ export default function LostPetReport() {
     if (user) {
       setReporterName(user.display_name || '');
       setEmail(user.email || '');
-      setPhone(user.phone || '');
+      const prefilledPhone = user.phone || '';
+      setPhone(prefilledPhone);
+      setPhoneValid(!!prefilledPhone);
     }
     setShowPetSelector(false);
   };
@@ -445,20 +457,32 @@ export default function LostPetReport() {
 
           {/* Phone */}
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Teléfono/Contacto (opcional)</label>
-            <div className="relative">
-              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input value={phone} onChange={e => setPhone(e.target.value)}
-                placeholder="Ej: 221 555-5555"
-                className="w-full pl-12 pr-4 py-4 border border-brand-accent rounded-xl text-sm focus:outline-none focus:border-brand-primary transition-colors" />
+            <label className="block text-sm font-bold text-gray-700 mb-2">Teléfono/Contacto *</label>
+            <PhoneInput
+              value={phone}
+              onChange={(value, e164) => { setPhone(value); setPhoneValid(!!e164); }}
+              placeholder="Ej: 221 555-5555"
+              className="w-full"
+            />
+            <div className="mt-3 flex items-start gap-2.5">
+              <input
+                id="contact-visible"
+                type="checkbox"
+                checked={contactVisible}
+                onChange={e => setContactVisible(e.target.checked)}
+                className="mt-0.5 w-4 h-4 shrink-0 accent-brand-primary"
+              />
+              <label htmlFor="contact-visible" className="text-xs text-gray-500 cursor-pointer select-none">
+                Mostrar mi teléfono en el aviso público para que puedan contactarme.
+                <span className="block text-gray-400">Si lo desactivás, se mostrará tu email como contacto.</span>
+              </label>
             </div>
-            <p className="text-xs text-gray-400 mt-1">Si lo completás, va a quedar visible al público para que puedan contactarte (podés ocultarlo abajo).</p>
           </div>
 
           {/* Publication preferences */}
           <div className="space-y-1 p-4 bg-brand-bg rounded-xl border border-brand-accent">
             <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Aviso de privacidad</label>
-            <p className="text-sm text-gray-600">Al publicar tu aviso, el contacto y la ubicación quedarán visibles para que la comunidad pueda ayudarte.</p>
+            <p className="text-sm text-gray-600">Al publicar tu aviso, la ubicación quedará visible y el contacto (teléfono o email) estará disponible para que la comunidad pueda ayudarte.</p>
           </div>
 
           {/* Photos */}

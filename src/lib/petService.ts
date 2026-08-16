@@ -51,6 +51,7 @@ export interface Pet {
   created_at: string;
   updated_at: string;
   is_hidden?: boolean;
+  contact_visible?: boolean;
   my_pet_id?: string | null;
   has_pending_adoption?: boolean;
   owner_name?: string | null;
@@ -93,6 +94,28 @@ export function getPetOriginalImageUrl(pet: Pet): string | undefined {
 
 export function getPetCoordinates(pet: Pet): { lat: number; lng: number } | null {
   return pet.latitude && pet.longitude ? { lat: pet.latitude, lng: pet.longitude } : null;
+}
+
+export interface PublicContact {
+  type: 'phone' | 'email' | null;
+  value: string;
+}
+
+export function getPublicContact(pet: Pet): PublicContact {
+  const visible = pet.contact_visible !== false;
+  if (visible && pet.contact_info) {
+    const digits = pet.contact_info.replace(/\D/g, '');
+    if (/^\d{8,}$/.test(digits)) {
+      return { type: 'phone', value: pet.contact_info };
+    }
+    if (pet.contact_info.includes('@')) {
+      return { type: 'email', value: pet.contact_info };
+    }
+  }
+  if (pet.owner_email) {
+    return { type: 'email', value: pet.owner_email };
+  }
+  return { type: null, value: '' };
 }
 
 export function formatPetDate(dateStr: string): Date {

@@ -340,7 +340,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (req.body.status === 'for_adoption' && !pet.my_pet_id) {
       req.body.status = 'for_adoption_simple';
     }
-    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info', 'is_hidden', 'owner_name', 'owner_phone', 'owner_email', 'owner_address'];
+    const fields = ['name', 'species', 'breed', 'color', 'status', 'gender', 'age', 'size', 'is_vaccinated', 'is_sterilized', 'is_dewormed', 'description', 'location', 'contact_info', 'is_hidden', 'contact_visible', 'owner_name', 'owner_phone', 'owner_email', 'owner_address'];
     const updates = [];
     const values = [];
     let idx = 1;
@@ -1538,13 +1538,16 @@ router.post('/public', async (req, res) => {
 
 // Lost pet report (no auth) for owner reporting a lost pet with full details
 router.post('/lost-report', async (req, res) => {
-  const { species, name, breed, color, gender, age, size, description, location, latitude, longitude, email, phone, images, neighborhoods } = req.body;
+  const { species, name, breed, color, gender, age, size, description, location, latitude, longitude, email, phone, images, neighborhoods, contact_visible } = req.body;
   if (!species || !description || !location || !email) {
     return res.status(400).json({ error: 'Species, description, location, and email are required' });
   }
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ error: 'Invalid email format' });
+  }
+  if (!phone || !String(phone).replace(/\D/g, '')) {
+    return res.status(400).json({ error: 'Phone is required' });
   }
   if (!images || images.length === 0) {
     return res.status(400).json({ error: 'At least one photo is required' });
@@ -1566,25 +1569,25 @@ router.post('/lost-report', async (req, res) => {
       registrationToken = uuidv4().replace(/-/g, '') + crypto.randomBytes(16).toString('hex');
       const displayName = name || email.split('@')[0];
       const userInsert = await client.query(
-        `INSERT INTO users (email, password_hash, display_name, role, registration_pending, registration_token, privacy_notice_at)
-         VALUES ($1, '', $2, 'user', TRUE, $3, NOW())
+        `INSERT INTO users (email, password_hash, display_name, role, registration_pending, registration_token, privacy_notice_at, phone)
+         VALUES ($1, '', $2, 'user', TRUE, $3, NOW(), $4)
          RETURNING id`,
-        [email, displayName, registrationToken]
+        [email, displayName, registrationToken, phone]
       );
       userId = userInsert.rows[0].id;
     } else {
       userId = userResult.rows[0].id;
       if (userResult.rows[0].registration_pending) {
         registrationToken = uuidv4().replace(/-/g, '') + crypto.randomBytes(16).toString('hex');
-        await client.query('UPDATE users SET registration_token = $1 WHERE id = $2', [registrationToken, userId]);
+        await client.query('UPDATE users SET registration_token = $1, phone = COALESCE(NULLIF($2, \'\'), phone) WHERE id = $3', [registrationToken, phone, userId]);
       }
     }
 
     const petResult = await client.query(
-      `INSERT INTO pets (species, name, breed, color, gender, age, size, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified, neighborhoods, privacy_notice_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
+      `INSERT INTO pets (species, name, breed, color, gender, age, size, description, location, latitude, longitude, contact_info, owner_email, contact_visible, status, created_by, is_admin_verified, neighborhoods, privacy_notice_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
        RETURNING *`,
-      [species, name || null, breed || null, color || null, gender || 'unknown', age || null, size || null, description, location, latitude || null, longitude || null, email, 'lost', userId, false, JSON.stringify(neighborhoods || [])]
+      [species, name || null, breed || null, color || null, gender || 'unknown', age || null, size || null, description, location, latitude || null, longitude || null, phone, email, contact_visible !== false, 'lost', userId, false, JSON.stringify(neighborhoods || [])]
     );
     const pet = petResult.rows[0];
 

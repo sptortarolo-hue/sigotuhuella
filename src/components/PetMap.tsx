@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Circle, ZoomControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Pet, getPetImageUrl, getPetCoordinates } from '@/src/lib/petService';
+import { Pet, getPetImageUrl, getPetCoordinates, getPublicContact } from '@/src/lib/petService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
-import { MapPin } from 'lucide-react';
+import { MapPin, Mail } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { LinkifiedText } from '@/src/lib/linkify';
 
@@ -38,6 +38,24 @@ const approximateIcon = L.divIcon({
   iconAnchor: [16, 16],
   className: 'custom-leaflet-icon',
 });
+
+function ContactLinks({ pet }: { pet: Pet }) {
+  const contact = getPublicContact(pet);
+  if (!contact.type) return null;
+  if (contact.type === 'email') {
+    return (
+      <a href={`mailto:${contact.value}`} className="flex-1 bg-brand-primary text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline inline-flex items-center justify-center gap-1">
+        <Mail className="w-3 h-3" /> Escribir
+      </a>
+    );
+  }
+  return (
+    <div className="flex gap-2">
+      <a href={`tel:${contact.value}`} className="flex-1 bg-brand-primary text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline">Llamar</a>
+      <a href={`https://wa.me/${contact.value.replace(/\D/g, '')}`} className="flex-1 bg-emerald-500 text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline">WhatsApp</a>
+    </div>
+  );
+}
 
 function getPetApproximateCoords(pet: Pet): { lat: number; lng: number; label: string } | null {
   const ns = (() => {
@@ -118,12 +136,7 @@ export default function PetMap({ pets, center }: PetMapProps) {
                     <h4 className="font-bold text-brand-primary text-sm m-0">{pet.name || 'Mascota'}</h4>
                     <p className="text-[10px] text-gray-500 uppercase font-bold mb-1 mt-0">{statusLabel(pet.status)}</p>
                     <p className="text-[10px] text-gray-600 mb-3 line-clamp-2">{pet.description ? <LinkifiedText text={pet.description} /> : ''}</p>
-                    {pet.contact_info && (
-                      <div className="flex gap-2">
-                        <a href={`tel:${pet.contact_info}`} className="flex-1 bg-brand-primary text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline">Llamar</a>
-                        <a href={`https://wa.me/${pet.contact_info.replace(/\D/g, '')}`} className="flex-1 bg-emerald-500 text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline">WhatsApp</a>
-                      </div>
-                    )}
+                    <ContactLinks pet={pet} />
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); openDetail(pet); }}
@@ -174,12 +187,7 @@ export default function PetMap({ pets, center }: PetMapProps) {
                     <p className="text-[10px] text-amber-600 font-bold mb-1">📍 Ubicación aproximada</p>
                     <p className="text-[10px] text-gray-500 mb-1">Zona: {approx.label}</p>
                     <p className="text-[10px] text-gray-600 mb-3 line-clamp-2">{pet.description ? <LinkifiedText text={pet.description} /> : ''}</p>
-                    {pet.contact_info && (
-                      <div className="flex gap-2">
-                        <a href={`tel:${pet.contact_info}`} className="flex-1 bg-brand-primary text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline">Llamar</a>
-                        <a href={`https://wa.me/${pet.contact_info.replace(/\D/g, '')}`} className="flex-1 bg-emerald-500 text-white py-1.5 rounded-lg text-center text-[10px] font-bold shadow-sm no-underline">WhatsApp</a>
-                      </div>
-                    )}
+                    <ContactLinks pet={pet} />
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); openDetail(pet); }}

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate } from '@/src/lib/petService';
-import { MapPin, Calendar, Phone, MessageCircle, ChevronLeft, ChevronRight, Heart, Eye, ExternalLink, Instagram, Facebook } from 'lucide-react';
+import { Pet, PetStatus, getPetImageUrl, getPetImageUrls, formatPetDate, getPublicContact } from '@/src/lib/petService';
+import { MapPin, Calendar, Phone, Mail, MessageCircle, ChevronLeft, ChevronRight, Heart, Eye, ExternalLink, Instagram, Facebook } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
@@ -191,12 +191,18 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
             <Calendar className="w-4 h-4 text-brand-secondary" />
             <span>{dateLabel} {format(formatPetDate(pet.created_at), 'PP', { locale: es })}</span>
           </div>
-          {pet.contact_info && (
-            <div className="flex items-center gap-2 text-sm text-gray-800 font-medium">
-              <Phone className="w-4 h-4 text-brand-primary" />
-              <span>{pet.contact_info}</span>
-            </div>
-          )}
+          {(() => {
+            const contact = getPublicContact(pet);
+            if (!contact.type) return null;
+            return (
+              <div className="flex items-center gap-2 text-sm text-gray-800 font-medium">
+                {contact.type === 'phone'
+                  ? <Phone className="w-4 h-4 text-brand-primary" />
+                  : <Mail className="w-4 h-4 text-brand-primary" />}
+                <span>{contact.value}</span>
+              </div>
+            );
+          })()}
         </div>
 
         {pet.description && (

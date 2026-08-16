@@ -60,12 +60,12 @@ export default function Legales() {
           <ul className="list-disc pl-5 mb-3">
             <Li>Contás con derecho a publicar la información y fotos que subís, y que no violan derechos de terceros.</Li>
             <Li>La información es veraz y exacta al momento de la publicación.</Li>
-            <Li>Sabés que el contacto y la ubicación que cargás serán visibles en el aviso para que cualquier persona pueda ayudarte a encontrar o recuperar la mascota.</Li>
+            <Li>Sabés que el contacto y la ubicación que cargás serán visibles en el aviso para que cualquier persona pueda ayudarte a encontrar o recuperar la mascota. Si ocultás tu teléfono, se mostrará tu email como contacto.</Li>
           </ul>
 
           <h3 className="text-lg font-bold text-gray-800 mb-3">1.3. Difusión del aviso</h3>
           <P>
-            Los avisos se difunden a través de nuestros grupos de WhatsApp, redes sociales y canales de la comunidad con el fin de ampliar las posibilidades de recuperar/colocar la mascota. Como publicar un aviso implica que sus datos estén a disposición de la comunidad, el contacto y la ubicación cargados quedan visibles en el aviso público.
+            Los avisos se difunden a través de nuestros grupos de WhatsApp, redes sociales y canales de la comunidad con el fin de ampliar las posibilidades de recuperar/colocar la mascota. Como publicar un aviso implica que sus datos estén a disposición de la comunidad, el contacto y la ubicación cargados quedan visibles en el aviso público. Cuando el autor elige ocultar su teléfono, el email se muestra como contacto alternativo.
           </P>
 
           <h3 className="text-lg font-bold text-gray-800 mb-3">1.4. Responsabilidad</h3>
@@ -96,7 +96,7 @@ export default function Legales() {
           <h3 className="text-lg font-bold text-gray-800 mb-3">2.2. Datos que recopilamos y para qué</h3>
           <ul className="list-disc pl-5 mb-3">
             <Li><strong>Al registrarte:</strong> nombre, email y, opcionalmente, WhatsApp/teléfono. Se usan para crear y gestionar tu cuenta y enviarte avisos de tus propias publicaciones.</Li>
-            <Li><strong>Al publicar un reporte:</strong> datos que vos elegís cargar (descripción, fotos, teléfono de contacto, ubicación/coordenadas). Se publican como parte del aviso para poder encontrar a la mascota.</Li>
+            <Li><strong>Al publicar un reporte:</strong> datos que vos elegís cargar (descripción, fotos, teléfono de contacto, ubicación/coordenadas). Se publican como parte del aviso para poder encontrar a la mascota. Podés elegir no mostrar tu teléfono, en cuyo caso se muestra tu email como contacto.</Li>
             <Li><strong>Coordenadas y dirección:</strong> la ubicación y coordenadas cargadas en el aviso se muestran en el mapa público como parte de la publicación.</Li>
             <Li><strong>Información técnica:</strong> IP y datos del navegador al visitar fichas y escanear códigos QR, con fines de funcionamiento, seguridad y estadísticas.</Li>
           </ul>
@@ -107,7 +107,7 @@ export default function Legales() {
 
           <h3 className="text-lg font-bold text-gray-800 mb-3">2.3. Publicación de los datos (lo importante)</h3>
           <P>
-            Los reportes son públicos por diseño, porque su objetivo es que la comunidad ayude. Eso significa que, al publicar un aviso, <strong>el teléfono de contacto y la ubicación que cargás son visibles para cualquier visitante</strong>. El solo hecho de publicar implica tu consentimiento para que esos datos formen parte del aviso y se difundan en los canales de la red.
+            Los reportes son públicos por diseño, porque su objetivo es que la comunidad ayude. Eso significa que, al publicar un aviso, <strong>el teléfono de contacto y la ubicación que cargás son visibles para cualquier visitante</strong>. Si preferís no mostrar tu teléfono, podés ocultarlo y en su lugar se muestra tu email como contacto. El solo hecho de publicar implica tu consentimiento para que esos datos formen parte del aviso y se difundan en los canales de la red.
           </P>
 
           <h3 className="text-lg font-bold text-gray-800 mb-3">2.4. Destinatarios y terceros</h3>
