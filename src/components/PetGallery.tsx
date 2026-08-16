@@ -23,11 +23,25 @@ const STATUS_CHIPS: { value: string; label: string }[] = [
   { value: PetStatus.REUNITED, label: 'Reencontradas' },
 ];
 
+const ADOPTION_STATUS_CHIPS: { value: string; label: string }[] = [
+  { value: 'all', label: 'Todas' },
+  { value: 'for_adoption', label: 'En adopción' },
+  { value: PetStatus.ADOPTED, label: 'Adoptadas' },
+];
+
+const SPECIES_CHIPS: { value: string; label: string }[] = [
+  { value: 'all', label: 'Todas las especies' },
+  { value: 'dog', label: 'Perros' },
+  { value: 'cat', label: 'Gatos' },
+  { value: 'other', label: 'Otras' },
+];
+
 export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [speciesFilter, setSpeciesFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
 
   useEffect(() => {
@@ -50,8 +64,9 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
         } else {
           setPets(
             data.filter(p =>
-              (p.status === PetStatus.FOR_ADOPTION || p.status === PetStatus.FOR_ADOPTION_SIMPLE)
-              && !p.has_pending_adoption
+              ((p.status === PetStatus.FOR_ADOPTION || p.status === PetStatus.FOR_ADOPTION_SIMPLE)
+                && !p.has_pending_adoption) ||
+              p.status === PetStatus.ADOPTED
             )
           );
         }
@@ -77,7 +92,17 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
     let result = pets;
 
     if (statusFilter !== 'all') {
-      result = result.filter(p => p.status === statusFilter);
+      if (type === 'adoption' && statusFilter === 'for_adoption') {
+        result = result.filter(p =>
+          p.status === PetStatus.FOR_ADOPTION || p.status === PetStatus.FOR_ADOPTION_SIMPLE
+        );
+      } else {
+        result = result.filter(p => p.status === statusFilter);
+      }
+    }
+
+    if (speciesFilter !== 'all') {
+      result = result.filter(p => p.species === speciesFilter);
     }
 
     if (filter.trim()) {
@@ -106,22 +131,41 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
       result = [...result].sort((a, b) => {
         const aReunited = a.status === PetStatus.REUNITED ? 1 : 0;
         const bReunited = b.status === PetStatus.REUNITED ? 1 : 0;
+        if (type === 'adoption') {
+          const aAdopted = a.status === PetStatus.ADOPTED ? 1 : 0;
+          const bAdopted = b.status === PetStatus.ADOPTED ? 1 : 0;
+          return aAdopted - bAdopted;
+        }
         return aReunited - bReunited;
       });
     }
 
     return result;
-  }, [pets, filter, statusFilter]);
+  }, [pets, filter, statusFilter, speciesFilter, type]);
 
   // Chips visibles: "Todas" y el activo siempre; el resto solo si el feed
   // tiene al menos una mascota con ese estado (basado en `pets`, no en la búsqueda).
   const visibleChips = useMemo(() => {
-    return STATUS_CHIPS.filter(chip =>
+    const chips = type === 'adoption' ? ADOPTION_STATUS_CHIPS : STATUS_CHIPS;
+    return chips.filter(chip =>
       chip.value === 'all' ||
       chip.value === statusFilter ||
-      pets.some(p => p.status === chip.value)
+      pets.some(p => {
+        if (chip.value === 'for_adoption') {
+          return p.status === PetStatus.FOR_ADOPTION || p.status === PetStatus.FOR_ADOPTION_SIMPLE;
+        }
+        return p.status === chip.value;
+      })
     );
-  }, [pets, statusFilter]);
+  }, [pets, statusFilter, type]);
+
+  const visibleSpeciesChips = useMemo(() => {
+    return SPECIES_CHIPS.filter(chip =>
+      chip.value === 'all' ||
+      chip.value === speciesFilter ||
+      pets.some(p => p.species === chip.value)
+    );
+  }, [pets, speciesFilter]);
 
   return (
     <div>
@@ -193,8 +237,7 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
             )}
           </div>
 
-          {type === 'lost' && (
-            <div className="flex items-center gap-2 overflow-x-auto -mb-1 pb-1">
+          <div className="flex items-center gap-2 overflow-x-auto -mb-1 pb-1">
               {visibleChips.map(chip => (
                 <button
                   key={chip.value}
@@ -210,7 +253,25 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
                 </button>
               ))}
             </div>
-          )}
+
+            {type === 'adoption' && (
+              <div className="flex items-center gap-2 overflow-x-auto -mb-1 pb-1">
+                {visibleSpeciesChips.map(chip => (
+                  <button
+                    key={chip.value}
+                    onClick={() => setSpeciesFilter(chip.value)}
+                    className={cn(
+                      "shrink-0 px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition-colors",
+                      speciesFilter === chip.value
+                        ? "bg-brand-secondary text-white"
+                        : "bg-brand-secondary/5 text-brand-secondary hover:bg-brand-secondary/10"
+                    )}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            )}
         </div>
       </div>
 
@@ -259,7 +320,9 @@ export default function PetGallery({ type }: { type: 'lost' | 'adoption' }) {
           </AnimatePresence>
         ) : (
           <div className="text-center py-20 bg-brand-accent/30 rounded-3xl border-2 border-dashed border-brand-accent">
-            <p className="text-gray-500 font-medium">No se encontraron reportes en esta categoría por el momento.</p>
+            <p className="text-gray-500 font-medium">{type === 'adoption'
+            ? 'No se encontraron mascotas en adopción por el momento.'
+            : 'No se encontraron reportes en esta categoría por el momento.'}</p>
           </div>
         )}
       </main>
