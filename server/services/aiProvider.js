@@ -234,7 +234,7 @@ const CLASSIFICATION_CHAIN_WITH_IMAGES = chain([
 
 const CLASSIFICATION_CHAIN_TEXT = chain([
   { name: 'NVIDIA 70B', call: (m) => callNVIDIA('meta/llama-3.3-70b-instruct', m, { max_tokens: 1000 }) },
-  { name: 'Groq Llama 3.3-70B', call: (m) => callGroqDirect('llama-3.3-70b-versatile', m, { max_tokens: 1000 }) },
+  { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
   { name: 'Gemini', call: (m) => callGeminiFromMessages(m) },
   { name: 'OpenRouter GPT-OSS-120B', call: (m) => callOpenRouter('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
   { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 1000 }) },
@@ -249,7 +249,7 @@ const IMAGE_CAPTION_CHAIN = chain([
 
 const TEXT_INTENT_CHAIN = chain([
   { name: 'NVIDIA 70B', call: (m) => callNVIDIA('meta/llama-3.3-70b-instruct', m, { max_tokens: 10 }) },
-  { name: 'Groq Llama 3.3-70B', call: (m) => callGroqDirect('llama-3.3-70b-versatile', m, { max_tokens: 10 }) },
+  { name: 'Groq GPT-OSS-120B', call: (m) => callGroqDirect('openai/gpt-oss-120b', m, { max_tokens: 10 }) },
   { name: 'Gemini', call: (m) => callGeminiFromMessages(m) },
   { name: 'OpenRouter GPT-OSS-120B', call: (m) => callOpenRouter('openai/gpt-oss-120b', m, { max_tokens: 10 }) },
   { name: 'Groq GPT-OSS-20B', call: (m) => callGroqDirect('openai/gpt-oss-20b', m, { max_tokens: 10 }) },
