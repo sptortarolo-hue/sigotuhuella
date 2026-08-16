@@ -295,7 +295,6 @@ function shareToGroup(task) {
 
 function mainLoop() {
   console.show();
-  device.keepScreenOn(true);
   console.log("[native] fb-native-relay iniciado");
 
   if (!acquireLock()) {
@@ -312,7 +311,6 @@ function mainLoop() {
   }
 
   releaseLock();
-  device.keepScreenOn(false);
   exit();
 }
 
