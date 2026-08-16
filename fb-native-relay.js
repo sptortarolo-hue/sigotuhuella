@@ -89,6 +89,36 @@ function findNode(labels, timeoutMs) {
   return null;
 }
 
+// Click por coordenadas en el centro del nodo. node.click() (ACTION_CLICK)
+// no aterriza en los views custom de Facebook; el gesto real sí.
+function clickNodeCenter(node) {
+  try {
+    var b = node.bounds();
+    var x = Math.round(b.centerX());
+    var y = Math.round(b.centerY());
+    click(x, y);
+    return true;
+  } catch (e) {
+    try { node.click(); return true; } catch (e2) {}
+  }
+  return false;
+}
+
+// Doble tap en el centro del nodo (varios selectores de FB requieren doble tap).
+function doubleTapNode(node) {
+  try {
+    var b = node.bounds();
+    var x = Math.round(b.centerX());
+    var y = Math.round(b.centerY());
+    click(x, y);
+    sleep(250);
+    click(x, y);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // Click en un nodo por texto/desc con reintentos cortos.
 function clickLabel(labels, timeoutMs, scrollIntoView) {
   var deadline = Date.now() + (timeoutMs || CONFIG.findTimeoutMs);
@@ -97,8 +127,7 @@ function clickLabel(labels, timeoutMs, scrollIntoView) {
     if (node) {
       try {
         if (scrollIntoView) node.scrollForward();
-        node.click();
-        return true;
+        if (clickNodeCenter(node)) return true;
       } catch (e) {}
     }
     sleep(500);
@@ -325,16 +354,21 @@ function shareToGroup(task) {
   }
   sleep(rnd(1500, 3000));
 
-  // 4) En el modal: elegir destino. "Grupo" puede estar directo en el modal,
-  //    o aparecer tras abrir el selector de destino "Feed".
-  ok = clickLabel(["Grupo", "En un grupo", "Compartir en un grupo", "Share to a group"], t, false);
-  if (!ok) {
-    // Abrir el selector de destino "Feed" y volver a buscar la opción de grupo
-    if (clickLabel(["Feed", "Elige el destino de tu publicación", "Your Feed"], 8000, false)) {
-      sleep(rnd(1500, 2500));
-      ok = clickLabel(["En un grupo", "Grupo", "Compartir en un grupo", "Share to a group"], 10000, false);
-    }
+  // 4) En el modal: abrir el selector de destino. El nodo "Feed" tiene el hint
+  //    "Elige el destino de tu publicación, Feed. Toca dos veces para ver más
+  //    opciones." → se abre con DOBLE TAP.
+  var destLabels = ["Feed", "Elige el destino de tu publicación", "Your Feed"];
+  var destNode = findNode(destLabels, 8000);
+  if (destNode && doubleTapNode(destNode)) {
+    console.log("[native] selector de destino abierto (doble tap)");
+    sleep(rnd(2000, 3000));
+  } else {
+    sendDebug("no-dest-selector", url);
+    throw new Error("Dest selector not found");
   }
+
+  // 5) En la ventana de destino: click en "En un grupo" (o variante)
+  ok = clickLabel(["En un grupo", "In a group", "Un grupo", "Grupo", "Compartir en un grupo", "Share to a group"], t, false);
   if (!ok) {
     sendDebug("no-share-to-group", url);
     throw new Error("Share to group not found");
