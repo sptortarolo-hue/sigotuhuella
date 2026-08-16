@@ -417,6 +417,12 @@ function mainLoop() {
   exit();
 }
 
+function isInterrupted(e) {
+  var name = String(e && e.constructor ? e.constructor.name : e);
+  var msg = String(e && e.message ? e.message : e);
+  return name.indexOf("Interrupted") >= 0 || msg.indexOf("interrupted") >= 0;
+}
+
 function runPollLoop() {
   while (true) {
     try {
@@ -435,11 +441,16 @@ function runPollLoop() {
         console.log("[native] tarea " + task.id + " completada");
       } catch (e) {
         console.error("[native] tarea " + task.id + " falló: " + e.message);
-        apiPost("/fb/failed", { task_id: task.id, error: e.message });
+        if (isInterrupted(e)) {
+          console.error("[native] script interrumpido, saliendo");
+          try { apiPost("/fb/failed", { task_id: task.id, error: "script interrupted" }); } catch (e2) {}
+          return;
+        }
+        try { apiPost("/fb/failed", { task_id: task.id, error: e.message }); } catch (e2) {}
         if (String(e.message).indexOf("checkpoint") >= 0) {
           console.error("[native] checkpoint detectado → frenando relay");
           sendDebug("checkpoint-stop");
-          break;
+          return;
         }
       }
 
@@ -449,6 +460,10 @@ function runPollLoop() {
       sleep(delay);
 
     } catch (e) {
+      if (isInterrupted(e)) {
+        console.error("[native] script interrumpido, saliendo");
+        return;
+      }
       console.error("[native] error de loop: " + e.message);
       sleep(CONFIG.pollIntervalMs);
     }
