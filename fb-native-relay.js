@@ -144,21 +144,52 @@ function checkCheckpoint() {
   return null;
 }
 
+// Dump del árbol de accesibilidad visible (text + content-desc) para debug.
+function dumpUi(maxNodes) {
+  var out = [];
+  var cap = maxNodes || 60;
+  try {
+    var withText = textMatches(/.*/).find();
+    for (var i = 0; i < withText.length && out.length < cap; i++) {
+      var n = withText[i];
+      var txt = "";
+      try { txt = n.text() || ""; } catch (e) {}
+      if (txt && txt.trim()) out.push({ t: txt, d: "" });
+    }
+    var withDesc = descMatches(/.*/).find();
+    for (var j = 0; j < withDesc.length && out.length < cap; j++) {
+      var m = withDesc[j];
+      var d = "";
+      try { d = m.desc() || ""; } catch (e) {}
+      if (d && d.trim()) out.push({ t: "", d: d });
+    }
+  } catch (e) {
+    out.push({ t: "dumpUi error: " + e.message, d: "" });
+  }
+  return out;
+}
+
 // ─── Debug (screenshot + dump a /fb-debug) ────────────────────────────────
 
 function sendDebug(label, url) {
   try {
-    var img = images.captureScreen();
-    if (!img) return;
-    var b64 = images.toBase64(img, "png", 70);
-    img.recycle();
-    apiPost("/fb-debug", {
-      screenshot: b64,
+    var payload = {
       label: "native:" + label,
       url: url || "",
       timestamp: new Date().toISOString(),
-    });
-    console.log("[native] debug enviado: " + label);
+      uiNodes: dumpUi(80),
+    };
+    try {
+      var img = images.captureScreen();
+      if (img) {
+        payload.screenshot = images.toBase64(img, "png", 70);
+        img.recycle();
+      }
+    } catch (e2) {
+      payload.screenshotError = e2.message;
+    }
+    apiPost("/fb-debug", payload);
+    console.log("[native] debug enviado: " + label + " (" + payload.uiNodes.length + " nodos)");
   } catch (e) {
     console.log("[native] debug falló: " + e.message);
   }

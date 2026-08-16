@@ -296,10 +296,11 @@ function saveDebug(key, data) {
 
 router.post('/fb-debug', relayAuth, async (req, res) => {
   try {
-    const { screenshot, ariaLabels, lexicalInfo, url, html, label, totalDialogs, dialogTag, dialogRole, items } = req.body;
+    const { screenshot, ariaLabels, lexicalInfo, url, html, label, totalDialogs, dialogTag, dialogRole, items, uiNodes } = req.body;
     saveDebug('last', {
       ariaLabels, lexicalInfo, url, html, label,
       diag4: { totalDialogs, dialogTag, dialogRole, items },
+      uiNodes,
       timestamp: new Date().toISOString(),
     });
     if (screenshot) {
