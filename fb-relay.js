@@ -1333,7 +1333,7 @@ async function main() {
 
   while (true) {
     try {
-      const { data } = await api.get('/fb/pending?limit=5');
+      const { data } = await api.get('/fb/pending?limit=5&exclude_action=share');
       const tasks = data?.tasks || [];
       if (tasks.length === 0) {
         await sleep(POLL_INTERVAL);

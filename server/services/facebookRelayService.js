@@ -27,13 +27,26 @@ export async function enqueuePublishTask(petId, groupId, fbGroupId, message, ima
   return { taskId: result.rows[0].id, marker };
 }
 
-export async function getPendingTasks(limit = 5) {
+export async function getPendingTasks(limit = 5, opts = {}) {
+  const { action, excludeAction } = opts;
+  const params = [];
+  const add = (val) => { params.push(val); return `$${params.length}`; };
+  const conds = ["ft.status = 'pending'"];
+  if (action) {
+    const values = Array.isArray(action) ? action : [action];
+    conds.push(`ft.action = ANY(${add(values)}::text[])`);
+  }
+  if (excludeAction) {
+    const values = Array.isArray(excludeAction) ? excludeAction : [excludeAction];
+    conds.push(`(ft.action IS NULL OR ft.action <> ALL(${add(values)}::text[]))`);
+  }
+  conds.push(`ft.id IN (SELECT id FROM fb_relay_tasks WHERE status = 'pending' ORDER BY created_at ASC LIMIT ${add(limit)})`);
   const result = await pool.query(
     `SELECT ft.id, ft.pet_id, ft.group_id, ft.fb_group_id, ft.message, ft.image_urls, ft.marker, ft.action, ft.target_url, ft.comment_text, ft.created_at, fg.name as group_name
      FROM fb_relay_tasks ft
      LEFT JOIN facebook_groups fg ON fg.id = ft.group_id
-     WHERE ft.status = 'pending' ORDER BY ft.created_at ASC LIMIT $1`,
-    [limit]
+     WHERE ${conds.join(' AND ')} ORDER BY ft.created_at ASC`,
+    params
   );
   return result.rows;
 }

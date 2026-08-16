@@ -232,6 +232,55 @@ Scraper self-hosted que corre en un celular con Termux + X11. Usa Chromium real 
 3. Verificar logs del webhook en VPS: `journalctl -u sihuella | grep -i "webhook\|image_buffers\|descargar"`
 4. Usar `--debug-page` para diagnosticar la estructura del feed de Facebook.
 
+## Relay nativo (AutoJs6 — app de Facebook nativa, sin PC)
+
+Replica el "compartir a mano" del dueño: cuando se publica una mascota, comparte el post en 7–8 grupos siempre los mismos. En vez de Puppeteer/web, automatiza clicks en la **app nativa de Facebook** vía el accessibility service de **AutoJs6**. Corre 100% on-device, habla directo con el VPS (misma cola `fb_relay_tasks`).
+
+### Por qué nativo y no web
+
+- Meta eliminó `publish_to_groups` y el Groups API en abril 2024 (v19): no hay API oficial para postear/compartir en grupos hoy. El único camino es UI automation con sesión logueada.
+- La app nativa deja menos huella de bot que Chromium headless (device trust, app oficial, gestos reales). Riesgo de baneo por patrón = el mismo que ya tiene el dueño compartiendo manual; solo es replicar su comportamiento orgánico.
+- Ya existe `fb-relay.js` (web/Puppeteer) para esto; el nativo es un driver alternativo sobre la misma cola.
+
+### Archivos
+
+| Archivo | Descripción |
+|---------|-------------|
+| `fb-native-relay.js` | Script AutoJs6: pollea la cola, abre el post en la app nativa, clickea Compartir → Compartir en un grupo → busca el grupo → Publicar. Solo `action='share'` |
+
+### Setup (una vez, en el celular)
+
+1. Instalar **AutoJs6** (https://github.com/SuperMonster003/AutoJs6 → releases, v6.7.0+)
+2. Activar el **accessibility service** de AutoJs6 (Ajustes → Accesibilidad)
+3. Loguear la **app de Facebook** con la cuenta target (para probar: la cuenta del scraper; para producción: la cuenta real del dueño)
+4. Editar `CONFIG` en `fb-native-relay.js`: `apiBase` y `token` (= `RELAY_TOKEN` del VPS)
+5. Correr el script en AutoJs6 (o programarlo con su scheduler)
+6. **La cuenta logueada debe ser miembro de los grupos target** (el share busca el grupo por nombre y lo selecciona)
+
+### Cómo probar
+
+1. Detener `fb-relay.js` en Termux (evita doble ejecución; además el relay web ya excluye `action=share` desde el server)
+2. Crear una tarea de share de prueba: panel admin → Facebook Relay → agregar tarea, o:
+   ```bash
+   curl -X POST https://sigotuhuella.com.ar/api/relay/fb/add-test-task \
+     -H "Authorization: Bearer <admin-token>" -H "Content-Type: application/json" \
+     -d '{"fb_group_id":"<id>","message":"Test nativo","target_url":"https://www.facebook.com/<postid>"}'
+   ```
+3. Observar el script en el celular (abre FB, comparte, marca completada)
+
+### Filtrado por action (server)
+
+`GET /api/relay/fb/pending` acepta `action` y `exclude_action` (coma-separados) para que cada driver tome solo lo suyo:
+
+- Relay nativo: `?action=share`
+- Relay web (`fb-relay.js`): `?exclude_action=share` (ya configurado en el código)
+
+### Riesgo de baneo
+
+- Bajo para 3–8 shares/día con delays humanos (90–180s random entre grupos, ya implementado).
+- Si FB muestra checkpoint/captcha, el script lo detecta, marca la tarea como failed y **frena** (no sigue arriesgando).
+- No automatizar en volumen (15+ grupos/hora) aunque sea nativo: FB limita por patrón igual.
+
 ## PostgreSQL (VPS)
 
 - **Host:** localhost:5432

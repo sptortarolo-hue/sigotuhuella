@@ -22,7 +22,10 @@ function relayAuth(req, res, next) {
 
 router.get('/fb/pending', relayAuth, async (req, res) => {
   try {
-    const tasks = await getPendingTasks(parseInt(req.query.limit) || 5);
+    const limit = parseInt(req.query.limit) || 5;
+    const action = req.query.action ? String(req.query.action).split(',').map(s => s.trim()).filter(Boolean) : undefined;
+    const excludeAction = req.query.exclude_action ? String(req.query.exclude_action).split(',').map(s => s.trim()).filter(Boolean) : undefined;
+    const tasks = await getPendingTasks(limit, { action, excludeAction });
     res.json({ tasks });
   } catch (err) {
     console.error('[FB Relay] pending error:', err.message);
@@ -214,9 +217,16 @@ router.get('/fb/groups', relayAuth, async (req, res) => {
 
 router.post('/fb/add-test-task', requireAdmin, async (req, res) => {
   try {
-    const { fb_group_id, message } = req.body;
+    const { fb_group_id, message, target_url } = req.body;
     if (!fb_group_id || !message) {
       return res.status(400).json({ error: 'fb_group_id and message are required' });
+    }
+    if (target_url) {
+      const result = await pool.query(
+        `INSERT INTO fb_relay_tasks (fb_group_id, message, action, target_url, status) VALUES ($1, $2, 'share', $3, 'pending') RETURNING id`,
+        [fb_group_id, message, target_url]
+      );
+      return res.json({ success: true, task_id: result.rows[0].id, action: 'share' });
     }
     const result = await pool.query(
       `INSERT INTO fb_relay_tasks (fb_group_id, message, status) VALUES ($1, $2, 'pending') RETURNING id`,
