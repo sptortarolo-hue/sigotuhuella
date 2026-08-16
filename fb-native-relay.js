@@ -384,9 +384,34 @@ function shareToGroup(task) {
 
 // ─── Loop principal ───────────────────────────────────────────────────────
 
+// Mantiene la pantalla encendida (wake lock de AutoJs6). keepScreenOn acepta
+// duración en ms, NO boolean. Se renueva periódicamente para no vencerse.
+function keepScreenAwake() {
+  try {
+    device.keepScreenOn(30 * 60 * 1000);
+  } catch (e) {
+    console.log("[native] keepScreenOn falló: " + e.message);
+  }
+}
+
+function cancelScreenAwake() {
+  try { device.cancelKeepingAwake(); } catch (e) {}
+}
+
+function wakeScreenIfNeeded() {
+  try {
+    if (device.isScreenOn && !device.isScreenOn()) {
+      device.wakeUpIfNeeded();
+    }
+  } catch (e) {}
+}
+
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
+
+  // Mantener pantalla encendida mientras el relay corre
+  keepScreenAwake();
 
   // Habilitar captura de pantalla para los debug (requestScreenCapture puede fallar)
   try {
@@ -414,6 +439,7 @@ function mainLoop() {
   }
 
   releaseLock();
+  cancelScreenAwake();
   exit();
 }
 
@@ -425,6 +451,8 @@ function isInterrupted(e) {
 
 function runPollLoop() {
   while (true) {
+    keepScreenAwake();
+    wakeScreenIfNeeded();
     try {
       var data = apiGet("/fb/pending?limit=1&action=share");
       var tasks = data.tasks || [];
