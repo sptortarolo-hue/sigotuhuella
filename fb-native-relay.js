@@ -14,8 +14,6 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-"ui";
-
 auto.waitFor();
 
 var CONFIG = {
@@ -30,8 +28,6 @@ var CONFIG = {
   maxDelayMs: 180 * 1000,
   // Package de la app nativa de Facebook
   fbPackage: "com.facebook.katana",
-  // Archivo de lock (evita dos instancias del script)
-  lockFile: files.join(files.getSdcardPath(), "fb-native-relay.lock"),
   // Cuánto esperar cada selector (ms)
   findTimeoutMs: 15000,
 };
@@ -63,10 +59,6 @@ function apiPost(path, body) {
 
 function rnd(min, max) {
   return min + Math.floor(Math.random() * (max - min + 1));
-}
-
-function sleep(ms) {
-  if (ms > 0) java.lang.Thread.sleep(ms);
 }
 
 // Busca un nodo visible por texto (exacto), desc, o textContains, en ese orden.
@@ -172,18 +164,32 @@ function sendDebug(label, url) {
 
 // ─── Lock ─────────────────────────────────────────────────────────────────
 
+function getLockPath() {
+  try {
+    var sdcard = files.getSdcardPath();
+    if (sdcard) return files.join(sdcard, "fb-native-relay.lock");
+  } catch (e) {}
+  return files.join(files.cwd(), "fb-native-relay.lock");
+}
+
 function acquireLock() {
-  if (files.exists(CONFIG.lockFile)) {
-    var stale = Date.now() - files.lastModified(CONFIG.lockFile);
-    if (stale < 30 * 60 * 1000) return false;
+  try {
+    var lockFile = getLockPath();
+    if (files.exists(lockFile)) {
+      var stale = Date.now() - files.lastModified(lockFile);
+      if (stale < 30 * 60 * 1000) return false;
+    }
+    files.createWithDirs(lockFile);
+    files.write(lockFile, String(Date.now()));
+    return true;
+  } catch (e) {
+    console.error("[native] lock falló (continúo sin lock): " + e.message);
+    return true;
   }
-  files.createWithDirs(CONFIG.lockFile);
-  files.write(CONFIG.lockFile, String(Date.now()));
-  return true;
 }
 
 function releaseLock() {
-  try { files.remove(CONFIG.lockFile); } catch (e) {}
+  try { files.remove(getLockPath()); } catch (e) {}
 }
 
 // ─── Abrir el post en la app nativa ───────────────────────────────────────
@@ -297,6 +303,20 @@ function mainLoop() {
     exit();
   }
 
+  try {
+    runPollLoop();
+  } catch (e) {
+    console.error("[native] error fatal: " + e);
+    console.error(e && e.stack ? e.stack : "");
+    sleep(10000);
+  }
+
+  releaseLock();
+  device.keepScreenOn(false);
+  exit();
+}
+
+function runPollLoop() {
   while (true) {
     try {
       var data = apiGet("/fb/pending?limit=1&action=share");
@@ -332,10 +352,6 @@ function mainLoop() {
       sleep(CONFIG.pollIntervalMs);
     }
   }
-
-  releaseLock();
-  device.keepScreenOn(false);
-  exit();
 }
 
 mainLoop();
