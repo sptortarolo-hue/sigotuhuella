@@ -40,7 +40,7 @@ var TOKEN = CONFIG.token;
 function apiGet(path) {
   var res = http.get(API_BASE + path, {
     headers: { Authorization: "Bearer " + TOKEN },
-    timeout: 60,
+    timeout: 60000,
   });
   if (res.statusCode === 200) return res.body.json();
   throw new Error("HTTP " + res.statusCode + " en " + path);
@@ -49,7 +49,7 @@ function apiGet(path) {
 function apiPost(path, body) {
   var res = http.postJson(API_BASE + path, body, {
     headers: { Authorization: "Bearer " + TOKEN },
-    timeout: 60,
+    timeout: 60000,
   });
   if (res.statusCode !== 200) throw new Error("HTTP " + res.statusCode + " en " + path);
   return res.body.json();
