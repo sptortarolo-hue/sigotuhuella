@@ -43,7 +43,14 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
       headers['Authorization'] = `Bearer ${token}`;
     }
     const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-    const data = await res.json();
+    const ct = res.headers.get('content-type') || '';
+    let data: any;
+    if (ct.includes('application/json')) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      throw new Error(`El servidor respondió sin JSON (${res.status}): ${text.slice(0, 200).replace(/\s+/g, ' ')}`);
+    }
     if (!res.ok) {
       const err: any = new Error(data.error || 'Request failed');
       err.fbtrace_id = data.fbtrace_id;
@@ -63,7 +70,17 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
     headers['Authorization'] = `Bearer ${token}`;
   }
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-  const data = await res.json();
+  const contentType = res.headers.get('content-type') || '';
+  let data: any;
+  if (contentType.includes('application/json')) {
+    data = await res.json();
+  } else {
+    const text = await res.text();
+    const snippet = text.slice(0, 200).replace(/\s+/g, ' ');
+    const err: any = new Error(`El servidor respondió sin JSON (${res.status}): ${snippet}`);
+    err.isNonJson = true;
+    throw err;
+  }
   if (!res.ok) {
     const err: any = new Error(data.error || 'Request failed');
     err.fbtrace_id = data.fbtrace_id;
