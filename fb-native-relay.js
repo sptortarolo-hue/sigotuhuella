@@ -325,15 +325,23 @@ function shareToGroup(task) {
   }
   sleep(rnd(1500, 3000));
 
-  // 4) Opción "Compartir en un grupo"
-  ok = clickLabel(["Compartir en un grupo", "Share to a group"], t, false);
+  // 4) En el modal: click en "feed" (abre la ventana de compartir en feed/grupos)
+  ok = clickLabel(["Feed", "Tu feed", "Your feed", "Tu Feed"], t, false);
+  if (!ok) {
+    sendDebug("no-feed-option", url);
+    throw new Error("Feed option not found");
+  }
+  sleep(rnd(1500, 2500));
+
+  // 5) Click en "En un grupo"
+  ok = clickLabel(["En un grupo", "In a group", "Un grupo", "Compartir en un grupo", "Share to a group"], t, false);
   if (!ok) {
     sendDebug("no-share-to-group", url);
     throw new Error("Share to group not found");
   }
   sleep(rnd(1500, 2500));
 
-  // 5) Buscar el grupo
+  // 6) Buscar el grupo
   ok = typeIntoEditText(groupName, t);
   if (!ok) {
     sendDebug("no-group-search", url);
@@ -345,7 +353,7 @@ function shareToGroup(task) {
   }
   sleep(rnd(2000, 4000));
 
-  // 6) Seleccionar el row del grupo
+  // 7) Seleccionar el row del grupo
   ok = clickLabel([groupName], t, true);
   if (!ok) {
     sendDebug("group-row-not-found", url);
@@ -353,13 +361,13 @@ function shareToGroup(task) {
   }
   sleep(rnd(2000, 3500));
 
-  // 7) Mensaje opcional en el composer
+  // 8) Mensaje opcional en el composer
   if (message) {
     typeIntoEditText(message, 10000);
     sleep(rnd(1000, 2000));
   }
 
-  // 8) Botón final (Publicar / Compartir / Listo)
+  // 9) Botón final (Publicar / Compartir / Listo)
   ok = clickLabel(["Publicar", "Compartir ahora", "Share Now", "Done", "Listo", "Publicar en el grupo"], t, false);
   if (!ok) {
     // último recurso: botón "Compartir" dentro del composer
