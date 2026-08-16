@@ -325,16 +325,16 @@ function shareToGroup(task) {
   }
   sleep(rnd(1500, 3000));
 
-  // 4) En el modal: click en "feed" (abre la ventana de compartir en feed/grupos)
-  ok = clickLabel(["Feed", "Tu feed", "Your feed", "Tu Feed"], t, false);
+  // 4) En el modal: elegir destino. "Grupo" puede estar directo en el modal,
+  //    o aparecer tras abrir el selector de destino "Feed".
+  ok = clickLabel(["Grupo", "En un grupo", "Compartir en un grupo", "Share to a group"], t, false);
   if (!ok) {
-    sendDebug("no-feed-option", url);
-    throw new Error("Feed option not found");
+    // Abrir el selector de destino "Feed" y volver a buscar la opción de grupo
+    if (clickLabel(["Feed", "Elige el destino de tu publicación", "Your Feed"], 8000, false)) {
+      sleep(rnd(1500, 2500));
+      ok = clickLabel(["En un grupo", "Grupo", "Compartir en un grupo", "Share to a group"], 10000, false);
+    }
   }
-  sleep(rnd(1500, 2500));
-
-  // 5) Click en "En un grupo"
-  ok = clickLabel(["En un grupo", "In a group", "Un grupo", "Compartir en un grupo", "Share to a group"], t, false);
   if (!ok) {
     sendDebug("no-share-to-group", url);
     throw new Error("Share to group not found");
