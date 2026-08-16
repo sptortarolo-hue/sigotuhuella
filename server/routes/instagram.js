@@ -99,6 +99,9 @@ router.get('/status', requireAdmin, async (_req, res) => {
     const permsResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_granted_permissions'");
     const hasEngResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_has_pages_read_engagement'");
     const syncAuthErrorResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_sync_auth_error'");
+    const fbCommentErrorResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_last_auto_comment_error'");
+    let fbLastAutoCommentError = null;
+    try { fbLastAutoCommentError = JSON.parse(fbCommentErrorResult.rows[0]?.value || ''); } catch { /* ignore */ }
     res.json({
       connected,
       expiresAt: tokenResult.rows[0]?.value || null,
@@ -107,6 +110,7 @@ router.get('/status', requireAdmin, async (_req, res) => {
       grantedPermissions: permsResult.rows[0]?.value || '',
       hasPagesReadEngagement: hasEngResult.rows[0]?.value === 'true',
       fbSyncAuthError: syncAuthErrorResult.rows[0]?.value === 'true',
+      fbLastAutoCommentError,
     });
   } catch (err) {
     console.error('Error checking status:', err);

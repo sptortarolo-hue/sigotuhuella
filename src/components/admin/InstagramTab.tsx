@@ -61,6 +61,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
   const [username, setUsername] = useState('');
   const [hasPagesReadEngagement, setHasPagesReadEngagement] = useState(false);
   const [fbSyncAuthError, setFbSyncAuthError] = useState(false);
+  const [fbLastAutoCommentError, setFbLastAutoCommentError] = useState<{ message: string; pet_id: string; at: string } | null>(null);
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -100,6 +101,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
       setUsername(res.username || '');
       setHasPagesReadEngagement(!!res.hasPagesReadEngagement);
       setFbSyncAuthError(!!res.fbSyncAuthError);
+      setFbLastAutoCommentError(res.fbLastAutoCommentError || null);
     } catch { setConnected(false); }
   }, []);
 
@@ -364,6 +366,11 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
               {connected && hasPagesReadEngagement && fbSyncAuthError && (
                 <p className="text-xs text-amber-600 font-bold">
                   ⏳ Permiso pages_read_engagement otorgado — esperando el próximo sync para confirmar (≤30 min o "Actualizar comentarios ahora")
+                </p>
+              )}
+              {connected && fbLastAutoCommentError && (
+                <p className="text-xs text-red-600 font-bold">
+                  ❌ Último auto-comentario FB falló: {fbLastAutoCommentError.message}{fbLastAutoCommentError.at ? ` (${formatDate(fbLastAutoCommentError.at)})` : ''}
                 </p>
               )}
             </div>

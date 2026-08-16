@@ -132,9 +132,23 @@ async function autoFacebookPageComment(pet, newsType) {
     const commentText = generateCelebrationText(pet, newsType);
     if (!commentText) return;
     await commentOnPagePost(pagePost.rows[0].page_post_id, commentText);
+    await pool.query(
+      `INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+      ['fb_last_auto_comment_error', '']
+    );
     console.log(`[Facebook Page] Auto-commented on pet ${pet.id}: ${commentText.slice(0, 60)}...`);
   } catch (err) {
+    const message = err?.response?.data?.error?.message || err.message || String(err);
     console.error('[Facebook Page] Auto-comment error:', err);
+    try {
+      await pool.query(
+        `INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+        ['fb_last_auto_comment_error', JSON.stringify({ message, pet_id: pet.id, at: new Date().toISOString() })]
+      );
+      await addPetHistory({ petId: pet.id, eventType: 'fb_auto_comment_failed', description: message.slice(0, 500) });
+    } catch (logErr) {
+      console.error('[Facebook Page] Error guardando auto-comment error:', logErr.message);
+    }
   }
 }
 
