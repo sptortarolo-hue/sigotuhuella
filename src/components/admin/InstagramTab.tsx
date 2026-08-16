@@ -59,6 +59,8 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
   const [connected, setConnected] = useState(false);
   const [expiresAt, setExpiresAt] = useState('');
   const [username, setUsername] = useState('');
+  const [hasPagesReadEngagement, setHasPagesReadEngagement] = useState(false);
+  const [fbSyncAuthError, setFbSyncAuthError] = useState(false);
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -96,6 +98,8 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
       setConnected(res.connected);
       setExpiresAt(res.expiresAt || '');
       setUsername(res.username || '');
+      setHasPagesReadEngagement(!!res.hasPagesReadEngagement);
+      setFbSyncAuthError(!!res.fbSyncAuthError);
     } catch { setConnected(false); }
   }, []);
 
@@ -345,6 +349,16 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
               {connected && expiresAt && (
                 <p className="text-xs text-gray-400">
                   Token expira: {formatDate(expiresAt)}
+                </p>
+              )}
+              {connected && hasPagesReadEngagement && !fbSyncAuthError && (
+                <p className="text-xs text-green-600 font-bold">
+                  ✅ Permiso pages_read_engagement otorgado — likes y comentarios de Facebook sincronizan
+                </p>
+              )}
+              {connected && (!hasPagesReadEngagement || fbSyncAuthError) && (
+                <p className="text-xs text-red-600 font-bold">
+                  ❌ Falta permiso pages_read_engagement: reconectá Facebook y activá Page Public Content Access en developers.facebook.com
                 </p>
               )}
             </div>

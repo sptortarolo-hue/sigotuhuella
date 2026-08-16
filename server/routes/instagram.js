@@ -96,11 +96,17 @@ router.get('/status', requireAdmin, async (_req, res) => {
     const tokenResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_token_expires_at'");
     const userResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_user_id'");
     const usernameResult = await pool.query("SELECT value FROM settings WHERE key = 'instagram_page_name'");
+    const permsResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_granted_permissions'");
+    const hasEngResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_has_pages_read_engagement'");
+    const syncAuthErrorResult = await pool.query("SELECT value FROM settings WHERE key = 'fb_sync_auth_error'");
     res.json({
       connected,
       expiresAt: tokenResult.rows[0]?.value || null,
       userId: userResult.rows[0]?.value || null,
       username: usernameResult.rows[0]?.value || null,
+      grantedPermissions: permsResult.rows[0]?.value || '',
+      hasPagesReadEngagement: hasEngResult.rows[0]?.value === 'true',
+      fbSyncAuthError: syncAuthErrorResult.rows[0]?.value === 'true',
     });
   } catch (err) {
     console.error('Error checking status:', err);

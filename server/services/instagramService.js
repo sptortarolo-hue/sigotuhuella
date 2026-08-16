@@ -81,6 +81,8 @@ export async function exchangeCodeForToken(code) {
       timeout: 10000,
     });
     const perms = (permsResp.data?.data || []).filter(p => p.status === 'granted').map(p => p.permission);
+    await saveSetting('fb_granted_permissions', perms.join(','));
+    await saveSetting('fb_has_pages_read_engagement', perms.includes('pages_read_engagement') ? 'true' : 'false');
     console.log('[FB] Granted permissions:', perms);
   } catch { /* ignore */ }
 
