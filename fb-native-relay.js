@@ -542,14 +542,61 @@ function otherInstanceRunning() {
 
 // ─── Abrir el post en la app nativa ───────────────────────────────────────
 
+// Convierte una URL de post de FB en un deep link NATIVO (fb://...). Sin esto,
+// am start con la URL https la abre en el navegador in-app de FB (pantalla
+// blanca con flecha atrás) donde no hay botón Compartir accesible. El deep
+// link abre la vista real del post con su menú.
+function fbDeepLinkFor(url) {
+  var u = String(url || "");
+  // Post de página canónico: /{pageId}/posts/{postId}
+  var m = u.match(/facebook\.com\/(\d+)\/posts\/(\d+)/);
+  if (m) return "fb://story?story_fbid=" + m[2] + "&id=" + m[1];
+  // Post de grupo: /groups/{gid}/posts/{pid}
+  var mg = u.match(/facebook\.com\/groups\/(\d+)\/posts\/(\d+)/);
+  if (mg) return "fb://group/" + mg[1] + "/permalink/" + mg[2];
+  // Foto de página
+  var mph = u.match(/facebook\.com\/(\d+)\/photos\/(\d+)/);
+  if (mph) return "fb://photo/" + mph[2];
+  // share/p/<code>: resolver la redirección → URL canónica → deep link
+  if (u.indexOf("/share/p/") >= 0) {
+    var resolved = resolveRedirect(u);
+    if (resolved && resolved !== u) return fbDeepLinkFor(resolved);
+  }
+  return null;
+}
+
+// Sigue la redirección HTTP de un shortlink de FB y devuelve la URL final.
+// (maxRedirects 0 → okhttp no sigue; leemos el request/headers finales).
+function resolveRedirect(url) {
+  try {
+    var resp = http.get(url, { maxRedirects: 0, timeout: 15000 });
+    try {
+      var req = resp.request;
+      var final = String(req.url ? req.url() : "");
+      if (final && final !== url) return final;
+    } catch (e) {}
+    try {
+      var h = resp.headers;
+      var loc = h && (typeof h.get === "function" ? h.get("location") : (h["Location"] || h["location"]));
+      if (loc) return String(loc);
+    } catch (e2) {}
+  } catch (e) {}
+  return url;
+}
+
 function openPostInFB(url) {
+  // Deep link nativo primero: abre la vista real del post (no el webview).
+  var dl = null;
+  try { dl = fbDeepLinkFor(url); } catch (e) {}
+  var target = dl || url;
+
   // Con Shizuku, "am start" con FLAG_ACTIVITY_TURN_SCREEN_ON (0x40000000)
   // enciende la pantalla de forma fiable (privilegios ADB). En autoJs6 el flag
   // "activity_turn_screen_on" del app.intent puede no estar en el enum, así que
   // acá el fallback directo por Shizuku es más seguro para el relay 24/7.
   try {
     if (shizukuAvailable()) {
-      var esc = String(url).replace(/"/g, "%22");
+      var esc = String(target).replace(/"/g, "%22");
       var r = shizukuCmd("am start -a android.intent.action.VIEW -d \"" + esc + "\" -p com.facebook.katana -f 0x50000000");
       if (r && r.code === 0) {
         var deadline = Date.now() + 20000;
@@ -567,13 +614,13 @@ function openPostInFB(url) {
   try {
     var intent = app.intent({
       action: "android.intent.action.VIEW",
-      data: url,
+      data: target,
       packageName: CONFIG.fbPackage,
       flags: ["activity_new_task", "activity_turn_screen_on"],
     });
     app.startActivity(intent);
   } catch (e) {
-    app.openUrl(url); // fallback: deep link genérico (FB igual lo toma)
+    app.openUrl(target); // fallback: deep link genérico (FB igual lo toma)
   }
   // Esperar a que la app de FB quede en primer plano
   var deadline = Date.now() + 20000;
