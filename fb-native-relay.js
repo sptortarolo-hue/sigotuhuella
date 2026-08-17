@@ -107,6 +107,29 @@ function nodeCenter(node) {
   return [Math.round(b.centerX()), Math.round(b.centerY())];
 }
 
+function screenWidth() {
+  try { return device.width; } catch (e) {}
+  return 1080;
+}
+
+function screenHeight() {
+  try { return device.height; } catch (e) {}
+  return 2340;
+}
+
+// Punto dentro del nodo por fracción (x e y en 0..1), clampado a la pantalla.
+// Con fracY ~0.3 se clickea la parte visible de rows cortados en el borde.
+function nodePoint(node, fracX, fracY) {
+  var b = node.bounds();
+  var x = Math.round(b.left + b.width() * (fracX || 0.5));
+  var y = Math.round(b.top + b.height() * (fracY || 0.5));
+  if (x < 0) x = 0;
+  if (y < 0) y = 0;
+  if (x > screenWidth() - 1) x = screenWidth() - 1;
+  if (y > screenHeight() - 1) y = screenHeight() - 1;
+  return [x, y];
+}
+
 // Click "en capas": distintas estrategias de tap para los views custom de FB.
 // Cada una devuelve true tras DESPACHAR el gesto (el caller verifica si navegó).
 //  0: click simple en centro del nodo
@@ -114,27 +137,29 @@ function nodeCenter(node) {
 //  2: press con duración (tap más parecido al dedo real)
 //  3: doble tap (los selectores de destino de FB lo requieren)
 //  4: ACTION_CLICK nativo
+//  5: click en la parte superior del row (rows cortados en el borde inferior)
+//  6: click sobre el icono (izquierda del row, donde están las "3 personas")
 function tapStrategy(node, idx) {
   try {
     if (idx === 0) {
-      var c = nodeCenter(node);
+      var c = nodePoint(node, 0.5, 0.5);
       click(c[0], c[1]);
       return true;
     }
     if (idx === 1) {
       var anc = clickableAncestor(node);
       if (!anc) return false;
-      var ac = nodeCenter(anc);
+      var ac = nodePoint(anc, 0.5, 0.5);
       click(ac[0], ac[1]);
       return true;
     }
     if (idx === 2) {
-      var p = nodeCenter(node);
+      var p = nodePoint(node, 0.5, 0.5);
       press(p[0], p[1], 120);
       return true;
     }
     if (idx === 3) {
-      var d = nodeCenter(node);
+      var d = nodePoint(node, 0.5, 0.5);
       click(d[0], d[1]);
       sleep(250);
       click(d[0], d[1]);
@@ -142,6 +167,16 @@ function tapStrategy(node, idx) {
     }
     if (idx === 4) {
       node.click();
+      return true;
+    }
+    if (idx === 5) {
+      var up = nodePoint(node, 0.5, 0.3);
+      click(up[0], up[1]);
+      return true;
+    }
+    if (idx === 6) {
+      var icon = nodePoint(node, 0.2, 0.5);
+      click(icon[0], icon[1]);
       return true;
     }
   } catch (e) {}
@@ -424,7 +459,7 @@ function shareToGroup(task) {
   //    estrategia de tap distinta y verifica que se abrió el buscador (EditText).
   var groupLabels = ["En un grupo", "In a group", "Un grupo", "Grupo", "Compartir en un grupo", "Share to a group"];
   var searchOpened = false;
-  for (var attempt = 0; attempt < 6 && !searchOpened; attempt++) {
+  for (var attempt = 0; attempt < 7 && !searchOpened; attempt++) {
     var target = findNode(groupLabels, 3000);
     if (target) {
       console.log("[native] tap 'En un grupo' intento " + (attempt + 1) + " (estr " + attempt + ")");
