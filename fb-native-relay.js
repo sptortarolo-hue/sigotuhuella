@@ -522,10 +522,7 @@ function openPostInFB(url) {
       action: "android.intent.action.VIEW",
       data: url,
       packageName: CONFIG.fbPackage,
-      flags: [
-        "android.intent.flag.ACTIVITY_NEW_TASK",
-        "android.intent.flag.ACTIVITY_TURN_SCREEN_ON",
-      ],
+      flags: ["activity_new_task", "activity_turn_screen_on"],
     });
     app.startActivity(intent);
   } catch (e) {
@@ -788,8 +785,9 @@ function cancelScreenAwake() {
 }
 
 // Enciende la pantalla si está apagada. Sin root, device.wakeUp() suele fallar
-// en Samsung → probar en cascada: wakeUpIfNeeded → wakeUp → keyevent 26 (power)
-// → shell input keyevent. Devolver true si al final la pantalla quedó encendida.
+// en Samsung → probar en cascada: wakeUpIfNeeded → wakeUp → keyevent 224
+// (KEYCODE_WAKEUP, enciende sin alternar como el 26/POWER) → shell.
+// Devolver true si al final la pantalla quedó encendida.
 function wakeScreenIfNeeded() {
   try {
     if (device.isScreenOn && device.isScreenOn()) return true;
@@ -800,10 +798,10 @@ function wakeScreenIfNeeded() {
   try { device.wakeUp(); } catch (e) {}
   sleep(800);
   try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-  try { keyCode(26); } catch (e) {}
+  try { keyCode(224); } catch (e) {}
   sleep(800);
   try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-  try { shell("input keyevent 26", true); } catch (e) {}
+  try { shell("input keyevent 224", true); } catch (e) {}
   sleep(800);
   try {
     if (device.isScreenOn && device.isScreenOn()) {
@@ -914,12 +912,10 @@ function mainLoop() {
   // con la exención de batería + la tarea de difusión del scheduler.)
   startWatchdog();
 
-  // Habilitar captura de pantalla para los debug (requestScreenCapture puede fallar)
-  try {
-    images.requestScreenCapture(10000);
-  } catch (e) {
-    console.log("[native] screen capture no disponible: " + e.message);
-  }
+  // NO pedir captura de pantalla acá: en Android eso abre el diálogo
+  // "compartir pantalla" (MediaProjection) que hay que tocar a mano en cada
+  // inicio y bloquea el arranque automático. La captura solo se pide bajo
+  // demanda dentro de sendDebug() cuando hay un fallo real.
 
   if (otherInstanceRunning()) {
     console.error("[native] otra instancia corriendo, saliendo");
