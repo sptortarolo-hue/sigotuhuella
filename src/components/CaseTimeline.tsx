@@ -1,5 +1,6 @@
 import { FilePlus2, Instagram, Facebook, MessageCircle, Users, MapPin, Radar, HandHeart, PartyPopper, Lock, Info, BellRing, QrCode, RefreshCw, Copy, Layers, SplitSquareHorizontal, FolderOpen } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import { openExternalLink } from '@/src/lib/utils';
 
 const EVENT_ICONS: Record<string, any> = {
   case_created: FilePlus2,
@@ -191,13 +192,13 @@ export default function CaseTimeline({ events }: { events: any[] }) {
                 </div>
               )}
               {ev.event_type === 'instagram_published' && dest(ev.payload) && (
-                <a href={dest(ev.payload)} target="_blank" rel="noreferrer" className="text-xs text-brand-primary underline mt-1 inline-block">Ver en Instagram</a>
+                <button onClick={() => openExternalLink(dest(ev.payload))} className="text-xs text-brand-primary underline mt-1 inline-block">Ver en Instagram</button>
               )}
               {ev.event_type === 'facebook_published' && ev.payload?.page_post_url && (
-                <a href={ev.payload.page_post_url} target="_blank" rel="noreferrer" className="text-xs text-brand-primary underline mt-1 inline-block">Ver en Facebook</a>
+                <button onClick={() => openExternalLink(ev.payload.page_post_url)} className="text-xs text-brand-primary underline mt-1 inline-block">Ver en Facebook</button>
               )}
               {ev.event_type === 'facebook_replica' && ev.payload?.fb_post_url && (
-                <a href={ev.payload.fb_post_url} target="_blank" rel="noreferrer" className="text-xs text-brand-primary underline mt-1 inline-block">Ver post en Facebook</a>
+                <button onClick={() => openExternalLink(ev.payload.fb_post_url)} className="text-xs text-brand-primary underline mt-1 inline-block">Ver post en Facebook</button>
               )}
               {ev.user_name && !(ev.user_role === 'admin' && (ev.event_type === 'reunited' || ev.event_type === 'reunion_announced')) && !(ev.event_type === 'case_created' && ['lost_report', 'backfill'].includes(ev.payload?.source)) && <p className="text-xs text-gray-400 mt-1.5">por {ev.user_name}</p>}
             </div>

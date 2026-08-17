@@ -198,6 +198,7 @@ export async function syncRecentIgComments(limit = 10) {
   if (posts > 0) {
     console.log(`[MetaEngagement] IG poll: ${posts} posts / ${comments} comentarios nuevos`);
   }
+  console.log('[MetaEngagement] FB sync done: ' + posts + ' posts / ' + comments + ' comments / errors: ' + JSON.stringify(errors));
   return { posts, comments };
 }
 
@@ -220,6 +221,38 @@ async function saveSetting(key, value) {
      ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
     [key, value]
   );
+}
+
+// Page Insights API fallback: intenta obtener métricas vía insights si el endpoint directo falla
+async function tryInsightsFallback(post, token) {
+  if (!post.page_post_id) return false;
+  // Extract page_id from page_post_id (format: PAGEID_POSTID)
+  const parts = post.page_post_id.split('_');
+  if (parts.length < 2) return false;
+  const pageId = parts[0];
+  try {
+    const { data } = await axios.get(`${GRAPH_API}/${pageId}/insights`, {
+      params: {
+        metric: 'post_reactions_by_type_total',
+        permalink: 'https://www.facebook.com/' + post.page_post_id,
+        access_token: token,
+      },
+      timeout: 15000,
+    });
+    const reactionsMetric = (data?.data || []).find(m => m.name === 'post_reactions_by_type_total');
+    if (reactionsMetric && reactionsMetric.values?.[0]) {
+      const totalReactions = Object.values(reactionsMetric.values[0]).reduce((sum, v) => sum + (parseInt(v, 10) || 0), 0);
+      await pool.query(
+        `UPDATE facebook_page_posts SET like_count = $1, metrics_updated_at = NOW() WHERE id = $2`,
+        [totalReactions, post.id]
+      );
+      console.log('[MetaEngagement] FB insights fallback OK for ' + post.page_post_id + ': ' + totalReactions + ' reactions');
+      return true;
+    }
+  } catch (err) {
+    // Insights fallback is best-effort
+  }
+  return false;
 }
 
 // Fallback sin permisos: engagement de una URL de post de Facebook usando el app token
@@ -274,10 +307,15 @@ export async function syncFacebookEngagement() {
   let posts = 0, comments = 0;
   const errors = { permission: 0, invalid_post: 0, token: 0, other: 0 };
   const errorSamples = {};
+  console.log('[MetaEngagement] FB sync started: ' + postsRes.rows.length + ' posts to process');
   for (const post of postsRes.rows) {
     try {
       const params = { access_token: token, fields: 'id,reactions.summary(true),comments.summary(true),shares' };
       const { data } = await axios.get(`${GRAPH_API}/${post.page_post_id}`, { params });
+      const reactions = data.reactions?.summary?.total_count ?? 'N/A';
+      const cmts = data.comments?.summary?.total_count ?? 'N/A';
+      const shares = data.shares?.count ?? 'N/A';
+      if (posts === 0) console.log('[MetaEngagement] FB first post response sample: reactions=' + reactions + ' comments=' + cmts + ' shares=' + shares);
       await pool.query(
         `UPDATE facebook_page_posts SET
            like_count = $1, comment_count = $2, share_count = $3, metrics_updated_at = NOW()
@@ -324,9 +362,10 @@ export async function syncFacebookEngagement() {
       if (!errorSamples[kind]) {
         errorSamples[kind] = err.response?.data?.error?.message || err.message;
       }
-      // Sin pages_read_engagement: intentar el contador vía URL engagement con app token.
+      // Sin pages_read_engagement: intentar fallbacks progresivos.
       if (kind === 'permission' || kind === 'token' || kind === 'invalid_post') {
-        const ok = await tryUrlEngagementFallback(post);
+        let ok = await tryInsightsFallback(post, token);
+        if (!ok) ok = await tryUrlEngagementFallback(post);
         if (ok) posts++;
       }
     }

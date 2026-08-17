@@ -235,14 +235,10 @@ export default function CaseImpact({ caseId, impact, canReply }: { caseId: strin
                   <p className="text-[11px] text-gray-400">{g.count} copia{g.count === 1 ? '' : 's'}</p>
                 </div>
                 {g.fb_post_url && (
-                  <a
-                    href={g.fb_post_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 shrink-0 text-xs font-bold text-brand-primary hover:underline"
+                  <button onClick={() => openExternalLink(g.fb_post_url)} className="flex items-center gap-1 shrink-0 text-xs font-bold text-brand-primary hover:underline text-left"
                   >
                     Ver post <ExternalLink className="w-3 h-3" />
-                  </a>
+                  </button>
                 )}
               </div>
             ))}
@@ -271,14 +267,10 @@ export default function CaseImpact({ caseId, impact, canReply }: { caseId: strin
             </a>
           )}
           {fb?.page_post_id && (
-            <a
-              href={`https://www.facebook.com/${fb.page_post_id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 rounded-xl"
+            <button onClick={() => openExternalLink(`https://www.facebook.com/${fb.page_post_id}`)} className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 rounded-xl"
             >
               <Facebook className="w-4 h-4" /> Ver en Facebook <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            </button>
           )}
         </div>
       )}

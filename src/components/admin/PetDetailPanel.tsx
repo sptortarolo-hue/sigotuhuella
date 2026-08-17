@@ -6,6 +6,7 @@ import {
   Layers, Home, History as HistoryIcon, Users, ArrowUpRight, Send
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import { openExternalLink } from '@/src/lib/utils';
 import { formatDate } from '@/src/lib/formatDate';
 import ReunionModal from '@/src/components/ReunionModal';
 import { getPetImageUrl, getPetImageUrls } from '@/src/lib/petService';

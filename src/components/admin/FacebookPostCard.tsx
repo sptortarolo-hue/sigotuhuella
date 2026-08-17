@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { openExternalLink } from '@/src/lib/utils';
 import { formatDate } from '@/src/lib/formatDate';
 import {
   ExternalLink, FlaskConical, RefreshCw, Trash2, MessageSquare, Image as ImageIcon, MapPin, Phone,
@@ -147,10 +148,10 @@ export default function FacebookPostCard({ post, selected, onToggleSelect, onCla
             <FlaskConical className="w-3.5 h-3.5" />
           </button>
           {post.fb_post_url && (
-            <a href={post.fb_post_url} target="_blank" rel="noopener noreferrer" title="Abrir en Facebook"
+            <button onClick={() => openExternalLink(post.fb_post_url)} title="Abrir en Facebook"
               className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-brand-bg">
               <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            </button>
           )}
           <button onClick={() => onDelete(post.id)} title="Eliminar"
             className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 ml-auto">

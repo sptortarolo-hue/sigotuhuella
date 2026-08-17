@@ -5,6 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export async function openExternalLink(url: string) {
+  try {
+    const { Browser } = await import('@capacitor/browser');
+    const { Capacitor } = await import('@capacitor/core');
+    if (Capacitor.isNativePlatform()) {
+      await Browser.open({ url });
+      return;
+    }
+  } catch {}
+  window.open(url, '_blank');
+}
+
 export function formatDateOnly(value: string | Date | null | undefined, options?: Intl.DateTimeFormatOptions): string {
   if (!value) return '';
   const s = typeof value === 'string' ? value : value.toISOString();

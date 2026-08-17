@@ -5,6 +5,7 @@ import { MapPin, Calendar, Phone, Mail, MessageCircle, ChevronLeft, ChevronRight
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/src/lib/utils';
+import { openExternalLink } from '@/src/lib/utils';
 import PetImage from '@/src/components/PetImage';
 import { LinkifiedText } from '@/src/lib/linkify';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
@@ -243,10 +244,10 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
                   </a>
                 )}
                 {pet.fb_impact?.post_id && (
-                  <a href={`https://facebook.com/${pet.fb_impact.post_id}`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                  <button onClick={(e) => { e.stopPropagation(); openExternalLink(`https://facebook.com/${pet.fb_impact.post_id}`); }}
                     className="flex items-center justify-center gap-2 px-3 py-2 text-xs sm:text-sm font-bold text-white bg-blue-600 rounded-xl">
                     <Facebook className="w-4 h-4" /> Ver en Facebook <ExternalLink className="w-3 h-3" />
-                  </a>
+                  </button>
                 )}
               </div>
             )}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, apiUrl } from '@/src/lib/api';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
+import { openExternalLink } from '@/src/lib/utils';
 import { formatDate } from '@/src/lib/formatDate';
 import {
   Save, Loader2, Search, RefreshCw, Check, XCircle, MessageSquare,
@@ -365,11 +366,11 @@ function PostsSection() {
                     <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{item.group_name}</span>
                     <div className="flex items-center gap-1">
                       {item.source === 'fb' && item.fb_post_url && (
-                        <a href={item.fb_post_url} target="_blank" rel="noopener noreferrer"
+                        <button onClick={() => openExternalLink(item.fb_post_url)}
                           onClick={e => e.stopPropagation()}
                           className="p-1 text-blue-400 hover:text-blue-600">
                           <ExternalLink className="w-3 h-3" />
-                        </a>
+                        </button>
                       )}
                       <span className="text-[10px] text-gray-400">{formatDate(item.created_at)}</span>
                     </div>
@@ -443,11 +444,11 @@ function PostsSection() {
                         )}
                         <span className="text-xs text-gray-600 line-clamp-2">{(item.content || '(sin texto)').substring(0, 200)}</span>
                         {item.source === 'fb' && item.fb_post_url && (
-                          <a href={item.fb_post_url} target="_blank" rel="noopener noreferrer"
+                          <button onClick={() => openExternalLink(item.fb_post_url)}
                             onClick={e => e.stopPropagation()}
                             className="shrink-0 p-1 text-blue-400 hover:text-blue-600">
                             <ExternalLink className="w-3 h-3" />
-                          </a>
+                          </button>
                         )}
                       </div>
                     </td>

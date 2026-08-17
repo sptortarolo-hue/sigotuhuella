@@ -5,7 +5,7 @@ import { cn } from '@/src/lib/utils';
 import { formatDateTime } from '@/src/lib/formatDate';
 import {
   Loader2, Plus, X, Trash2, ExternalLink, RefreshCw,
-  Globe, Search,
+  Globe, Search, AlertTriangle,
 } from 'lucide-react';
 
 type SubTab = 'groups';
@@ -24,6 +24,7 @@ export default function FacebookTab() {
   const [groups, setGroups] = useState<FacebookGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [fbAuthError, setFbAuthError] = useState<{error: boolean; detail: string}>({ error: false, detail: '' });
   const [editing, setEditing] = useState<FacebookGroup | null>(null);
   const [form, setForm] = useState({ name: '', url: '' });
 
@@ -36,6 +37,15 @@ export default function FacebookTab() {
   }, []);
 
   useEffect(() => { fetchGroups(); }, [fetchGroups]);
+  
+  useEffect(() => {
+    api.adminDashboard.get().then((d: any) => {
+      const eng = d?.channels?.engagement;
+      if (eng?.status === 'error') {
+        setFbAuthError({ error: true, detail: eng.detail || '' });
+      }
+    }).catch(() => {});
+  }, []);
 
   const openNew = () => { setEditing(null); setForm({ name: '', url: '' }); setShowForm(true); };
   const openEdit = (g: FacebookGroup) => { setEditing(g); setForm({ name: g.name, url: g.url }); setShowForm(true); };
@@ -136,6 +146,15 @@ export default function FacebookTab() {
           <p className={`text-sm font-bold mb-4 ${refreshMsg.startsWith('Sync OK') ? 'text-green-600' : 'text-red-600'}`}>
             {refreshMsg}
           </p>
+        )}
+        {fbAuthError.error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-red-700">Token de Facebook sin permisos</p>
+              <p className="text-xs text-red-600 mt-1">{fbAuthError.detail || 'Reconectar Facebook desde el admin para restaurar las métricas.'}</p>
+            </div>
+          </div>
         )}
 
         <p className="text-sm text-gray-500 mb-4">{groups.length} grupo(s) · {groups.filter(g => g.is_active).length} activos</p>

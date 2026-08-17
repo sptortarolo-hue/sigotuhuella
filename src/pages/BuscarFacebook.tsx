@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { api } from '@/src/lib/api';
 import { Search, MapPin, Phone, Calendar, Filter, X, ExternalLink } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import { openExternalLink } from '@/src/lib/utils';
 import { formatDate } from '@/src/lib/formatDate';
 
 interface FacebookPost {
@@ -189,7 +190,7 @@ export default function BuscarFacebook() {
                 )}
 
                 {post.fb_post_url && (
-                  <a href={post.fb_post_url} target="_blank" rel="noopener noreferrer"
+                  <button onClick={() => openExternalLink(post.fb_post_url)}
                     className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
                     <ExternalLink className="w-3.5 h-3.5 shrink-0" /> Ver publicación original en Facebook
                   </a>
