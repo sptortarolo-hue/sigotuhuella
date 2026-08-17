@@ -488,6 +488,18 @@ function openPostInFB(url) {
 
 // ─── Flujo de share ───────────────────────────────────────────────────────
 
+// Verifica que el box de búsqueda desapareció (navegó al composer del grupo).
+function searchBoxGone(timeoutMs) {
+  var deadline = Date.now() + (timeoutMs || 8000);
+  while (Date.now() < deadline) {
+    var edit = null;
+    try { edit = className("android.widget.EditText").findOne(800); } catch (e) {}
+    if (!edit) return true;
+    sleep(500);
+  }
+  return false;
+}
+
 function shareToGroup(task) {
   var url = task.target_url;
   var groupName = task.group_name || task.fb_group_id;
@@ -611,23 +623,24 @@ function shareToGroup(task) {
   var rowLabels = [searchName, groupName];
   if (searchName !== groupName) rowLabels.unshift(groupName);
   ok = clickLabel(rowLabels, t, true);
+  // Verificar que realmente navegó al composer del grupo (el box desapareció).
+  var rowSelected = searchBoxGone(6000);
+
   // Fallback posicional: el resultado del buscador aparece justo debajo del box
   // (a veces el row no expone el texto completo o difiere en mayúsculas).
-  if (!ok) {
+  if (!ok || !rowSelected) {
     console.log("[native] row por nombre no encontrado, probando click debajo del box");
     var rowNode = clickResultBelowEditText(t);
     if (rowNode) {
       // rotar estrategias de tap para aterrizar en el row real
-      var rowClicked = false;
-      for (var rs = 0; rs < 5 && !rowClicked; rs++) {
+      for (var rs = 0; rs < 5 && !rowSelected; rs++) {
         tapStrategy(rowNode, rs);
         sleep(1200);
-        rowClicked = className("android.widget.EditText").findOne(500) === null;
+        rowSelected = searchBoxGone(3000);
       }
-      ok = true;
     }
   }
-  if (!ok) {
+  if (!rowSelected) {
     sendDebug("group-row-not-found", url);
     throw new Error("Group row not found: " + searchName);
   }
