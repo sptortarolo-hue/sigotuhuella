@@ -299,7 +299,7 @@ function acquireLock() {
     if (files.exists(lockFile)) {
       var ts = parseInt(files.read(lockFile), 10);
       var stale = Date.now() - (isNaN(ts) ? 0 : ts);
-      if (stale < 30 * 60 * 1000) return false;
+      if (stale < 5 * 60 * 1000) return false;
     }
     files.createWithDirs(lockFile);
     files.write(lockFile, String(Date.now()));
@@ -312,6 +312,30 @@ function acquireLock() {
 
 function releaseLock() {
   try { files.remove(getLockPath()); } catch (e) {}
+}
+
+// Thread heartbeat: renueva el timestamp del lock mientras la instancia vive.
+// Así una instancia viva nunca parece stale, y una muerta libera el lock
+// apenas pasa el stale (5 min) en vez de bloquear 30 min.
+var heartbeatThread = null;
+function startHeartbeat() {
+  try {
+    heartbeatThread = threads.start(function () {
+      while (true) {
+        try {
+          var lockFile = getLockPath();
+          files.write(lockFile, String(Date.now()));
+        } catch (e) {}
+        sleep(60 * 1000);
+      }
+    });
+  } catch (e) {
+    console.log("[native] heartbeat no disponible: " + e.message);
+  }
+}
+
+function stopHeartbeat() {
+  try { if (heartbeatThread) heartbeatThread.interrupt(); } catch (e) {}
 }
 
 // Detecta si hay otra instancia de este mismo script corriendo (más robusto
@@ -518,6 +542,8 @@ function mainLoop() {
     exit();
   }
 
+  startHeartbeat();
+
   try {
     runPollLoop();
   } catch (e) {
@@ -527,6 +553,7 @@ function mainLoop() {
   }
 
   releaseLock();
+  stopHeartbeat();
   cancelScreenAwake();
   exit();
 }
