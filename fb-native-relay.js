@@ -563,9 +563,12 @@ function openPostAndShareGroup(task) {
 
   console.log("[native] compartiendo en: " + groupName);
 
-  // 1) Abrir el post en la app nativa
+  // 1) Abrir el post en la app nativa (el flag TURN_SCREEN_ON prende la
+  //    pantalla si estaba apagada) y luego asegurar que quedó desbloqueado.
   openPostInFB(url);
   sleep(rnd(4000, 7000));
+  ensureUnlocked();
+  sleep(rnd(1500, 2500));
 
   // 2) Si hay checkpoint o sesión expirada → frenar
   var cp = checkCheckpoint();
