@@ -179,6 +179,19 @@ function tapStrategy(node, idx) {
       click(icon[0], icon[1]);
       return true;
     }
+    if (idx === 7) {
+      try { node.scrollIntoView(); } catch (e) {}
+      sleep(800);
+      var sv = nodePoint(node, 0.5, 0.5);
+      click(sv[0], sv[1]);
+      return true;
+    }
+    if (idx === 8) {
+      // Franja superior visible del row (rows cortados por la barra de gestos)
+      var top = nodePoint(node, 0.5, 0.1);
+      click(top[0], top[1]);
+      return true;
+    }
   } catch (e) {}
   return false;
 }
@@ -257,19 +270,28 @@ function dumpUi(maxNodes) {
       var n = withText[i];
       var txt = "";
       try { txt = n.text() || ""; } catch (e) {}
-      if (txt && txt.trim()) out.push({ t: txt, d: "" });
+      if (txt && txt.trim()) out.push({ t: txt, d: "", b: nodeBoundsStr(n) });
     }
     var withDesc = descMatches(/.*/).find();
     for (var j = 0; j < withDesc.length && out.length < cap; j++) {
       var m = withDesc[j];
       var d = "";
       try { d = m.desc() || ""; } catch (e) {}
-      if (d && d.trim()) out.push({ t: "", d: d });
+      if (d && d.trim()) out.push({ t: "", d: d, b: nodeBoundsStr(m) });
     }
   } catch (e) {
     out.push({ t: "dumpUi error: " + e.message, d: "" });
   }
   return out;
+}
+
+function nodeBoundsStr(node) {
+  try {
+    var b = node.bounds();
+    return "(" + b.left + "," + b.top + " " + b.width() + "x" + b.height() + ")";
+  } catch (e) {
+    return "(?)";
+  }
 }
 
 // ─── Debug (screenshot + dump a /fb-debug) ────────────────────────────────
@@ -286,7 +308,7 @@ function sendDebug(label, url) {
     console.log("=== DUMP " + label + " (" + payload.uiNodes.length + " nodos) ===");
     for (var i = 0; i < payload.uiNodes.length; i++) {
       var n = payload.uiNodes[i];
-      console.log("  [" + (n.t || "-") + "] | desc: " + (n.d || "-"));
+      console.log("  [" + (n.t || "-") + "] | desc: " + (n.d || "-") + " | b: " + (n.b || "?"));
     }
     try {
       var img = images.captureScreen();
@@ -459,7 +481,7 @@ function shareToGroup(task) {
   //    estrategia de tap distinta y verifica que se abrió el buscador (EditText).
   var groupLabels = ["En un grupo", "In a group", "Un grupo", "Grupo", "Compartir en un grupo", "Share to a group"];
   var searchOpened = false;
-  for (var attempt = 0; attempt < 7 && !searchOpened; attempt++) {
+  for (var attempt = 0; attempt < 9 && !searchOpened; attempt++) {
     var target = findNode(groupLabels, 3000);
     if (target) {
       console.log("[native] tap 'En un grupo' intento " + (attempt + 1) + " (estr " + attempt + ")");
