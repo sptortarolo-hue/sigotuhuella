@@ -604,18 +604,13 @@ function resolveRedirect(url) {
   return url;
 }
 
-function openPostInFB(url) {
+function openPostInFB(target) {
   // Shizuku es OBLIGATORIO para el deep link: sin "am start" vía ADB, abrir FB
   // con app.intent/app.openUrl deja la app en el home sin navegar al post (el
   // share buscaría "Compartir" en el feed). Frenar claro en vez de fallar raro.
   if (!shizukuAvailable()) {
     throw new Error("Shizuku no disponible: no se puede navegar al post (FB quedaría en home)");
   }
-
-  // Deep link nativo primero: abre la vista real del post (no el webview).
-  var dl = null;
-  try { dl = fbDeepLinkFor(url); } catch (e) {}
-  var target = dl || url;
   console.log("[native] abriendo post: " + target);
 
   // Con Shizuku, "am start" con FLAG_ACTIVITY_TURN_SCREEN_ON (0x40000000)
@@ -639,26 +634,7 @@ function openPostInFB(url) {
     throw new Error("am start falló: " + (r && r.output ? r.output : r));
   } catch (e) {
     if (e && String(e.message).indexOf("Shizuku no disponible") >= 0) throw e;
-  }
-  try {
-    var intent = app.intent({
-      action: "android.intent.action.VIEW",
-      data: target,
-      packageName: CONFIG.fbPackage,
-      flags: ["activity_new_task", "activity_turn_screen_on"],
-    });
-    app.startActivity(intent);
-  } catch (e) {
-    app.openUrl(target); // fallback: deep link genérico (FB igual lo toma)
-  }
-  // Esperar a que la app de FB quede en primer plano
-  var deadline = Date.now() + 20000;
-  while (Date.now() < deadline) {
-    try {
-      var cur = currentPackage();
-      if (cur && cur.indexOf("com.facebook") >= 0) return;
-    } catch (e2) {}
-    sleep(500);
+    throw new Error("openPostInFB falló: " + (e && e.message ? e.message : e));
   }
 }
 
@@ -690,41 +666,74 @@ function openPostAndShareGroup(task) {
   //    el deep link abre la vista real del post sobre el estado desbloqueado.
   ensureUnlocked();
   sleep(rnd(1500, 2500));
-  openPostInFB(url);
-  sleep(rnd(4000, 7000));
 
-  // Diagnóstico: qué app quedó en primer plano tras el desbloqueo. Si FB no
-  // está, el share no puede arrancar y hay que ver qué pantalla quedó.
-  try {
-    var curPkg = currentPackage();
-    console.log("[native] tras desbloqueo, app en primer plano: " + curPkg);
-    if (!curPkg || curPkg.indexOf("com.facebook") < 0) {
-      console.log("[native] FB NO está en primer plano. Dump del árbol:");
-      var dn = dumpUi(25);
-      for (var di = 0; di < dn.length; di++) {
-        console.log("[native]   [" + (dn[di].t || dn[di].d || "-") + "] | b: " + (dn[di].b || "-"));
-      }
-      sendDebug("post-unlock-not-fb", url);
-    }
-  } catch (e) {
-    console.log("[native] no se pudo leer la app en primer plano: " + e.message);
-  }
+  // 2) Estrategias de apertura del post. La URL https canónica es la #1: FB la
+  //    resuelve como app link y abre la vista NATIVA del post (probado). El
+  //    deep link fb://post es fallback (no resuelve algunos posts de página y
+  //    vuelve al home). Tras cada apertura se verifica que el botón Compartir
+  //    exista; si no, force-stop y siguiente estrategia.
+  var strategies = [];
+  if (url) strategies.push(url);
+  var dl = null;
+  try { dl = fbDeepLinkFor(url); } catch (e) {}
+  if (dl && dl !== url) strategies.push(dl);
 
-  // 2) Si hay checkpoint o sesión expirada → frenar
-  var cp = checkCheckpoint();
-  if (cp) throw new Error("checkpoint: " + cp);
-
-  // 3) Botón Compartir (icono en app nativa → content-desc)
   var shareLabels = ["Compartir", "Share", "Compartir publicación", "Compartir esta publicación", "Share post", "Share this post"];
-  var ok = clickLabel(shareLabels, t, true);
-  if (!ok) {
-    // Fallback: menú "..." del post → "Compartir"
-    var moreLabels = ["Más opciones", "More options", "Ver más", "See more", "Más"];
-    if (clickLabel(moreLabels, 8000, true)) {
-      sleep(rnd(1500, 2500));
-      ok = clickLabel(shareLabels, 10000, false);
+  var moreLabels = ["Más opciones", "More options", "Ver más", "See more", "Más"];
+
+  var ok = false;
+  for (var si = 0; si < strategies.length && !ok; si++) {
+    if (si > 0) {
+      // FB quedó en estado incierto (home/webview) → arrancar limpio
+      console.log("[native] estrategia " + (si + 1) + "/" + strategies.length + ": arrancando FB limpio");
+      try {
+        if (shizukuAvailable()) shizukuCmd("am force-stop com.facebook.katana");
+      } catch (e9) {}
+      sleep(rnd(4000, 6000));
     }
+
+    try {
+      openPostInFB(strategies[si]);
+    } catch (eOpen) {
+      console.error("[native] no se pudo abrir (estr " + (si + 1) + "): " + eOpen.message);
+      continue;
+    }
+    sleep(rnd(4000, 7000));
+
+    // Diagnóstico: qué app quedó en primer plano tras el desbloqueo. Si FB no
+    // está, el share no puede arrancar y hay que ver qué pantalla quedó.
+    try {
+      var curPkg = currentPackage();
+      console.log("[native] tras desbloqueo, app en primer plano: " + curPkg);
+      if (!curPkg || curPkg.indexOf("com.facebook") < 0) {
+        console.log("[native] FB NO está en primer plano. Dump del árbol:");
+        var dn = dumpUi(25);
+        for (var di = 0; di < dn.length; di++) {
+          console.log("[native]   [" + (dn[di].t || dn[di].d || "-") + "] | b: " + (dn[di].b || "-"));
+        }
+        sendDebug("post-unlock-not-fb", url);
+        continue;
+      }
+    } catch (e) {
+      console.log("[native] no se pudo leer la app en primer plano: " + e.message);
+    }
+
+    // Si hay checkpoint o sesión expirada → frenar
+    var cp = checkCheckpoint();
+    if (cp) throw new Error("checkpoint: " + cp);
+
+    // Botón Compartir (icono en app nativa → content-desc)
+    ok = clickLabel(shareLabels, Math.round(t * 0.8), true);
+    if (!ok) {
+      // Fallback: menú "..." del post → "Compartir"
+      if (clickLabel(moreLabels, 6000, true)) {
+        sleep(rnd(1500, 2500));
+        ok = clickLabel(shareLabels, 8000, false);
+      }
+    }
+    if (!ok) console.error("[native] estrategia " + (si + 1) + " sin botón Compartir, probando siguiente...");
   }
+
   if (!ok) {
     sendDebug("no-share-btn", url);
     throw new Error("Compartir not found");
