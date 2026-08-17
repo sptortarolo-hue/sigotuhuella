@@ -89,6 +89,19 @@ function findNode(labels, timeoutMs) {
   return null;
 }
 
+// Sube por la jerarquía hasta el primer nodo clickable (el "row" real de FB).
+// Los TextView encontrados por texto no son el objetivo del tap: el contenedor
+// padre clickable sí lo es.
+function clickableAncestor(node) {
+  var n = node;
+  for (var i = 0; i < 6; i++) {
+    try { if (n.clickable()) return n; } catch (e) {}
+    try { n = n.parent(); } catch (e) { return null; }
+    if (!n) return null;
+  }
+  return null;
+}
+
 // Click por coordenadas en el centro del nodo. node.click() (ACTION_CLICK)
 // no aterriza en los views custom de Facebook; el gesto real sí.
 function clickNodeCenter(node) {
@@ -101,6 +114,36 @@ function clickNodeCenter(node) {
   } catch (e) {
     try { node.click(); return true; } catch (e2) {}
   }
+  return false;
+}
+
+// Click "en capas": primero el nodo, luego su ancestro clickable, luego un
+// press con duración (más físico) y por último ACTION_CLICK nativo.
+function clickLayered(node) {
+  // Estrategia 1: centro del nodo encontrado
+  if (clickNodeCenter(node)) {
+    sleep(600);
+    return true;
+  }
+  // Estrategia 2: centro del ancestro clickable (el row)
+  var anc = clickableAncestor(node);
+  if (anc) {
+    try {
+      var b = anc.bounds();
+      click(Math.round(b.centerX()), Math.round(b.centerY()));
+      sleep(600);
+      return true;
+    } catch (e) {}
+  }
+  // Estrategia 3: press con duración (tap más parecido al dedo real)
+  try {
+    var bb = node.bounds();
+    press(Math.round(bb.centerX()), Math.round(bb.centerY()), 100);
+    sleep(600);
+    return true;
+  } catch (e) {}
+  // Estrategia 4: ACTION_CLICK nativo
+  try { node.click(); return true; } catch (e) {}
   return false;
 }
 
@@ -367,13 +410,24 @@ function shareToGroup(task) {
     throw new Error("Dest selector not found");
   }
 
-  // 5) En la ventana de destino: click en "En un grupo" (o variante)
-  ok = clickLabel(["En un grupo", "In a group", "Un grupo", "Grupo", "Compartir en un grupo", "Share to a group"], t, false);
-  if (!ok) {
+  // 5) En la ventana de destino: click en "En un grupo" con verificación de que
+  //    se abrió el buscador (EditText). Si el tap no aterriza, reintentar.
+  var groupLabels = ["En un grupo", "In a group", "Un grupo", "Grupo", "Compartir en un grupo", "Share to a group"];
+  var searchOpened = false;
+  for (var attempt = 0; attempt < 3 && !searchOpened; attempt++) {
+    var target = findNode(groupLabels, 3000);
+    if (target) {
+      console.log("[native] tap en 'En un grupo' (intento " + (attempt + 1) + ")");
+      clickLayered(target);
+      sleep(rnd(2000, 3000));
+    }
+    var edit = className("android.widget.EditText").findOne(1000);
+    searchOpened = !!(edit && edit.visibleToUser());
+  }
+  if (!searchOpened) {
     sendDebug("no-share-to-group", url);
     throw new Error("Share to group not found");
   }
-  sleep(rnd(1500, 2500));
 
   // 6) Buscar el grupo
   ok = typeIntoEditText(groupName, t);
