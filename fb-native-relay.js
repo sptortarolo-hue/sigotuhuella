@@ -665,12 +665,15 @@ function openPostAndShareGroup(task) {
 
   console.log("[native] compartiendo en: " + groupName);
 
-  // 1) Abrir el post en la app nativa (el flag TURN_SCREEN_ON prende la
-  //    pantalla si estaba apagada) y luego asegurar que quedó desbloqueado.
-  openPostInFB(url);
-  sleep(rnd(4000, 7000));
+  // 1) Desbloquear PRIMERO (enciende pantalla + descarta keyguard + PIN). Si se
+  //    abre el post con la pantalla bloqueada, el deep link se consume y al
+  //    desbloquear queda el home/feed activo en pantalla → el share buscaría
+  //    "Compartir" en cualquier post del home. Con el celular desbloqueado ya,
+  //    el deep link abre la vista real del post sobre el estado desbloqueado.
   ensureUnlocked();
   sleep(rnd(1500, 2500));
+  openPostInFB(url);
+  sleep(rnd(4000, 7000));
 
   // Diagnóstico: qué app quedó en primer plano tras el desbloqueo. Si FB no
   // está, el share no puede arrancar y hay que ver qué pantalla quedó.
