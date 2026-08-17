@@ -90,7 +90,7 @@ jobs:
         # 2. Swap atómico de dist (renombre: ventana de milisegundos, no de segundos)
         ssh $SSHOPTS -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && rm -rf dist.bak && (mv dist dist.bak 2>/dev/null || true) && mv .deploy/dist dist && rm -rf dist.bak .deploy"
         # 3. Resto de archivos (server, public, scripts) se sobrescriben en su lugar
-        tar czf - server/ relay.cjs fb-relay.js fb-graphql-scraper.js package.json scripts/ --exclude='public/generated/music' --exclude='public/generated/videos' public/ | ssh $SSHOPTS -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf -"
+        tar czf - server/ relay.cjs fb-relay.js fb-graphql-scraper.js fb-native-relay.js package.json scripts/ --exclude='public/generated/music' --exclude='public/generated/videos' public/ | ssh $SSHOPTS -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd /var/www/sigotuhuella && tar xzf -"
       shell: bash
 
     - name: Restart server

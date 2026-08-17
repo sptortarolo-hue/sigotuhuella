@@ -203,6 +203,31 @@ router.get('/fb/failed-tasks', requireAdmin, async (req, res) => {
   }
 });
 
+// Descarga del script nativo (AutoJs6). GitHub limita el raw (429) y el repo
+// es privado, así que el celular baja la última versión desde el propio VPS.
+// Acepta Authorization: Bearer <RELAY_TOKEN> o ?token=<RELAY_TOKEN> (más fácil
+// de pegar en el navegador del celular).
+router.get('/fb/script', (req, res) => {
+  try {
+    const hdr = req.headers['authorization']?.replace('Bearer ', '');
+    const q = req.query.token;
+    if (hdr !== process.env.RELAY_TOKEN && q !== process.env.RELAY_TOKEN) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const scriptPath = path.join(__dirname, '..', '..', 'fb-native-relay.js');
+    if (!existsSync(scriptPath)) {
+      return res.status(404).json({ error: 'Script not found on server' });
+    }
+    res.set('Content-Type', 'text/plain; charset=utf-8');
+    res.set('Cache-Control', 'no-cache');
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.send(readFileSync(scriptPath, 'utf-8'));
+  } catch (err) {
+    console.error('[FB Relay] script error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/fb/groups', relayAuth, async (req, res) => {
   try {
     const result = await pool.query(
