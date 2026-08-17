@@ -561,16 +561,21 @@ function otherInstanceRunning() {
 // am start con la URL https la abre en el navegador in-app de FB (pantalla
 // blanca con flecha atrás) donde no hay botón Compartir accesible. El deep
 // link abre la vista real del post con su menú.
+// Formato válido en FB Android: fb://post/<post_id> (la URI fb://story?... NO
+// existe; ver gist "List of accepted fb:// URIs in Android Facebook").
 function fbDeepLinkFor(url) {
   var u = String(url || "");
-  // Post de página canónico: /{pageId}/posts/{postId}
-  var m = u.match(/facebook\.com\/(\d+)\/posts\/(\d+)/);
-  if (m) return "fb://story?story_fbid=" + m[2] + "&id=" + m[1];
-  // Post de grupo: /groups/{gid}/posts/{pid}
+  // Post de página: /{pageId}/posts/{postId} o /{pageId}/post/{postId}
+  var m = u.match(/facebook\.com\/([^\/]+)\/(?:posts|post)\/(\d+)/);
+  if (m) return "fb://post/" + m[2];
+  // Post de grupo: /groups/{gid}/posts/{pid} → permalink del post en el grupo
   var mg = u.match(/facebook\.com\/groups\/(\d+)\/posts\/(\d+)/);
   if (mg) return "fb://group/" + mg[1] + "/permalink/" + mg[2];
+  // permalink.php?story_fbid={postId}&id={pageId} → fb://post/<postId>
+  var mper = u.match(/(?:story_fbid|story_id)=(\d+)/);
+  if (mper) return "fb://post/" + mper[1];
   // Foto de página
-  var mph = u.match(/facebook\.com\/(\d+)\/photos\/(\d+)/);
+  var mph = u.match(/facebook\.com\/([^\/]+)\/photos\/(\d+)/);
   if (mph) return "fb://photo/" + mph[2];
   // share/p/<code>: resolver la redirección → URL canónica → deep link
   if (u.indexOf("/share/p/") >= 0) {
@@ -600,6 +605,13 @@ function resolveRedirect(url) {
 }
 
 function openPostInFB(url) {
+  // Shizuku es OBLIGATORIO para el deep link: sin "am start" vía ADB, abrir FB
+  // con app.intent/app.openUrl deja la app en el home sin navegar al post (el
+  // share buscaría "Compartir" en el feed). Frenar claro en vez de fallar raro.
+  if (!shizukuAvailable()) {
+    throw new Error("Shizuku no disponible: no se puede navegar al post (FB quedaría en home)");
+  }
+
   // Deep link nativo primero: abre la vista real del post (no el webview).
   var dl = null;
   try { dl = fbDeepLinkFor(url); } catch (e) {}
@@ -611,22 +623,23 @@ function openPostInFB(url) {
   // "activity_turn_screen_on" del app.intent puede no estar en el enum, así que
   // acá el fallback directo por Shizuku es más seguro para el relay 24/7.
   try {
-    if (shizukuAvailable()) {
-      var esc = String(target).replace(/"/g, "%22");
-      var r = shizukuCmd("am start -a android.intent.action.VIEW -d \"" + esc + "\" -p com.facebook.katana -f 0x50000000");
-      if (r && r.code === 0) {
-        var deadline = Date.now() + 20000;
-        while (Date.now() < deadline) {
-          try {
-            var cur = currentPackage();
-            if (cur && cur.indexOf("com.facebook") >= 0) return;
-          } catch (e2) {}
-          sleep(500);
-        }
-        return;
+    var esc = String(target).replace(/"/g, "%22");
+    var r = shizukuCmd("am start -a android.intent.action.VIEW -d \"" + esc + "\" -p com.facebook.katana -f 0x50000000");
+    if (r && r.code === 0) {
+      var deadline = Date.now() + 20000;
+      while (Date.now() < deadline) {
+        try {
+          var cur = currentPackage();
+          if (cur && cur.indexOf("com.facebook") >= 0) return;
+        } catch (e2) {}
+        sleep(500);
       }
+      return;
     }
-  } catch (e) {}
+    throw new Error("am start falló: " + (r && r.output ? r.output : r));
+  } catch (e) {
+    if (e && String(e.message).indexOf("Shizuku no disponible") >= 0) throw e;
+  }
   try {
     var intent = app.intent({
       action: "android.intent.action.VIEW",
@@ -1228,7 +1241,19 @@ function mainLoop() {
   // Shizuku es OBLIGATORIO para el relay 24/7 en Samsung sin root: es la única
   // forma de despertar la pantalla desde AOD/sueño (device.wakeUp() y keyevent
   // fallan sin root). Avisar en el arranque si no está disponible.
-  if (shizukuAvailable()) {
+  // Shizuku es OBLIGATORIO para el relay 24/7: esperar un poco a que arranque
+  // el servicio (tras el boot de Samsung o al darle start, tarda unos segundos
+  // en quedar operational). Si tras ~20s no está, avisar fuerte y frenar: sin
+  // Shizuku el desbloqueo no funciona y abrir FB sin am start deja la app en
+  // el home sin navegar al post (share imposible).
+  var shizukuOk = shizukuAvailable();
+  var shizukuWaitStart = Date.now();
+  while (!shizukuOk && Date.now() - shizukuWaitStart < 20000) {
+    console.log("[native] esperando Shizuku (" + Math.round((Date.now() - shizukuWaitStart) / 1000) + "s)...");
+    sleep(2000);
+    shizukuOk = shizukuAvailable();
+  }
+  if (shizukuOk) {
     console.log("[native] Shizuku disponible: desbloqueo 24/7 OK");
     if (CONFIG.stayAwakeWhileCharging) {
       try {
@@ -1239,7 +1264,7 @@ function mainLoop() {
       }
     }
   } else {
-    console.warn("[native] Shizuku NO disponible: el desbloqueo automático de pantalla no va a funcionar. Instalar Shizuku + activar el toggle en AutoJs6 (Ajustes/Inicio) y conceder ADB wireless una vez.");
+    console.warn("[native] Shizuku NO disponible tras " + Math.round((Date.now() - shizukuWaitStart) / 1000) + "s de espera: el desbloqueo 24/7 y el deep link del post NO van a funcionar. Abrir la app Shizuku (botón Start), activar el toggle en AutoJs6 (Ajustes/Inicio) y conceder ADB wireless una vez.");
   }
 
   // Mantener pantalla encendida mientras el relay corre
