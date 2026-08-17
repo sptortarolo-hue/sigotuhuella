@@ -473,42 +473,57 @@ function shareToGroup(task) {
   }
   sleep(rnd(1500, 3000));
 
-  // 4) En el modal: abrir el selector de destino. El nodo "Feed" tiene el hint
-  //    "Elige el destino de tu publicación, Feed. Toca dos veces para ver más
-  //    opciones." → se abre con DOBLE TAP.
-  var destLabels = ["Feed", "Elige el destino de tu publicación", "Your Feed"];
-  var destNode = findNode(destLabels, 8000);
-  if (destNode && tapStrategy(destNode, 3)) {
-    console.log("[native] selector de destino abierto (doble tap)");
-    sleep(rnd(2000, 3000));
-  } else {
-    sendDebug("no-dest-selector", url);
-    throw new Error("Dest selector not found");
-  }
-
-  // 5) En la ventana de destino: primero expandir el sheet con un swipe hacia
-  //    arriba (la opción "En un grupo" queda cortada en el borde inferior por la
-  //    barra de gestos cuando el sheet está semi-expandido).
+  // 4) En el modal del composer ya hay una fila de botones con scroll horizontal
+  //    ("Grupo" entre ellos). Primero parkear la consola para que no intercepte
+  //    los taps, y luego intentar el atajo DIRECTO: tocar el botón "Grupo".
   parkConsole();
-  try {
-    swipe(screenWidth() / 2, screenHeight() * 0.7, screenWidth() / 2, screenHeight() * 0.25, 400);
-    sleep(rnd(1500, 2500));
-  } catch (e) {}
 
-  // 5b) Click en "En un grupo". Cada intento prueba una estrategia de tap
-  //    distinta y verifica que se abrió el buscador (EditText).
-  var groupLabels = ["En un grupo", "In a group", "Un grupo", "Grupo", "Compartir en un grupo", "Share to a group"];
+  var groupLabels = ["Grupo", "En un grupo", "In a group", "Un grupo", "Compartir en un grupo", "Share to a group"];
   var searchOpened = false;
   for (var attempt = 0; attempt < 9 && !searchOpened; attempt++) {
     var target = findNode(groupLabels, 3000);
     if (target) {
-      console.log("[native] tap 'En un grupo' intento " + (attempt + 1) + " (estr " + attempt + ")");
+      console.log("[native] tap directo 'Grupo' intento " + (attempt + 1) + " (estr " + attempt + ")");
       tapStrategy(target, attempt);
     }
     sleep(rnd(2500, 3500));
     var edit = className("android.widget.EditText").findOne(1000);
     searchOpened = !!(edit && edit.visibleToUser());
   }
+
+  // 5) Fallback: si el botón directo no abrió el buscador, ir por "Feed"
+  //    (doble tap) → "En un grupo".
+  if (!searchOpened) {
+    console.log("[native] botón directo no navegó, probando ruta Feed → En un grupo");
+    var destLabels = ["Feed", "Elige el destino de tu publicación", "Your Feed"];
+    var destNode = findNode(destLabels, 8000);
+    if (destNode && tapStrategy(destNode, 3)) {
+      console.log("[native] selector de destino abierto (doble tap)");
+      sleep(rnd(2000, 3000));
+    } else {
+      sendDebug("no-dest-selector", url);
+      throw new Error("Dest selector not found");
+    }
+
+    // Expandir el sheet de destino con swipe hacia arriba
+    try {
+      swipe(screenWidth() / 2, screenHeight() * 0.7, screenWidth() / 2, screenHeight() * 0.25, 400);
+      sleep(rnd(1500, 2500));
+    } catch (e) {}
+
+    var group2Labels = ["En un grupo", "In a group", "Un grupo", "Grupo", "Compartir en un grupo", "Share to a group"];
+    for (var attempt2 = 0; attempt2 < 9 && !searchOpened; attempt2++) {
+      var target2 = findNode(group2Labels, 3000);
+      if (target2) {
+        console.log("[native] tap 'En un grupo' intento " + (attempt2 + 1) + " (estr " + attempt2 + ")");
+        tapStrategy(target2, attempt2);
+      }
+      sleep(rnd(2500, 3500));
+      var edit2 = className("android.widget.EditText").findOne(1000);
+      searchOpened = !!(edit2 && edit2.visibleToUser());
+    }
+  }
+
   if (!searchOpened) {
     sendDebug("no-share-to-group", url);
     throw new Error("Share to group not found");
