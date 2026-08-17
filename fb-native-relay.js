@@ -448,6 +448,48 @@ function stopHeartbeat() {
   try { if (heartbeatThread) heartbeatThread.interrupt(); } catch (e) {}
 }
 
+// Watchdog del loop principal: si el loop no actualiza el heartbeat por más de
+// WATCHDOG_STALE_MS, se relanza este mismo script con engines.execScriptFile
+// para que el relay nunca quede caído tras un cuelgue/excepción interna.
+var watchdogThread = null;
+var WATCHDOG_STALE_MS = 10 * 60 * 1000; // 10 min sin heartbeat del loop
+var lastLoopHeartbeat = Date.now();
+
+function markLoopHeartbeat() {
+  lastLoopHeartbeat = Date.now();
+}
+
+function startWatchdog() {
+  try {
+    watchdogThread = threads.start(function () {
+      while (true) {
+        sleep(60 * 1000);
+        var stale = Date.now() - lastLoopHeartbeat;
+        if (stale > WATCHDOG_STALE_MS) {
+          console.error("[native] watchdog: loop sin heartbeat " + Math.round(stale / 1000) + "s, relanzando script");
+          try {
+            var scriptPath = files.join(files.cwd(), "fb-native-relay.js");
+            if (files.exists(scriptPath)) {
+              engines.execScriptFile(scriptPath);
+            } else {
+              console.error("[native] watchdog: no encuentro fb-native-relay.js en " + files.cwd());
+            }
+          } catch (e) {
+            console.error("[native] watchdog relanzamiento falló: " + e.message);
+          }
+          break;
+        }
+      }
+    });
+  } catch (e) {
+    console.log("[native] watchdog no disponible: " + e.message);
+  }
+}
+
+function stopWatchdog() {
+  try { if (watchdogThread) watchdogThread.interrupt(); } catch (e) {}
+}
+
 // Detecta si hay otra instancia de este mismo script corriendo (más robusto
 // que el lock de archivo, que no frenó los duplicados).
 function otherInstanceRunning() {
@@ -839,18 +881,11 @@ function mainLoop() {
   // Mantener pantalla encendida mientras el relay corre
   keepScreenAwake();
 
-  // Foreground service: Android (especialmente Samsung) mata apps en segundo
-  // plano; un servicio en primer plano con notificación lo deja correr 24/7.
-  try {
-    autojs.startForeground({
-      title: "SiHuella Relay",
-      content: "Relay de Facebook corriendo (24/7)",
-    });
-  } catch (e) {
-    try { autojs.startForeground(); } catch (e2) {
-      console.log("[native] foreground service no disponible: " + e2.message);
-    }
-  }
+  // Watchdog: monitorea el heartbeat del loop principal. Si se cuelga o muere
+  // por una excepción, relanza este mismo script para no dejar el relay caído.
+  // (NO cubre si Android mata el proceso completo de AutoJs6: eso se resuelve
+  // con la exención de batería + la tarea de difusión del scheduler.)
+  startWatchdog();
 
   // Habilitar captura de pantalla para los debug (requestScreenCapture puede fallar)
   try {
@@ -881,6 +916,7 @@ function mainLoop() {
 
   releaseLock();
   stopHeartbeat();
+  stopWatchdog();
   cancelScreenAwake();
   exit();
 }
@@ -894,6 +930,7 @@ function isInterrupted(e) {
 function runPollLoop() {
   while (true) {
     keepScreenAwake();
+    markLoopHeartbeat();
     wakeScreenIfNeeded();
     try {
       // Traer varias tareas pendientes y agruparlas por post (target_url): las
