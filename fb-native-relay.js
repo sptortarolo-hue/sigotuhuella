@@ -1149,13 +1149,6 @@ function ensureUnlocked() {
       } catch (e) {}
     }
 
-    // Si tras el wake quedó en AOD (reloj) y el keyguard no avanzó, hacer un
-    // swipe para pasar AOD → lockscreen antes del ciclo de PIN. Sin esto, el
-    // PIN se intenta a ciegas sobre la pantalla oscura/AOD y nunca desbloquea.
-    try {
-      }
-    } catch (e) {}
-
     var unlocked = false;
 
     // Reintentar el ciclo swipe → keypad hasta 4 veces. Desde el AOD hacen
