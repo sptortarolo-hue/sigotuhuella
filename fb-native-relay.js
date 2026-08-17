@@ -662,7 +662,39 @@ function shareToGroup(task) {
     sendDebug("no-final-btn", url);
     throw new Error("Final share button not found");
   }
-  sleep(rnd(3000, 5000));
+
+  // 10) Verificar el cartel de confirmación ("Has compartido la publicación").
+  //     Es un snackbar efímero (in-app, sin botón) → pollear el árbol de
+  //     accesibilidad rápido antes de que desaparezca. No bloquea la tarea:
+  //     si se escapa, igual se marca completed (evitar falsos negativos).
+  var confirmWords = ["compartido", "publicado", "publicación", "shared", "publicada", "has compartido", "listo"];
+  var shareConfirmed = false;
+  var confirmDeadline = Date.now() + 6000;
+  while (Date.now() < confirmDeadline && !shareConfirmed) {
+    var cnodes = dumpUi(120);
+    for (var ci = 0; ci < cnodes.length && !shareConfirmed; ci++) {
+      var cblob = ((cnodes[ci].t || "") + " " + (cnodes[ci].d || "")).toLowerCase();
+      for (var ck = 0; ck < confirmWords.length; ck++) {
+        if (cblob.indexOf(confirmWords[ck]) >= 0) { shareConfirmed = true; break; }
+      }
+    }
+    if (!shareConfirmed) sleep(300);
+  }
+  if (shareConfirmed) {
+    console.log("[native] cartel de confirmación detectado");
+    sendDebug("share-confirmed", url);
+  } else {
+    console.log("[native] cartel de confirmación no detectado (se comparte igual)");
+    sendDebug("share-no-confirm", url);
+  }
+
+  // 11) Limpiar: cerrar el sheet de confirmación y el buscador de grupos para
+  //     que el próximo share arranque desde el feed sin estados residuales.
+  sleep(rnd(1500, 3000));
+  try { back(); } catch (e) {}
+  sleep(rnd(1500, 2500));
+  try { back(); } catch (e) {}
+  sleep(rnd(1000, 2000));
 
   return true;
 }
