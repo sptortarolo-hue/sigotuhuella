@@ -792,6 +792,13 @@ function wakeScreenIfNeeded() {
   try {
     if (device.isScreenOn && device.isScreenOn()) return true;
   } catch (e) {}
+  // AOD de Samsung: isScreenOn devuelve false aunque esté mostrando el reloj.
+  // Si el paquete visible es AOD/keyguard/systemui, la pantalla está visible
+  // → no gastar intentos de wake ni mandar el falso "screen-wake-fail".
+  try {
+    var cur = currentPackage() || "";
+    if (cur.indexOf("aodservice") >= 0 || cur.indexOf("keyguard") >= 0 || cur.indexOf("systemui") >= 0) return true;
+  } catch (e) {}
   try { device.wakeUpIfNeeded(); } catch (e) {}
   sleep(800);
   try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
@@ -818,17 +825,21 @@ function wakeScreenIfNeeded() {
 //   2. Swipe hacia arriba para pasar el keyguard inicial
 //   3. Si hay PIN configurado (CONFIG.screenPin), clickear los dígitos
 //      en el keypad numérico (Samsung OneUI los expone como text/desc).
+// Detecta el lock real vía KeyguardManager (Android): devuelve true aunque FB
+// esté abierto encima del keyguard (caso típico del relay 24/7: el intent con
+// TURN_SCREEN_ON abre FB y el keyguard queda delante). El chequeo por
+// currentPackage() es poco fiable: AOD = "com.samsung.android.app.aodservice",
+// FB abierto = "com.facebook.katana", y no distingue si el keyguard está encima.
 function isScreenLocked() {
   try {
-    // Si el paquete visible es el keyguard de Samsung ("com.android.systemui"
-    // con la UI de bloqueo), o hay un EditText de PIN en pantalla.
-    var cur = "";
-    try { cur = currentPackage() || ""; } catch (e) {}
-    var lockedPkgs = ["com.android.systemui", "com.android.keyguard", "com.samsung.android.app.aodservice"];
-    for (var i = 0; i < lockedPkgs.length; i++) {
-      if (cur.indexOf(lockedPkgs[i]) >= 0) return true;
+    var km = context.getSystemService(context.KEYGUARD_SERVICE);
+    if (km) {
+      try { if (km.inKeyguardRestrictedInputMode()) return true; } catch (e) {}
+      try { if (km.isKeyguardLocked && km.isKeyguardLocked()) return true; } catch (e) {}
     }
-    // EditText visible → puede ser el campo de PIN del keyguard
+  } catch (e) {}
+  // Fallback: EditText de PIN visible en pantalla (keyguard de OneUI)
+  try {
     var edit = className("android.widget.EditText").findOne(400);
     if (edit && edit.visibleToUser()) {
       var pkg = edit.packageName() || "";
@@ -854,45 +865,42 @@ function ensureUnlocked() {
     var pin = String(CONFIG.screenPin || "");
     var unlocked = false;
 
-    // Reintentar el ciclo swipe + PIN hasta 3 veces (el keyguard de OneUI a
-    // veces necesita 2 pasadas, o el swipe inicial se hace antes de que la
-    // pantalla termine de encender).
-    for (var pass = 0; pass < 3 && !unlocked; pass++) {
+    // Reintentar el ciclo swipe → keypad hasta 4 veces. Desde el AOD hacen
+    // falta 2 swipes (AOD → lockscreen → keypad), y a veces el primero se hace
+    // antes de que la pantalla termine de encender. Solo entrar el PIN cuando
+    // el keypad numérico sea visible, si no el swipe no llegó al keypad.
+    for (var pass = 0; pass < 4 && !unlocked; pass++) {
       if (pass > 0) {
         keepScreenAwake();
-        sleep(rnd(1000, 1800));
+        sleep(rnd(800, 1500));
       }
-      // Swipe hacia arriba: pasar la pantalla de bloqueo inicial (reloj)
+      // Swipe hacia arriba: pasar el AOD/lockscreen inicial
       try {
         swipe(screenWidth() / 2, screenHeight() * 0.8, screenWidth() / 2, screenHeight() * 0.2, 400);
         sleep(rnd(1200, 2000));
       } catch (e) {}
 
-      if (pin && isScreenLocked()) {
+      if (!isScreenLocked()) {
+        unlocked = true;
+        break;
+      }
+
+      if (pin) {
+        // Esperar a que el keypad aparezca (que haya un dígito clicable)
+        var padVisible = false;
+        var padDeadline = Date.now() + 7000;
+        while (Date.now() < padDeadline && !padVisible) {
+          padVisible = pinKeypadVisible(pin);
+          if (!padVisible) sleep(500);
+        }
+        if (!padVisible) {
+          console.log("[native] intento " + (pass + 1) + ": keypad no visible aún, reintentando swipe...");
+          continue;
+        }
         console.log("[native] desbloqueando con PIN...");
-        for (var i = 0; i < pin.length; i++) {
-          var digit = pin.charAt(i);
-          var clicked = false;
-          var deadline = Date.now() + 6000;
-          while (Date.now() < deadline && !clicked) {
-            var node = null;
-            try { node = text(digit).findOne(800); } catch (e) {}
-            if (!node) { try { node = desc(digit).findOne(800); } catch (e2) {} }
-            if (!node) {
-              // Algunos keypads usan content-desc con el número duplicado
-              try { node = descContains(digit).findOne(800); } catch (e3) {}
-            }
-            if (node && node.visibleToUser()) {
-              try { tapStrategy(node, 1); clicked = true; } catch (e4) {}
-            }
-            if (!clicked) sleep(400);
-          }
-          if (!clicked) {
-            console.log("[native] dígito " + digit + " no encontrado en el keypad");
-            sendDebug("pin-digit-not-found");
-            break;
-          }
-          sleep(rnd(500, 900));
+        if (!typePin(pin)) {
+          sendDebug("pin-digit-not-found");
+          continue;
         }
         sleep(rnd(1200, 2000));
         // Segundo swipe por si tras el PIN pide "siguiente"/confirmar
@@ -913,6 +921,49 @@ function ensureUnlocked() {
     console.log("[native] ensureUnlocked falló: " + e.message);
     return false;
   }
+}
+
+// true si el keypad numérico del PIN está visible. Chequea que alguno de los
+// dígitos del PIN esté expuesto como text/desc en pantalla (Samsung OneUI los
+// expone como texto o content-desc de cada botón).
+function pinKeypadVisible(pin) {
+  for (var i = 0; i < pin.length; i++) {
+    var d = pin.charAt(i);
+    var node = null;
+    try { node = text(d).findOne(300); } catch (e) {}
+    if (!node) { try { node = desc(d).findOne(300); } catch (e2) {} }
+    if (node && node.visibleToUser()) return true;
+  }
+  return false;
+}
+
+// Clickea los dígitos del PIN en el keypad. Devuelve false si algún dígito no
+// se encuentra.
+function typePin(pin) {
+  for (var i = 0; i < pin.length; i++) {
+    var digit = pin.charAt(i);
+    var clicked = false;
+    var deadline = Date.now() + 6000;
+    while (Date.now() < deadline && !clicked) {
+      var node = null;
+      try { node = text(digit).findOne(800); } catch (e) {}
+      if (!node) { try { node = desc(digit).findOne(800); } catch (e2) {} }
+      if (!node) {
+        // Algunos keypads usan content-desc con el número duplicado
+        try { node = descContains(digit).findOne(800); } catch (e3) {}
+      }
+      if (node && node.visibleToUser()) {
+        try { tapStrategy(node, 1); clicked = true; } catch (e4) {}
+      }
+      if (!clicked) sleep(400);
+    }
+    if (!clicked) {
+      console.log("[native] dígito " + digit + " no encontrado en el keypad");
+      return false;
+    }
+    sleep(rnd(500, 900));
+  }
+  return true;
 }
 
 function mainLoop() {
@@ -991,9 +1042,12 @@ function runPollLoop() {
         continue;
       }
 
-      // Hay tareas → el celular puede estar apagado/bloqueado (relay 24/7):
-      // desbloquear antes de empezar a compartir.
-      ensureUnlocked();
+      // Hay tareas → el celular puede estar apagado/bloqueado (relay 24/7).
+      // Acá solo asegurar que la pantalla quede encendida; el desbloqueo real
+      // (swipe + PIN) se hace dentro de openPostAndShareGroup DESPUÉS de abrir
+      // FB, cuando el keyguard es interactivo y la pantalla ya está encendida.
+      keepScreenAwake();
+      wakeScreenIfNeeded();
 
       var groups = {};
       var order = [];
