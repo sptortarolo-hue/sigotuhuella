@@ -553,8 +553,21 @@ export async function publishPetToGroups(petId, options = {}) {
     const pageResult = await publishToPage(petId);
     results.page = pageResult;
 
-    if (pageResult.success && pageResult.pagePostId && pageResult.pageId) {
+    // Fallback chain para SIEMPRE tener pagePostUrl (action='share' en cola)
+    if (pageResult.pagePostId && pageResult.pageId) {
       pagePostUrl = `https://www.facebook.com/${pageResult.pageId}/posts/${pageResult.pagePostId}`;
+    } else if (pageResult.pageId) {
+      // Fallback 1: pageId sí se obtuvo (getPageId() interno funciona)
+      pagePostUrl = `https://www.facebook.com/${pageResult.pageId}`;
+    } else {
+      // Fallback 2: getPageId() directo
+      const pageId = await getPageId();
+      if (pageId) pagePostUrl = `https://www.facebook.com/${pageId}`;
+    }
+
+    // Log para diagnóstico si hubo fallback
+    if (!pageResult.success && pagePostUrl) {
+      console.warn(`[FB Publisher] publishToPage falló (${pageResult.error}), usando pagePostUrl fallback: ${pagePostUrl}`);
     }
   }
 
