@@ -103,9 +103,19 @@ function findNode(labels, timeoutMs) {
     candidates.push(descContains(capitalize(lab)));
     candidates.push(textContains(capitalize(lab)));
   }
-  for (var j = 0; j < candidates.length; j++) {
-    var node = candidates[j].findOne(t);
-    if (node && node.visibleToUser()) return node;
+  // OJO: findOne(timeout) bloquea hasta el timeout si no encuentra. Con 8
+  // selectores por label × N labels, probarlos todos en serie puede tardar
+  // MINUTOS (48 × 2s = ~96s para 6 labels). Acá rotamos con findOne corto
+  // (300ms) dentro de la ventana total: tiempo acotado a timeoutMs y respuesta
+  // rápida cuando aparece.
+  var deadline = Date.now() + t;
+  var j = 0;
+  while (Date.now() < deadline) {
+    try {
+      var node = candidates[j % candidates.length].findOne(300);
+      if (node && node.visibleToUser()) return node;
+    } catch (e) {}
+    j++;
   }
   return null;
 }
@@ -589,6 +599,7 @@ function openPostInFB(url) {
   var dl = null;
   try { dl = fbDeepLinkFor(url); } catch (e) {}
   var target = dl || url;
+  console.log("[native] abriendo post: " + target);
 
   // Con Shizuku, "am start" con FLAG_ACTIVITY_TURN_SCREEN_ON (0x40000000)
   // enciende la pantalla de forma fiable (privilegios ADB). En autoJs6 el flag
