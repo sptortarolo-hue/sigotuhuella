@@ -580,9 +580,9 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
                     </div>
                     <p className="text-xs text-gray-600 line-clamp-2 mb-1">{fp.content}</p>
                     {fp.fb_post_url && (
-                      <a href={fp.fb_post_url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-500 hover:underline flex items-center gap-1">
+                      <button onClick={() => openExternalLink(fp.fb_post_url)} className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 text-left">
                         Ver post <ExternalLink className="w-3 h-3" />
-                      </a>
+                      </button>
                     )}
                     <div className="flex gap-1 mt-1">
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-gray-100">{fp.classification}</span>
@@ -611,9 +611,9 @@ export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, 
                     </div>
                     <p className="text-xs text-gray-600 line-clamp-2">{ig.caption}</p>
                     {ig.ig_permalink && (
-                      <a href={ig.ig_permalink} target="_blank" rel="noreferrer" className="text-[10px] text-pink-500 hover:underline flex items-center gap-1 mt-1">
+                      <button onClick={() => openExternalLink(ig.ig_permalink)} className="text-[10px] text-pink-500 hover:underline flex items-center gap-1 mt-1 text-left">
                         Ver en IG <ExternalLink className="w-3 h-3" />
-                      </a>
+                    </button>
                     )}
                     {ig.error_message && <p className="text-[10px] text-red-500 mt-1">{ig.error_message}</p>}
                   </div>

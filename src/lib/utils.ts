@@ -7,10 +7,10 @@ export function cn(...inputs: ClassValue[]) {
 
 export async function openExternalLink(url: string) {
   try {
-    const { Browser } = await import('@capacitor/browser');
-    const { Capacitor } = await import('@capacitor/core');
+    const { Capacitor, registerPlugin } = await import('@capacitor/core');
     if (Capacitor.isNativePlatform()) {
-      await Browser.open({ url });
+      const ExternalBrowser = registerPlugin<{ open: (opts: { url: string }) => Promise<void> }>('ExternalBrowser');
+      await ExternalBrowser.open({ url });
       return;
     }
   } catch {}
