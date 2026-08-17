@@ -979,18 +979,27 @@ function ensureUnlocked() {
       }
 
       if (pin) {
-        // Esperar a que el keypad aparezca (que haya un dígito clicable)
-        var padVisible = false;
-        var padDeadline = Date.now() + 7000;
-        while (Date.now() < padDeadline && !padVisible) {
-          padVisible = pinKeypadVisible(pin);
-          if (!padVisible) sleep(500);
+        // Con Shizuku los keyevents del PIN se inyectan directo (no dependen
+        // del árbol de accesibilidad), así que no hace falta esperar a que el
+        // keypad sea "visible" para el buscador de texto. Intento directo.
+        var useKeyevents = shizukuAvailable();
+        if (!useKeyevents) {
+          // Esperar a que el keypad aparezca (que haya un dígito clicable)
+          var padVisible = false;
+          var padDeadline = Date.now() + 7000;
+          while (Date.now() < padDeadline && !padVisible) {
+            padVisible = pinKeypadVisible(pin);
+            if (!padVisible) sleep(500);
+          }
+          if (!padVisible) {
+            console.log("[native] intento " + (pass + 1) + ": keypad no visible aún, reintentando swipe...");
+            continue;
+          }
+        } else {
+          // Darle medio segundo al dismiss-keyguard para mostrar el keypad
+          sleep(600);
         }
-        if (!padVisible) {
-          console.log("[native] intento " + (pass + 1) + ": keypad no visible aún, reintentando swipe...");
-          continue;
-        }
-        console.log("[native] desbloqueando con PIN...");
+        console.log("[native] desbloqueando con PIN" + (useKeyevents ? " (keyevents)" : "") + "...");
         if (!typePin(pin)) {
           sendDebug("pin-digit-not-found");
           continue;
@@ -1040,6 +1049,28 @@ function pinKeypadVisible(pin) {
 // Clickea los dígitos del PIN en el keypad. Devuelve false si algún dígito no
 // se encuentra.
 function typePin(pin) {
+  // Con Shizuku lo más exacto es el keyevent del dígito (KEYCODE_0..9):
+  // escribe el PIN directo sin depender de encontrar/tocar el botón por texto,
+  // que en Samsung puede fallar y "poner mal el PIN".
+  //  KEYCODE_0=7, KEYCODE_1=8, ..., KEYCODE_9=16
+  if (shizukuAvailable()) {
+    var keycodes = { 0: 7, 1: 8, 2: 9, 3: 10, 4: 11, 5: 12, 6: 13, 7: 14, 8: 15, 9: 16 };
+    for (var k = 0; k < pin.length; k++) {
+      var kc = keycodes[pin.charAt(k)];
+      if (kc === undefined) return false;
+      var r = shizukuCmd("input keyevent " + kc);
+      if (!r || r.code !== 0) {
+        console.log("[native] keyevent del dígito " + pin.charAt(k) + " falló, cayendo a tap por texto");
+        return typePinByText(pin);
+      }
+      sleep(rnd(500, 900));
+    }
+    return true;
+  }
+  return typePinByText(pin);
+}
+
+function typePinByText(pin) {
   for (var i = 0; i < pin.length; i++) {
     var digit = pin.charAt(i);
     var clicked = false;
