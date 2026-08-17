@@ -1216,6 +1216,19 @@ function isInterrupted(e) {
   return name.indexOf("Interrupted") >= 0 || msg.indexOf("interrupted") >= 0;
 }
 
+// ¿El engine de este script fue realmente detenido (stop manual del usuario)?
+// Cuando AutoJs6 reconecta el árbol de accesibilidad (p.ej. al abrir FB en
+// frío tras un force-stop), findOne/sleep lanzan ScriptInterruptedException
+// PERO el engine sigue vivo. Hay que distinguirlo del stop manual, que sí
+// apaga el engine.
+function isEngineStopped() {
+  try {
+    var eng = engines.myEngine();
+    if (eng && typeof eng.isStopped === "function") return eng.isStopped();
+  } catch (e) {}
+  return false;
+}
+
 function runPollLoop() {
   while (true) {
     keepScreenAwake();
@@ -1264,30 +1277,59 @@ function runPollLoop() {
 
         for (var b = 0; b < batch.length; b++) {
           var task = batch[b];
-          console.log("[native] tarea " + task.id + " (share)");
-          try {
-            if (b === 0) {
-              openPostAndShareGroup(task);
-              searchGroupAndPublish(task);
+          var taskDone = false;
+          var maxAttempts = 3;
+          for (var attempt = 1; attempt <= maxAttempts && !taskDone; attempt++) {
+            if (attempt > 1) {
+              console.log("[native] reintentando tarea " + task.id + " (intento " + attempt + ")");
+              // FB quedó en estado incierto tras la interrupción → arrancar limpio
+              try {
+                if (shizukuAvailable()) shizukuCmd("am force-stop com.facebook.katana");
+              } catch (e9) {}
+              sleep(rnd(4000, 6000));
             } else {
-              searchGroupAndPublish(task);
+              console.log("[native] tarea " + task.id + " (share)");
             }
-            apiPost("/fb/completed", { task_updates: [{ task_id: task.id }] });
-            console.log("[native] tarea " + task.id + " completada");
-          } catch (e) {
-            console.error("[native] tarea " + task.id + " falló: " + e.message);
-            if (isInterrupted(e)) {
-              console.error("[native] script interrumpido, saliendo");
-              try { apiPost("/fb/failed", { task_id: task.id, error: "script interrupted" }); } catch (e2) {}
-              return;
+            try {
+              if (b === 0) {
+                openPostAndShareGroup(task);
+                searchGroupAndPublish(task);
+              } else {
+                searchGroupAndPublish(task);
+              }
+              apiPost("/fb/completed", { task_updates: [{ task_id: task.id }] });
+              console.log("[native] tarea " + task.id + " completada");
+              taskDone = true;
+            } catch (e) {
+              console.error("[native] tarea " + task.id + " falló (intento " + attempt + "): " + e.message);
+              if (isInterrupted(e)) {
+                // Distinguir: stop manual del usuario (engine muerto) vs
+                // interrupción transitoria del árbol de accesibilidad (engine vivo).
+                if (isEngineStopped()) {
+                  console.error("[native] script detenido por el usuario, saliendo");
+                  try { apiPost("/fb/failed", { task_id: task.id, error: "script interrupted" }); } catch (e2) {}
+                  return;
+                }
+                console.error("[native] interrupción transitoria del árbol de accesibilidad, reintentando...");
+                sleep(rnd(3000, 5000));
+                continue; // siguiente intento del while interno
+              }
+              try { apiPost("/fb/failed", { task_id: task.id, error: e.message }); } catch (e2) {}
+              if (String(e.message).indexOf("checkpoint") >= 0) {
+                console.error("[native] checkpoint detectado → frenando relay");
+                sendDebug("checkpoint-stop");
+                return;
+              }
+              // Si falló un grupo, no seguir con el resto del mismo post
+              taskDone = true; // marcar terminada para salir del while interno
+              break;
             }
-            try { apiPost("/fb/failed", { task_id: task.id, error: e.message }); } catch (e2) {}
-            if (String(e.message).indexOf("checkpoint") >= 0) {
-              console.error("[native] checkpoint detectado → frenando relay");
-              sendDebug("checkpoint-stop");
-              return;
-            }
-            // Si falló un grupo, no seguir con el resto del mismo post
+          }
+
+          if (!taskDone) {
+            // Se agotaron los reintentos por interrupción transitoria
+            console.error("[native] tarea " + task.id + " sin éxito tras " + maxAttempts + " intentos");
+            try { apiPost("/fb/failed", { task_id: task.id, error: "transient interrupted after retries" }); } catch (e2) {}
             break;
           }
 
