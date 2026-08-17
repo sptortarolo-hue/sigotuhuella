@@ -839,6 +839,19 @@ function mainLoop() {
   // Mantener pantalla encendida mientras el relay corre
   keepScreenAwake();
 
+  // Foreground service: Android (especialmente Samsung) mata apps en segundo
+  // plano; un servicio en primer plano con notificación lo deja correr 24/7.
+  try {
+    autojs.startForeground({
+      title: "SiHuella Relay",
+      content: "Relay de Facebook corriendo (24/7)",
+    });
+  } catch (e) {
+    try { autojs.startForeground(); } catch (e2) {
+      console.log("[native] foreground service no disponible: " + e2.message);
+    }
+  }
+
   // Habilitar captura de pantalla para los debug (requestScreenCapture puede fallar)
   try {
     images.requestScreenCapture(10000);
