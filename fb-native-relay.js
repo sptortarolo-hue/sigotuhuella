@@ -28,9 +28,14 @@ var CONFIG = {
   // En producción desatendida no molesta: solo agrega una espera única al
   // inicio; el scheduler de AutoJs6 lo sigue lanzando igual.
   startupDelayMs: 5000,
-  // Delay humano entre tareas (ms) — compartir grupo a grupo como un humano
-  minDelayMs: 90 * 1000,
-  maxDelayMs: 180 * 1000,
+  // Delay entre grupos del MISMO post (ms) — compartir grupo a grupo con
+  // variación humana (10-15s): son 7 grupos por post, no puede tardar minutos.
+  minDelayMs: 10 * 1000,
+  maxDelayMs: 15 * 1000,
+  // Delay entre POSTS distintos (ms) — con variación (25-45s) para que el ritmo
+  // entre publicaciones se vea más espaciado que entre grupos de un mismo post.
+  betweenPostsMinDelayMs: 25 * 1000,
+  betweenPostsMaxDelayMs: 45 * 1000,
   // Package de la app nativa de Facebook
   fbPackage: "com.facebook.katana",
   // Cuánto esperar cada selector (ms)
@@ -1491,7 +1496,7 @@ function runPollLoop() {
       }
 
       // Delay humano entre posts distintos
-      var delay2 = rnd(CONFIG.minDelayMs, CONFIG.maxDelayMs);
+      var delay2 = rnd(CONFIG.betweenPostsMinDelayMs, CONFIG.betweenPostsMaxDelayMs);
       console.log("[native] esperando " + Math.round(delay2 / 1000) + "s...");
       sleep(delay2);
 
