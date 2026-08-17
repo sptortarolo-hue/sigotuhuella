@@ -1047,32 +1047,56 @@ function cancelScreenAwake() {
 //   Shizuku input keyevent 224 (KEYCODE_WAKEUP) → wakeUpIfNeeded → wakeUp →
 //   keyCode(224) → shell root.
 // Devolver true si al final la pantalla quedó encendida.
-function wakeScreenIfNeeded() {
+
+// ¿La pantalla está realmente visible? device.isScreenOn() devuelve false con
+// el AOD de Samsung aunque el reloj esté mostrado. Esta versión lo compensa
+// chequeando también el paquete visible (AOD/keyguard/systemui).
+function isScreenOnReported() {
   try {
     if (device.isScreenOn && device.isScreenOn()) return true;
   } catch (e) {}
-
-  // Shizuku: KEYCODE_WAKEUP (224) enciende la pantalla con privilegios ADB,
-  // funciona en Samsung sin root. Algunos dispositivos con AOD necesitan el
-  // POWER (26) para salir del modo reloj.
-  try {
-    if (shizukuAvailable()) {
-      shizukuCmd("input keyevent 224");
-      sleep(1200);
-      if (device.isScreenOn && device.isScreenOn()) return true;
-      shizukuCmd("input keyevent 26");
-      sleep(1200);
-      if (device.isScreenOn && device.isScreenOn()) return true;
-    }
-  } catch (e) {}
-
-  // AOD de Samsung: isScreenOn devuelve false aunque esté mostrando el reloj.
-  // Si el paquete visible es AOD/keyguard/systemui, la pantalla está visible
-  // → no gastar intentos de wake ni mandar el falso "screen-wake-fail".
   try {
     var cur = currentPackage() || "";
     if (cur.indexOf("aodservice") >= 0 || cur.indexOf("keyguard") >= 0 || cur.indexOf("systemui") >= 0) return true;
   } catch (e) {}
+  return false;
+}
+
+function wakeScreenIfNeeded() {
+  // AOD de Samsung: isScreenOn devuelve false aunque esté mostrando el reloj.
+  // Si el paquete visible es AOD/keyguard/systemui, la pantalla está visible
+  // → no gastar intentos de wake ni mandar el falso "screen-wake-fail".
+  try {
+    if (device.isScreenOn && device.isScreenOn()) return true;
+  } catch (e) {}
+  try {
+    var cur0 = currentPackage() || "";
+    if (cur0.indexOf("aodservice") >= 0 || cur0.indexOf("keyguard") >= 0 || cur0.indexOf("systemui") >= 0) return true;
+  } catch (e) {}
+
+  // Shizuku: KEYCODE_WAKEUP (224) enciende la pantalla con privilegios ADB,
+  // funciona en Samsung sin root. OJO: NO usar KEYCODE_POWER (26) como
+  // fallback — es un TOGGLE: si el 224 dejó la pantalla en AOD (reloj, que
+  // isScreenOn reporta como apagada), el 26 la VUELVE A APAGAR. Acá reintentar
+  // 224 (WAKEUP) y chequear paquete AOD/keyguard, no toggle de power.
+  try {
+    if (shizukuAvailable()) {
+      for (var wk = 0; wk < 3; wk++) {
+        shizukuCmd("input keyevent 224");
+        sleep(1200);
+        try {
+          if (device.isScreenOn && device.isScreenOn()) return true;
+        } catch (e) {}
+        // Tras el wake, el AOD/keyguard ya cuenta como pantalla visible
+        try {
+          var cur = currentPackage() || "";
+          if (cur.indexOf("aodservice") >= 0 || cur.indexOf("keyguard") >= 0 || cur.indexOf("systemui") >= 0) return true;
+        } catch (e2) {}
+      }
+      return true; // el 224 se mandó; AOD puede tardar en aparecer, no fallar
+    }
+  } catch (e) {}
+
   try { device.wakeUpIfNeeded(); } catch (e) {}
   sleep(800);
   try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
@@ -1147,6 +1171,27 @@ function ensureUnlocked() {
         sleep(rnd(1200, 2000));
       } catch (e) {}
     }
+
+    // Si tras el wake quedó en AOD (reloj) y el keyguard no avanzó, hacer un
+    // swipe para pasar AOD → lockscreen antes del ciclo de PIN. Sin esto, el
+    // PIN se intenta a ciegas sobre la pantalla oscura/AOD y nunca desbloquea.
+    try {
+      var afterWake = currentPackage() || "";
+      if (afterWake.indexOf("aodservice") >= 0 || !isScreenOnReported()) {
+        console.log("[native] AOD visible tras wake, swiping a lockscreen...");
+        if (shizukuAvailable()) {
+          var ax = Math.round(screenWidth() / 2);
+          var ay1 = Math.round(screenHeight() * 0.8);
+          var ay2 = Math.round(screenHeight() * 0.2);
+          shizukuCmd("input swipe " + ax + " " + ay1 + " " + ax + " " + ay2 + " 400");
+        } else {
+          swipe(screenWidth() / 2, screenHeight() * 0.8, screenWidth() / 2, screenHeight() * 0.2, 400);
+        }
+        sleep(rnd(1200, 2000));
+        shizukuCmd("wm dismiss-keyguard");
+        sleep(rnd(1200, 2000));
+      }
+    } catch (e) {}
 
     var unlocked = false;
 
