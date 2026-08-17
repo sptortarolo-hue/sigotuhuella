@@ -271,6 +271,7 @@ function tapStrategy(node, idx) {
 // Click en un nodo por texto/desc con reintentos cortos.
 function clickLabel(labels, timeoutMs, scrollIntoView) {
   var deadline = Date.now() + (timeoutMs || CONFIG.findTimeoutMs);
+  var logged = false;
   while (Date.now() < deadline) {
     var node = findNode(labels, 2000);
     if (node) {
@@ -278,6 +279,11 @@ function clickLabel(labels, timeoutMs, scrollIntoView) {
         if (scrollIntoView) node.scrollForward();
         if (tapStrategy(node, 0)) return true;
       } catch (e) {}
+    }
+    if (!logged && Date.now() - deadline > -8000) {
+      // log una sola vez si pasa ~7s sin encontrar el label
+      console.log("[native] buscando '" + labels[0] + "' sin éxito aún (" + labels.length + " variantes)...");
+      logged = true;
     }
     sleep(500);
   }
@@ -382,8 +388,23 @@ function sendDebug(label, url) {
       var n = payload.uiNodes[i];
       console.log("  [" + (n.t || "-") + "] | desc: " + (n.d || "-") + " | b: " + (n.b || "?"));
     }
+    // Captura de pantalla. NO usar images.captureScreen() salvo que la captura
+    // ya esté autorizada: si no, Android abre el diálogo MediaProjection
+    // "¿Compartir tu pantalla?" que queda tapando la UI y cuelga el flujo.
+    // Con Shizuku se captura por ADB (screencap) sin diálogos.
     try {
-      var img = images.captureScreen();
+      var img = null;
+      if (shizukuAvailable()) {
+        var shotPath = files.join(files.getSdcardPath() || "/sdcard", "fb-relay-shot.png");
+        var sr = shizukuCmd("screencap -p " + shotPath);
+        if (sr && sr.code === 0 && files.exists(shotPath)) {
+          img = images.read(shotPath);
+          files.remove(shotPath);
+        }
+      }
+      if (!img) {
+        try { img = images.captureScreen(); } catch (e3) {}
+      }
       if (img) {
         payload.screenshot = images.toBase64(img, "png", 70);
         img.recycle();
@@ -592,6 +613,23 @@ function openPostAndShareGroup(task) {
   sleep(rnd(4000, 7000));
   ensureUnlocked();
   sleep(rnd(1500, 2500));
+
+  // Diagnóstico: qué app quedó en primer plano tras el desbloqueo. Si FB no
+  // está, el share no puede arrancar y hay que ver qué pantalla quedó.
+  try {
+    var curPkg = currentPackage();
+    console.log("[native] tras desbloqueo, app en primer plano: " + curPkg);
+    if (!curPkg || curPkg.indexOf("com.facebook") < 0) {
+      console.log("[native] FB NO está en primer plano. Dump del árbol:");
+      var dn = dumpUi(25);
+      for (var di = 0; di < dn.length; di++) {
+        console.log("[native]   [" + (dn[di].t || dn[di].d || "-") + "] | b: " + (dn[di].b || "-"));
+      }
+      sendDebug("post-unlock-not-fb", url);
+    }
+  } catch (e) {
+    console.log("[native] no se pudo leer la app en primer plano: " + e.message);
+  }
 
   // 2) Si hay checkpoint o sesión expirada → frenar
   var cp = checkCheckpoint();
