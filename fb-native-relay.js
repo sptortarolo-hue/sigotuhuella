@@ -825,6 +825,18 @@ function searchGroupAndPublish(task) {
 // de un batch, para que el próximo share arranque desde el feed limpio. Entre
 // grupos del mismo batch NO se llama: se reutiliza el buscador abierto.
 function cleanupAfterBatch() {
+  // Con Shizuku lo más fiable es matar FB: si queda el modal de "buscar grupo"
+  // o un webview del post (pantalla blanca), el próximo arranque se encuentra
+  // la app en un estado roto. Forzar cierre deja el próximo am start limpio
+  // (la sesión/cookies persisten). Sin Shizuku, back() a ciegas.
+  try {
+    if (shizukuAvailable()) {
+      var r = shizukuCmd("am force-stop com.facebook.katana");
+      console.log("[native] FB cerrado tras batch" + (r && r.code === 0 ? " (OK)" : ""));
+      sleep(rnd(1500, 2500));
+      return;
+    }
+  } catch (e) {}
   sleep(rnd(1500, 3000));
   try { back(); } catch (e) {}
   sleep(rnd(1500, 2500));
