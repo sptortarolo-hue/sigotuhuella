@@ -1062,6 +1062,23 @@ function isScreenOnReported() {
   return false;
 }
 
+// Estado REAL de la pantalla vía dumpsys power (Shizuku/ADB), sin depender de
+// device.isScreenOn() que miente en AOD:
+//   "Awake"  → pantalla encendida (lockscreen o app)
+//   "Asleep" → apagado total (negro)
+//   "Dozing" → AOD (reloj visible)
+// Devuelve null si no se puede leer (Shizuku caído).
+function screenWakefulness() {
+  try {
+    if (!shizukuAvailable()) return null;
+    var r = shizukuCmd("dumpsys power | grep mWakefulness=");
+    if (!r || r.code !== 0) return null;
+    var out = String(r.output || "");
+    var m = /mWakefulness=(\w+)/.exec(out);
+    return m ? m[1] : null;
+  } catch (e) { return null; }
+}
+
 function wakeScreenIfNeeded() {
   // AOD de Samsung: isScreenOn devuelve false aunque esté mostrando el reloj.
   // Si el paquete visible es AOD/keyguard/systemui, la pantalla está visible
@@ -1074,26 +1091,56 @@ function wakeScreenIfNeeded() {
     if (cur0.indexOf("aodservice") >= 0 || cur0.indexOf("keyguard") >= 0 || cur0.indexOf("systemui") >= 0) return true;
   } catch (e) {}
 
-  // Shizuku: KEYCODE_WAKEUP (224) enciende la pantalla con privilegios ADB,
-  // funciona en Samsung sin root. OJO: NO usar KEYCODE_POWER (26) como
-  // fallback — es un TOGGLE: si el 224 dejó la pantalla en AOD (reloj, que
-  // isScreenOn reporta como apagada), el 26 la VUELVE A APAGAR. Acá reintentar
-  // 224 (WAKEUP) y chequear paquete AOD/keyguard, no toggle de power.
+  // Shizuku + dumpsys power: el wake correcto depende del estado REAL:
+  //   Asleep (apagado total) → KEYCODE_POWER (26) — actúa como botón físico y
+  //     ENCIENDE. Es seguro usarlo acá porque dumpsys confirmó que NO está
+  //     despierto: no hay riesgo de "toggle" que lo vuelva a apagar (ese riesgo
+  //     solo existe si está en AOD/Awake, y para esos estados no se usa 26).
+  //   Dozing (AOD) → KEYCODE_WAKEUP (224) — avanza del reloj al lockscreen.
   try {
     if (shizukuAvailable()) {
-      for (var wk = 0; wk < 3; wk++) {
-        shizukuCmd("input keyevent 224");
-        sleep(1200);
+      var wf = screenWakefulness();
+      console.log("[native] wake: mWakefulness=" + (wf || "n/a"));
+      for (var wk = 0; wk < 4; wk++) {
+        if (wf === "Awake") return true;
+        if (wf === "Dozing") {
+          // AOD visible: WAKEUP para pasar al lockscreen. NUNCA POWER (26),
+          // que en AOD apagaría la pantalla (toggle invertido).
+          shizukuCmd("input keyevent 224");
+          sleep(1200);
+        } else if (wf === "Asleep") {
+          // Apagado total: POWER (26) enciende. Confirmado por dumpsys, seguro.
+          shizukuCmd("input keyevent 26");
+          sleep(1500);
+        } else {
+          // Estado desconocido (Shizuku no responde): cascada WAKEUP primero,
+          // después POWER. WAKEUP no tiene riesgo; POWER con estado desconocido
+          // es el último recurso (si ya está encendido podría apagarlo, pero
+          // llegamos acá solo porque isScreenOn() y el paquete dijeron que no).
+          shizukuCmd("input keyevent 224");
+          sleep(1200);
+          if (!screenWakefulness()) {
+            shizukuCmd("input keyevent 26");
+            sleep(1500);
+          }
+        }
+        wf = screenWakefulness();
+        console.log("[native] wake tras intento " + (wk + 1) + ": mWakefulness=" + (wf || "n/a"));
         try {
           if (device.isScreenOn && device.isScreenOn()) return true;
         } catch (e) {}
-        // Tras el wake, el AOD/keyguard ya cuenta como pantalla visible
         try {
           var cur = currentPackage() || "";
           if (cur.indexOf("aodservice") >= 0 || cur.indexOf("keyguard") >= 0 || cur.indexOf("systemui") >= 0) return true;
         } catch (e2) {}
+        if (wf === "Asleep") {
+          // Sigue apagado: reintentar el POWER en la próxima iteración del loop
+          sleep(800);
+        } else if (wf === "Dozing" || wf === "Awake") {
+          break; // ya hay pantalla visible, salir del loop
+        }
       }
-      return true; // el 224 se mandó; AOD puede tardar en aparecer, no fallar
+      return true; // se mandó el wake; AOD/keyguard pueden tardar en aparecer
     }
   } catch (e) {}
 
