@@ -47,9 +47,10 @@ var CONFIG = {
   screenPin: "",
   // Mantener la pantalla encendida mientras el celular está cargando, usando
   // Shizuku ("svc power stayon usb" — comportamiento del "No dormir" del modo
-  // desarrollador). Ideal para un relay 24/7 que vive enchufado: así la
-  // pantalla nunca se apaga y no hace falta despertarla. Requiere Shizuku.
-  stayAwakeWhileCharging: true,
+  // desarrollador). FALSO: la pantalla se apaga y bloquea al terminar cada
+  // post (screenOffAndLock) y se despierta a demanda cuando llega una tarea,
+  // evitando burn-in AMOLED y LEDs de noche.
+  stayAwakeWhileCharging: false,
   // Patrón del PIN: dónde buscar cada dígito en el keypad del lock screen.
   // Samsung OneUI suele exponer los números como text()/desc(). Con pinPattern
   // vacío se busca el dígito como texto; si no aparece, usar sendDebug para
@@ -970,6 +971,30 @@ function cleanupAfterBatch() {
   sleep(rnd(1000, 2000));
 }
 
+// Apaga y bloquea la pantalla al terminar el post completo (los 7 grupos).
+// Libera el wake lock de AutoJs6 y fuerza el apagado vía Shizuku (keyevent
+// POWER). En Samsung con PIN/patrón, apagar la pantalla la bloquea solo. El
+// próximo batch la despierta y desbloquea a demanda (wakeScreenIfNeeded +
+// ensureUnlocked ya lo manejan).
+function screenOffAndLock() {
+  try {
+    cancelScreenAwake();
+    if (shizukuAvailable()) {
+      // Desactivar cualquier "No dormir" residual de corridas previas con
+      // stayAwakeWhileCharging: true, para que el timeout normal de pantalla
+      // y el apagado forzado de abajo tengan efecto.
+      shizukuCmd("svc power stayon false");
+      sleep(300);
+      shizukuCmd("input keyevent 26"); // KEYCODE_POWER → apagar pantalla + lock
+      console.log("[native] pantalla apagada y bloqueada");
+    } else {
+      console.log("[native] sin Shizuku no se puede apagar forzado; queda la pantalla encendida");
+    }
+  } catch (e) {
+    console.log("[native] screenOffAndLock falló: " + e.message);
+  }
+}
+
 // ─── Loop principal ───────────────────────────────────────────────────────
 
 // Ejecuta un comando shell vía Shizuku (privilegios ADB, SIN root). AutoJs6
@@ -1383,9 +1408,7 @@ function isEngineStopped() {
 
 function runPollLoop() {
   while (true) {
-    keepScreenAwake();
     markLoopHeartbeat();
-    wakeScreenIfNeeded();
     try {
       // Traer varias tareas pendientes y agruparlas por post (target_url): las
       // del mismo post se comparten en batch reutilizando el buscador (borra el
@@ -1393,13 +1416,12 @@ function runPollLoop() {
       var data = apiGet("/fb/pending?limit=10&action=share");
       var tasks = data.tasks || [];
       if (tasks.length === 0) {
-        // Sin tareas: dormir por tramos renovando el wake lock y reintentando
-        // el wake, así la pantalla queda encendida/despierta cuando llegue una
-        // publicación (a demanda, cualquier hora).
+        // Sin tareas: la pantalla puede quedar APAGADA y bloqueada. El polling
+        // HTTP no necesita pantalla; solo cancelar el wake lock para que el
+        // timeout normal de pantalla la apague (y bloquee sola con PIN).
+        cancelScreenAwake();
         var idleDeadline = Date.now() + CONFIG.pollIntervalMs;
         while (Date.now() < idleDeadline) {
-          keepScreenAwake();
-          wakeScreenIfNeeded();
           sleep(30000);
         }
         continue;
@@ -1491,8 +1513,11 @@ function runPollLoop() {
           sleep(delay);
         }
 
-        // Al terminar el post completo, limpiar la app (cerrar buscador).
+        // Al terminar el post completo, limpiar la app (cerrar buscador) y
+        // apagar+bloquear la pantalla hasta el próximo batch (despierta a
+        // demanda cuando llegue una tarea).
         cleanupAfterBatch();
+        screenOffAndLock();
       }
 
       // Delay humano entre posts distintos
