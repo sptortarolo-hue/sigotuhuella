@@ -1048,103 +1048,32 @@ function cancelScreenAwake() {
 //   keyCode(224) → shell root.
 // Devolver true si al final la pantalla quedó encendida.
 
-// ¿La pantalla está realmente visible? device.isScreenOn() devuelve false con
-// el AOD de Samsung aunque el reloj esté mostrado. Esta versión lo compensa
-// chequeando también el paquete visible (AOD/keyguard/systemui).
-function isScreenOnReported() {
+function wakeScreenIfNeeded() {
   try {
     if (device.isScreenOn && device.isScreenOn()) return true;
   } catch (e) {}
+
+  // Shizuku: KEYCODE_WAKEUP (224) enciende la pantalla con privilegios ADB,
+  // funciona en Samsung sin root. Algunos dispositivos con AOD necesitan el
+  // POWER (26) para salir del modo reloj.
   try {
-    var cur = currentPackage() || "";
-    if (cur.indexOf("aodservice") >= 0 || cur.indexOf("keyguard") >= 0 || cur.indexOf("systemui") >= 0) return true;
+    if (shizukuAvailable()) {
+      shizukuCmd("input keyevent 224");
+      sleep(1200);
+      if (device.isScreenOn && device.isScreenOn()) return true;
+      shizukuCmd("input keyevent 26");
+      sleep(1200);
+      if (device.isScreenOn && device.isScreenOn()) return true;
+    }
   } catch (e) {}
-  return false;
-}
 
-// Estado REAL de la pantalla vía dumpsys power (Shizuku/ADB), sin depender de
-// device.isScreenOn() que miente en AOD:
-//   "Awake"  → pantalla encendida (lockscreen o app)
-//   "Asleep" → apagado total (negro)
-//   "Dozing" → AOD (reloj visible)
-// Devuelve null si no se puede leer (Shizuku caído). Se ejecuta SIN pipe (el
-// shizuku() de AutoJs6 no garantiza shell con pipes) y se parsea en JS.
-function screenWakefulness() {
-  try {
-    if (!shizukuAvailable()) return null;
-    var r = shizukuCmd("dumpsys power");
-    if (!r || r.code !== 0) return null;
-    var out = String(r.output || "");
-    var m = /mWakefulness=(\w+)/.exec(out);
-    return m ? m[1] : null;
-  } catch (e) { return null; }
-}
-
-function wakeScreenIfNeeded() {
   // AOD de Samsung: isScreenOn devuelve false aunque esté mostrando el reloj.
   // Si el paquete visible es AOD/keyguard/systemui, la pantalla está visible
   // → no gastar intentos de wake ni mandar el falso "screen-wake-fail".
   try {
-    if (device.isScreenOn && device.isScreenOn()) return true;
+    var cur = currentPackage() || "";
+    if (cur.indexOf("aodservice") >= 0 || cur.indexOf("keyguard") >= 0 || cur.indexOf("systemui") >= 0) return true;
   } catch (e) {}
-  try {
-    var cur0 = currentPackage() || "";
-    if (cur0.indexOf("aodservice") >= 0 || cur0.indexOf("keyguard") >= 0 || cur0.indexOf("systemui") >= 0) return true;
-  } catch (e) {}
-
-  // Shizuku + dumpsys power: el wake correcto depende del estado REAL:
-  //   Asleep (apagado total) → KEYCODE_POWER (26) — actúa como botón físico y
-  //     ENCIENDE. Es seguro usarlo acá porque dumpsys confirmó que NO está
-  //     despierto: no hay riesgo de "toggle" que lo vuelva a apagar (ese riesgo
-  //     solo existe si está en AOD/Awake, y para esos estados no se usa 26).
-  //   Dozing (AOD) → KEYCODE_WAKEUP (224) — avanza del reloj al lockscreen.
-  try {
-    if (shizukuAvailable()) {
-      var wf = screenWakefulness();
-      console.log("[native] wake: mWakefulness=" + (wf || "n/a"));
-      for (var wk = 0; wk < 4; wk++) {
-        if (wf === "Awake") return true;
-        if (wf === "Dozing") {
-          // AOD visible: WAKEUP para pasar al lockscreen. NUNCA POWER (26),
-          // que en AOD apagaría la pantalla (toggle invertido).
-          shizukuCmd("input keyevent 224");
-          sleep(1200);
-        } else if (wf === "Asleep") {
-          // Apagado total: POWER (26) enciende. Confirmado por dumpsys, seguro.
-          shizukuCmd("input keyevent 26");
-          sleep(1500);
-        } else {
-          // Estado desconocido (Shizuku no responde): cascada WAKEUP primero,
-          // después POWER. WAKEUP no tiene riesgo; POWER con estado desconocido
-          // es el último recurso (si ya está encendido podría apagarlo, pero
-          // llegamos acá solo porque isScreenOn() y el paquete dijeron que no).
-          shizukuCmd("input keyevent 224");
-          sleep(1200);
-          if (!screenWakefulness()) {
-            shizukuCmd("input keyevent 26");
-            sleep(1500);
-          }
-        }
-        wf = screenWakefulness();
-        console.log("[native] wake tras intento " + (wk + 1) + ": mWakefulness=" + (wf || "n/a"));
-        try {
-          if (device.isScreenOn && device.isScreenOn()) return true;
-        } catch (e) {}
-        try {
-          var cur = currentPackage() || "";
-          if (cur.indexOf("aodservice") >= 0 || cur.indexOf("keyguard") >= 0 || cur.indexOf("systemui") >= 0) return true;
-        } catch (e2) {}
-        if (wf === "Asleep") {
-          // Sigue apagado: reintentar el POWER en la próxima iteración del loop
-          sleep(800);
-        } else if (wf === "Dozing" || wf === "Awake") {
-          break; // ya hay pantalla visible, salir del loop
-        }
-      }
-      return true; // se mandó el wake; AOD/keyguard pueden tardar en aparecer
-    }
-  } catch (e) {}
-
   try { device.wakeUpIfNeeded(); } catch (e) {}
   sleep(800);
   try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
@@ -1224,20 +1153,6 @@ function ensureUnlocked() {
     // swipe para pasar AOD → lockscreen antes del ciclo de PIN. Sin esto, el
     // PIN se intenta a ciegas sobre la pantalla oscura/AOD y nunca desbloquea.
     try {
-      var afterWake = currentPackage() || "";
-      if (afterWake.indexOf("aodservice") >= 0 || !isScreenOnReported()) {
-        console.log("[native] AOD visible tras wake, swiping a lockscreen...");
-        if (shizukuAvailable()) {
-          var ax = Math.round(screenWidth() / 2);
-          var ay1 = Math.round(screenHeight() * 0.8);
-          var ay2 = Math.round(screenHeight() * 0.2);
-          shizukuCmd("input swipe " + ax + " " + ay1 + " " + ax + " " + ay2 + " 400");
-        } else {
-          swipe(screenWidth() / 2, screenHeight() * 0.8, screenWidth() / 2, screenHeight() * 0.2, 400);
-        }
-        sleep(rnd(1200, 2000));
-        shizukuCmd("wm dismiss-keyguard");
-        sleep(rnd(1200, 2000));
       }
     } catch (e) {}
 
