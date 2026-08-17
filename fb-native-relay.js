@@ -1067,11 +1067,12 @@ function isScreenOnReported() {
 //   "Awake"  → pantalla encendida (lockscreen o app)
 //   "Asleep" → apagado total (negro)
 //   "Dozing" → AOD (reloj visible)
-// Devuelve null si no se puede leer (Shizuku caído).
+// Devuelve null si no se puede leer (Shizuku caído). Se ejecuta SIN pipe (el
+// shizuku() de AutoJs6 no garantiza shell con pipes) y se parsea en JS.
 function screenWakefulness() {
   try {
     if (!shizukuAvailable()) return null;
-    var r = shizukuCmd("dumpsys power | grep mWakefulness=");
+    var r = shizukuCmd("dumpsys power");
     if (!r || r.code !== 0) return null;
     var out = String(r.output || "");
     var m = /mWakefulness=(\w+)/.exec(out);
@@ -1393,6 +1394,7 @@ function typePinByText(pin) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
+  console.log("[native] build 3f97127+ (wake por dumpsys power)");
   parkConsole();
 
   // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
