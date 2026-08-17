@@ -18,16 +18,37 @@ function isMobileBrowser(): boolean {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
 
-function buildFBAppDeepLink(url: string): string | null {
+function isChromeAndroid(): boolean {
+  return /Android/i.test(navigator.userAgent) && /Chrome|CriOS/i.test(navigator.userAgent);
+}
+
+// Normaliza URLs de posts de FB al formato canónico que la app resuelve como
+// app link nativo: facebook.com/{pageId}_{postId} → facebook.com/{pageId}/posts/{postId}
+function canonicalFBUrl(url: string): string {
   const u = String(url || '');
-  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  // Post de página: /{pageId}/posts/{postId} o /{pageId}/post/{postId}
-  const m = u.match(/facebook\.com\/([^/]+)\/(?:posts|post)\/(\d+)/);
-  if (m) {
-    if (isIOS) return `fb://profile/${m[1]}/posts?id=${m[2]}`;
-    return `fb://post/${m[2]}`;
-  }
-  // Post de grupo: /groups/{gid}/posts/{pid}
+  const m = u.match(/facebook\.com\/(\d+)_(\d+)/);
+  if (m) return `https://www.facebook.com/${m[1]}/posts/${m[2]}`;
+  return u;
+}
+
+// Equivalente web de "am start -a android.intent.action.VIEW -d <url> -p com.facebook.katana"
+// (lo que usa fb-native-relay para abrir posts de página). El esquema intent:// de
+// Chrome fuerza el intent ACTION_VIEW de la URL https canónica DENTRO del paquete de
+// Facebook, que la resuelve como app link nativo. Si FB no está instalada, Chrome usa
+// S.browser_fallback_url.
+function buildFBChromeIntent(url: string): string | null {
+  const u = canonicalFBUrl(url);
+  if (!/facebook\.com\//.test(u)) return null;
+  const hostPath = u.replace(/^https?:\/\//, '');
+  const fallback = encodeURIComponent(u);
+  return `intent://${hostPath}#Intent;scheme=https;package=com.facebook.katana;S.browser_fallback_url=${fallback};end`;
+}
+
+// Deep links fb:// para casos que la URL https canónica no cubre (grupos, fotos,
+// permalink.php). No se usan para posts de página: fb://post no los resuelve.
+function fbDeepLinkFor(url: string): string | null {
+  const u = String(url || '');
+  // Post de grupo: /groups/{gid}/posts/{pid} → permalink del post en el grupo
   const mg = u.match(/facebook\.com\/groups\/(\d+)\/posts\/(\d+)/);
   if (mg) return `fb://group/${mg[1]}/permalink/${mg[2]}`;
   // permalink.php?story_fbid={postId}&id={pageId}
@@ -37,6 +58,19 @@ function buildFBAppDeepLink(url: string): string | null {
   const mph = u.match(/facebook\.com\/([^/]+)\/photos\/(\d+)/);
   if (mph) return `fb://photo/${mph[2]}`;
   return null;
+}
+
+// Navega a un scheme; si el evento blur no se dispara en el timeout (app no
+// instalada / no se abrió), cae a la URL https canónica en otra pestaña.
+function navigateWithBlurFallback(scheme: string, httpsUrl: string, timeoutMs = 1800) {
+  let blurred = false;
+  const onBlur = () => { blurred = true; };
+  window.addEventListener('blur', onBlur);
+  window.location.href = scheme;
+  setTimeout(() => {
+    window.removeEventListener('blur', onBlur);
+    if (!blurred) window.open(httpsUrl, '_blank');
+  }, timeoutMs);
 }
 
 export async function openExternalLink(url: string) {
@@ -49,19 +83,35 @@ export async function openExternalLink(url: string) {
     }
   } catch {}
 
-  const fbDeepLink = isMobileBrowser() ? buildFBAppDeepLink(url) : null;
-  if (fbDeepLink) {
-    let blurred = false;
-    const onBlur = () => { blurred = true; };
-    window.addEventListener('blur', onBlur);
-    window.location.href = fbDeepLink;
-    setTimeout(() => {
-      window.removeEventListener('blur', onBlur);
-      if (!blurred) window.open(url, '_blank');
-    }, 1800);
+  if (!isMobileBrowser()) {
+    window.open(url, '_blank');
     return;
   }
-  window.open(url, '_blank');
+
+  const canonical = canonicalFBUrl(url);
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if (isIOS && /facebook\.com/.test(canonical)) {
+    const m = canonical.match(/facebook\.com\/([^/]+)\/posts\/(\d+)/);
+    if (m) {
+      navigateWithBlurFallback(`fb://profile/${m[1]}/posts?id=${m[2]}`, canonical);
+      return;
+    }
+  }
+
+  const chromeIntent = isChromeAndroid() ? buildFBChromeIntent(canonical) : null;
+  if (chromeIntent) {
+    navigateWithBlurFallback(chromeIntent, canonical);
+    return;
+  }
+
+  const dl = fbDeepLinkFor(canonical);
+  if (dl) {
+    navigateWithBlurFallback(dl, canonical);
+    return;
+  }
+
+  window.open(canonical, '_blank');
 }
 
 export function formatDateOnly(value: string | Date | null | undefined, options?: Intl.DateTimeFormatOptions): string {
