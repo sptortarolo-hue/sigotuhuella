@@ -522,6 +522,10 @@ function openPostInFB(url) {
       action: "android.intent.action.VIEW",
       data: url,
       packageName: CONFIG.fbPackage,
+      flags: [
+        "android.intent.flag.ACTIVITY_NEW_TASK",
+        "android.intent.flag.ACTIVITY_TURN_SCREEN_ON",
+      ],
     });
     app.startActivity(intent);
   } catch (e) {
@@ -780,12 +784,30 @@ function cancelScreenAwake() {
   try { device.cancelKeepingAwake(); } catch (e) {}
 }
 
+// Enciende la pantalla si está apagada. Sin root, device.wakeUp() suele fallar
+// en Samsung → probar en cascada: wakeUpIfNeeded → wakeUp → keyevent 26 (power)
+// → shell input keyevent. Devolver true si al final la pantalla quedó encendida.
 function wakeScreenIfNeeded() {
   try {
-    if (device.isScreenOn && !device.isScreenOn()) {
-      device.wakeUpIfNeeded();
+    if (device.isScreenOn && device.isScreenOn()) return true;
+  } catch (e) {}
+  try { device.wakeUpIfNeeded(); } catch (e) {}
+  sleep(800);
+  try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
+  try { device.wakeUp(); } catch (e) {}
+  sleep(800);
+  try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
+  try { keyCode(26); } catch (e) {}
+  sleep(800);
+  try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
+  try { shell("input keyevent 26", true); } catch (e) {}
+  sleep(800);
+  try {
+    if (device.isScreenOn && device.isScreenOn()) {
+      return true;
     }
   } catch (e) {}
+  return false;
 }
 
 // Desbloquea la pantalla si está bloqueada (lock screen). El relay corre 24/7
@@ -818,10 +840,12 @@ function isScreenLocked() {
 function ensureUnlocked() {
   if (!CONFIG.enableAutoUnlock) return false;
   try {
-    if (device.isScreenOn && !device.isScreenOn()) {
-      device.wakeUpIfNeeded();
-      sleep(rnd(1500, 2500));
+    var woken = wakeScreenIfNeeded();
+    if (!woken) {
+      console.log("[native] no se pudo encender la pantalla");
+      sendDebug("screen-wake-fail");
     }
+    sleep(rnd(1500, 2500));
     // Primer swipe: pasar la pantalla de bloqueo inicial (OneUI muestra reloj)
     try {
       swipe(screenWidth() / 2, screenHeight() * 0.8, screenWidth() / 2, screenHeight() * 0.2, 400);
