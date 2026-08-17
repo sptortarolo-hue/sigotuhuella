@@ -812,7 +812,15 @@ function shizukuCmd(cmd) {
 }
 
 function shizukuAvailable() {
-  try { return typeof shizuku === "function"; } catch (e) { return false; }
+  try {
+    if (typeof shizuku !== "function") return false;
+    // isOperational(): servicio corriendo Y AutoJs6 con permiso concedido.
+    // typeof shizuku === "function" es true aunque falte el permiso, así que
+    // usar isOperational() evita el aviso falso de "disponible".
+    if (typeof shizuku.isOperational === "function") return !!shizuku.isOperational();
+    if (typeof shizuku.isRunning === "function") return !!shizuku.isRunning();
+    return true;
+  } catch (e) { return false; }
 }
 
 // Mantiene la pantalla encendida (wake lock de AutoJs6). keepScreenOn acepta
