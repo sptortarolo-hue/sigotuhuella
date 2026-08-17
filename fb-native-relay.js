@@ -500,10 +500,9 @@ function searchBoxGone(timeoutMs) {
   return false;
 }
 
-function shareToGroup(task) {
+function openPostAndShareGroup(task) {
   var url = task.target_url;
   var groupName = task.group_name || task.fb_group_id;
-  var message = task.message || "";
   var t = CONFIG.findTimeoutMs;
 
   console.log("[native] compartiendo en: " + groupName);
@@ -588,6 +587,17 @@ function shareToGroup(task) {
     sendDebug("no-share-to-group", url);
     throw new Error("Share to group not found");
   }
+}
+
+// Busca y publica en el grupo dentro del buscador YA abierto (reutilizado del
+// grupo anterior en un batch multi-grupo). Borra el texto previo del box.
+function searchGroupAndPublish(task) {
+  var url = task.target_url;
+  var groupName = task.group_name || task.fb_group_id;
+  var message = task.message || "";
+  var t = CONFIG.findTimeoutMs;
+
+  console.log("[native] siguiente grupo: " + groupName);
 
   // 6) Buscar el grupo. Si el nombre de la DB viene inflado (p.ej. "grupo sigo
   //    tu huella" cuando el real es "sigo tu huella"), quitar prefijos comunes
@@ -607,7 +617,7 @@ function shareToGroup(task) {
     searchName = trimmed;
     console.log("[native] nombre de grupo normalizado: '" + groupName + "' -> '" + searchName + "'");
   }
-  ok = typeIntoEditText(searchName, t);
+  var ok = typeIntoEditText(searchName, t);
   if (!ok) {
     sendDebug("no-group-search", url);
     throw new Error("Group search input not found");
@@ -688,15 +698,18 @@ function shareToGroup(task) {
     sendDebug("share-no-confirm", url);
   }
 
-  // 11) Limpiar: cerrar el sheet de confirmación y el buscador de grupos para
-  //     que el próximo share arranque desde el feed sin estados residuales.
+  return true;
+}
+
+// Cierra el sheet de confirmación y el buscador de grupos tras el ÚLTIMO grupo
+// de un batch, para que el próximo share arranque desde el feed limpio. Entre
+// grupos del mismo batch NO se llama: se reutiliza el buscador abierto.
+function cleanupAfterBatch() {
   sleep(rnd(1500, 3000));
   try { back(); } catch (e) {}
   sleep(rnd(1500, 2500));
   try { back(); } catch (e) {}
   sleep(rnd(1000, 2000));
-
-  return true;
 }
 
 // ─── Loop principal ───────────────────────────────────────────────────────
@@ -775,38 +788,74 @@ function runPollLoop() {
     keepScreenAwake();
     wakeScreenIfNeeded();
     try {
-      var data = apiGet("/fb/pending?limit=1&action=share");
+      // Traer varias tareas pendientes y agruparlas por post (target_url): las
+      // del mismo post se comparten en batch reutilizando el buscador (borra el
+      // texto, escribe el próximo grupo y continúa), en vez de reiniciar todo.
+      var data = apiGet("/fb/pending?limit=10&action=share");
       var tasks = data.tasks || [];
       if (tasks.length === 0) {
         sleep(CONFIG.pollIntervalMs);
         continue;
       }
 
-      var task = tasks[0];
-      console.log("[native] tarea " + task.id + " (share)");
-      try {
-        shareToGroup(task);
-        apiPost("/fb/completed", { task_updates: [{ task_id: task.id }] });
-        console.log("[native] tarea " + task.id + " completada");
-      } catch (e) {
-        console.error("[native] tarea " + task.id + " falló: " + e.message);
-        if (isInterrupted(e)) {
-          console.error("[native] script interrumpido, saliendo");
-          try { apiPost("/fb/failed", { task_id: task.id, error: "script interrupted" }); } catch (e2) {}
-          return;
+      var groups = {};
+      var order = [];
+      for (var i = 0; i < tasks.length; i++) {
+        var key = tasks[i].target_url || ("task-" + tasks[i].id);
+        if (!groups[key]) {
+          groups[key] = [];
+          order.push(key);
         }
-        try { apiPost("/fb/failed", { task_id: task.id, error: e.message }); } catch (e2) {}
-        if (String(e.message).indexOf("checkpoint") >= 0) {
-          console.error("[native] checkpoint detectado → frenando relay");
-          sendDebug("checkpoint-stop");
-          return;
-        }
+        groups[key].push(tasks[i]);
       }
 
-      // Delay humano entre grupos
-      var delay = rnd(CONFIG.minDelayMs, CONFIG.maxDelayMs);
-      console.log("[native] esperando " + Math.round(delay / 1000) + "s...");
-      sleep(delay);
+      for (var g = 0; g < order.length; g++) {
+        var batch = groups[order[g]];
+        console.log("[native] batch de " + batch.length + " grupo(s) para el post " + (batch[0].target_url || batch[0].id));
+
+        for (var b = 0; b < batch.length; b++) {
+          var task = batch[b];
+          console.log("[native] tarea " + task.id + " (share)");
+          try {
+            if (b === 0) {
+              openPostAndShareGroup(task);
+              searchGroupAndPublish(task);
+            } else {
+              searchGroupAndPublish(task);
+            }
+            apiPost("/fb/completed", { task_updates: [{ task_id: task.id }] });
+            console.log("[native] tarea " + task.id + " completada");
+          } catch (e) {
+            console.error("[native] tarea " + task.id + " falló: " + e.message);
+            if (isInterrupted(e)) {
+              console.error("[native] script interrumpido, saliendo");
+              try { apiPost("/fb/failed", { task_id: task.id, error: "script interrupted" }); } catch (e2) {}
+              return;
+            }
+            try { apiPost("/fb/failed", { task_id: task.id, error: e.message }); } catch (e2) {}
+            if (String(e.message).indexOf("checkpoint") >= 0) {
+              console.error("[native] checkpoint detectado → frenando relay");
+              sendDebug("checkpoint-stop");
+              return;
+            }
+            // Si falló un grupo, no seguir con el resto del mismo post
+            break;
+          }
+
+          // Delay humano entre grupos del mismo post
+          var delay = rnd(CONFIG.minDelayMs, CONFIG.maxDelayMs);
+          console.log("[native] esperando " + Math.round(delay / 1000) + "s entre grupos...");
+          sleep(delay);
+        }
+
+        // Al terminar el post completo, limpiar la app (cerrar buscador).
+        cleanupAfterBatch();
+      }
+
+      // Delay humano entre posts distintos
+      var delay2 = rnd(CONFIG.minDelayMs, CONFIG.maxDelayMs);
+      console.log("[native] esperando " + Math.round(delay2 / 1000) + "s...");
+      sleep(delay2);
 
     } catch (e) {
       if (isInterrupted(e)) {
