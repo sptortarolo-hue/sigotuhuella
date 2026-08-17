@@ -283,10 +283,15 @@ function tapStrategy(node, idx) {
   return false;
 }
 
-// Click en un nodo por texto/desc con reintentos cortos.
+// Click en un nodo por texto/desc con reintentos cortos. Si scrollIntoView está
+// activo y el nodo no es visible (p.ej. el botón Compartir de un post largo está
+// debajo del pliegue), hace scroll gestual hacia abajo hasta encontrarlo.
 function clickLabel(labels, timeoutMs, scrollIntoView) {
   var deadline = Date.now() + (timeoutMs || CONFIG.findTimeoutMs);
   var logged = false;
+  var scrolls = 0;
+  var lastScrollAt = 0;
+  var maxScrolls = 8;
   while (Date.now() < deadline) {
     var node = findNode(labels, 2000);
     if (node) {
@@ -294,6 +299,16 @@ function clickLabel(labels, timeoutMs, scrollIntoView) {
         if (scrollIntoView) node.scrollForward();
         if (tapStrategy(node, 0)) return true;
       } catch (e) {}
+    } else if (scrollIntoView && scrolls < maxScrolls && Date.now() - lastScrollAt > 1500) {
+      // El nodo no está en el árbol visible → el contenido es largo y el botón
+      // está más abajo. Swipe hacia arriba (scroll down) con gesto humano y
+      // seguir buscando. Se repite hasta maxScrolls o el timeout.
+      try {
+        scrollDownOnce();
+        scrolls++;
+        lastScrollAt = Date.now();
+        console.log("[native] scroll " + scrolls + "/" + maxScrolls + " buscando '" + labels[0] + "'...");
+      } catch (e2) {}
     }
     if (!logged && Date.now() - deadline > -8000) {
       // log una sola vez si pasa ~7s sin encontrar el label
@@ -303,6 +318,24 @@ function clickLabel(labels, timeoutMs, scrollIntoView) {
     sleep(500);
   }
   return false;
+}
+
+// Scroll gestual hacia abajo (swipe de abajo hacia arriba), como un humano.
+// Usa Shizuku si está disponible (más fiable sobre el árbol de FB nativo).
+function scrollDownOnce() {
+  var h = screenHeight();
+  var w = screenWidth();
+  var x = Math.round(w / 2);
+  var y1 = Math.round(h * 0.75);
+  var y2 = Math.round(h * 0.25);
+  try {
+    if (shizukuAvailable()) {
+      shizukuCmd("input swipe " + x + " " + y1 + " " + x + " " + y2 + " 400");
+    } else {
+      swipe(x, y1, x, y2, 400);
+    }
+  } catch (e) {}
+  sleep(800);
 }
 
 // Escribe texto en el campo EditText visible (setText directo).
