@@ -30,6 +30,10 @@ var CONFIG = {
   fbPackage: "com.facebook.katana",
   // Cuánto esperar cada selector (ms)
   findTimeoutMs: 15000,
+  // DEBUG MANUAL: true → el script llega hasta "Seleccionar destino" y espera
+  // a que TOCÁS VOS "En un grupo"; cuando detecta el buscador, captura y sube
+  // el dump de la pantalla real (para armar los selectores correctos).
+  manualTap: false,
 };
 
 var API_BASE = CONFIG.apiBase;
@@ -485,19 +489,47 @@ function shareToGroup(task) {
     sleep(rnd(1500, 2500));
   } catch (e) {}
 
+  // 5a) MODO MANUAL: el script llega hasta acá y espera a que TOCÁS VOS
+  //    "En un grupo" a mano. Cuando detecta el buscador, captura la pantalla
+  //    real (picker de grupos) para armar los selectores. Después sigue el
+  //    flujo automático (escribir grupo, tocar row, publicar).
+  if (CONFIG.manualTap) {
+    console.log("=== MODO MANUAL ===");
+    console.log("TOCA VOS 'En un grupo' AHORA (hasta 40s). Cuando aparezca el buscador, el script lo detecta y captura.");
+    var manualDeadline = Date.now() + 40000;
+    var editFound = null;
+    while (Date.now() < manualDeadline && !editFound) {
+      try {
+        editFound = className("android.widget.EditText").findOne(800);
+      } catch (e) {}
+      if (!editFound) sleep(300);
+    }
+    if (editFound) {
+      console.log("[native] detectado el buscador (tap manual OK). Capturando pantalla real...");
+      sendDebug("manual-group-search", url);
+      sleep(1000);
+      searchOpened = true;
+    } else {
+      sendDebug("manual-no-tap", url);
+      throw new Error("No se detectó el buscador (no tocaste 'En un grupo' a tiempo)");
+    }
+  }
+
   // 5b) Click en "En un grupo". Cada intento prueba una estrategia de tap
   //    distinta y verifica que se abrió el buscador (EditText).
   var groupLabels = ["En un grupo", "In a group", "Un grupo", "Grupo", "Compartir en un grupo", "Share to a group"];
   var searchOpened = false;
-  for (var attempt = 0; attempt < 9 && !searchOpened; attempt++) {
-    var target = findNode(groupLabels, 3000);
-    if (target) {
-      console.log("[native] tap 'En un grupo' intento " + (attempt + 1) + " (estr " + attempt + ")");
-      tapStrategy(target, attempt);
+  if (!CONFIG.manualTap) {
+    for (var attempt = 0; attempt < 9 && !searchOpened; attempt++) {
+      var target = findNode(groupLabels, 3000);
+      if (target) {
+        console.log("[native] tap 'En un grupo' intento " + (attempt + 1) + " (estr " + attempt + ")");
+        tapStrategy(target, attempt);
+      }
+      sleep(rnd(2500, 3500));
+      var edit = className("android.widget.EditText").findOne(1000);
+      searchOpened = !!(edit && edit.visibleToUser());
     }
-    sleep(rnd(2500, 3500));
-    var edit = className("android.widget.EditText").findOne(1000);
-    searchOpened = !!(edit && edit.visibleToUser());
   }
   if (!searchOpened) {
     sendDebug("no-share-to-group", url);
