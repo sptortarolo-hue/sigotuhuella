@@ -102,6 +102,9 @@ function capitalize(str) {
 
 // Busca el primer nodo clickable visible debajo de un EditText (fallback
 // posicional: el resultado del buscador aparece justo abajo del box).
+// No filtra por clase: FB usa Compose/React Native, los rows pueden ser de
+// cualquier tipo. Se toma el primer nodo visible con texto/desc debajo del box
+// y se clickea su ancestro clickable.
 function clickResultBelowEditText(timeoutMs) {
   var deadline = Date.now() + (timeoutMs || CONFIG.findTimeoutMs);
   while (Date.now() < deadline) {
@@ -109,11 +112,24 @@ function clickResultBelowEditText(timeoutMs) {
       var edit = className("android.widget.EditText").findOne(1500);
       if (edit && edit.visibleToUser()) {
         var eb = edit.bounds();
-        var below = className("android.view.View")
-          .clickable(true)
-          .bounds(0, eb.bottom + 1, screenWidth(), screenHeight())
-          .findOne(1500);
-        if (below && below.visibleToUser()) return below;
+        var belowY = eb.bottom + 1;
+        // Nodos con texto visible debajo del box
+        var withText = textMatches(/.*/).find();
+        var best = null;
+        for (var i = 0; i < withText.length; i++) {
+          var n = withText[i];
+          try {
+            if (!n.visibleToUser()) continue;
+            var b = n.bounds();
+            if (b.top < belowY) continue;
+            var txt = n.text() || "";
+            if (!txt.trim()) continue;
+            // elegir el primero debajo del box (el resultado de la búsqueda)
+            best = n;
+            break;
+          } catch (e) {}
+        }
+        if (best) return best;
       }
     } catch (e) {}
     sleep(400);
@@ -601,7 +617,13 @@ function shareToGroup(task) {
     console.log("[native] row por nombre no encontrado, probando click debajo del box");
     var rowNode = clickResultBelowEditText(t);
     if (rowNode) {
-      tapStrategy(rowNode, 0);
+      // rotar estrategias de tap para aterrizar en el row real
+      var rowClicked = false;
+      for (var rs = 0; rs < 5 && !rowClicked; rs++) {
+        tapStrategy(rowNode, rs);
+        sleep(1200);
+        rowClicked = className("android.widget.EditText").findOne(500) === null;
+      }
       ok = true;
     }
   }
