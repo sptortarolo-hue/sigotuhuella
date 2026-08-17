@@ -35,6 +35,11 @@ var CONFIG = {
   // puede vivir sin patrón). Para PIN, poner los dígitos en orden.
   enableAutoUnlock: true,
   screenPin: "",
+  // Mantener la pantalla encendida mientras el celular está cargando, usando
+  // Shizuku ("svc power stayon usb" — comportamiento del "No dormir" del modo
+  // desarrollador). Ideal para un relay 24/7 que vive enchufado: así la
+  // pantalla nunca se apaga y no hace falta despertarla. Requiere Shizuku.
+  stayAwakeWhileCharging: true,
   // Patrón del PIN: dónde buscar cada dígito en el keypad del lock screen.
   // Samsung OneUI suele exponer los números como text()/desc(). Con pinPattern
   // vacío se busca el dígito como texto; si no aparece, usar sendDebug para
@@ -517,6 +522,27 @@ function otherInstanceRunning() {
 // ─── Abrir el post en la app nativa ───────────────────────────────────────
 
 function openPostInFB(url) {
+  // Con Shizuku, "am start" con FLAG_ACTIVITY_TURN_SCREEN_ON (0x40000000)
+  // enciende la pantalla de forma fiable (privilegios ADB). En autoJs6 el flag
+  // "activity_turn_screen_on" del app.intent puede no estar en el enum, así que
+  // acá el fallback directo por Shizuku es más seguro para el relay 24/7.
+  try {
+    if (shizukuAvailable()) {
+      var esc = String(url).replace(/"/g, "%22");
+      var r = shizukuCmd("am start -a android.intent.action.VIEW -d \"" + esc + "\" -p com.facebook.katana -f 0x50000000");
+      if (r && r.code === 0) {
+        var deadline = Date.now() + 20000;
+        while (Date.now() < deadline) {
+          try {
+            var cur = currentPackage();
+            if (cur && cur.indexOf("com.facebook") >= 0) return;
+          } catch (e2) {}
+          sleep(500);
+        }
+        return;
+      }
+    }
+  } catch (e) {}
   try {
     var intent = app.intent({
       action: "android.intent.action.VIEW",
@@ -770,8 +796,31 @@ function cleanupAfterBatch() {
 
 // ─── Loop principal ───────────────────────────────────────────────────────
 
+// Ejecuta un comando shell vía Shizuku (privilegios ADB, SIN root). AutoJs6
+// expone la función global shizuku() cuando el servicio Shizuku está corriendo
+// y AutoJs6 tiene el toggle habilitado. Devuelve el ShellResult o null si no
+// hay Shizuku disponible. En Samsung sin root es la ÚNICA vía fiable para
+// despertar la pantalla (device.wakeUp() y keyevent fallan sin root).
+function shizukuCmd(cmd) {
+  try {
+    if (typeof shizuku !== "function") return null;
+    return shizuku(cmd);
+  } catch (e) {
+    console.log("[native] shizuku falló: " + e.message);
+    return null;
+  }
+}
+
+function shizukuAvailable() {
+  try { return typeof shizuku === "function"; } catch (e) { return false; }
+}
+
 // Mantiene la pantalla encendida (wake lock de AutoJs6). keepScreenOn acepta
 // duración en ms, NO boolean. Se renueva periódicamente para no vencerse.
+// OJO: según el issue #361 de AutoJs6, keepScreenOn solo sostiene la pantalla
+// mientras AutoJs6 tiene foco; al perderlo (FB en primer plano) la pantalla
+// igual se apaga. Por eso el desbloqueo a demanda vía Shizuku es lo que de
+// verdad sostiene el relay 24/7.
 function keepScreenAwake() {
   try {
     device.keepScreenOn(30 * 60 * 1000);
@@ -784,14 +833,30 @@ function cancelScreenAwake() {
   try { device.cancelKeepingAwake(); } catch (e) {}
 }
 
-// Enciende la pantalla si está apagada. Sin root, device.wakeUp() suele fallar
-// en Samsung → probar en cascada: wakeUpIfNeeded → wakeUp → keyevent 224
-// (KEYCODE_WAKEUP, enciende sin alternar como el 26/POWER) → shell.
+// Enciende la pantalla si está apagada. En Samsung sin root, device.wakeUp()
+// suele fallar → usar Shizuku (ADB) primero y luego cascada:
+//   Shizuku input keyevent 224 (KEYCODE_WAKEUP) → wakeUpIfNeeded → wakeUp →
+//   keyCode(224) → shell root.
 // Devolver true si al final la pantalla quedó encendida.
 function wakeScreenIfNeeded() {
   try {
     if (device.isScreenOn && device.isScreenOn()) return true;
   } catch (e) {}
+
+  // Shizuku: KEYCODE_WAKEUP (224) enciende la pantalla con privilegios ADB,
+  // funciona en Samsung sin root. Algunos dispositivos con AOD necesitan el
+  // POWER (26) para salir del modo reloj.
+  try {
+    if (shizukuAvailable()) {
+      shizukuCmd("input keyevent 224");
+      sleep(1200);
+      if (device.isScreenOn && device.isScreenOn()) return true;
+      shizukuCmd("input keyevent 26");
+      sleep(1200);
+      if (device.isScreenOn && device.isScreenOn()) return true;
+    }
+  } catch (e) {}
+
   // AOD de Samsung: isScreenOn devuelve false aunque esté mostrando el reloj.
   // Si el paquete visible es AOD/keyguard/systemui, la pantalla está visible
   // → no gastar intentos de wake ni mandar el falso "screen-wake-fail".
@@ -863,6 +928,17 @@ function ensureUnlocked() {
     sleep(rnd(1500, 2500));
 
     var pin = String(CONFIG.screenPin || "");
+
+    // Con Shizuku, "wm dismiss-keyguard" descarta el keyguard directamente
+    // (privilegios ADB). Sin PIN deja el celular desbloqueado al toque; con
+    // PIN deja el keypad numérico listo. Es mucho más fiable que swipe a ciegas.
+    if (shizukuAvailable()) {
+      try {
+        shizukuCmd("wm dismiss-keyguard");
+        sleep(rnd(1200, 2000));
+      } catch (e) {}
+    }
+
     var unlocked = false;
 
     // Reintentar el ciclo swipe → keypad hasta 4 veces. Desde el AOD hacen
@@ -876,7 +952,16 @@ function ensureUnlocked() {
       }
       // Swipe hacia arriba: pasar el AOD/lockscreen inicial
       try {
-        swipe(screenWidth() / 2, screenHeight() * 0.8, screenWidth() / 2, screenHeight() * 0.2, 400);
+        if (shizukuAvailable()) {
+          // input swipe vía Shizuku (ADB) es más fiable que swipe() de
+          // accessibility sobre el keyguard de Samsung.
+          var sx = Math.round(screenWidth() / 2);
+          var sy1 = Math.round(screenHeight() * 0.8);
+          var sy2 = Math.round(screenHeight() * 0.2);
+          shizukuCmd("input swipe " + sx + " " + sy1 + " " + sx + " " + sy2 + " 400");
+        } else {
+          swipe(screenWidth() / 2, screenHeight() * 0.8, screenWidth() / 2, screenHeight() * 0.2, 400);
+        }
         sleep(rnd(1200, 2000));
       } catch (e) {}
 
@@ -905,7 +990,14 @@ function ensureUnlocked() {
         sleep(rnd(1200, 2000));
         // Segundo swipe por si tras el PIN pide "siguiente"/confirmar
         try {
-          swipe(screenWidth() / 2, screenHeight() * 0.7, screenWidth() / 2, screenHeight() * 0.3, 300);
+          if (shizukuAvailable()) {
+            var sx2 = Math.round(screenWidth() / 2);
+            var sya = Math.round(screenHeight() * 0.7);
+            var syb = Math.round(screenHeight() * 0.3);
+            shizukuCmd("input swipe " + sx2 + " " + sya + " " + sx2 + " " + syb + " 300");
+          } else {
+            swipe(screenWidth() / 2, screenHeight() * 0.7, screenWidth() / 2, screenHeight() * 0.3, 300);
+          }
           sleep(rnd(800, 1500));
         } catch (e) {}
       }
@@ -970,6 +1062,23 @@ function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
   parkConsole();
+
+  // Shizuku es OBLIGATORIO para el relay 24/7 en Samsung sin root: es la única
+  // forma de despertar la pantalla desde AOD/sueño (device.wakeUp() y keyevent
+  // fallan sin root). Avisar en el arranque si no está disponible.
+  if (shizukuAvailable()) {
+    console.log("[native] Shizuku disponible: desbloqueo 24/7 OK");
+    if (CONFIG.stayAwakeWhileCharging) {
+      try {
+        var sa = shizukuCmd("svc power stayon usb");
+        console.log("[native] stay-on-while-charging activado" + (sa && sa.code === 0 ? " (OK)" : " (sin efecto)"));
+      } catch (e) {
+        console.log("[native] stayon falló: " + e.message);
+      }
+    }
+  } else {
+    console.warn("[native] Shizuku NO disponible: el desbloqueo automático de pantalla no va a funcionar. Instalar Shizuku + activar el toggle en AutoJs6 (Ajustes/Inicio) y conceder ADB wireless una vez.");
+  }
 
   // Mantener pantalla encendida mientras el relay corre
   keepScreenAwake();
