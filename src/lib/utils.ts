@@ -14,6 +14,19 @@ export function buildFBPostUrl(pagePostId: string): string {
   return `https://www.facebook.com/${pagePostId}`;
 }
 
+function isMobileBrowser(): boolean {
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
+function buildFBAppDeepLink(url: string): string | null {
+  const m = url.match(/facebook\.com\/(\d+)\/posts\/(\d+)/);
+  if (!m) return null;
+  const [, pageId, postId] = m;
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isIOS) return `fb://profile/${pageId}/posts?id=${postId}`;
+  return `fb://facewebmodal/f?href=${encodeURIComponent(url)}`;
+}
+
 export async function openExternalLink(url: string) {
   try {
     const { Capacitor, registerPlugin } = await import('@capacitor/core');
@@ -23,6 +36,19 @@ export async function openExternalLink(url: string) {
       return;
     }
   } catch {}
+
+  const fbDeepLink = isMobileBrowser() ? buildFBAppDeepLink(url) : null;
+  if (fbDeepLink) {
+    let blurred = false;
+    const onBlur = () => { blurred = true; };
+    window.addEventListener('blur', onBlur);
+    window.location.href = fbDeepLink;
+    setTimeout(() => {
+      window.removeEventListener('blur', onBlur);
+      if (!blurred) window.open(url, '_blank');
+    }, 1800);
+    return;
+  }
   window.open(url, '_blank');
 }
 

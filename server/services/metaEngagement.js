@@ -223,28 +223,34 @@ async function saveSetting(key, value) {
   );
 }
 
-// Page Insights API fallback: intenta obtener métricas vía insights si el endpoint directo falla
+// Page Insights API fallback: obtiene métricas a nivel POST via el edge
+// GET /{page_post_id}/insights (documentado en "Get Metrics of a Page Post").
+// Requiere pages_read_engagement en el token.
 async function tryInsightsFallback(post, token) {
-  if (!post.page_post_id) return false;
-  // Extract page_id from page_post_id (format: PAGEID_POSTID)
-  const parts = post.page_post_id.split('_');
-  if (parts.length < 2) return false;
-  const pageId = parts[0];
+  if (!post.page_post_id || !/^\d+_\d+$/.test(post.page_post_id)) return false;
   try {
-    const { data } = await axios.get(`${GRAPH_API}/${pageId}/insights`, {
+    const { data } = await axios.get(`${GRAPH_API}/${post.page_post_id}/insights`, {
       params: {
-        metric: 'post_reactions_by_type_total',
-        permalink: 'https://www.facebook.com/' + post.page_post_id,
+        metric: 'post_reactions_by_type_total,post_shares',
         access_token: token,
       },
       timeout: 15000,
     });
-    const reactionsMetric = (data?.data || []).find(m => m.name === 'post_reactions_by_type_total');
-    if (reactionsMetric && reactionsMetric.values?.[0]) {
-      const totalReactions = Object.values(reactionsMetric.values[0]).reduce((sum, v) => sum + (parseInt(v, 10) || 0), 0);
+    const metrics = data?.data || [];
+    const reactionsMetric = metrics.find(m => m.name === 'post_reactions_by_type_total');
+    const sharesMetric = metrics.find(m => m.name === 'post_shares');
+    const reactionsValue = reactionsMetric?.values?.[0]?.value;
+    const sharesValue = sharesMetric?.values?.[0]?.value;
+    if (reactionsValue !== undefined || sharesValue !== undefined) {
+      let totalReactions = 0;
+      if (reactionsValue && typeof reactionsValue === 'object') {
+        totalReactions = Object.values(reactionsValue).reduce((sum, v) => sum + (parseInt(v, 10) || 0), 0);
+      } else {
+        totalReactions = parseInt(reactionsValue, 10) || 0;
+      }
       await pool.query(
-        `UPDATE facebook_page_posts SET like_count = $1, metrics_updated_at = NOW() WHERE id = $2`,
-        [totalReactions, post.id]
+        `UPDATE facebook_page_posts SET like_count = $1, share_count = $2, metrics_updated_at = NOW() WHERE id = $3`,
+        [totalReactions, parseInt(sharesValue, 10) || 0, post.id]
       );
       console.log('[MetaEngagement] FB insights fallback OK for ' + post.page_post_id + ': ' + totalReactions + ' reactions');
       return true;
@@ -310,20 +316,18 @@ export async function syncFacebookEngagement() {
   console.log('[MetaEngagement] FB sync started: ' + postsRes.rows.length + ' posts to process');
   for (const post of postsRes.rows) {
     try {
-      const params = { access_token: token, fields: 'id,reactions.summary(true),comments.summary(true),shares' };
+      const params = { access_token: token, fields: 'id,reactions.summary(true),comments.summary(true)' };
       const { data } = await axios.get(`${GRAPH_API}/${post.page_post_id}`, { params });
       const reactions = data.reactions?.summary?.total_count ?? 'N/A';
       const cmts = data.comments?.summary?.total_count ?? 'N/A';
-      const shares = data.shares?.count ?? 'N/A';
-      if (posts === 0) console.log('[MetaEngagement] FB first post response sample: reactions=' + reactions + ' comments=' + cmts + ' shares=' + shares);
+      if (posts === 0) console.log('[MetaEngagement] FB first post response sample: reactions=' + reactions + ' comments=' + cmts);
       await pool.query(
         `UPDATE facebook_page_posts SET
-           like_count = $1, comment_count = $2, share_count = $3, metrics_updated_at = NOW()
+           like_count = $1, comment_count = $2, metrics_updated_at = NOW()
          WHERE id = $4`,
         [
           parseInt(data.reactions?.summary?.total_count, 10) || 0,
           parseInt(data.comments?.summary?.total_count, 10) || 0,
-          parseInt(data.shares?.count, 10) || 0,
           post.id,
         ]
       );

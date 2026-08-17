@@ -193,7 +193,7 @@ export default function BuscarFacebook() {
                   <button onClick={() => openExternalLink(post.fb_post_url)}
                     className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium">
                     <ExternalLink className="w-3.5 h-3.5 shrink-0" /> Ver publicación original en Facebook
-                  </a>
+                  </button>
                 )}
 
               </div>

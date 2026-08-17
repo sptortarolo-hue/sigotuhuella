@@ -71,6 +71,7 @@ interface PetDetailPanelProps {
   users?: any[];
   onRefresh?: () => void;
   onOpenMyPet?: (myPetId: string) => void;
+  onPublish?: (pet: any) => void;
 }
 
 export default function PetDetailPanel({ data, onSelectUser, isMobile, onClose, pets, users, onRefresh, onOpenMyPet, onPublish }: PetDetailPanelProps) {

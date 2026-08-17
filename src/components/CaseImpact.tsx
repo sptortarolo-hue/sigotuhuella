@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '@/src/lib/api';
+import { openExternalLink, buildFBPostUrl } from '@/src/lib/utils';
 import { Instagram, Facebook, Heart, MessageCircle, Eye, ExternalLink, Send, Loader2, Copy, ChevronDown } from 'lucide-react';
 
 type PlatformComment = {

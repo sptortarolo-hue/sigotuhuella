@@ -930,6 +930,77 @@ router.get('/sync-status', requireAdmin, async (_req, res) => {
   res.json(getSyncState());
 });
 
+router.get('/engagement-diagnose', requireAdmin, async (_req, res) => {
+  const result = { steps: [], ok: false };
+  try {
+    const { default: axios } = await import('axios');
+    const { getStoredToken } = await import('../services/instagramService.js');
+    const token = await getStoredToken();
+    if (!token) {
+      result.steps.push({ step: 'token', ok: false, detail: 'No hay token almacenado. Conectá Facebook desde el admin.' });
+      return res.json(result);
+    }
+    result.token = token ? `${token.slice(0, 10)}...${token.slice(-6)}` : null;
+
+    let me = null;
+    try {
+      const meRes = await axios.get('https://graph.facebook.com/v22.0/me', {
+        params: { fields: 'id,name', access_token: token },
+        timeout: 15000,
+      });
+      me = meRes.data;
+      result.steps.push({ step: 'token', ok: true, detail: `Token válido (page: ${me.name || me.id})` });
+    } catch (err) {
+      result.steps.push({ step: 'token', ok: false, detail: err.response?.data?.error?.message || err.message });
+      return res.json(result);
+    }
+
+    const postsRes = await pool.query(
+      `SELECT id, page_post_id FROM facebook_page_posts
+       WHERE status = 'published' AND page_post_id IS NOT NULL
+       ORDER BY published_at DESC NULLS LAST LIMIT 1`
+    );
+    const post = postsRes.rows[0];
+    if (!post) {
+      result.steps.push({ step: 'posts', ok: false, detail: 'No hay posts publicados con page_post_id para diagnosticar.' });
+      return res.json(result);
+    }
+    result.page_post_id = post.page_post_id;
+
+    try {
+      const { data } = await axios.get(`https://graph.facebook.com/v22.0/${post.page_post_id}`, {
+        params: { fields: 'id,reactions.summary(true),comments.summary(true)', access_token: token },
+        timeout: 15000,
+      });
+      result.steps.push({
+        step: 'main', ok: true,
+        detail: `reactions=${data.reactions?.summary?.total_count ?? 'N/A'}, comments=${data.comments?.summary?.total_count ?? 'N/A'}`,
+      });
+      result.ok = true;
+    } catch (err) {
+      const e = err.response?.data?.error || {};
+      result.steps.push({ step: 'main', ok: false, detail: `[${e.code || ''}] ${e.message || err.message}` });
+
+      try {
+        const insRes = await axios.get(`https://graph.facebook.com/v22.0/${post.page_post_id}/insights`, {
+          params: { metric: 'post_reactions_by_type_total,post_shares', access_token: token },
+          timeout: 15000,
+        });
+        const metrics = insRes.data?.data || [];
+        const names = metrics.map(m => m.name);
+        result.steps.push({ step: 'insights', ok: names.length > 0, detail: `insights OK (${names.join(', ')})` });
+        if (names.length > 0) result.ok = true;
+      } catch (insErr) {
+        const ie = insErr.response?.data?.error || {};
+        result.steps.push({ step: 'insights', ok: false, detail: `[${ie.code || ''}] ${ie.message || insErr.message}` });
+      }
+    }
+  } catch (err) {
+    result.steps.push({ step: 'fatal', ok: false, detail: err.message });
+  }
+  res.json(result);
+});
+
 router.put('/groups/:id/page-member', requireAdmin, async (req, res) => {
   try {
     const { page_is_member, fb_group_id, publish_on_create } = req.body;

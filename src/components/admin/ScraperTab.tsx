@@ -366,8 +366,7 @@ function PostsSection() {
                     <span className="text-[10px] text-gray-400 truncate max-w-[120px]">{item.group_name}</span>
                     <div className="flex items-center gap-1">
                       {item.source === 'fb' && item.fb_post_url && (
-                        <button onClick={() => openExternalLink(item.fb_post_url)}
-                          onClick={e => e.stopPropagation()}
+                        <button onClick={e => { e.stopPropagation(); openExternalLink(item.fb_post_url); }}
                           className="p-1 text-blue-400 hover:text-blue-600">
                           <ExternalLink className="w-3 h-3" />
                         </button>
@@ -444,8 +443,7 @@ function PostsSection() {
                         )}
                         <span className="text-xs text-gray-600 line-clamp-2">{(item.content || '(sin texto)').substring(0, 200)}</span>
                         {item.source === 'fb' && item.fb_post_url && (
-                          <button onClick={() => openExternalLink(item.fb_post_url)}
-                            onClick={e => e.stopPropagation()}
+                          <button onClick={e => { e.stopPropagation(); openExternalLink(item.fb_post_url); }}
                             className="shrink-0 p-1 text-blue-400 hover:text-blue-600">
                             <ExternalLink className="w-3 h-3" />
                           </button>

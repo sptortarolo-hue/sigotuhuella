@@ -5,7 +5,7 @@ import { cn } from '@/src/lib/utils';
 import { formatDateTime } from '@/src/lib/formatDate';
 import {
   Loader2, Plus, X, Trash2, ExternalLink, RefreshCw,
-  Globe, Search, AlertTriangle,
+  Globe, Search, AlertTriangle, Stethoscope,
 } from 'lucide-react';
 
 type SubTab = 'groups';
@@ -27,6 +27,8 @@ export default function FacebookTab() {
   const [fbAuthError, setFbAuthError] = useState<{error: boolean; detail: string}>({ error: false, detail: '' });
   const [editing, setEditing] = useState<FacebookGroup | null>(null);
   const [form, setForm] = useState({ name: '', url: '' });
+  const [diag, setDiag] = useState<any>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -49,6 +51,18 @@ export default function FacebookTab() {
 
   const openNew = () => { setEditing(null); setForm({ name: '', url: '' }); setShowForm(true); };
   const openEdit = (g: FacebookGroup) => { setEditing(g); setForm({ name: g.name, url: g.url }); setShowForm(true); };
+
+  const runDiagnose = async () => {
+    setDiagLoading(true);
+    setDiag(null);
+    try {
+      setDiag(await api.facebook.diagnose());
+    } catch (e: any) {
+      setDiag({ ok: false, steps: [{ step: 'fatal', ok: false, detail: e.message || 'Error al ejecutar diagnóstico' }] });
+    } finally {
+      setDiagLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -156,6 +170,30 @@ export default function FacebookTab() {
             </div>
           </div>
         )}
+
+        <div className="mb-4">
+          <button
+            onClick={runDiagnose}
+            disabled={diagLoading}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold bg-brand-bg text-brand-primary rounded-xl hover:bg-brand-accent/40 transition-all disabled:opacity-50"
+          >
+            {diagLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Stethoscope className="w-4 h-4" />}
+            {diagLoading ? 'Diagnosticando…' : 'Diagnosticar métricas'}
+          </button>
+          {diag && (
+            <div className="mt-3 bg-white border border-brand-accent rounded-xl p-4 text-xs font-mono">
+              <p className="font-bold text-sm mb-2">
+                {diag.ok ? 'Diagnóstico OK' : 'Diagnóstico con errores'}
+                {diag.page_post_id ? ` · post ${diag.page_post_id}` : ''}
+              </p>
+              {Array.isArray(diag.steps) && diag.steps.map((s: any, i: number) => (
+                <p key={i} className={s.ok ? 'text-green-600' : 'text-red-600'}>
+                  {s.ok ? '✓' : '✗'} {s.step}: {s.detail}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
 
         <p className="text-sm text-gray-500 mb-4">{groups.length} grupo(s) · {groups.filter(g => g.is_active).length} activos</p>
 
