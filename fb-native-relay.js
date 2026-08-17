@@ -23,6 +23,11 @@ var CONFIG = {
   token: "wa-relay-a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p",
   // Intervalo de polling cuando no hay tareas (ms)
   pollIntervalMs: 60 * 1000,
+  // Delay al arrancar el script (ms): da tiempo a bloquear la pantalla a mano
+  // antes de que arranque el primer batch (útil para probar el flujo 24/7).
+  // En producción desatendida no molesta: solo agrega una espera única al
+  // inicio; el scheduler de AutoJs6 lo sigue lanzando igual.
+  startupDelayMs: 5000,
   // Delay humano entre tareas (ms) — compartir grupo a grupo como un humano
   minDelayMs: 90 * 1000,
   maxDelayMs: 180 * 1000,
@@ -1213,6 +1218,13 @@ function mainLoop() {
   console.log("[native] fb-native-relay iniciado");
   parkConsole();
 
+  // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
+  // probar el flujo real (desbloqueo + PIN + deep link sobre pantalla apagada).
+  if (CONFIG.startupDelayMs > 0) {
+    console.log("[native] esperando " + CONFIG.startupDelayMs + "ms antes de arrancar (tiempo para bloquear pantalla)...");
+    sleep(CONFIG.startupDelayMs);
+  }
+
   // Shizuku es OBLIGATORIO para el relay 24/7 en Samsung sin root: es la única
   // forma de despertar la pantalla desde AOD/sueño (device.wakeUp() y keyevent
   // fallan sin root). Avisar en el arranque si no está disponible.
@@ -1272,9 +1284,16 @@ function mainLoop() {
 }
 
 function isInterrupted(e) {
+  // OJO: para ScriptInterruptedException el message es literalmente "null" y el
+  // constructor en Rhino es un wrapper, así que "constructor.name" y "message"
+  // NO matchean "Interrupted". Lo fiable es String(e): devuelve
+  // "org.autojs.autojs.runtime.exception.ScriptInterruptedException: null".
+  var s = String(e);
   var name = String(e && e.constructor ? e.constructor.name : e);
   var msg = String(e && e.message ? e.message : e);
-  return name.indexOf("Interrupted") >= 0 || msg.indexOf("interrupted") >= 0;
+  var stack = String(e && e.stack ? e.stack : "");
+  return s.indexOf("Interrupted") >= 0 || name.indexOf("Interrupted") >= 0 ||
+         msg.indexOf("interrupted") >= 0 || stack.indexOf("Interrupted") >= 0;
 }
 
 // ¿El engine de este script fue realmente detenido (stop manual del usuario)?
