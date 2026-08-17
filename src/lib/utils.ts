@@ -19,12 +19,24 @@ function isMobileBrowser(): boolean {
 }
 
 function buildFBAppDeepLink(url: string): string | null {
-  const m = url.match(/facebook\.com\/(\d+)\/posts\/(\d+)/);
-  if (!m) return null;
-  const [, pageId, postId] = m;
+  const u = String(url || '');
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if (isIOS) return `fb://profile/${pageId}/posts?id=${postId}`;
-  return `fb://facewebmodal/f?href=${encodeURIComponent(url)}`;
+  // Post de página: /{pageId}/posts/{postId} o /{pageId}/post/{postId}
+  const m = u.match(/facebook\.com\/([^/]+)\/(?:posts|post)\/(\d+)/);
+  if (m) {
+    if (isIOS) return `fb://profile/${m[1]}/posts?id=${m[2]}`;
+    return `fb://post/${m[2]}`;
+  }
+  // Post de grupo: /groups/{gid}/posts/{pid}
+  const mg = u.match(/facebook\.com\/groups\/(\d+)\/posts\/(\d+)/);
+  if (mg) return `fb://group/${mg[1]}/permalink/${mg[2]}`;
+  // permalink.php?story_fbid={postId}&id={pageId}
+  const mper = u.match(/(?:story_fbid|story_id)=(\d+)/);
+  if (mper) return `fb://post/${mper[1]}`;
+  // Foto de página
+  const mph = u.match(/facebook\.com\/([^/]+)\/photos\/(\d+)/);
+  if (mph) return `fb://photo/${mph[2]}`;
+  return null;
 }
 
 export async function openExternalLink(url: string) {
