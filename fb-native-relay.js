@@ -1043,53 +1043,85 @@ function cancelScreenAwake() {
 }
 
 // Enciende la pantalla si está apagada. En Samsung sin root, device.wakeUp()
-// suele fallar → usar Shizuku (ADB) primero y luego cascada:
-//   Shizuku input keyevent 224 (KEYCODE_WAKEUP) → wakeUpIfNeeded → wakeUp →
-//   keyCode(224) → shell root.
-// Devolver true si al final la pantalla quedó encendida.
+// suele fallar → usar Shizuku (ADB) primero y luego cascada.
+// Estrategia para Samsung con AOD:
+//   Asleep (apagado total) → KEYCODE_POWER (26) → Dozing (AOD/reloj)
+//   Dozing (AOD/reloj)     → repetir KEYCODE_WAKEUP (224) HASTA mWakefulness=Awake (lockscreen)
+//   Awake (lockscreen)     → éxito
+// Devolver true solo si llega a Awake (lockscreen con keypad).
+
+function readWakefulness() {
+  try {
+    if (!shizukuAvailable()) return null;
+    var r = shizukuCmd("dumpsys power");
+    if (!r || r.code !== 0) return null;
+    var out = String(r.output || "");
+    var m = /mWakefulness=(\w+)/.exec(out);
+    return m ? m[1] : null;
+  } catch (e) { return null; }
+}
 
 function wakeScreenIfNeeded() {
   try {
     if (device.isScreenOn && device.isScreenOn()) return true;
   } catch (e) {}
 
-  // Shizuku: KEYCODE_WAKEUP (224) enciende la pantalla con privilegios ADB,
-  // funciona en Samsung sin root. Algunos dispositivos con AOD necesitan el
-  // POWER (26) para salir del modo reloj.
-  try {
-    if (shizukuAvailable()) {
-      shizukuCmd("input keyevent 224");
-      sleep(1200);
+  if (!shizukuAvailable()) {
+    // Fallback sin Shizuku
+    try { device.wakeUpIfNeeded(); } catch (e) {}
+    sleep(800);
+    try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
+    try { device.wakeUp(); } catch (e) {}
+    sleep(800);
+    try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
+    try { keyCode(224); } catch (e) {}
+    sleep(800);
+    try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
+    try { shell("input keyevent 224", true); } catch (e) {}
+    sleep(800);
+    try {
       if (device.isScreenOn && device.isScreenOn()) return true;
-      shizukuCmd("input keyevent 26");
-      sleep(1200);
-      if (device.isScreenOn && device.isScreenOn()) return true;
-    }
-  } catch (e) {}
+    } catch (e) {}
+    return false;
+  }
 
-  // AOD de Samsung: isScreenOn devuelve false aunque esté mostrando el reloj.
-  // Si el paquete visible es AOD/keyguard/systemui, la pantalla está visible
-  // → no gastar intentos de wake ni mandar el falso "screen-wake-fail".
-  try {
-    var cur = currentPackage() || "";
-    if (cur.indexOf("aodservice") >= 0 || cur.indexOf("keyguard") >= 0 || cur.indexOf("systemui") >= 0) return true;
-  } catch (e) {}
-  try { device.wakeUpIfNeeded(); } catch (e) {}
-  sleep(800);
-  try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-  try { device.wakeUp(); } catch (e) {}
-  sleep(800);
-  try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-  try { keyCode(224); } catch (e) {}
-  sleep(800);
-  try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-  try { shell("input keyevent 224", true); } catch (e) {}
-  sleep(800);
-  try {
-    if (device.isScreenOn && device.isScreenOn()) {
+  // Shizuku disponible: máquina de estados por mWakefulness real
+  var wf = readWakefulness();
+  console.log("[native] wake: mWakefulness=" + (wf || "n/a"));
+  
+  for (var attempt = 0; attempt < 6; attempt++) {
+    wf = readWakefulness();
+    console.log("[native] wake check " + (attempt + 1) + ": mWakefulness=" + (wf || "n/a"));
+    
+    if (wf === "Awake") {
+      console.log("[native] wake: pantalla en Awake (lockscreen)");
       return true;
     }
-  } catch (e) {}
+    if (wf === "Asleep") {
+      // Apagado total: POWER (26) enciende → Dozing (AOD)
+      console.log("[native] wake: Asleep → enviando KEYCODE_POWER (26)");
+      shizukuCmd("input keyevent 26");
+      sleep(1500);
+      continue;
+    }
+    if (wf === "Dozing") {
+      // AOD visible (reloj): repetir WAKEUP (224) hasta Awake
+      console.log("[native] wake: Dozing → enviando KEYCODE_WAKEUP (224)");
+      shizukuCmd("input keyevent 224");
+      sleep(1200);
+      continue;
+    }
+    // wf === null o estado desconocido: fallback cascada
+    break;
+  }
+  
+  // Verificación final
+  wf = readWakefulness();
+  if (wf === "Awake") {
+    console.log("[native] wake: verificación final Awake");
+    return true;
+  }
+  console.log("[native] wake: no se alcanzó Awake (final=" + (wf || "n/a") + ")");
   return false;
 }
 
