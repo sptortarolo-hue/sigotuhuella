@@ -529,23 +529,43 @@ function shareToGroup(task) {
     throw new Error("Share to group not found");
   }
 
-  // 6) Buscar el grupo
-  ok = typeIntoEditText(groupName, t);
+  // 6) Buscar el grupo. Si el nombre de la DB viene inflado (p.ej. "grupo sigo
+  //    tu huella" cuando el real es "sigo tu huella"), quitar prefijos comunes
+  //    para buscar con el nombre correcto.
+  var searchName = groupName;
+  var prefixes = ["grupo ", "grupo  ", "group ", "grupo fb ", "pagina "];
+  var trimmed = searchName;
+  var changed = false;
+  for (var pi = 0; pi < prefixes.length; pi++) {
+    if (trimmed.toLowerCase().indexOf(prefixes[pi]) === 0) {
+      trimmed = trimmed.substring(prefixes[pi].length).trim();
+      changed = true;
+      break;
+    }
+  }
+  if (changed && trimmed) {
+    searchName = trimmed;
+    console.log("[native] nombre de grupo normalizado: '" + groupName + "' -> '" + searchName + "'");
+  }
+  ok = typeIntoEditText(searchName, t);
   if (!ok) {
     sendDebug("no-group-search", url);
     throw new Error("Group search input not found");
   }
-  if (!waitEditTextHas(groupName, 8000)) {
+  if (!waitEditTextHas(searchName, 8000)) {
     sendDebug("group-search-no-text", url);
     throw new Error("Group name not typed");
   }
   sleep(rnd(2000, 4000));
 
-  // 7) Seleccionar el row del grupo
-  ok = clickLabel([groupName], t, true);
+  // 7) Seleccionar el row del grupo (buscar por nombre normalizado, con
+  //    variantes por si el row muestra un nombre distinto).
+  var rowLabels = [searchName, groupName];
+  if (searchName !== groupName) rowLabels.unshift(groupName);
+  ok = clickLabel(rowLabels, t, true);
   if (!ok) {
     sendDebug("group-row-not-found", url);
-    throw new Error("Group row not found: " + groupName);
+    throw new Error("Group row not found: " + searchName);
   }
   sleep(rnd(2000, 3500));
 
