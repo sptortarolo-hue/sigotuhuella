@@ -72,6 +72,8 @@ function rnd(min, max) {
 }
 
 // Busca un nodo visible por texto/desc (exacto y por contenido), en ese orden.
+// Incluye variantes case-insensitive (los rows de FB suelen mostrar el nombre
+// con mayúscula inicial aunque se busque en minúscula).
 function findNode(labels, timeoutMs) {
   var t = timeoutMs || CONFIG.findTimeoutMs;
   var candidates = [];
@@ -81,10 +83,40 @@ function findNode(labels, timeoutMs) {
     candidates.push(desc(lab));
     candidates.push(descContains(lab));
     candidates.push(textContains(lab));
+    candidates.push(descContains(lab.toLowerCase()));
+    candidates.push(textContains(lab.toLowerCase()));
+    candidates.push(descContains(capitalize(lab)));
+    candidates.push(textContains(capitalize(lab)));
   }
   for (var j = 0; j < candidates.length; j++) {
     var node = candidates[j].findOne(t);
     if (node && node.visibleToUser()) return node;
+  }
+  return null;
+}
+
+function capitalize(str) {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// Busca el primer nodo clickable visible debajo de un EditText (fallback
+// posicional: el resultado del buscador aparece justo abajo del box).
+function clickResultBelowEditText(timeoutMs) {
+  var deadline = Date.now() + (timeoutMs || CONFIG.findTimeoutMs);
+  while (Date.now() < deadline) {
+    try {
+      var edit = className("android.widget.EditText").findOne(1500);
+      if (edit && edit.visibleToUser()) {
+        var eb = edit.bounds();
+        var below = className("android.view.View")
+          .clickable(true)
+          .bounds(0, eb.bottom + 1, screenWidth(), screenHeight())
+          .findOne(1500);
+        if (below && below.visibleToUser()) return below;
+      }
+    } catch (e) {}
+    sleep(400);
   }
   return null;
 }
@@ -563,6 +595,16 @@ function shareToGroup(task) {
   var rowLabels = [searchName, groupName];
   if (searchName !== groupName) rowLabels.unshift(groupName);
   ok = clickLabel(rowLabels, t, true);
+  // Fallback posicional: el resultado del buscador aparece justo debajo del box
+  // (a veces el row no expone el texto completo o difiere en mayúsculas).
+  if (!ok) {
+    console.log("[native] row por nombre no encontrado, probando click debajo del box");
+    var rowNode = clickResultBelowEditText(t);
+    if (rowNode) {
+      tapStrategy(rowNode, 0);
+      ok = true;
+    }
+  }
   if (!ok) {
     sendDebug("group-row-not-found", url);
     throw new Error("Group row not found: " + searchName);
