@@ -30,6 +30,16 @@ var CONFIG = {
   fbPackage: "com.facebook.katana",
   // Cuánto esperar cada selector (ms)
   findTimeoutMs: 15000,
+  // Desbloqueo automático de pantalla (24/7): PIN numérico del lock screen.
+  // En vacío (""), desbloquea con swipe sin PIN (recomendado si el celular
+  // puede vivir sin patrón). Para PIN, poner los dígitos en orden.
+  enableAutoUnlock: true,
+  screenPin: "",
+  // Patrón del PIN: dónde buscar cada dígito en el keypad del lock screen.
+  // Samsung OneUI suele exponer los números como text()/desc(). Con pinPattern
+  // vacío se busca el dígito como texto; si no aparece, usar sendDebug para
+  // inspeccionar y ajustar.
+  pinDigitsLabels: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
 };
 
 var API_BASE = CONFIG.apiBase;
@@ -736,6 +746,91 @@ function wakeScreenIfNeeded() {
   } catch (e) {}
 }
 
+// Desbloquea la pantalla si está bloqueada (lock screen). El relay corre 24/7
+// y las tareas llegan a demanda, así que el celular puede estar con la pantalla
+// apagada/bloqueada cuando hay que compartir. Secuencia:
+//   1. Encender la pantalla (wakeUp)
+//   2. Swipe hacia arriba para pasar el keyguard inicial
+//   3. Si hay PIN configurado (CONFIG.screenPin), clickear los dígitos
+//      en el keypad numérico (Samsung OneUI los expone como text/desc).
+function isScreenLocked() {
+  try {
+    // Si el paquete visible es el keyguard de Samsung ("com.android.systemui"
+    // con la UI de bloqueo), o hay un EditText de PIN en pantalla.
+    var cur = "";
+    try { cur = currentPackage() || ""; } catch (e) {}
+    var lockedPkgs = ["com.android.systemui", "com.android.keyguard", "com.samsung.android.app.aodservice"];
+    for (var i = 0; i < lockedPkgs.length; i++) {
+      if (cur.indexOf(lockedPkgs[i]) >= 0) return true;
+    }
+    // EditText visible → puede ser el campo de PIN del keyguard
+    var edit = className("android.widget.EditText").findOne(400);
+    if (edit && edit.visibleToUser()) {
+      var pkg = edit.packageName() || "";
+      if (pkg.indexOf("systemui") >= 0 || pkg.indexOf("keyguard") >= 0) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+function ensureUnlocked() {
+  if (!CONFIG.enableAutoUnlock) return false;
+  try {
+    if (device.isScreenOn && !device.isScreenOn()) {
+      device.wakeUpIfNeeded();
+      sleep(rnd(1500, 2500));
+    }
+    // Primer swipe: pasar la pantalla de bloqueo inicial (OneUI muestra reloj)
+    try {
+      swipe(screenWidth() / 2, screenHeight() * 0.8, screenWidth() / 2, screenHeight() * 0.2, 400);
+      sleep(rnd(1200, 2000));
+    } catch (e) {}
+
+    var pin = String(CONFIG.screenPin || "");
+    if (pin && isScreenLocked()) {
+      console.log("[native] desbloqueando con PIN...");
+      for (var i = 0; i < pin.length; i++) {
+        var digit = pin.charAt(i);
+        var clicked = false;
+        var deadline = Date.now() + 6000;
+        while (Date.now() < deadline && !clicked) {
+          var node = null;
+          try { node = text(digit).findOne(800); } catch (e) {}
+          if (!node) { try { node = desc(digit).findOne(800); } catch (e2) {} }
+          if (!node) {
+            // Algunos keypads usan content-desc con el número duplicado
+            try { node = descContains(digit).findOne(800); } catch (e3) {}
+          }
+          if (node && node.visibleToUser()) {
+            try { tapStrategy(node, 1); clicked = true; } catch (e4) {}
+          }
+          if (!clicked) sleep(400);
+        }
+        if (!clicked) {
+          console.log("[native] dígito " + digit + " no encontrado en el keypad");
+          sendDebug("pin-digit-not-found");
+          return false;
+        }
+        sleep(rnd(500, 900));
+      }
+      sleep(rnd(1200, 2000));
+      // Segundo swipe por si tras el PIN pide "siguiente"/confirmar
+      try {
+        swipe(screenWidth() / 2, screenHeight() * 0.7, screenWidth() / 2, screenHeight() * 0.3, 300);
+        sleep(rnd(800, 1500));
+      } catch (e) {}
+    }
+
+    var unlocked = !isScreenLocked();
+    if (unlocked) console.log("[native] pantalla desbloqueada");
+    else console.log("[native] pantalla aún bloqueada (o sin PIN y keyguard persistente)");
+    return unlocked;
+  } catch (e) {
+    console.log("[native] ensureUnlocked falló: " + e.message);
+    return false;
+  }
+}
+
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
@@ -797,6 +892,10 @@ function runPollLoop() {
         sleep(CONFIG.pollIntervalMs);
         continue;
       }
+
+      // Hay tareas → el celular puede estar apagado/bloqueado (relay 24/7):
+      // desbloquear antes de empezar a compartir.
+      ensureUnlocked();
 
       var groups = {};
       var order = [];
