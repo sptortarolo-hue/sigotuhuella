@@ -102,64 +102,50 @@ function clickableAncestor(node) {
   return null;
 }
 
-// Click por coordenadas en el centro del nodo. node.click() (ACTION_CLICK)
-// no aterriza en los views custom de Facebook; el gesto real sí.
-function clickNodeCenter(node) {
-  try {
-    var b = node.bounds();
-    var x = Math.round(b.centerX());
-    var y = Math.round(b.centerY());
-    click(x, y);
-    return true;
-  } catch (e) {
-    try { node.click(); return true; } catch (e2) {}
-  }
-  return false;
+function nodeCenter(node) {
+  var b = node.bounds();
+  return [Math.round(b.centerX()), Math.round(b.centerY())];
 }
 
-// Click "en capas": primero el nodo, luego su ancestro clickable, luego un
-// press con duración (más físico) y por último ACTION_CLICK nativo.
-function clickLayered(node) {
-  // Estrategia 1: centro del nodo encontrado
-  if (clickNodeCenter(node)) {
-    sleep(600);
-    return true;
-  }
-  // Estrategia 2: centro del ancestro clickable (el row)
-  var anc = clickableAncestor(node);
-  if (anc) {
-    try {
-      var b = anc.bounds();
-      click(Math.round(b.centerX()), Math.round(b.centerY()));
-      sleep(600);
+// Click "en capas": distintas estrategias de tap para los views custom de FB.
+// Cada una devuelve true tras DESPACHAR el gesto (el caller verifica si navegó).
+//  0: click simple en centro del nodo
+//  1: click en centro del ancestro clickable (el row real)
+//  2: press con duración (tap más parecido al dedo real)
+//  3: doble tap (los selectores de destino de FB lo requieren)
+//  4: ACTION_CLICK nativo
+function tapStrategy(node, idx) {
+  try {
+    if (idx === 0) {
+      var c = nodeCenter(node);
+      click(c[0], c[1]);
       return true;
-    } catch (e) {}
-  }
-  // Estrategia 3: press con duración (tap más parecido al dedo real)
-  try {
-    var bb = node.bounds();
-    press(Math.round(bb.centerX()), Math.round(bb.centerY()), 100);
-    sleep(600);
-    return true;
+    }
+    if (idx === 1) {
+      var anc = clickableAncestor(node);
+      if (!anc) return false;
+      var ac = nodeCenter(anc);
+      click(ac[0], ac[1]);
+      return true;
+    }
+    if (idx === 2) {
+      var p = nodeCenter(node);
+      press(p[0], p[1], 120);
+      return true;
+    }
+    if (idx === 3) {
+      var d = nodeCenter(node);
+      click(d[0], d[1]);
+      sleep(250);
+      click(d[0], d[1]);
+      return true;
+    }
+    if (idx === 4) {
+      node.click();
+      return true;
+    }
   } catch (e) {}
-  // Estrategia 4: ACTION_CLICK nativo
-  try { node.click(); return true; } catch (e) {}
   return false;
-}
-
-// Doble tap en el centro del nodo (varios selectores de FB requieren doble tap).
-function doubleTapNode(node) {
-  try {
-    var b = node.bounds();
-    var x = Math.round(b.centerX());
-    var y = Math.round(b.centerY());
-    click(x, y);
-    sleep(250);
-    click(x, y);
-    return true;
-  } catch (e) {
-    return false;
-  }
 }
 
 // Click en un nodo por texto/desc con reintentos cortos.
@@ -170,7 +156,7 @@ function clickLabel(labels, timeoutMs, scrollIntoView) {
     if (node) {
       try {
         if (scrollIntoView) node.scrollForward();
-        if (clickNodeCenter(node)) return true;
+        if (tapStrategy(node, 0)) return true;
       } catch (e) {}
     }
     sleep(500);
@@ -426,7 +412,7 @@ function shareToGroup(task) {
   //    opciones." → se abre con DOBLE TAP.
   var destLabels = ["Feed", "Elige el destino de tu publicación", "Your Feed"];
   var destNode = findNode(destLabels, 8000);
-  if (destNode && doubleTapNode(destNode)) {
+  if (destNode && tapStrategy(destNode, 3)) {
     console.log("[native] selector de destino abierto (doble tap)");
     sleep(rnd(2000, 3000));
   } else {
@@ -434,17 +420,17 @@ function shareToGroup(task) {
     throw new Error("Dest selector not found");
   }
 
-  // 5) En la ventana de destino: click en "En un grupo" con verificación de que
-  //    se abrió el buscador (EditText). Si el tap no aterriza, reintentar.
+  // 5) En la ventana de destino: click en "En un grupo". Cada intento prueba una
+  //    estrategia de tap distinta y verifica que se abrió el buscador (EditText).
   var groupLabels = ["En un grupo", "In a group", "Un grupo", "Grupo", "Compartir en un grupo", "Share to a group"];
   var searchOpened = false;
-  for (var attempt = 0; attempt < 3 && !searchOpened; attempt++) {
+  for (var attempt = 0; attempt < 6 && !searchOpened; attempt++) {
     var target = findNode(groupLabels, 3000);
     if (target) {
-      console.log("[native] tap en 'En un grupo' (intento " + (attempt + 1) + ")");
-      clickLayered(target);
-      sleep(rnd(2000, 3000));
+      console.log("[native] tap 'En un grupo' intento " + (attempt + 1) + " (estr " + attempt + ")");
+      tapStrategy(target, attempt);
     }
+    sleep(rnd(2500, 3500));
     var edit = className("android.widget.EditText").findOne(1000);
     searchOpened = !!(edit && edit.visibleToUser());
   }
