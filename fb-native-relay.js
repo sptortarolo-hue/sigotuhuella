@@ -477,8 +477,16 @@ function shareToGroup(task) {
     throw new Error("Dest selector not found");
   }
 
-  // 5) En la ventana de destino: click en "En un grupo". Cada intento prueba una
-  //    estrategia de tap distinta y verifica que se abrió el buscador (EditText).
+  // 5) En la ventana de destino: primero expandir el sheet con un swipe hacia
+  //    arriba (la opción "En un grupo" queda cortada en el borde inferior por la
+  //    barra de gestos cuando el sheet está semi-expandido).
+  try {
+    swipe(screenWidth() / 2, screenHeight() * 0.7, screenWidth() / 2, screenHeight() * 0.25, 400);
+    sleep(rnd(1500, 2500));
+  } catch (e) {}
+
+  // 5b) Click en "En un grupo". Cada intento prueba una estrategia de tap
+  //    distinta y verifica que se abrió el buscador (EditText).
   var groupLabels = ["En un grupo", "In a group", "Un grupo", "Grupo", "Compartir en un grupo", "Share to a group"];
   var searchOpened = false;
   for (var attempt = 0; attempt < 9 && !searchOpened; attempt++) {
