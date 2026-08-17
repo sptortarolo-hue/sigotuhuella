@@ -5,6 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function buildFBPostUrl(pagePostId: string): string {
+  if (!pagePostId) return '#';
+  const parts = pagePostId.split('_');
+  if (parts.length === 2) {
+    return `https://www.facebook.com/${parts[0]}/posts/${parts[1]}`;
+  }
+  return `https://www.facebook.com/${pagePostId}`;
+}
+
 export async function openExternalLink(url: string) {
   try {
     const { Capacitor, registerPlugin } = await import('@capacitor/core');

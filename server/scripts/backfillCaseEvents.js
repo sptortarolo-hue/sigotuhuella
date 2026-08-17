@@ -41,7 +41,7 @@ async function backfillFacebook(caseId, petId) {
   let inserted = 0;
   for (const row of rows.rows) {
     const pagePostUrl = row.page_post_id
-      ? `https://www.facebook.com/${row.page_post_id}`
+      ? (() => { const [p, s] = (row.page_post_id || '').split('_'); return p && s ? `https://www.facebook.com/${p}/posts/${s}` : `https://www.facebook.com/${row.page_post_id}`; })()
       : null;
     const ok = await ensureCase(caseId, 'facebook_published', {
       page_post_id: row.page_post_id,

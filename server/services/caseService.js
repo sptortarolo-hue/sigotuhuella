@@ -650,7 +650,7 @@ export async function getCaseShares(caseId) {
   );
   fbRes.rows.forEach(r => shares.push({
     platform: 'facebook',
-    url: `https://www.facebook.com/${r.page_post_id}`,
+    url: (() => { const [p, s] = (r.page_post_id || '').split('_'); return p && s ? `https://www.facebook.com/${p}/posts/${s}` : `https://www.facebook.com/${r.page_post_id}`; })(),
     group_count: Array.isArray(r.group_post_ids) ? r.group_post_ids.length : 0,
     date: r.published_at,
   }));
