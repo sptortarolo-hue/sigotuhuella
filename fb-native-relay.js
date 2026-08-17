@@ -841,56 +841,73 @@ function isScreenLocked() {
 function ensureUnlocked() {
   if (!CONFIG.enableAutoUnlock) return false;
   try {
+    // keepScreenOn además DESPIERTA la pantalla si está apagada (doc AutoJs6):
+    // renovarlo primero es la forma más fiable de encender sin root en Samsung.
+    keepScreenAwake();
     var woken = wakeScreenIfNeeded();
     if (!woken) {
       console.log("[native] no se pudo encender la pantalla");
       sendDebug("screen-wake-fail");
     }
     sleep(rnd(1500, 2500));
-    // Primer swipe: pasar la pantalla de bloqueo inicial (OneUI muestra reloj)
-    try {
-      swipe(screenWidth() / 2, screenHeight() * 0.8, screenWidth() / 2, screenHeight() * 0.2, 400);
-      sleep(rnd(1200, 2000));
-    } catch (e) {}
 
     var pin = String(CONFIG.screenPin || "");
-    if (pin && isScreenLocked()) {
-      console.log("[native] desbloqueando con PIN...");
-      for (var i = 0; i < pin.length; i++) {
-        var digit = pin.charAt(i);
-        var clicked = false;
-        var deadline = Date.now() + 6000;
-        while (Date.now() < deadline && !clicked) {
-          var node = null;
-          try { node = text(digit).findOne(800); } catch (e) {}
-          if (!node) { try { node = desc(digit).findOne(800); } catch (e2) {} }
-          if (!node) {
-            // Algunos keypads usan content-desc con el número duplicado
-            try { node = descContains(digit).findOne(800); } catch (e3) {}
-          }
-          if (node && node.visibleToUser()) {
-            try { tapStrategy(node, 1); clicked = true; } catch (e4) {}
-          }
-          if (!clicked) sleep(400);
-        }
-        if (!clicked) {
-          console.log("[native] dígito " + digit + " no encontrado en el keypad");
-          sendDebug("pin-digit-not-found");
-          return false;
-        }
-        sleep(rnd(500, 900));
+    var unlocked = false;
+
+    // Reintentar el ciclo swipe + PIN hasta 3 veces (el keyguard de OneUI a
+    // veces necesita 2 pasadas, o el swipe inicial se hace antes de que la
+    // pantalla termine de encender).
+    for (var pass = 0; pass < 3 && !unlocked; pass++) {
+      if (pass > 0) {
+        keepScreenAwake();
+        sleep(rnd(1000, 1800));
       }
-      sleep(rnd(1200, 2000));
-      // Segundo swipe por si tras el PIN pide "siguiente"/confirmar
+      // Swipe hacia arriba: pasar la pantalla de bloqueo inicial (reloj)
       try {
-        swipe(screenWidth() / 2, screenHeight() * 0.7, screenWidth() / 2, screenHeight() * 0.3, 300);
-        sleep(rnd(800, 1500));
+        swipe(screenWidth() / 2, screenHeight() * 0.8, screenWidth() / 2, screenHeight() * 0.2, 400);
+        sleep(rnd(1200, 2000));
       } catch (e) {}
+
+      if (pin && isScreenLocked()) {
+        console.log("[native] desbloqueando con PIN...");
+        for (var i = 0; i < pin.length; i++) {
+          var digit = pin.charAt(i);
+          var clicked = false;
+          var deadline = Date.now() + 6000;
+          while (Date.now() < deadline && !clicked) {
+            var node = null;
+            try { node = text(digit).findOne(800); } catch (e) {}
+            if (!node) { try { node = desc(digit).findOne(800); } catch (e2) {} }
+            if (!node) {
+              // Algunos keypads usan content-desc con el número duplicado
+              try { node = descContains(digit).findOne(800); } catch (e3) {}
+            }
+            if (node && node.visibleToUser()) {
+              try { tapStrategy(node, 1); clicked = true; } catch (e4) {}
+            }
+            if (!clicked) sleep(400);
+          }
+          if (!clicked) {
+            console.log("[native] dígito " + digit + " no encontrado en el keypad");
+            sendDebug("pin-digit-not-found");
+            break;
+          }
+          sleep(rnd(500, 900));
+        }
+        sleep(rnd(1200, 2000));
+        // Segundo swipe por si tras el PIN pide "siguiente"/confirmar
+        try {
+          swipe(screenWidth() / 2, screenHeight() * 0.7, screenWidth() / 2, screenHeight() * 0.3, 300);
+          sleep(rnd(800, 1500));
+        } catch (e) {}
+      }
+
+      unlocked = !isScreenLocked();
+      if (!unlocked) console.log("[native] intento " + (pass + 1) + " de desbloqueo sin éxito, reintentando...");
     }
 
-    var unlocked = !isScreenLocked();
     if (unlocked) console.log("[native] pantalla desbloqueada");
-    else console.log("[native] pantalla aún bloqueada (o sin PIN y keyguard persistente)");
+    else console.log("[native] pantalla aún bloqueada");
     return unlocked;
   } catch (e) {
     console.log("[native] ensureUnlocked falló: " + e.message);
@@ -962,7 +979,15 @@ function runPollLoop() {
       var data = apiGet("/fb/pending?limit=10&action=share");
       var tasks = data.tasks || [];
       if (tasks.length === 0) {
-        sleep(CONFIG.pollIntervalMs);
+        // Sin tareas: dormir por tramos renovando el wake lock y reintentando
+        // el wake, así la pantalla queda encendida/despierta cuando llegue una
+        // publicación (a demanda, cualquier hora).
+        var idleDeadline = Date.now() + CONFIG.pollIntervalMs;
+        while (Date.now() < idleDeadline) {
+          keepScreenAwake();
+          wakeScreenIfNeeded();
+          sleep(30000);
+        }
         continue;
       }
 
