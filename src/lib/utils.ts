@@ -41,7 +41,27 @@ function buildFBChromeIntent(url: string): string | null {
   if (!/facebook\.com\//.test(u)) return null;
   const hostPath = u.replace(/^https?:\/\//, '');
   const fallback = encodeURIComponent(u);
-  return `intent://${hostPath}#Intent;scheme=https;package=com.facebook.katana;S.browser_fallback_url=${fallback};end`;
+  return `intent://${hostPath}#Intent;scheme=https;action=android.intent.action.VIEW;package=com.facebook.katana;category=android.intent.category.BROWSABLE;S.browser_fallback_url=${fallback};end`;
+}
+
+// Dispara un scheme/intent:// con un <a> real clickeado de forma síncrona dentro
+// del handler del usuario. Chrome exige user gesture sobre un anchor para lanzar
+// apps externas (window.location.href = intent:// lo bloquea) y category BROWSABLE
+// para escapar del contenedor PWA standalone.
+function launchIntent(uri: string): boolean {
+  try {
+    const a = document.createElement('a');
+    a.href = uri;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Deep links fb:// para casos que la URL https canónica no cubre (grupos, fotos,
@@ -60,13 +80,14 @@ function fbDeepLinkFor(url: string): string | null {
   return null;
 }
 
-// Navega a un scheme; si el evento blur no se dispara en el timeout (app no
-// instalada / no se abrió), cae a la URL https canónica en otra pestaña.
+// Navega a un scheme con un <a> real (user gesture); si el evento blur no se
+// dispara en el timeout (app no instalada / no se abrió), cae a la URL https
+// canónica en otra pestaña.
 function navigateWithBlurFallback(scheme: string, httpsUrl: string, timeoutMs = 1800) {
   let blurred = false;
   const onBlur = () => { blurred = true; };
   window.addEventListener('blur', onBlur);
-  window.location.href = scheme;
+  launchIntent(scheme);
   setTimeout(() => {
     window.removeEventListener('blur', onBlur);
     if (!blurred) window.open(httpsUrl, '_blank');
