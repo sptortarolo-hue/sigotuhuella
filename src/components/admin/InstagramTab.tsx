@@ -225,6 +225,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
       setExpiresAt('');
       setShowManual(false);
       setManualToken('');
+      await fetchStatus();
     } catch (e: any) { setError(e.message || 'Error al conectar manualmente'); }
     finally { setManualLoading(false); }
   };

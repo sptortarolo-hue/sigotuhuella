@@ -20,7 +20,7 @@ interface FacebookGroup {
   created_at: string;
 }
 
-export default function FacebookTab() {
+export default function FacebookTab({ onGoToInstagram }: { onGoToInstagram?: () => void }) {
   const [groups, setGroups] = useState<FacebookGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -167,6 +167,12 @@ export default function FacebookTab() {
             <div>
               <p className="text-sm font-bold text-red-700">Token de Facebook sin permisos</p>
               <p className="text-xs text-red-600 mt-1">{fbAuthError.detail || 'Reconectar Facebook desde el admin para restaurar las métricas.'}</p>
+              {onGoToInstagram && (
+                <button onClick={onGoToInstagram}
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all">
+                  <RefreshCw className="w-3.5 h-3.5" /> Reconectar (Instagram)
+                </button>
+              )}
             </div>
           </div>
         )}

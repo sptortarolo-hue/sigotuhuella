@@ -2349,7 +2349,7 @@ export default function Admin() {
             {mountedTabs.has('scraper') && <div className={activeTab === 'scraper' ? '' : 'hidden'}><ScraperTab /></div>}
 
             {/* ====== FACEBOOK ====== */}
-            {mountedTabs.has('facebook') && <div className={activeTab === 'facebook' ? '' : 'hidden'}><FacebookTab /></div>}
+            {mountedTabs.has('facebook') && <div className={activeTab === 'facebook' ? '' : 'hidden'}><FacebookTab onGoToInstagram={() => setActiveTab('instagram')} /></div>}
 
           {/* ====== BACKUP ====== */}
           {mountedTabs.has('backup') && <div className={activeTab === 'backup' ? '' : 'hidden'}><BackupTab /></div>}

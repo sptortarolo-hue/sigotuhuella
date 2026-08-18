@@ -311,6 +311,7 @@ export async function syncFacebookEngagement() {
   );
 
   let posts = 0, comments = 0;
+  let unresolved = 0;
   const errors = { permission: 0, invalid_post: 0, token: 0, other: 0 };
   const errorSamples = {};
   console.log('[MetaEngagement] FB sync started: ' + postsRes.rows.length + ' posts to process');
@@ -366,27 +367,35 @@ export async function syncFacebookEngagement() {
       if (!errorSamples[kind]) {
         errorSamples[kind] = err.response?.data?.error?.message || err.message;
       }
-      // Sin pages_read_engagement: intentar fallbacks progresivos.
+      // Sin pages_read_engagement: intentar fallbacks progresivos. Solo se
+      // cuenta como "unresolved" si todos los caminos fallan (evita falso
+      // positivo de banner cuando el fallback de app token sí actualiza).
       if (kind === 'permission' || kind === 'token' || kind === 'invalid_post') {
         let ok = await tryInsightsFallback(post, token);
         if (!ok) ok = await tryUrlEngagementFallback(post);
-        if (ok) posts++;
+        if (ok) {
+          posts++;
+        } else {
+          unresolved++;
+        }
+      } else {
+        unresolved++;
       }
     }
     await sleep(BATCH_DELAY_MS);
   }
 
   const totalPosts = postsRes.rows.length;
-  const massivePermissionFailure = totalPosts > 0 && errors.permission >= totalPosts * 0.5;
+  const massivePermissionFailure = totalPosts > 0 && unresolved >= totalPosts * 0.5;
   if (errors.token > 0 || massivePermissionFailure) {
     const detail = massivePermissionFailure
       ? 'El token de Facebook no tiene el permiso pages_read_engagement (o la app carece de Page Public Content Access). Reconectar FB desde el admin.'
       : 'El token de Facebook es inválido o expiró. Reconectar FB desde el admin.';
-    console.error(`[MetaEngagement] FB sync: ${errors.permission} post(s) bloqueados por permisos / ${errors.token} por token. ${detail} Ej.: ${errorSamples.permission || errorSamples.token || ''}`);
+    console.error(`[MetaEngagement] FB sync: ${unresolved} post(s) sin resolver / ${errors.permission} bloqueados por permisos / ${errors.token} por token. ${detail} Ej.: ${errorSamples.permission || errorSamples.token || ''}`);
     await saveSetting('fb_sync_auth_error', 'true');
     await saveSetting('fb_sync_auth_error_at', new Date().toISOString());
     await saveSetting('fb_sync_auth_error_detail', detail);
-  } else if (totalPosts > 0 && errors.invalid_post + errors.other === 0 && errors.permission === 0 && errors.token === 0) {
+  } else if (totalPosts > 0 && errors.invalid_post + errors.other === 0 && errors.permission === 0 && errors.token === 0 && unresolved === 0) {
     await saveSetting('fb_sync_auth_error', 'false');
   }
 

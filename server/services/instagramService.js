@@ -83,6 +83,9 @@ export async function exchangeCodeForToken(code) {
     const perms = (permsResp.data?.data || []).filter(p => p.status === 'granted').map(p => p.permission);
     await saveSetting('fb_granted_permissions', perms.join(','));
     await saveSetting('fb_has_pages_read_engagement', perms.includes('pages_read_engagement') ? 'true' : 'false');
+    await saveSetting('fb_sync_auth_error', 'false');
+    await saveSetting('fb_sync_auth_error_at', '');
+    await saveSetting('fb_sync_auth_error_detail', '');
     console.log('[FB] Granted permissions:', perms);
   } catch { /* ignore */ }
 
@@ -438,6 +441,23 @@ export async function manualConnect(accessToken, igUserId) {
     await saveSetting('instagram_page_name', username);
     await saveSetting('instagram_token_source', 'manual');
     await pool.query("DELETE FROM settings WHERE key = 'instagram_token_expires_at'");
+
+    // Verificar y persistir permisos del token manual (antes no se hacía).
+    try {
+      const permsResp = await axios.get(`${GRAPH_API}/me/permissions`, {
+        params: { access_token: accessToken },
+        timeout: 10000,
+      });
+      const perms = (permsResp.data?.data || []).filter(p => p.status === 'granted').map(p => p.permission);
+      await saveSetting('fb_granted_permissions', perms.join(','));
+      await saveSetting('fb_has_pages_read_engagement', perms.includes('pages_read_engagement') ? 'true' : 'false');
+      console.log('[FB] Manual connect granted permissions:', perms);
+    } catch (err) {
+      console.log('[FB] Manual connect permissions check skipped:', err.message);
+    }
+    await saveSetting('fb_sync_auth_error', 'false');
+    await saveSetting('fb_sync_auth_error_at', '');
+    await saveSetting('fb_sync_auth_error_detail', '');
     return { igUserId, username };
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
