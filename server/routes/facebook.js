@@ -968,6 +968,26 @@ router.get('/engagement-diagnose', requireAdmin, async (_req, res) => {
     result.page_post_id = post.page_post_id;
 
     try {
+      const pageIdRes = await pool.query("SELECT value FROM settings WHERE key = 'facebook_page_id'");
+      const fbPageId = pageIdRes.rows[0]?.value || '';
+      const postPageId = post.page_post_id?.split('_')[0] || '';
+      if (fbPageId && postPageId) {
+        const match = fbPageId === postPageId;
+        result.steps.push({
+          step: 'page-match', ok: match,
+          detail: match
+            ? `facebook_page_id=${fbPageId} coincide con el prefijo del post (${postPageId})`
+            : `DESMISMATCH: el token es de la página ${fbPageId} pero el post pertenece a la página ${postPageId}. La reconexión eligió otra página.`,
+        });
+        if (!match) result.ok = false;
+      } else {
+        result.steps.push({ step: 'page-match', ok: true, detail: 'Sin facebook_page_id guardado para comparar.' });
+      }
+    } catch (err) {
+      result.steps.push({ step: 'page-match', ok: true, detail: 'No se pudo leer facebook_page_id: ' + err.message });
+    }
+
+    try {
       const { data } = await axios.get(`https://graph.facebook.com/v22.0/${post.page_post_id}`, {
         params: { fields: 'id,reactions.summary(true),comments.summary(true)', access_token: token },
         timeout: 15000,

@@ -300,9 +300,43 @@ async function tryUrlEngagementFallback(post) {
   }
 }
 
+// Fallback de token de usuario: tras una reconexión el page token puede quedar de otra
+// página (exchangeCodeForToken elige la primera página con IG vinculado). El user token
+// (instagram_user_token) lee posts de cualquier página que el usuario administre.
+async function tryUserTokenFallback(post, userToken) {
+  if (!post.page_post_id || !/^\d+_\d+$/.test(post.page_post_id)) return false;
+  if (!userToken) return false;
+  try {
+    const { data } = await axios.get(`${GRAPH_API}/${post.page_post_id}`, {
+      params: { fields: 'id,reactions.summary(true),comments.summary(true)', access_token: userToken },
+      timeout: 15000,
+    });
+    if (!data?.id) return false;
+    await pool.query(
+      `UPDATE facebook_page_posts SET
+         like_count = $1, comment_count = $2, metrics_updated_at = NOW()
+       WHERE id = $3`,
+      [
+        parseInt(data.reactions?.summary?.total_count, 10) || 0,
+        parseInt(data.comments?.summary?.total_count, 10) || 0,
+        post.id,
+      ]
+    );
+    console.log(`[MetaEngagement] FB user-token fallback OK para ${post.page_post_id}: ${data.reactions?.summary?.total_count ?? 0} reactions`);
+    return true;
+  } catch (err) {
+    console.error(`[MetaEngagement] FB user-token fallback falló para ${post.page_post_id}: ${err.response?.data?.error?.message || err.message}`);
+    return false;
+  }
+}
+
 export async function syncFacebookEngagement() {
   const token = await getStoredToken();
   if (!token) return { posts: 0, comments: 0 };
+
+  const userTokRes = await pool.query("SELECT value FROM settings WHERE key = 'instagram_user_token'");
+  const userToken = userTokRes.rows[0]?.value || '';
+  const fbPageId = await getSetting('facebook_page_id');
 
   const postsRes = await pool.query(
     `SELECT id, pet_id, page_post_id FROM facebook_page_posts
@@ -312,10 +346,13 @@ export async function syncFacebookEngagement() {
 
   let posts = 0, comments = 0;
   let unresolved = 0;
+  let mismatched = 0;
   const errors = { permission: 0, invalid_post: 0, token: 0, other: 0 };
   const errorSamples = {};
   console.log('[MetaEngagement] FB sync started: ' + postsRes.rows.length + ' posts to process');
   for (const post of postsRes.rows) {
+    const postPageId = post.page_post_id?.split('_')[0];
+    if (fbPageId && postPageId && postPageId !== fbPageId) mismatched++;
     try {
       const params = { access_token: token, fields: 'id,reactions.summary(true),comments.summary(true)' };
       const { data } = await axios.get(`${GRAPH_API}/${post.page_post_id}`, { params });
@@ -373,6 +410,7 @@ export async function syncFacebookEngagement() {
       if (kind === 'permission' || kind === 'token' || kind === 'invalid_post') {
         let ok = await tryInsightsFallback(post, token);
         if (!ok) ok = await tryUrlEngagementFallback(post);
+        if (!ok) ok = await tryUserTokenFallback(post, userToken);
         if (ok) {
           posts++;
         } else {
@@ -389,7 +427,9 @@ export async function syncFacebookEngagement() {
   const massivePermissionFailure = totalPosts > 0 && unresolved >= totalPosts * 0.5;
   if (massivePermissionFailure) {
     const detail = errors.permission >= errors.token
-      ? 'El token de Facebook no tiene el permiso pages_read_engagement (o la app carece de Page Public Content Access). Reconectar FB desde el admin.'
+      ? (mismatched > 0
+        ? `El token está conectado a la página ${fbPageId} pero ${mismatched} post(s) pertenecen a otra página. El permiso pages_read_engagement solo cubre la página del token. Reconectar FB desde el admin seleccionando la página correcta.`
+        : 'El token de Facebook no tiene el permiso pages_read_engagement (o la app carece de Page Public Content Access). Reconectar FB desde el admin.')
       : 'El token de Facebook es inválido o expiró. Reconectar FB desde el admin.';
     console.error(`[MetaEngagement] FB sync: ${unresolved} post(s) sin resolver / ${errors.permission} bloqueados por permisos / ${errors.token} por token. ${detail} Ej.: ${errorSamples.permission || errorSamples.token || ''}`);
     await saveSetting('fb_sync_auth_error', 'true');
