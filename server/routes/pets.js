@@ -1900,10 +1900,20 @@ router.post('/:id/publish', requireAdmin, async (req, res) => {
             result = { platform, status: 'published' };
             break;
           }
-          case 'facebook_groups': {
-            const { publishPetToGroups } = await import('../services/facebookPublisher.js');
-            publishPetToGroups(req.params.id, { skipPagePublish: false }).catch(e => console.error('[Publish] FB groups error:', e));
-            result = { platform, status: 'queued' };
+case 'facebook_groups': {
+            const { publishToPage, publishPetToGroups } = await import('../services/facebookPublisher.js');
+            const pageResult = await publishToPage(req.params.id);
+            if (pageResult.error) throw new Error(pageResult.error);
+            let pagePostUrl = null;
+            if (pageResult.pagePostId && pageResult.pageId) {
+              pagePostUrl = 'https://www.facebook.com/' + pageResult.pageId + '/posts/' + pageResult.pagePostId;
+              await pool.query(
+                "INSERT INTO facebook_page_posts (pet_id, page_post_id, message, status, published_at) VALUES ($1, $2, $3, 'published', NOW())",
+                [req.params.id, pageResult.pagePostId, pageResult.message || '']
+              );
+            }
+            publishPetToGroups(req.params.id, { skipPagePublish: true, pagePostUrl }).catch(e => console.error('[Publish] FB groups error:', e));
+            result = { platform, status: 'published' };
             break;
           }
           case 'instagram': {
