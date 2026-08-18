@@ -101,7 +101,8 @@ export async function publishToPage(petId, instagramPostId) {
       [instagramPostId]
     );
     if (existingIg.rows.length > 0) {
-      return { success: true, pagePostId: existingIg.rows[0].page_post_id, skipped: true };
+      const pageId = await getPageId();
+      return { success: true, pagePostId: existingIg.rows[0].page_post_id, pageId, skipped: true };
     }
   } else {
     const existing = await pool.query(
@@ -111,7 +112,8 @@ export async function publishToPage(petId, instagramPostId) {
       [petId]
     );
     if (existing.rows.length > 0) {
-      return { success: true, pagePostId: existing.rows[0].page_post_id, skipped: true };
+      const pageId = await getPageId();
+      return { success: true, pagePostId: existing.rows[0].page_post_id, pageId, skipped: true };
     }
   }
 
@@ -553,21 +555,30 @@ export async function publishPetToGroups(petId, options = {}) {
     const pageResult = await publishToPage(petId);
     results.page = pageResult;
 
-    // Fallback chain para SIEMPRE tener pagePostUrl (action='share' en cola)
     if (pageResult.pagePostId && pageResult.pageId) {
       pagePostUrl = `https://www.facebook.com/${pageResult.pageId}/posts/${pageResult.pagePostId}`;
-    } else if (pageResult.pageId) {
-      // Fallback 1: pageId sí se obtuvo (getPageId() interno funciona)
-      pagePostUrl = `https://www.facebook.com/${pageResult.pageId}`;
-    } else {
-      // Fallback 2: getPageId() directo
-      const pageId = await getPageId();
-      if (pageId) pagePostUrl = `https://www.facebook.com/${pageId}`;
     }
+  }
 
-    // Log para diagnóstico si hubo fallback
-    if (!pageResult.success && pagePostUrl) {
-      console.warn(`[FB Publisher] publishToPage falló (${pageResult.error}), usando pagePostUrl fallback: ${pagePostUrl}`);
+  // Fallback chain para SIEMPRE tener pagePostUrl (action='share' en cola).
+  // Corre también con skipPagePublish=true cuando el route no pudo armar la URL
+  // (publishToPage devolvió skipped sin pageId → pagePostUrl llegó null).
+  if (!pagePostUrl) {
+    // 1. Buscar el page_post_id ya publicado de esta mascota
+    const existing = await pool.query(
+      `SELECT page_post_id FROM facebook_page_posts
+       WHERE pet_id = $1 AND status = 'published' AND page_post_id IS NOT NULL
+       ORDER BY published_at DESC LIMIT 1`,
+      [petId]
+    );
+    const pageId = await getPageId();
+    if (existing.rows.length > 0 && pageId) {
+      pagePostUrl = `https://www.facebook.com/${pageId}/posts/${existing.rows[0].page_post_id}`;
+    } else if (pageId) {
+      pagePostUrl = `https://www.facebook.com/${pageId}`;
+    }
+    if (pagePostUrl) {
+      console.warn(`[FB Publisher] pagePostUrl fallback (skipPagePublish=${skipPagePublish}): ${pagePostUrl}`);
     }
   }
 
