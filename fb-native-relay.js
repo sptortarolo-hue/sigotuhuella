@@ -1334,7 +1334,7 @@ function typePinByText(pin) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
-  console.log("[native] build 3f97127+ (wake por dumpsys power)");
+  console.log("[native] build bd36875+ (state machine wake)");
   parkConsole();
 
   // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
