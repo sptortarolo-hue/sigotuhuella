@@ -1890,7 +1890,10 @@ router.post('/:id/publish', requireAdmin, async (req, res) => {
             if (pageResult.error) throw new Error(pageResult.error);
             let pagePostUrl = null;
             if (pageResult.pagePostId && pageResult.pageId) {
-              pagePostUrl = 'https://www.facebook.com/' + pageResult.pageId + '/posts/' + pageResult.pagePostId;
+              const cleanPostId = pageResult.pagePostId.includes('_')
+                ? pageResult.pagePostId.split('_')[1]
+                : pageResult.pagePostId;
+              pagePostUrl = 'https://www.facebook.com/' + pageResult.pageId + '/posts/' + cleanPostId;
               await pool.query(
                 "INSERT INTO facebook_page_posts (pet_id, page_post_id, message, status, published_at) VALUES ($1, $2, $3, 'published', NOW())",
                 [req.params.id, pageResult.pagePostId, pageResult.message || '']
@@ -1906,7 +1909,10 @@ case 'facebook_groups': {
             if (pageResult.error) throw new Error(pageResult.error);
             let pagePostUrl = null;
             if (pageResult.pagePostId && pageResult.pageId) {
-              pagePostUrl = 'https://www.facebook.com/' + pageResult.pageId + '/posts/' + pageResult.pagePostId;
+              const cleanPostId = pageResult.pagePostId.includes('_')
+                ? pageResult.pagePostId.split('_')[1]
+                : pageResult.pagePostId;
+              pagePostUrl = 'https://www.facebook.com/' + pageResult.pageId + '/posts/' + cleanPostId;
               await pool.query(
                 "INSERT INTO facebook_page_posts (pet_id, page_post_id, message, status, published_at) VALUES ($1, $2, $3, 'published', NOW())",
                 [req.params.id, pageResult.pagePostId, pageResult.message || '']
