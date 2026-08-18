@@ -162,14 +162,16 @@ export default function FacebookTab({ onGoToInstagram }: { onGoToInstagram?: () 
           </p>
         )}
         {fbAuthError.error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-bold text-red-700">Token de Facebook sin permisos</p>
-              <p className="text-xs text-red-600 mt-1">{fbAuthError.detail || 'Reconectar Facebook desde el admin para restaurar las métricas.'}</p>
+              <p className="text-sm font-bold text-amber-700">Métricas de Facebook no disponibles</p>
+              <p className="text-xs text-amber-600 mt-1">
+                FB métricas sin Advanced Access (sin datos). IG métricas funcionando.
+              </p>
               {onGoToInstagram && (
                 <button onClick={onGoToInstagram}
-                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all">
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all">
                   <RefreshCw className="w-3.5 h-3.5" /> Reconectar (Instagram)
                 </button>
               )}

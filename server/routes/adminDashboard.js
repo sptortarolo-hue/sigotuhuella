@@ -103,13 +103,13 @@ router.get('/', requireAdmin, async (_req, res) => {
       engagement: {
         enabled: settings.engagement_sync_enabled === 'true',
         status: settings.engagement_sync_enabled === 'true'
-          ? (settings.fb_sync_auth_error === 'true' ? 'error' : 'ok')
+          ? (settings.fb_sync_auth_error === 'true' ? 'fb_unavailable' : 'ok')
           : 'idle',
         lastRun: null,
         detail: settings.engagement_sync_enabled !== 'true'
           ? 'Desactivado'
           : settings.fb_sync_auth_error === 'true'
-            ? (settings.fb_sync_auth_error_detail || 'Token FB sin permisos — reconectar')
+            ? 'FB métricas sin Advanced Access (sin datos). IG métricas activas.'
             : 'Sync IG/FB activo',
       },
     };

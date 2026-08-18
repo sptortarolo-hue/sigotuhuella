@@ -334,6 +334,18 @@ export async function syncFacebookEngagement() {
   const token = await getStoredToken();
   if (!token) return { posts: 0, comments: 0 };
 
+  const authError = await getSetting('fb_sync_auth_error');
+  const authErrorAt = await getSetting('fb_sync_auth_error_at');
+  const FB_RETRY_COOLDOWN_HOURS = 6;
+  if (authError === 'true' && authErrorAt) {
+    const lastFail = new Date(authErrorAt);
+    const hoursSinceFail = (Date.now() - lastFail.getTime()) / 36e5;
+    if (hoursSinceFail < FB_RETRY_COOLDOWN_HOURS) {
+      console.log(`[MetaEngagement] FB sync skipped (cooldown ${hoursSinceFail.toFixed(1)}h < ${FB_RETRY_COOLDOWN_HOURS}h)`);
+      return { posts: 0, comments: 0, skipped: true };
+    }
+  }
+
   const userTokRes = await pool.query("SELECT value FROM settings WHERE key = 'instagram_user_token'");
   const userToken = userTokRes.rows[0]?.value || '';
   const fbPageId = await getSetting('facebook_page_id');
@@ -448,8 +460,8 @@ export async function syncFacebookEngagement() {
   if (massivePermissionFailure) {
     const detail = errors.permission >= errors.token
       ? (orphanCount > 0
-        ? `El token (página ${fbPageId}) tiene pages_read_engagement pero la app carece de Advanced Access (#10). Además ${orphanCount} post(s) de otras páginas fueron ignorados. Arreglar en developers.facebook.com: App Review → Advanced Access de pages_read_engagement (o Page Public Content Access).`
-        : 'El token de Facebook tiene pages_read_engagement pero la app carece de Advanced Access (#10). Arreglar en developers.facebook.com: App Review → Advanced Access de pages_read_engagement (o Page Public Content Access).')
+        ? `El token (página ${fbPageId}) no tiene Advanced Access efectivo (#10). ${orphanCount} post(s) de otras páginas ignorados. FB métricas deshabilitadas hasta que Meta lo apruebe. IG métricas funcionan.`
+        : 'El token no tiene Advanced Access efectivo (#10). FB métricas deshabilitadas hasta que Meta lo apruebe. IG métricas funcionan.')
       : 'El token de Facebook es inválido o expiró. Reconectar FB desde el admin.';
     console.error(`[MetaEngagement] FB sync: ${unresolved} post(s) sin resolver / ${errors.permission} bloqueados por permisos / ${errors.token} por token. ${detail} Ej.: ${errorSamples.permission || errorSamples.token || ''}`);
     await saveSetting('fb_sync_auth_error', 'true');

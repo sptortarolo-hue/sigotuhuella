@@ -32,6 +32,7 @@ type Impact = {
     share_count?: number;
     reach?: number;
     message?: string;
+    metrics_updated_at?: string | null;
   } | null;
   replicas?: {
     count: number;
@@ -46,11 +47,12 @@ type Impact = {
 
 const fmt = (n?: number) => (typeof n === 'number' ? n.toLocaleString('es-AR') : '0');
 
-function MetricChip({ icon, label, value, color }: { icon: React.ReactNode; label: string; value?: number; color: string }) {
+function MetricChip({ icon, label, value, color, title }: { icon: React.ReactNode; label: string; value?: number | string; color: string; title?: string }) {
+  const displayValue = typeof value === 'number' ? value.toLocaleString('es-AR') : (value ?? '—');
   return (
-    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-50 border border-brand-accent">
+    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-50 border border-brand-accent" title={title}>
       <span className={color}>{icon}</span>
-      <span className="text-xs font-bold text-gray-700">{fmt(value)}</span>
+      <span className="text-xs font-bold text-gray-700">{displayValue}</span>
       <span className="text-[10px] text-gray-400">{label}</span>
     </div>
   );
@@ -190,6 +192,9 @@ export default function CaseImpact({ caseId, impact, canReply }: { caseId: strin
   const replicas = impact?.replicas;
   const totalReach = (ig?.reach || 0) + (fb?.reach || 0);
 
+  const fbMetricsStale = !fb?.metrics_updated_at || 
+    (Date.now() - new Date(fb.metrics_updated_at).getTime()) > 24 * 60 * 60 * 1000;
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-brand-accent p-5 mb-8">
       <h3 className="text-lg font-serif font-bold text-brand-primary mb-4">🚀 Impacto de la publicación</h3>
@@ -202,12 +207,18 @@ export default function CaseImpact({ caseId, impact, canReply }: { caseId: strin
             <MetricChip icon={<MessageCircle className="w-3.5 h-3.5" />} label="IG comentarios" value={ig.comment_count} color="text-pink-500" />
           </>
         )}
-        {fb && (
-          <>
-            <MetricChip icon={<Heart className="w-3.5 h-3.5" />} label="FB likes" value={fb.like_count} color="text-blue-600" />
-            <MetricChip icon={<MessageCircle className="w-3.5 h-3.5" />} label="FB comentarios" value={fb.comment_count} color="text-blue-600" />
-          </>
-        )}
+{fb && !fbMetricsStale && (
+            <>
+              <MetricChip icon={<Heart className="w-3.5 h-3.5" />} label="FB likes" value={fb.like_count} color="text-blue-600" />
+              <MetricChip icon={<MessageCircle className="w-3.5 h-3.5" />} label="FB comentarios" value={fb.comment_count} color="text-blue-600" />
+            </>
+          )}
+          {fb && fbMetricsStale && (
+            <>
+              <MetricChip icon={<Heart className="w-3.5 h-3.5" />} label="FB likes" value="—" color="text-gray-400" title="Métricas FB no disponibles" />
+              <MetricChip icon={<MessageCircle className="w-3.5 h-3.5" />} label="FB comentarios" value="—" color="text-gray-400" title="Métricas FB no disponibles" />
+            </>
+          )}
         {totalReach > 0 && <MetricChip icon={<Eye className="w-3.5 h-3.5" />} label="Alcance" value={totalReach} color="text-amber-500" />}
         {(replicas?.count || 0) > 0 && (
           <button
