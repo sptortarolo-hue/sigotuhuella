@@ -387,16 +387,20 @@ export async function syncFacebookEngagement() {
 
   const totalPosts = postsRes.rows.length;
   const massivePermissionFailure = totalPosts > 0 && unresolved >= totalPosts * 0.5;
-  if (errors.token > 0 || massivePermissionFailure) {
-    const detail = massivePermissionFailure
+  if (massivePermissionFailure) {
+    const detail = errors.permission >= errors.token
       ? 'El token de Facebook no tiene el permiso pages_read_engagement (o la app carece de Page Public Content Access). Reconectar FB desde el admin.'
       : 'El token de Facebook es inválido o expiró. Reconectar FB desde el admin.';
     console.error(`[MetaEngagement] FB sync: ${unresolved} post(s) sin resolver / ${errors.permission} bloqueados por permisos / ${errors.token} por token. ${detail} Ej.: ${errorSamples.permission || errorSamples.token || ''}`);
     await saveSetting('fb_sync_auth_error', 'true');
     await saveSetting('fb_sync_auth_error_at', new Date().toISOString());
     await saveSetting('fb_sync_auth_error_detail', detail);
-  } else if (totalPosts > 0 && errors.invalid_post + errors.other === 0 && errors.permission === 0 && errors.token === 0 && unresolved === 0) {
+  } else if (totalPosts > 0 && unresolved === 0 && errors.invalid_post + errors.other === 0) {
+    // Se resuelven todos los posts (sea por main call o por fallbacks), aunque
+    // haya errores puntuales de permiso/token en el main call: no es un fallo de auth.
     await saveSetting('fb_sync_auth_error', 'false');
+    await saveSetting('fb_sync_auth_error_at', '');
+    await saveSetting('fb_sync_auth_error_detail', '');
   }
 
   return { posts, comments };
