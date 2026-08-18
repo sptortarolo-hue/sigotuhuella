@@ -102,7 +102,7 @@ export async function recordPublicationEvent(petId, eventType, payload) {
 }
 
 // Sincroniza el caso cuando cambia pets.status (cerrar en reunited/adopted, reactivar si vuelve a estar perdido)
-export async function syncCaseStatus(petId, newStatus) {
+export async function syncCaseStatus(petId, newStatus, fromStatus = null) {
   try {
     const caseRes = await pool.query('SELECT * FROM pet_cases WHERE pet_id = $1 LIMIT 1', [petId]);
     if (caseRes.rows.length === 0) return null;
@@ -113,7 +113,22 @@ export async function syncCaseStatus(petId, newStatus) {
         `UPDATE pet_cases SET status = 'closed', updated_at = NOW() WHERE id = $1`,
         [petCase.id]
       );
-      await createCaseEvent(petCase.id, 'case_closed', { reason: closeReason(newStatus), pet_status: newStatus });
+      const payload = { reason: closeReason(newStatus), pet_status: newStatus };
+      // Cierre administrativo: mascota retenida que pasó a adoptada → descripción específica en el timeline.
+      if (fromStatus === 'retained' && newStatus === 'adopted') {
+        try {
+          const petRes = await pool.query('SELECT name, case_number FROM pets WHERE id = $1', [petId]);
+          const pet = petRes.rows[0];
+          if (pet) {
+            const petName = pet.name?.trim() ? pet.name.trim() : 'La mascota';
+            const caseNumber = pet.case_number ? ` Caso ${pet.case_number} cerrado.` : '';
+            payload.description = `Actualización: ${petName}: retenida cambió a adoptada.${caseNumber}`;
+          }
+        } catch (descErr) {
+          console.error('syncCaseStatus description error:', descErr.message);
+        }
+      }
+      await createCaseEvent(petCase.id, 'case_closed', payload);
     } else if (!isClosedStatus(newStatus)) {
       const mapping = petCaseMapping(newStatus);
       if (mapping && petCase.status !== mapping.caseStatus) {

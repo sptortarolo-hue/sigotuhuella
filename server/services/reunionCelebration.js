@@ -2,7 +2,7 @@ import pool from '../db.js';
 import { broadcastPetToGroups } from './whatsappService.js';
 import { commentOnPagePost, publishPetToGroups } from './facebookPublisher.js';
 import { isConnected, commentOnMedia } from './instagramService.js';
-import { generateCelebrationText } from './textTemplates.js';
+import { generateCelebrationText, generateAdoptionClosureText } from './textTemplates.js';
 import sharp from 'sharp';
 
 export async function addPetHistory({ petId, eventType, description, fromStatus, toStatus, relatedPetId, relatedUserId, changedBy }) {
@@ -104,7 +104,7 @@ async function autoCreateNews(pet, newsType) {
   }
 }
 
-async function autoInstagramComment(pet, newsType) {
+async function autoInstagramComment(pet, newsType, commentTextOverride) {
   try {
     const connected = await isConnected();
     if (!connected) return;
@@ -113,7 +113,7 @@ async function autoInstagramComment(pet, newsType) {
       [pet.id]
     );
     if (igPost.rows.length === 0) return;
-    const commentText = generateCelebrationText(pet, newsType);
+    const commentText = commentTextOverride || generateCelebrationText(pet, newsType);
     if (!commentText) return;
     await commentOnMedia(igPost.rows[0].ig_media_id, commentText);
     console.log(`[Instagram] Auto-commented on pet ${pet.id}: ${commentText.slice(0, 60)}...`);
@@ -122,14 +122,14 @@ async function autoInstagramComment(pet, newsType) {
   }
 }
 
-async function autoFacebookPageComment(pet, newsType) {
+async function autoFacebookPageComment(pet, newsType, commentTextOverride) {
   try {
     const pagePost = await pool.query(
       "SELECT page_post_id FROM facebook_page_posts WHERE pet_id = $1 AND page_post_id IS NOT NULL ORDER BY published_at DESC LIMIT 1",
       [pet.id]
     );
     if (pagePost.rows.length === 0) return;
-    const commentText = generateCelebrationText(pet, newsType);
+    const commentText = commentTextOverride || generateCelebrationText(pet, newsType);
     if (!commentText) return;
     await commentOnPagePost(pagePost.rows[0].page_post_id, commentText);
     await pool.query(
@@ -191,7 +191,7 @@ export async function awardBadgeIfMissing(userId, code) {
   }
 }
 
-async function enqueueFbGroupComment(pet, newsType) {
+async function enqueueFbGroupComment(pet, newsType, commentTextOverride) {
   try {
     const fbRelay = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_enabled'");
     if (fbRelay.rows[0]?.value !== 'true') return;
@@ -200,7 +200,7 @@ async function enqueueFbGroupComment(pet, newsType) {
       [pet.id]
     );
     if (tasks.rows.length === 0) return;
-    const commentText = generateCelebrationText(pet, newsType);
+    const commentText = commentTextOverride || generateCelebrationText(pet, newsType);
     if (!commentText) return;
     for (const task of tasks.rows) {
       await pool.query(
@@ -226,6 +226,9 @@ export async function celebrateStatusChange({ petId, userId, fromStatus, toStatu
   if (!isReunited && !isAdopted) return;
 
   const newsType = isReunited ? 'reunited' : 'adopted';
+  // Cierre administrativo: mascota retenida que el admin pasa a adoptada.
+  // No genera novedad, solo posteo de actualización.
+  const isRetainedToAdopted = fromStatus === 'retained' && toStatus === 'adopted';
 
   // 1. Detectar caso abierto ANTES de syncCaseStatus (que puede cerrarlo)
   let openCase = null;
@@ -246,7 +249,7 @@ export async function celebrateStatusChange({ petId, userId, fromStatus, toStatu
 
   // 3. Sync case status (fire-and-forget)
   const { syncCaseStatus } = await import('./caseService.js');
-  syncCaseStatus(petId, toStatus).catch(() => {});
+  syncCaseStatus(petId, toStatus, fromStatus).catch(() => {});
 
   // 4. reunited_at
   await pool.query('UPDATE pets SET reunited_at = COALESCE(reunited_at, NOW()) WHERE id = $1', [petId]);
@@ -293,15 +296,25 @@ export async function celebrateStatusChange({ petId, userId, fromStatus, toStatu
   const pet = updatedPet.rows[0];
 
   // 7. News + IG/FB comments + celebration post
-  await autoCreateNews(pet, newsType);
-  await autoInstagramComment(pet, newsType);
-  await autoFacebookPageComment(pet, newsType);
-  await autoQueueCelebrationPost(pet, newsType);
+  if (isRetainedToAdopted) {
+    // Sin novedad (news): solo actualizar la info en los posts existentes.
+    const updateText = generateAdoptionClosureText(pet);
+    await autoInstagramComment(pet, newsType, updateText);
+    await autoFacebookPageComment(pet, newsType, updateText);
+    enqueueFbGroupComment(pet, newsType, updateText).catch(e => console.error('[FB Relay] enqueueFbGroupComment error:', e.message));
+  } else {
+    await autoCreateNews(pet, newsType);
+    await autoInstagramComment(pet, newsType);
+    await autoFacebookPageComment(pet, newsType);
+    await autoQueueCelebrationPost(pet, newsType);
+  }
 
   // 8. Broadcast + relay (fire-and-forget)
-  broadcastPetToGroups(petId).catch(e => console.error('Broadcast reunion/adoption error:', e));
-  publishPetToGroups(petId, { isCelebration: true }).catch(e => console.error('[FB Relay] publishPetToGroups error:', e));
-  enqueueFbGroupComment(pet, newsType).catch(e => console.error('[FB Relay] enqueueFbGroupComment error:', e));
+  broadcastPetToGroups(petId, isRetainedToAdopted ? generateAdoptionClosureText(pet) : null).catch(e => console.error('Broadcast reunion/adoption error:', e));
+  if (!isRetainedToAdopted) {
+    publishPetToGroups(petId, { isCelebration: true }).catch(e => console.error('[FB Relay] publishPetToGroups error:', e));
+    enqueueFbGroupComment(pet, newsType).catch(e => console.error('[FB Relay] enqueueFbGroupComment error:', e));
+  }
 
   // 9. Badges (solo reunited)
   if (isReunited && pet.created_by) {

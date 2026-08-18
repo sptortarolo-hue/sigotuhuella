@@ -27,3 +27,11 @@ export function generateCelebrationText(pet, type) {
 
   return '';
 }
+
+// Texto corto de actualización para el cierre administrativo retained -> adopted.
+// Uso: admin cambia una mascota retenida a adoptada desde el panel.
+export function generateAdoptionClosureText(pet) {
+  const petName = pet?.name?.trim() ? pet.name.trim() : 'La mascota';
+  const caseNumber = pet?.case_number ? ` Caso ${pet.case_number} cerrado.` : '';
+  return `Actualización: ${petName}: retenida cambió a adoptada.${caseNumber}`;
+}

@@ -350,7 +350,7 @@ export async function buildPetBroadcastCaption(pet) {
   ].filter(Boolean).join('\n');
 }
 
-export async function broadcastPetToGroups(petId) {
+export async function broadcastPetToGroups(petId, captionOverride = null) {
   console.log('[Broadcast] >>> ENTRANDO petId:', petId);
   try {
     const enabled = await pool.query("SELECT value FROM settings WHERE key = 'whatsapp_broadcast_enabled'");
@@ -383,7 +383,7 @@ export async function broadcastPetToGroups(petId) {
     }
     console.log('[Broadcast] Pet encontrado, status:', pet.status, 'species:', pet.species);
 
-    const caption = await buildPetBroadcastCaption(pet);
+    const caption = captionOverride || await buildPetBroadcastCaption(pet);
     const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
     let coverUrl = pet.image_data
