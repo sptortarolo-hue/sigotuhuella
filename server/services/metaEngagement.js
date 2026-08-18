@@ -338,21 +338,41 @@ export async function syncFacebookEngagement() {
   const userToken = userTokRes.rows[0]?.value || '';
   const fbPageId = await getSetting('facebook_page_id');
 
+  let orphanCount = 0;
+  if (fbPageId) {
+    try {
+      const orphanRes = await pool.query(
+        `SELECT split_part(page_post_id, '_', 1) AS page_id, count(*)::int AS n
+         FROM facebook_page_posts
+         WHERE status = 'published' AND page_post_id IS NOT NULL
+           AND page_post_id NOT LIKE $1
+         GROUP BY 1 ORDER BY n DESC`,
+        [`${fbPageId}\_%`]
+      );
+      orphanCount = orphanRes.rows.reduce((s, r) => s + (r.n || 0), 0);
+      if (orphanRes.rows.length > 0) {
+        const pages = orphanRes.rows.map(r => `${r.page_id} (${r.n})`).join(', ');
+        console.warn(`[MetaEngagement] FB: ${orphanCount} post(s) de otras páginas sin token (ignorados): ${pages}`);
+      }
+    } catch (err) {
+      console.error('[MetaEngagement] FB: error contando posts de otras páginas:', err.message);
+    }
+  }
+
   const postsRes = await pool.query(
     `SELECT id, pet_id, page_post_id FROM facebook_page_posts
      WHERE status = 'published' AND page_post_id IS NOT NULL
-     ORDER BY published_at DESC NULLS LAST LIMIT 100`
+       ${fbPageId ? `AND page_post_id LIKE $1` : ''}
+     ORDER BY published_at DESC NULLS LAST LIMIT 100`,
+    fbPageId ? [`${fbPageId}\_%`] : []
   );
 
   let posts = 0, comments = 0;
   let unresolved = 0;
-  let mismatched = 0;
   const errors = { permission: 0, invalid_post: 0, token: 0, other: 0 };
   const errorSamples = {};
   console.log('[MetaEngagement] FB sync started: ' + postsRes.rows.length + ' posts to process');
   for (const post of postsRes.rows) {
-    const postPageId = post.page_post_id?.split('_')[0];
-    if (fbPageId && postPageId && postPageId !== fbPageId) mismatched++;
     try {
       const params = { access_token: token, fields: 'id,reactions.summary(true),comments.summary(true)' };
       const { data } = await axios.get(`${GRAPH_API}/${post.page_post_id}`, { params });
@@ -427,9 +447,9 @@ export async function syncFacebookEngagement() {
   const massivePermissionFailure = totalPosts > 0 && unresolved >= totalPosts * 0.5;
   if (massivePermissionFailure) {
     const detail = errors.permission >= errors.token
-      ? (mismatched > 0
-        ? `El token está conectado a la página ${fbPageId} pero ${mismatched} post(s) pertenecen a otra página. El permiso pages_read_engagement solo cubre la página del token. Reconectar FB desde el admin seleccionando la página correcta.`
-        : 'El token de Facebook no tiene el permiso pages_read_engagement (o la app carece de Page Public Content Access). Reconectar FB desde el admin.')
+      ? (orphanCount > 0
+        ? `El token (página ${fbPageId}) tiene pages_read_engagement pero la app carece de Advanced Access (#10). Además ${orphanCount} post(s) de otras páginas fueron ignorados. Arreglar en developers.facebook.com: App Review → Advanced Access de pages_read_engagement (o Page Public Content Access).`
+        : 'El token de Facebook tiene pages_read_engagement pero la app carece de Advanced Access (#10). Arreglar en developers.facebook.com: App Review → Advanced Access de pages_read_engagement (o Page Public Content Access).')
       : 'El token de Facebook es inválido o expiró. Reconectar FB desde el admin.';
     console.error(`[MetaEngagement] FB sync: ${unresolved} post(s) sin resolver / ${errors.permission} bloqueados por permisos / ${errors.token} por token. ${detail} Ej.: ${errorSamples.permission || errorSamples.token || ''}`);
     await saveSetting('fb_sync_auth_error', 'true');
