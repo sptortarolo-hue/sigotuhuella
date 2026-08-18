@@ -604,9 +604,11 @@ function otherInstanceRunning() {
 // existe; ver gist "List of accepted fb:// URIs in Android Facebook").
 function fbDeepLinkFor(url) {
   var u = String(url || "");
-  // Post de página: /{pageId}/posts/{postId} o /{pageId}/post/{postId}
-  var m = u.match(/facebook\.com\/([^\/]+)\/(?:posts|post)\/(\d+)/);
-  if (m) return "fb://post/" + m[2];
+  // Post de página: /{pageId}/posts/{postId} o /{pageId}/post/{postId}.
+  // El postId puede venir como {pageId}_{postId} (formato del Graph API
+  // data.id); usar la parte real del post, no el prefijo de página.
+  var m = u.match(/facebook\.com\/[^\/]+\/(?:posts|post)\/(\d+)(?:_(\d+))?/);
+  if (m) return "fb://post/" + (m[2] || m[1]);
   // Post de grupo: /groups/{gid}/posts/{pid} → permalink del post en el grupo
   var mg = u.match(/facebook\.com\/groups\/(\d+)\/posts\/(\d+)/);
   if (mg) return "fb://group/" + mg[1] + "/permalink/" + mg[2];
@@ -1334,7 +1336,7 @@ function typePinByText(pin) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
-  console.log("[native] build bd36875+ (state machine wake)");
+  console.log("[native] build e676c17+ (state machine wake; deep link soporta pageId_postId)");
   parkConsole();
 
   // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
