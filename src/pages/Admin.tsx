@@ -3130,6 +3130,7 @@ export default function Admin() {
                     <option value={PetStatus.NEEDS_ATTENTION}>Necesita Atención</option>
                     <option value={PetStatus.FOR_ADOPTION}>Para Adopción</option>
                     <option value={PetStatus.FOR_ADOPTION_SIMPLE}>Adopción (Difusión)</option>
+                    <option value={PetStatus.ADOPTED}>Adoptado</option>
                     <option value={PetStatus.TRANSITADA}>En Tránsito</option>
                   </select>
                 </div>
