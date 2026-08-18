@@ -78,7 +78,6 @@ function eventLabel(type: string, payload: any) {
       return '¡Volvió a casa!';
     }
     case 'case_closed': {
-      if (payload?.description) return payload.description;
       const reasonMap: any = { reunited: 'reunida', adopted: 'adoptada', deceased: 'fallecida', transferred: 'traspasada', grouped: 'unificado en otro caso' };
       return `Caso cerrado (${reasonMap[payload?.reason] || payload?.reason || 'motivo'})`;
     }
