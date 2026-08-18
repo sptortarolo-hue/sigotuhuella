@@ -1,5 +1,6 @@
 import pool from '../db.js';
 import { addPetHistory, celebrateStatusChange } from './reunionCelebration.js';
+import { generateAdoptionClosureText } from './textTemplates.js';
 
 // Mapeo pets.status -> (tipo de caso, estado de caso)
 export function petCaseMapping(status) {
@@ -117,12 +118,10 @@ export async function syncCaseStatus(petId, newStatus, fromStatus = null) {
       // Cierre administrativo: mascota retenida que pasó a adoptada → descripción específica en el timeline.
       if (fromStatus === 'retained' && newStatus === 'adopted') {
         try {
-          const petRes = await pool.query('SELECT name, case_number FROM pets WHERE id = $1', [petId]);
+          const petRes = await pool.query('SELECT * FROM pets WHERE id = $1', [petId]);
           const pet = petRes.rows[0];
           if (pet) {
-            const petName = pet.name?.trim() ? pet.name.trim() : 'La mascota';
-            const caseNumber = pet.case_number ? ` Caso ${pet.case_number} cerrado.` : '';
-            payload.description = `Actualización: ${petName}: retenida cambió a adoptada.${caseNumber}`;
+            payload.description = generateAdoptionClosureText(pet);
           }
         } catch (descErr) {
           console.error('syncCaseStatus description error:', descErr.message);

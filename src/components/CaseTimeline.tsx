@@ -73,7 +73,10 @@ function eventLabel(type: string, payload: any) {
     case 'search_area_logged': return 'Zona de búsqueda registrada';
     case 'meeting_arranged': return 'Punto de encuentro propuesto';
     case 'reunited': return 'Reencontrada';
-    case 'reunion_announced': return '¡Volvió a casa!';
+    case 'reunion_announced': {
+      if (payload?.reason === 'adopted') return '¡Fue adoptada!';
+      return '¡Volvió a casa!';
+    }
     case 'case_closed': {
       if (payload?.description) return payload.description;
       const reasonMap: any = { reunited: 'reunida', adopted: 'adoptada', deceased: 'fallecida', transferred: 'traspasada', grouped: 'unificado en otro caso' };
@@ -134,7 +137,11 @@ function eventDetail(type: string, payload: any) {
       if (!payload?.active_until) return null;
       const d = new Date(payload.active_until);
       if (isNaN(d.getTime())) return null;
-      return `El caso queda activo hasta el ${d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })}`;
+return `El caso queda activo hasta el ${d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })}`;
+    }
+    case 'case_closed': {
+      if (payload?.description) return payload.description;
+      return null;
     }
     case 'case_merged': {
       const parts: string[] = [];

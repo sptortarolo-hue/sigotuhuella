@@ -358,7 +358,10 @@ export async function celebrateStatusChange({ petId, userId, fromStatus, toStatu
       await pool.query(
         `INSERT INTO case_events (case_id, user_id, event_type, payload)
          VALUES ($1, $2, 'reunion_announced', $3)`,
-        [openCase.id, userId, JSON.stringify({ collaborators_count: allIds.length })]
+        [openCase.id, userId, JSON.stringify({ 
+          collaborators_count: allIds.length,
+          reason: isRetainedToAdopted ? 'adopted' : 'reunited'
+        })]
       );
     } catch (err) {
       console.error('celebrateStatusChange notify collaborators error:', err.message);

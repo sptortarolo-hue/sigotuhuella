@@ -32,6 +32,8 @@ export function generateCelebrationText(pet, type) {
 // Uso: admin cambia una mascota retenida a adoptada desde el panel.
 export function generateAdoptionClosureText(pet) {
   const petName = pet?.name?.trim() ? pet.name.trim() : 'La mascota';
-  const caseNumber = pet?.case_number ? ` Caso ${pet.case_number} cerrado.` : '';
-  return `Actualización: ${petName}: retenida cambió a adoptada.${caseNumber}`;
+  const caseNum = pet?.case_number ? String(pet.case_number).padStart(4, '0') : '';
+  const caseLine = caseNum ? `\n📋 Caso STH-${caseNum} cerrado` : '';
+  const url = `https://sigotuhuella.com.ar/pet/${pet.id}`;
+  return `📢 Actualización: ${petName}: retenida cambió a adoptada.${caseLine}\n\n${url}\n\n#SigoTuHuella #AdopciónResponsable`;
 }
