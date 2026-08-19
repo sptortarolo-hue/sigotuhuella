@@ -1092,6 +1092,16 @@ async function runDaemon() {
 
         saveSeen(seen);
         console.log(`[Scraper] Ciclo completado. ${totalPosts} posts totales.`);
+
+        try {
+          const resp = await axios.post(`${API_BASE}/facebook/cleanup-non-pet`, {}, {
+            headers: { Authorization: `Bearer ${TOKEN}` },
+            timeout: 60000,
+          });
+          console.log(`[Scraper] Limpieza de no-mascotas ejecutada: ${resp.data?.deleted_fb || 0} FB, ${resp.data?.deleted_wa || 0} WA`);
+        } catch (e) {
+          console.warn(`[Scraper] Error en limpieza de no-mascotas: ${e.message}`);
+        }
       }
     } finally {
       releaseLock();

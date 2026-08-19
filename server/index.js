@@ -29,7 +29,7 @@ import blacklistRoutes from './routes/blacklist.js';
 import contestRoutes from './routes/contests.js';
 import gamificationRoutes from './routes/gamification.js';
 import requestChapitaRoutes from './routes/requestChapita.js';
-import facebookRoutes from './routes/facebook.js';
+import facebookRoutes, { cleanupNonPetPosts } from './routes/facebook.js';
 import instagramRoutes from './routes/instagram.js';
 import imageRoutes from './routes/images.js';
 import phoneRelayRoutes from './routes/phoneRelay.js';
@@ -708,6 +708,16 @@ async function start() {
   });
   setInterval(checkReminders, 6 * 60 * 60 * 1000);
   checkReminders();
+
+  // Limpieza automática de no-mascotas (backup para WA, que no tiene ciclos de scrape)
+  setInterval(async () => {
+    try {
+      await cleanupNonPetPosts();
+    } catch (err) {
+      console.error('[Cleanup Scheduler] Error:', err.message);
+    }
+  }, 6 * 60 * 60 * 1000);
+  cleanupNonPetPosts();
 
   // Invite reminders: every hour
   setInterval(processInviteReminders, 60 * 60 * 1000);

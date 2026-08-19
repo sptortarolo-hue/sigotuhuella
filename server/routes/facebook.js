@@ -24,6 +24,39 @@ async function isScrapingEnabled() {
   return result.rows[0]?.value === 'true';
 }
 
+// Limpia posts/mensajes scrapeados que claramente no son de mascotas
+// (doble señal: clasificación 'other' de Gemini + sin perro/gato en imagen)
+export async function cleanupNonPetPosts() {
+  try {
+    const fb = await pool.query(
+      `DELETE FROM facebook_posts
+       WHERE is_matched = false
+         AND classification = 'other'
+         AND animal_detected = false
+       RETURNING id`
+    );
+
+    const wa = await pool.query(
+      `DELETE FROM whatsapp_scraped_messages
+       WHERE is_matched = false
+         AND animal_detected = false
+         AND (
+           classification = 'other'
+           OR (classification IS NULL AND created_at < NOW() - interval '15 minutes')
+         )
+       RETURNING id`
+    );
+
+    if (fb.rowCount > 0 || wa.rowCount > 0) {
+      console.log(`[Cleanup] No-mascotas eliminados: ${fb.rowCount} FB, ${wa.rowCount} WA`);
+    }
+    return { deleted_fb: fb.rowCount, deleted_wa: wa.rowCount };
+  } catch (err) {
+    console.error('[Cleanup] Error:', err.message);
+    return { deleted_fb: 0, deleted_wa: 0, error: err.message };
+  }
+}
+
 // ==================== GROUPS ====================
 
 router.get('/groups', requireAdmin, async (_req, res) => {
@@ -307,18 +340,6 @@ router.post('/webhook', async (req, res) => {
         }
         const cmtClassified = classification.comments || [];
 
-        let animalDetection = { detected: false, species: null, confidence: 0 };
-        if (image_buffers?.length > 0) {
-          try {
-            animalDetection = await detectAnimal(image_buffers[0].data, image_buffers[0].mimeType || 'image/jpeg');
-          } catch (e) {
-            console.warn(`[Webhook] detectAnimal error for ${fb_post_id}: ${e.message}`);
-          }
-          if (!animalDetection.detected) {
-            console.log(`[Webhook] ${fb_post_id}: sin perro/gato en imagen (no bloqueante)`);
-          }
-        }
-
         if ((!image_buffers || image_buffers.length === 0) && image_urls?.length > 0) {
           try {
             const resp = await fetch(image_urls[0]);
@@ -330,6 +351,18 @@ router.post('/webhook', async (req, res) => {
             }
           } catch (e) {
             console.warn(`[Webhook] No se pudo descargar imagen desde URL para ${fb_post_id}: ${e.message}`);
+          }
+        }
+
+        let animalDetection = { detected: false, species: null, confidence: 0 };
+        if (image_buffers?.length > 0) {
+          try {
+            animalDetection = await detectAnimal(image_buffers[0].data, image_buffers[0].mimeType || 'image/jpeg');
+          } catch (e) {
+            console.warn(`[Webhook] detectAnimal error for ${fb_post_id}: ${e.message}`);
+          }
+          if (!animalDetection.detected) {
+            console.log(`[Webhook] ${fb_post_id}: sin perro/gato en imagen (no bloqueante)`);
           }
         }
 
@@ -442,6 +475,27 @@ router.get('/scraper-groups', async (req, res) => {
   } catch (err) {
     console.error('Error fetching scraper groups:', err);
     res.status(500).json({ error: 'Error al obtener grupos' });
+  }
+});
+
+// ==================== LIMPIEZA NO-MASCOTAS (scraper → app) ====================
+
+router.post('/cleanup-non-pet', async (req, res) => {
+  const token = await getScraperToken();
+  const relayToken = process.env.RELAY_TOKEN;
+  const qToken = req.query.token;
+  const authHeader = req.headers.authorization;
+  const isRelay = relayToken && authHeader === `Bearer ${relayToken}`;
+  const isScraper = token && authHeader === `Bearer ${token}`;
+  if (!isRelay && !isScraper && (!qToken || qToken !== token)) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
+  try {
+    const result = await cleanupNonPetPosts();
+    res.json(result);
+  } catch (err) {
+    console.error('Error en cleanup-non-pet:', err);
+    res.status(500).json({ error: 'Error al limpiar publicaciones' });
   }
 });
 
