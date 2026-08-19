@@ -181,8 +181,15 @@ function clickResultBelowEditText(timeoutMs) {
 // Busca el row de un grupo en la pantalla de selección múltiple (cuenta
 // business): el row está DEBAJO del EditText del buscador (el EditText contiene
 // el texto recién tipeado, así que findNode por texto devolvería el box, no el
-// resultado). Filtra por nombre normalizado; si no, toma el primer row visible
-// debajo del box. Devuelve el nodo del row o null.
+// resultado). Prioriza el nodo cuyo texto EQUALS el nombre (case-insensitive);
+// si no, el primer row que lo contiene. Descarta los nodos contador del tipo
+// "N resultado para \"...\"" (matchean el nombre por substring pero NO son el
+// row). Devuelve el nodo del row o null.
+function isCounterNode(txt) {
+  var t = (txt || "").toLowerCase();
+  return /resultado.*para|result.*for|resultad/.test(t);
+}
+
 function findGroupRowBelowEditText(searchName, timeoutMs) {
   var deadline = Date.now() + (timeoutMs || CONFIG.findTimeoutMs);
   var nameLower = (searchName || "").toLowerCase();
@@ -194,6 +201,7 @@ function findGroupRowBelowEditText(searchName, timeoutMs) {
         var belowY = eb.bottom + 1;
         var withText = textMatches(/.*/).find();
         var best = null;
+        var exact = null;
         for (var i = 0; i < withText.length; i++) {
           var n = withText[i];
           try {
@@ -202,11 +210,27 @@ function findGroupRowBelowEditText(searchName, timeoutMs) {
             if (b.top < belowY) continue;
             var txt = (n.text() || "").trim();
             if (!txt) continue;
-            // Preferir el row cuyo texto contiene el nombre buscado
-            if (nameLower && txt.toLowerCase().indexOf(nameLower) >= 0) {
-              return n;
+            if (isCounterNode(txt)) continue; // "1 resultado para..." no es el row
+            var tl = txt.toLowerCase();
+            if (nameLower && tl === nameLower) {
+              if (!exact) exact = n; // match exacto gana
+              continue;
             }
             if (!best) best = n;
+          } catch (e) {}
+        }
+        if (exact) return exact;
+        // Sin match exacto: el que contiene el nombre (primero) o el primer row
+        for (var k = 0; k < withText.length; k++) {
+          var nk = withText[k];
+          try {
+            if (!nk.visibleToUser()) continue;
+            var bk = nk.bounds();
+            if (bk.top < belowY) continue;
+            var tk = (nk.text() || "").trim();
+            if (!tk) continue;
+            if (isCounterNode(tk)) continue;
+            if (nameLower && tk.toLowerCase().indexOf(nameLower) >= 0) return nk;
           } catch (e) {}
         }
         if (best) return best;
@@ -1107,6 +1131,15 @@ function selectGroupCheckbox(groupName, timeoutMs) {
             marked = true;
             break;
           }
+        }
+      }
+      // Señal fuerte: si aparece el botón "Siguiente" es porque hay ≥1 grupo
+      // marcado (solo existe con selección activa).
+      if (!marked) {
+        var nextNode = findNode(["Siguiente", "Next", "Continuar"], 1500);
+        if (nextNode) {
+          console.log("[native] botón 'Siguiente' detectado tras el tap → marcado confirmado");
+          marked = true;
         }
       }
     } catch (e) {}
