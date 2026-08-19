@@ -549,7 +549,7 @@ export default function MyPetsPortal() {
                 )}
                 {pet.pet_type === 'adoption' && !pet.has_pending_adoption && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); setShowAdoptionModal(true); setAdoptionPet(pet); setAdopterName(''); setAdopterEmail(''); setAdopterPhone(''); }}
+                    onClick={(e) => { e.stopPropagation(); setShowAdoptionModal(true); setAdoptionPet(pet); setAdopterName(''); setAdopterPhone(''); }}
                     className="w-full mb-3 py-2 bg-rose-50 text-rose-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-rose-100 transition-colors border border-rose-200"
                   >
                     <Heart className="w-3.5 h-3.5" /> Dar en adopción
@@ -557,9 +557,9 @@ export default function MyPetsPortal() {
                 )}
                 <div className="flex items-center justify-between">
                   <div className="flex gap-2 flex-wrap">
-                    {pet.is_vaccinated && <Syringe className="w-4 h-4 text-emerald-500" title="Vacunado" />}
-                    {pet.is_sterilized && <Scissors className="w-4 h-4 text-blue-500" title="Esterilizado" />}
-                    {pet.is_dewormed && <Bug className="w-4 h-4 text-amber-500" title="Desparasitado" />}
+                    {pet.is_vaccinated && <span title="Vacunado"><Syringe className="w-4 h-4 text-emerald-500" /></span>}
+                    {pet.is_sterilized && <span title="Esterilizado"><Scissors className="w-4 h-4 text-blue-500" /></span>}
+                    {pet.is_dewormed && <span title="Desparasitado"><Bug className="w-4 h-4 text-amber-500" /></span>}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-gray-400">
                     <span>{pet.photo_count || 0} fotos</span>

@@ -9,6 +9,19 @@ import { isNative } from '@/src/lib/platform';
 import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 import { PhoneInput } from '@/src/components/PhoneInput';
 
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (config: { client_id: string; callback: (res: { credential: string }) => void }) => void;
+          renderButton: (el: HTMLElement, options: Record<string, unknown>) => void;
+        };
+      };
+    };
+  }
+}
+
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_ID_ANDROID = import.meta.env.VITE_GOOGLE_CLIENT_ID_ANDROID || '';
 

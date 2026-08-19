@@ -11,6 +11,7 @@ import {
 interface Conversation {
   id: string;
   wa_from: string;
+  sender_name?: string;
   bot_name: string;
   flow: string;
   context: any;

@@ -106,8 +106,8 @@ export default function PetDuplicateGroupModal({ petId, petName, onClose, onSave
                   )}
                 >
                   <div className="w-14 h-14 rounded-xl bg-white border border-brand-accent overflow-hidden shrink-0">
-                    {getPetImageUrl(s.pet, 0) ? (
-                      <img src={getPetImageUrl(s.pet, 0)} alt="" className="w-full h-full object-cover" />
+                    {getPetImageUrl(s.pet) ? (
+                      <img src={getPetImageUrl(s.pet)} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-300"><PawPrint className="w-6 h-6" /></div>
                     )}

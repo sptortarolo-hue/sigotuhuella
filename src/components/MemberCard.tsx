@@ -119,14 +119,14 @@ export default function MemberCard({
     ctx.clip();
 
     const pawPositions = [
-      { x: 50, y: 380, size: 30 },
-      { x: 200, y: 350, size: 24 },
-      { x: 350, y: 390, size: 28 },
-      { x: 100, y: 80, size: 20 },
-      { x: 300, y: 200, size: 26 },
-      { x: 180, y: 150, size: 18 },
+      { x: 50, y: 380, size: 30, a: 0.05 },
+      { x: 200, y: 350, size: 24, a: 0.05 },
+      { x: 350, y: 390, size: 28, a: 0.05 },
+      { x: 100, y: 80, size: 20, a: 0.05 },
+      { x: 300, y: 200, size: 26, a: 0.05 },
+      { x: 180, y: 150, size: 18, a: 0.05 },
     ];
-    pawPositions.forEach(p => drawPawPrint(ctx, p.x, p.y, p.size, `rgba(90, 90, 64, ${p.a || 0.05})`));
+    pawPositions.forEach(p => drawPawPrint(ctx, p.x, p.y, p.size, `rgba(90, 90, 64, ${p.a})`));
 
     ctx.restore();
 

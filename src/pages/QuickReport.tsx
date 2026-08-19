@@ -225,7 +225,7 @@ export default function QuickReport() {
   }
 
   // Forms for sighted/retained
-  if (pageState === 'sighted' || pageState === 'retained') {
+  if (pageState === 'sighted' || pageState === 'retained' || pageState === 'submitting' || pageState === 'error') {
     return (
       <>
         {croppingIndex !== null && cropFile && (
@@ -350,9 +350,9 @@ export default function QuickReport() {
 
             {/* Submit */}
             <button onClick={() => submitReport(pageState === 'sighted' ? 'sighted' : 'retained')}
-              disabled={!isValid || pageState === 'submitting'}
+              disabled={!isValid || (pageState as PageState) === 'submitting'}
               className="w-full sm:w-auto px-8 py-4 bg-brand-primary text-white font-bold text-base rounded-xl disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2">
-              {pageState === 'submitting' ? <><Loader2 className="w-5 h-5 animate-spin" /> Enviando...</> : 'Enviar reporte'}
+              {(pageState as PageState) === 'submitting' ? <><Loader2 className="w-5 h-5 animate-spin" /> Enviando...</> : 'Enviar reporte'}
             </button>
 
             <p className="text-xs text-gray-400 text-center">Al enviar aceptás los{' '}

@@ -429,7 +429,7 @@ export default function RelayWhatsAppTab() {
   const fetchStatusHistory = async () => {
     setStatusHistoryLoading(true);
     try {
-      const data = await api.whatsappRelay.statusHistory();
+      const data = await api.whatsappRelay.recentSent();
       setStatusHistory(data);
     } catch (e) { /* ignore */ }
     setStatusHistoryLoading(false);
@@ -471,7 +471,7 @@ export default function RelayWhatsAppTab() {
     try {
       const res = await api.whatsappRelay.clearQueue();
       alert(`✅ Cola limpiada: ${res.deleted} mensajes eliminados`);
-      loadStatus();
+      fetchStatus();
       fetchPendingMessages();
     } catch (err: any) {
       alert(`❌ Error: ${err.message}`);

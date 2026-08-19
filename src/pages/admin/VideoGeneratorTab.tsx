@@ -726,7 +726,7 @@ export default function VideoGeneratorTab() {
               className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-secondary transition-colors text-sm"
             />
             <button
-              onClick={generateAIContent}
+              onClick={() => generateAIContent()}
               disabled={aiLoading}
               className={cn(
                 "mt-3 w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all",

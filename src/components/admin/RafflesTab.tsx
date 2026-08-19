@@ -34,7 +34,7 @@ interface Raffle {
   prizes: Prize[];
   sold_count?: number;
   stats?: { sold: number; reservedMp: number; pendingTransfer: number; pendingManual: number; available: number };
-  tickets?: { number: number; status: string; buyer_name: string; buyer_phone: string; payment_method: string; payment_status: string }[];
+  tickets?: { number: number; status: string; buyer_name: string; buyer_phone: string; payment_method: string; payment_status: string; mp_external_reference?: string; receipt_image_data?: string }[];
   receipts?: any[];
   draw_results?: { position: number; prize_title: string; prize_description: string; prize_amount: number; ticket_number: number; buyer_name: string; buyer_phone: string }[];
   draw_video_url?: string | null;

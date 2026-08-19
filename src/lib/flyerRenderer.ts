@@ -110,7 +110,7 @@ function drawBadge(ctx: CanvasRenderingContext2D, w: number, cx: number, y: numb
 function drawWrappedText(
   ctx: CanvasRenderingContext2D, text: string, cx: number, y: number,
   maxWidth: number, fontSize: number, maxLines: number,
-  fontStyle: string, color: string, lineSpacing: number, align?: CanvasTextAlign
+  fontStyle: string, color: string, lineSpacing: number, align?: CanvasTextAlign | 'justify'
 ): number {
   ctx.font = `${fontStyle} ${fontSize}px system-ui, -apple-system, sans-serif`;
   ctx.fillStyle = color;

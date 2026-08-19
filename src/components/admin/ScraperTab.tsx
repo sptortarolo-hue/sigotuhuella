@@ -495,8 +495,9 @@ function PostsSection() {
       {lightbox && (
         <ImageLightbox
           images={lightbox.images}
-          initialIndex={lightbox.idx}
+          currentIndex={lightbox.idx}
           onClose={() => setLightbox(null)}
+          onChange={(idx) => setLightbox(prev => prev ? { ...prev, idx } : prev)}
         />
       )}
     </div>

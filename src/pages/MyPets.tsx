@@ -179,7 +179,7 @@ export default function MyPets() {
       breed: pet.breed || '',
       color: pet.color || '',
       status: pet.status,
-      gender: pet.gender || 'unknown',
+      gender: (pet.gender || 'unknown') as any,
       age: pet.age || '',
       size: pet.size || '',
       isVaccinated: pet.is_vaccinated,

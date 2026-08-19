@@ -14,6 +14,10 @@ export interface AuthUser {
   member_number?: string;
   volunteer_status?: string;
   badges?: Badge[];
+  admin?: boolean;
+  notification_preference?: string;
+  notify_case_updates?: boolean;
+  neighborhoods?: string[];
 }
 
 export interface Badge {

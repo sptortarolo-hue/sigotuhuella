@@ -38,8 +38,8 @@ export default function PushClickHandler() {
         );
 
         const cold = await PushNotifications.getDeliveredNotifications?.();
-        if (cold && !cancelled) {
-          for (const n of cold) {
+        if (cold?.notifications && !cancelled) {
+          for (const n of cold.notifications) {
             const data = n.data as Record<string, string> | undefined;
             const url = data?.url || data?.link;
             const path = toAppPath(url || '');

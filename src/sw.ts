@@ -1,10 +1,13 @@
+/// <reference lib="webworker" />
 import { precacheAndRoute } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { StaleWhileRevalidate } from 'workbox-strategies';
 
+declare const self: ServiceWorkerGlobalScope;
+
 self.skipWaiting();
 self.addEventListener('activate', () => {
-  clients.claim();
+  self.clients.claim();
 });
 
 precacheAndRoute(self.__WB_MANIFEST);
@@ -29,7 +32,7 @@ self.addEventListener('push', (event) => {
       badge: '/pwa-192x192.png',
       data: { url: data.url || '/' },
       vibrate: [200, 100, 200],
-    })
+    } as NotificationOptions)
   );
 });
 
@@ -38,13 +41,13 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
   const url = event.notification.data?.url || '/';
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if (client.url === url && 'focus' in client) {
           return client.focus();
         }
       }
-      return clients.openWindow(url);
+      return self.clients.openWindow(url);
     })
   );
 });

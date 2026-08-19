@@ -73,7 +73,7 @@ const PERSONALITY_TAGS = [
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles' | 'backup' | 'moderation' | 'cases'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles' | 'backup' | 'moderation' | 'blacklist' | 'cases'>('pets');
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['pets']));
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(['pets', 'users']));
 
@@ -151,7 +151,7 @@ export default function Admin() {
 
   // Volunteers State
   const [volunteers, setVolunteers] = useState<VolunteerRequest[]>([]);
-  const [memberInfo, setMemberInfo] = useState<Record<string, { member_number?: string; volunteer_status?: string; badges?: Badge[]; contribution_areas?: string[] }>>({});
+  const [memberInfo, setMemberInfo] = useState<Record<string, { member_number?: string; volunteer_status?: string; badges?: Badge[]; contribution_areas?: string[]; avatar_type?: string; avatar_data?: string; avatar_mime_type?: string }>>({});
   const [volunteerSearch, setVolunteerSearch] = useState('');
   const [volunteerBadgeFilter, setVolunteerBadgeFilter] = useState('');
 
@@ -991,9 +991,9 @@ export default function Admin() {
       breed: pet.breed || '',
       color: pet.color || '',
       status: pet.status,
-      gender: pet.gender || 'unknown',
+      gender: (pet.gender || 'unknown') as any,
       age: pet.age || '',
-      size: pet.size || 'medium',
+      size: (pet.size || 'medium') as any,
       isVaccinated: pet.is_vaccinated || false,
       isSterilized: pet.is_sterilized || false,
       isDewormed: pet.is_dewormed || false,
@@ -2764,7 +2764,7 @@ export default function Admin() {
             const batchCodes = qrUnassigned.filter((q: any) => q.batch_id === batchId).map((q: any) => q.code).sort();
             const minCode = batchCodes[0] || '';
             const maxCode = batchCodes[batchCodes.length - 1] || '';
-            const range = pdfRange[batchId] || {};
+            const range = pdfRange[batchId] || { from: '', to: '' };
             return (
               <div key={batchId} className="p-4 bg-brand-bg rounded-2xl">
                 <div className="text-xs text-gray-400 mb-2">
