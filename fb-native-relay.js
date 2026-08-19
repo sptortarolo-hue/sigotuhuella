@@ -5,6 +5,11 @@
  * Facebook usando el accessibility service de AutoJs6. Corre 100% on-device,
  * sin ADB ni PC. Pollea la misma cola del VPS que usa fb-relay.js.
  *
+ * Flujo (cuenta de page business): abre el post, toca Compartir → "Grupo"
+ * (con scroll horizontal si el botón está oculto en la fila de destinos),
+ * marca el checkbox de cada grupo del batch, toca "Siguiente" → "Publicar"
+ * una sola vez. Todos los grupos del mismo post se publican en una pasada.
+ *
  * ─── Setup ───────────────────────────────────────────────────────────────
  * 1. Instalar AutoJs6 (https://github.com/SuperMonster003/AutoJs6 releases)
  * 2. Activar su accessibility service (Ajustes > Accesibilidad)
@@ -339,6 +344,35 @@ function scrollDownOnce() {
       shizukuCmd("input swipe " + x + " " + y1 + " " + x + " " + y2 + " 400");
     } else {
       swipe(x, y1, x, y2, 400);
+    }
+  } catch (e) {}
+  sleep(800);
+}
+
+// Scroll gestual HORIZONTAL de la fila de destinos del composer (cuenta de page
+// business: el botón "Grupo" queda oculto en un bloque de botones que se
+// desplaza de lado). Desliza derecha→izquierda sobre la zona donde vive la fila:
+// justo arriba del EditText del mensaje, o al 40% de la altura si no hay box.
+function scrollComposerRowOnce() {
+  var h = screenHeight();
+  var w = screenWidth();
+  var y = Math.round(h * 0.4);
+  try {
+    var edit = className("android.widget.EditText").findOne(800);
+    if (edit && edit.visibleToUser()) {
+      var eb = edit.bounds();
+      y = Math.max(60, eb.top - Math.round((eb.height() || 80) * 1.2));
+    }
+  } catch (e) {}
+  var y1 = Math.max(40, y - 40);
+  var y2 = Math.min(h - 40, y + 40);
+  var x1 = Math.round(w * 0.82);
+  var x2 = Math.round(w * 0.18);
+  try {
+    if (shizukuAvailable()) {
+      shizukuCmd("input swipe " + x1 + " " + y1 + " " + x2 + " " + y2 + " 400");
+    } else {
+      swipe(x1, y1, x2, y2, 400);
     }
   } catch (e) {}
   sleep(800);
@@ -788,11 +822,16 @@ function openPostAndShareGroup(task) {
 
   var groupLabels = ["Grupo", "En un grupo", "In a group", "Un grupo", "Compartir en un grupo", "Share to a group"];
   var searchOpened = false;
-  for (var attempt = 0; attempt < 9 && !searchOpened; attempt++) {
+  for (var attempt = 0; attempt < 12 && !searchOpened; attempt++) {
     var target = findNode(groupLabels, 3000);
     if (target) {
       console.log("[native] tap directo 'Grupo' intento " + (attempt + 1) + " (estr " + attempt + ")");
       tapStrategy(target, attempt);
+    } else {
+      // Cuenta business: el botón "Grupo" está oculto en una fila con scroll
+      // horizontal → deslizar el bloque para exponerlo antes de reintentar.
+      scrollComposerRowOnce();
+      console.log("[native] scroll horizontal de la fila de destinos (intento " + (attempt + 1) + ")");
     }
     sleep(rnd(2500, 3500));
     var edit = className("android.widget.EditText").findOne(1000);
@@ -820,11 +859,14 @@ function openPostAndShareGroup(task) {
     } catch (e) {}
 
     var group2Labels = ["En un grupo", "In a group", "Un grupo", "Grupo", "Compartir en un grupo", "Share to a group"];
-    for (var attempt2 = 0; attempt2 < 9 && !searchOpened; attempt2++) {
+    for (var attempt2 = 0; attempt2 < 12 && !searchOpened; attempt2++) {
       var target2 = findNode(group2Labels, 3000);
       if (target2) {
         console.log("[native] tap 'En un grupo' intento " + (attempt2 + 1) + " (estr " + attempt2 + ")");
         tapStrategy(target2, attempt2);
+      } else {
+        scrollComposerRowOnce();
+        console.log("[native] scroll horizontal de destinos (fallback, intento " + (attempt2 + 1) + ")");
       }
       sleep(rnd(2500, 3500));
       var edit2 = className("android.widget.EditText").findOne(1000);
@@ -947,6 +989,90 @@ function searchGroupAndPublish(task) {
     sendDebug("share-no-confirm", url);
   }
 
+  return true;
+}
+
+// Marca el checkbox de un grupo en la pantalla de selección múltiple de la
+// cuenta business (buscador + lista con checkboxes). Escribe el nombre del
+// grupo (filtra la lista), ubica el row y toca su checkbox. Devuelve true si
+// se marcó (o se asume marcado); false si el grupo no aparece en la lista.
+function selectGroupCheckbox(groupName, timeoutMs) {
+  var t = timeoutMs || CONFIG.findTimeoutMs;
+  console.log("[native] marcando grupo: " + groupName);
+
+  // Normalizar nombre (mismo criterio que searchGroupAndPublish)
+  var searchName = groupName;
+  var prefixes = ["grupo ", "grupo  ", "group ", "grupo fb ", "pagina "];
+  var trimmed = searchName;
+  for (var pi = 0; pi < prefixes.length; pi++) {
+    if (trimmed.toLowerCase().indexOf(prefixes[pi]) === 0) {
+      trimmed = trimmed.substring(prefixes[pi].length).trim();
+      break;
+    }
+  }
+  if (trimmed) searchName = trimmed;
+
+  // 1) Tipear el nombre → filtra la lista
+  if (!typeIntoEditText(searchName, t)) {
+    sendDebug("no-group-checkbox-input", groupName);
+    throw new Error("Group checkbox input not found");
+  }
+  if (!waitEditTextHas(searchName, 8000)) {
+    sendDebug("group-checkbox-no-text", groupName);
+    throw new Error("Group checkbox name not typed");
+  }
+  sleep(rnd(2000, 4000));
+
+  // 2) Encontrar el row por nombre
+  var row = findNode([searchName, groupName], t);
+  if (!row) {
+    console.log("[native] grupo '" + searchName + "' no aparece en la lista filtrada");
+    sendDebug("group-checkbox-row-missing", groupName);
+    return false;
+  }
+
+  // 3) Buscar un nodo checkable dentro de los bounds del row (el checkbox).
+  var cbNode = null;
+  try {
+    var rB = row.bounds();
+    var checkables = checkable(true).find();
+    for (var i = 0; i < checkables.length; i++) {
+      var cB = checkables[i].bounds();
+      if (cB.centerX() >= rB.left && cB.centerX() <= rB.right &&
+          cB.centerY() >= rB.top && cB.centerY() <= rB.bottom) {
+        cbNode = checkables[i];
+        break;
+      }
+    }
+  } catch (e) {}
+
+  if (cbNode) {
+    tapStrategy(cbNode, 0);
+    console.log("[native] checkbox del grupo '" + searchName + "' tocado");
+  } else {
+    // Fallback: tocar el lado derecho del row (donde vive el checkbox)
+    var rp = nodePoint(row, 0.9, 0.5);
+    click(rp[0], rp[1]);
+    console.log("[native] tap lateral derecho del row '" + searchName + "'");
+  }
+  sleep(rnd(1500, 2500));
+
+  // 4) Verificar si quedó marcado (si el árbol expone checked()).
+  try {
+    var chk = checkable(true).find();
+    var rb2 = row.bounds();
+    for (var j = 0; j < chk.length; j++) {
+      var c2 = chk[j];
+      try { if (!c2.checked()) continue; } catch (e2) { continue; }
+      var c2b = c2.bounds();
+      if (c2b.centerX() >= rb2.left && c2b.centerX() <= rb2.right &&
+          c2b.centerY() >= rb2.top && c2b.centerY() <= rb2.bottom) {
+        console.log("[native] grupo '" + searchName + "' confirmado marcado");
+        return true;
+      }
+    }
+  } catch (e) {}
+  console.log("[native] grupo '" + searchName + "' sin estado expuesto; se asume marcado");
   return true;
 }
 
@@ -1447,8 +1573,8 @@ function runPollLoop() {
     markLoopHeartbeat();
     try {
       // Traer varias tareas pendientes y agruparlas por post (target_url): las
-      // del mismo post se comparten en batch reutilizando el buscador (borra el
-      // texto, escribe el próximo grupo y continúa), en vez de reiniciar todo.
+      // del mismo post se publican juntas en una pasada (marcando el checkbox
+      // de cada grupo en la misma pantalla), en vez de reiniciar por grupo.
       var data = apiGet("/fb/pending?limit=10&action=share");
       var tasks = data.tasks || [];
       if (tasks.length === 0) {
@@ -1485,68 +1611,136 @@ function runPollLoop() {
         var batch = groups[order[g]];
         console.log("[native] batch de " + batch.length + " grupo(s) para el post " + (batch[0].target_url || batch[0].id));
 
-        for (var b = 0; b < batch.length; b++) {
-          var task = batch[b];
-          var taskDone = false;
-          var maxAttempts = 3;
-          for (var attempt = 1; attempt <= maxAttempts && !taskDone; attempt++) {
-            if (attempt > 1) {
-              console.log("[native] reintentando tarea " + task.id + " (intento " + attempt + ")");
-              // FB quedó en estado incierto tras la interrupción → arrancar limpio
-              try {
-                if (shizukuAvailable()) shizukuCmd("am force-stop com.facebook.katana");
-              } catch (e9) {}
-              sleep(rnd(4000, 6000));
-            } else {
-              console.log("[native] tarea " + task.id + " (share)");
-            }
+        // Flujo cuenta business: abrir el post UNA vez, marcar el checkbox de
+        // cada grupo, tocar "Siguiente" y "Publicar" una sola vez para todo el
+        // batch. Todos los grupos del mismo post se marcan en la misma pantalla.
+        var selectedTasks = [];
+        var missingTasks = [];
+        var sharePublished = false;
+        var maxAttempts = 3;
+        var ok = false;
+        for (var attempt = 1; attempt <= maxAttempts && !sharePublished; attempt++) {
+          if (attempt > 1) {
+            console.log("[native] reintentando batch (intento " + attempt + ")");
+            // FB quedó en estado incierto → arrancar limpio
             try {
-              if (b === 0) {
-                openPostAndShareGroup(task);
-                searchGroupAndPublish(task);
+              if (shizukuAvailable()) shizukuCmd("am force-stop com.facebook.katana");
+            } catch (e9) {}
+            sleep(rnd(4000, 6000));
+          } else {
+            console.log("[native] batch share de " + batch.length + " grupo(s)");
+          }
+          try {
+            // 1) Abrir post + Compartir + "Grupo" (deja el buscador con
+            //    EditText listo para filtrar). Solo la primera vez.
+            openPostAndShareGroup(batch[0]);
+
+            // 2) Marcar el checkbox de cada grupo (type filtra la lista).
+            selectedTasks = [];
+            missingTasks = [];
+            for (var b = 0; b < batch.length; b++) {
+              var grp = batch[b].group_name || batch[b].fb_group_id;
+              var okMark = false;
+              try {
+                okMark = selectGroupCheckbox(grp, CONFIG.findTimeoutMs);
+              } catch (eMark) {
+                console.error("[native] error marcando '" + grp + "': " + eMark.message);
+              }
+              if (okMark) {
+                selectedTasks.push(batch[b]);
               } else {
-                searchGroupAndPublish(task);
+                missingTasks.push(batch[b]);
               }
-              apiPost("/fb/completed", { task_updates: [{ task_id: task.id }] });
-              console.log("[native] tarea " + task.id + " completada");
-              taskDone = true;
-            } catch (e) {
-              console.error("[native] tarea " + task.id + " falló (intento " + attempt + "): " + e.message);
-              if (isInterrupted(e)) {
-                // Distinguir: stop manual del usuario (engine muerto) vs
-                // interrupción transitoria del árbol de accesibilidad (engine vivo).
-                if (isEngineStopped()) {
-                  console.error("[native] script detenido por el usuario, saliendo");
-                  try { apiPost("/fb/failed", { task_id: task.id, error: "script interrupted" }); } catch (e2) {}
-                  return;
+              // Delay humano entre grupos del mismo post
+              var delay = rnd(CONFIG.minDelayMs, CONFIG.maxDelayMs);
+              console.log("[native] esperando " + Math.round(delay / 1000) + "s entre grupos...");
+              sleep(delay);
+            }
+
+            if (selectedTasks.length === 0) {
+              throw new Error("no group selected");
+            }
+
+            // 3) Botón "Siguiente" (business) → vista final del post con Publicar
+            ok = clickLabel(["Siguiente", "Next", "Continuar"], CONFIG.findTimeoutMs, false);
+            if (!ok) {
+              sendDebug("no-next-btn", batch[0].target_url);
+              throw new Error("Next button not found");
+            }
+            sleep(rnd(2500, 4000));
+
+            // 4) Botón final (Publicar / Compartir / Listo)
+            ok = clickLabel(["Publicar", "Compartir ahora", "Share Now", "Done", "Listo", "Publicar en el grupo"], CONFIG.findTimeoutMs, false);
+            if (!ok) {
+              // último recurso: botón "Compartir" dentro del composer
+              ok = clickLabel(["Compartir", "Share"], CONFIG.findTimeoutMs, false);
+            }
+            if (!ok) {
+              sendDebug("no-final-btn", batch[0].target_url);
+              throw new Error("Final share button not found");
+            }
+
+            // 5) Verificar el cartel de confirmación (efímero, no bloquea)
+            var confirmWords = ["compartido", "publicado", "publicación", "shared", "publicada", "has compartido", "listo"];
+            var shareConfirmed = false;
+            var confirmDeadline = Date.now() + 6000;
+            while (Date.now() < confirmDeadline && !shareConfirmed) {
+              var cnodes = dumpUi(120);
+              for (var ci = 0; ci < cnodes.length && !shareConfirmed; ci++) {
+                var cblob = ((cnodes[ci].t || "") + " " + (cnodes[ci].d || "")).toLowerCase();
+                for (var ck = 0; ck < confirmWords.length; ck++) {
+                  if (cblob.indexOf(confirmWords[ck]) >= 0) { shareConfirmed = true; break; }
                 }
-                console.error("[native] interrupción transitoria del árbol de accesibilidad, reintentando...");
-                sleep(rnd(3000, 5000));
-                continue; // siguiente intento del while interno
               }
-              try { apiPost("/fb/failed", { task_id: task.id, error: e.message }); } catch (e2) {}
-              if (String(e.message).indexOf("checkpoint") >= 0) {
-                console.error("[native] checkpoint detectado → frenando relay");
-                sendDebug("checkpoint-stop");
+              if (!shareConfirmed) sleep(300);
+            }
+            if (shareConfirmed) {
+              console.log("[native] cartel de confirmación detectado");
+              sendDebug("share-confirmed", batch[0].target_url);
+            } else {
+              console.log("[native] cartel de confirmación no detectado (se comparte igual)");
+              sendDebug("share-no-confirm", batch[0].target_url);
+            }
+
+            // 6) Marcar completadas TODAS las seleccionadas de una
+            if (selectedTasks.length > 0) {
+              var updates = [];
+              for (var su = 0; su < selectedTasks.length; su++) updates.push({ task_id: selectedTasks[su].id });
+              apiPost("/fb/completed", { task_updates: updates });
+              console.log("[native] " + selectedTasks.length + " tarea(s) completada(s) en batch");
+            }
+            sharePublished = true;
+          } catch (e) {
+            console.error("[native] batch falló (intento " + attempt + "): " + e.message);
+            if (isInterrupted(e)) {
+              if (isEngineStopped()) {
+                console.error("[native] script detenido por el usuario, saliendo");
                 return;
               }
-              // Si falló un grupo, no seguir con el resto del mismo post
-              taskDone = true; // marcar terminada para salir del while interno
-              break;
+              console.error("[native] interrupción transitoria del árbol de accesibilidad, reintentando...");
+              sleep(rnd(3000, 5000));
+              continue; // siguiente intento del while interno
             }
-          }
-
-          if (!taskDone) {
-            // Se agotaron los reintentos por interrupción transitoria
-            console.error("[native] tarea " + task.id + " sin éxito tras " + maxAttempts + " intentos");
-            try { apiPost("/fb/failed", { task_id: task.id, error: "transient interrupted after retries" }); } catch (e2) {}
+            try { apiPost("/fb/failed", { task_id: batch[0].id, error: e.message }); } catch (e2) {}
+            if (String(e.message).indexOf("checkpoint") >= 0) {
+              console.error("[native] checkpoint detectado → frenando relay");
+              sendDebug("checkpoint-stop");
+              return;
+            }
             break;
           }
+        }
 
-          // Delay humano entre grupos del mismo post
-          var delay = rnd(CONFIG.minDelayMs, CONFIG.maxDelayMs);
-          console.log("[native] esperando " + Math.round(delay / 1000) + "s entre grupos...");
-          sleep(delay);
+        if (!sharePublished) {
+          // Se agotaron los reintentos o falló sin checkpoint
+          for (var mf = 0; mf < selectedTasks.length; mf++) {
+            try { apiPost("/fb/failed", { task_id: selectedTasks[mf].id, error: "batch failed" }); } catch (e2) {}
+          }
+        }
+
+        // Grupos que no se pudieron marcar → failed individual
+        for (var mi = 0; mi < missingTasks.length; mi++) {
+          try { apiPost("/fb/failed", { task_id: missingTasks[mi].id, error: "group not found in selection list" }); } catch (e2) {}
         }
 
         // Al terminar el post completo, limpiar la app (cerrar buscador) y
