@@ -383,8 +383,13 @@ export async function replicateInstagramToFacebook(instagramPostId) {
     eligibleGroups.push({ id: group.id, fb_group_id: group.fb_group_id, name: group.name });
   }
 
+  const cleanReplId = pagePostId && pagePostId.includes('_') ? pagePostId.split('_')[1] : pagePostId;
+  const replPagePostUrl = pagePostId && pageResult.pageId
+    ? `https://www.facebook.com/${pageResult.pageId}/posts/${cleanReplId}`
+    : null;
+
   if (eligibleGroups.length > 0) {
-    const scraperResult = await publishToGroupsViaScraper(eligibleGroups, message, imageUrls, post.pet_id);
+    const scraperResult = await publishToGroupsViaScraper(eligibleGroups, message, imageUrls, post.pet_id, replPagePostUrl);
     if (scraperResult.success) {
       for (const r of scraperResult.results) {
         results.groups.push({
@@ -492,7 +497,13 @@ export async function retryFailedFacebookPosts(limit = 10) {
         id: g.id, fb_group_id: g.fb_group_id, name: g.name,
       }));
 
-      const scraperResult = await publishToGroupsViaScraper(eligibleGroups, row.message, [], row.pet_id);
+      const retryPageId = await getPageId();
+      const cleanRetryId = row.page_post_id && row.page_post_id.includes('_') ? row.page_post_id.split('_')[1] : row.page_post_id;
+      const retryPagePostUrl = row.page_post_id && retryPageId
+        ? `https://www.facebook.com/${retryPageId}/posts/${cleanRetryId}`
+        : null;
+
+      const scraperResult = await publishToGroupsViaScraper(eligibleGroups, row.message, [], row.pet_id, retryPagePostUrl);
       const anySuccess = scraperResult.success && scraperResult.results.some(r => r.success);
 
       if (anySuccess) {
@@ -573,7 +584,10 @@ export async function publishPetToGroups(petId, options = {}) {
     );
     const pageId = await getPageId();
     if (existing.rows.length > 0 && pageId) {
-      pagePostUrl = `https://www.facebook.com/${pageId}/posts/${existing.rows[0].page_post_id}`;
+      const cleanExistingId = existing.rows[0].page_post_id.includes('_')
+        ? existing.rows[0].page_post_id.split('_')[1]
+        : existing.rows[0].page_post_id;
+      pagePostUrl = `https://www.facebook.com/${pageId}/posts/${cleanExistingId}`;
     } else if (pageId) {
       pagePostUrl = `https://www.facebook.com/${pageId}`;
     }
