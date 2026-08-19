@@ -1604,6 +1604,8 @@ function mainLoop() {
 
   startHeartbeat();
 
+  console.log("[native] lock adquirido, arrancando loop de polling");
+
   try {
     runPollLoop();
   } catch (e) {
@@ -1659,6 +1661,7 @@ function runPollLoop() {
         // HTTP no necesita pantalla; solo cancelar el wake lock para que el
         // timeout normal de pantalla la apague (y bloquee sola con PIN).
         cancelScreenAwake();
+        console.log("[native] sin tareas pendientes, esperando " + Math.round(CONFIG.pollIntervalMs / 1000) + "s...");
         var idleDeadline = Date.now() + CONFIG.pollIntervalMs;
         while (Date.now() < idleDeadline) {
           sleep(30000);
