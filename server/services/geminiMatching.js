@@ -1,9 +1,17 @@
+import crypto from 'crypto';
 import sharp from 'sharp';
 import pool from '../db.js';
 import { sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from './pushService.js';
 import { embedAndMatch, generateImageEmbedding, generateTextEmbedding, classifyPetAttributes } from './embeddingService.js';
 import { textIntentAI, imageCaptionAI, faceCropAI } from './aiProvider.js';
+
+const faceCropCache = new Map();
+const FACE_CROP_CACHE_MAX = 200;
+
+function faceCropHash(imageBase64) {
+  return crypto.createHash('sha1').update(imageBase64).digest('hex');
+}
 
 // ─── Reunion detection (keyword-based, no AI) ───
 
@@ -122,7 +130,7 @@ export async function matchPostToPet(postId) {
   }
 }
 
-export async function matchPetToPosts(pet) {
+export async function matchPetToPosts(pet, opts = {}) {
   try {
     const imgRes = await pool.query(
       "SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1",
@@ -137,8 +145,12 @@ export async function matchPetToPosts(pet) {
     if (!imageBuffer) return [];
 
     let croppedFaceBuffer = null;
-    const cropped = await detectAndCropPetFace(imageBuffer.toString('base64'), mimeType);
-    if (cropped) croppedFaceBuffer = Buffer.from(cropped.cropped, 'base64');
+    if (opts.croppedFaceBuffer) {
+      croppedFaceBuffer = Buffer.from(opts.croppedFaceBuffer, 'base64');
+    } else {
+      const cropped = await detectAndCropPetFace(imageBuffer.toString('base64'), mimeType);
+      if (cropped) croppedFaceBuffer = Buffer.from(cropped.cropped, 'base64');
+    }
 
     return await embedAndMatch('pets', pet.id, {
       species: pet.species,
@@ -157,12 +169,12 @@ export async function matchPetToPosts(pet) {
   }
 }
 
-export async function matchWhatsAppToPets(newPetId) {
+export async function matchWhatsAppToPets(newPetId, opts = {}) {
   try {
     const pet = (await pool.query('SELECT * FROM pets WHERE id = $1', [newPetId])).rows[0];
     if (!pet) return [];
 
-    return await matchPetToPosts(pet);
+    return await matchPetToPosts(pet, opts);
   } catch (err) {
     console.error('matchWhatsAppToPets error:', err);
     return [];
@@ -376,7 +388,7 @@ export async function processImageCaption(caption, imageData, imageMime) {
   }
 }
 
-export async function detectAndCropPetFace(imageBase64, mimeType) {
+async function doFaceCrop(imageBase64, mimeType) {
   if (!imageBase64) return null;
   try {
     const { text: raw, provider } = await faceCropAI([{
@@ -428,11 +440,40 @@ export async function detectAndCropPetFace(imageBase64, mimeType) {
     if (width < 50 || height < 50) return null;
 
     const cropped = await image.extract({ left, top, width, height }).jpeg({ quality: 85 }).toBuffer();
-    return { cropped: cropped.toString('base64'), original: imageBase64, mimeType: 'image/jpeg' };
+    return { cropped: cropped.toString('base64'), mimeType: 'image/jpeg' };
   } catch (err) {
     console.error('detectAndCropPetFace error:', err);
     return null;
   }
+}
+
+const FACE_CROP_CACHE_TTL_MS = 10 * 60 * 1000;
+
+export async function detectAndCropPetFace(imageBase64, mimeType) {
+  if (!imageBase64) return null;
+
+  const hash = faceCropHash(imageBase64);
+  const cached = faceCropCache.get(hash);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.promise;
+  }
+
+  const promise = doFaceCrop(imageBase64, mimeType);
+
+  faceCropCache.set(hash, { promise, expiresAt: Date.now() + FACE_CROP_CACHE_TTL_MS });
+  if (faceCropCache.size > FACE_CROP_CACHE_MAX) {
+    const oldestKey = faceCropCache.keys().next().value;
+    faceCropCache.delete(oldestKey);
+  }
+
+  promise.finally(() => {
+    const entry = faceCropCache.get(hash);
+    if (entry && entry.promise === promise && entry.expiresAt <= Date.now()) {
+      faceCropCache.delete(hash);
+    }
+  }).catch(() => {});
+
+  return promise;
 }
 
 // ─── Pet ↔ Pet duplicate detection ───
@@ -448,7 +489,7 @@ function cosineSim(a, b) {
   return dot; // embeddings ya normalizados
 }
 
-export async function matchPetToPets(pet) {
+export async function matchPetToPets(pet, opts = {}) {
   try {
     const imgRes = await pool.query(
       'SELECT image_data, mime_type FROM pet_images WHERE pet_id = $1 ORDER BY created_at LIMIT 1',
@@ -463,8 +504,12 @@ export async function matchPetToPets(pet) {
     if (!imageBuffer) return [];
 
     let croppedFaceBuffer = null;
-    const cropped = await detectAndCropPetFace(imageBuffer.toString('base64'), mimeType);
-    if (cropped) croppedFaceBuffer = Buffer.from(cropped.cropped, 'base64');
+    if (opts.croppedFaceBuffer) {
+      croppedFaceBuffer = Buffer.from(opts.croppedFaceBuffer, 'base64');
+    } else {
+      const cropped = await detectAndCropPetFace(imageBuffer.toString('base64'), mimeType);
+      if (cropped) croppedFaceBuffer = Buffer.from(cropped.cropped, 'base64');
+    }
 
     const embeddingBuffer = croppedFaceBuffer || imageBuffer;
     const embedding = await generateImageEmbedding(embeddingBuffer);
