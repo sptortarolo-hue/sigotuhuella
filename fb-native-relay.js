@@ -178,6 +178,45 @@ function clickResultBelowEditText(timeoutMs) {
   return null;
 }
 
+// Busca el row de un grupo en la pantalla de selección múltiple (cuenta
+// business): el row está DEBAJO del EditText del buscador (el EditText contiene
+// el texto recién tipeado, así que findNode por texto devolvería el box, no el
+// resultado). Filtra por nombre normalizado; si no, toma el primer row visible
+// debajo del box. Devuelve el nodo del row o null.
+function findGroupRowBelowEditText(searchName, timeoutMs) {
+  var deadline = Date.now() + (timeoutMs || CONFIG.findTimeoutMs);
+  var nameLower = (searchName || "").toLowerCase();
+  while (Date.now() < deadline) {
+    try {
+      var edit = className("android.widget.EditText").findOne(1500);
+      if (edit && edit.visibleToUser()) {
+        var eb = edit.bounds();
+        var belowY = eb.bottom + 1;
+        var withText = textMatches(/.*/).find();
+        var best = null;
+        for (var i = 0; i < withText.length; i++) {
+          var n = withText[i];
+          try {
+            if (!n.visibleToUser()) continue;
+            var b = n.bounds();
+            if (b.top < belowY) continue;
+            var txt = (n.text() || "").trim();
+            if (!txt) continue;
+            // Preferir el row cuyo texto contiene el nombre buscado
+            if (nameLower && txt.toLowerCase().indexOf(nameLower) >= 0) {
+              return n;
+            }
+            if (!best) best = n;
+          } catch (e) {}
+        }
+        if (best) return best;
+      }
+    } catch (e) {}
+    sleep(400);
+  }
+  return null;
+}
+
 // Sube por la jerarquía hasta el primer nodo clickable (el "row" real de FB).
 // Los TextView encontrados por texto no son el objetivo del tap: el contenedor
 // padre clickable sí lo es.
@@ -1023,55 +1062,60 @@ function selectGroupCheckbox(groupName, timeoutMs) {
   }
   sleep(rnd(2000, 4000));
 
-  // 2) Encontrar el row por nombre
-  var row = findNode([searchName, groupName], t);
+  // 2) Encontrar el row por nombre (debajo del box del buscador)
+  var row = findGroupRowBelowEditText(searchName, t);
   if (!row) {
     console.log("[native] grupo '" + searchName + "' no aparece en la lista filtrada");
     sendDebug("group-checkbox-row-missing", groupName);
     return false;
   }
+  console.log("[native] row encontrado para '" + searchName + "': " + ((row.text && row.text()) || ""));
 
-  // 3) Buscar un nodo checkable dentro de los bounds del row (el checkbox).
-  var cbNode = null;
-  try {
-    var rB = row.bounds();
-    var checkables = checkable(true).find();
-    for (var i = 0; i < checkables.length; i++) {
-      var cB = checkables[i].bounds();
-      if (cB.centerX() >= rB.left && cB.centerX() <= rB.right &&
-          cB.centerY() >= rB.top && cB.centerY() <= rB.bottom) {
-        cbNode = checkables[i];
-        break;
+  // 3) Activar el checklist tocando el CENTRO del row (el nombre/área), con
+  //    rotación de estrategias de tap hasta confirmar que quedó seleccionado.
+  var confirmDeadline = Date.now() + 5000;
+  var marked = false;
+  var strategies = [0, 1, 4, 7, 2];
+  for (var st = 0; st < strategies.length && !marked && Date.now() < confirmDeadline; st++) {
+    try {
+      tapStrategy(row, strategies[st]);
+      console.log("[native] tap estrategia " + strategies[st] + " sobre el row '" + searchName + "'");
+    } catch (e) {}
+    sleep(rnd(1200, 2000));
+
+    // Verificar si quedó marcado (nodo checkable checked=true dentro del row,
+    // o un check visible como desc).
+    try {
+      var chk = checkable(true).find();
+      var rb3 = row.bounds();
+      for (var j = 0; j < chk.length; j++) {
+        var c2 = chk[j];
+        var c2b = c2.bounds();
+        var inside = c2b.centerX() >= rb3.left && c2b.centerX() <= rb3.right &&
+                     c2b.centerY() >= rb3.top && c2b.centerY() <= rb3.bottom;
+        if (!inside) continue;
+        try { if (c2.checked()) { marked = true; break; } } catch (e2) {}
       }
-    }
-  } catch (e) {}
-
-  if (cbNode) {
-    tapStrategy(cbNode, 0);
-    console.log("[native] checkbox del grupo '" + searchName + "' tocado");
-  } else {
-    // Fallback: tocar el lado derecho del row (donde vive el checkbox)
-    var rp = nodePoint(row, 0.9, 0.5);
-    click(rp[0], rp[1]);
-    console.log("[native] tap lateral derecho del row '" + searchName + "'");
+      if (marked) break;
+      // Algunos árboles exponen el check como desc ("Marcado", "Seleccionado", "Check")
+      if (!marked) {
+        var nodes = dumpUi(60);
+        for (var di = 0; di < nodes.length; di++) {
+          var dblob = ((nodes[di].t || "") + " " + (nodes[di].d || "")).toLowerCase();
+          if (dblob.indexOf("marcado") >= 0 || dblob.indexOf("seleccionado") >= 0 ||
+              dblob.indexOf("check") >= 0) {
+            marked = true;
+            break;
+          }
+        }
+      }
+    } catch (e) {}
   }
-  sleep(rnd(1500, 2500));
 
-  // 4) Verificar si quedó marcado (si el árbol expone checked()).
-  try {
-    var chk = checkable(true).find();
-    var rb2 = row.bounds();
-    for (var j = 0; j < chk.length; j++) {
-      var c2 = chk[j];
-      try { if (!c2.checked()) continue; } catch (e2) { continue; }
-      var c2b = c2.bounds();
-      if (c2b.centerX() >= rb2.left && c2b.centerX() <= rb2.right &&
-          c2b.centerY() >= rb2.top && c2b.centerY() <= rb2.bottom) {
-        console.log("[native] grupo '" + searchName + "' confirmado marcado");
-        return true;
-      }
-    }
-  } catch (e) {}
+  if (marked) {
+    console.log("[native] grupo '" + searchName + "' confirmado marcado");
+    return true;
+  }
   console.log("[native] grupo '" + searchName + "' sin estado expuesto; se asume marcado");
   return true;
 }
