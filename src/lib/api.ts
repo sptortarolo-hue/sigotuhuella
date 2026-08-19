@@ -403,6 +403,26 @@ export const api = {
   phoneRelay: {
     scrapedMessages: {
       get: (id: string) => request(`/relay/scraped-messages/${id}`),
+      list: (params?: {
+        source?: string; group_id?: string; classification?: string; species?: string;
+        color?: string; animal_detected?: string; animal_species?: string; is_matched?: string;
+        search?: string; q?: string; limit?: number; offset?: number;
+      }) => {
+        const q = new URLSearchParams();
+        if (params?.source && params.source !== 'all') q.set('source', params.source);
+        if (params?.group_id) q.set('group_id', params.group_id);
+        if (params?.classification && params.classification !== 'all') q.set('classification', params.classification);
+        if (params?.species && params.species !== 'all') q.set('species', params.species);
+        if (params?.color && params.color !== 'all') q.set('color', params.color);
+        if (params?.animal_detected && params.animal_detected !== 'all') q.set('animal_detected', params.animal_detected);
+        if (params?.animal_species && params.animal_species !== 'all') q.set('animal_species', params.animal_species);
+        if (params?.is_matched && params.is_matched !== 'all') q.set('is_matched', params.is_matched);
+        if (params?.search) q.set('search', params.search);
+        if (params?.q) q.set('q', params.q);
+        if (params?.limit) q.set('limit', String(params.limit));
+        if (params?.offset) q.set('offset', String(params.offset));
+        return request(`/relay/scraped-messages?${q.toString()}`);
+      },
     },
   },
 

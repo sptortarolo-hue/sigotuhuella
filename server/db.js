@@ -1323,6 +1323,17 @@ export async function initDb() {
     // --- Embeddings (pgvector) ---
     await migrate(client, 'CREATE EXTENSION IF NOT EXISTS vector', 'pgvector extension');
 
+    // --- Búsqueda full-text (scraper) ---
+    await migrate(client, 'CREATE EXTENSION IF NOT EXISTS unaccent', 'unaccent extension');
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS facebook_posts_content_fts
+      ON facebook_posts USING GIN (to_tsvector('spanish', COALESCE(content, '')))
+    `, 'fb_posts content FTS index');
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS whatsapp_scraped_messages_content_fts
+      ON whatsapp_scraped_messages USING GIN (to_tsvector('spanish', COALESCE(content, '')))
+    `, 'wa_scraped content FTS index');
+
     await migrate(client, `
       ALTER TABLE pets ADD COLUMN IF NOT EXISTS embedding vector(768)
     `, 'pets embedding column');

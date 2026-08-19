@@ -5,7 +5,7 @@ import { cn } from '@/src/lib/utils';
 import { openExternalLink } from '@/src/lib/utils';
 import { formatDate } from '@/src/lib/formatDate';
 import {
-  Save, Loader2, Search, RefreshCw, Check, XCircle, MessageSquare,
+  Save, Loader2, Search, Check, XCircle, MessageSquare,
   Globe, Users, Sliders, FlaskConical, Clock, ImageIcon,
   ExternalLink, X, LayoutGrid, List, Trash2,
 } from 'lucide-react';
@@ -101,32 +101,45 @@ export default function ScraperTab() {
 
 function PostsSection() {
   const [items, setItems] = useState<ScrapedItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [classification, setClassification] = useState('all');
   const [species, setSpecies] = useState('all');
+  const [source, setSource] = useState('all');
+  const [groupId, setGroupId] = useState('');
+  const [color, setColor] = useState('all');
   const [lightbox, setLightbox] = useState<{ images: string[]; idx: number } | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'gallery'>('gallery');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [imgIndices, setImgIndices] = useState<Record<string, number>>({});
   const [animalDetected, setAnimalDetected] = useState('all');
+  const [fbGroups, setFbGroups] = useState<{ id: string; name: string }[]>([]);
+  const [waGroups, setWaGroups] = useState<{ id: string; name: string }[]>([]);
+  const [page, setPage] = useState(0);
+  const pageSize = 30;
 
-  const fetchItems = async () => {
+  const fetchItems = async (pageNum: number = page) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (classification !== 'all') params.set('classification', classification);
-      if (species !== 'all') params.set('species', species);
-      if (animalDetected !== 'all') params.set('animal_detected', animalDetected);
-      if (search) params.set('search', search);
-      params.set('limit', '100');
-      const resp = await fetch(apiUrl(`/api/relay/scraped-messages?${params}`), {
+      const resp = await fetch(apiUrl(`/api/relay/scraped-messages?${new URLSearchParams({
+        ...(classification !== 'all' ? { classification } : {}),
+        ...(species !== 'all' ? { species } : {}),
+        ...(animalDetected !== 'all' ? { animal_detected: animalDetected } : {}),
+        ...(source !== 'all' ? { source } : {}),
+        ...(groupId ? { group_id: groupId } : {}),
+        ...(color !== 'all' ? { color } : {}),
+        ...(search ? { q: search } : {}),
+        limit: String(pageSize),
+        offset: String(pageNum * pageSize),
+      })}`), {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (resp.ok) {
         const data = await resp.json();
         setItems(data.messages || []);
+        setTotal(data.total || 0);
       } else {
         const errData = await resp.json().catch(() => ({}));
         console.error('[ScraperTab] fetch error:', resp.status, errData);
@@ -135,22 +148,29 @@ function PostsSection() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchItems(); }, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const [fb, wa] = await Promise.all([
+          api.facebook.groups.list().catch(() => ({ groups: [] })),
+          fetch(apiUrl('/api/relay/groups'), { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).then(r => r.ok ? r.json() : { groups: [] }),
+        ]);
+        setFbGroups(fb.groups || []);
+        setWaGroups(wa.groups || []);
+      } catch (e) { console.error('[ScraperTab] groups load error:', e); }
+    })();
+  }, []);
 
-  const filtered = items.filter(i => {
-    if (classification !== 'all' && i.classification !== classification) return false;
-    if (species !== 'all' && i.species !== species) return false;
-    if (animalDetected !== 'all') {
-      if (animalDetected === 'null') {
-        if (i.animal_detected !== null) return false;
-      } else {
-        const wantDetected = animalDetected === 'true';
-        if (i.animal_detected !== wantDetected) return false;
-      }
-    }
-    if (search && !(i.content || '').toLowerCase().includes(search.toLowerCase()) && !(i.author_name || '').toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  useEffect(() => { fetchItems(0); }, []);
+
+  useEffect(() => {
+    if (source === 'fb' && !fbGroups.some(g => g.id === groupId)) setGroupId('');
+    if (source === 'wa' && !waGroups.some(g => g.id === groupId)) setGroupId('');
+  }, [source]);
+
+  const applyFilters = () => { setPage(0); fetchItems(0); };
+
+  const filtered = items;
 
   const toggleSelect = (key: string) => {
     setSelected(prev => {
@@ -212,9 +232,29 @@ function PostsSection() {
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar en contenido o autor..."
+            onKeyDown={e => { if (e.key === 'Enter') applyFilters(); }}
+            placeholder="Búsqueda inteligente: 'perro negro perdido'..."
             className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" />
         </div>
+        <select value={source} onChange={e => { setSource(e.target.value); setGroupId(''); }}
+          className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm">
+          <option value="all">Todos los orígenes</option>
+          <option value="fb">Facebook</option>
+          <option value="wa">WhatsApp</option>
+        </select>
+        <select value={groupId} onChange={e => setGroupId(e.target.value)}
+          className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm max-w-[220px]">
+          <option value="">{source === 'all' ? 'Todos los grupos' : 'Todos los grupos'}</option>
+          {source !== 'wa' && fbGroups.map(g => <option key={'fb' + g.id} value={g.id}>FB · {g.name}</option>)}
+          {source !== 'fb' && waGroups.map(g => <option key={'wa' + g.id} value={g.id}>WA · {g.name}</option>)}
+        </select>
+        <select value={color} onChange={e => setColor(e.target.value)}
+          className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm">
+          <option value="all">Todos los colores</option>
+          {['negro', 'blanco', 'marron', 'gris', 'dorado', 'crema', 'atigrado', 'bicolor', 'tricolor', 'rojo', 'amarillo', 'naranja', 'manchado'].map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
         <select value={classification} onChange={e => setClassification(e.target.value)}
           className="px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm">
           <option value="all">Todas las clasificaciones</option>
@@ -236,9 +276,9 @@ function PostsSection() {
           <option value="false">Sin mascota</option>
           <option value="null">Sin imagen</option>
         </select>
-        <button onClick={fetchItems}
-          className="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors">
-          <RefreshCw className="w-4 h-4" />
+        <button onClick={applyFilters}
+          className="px-4 py-3 bg-brand-primary text-white rounded-xl hover:opacity-90 transition-opacity">
+          <Search className="w-4 h-4" />
         </button>
         <div className="flex bg-white rounded-xl border border-brand-accent overflow-hidden">
           <button onClick={() => setViewMode('gallery')}
@@ -253,7 +293,7 @@ function PostsSection() {
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-400">{filtered.length} resultado(s)</p>
+        <p className="text-xs text-gray-400">{total} resultado(s)</p>
         {filtered.length > 0 && (
           <>
             <button onClick={selectAll}
@@ -489,6 +529,23 @@ function PostsSection() {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {total > pageSize && (
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <button onClick={() => { const p = Math.max(0, page - 1); setPage(p); fetchItems(p); }} disabled={page === 0}
+            className="px-4 py-2 text-sm font-bold rounded-xl border border-brand-accent text-brand-primary disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-bg transition-colors">
+            ← Anterior
+          </button>
+          <span className="text-xs text-gray-400">
+            Página {page + 1} de {Math.max(1, Math.ceil(total / pageSize))} · {total} en total
+          </span>
+          <button onClick={() => { const p = page + 1; setPage(p); fetchItems(p); }} disabled={(page + 1) * pageSize >= total}
+            className="px-4 py-2 text-sm font-bold rounded-xl border border-brand-accent text-brand-primary disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-bg transition-colors">
+            Siguiente →
+          </button>
         </div>
       )}
 

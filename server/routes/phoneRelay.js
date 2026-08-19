@@ -430,25 +430,123 @@ router.post('/log-428', relayAuth, async (req, res) => {
 
 const WA_KEYWORDS = /perdido|perdida|encontré|encontre|encontrada|encontrado|perro|perra|gato|gata|mascota|apareció|aparecio|extraviado|extraviada|adopción|adopcion|callejero|abandonado|busco|busca|rescate|rescaté|rescatado/i;
 
+const SMARTS_SPECIES_RE = {
+  dog: /perr|can|cachorr|perrito|perra/,
+  cat: /gat|felino|mich|minino|michi|gata/,
+};
+const SMARTS_CLASS_RE = [
+  [/ya apareci[oó]|ya esta en casa|ya está en casa|volvi[oó]|regres[oó]|ya lo encontr[ée]|ya la encontr[ée]|gracias a todos/, 'reunion'],
+  [/perd|escap|busco|busca|desapareci[oó]|extravi[oó]|no aparece|no vuelve|no regresa|fug/, 'lost'],
+  [/encontr[ée]|rescata|recog|hall[ée]|lo encontr[ée]|la encontr[ée]/, 'found'],
+  [/avist|visto|lo vi|la vi|anda suelto|anda suelta/, 'sighting'],
+];
+const SMARTS_COLORS = [
+  ['negro', /negro|negra|black/],
+  ['blanco', /blanco|blanca|white/],
+  ['marron', /marr[oó]n|casta[ñn][oa]|brown/],
+  ['gris', /gris|gray|grey/],
+  ['dorado', /dorad[oa]|golden/],
+  ['crema', /crema|cream/],
+  ['atigrado', /atigrad[oa]|tabby/],
+  ['bicolor', /bicolor/],
+  ['tricolor', /tricolor/],
+  ['rojo', /roj[oa]|red/],
+  ['amarillo', /amarill[oa]|yellow/],
+  ['naranja', /naranja|orange/],
+  ['manchado', /manchad[oa]|spotted/],
+];
+
+// Traduce una query natural ("perro negro perdido") a atributos estructurados + texto libre
+function parseSmartQuery(q) {
+  const lower = (q || '').toLowerCase();
+  let species = null;
+  if (SMARTS_SPECIES_RE.dog.test(lower)) species = 'dog';
+  else if (SMARTS_SPECIES_RE.cat.test(lower)) species = 'cat';
+
+  let classification = null;
+  for (const [re, label] of SMARTS_CLASS_RE) {
+    if (re.test(lower)) { classification = label; break; }
+  }
+
+  const colors = [];
+  for (const [canonical, re] of SMARTS_COLORS) {
+    if (re.test(lower)) colors.push(canonical);
+  }
+
+  return { species, classification, colors, text: (q || '').trim() };
+}
+
 router.get('/scraped-messages', (req, res, next) => {
   const token = req.headers['authorization']?.replace('Bearer ', '');
   if (token && token === process.env.RELAY_TOKEN) return next();
   return requireAdmin(req, res, next);
 }, async (req, res) => {
   try {
-    const { classification, species, search, limit = 50, offset = 0 } = req.query;
-    const conditions = [];
+    const { classification, species, search, source, group_id, color, animal_detected, animal_species, is_matched, q } = req.query;
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+
+    const smart = q ? parseSmartQuery(q) : null;
+    const effClassification = (classification && classification !== 'all') ? classification : (smart?.classification || null);
+    const effSpecies = (species && species !== 'all') ? species : (smart?.species || null);
+    const effColor = (color && color !== 'all') ? color : (smart?.colors?.[0] || null);
+    const ftsText = smart?.text || null;
+
     const params = [];
     let idx = 1;
 
-    if (classification && classification !== 'all') {
-      conditions.push(`combined.classification = $${idx++}`);
-      params.push(classification);
-    }
-    if (species && species !== 'all') {
-      conditions.push(`combined.species = $${idx++}`);
-      params.push(species);
-    }
+    // FTS se aplica por rama para usar el índice GIN de cada tabla
+    const ftsParamIdx = ftsText ? idx++ : null;
+    if (ftsParamIdx) params.push(ftsText);
+
+    const fbWhere = `fp.classification IS NOT NULL${ftsText
+      ? ` AND websearch_to_tsquery('spanish', $${ftsParamIdx}) <> ''::tsquery
+        AND to_tsvector('spanish', COALESCE(fp.content, '')) @@ websearch_to_tsquery('spanish', $${ftsParamIdx})`
+      : ''}`;
+    const waWhere = `wsm.classification IS NOT NULL${ftsText
+      ? ` AND websearch_to_tsquery('spanish', $${ftsParamIdx}) <> ''::tsquery
+        AND to_tsvector('spanish', COALESCE(wsm.content, '')) @@ websearch_to_tsquery('spanish', $${ftsParamIdx})`
+      : ''}`;
+
+    const innerSql = `
+      SELECT fp.id, 'fb' as source, fp.group_id, fg.name as group_name, fp.author_name, fp.content,
+        fp.classification, fp.species, fp.color, fp.location_hint, fp.phone, fp.is_matched, fp.created_at,
+        fp.image_urls, fp.fb_post_url,
+        (fp.image_data IS NOT NULL) as has_image, 0 as image_count,
+        null::text as wa_message_id, null::text as image_data, null::text as image_mime,
+        null::text as author_jid, null::text as author_phone,
+        fp.animal_detected, fp.animal_species, fp.animal_confidence
+      FROM facebook_posts fp
+      LEFT JOIN facebook_groups fg ON fg.id = fp.group_id
+      WHERE ${fbWhere}
+
+      UNION ALL
+
+      SELECT wsm.id, 'wa' as source, wsm.group_id, wg.name as group_name, wsm.author_name, wsm.content,
+        wsm.classification, wsm.species, wsm.color, wsm.location_hint, wsm.phone, wsm.is_matched, wsm.created_at,
+        null::text[] as image_urls, null::text as fb_post_url,
+        ((wsm.image_data IS NOT NULL) OR EXISTS(SELECT 1 FROM whatsapp_message_images WHERE message_id = wsm.id)) as has_image,
+        (SELECT COUNT(*)::int FROM whatsapp_message_images WHERE message_id = wsm.id) as image_count,
+        wsm.wa_message_id, null::text as image_data, wsm.image_mime,
+        wsm.author_jid, wsm.author_phone,
+        wsm.animal_detected, wsm.animal_species, wsm.animal_confidence
+      FROM whatsapp_scraped_messages wsm
+      JOIN whatsapp_groups wg ON wg.id = wsm.group_id
+      WHERE ${waWhere}
+    `;
+
+    const conditions = [];
+    if (source && source !== 'all') { conditions.push(`combined.source = $${idx++}`); params.push(source); }
+    if (group_id) { conditions.push(`combined.group_id = $${idx++}`); params.push(group_id); }
+    if (effClassification) { conditions.push(`combined.classification = $${idx++}`); params.push(effClassification); }
+    if (effSpecies) { conditions.push(`combined.species = $${idx++}`); params.push(effSpecies); }
+    if (effColor) { conditions.push(`unaccent(combined.color) ILIKE unaccent($${idx++})`); params.push(`%${effColor}%`); }
+    if (animal_detected === 'true') conditions.push('combined.animal_detected = true');
+    else if (animal_detected === 'false') conditions.push('combined.animal_detected = false');
+    else if (animal_detected === 'null') conditions.push('combined.animal_detected IS NULL');
+    if (animal_species && animal_species !== 'all') { conditions.push(`combined.animal_species = $${idx++}`); params.push(animal_species); }
+    if (is_matched === 'true') conditions.push('combined.is_matched = true');
+    else if (is_matched === 'false') conditions.push('combined.is_matched = false');
     if (search) {
       conditions.push(`(combined.content ILIKE $${idx} OR combined.author_name ILIKE $${idx})`);
       params.push(`%${search}%`);
@@ -457,40 +555,21 @@ router.get('/scraped-messages', (req, res, next) => {
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
+    const countSql = `SELECT COUNT(*)::int as total FROM (${innerSql}) combined ${whereClause}`;
+    const countResult = await pool.query(countSql, params);
+    const total = countResult.rows[0]?.total || 0;
+
     const sql = `
-      SELECT * FROM (
-        SELECT fp.id, 'fb' as source, fg.name as group_name, fp.author_name, fp.content,
-          fp.classification, fp.species, fp.color, fp.location_hint, fp.phone, fp.is_matched, fp.created_at,
-          fp.image_urls, fp.fb_post_url,
-          (fp.image_data IS NOT NULL) as has_image, 0 as image_count,
-          null::text as wa_message_id, null::text as image_data, null::text as image_mime,
-          null::text as author_jid, null::text as author_phone,
-          fp.animal_detected, fp.animal_species, fp.animal_confidence
-        FROM facebook_posts fp
-        LEFT JOIN facebook_groups fg ON fg.id = fp.group_id
-        WHERE fp.classification IS NOT NULL
-
-        UNION ALL
-
-        SELECT wsm.id, 'wa' as source, wg.name as group_name, wsm.author_name, wsm.content,
-          wsm.classification, wsm.species, wsm.color, wsm.location_hint, wsm.phone, wsm.is_matched, wsm.created_at,
-          null::text[] as image_urls, null::text as fb_post_url,
-          ((wsm.image_data IS NOT NULL) OR EXISTS(SELECT 1 FROM whatsapp_message_images WHERE message_id = wsm.id)) as has_image,
-          (SELECT COUNT(*)::int FROM whatsapp_message_images WHERE message_id = wsm.id) as image_count,
-          wsm.wa_message_id, null::text as image_data, wsm.image_mime,
-          wsm.author_jid, wsm.author_phone,
-          wsm.animal_detected, wsm.animal_species, wsm.animal_confidence
-        FROM whatsapp_scraped_messages wsm
-        JOIN whatsapp_groups wg ON wg.id = wsm.group_id
-        WHERE wsm.classification IS NOT NULL
-      ) combined ${whereClause}
-      ORDER BY combined.created_at DESC
+      SELECT combined.* FROM (${innerSql}) combined ${whereClause}
+      ORDER BY ${ftsText
+        ? `ts_rank_cd(to_tsvector('spanish', COALESCE(combined.content, '')), websearch_to_tsquery('spanish', $${ftsParamIdx})) DESC, `
+        : ''}combined.created_at DESC
       LIMIT $${idx++} OFFSET $${idx++}
     `;
-    params.push(parseInt(limit), parseInt(offset));
+    params.push(limit, offset);
 
     const result = await pool.query(sql, params);
-    res.json({ messages: result.rows });
+    res.json({ messages: result.rows, total });
   } catch (err) {
     console.error('[Relay] scraped-messages error:', err.message);
     res.status(500).json({ error: err.message });
