@@ -473,9 +473,50 @@ function waitEditTextHas(textVal, timeoutMs) {
   return false;
 }
 
+// Cierra el teclado virtual usando varias estrategias. Solo envía back() si el
+// EditText sigue enfocado (teclado abierto); si ya está cerrado, back() cerraría
+// el sheet de selección y rompería el flujo. Devuelve true si cree que cerró.
+function hideKeyboard() {
+  try {
+    var edit = className("android.widget.EditText").findOne(800);
+    var focused = !!(edit && edit.visibleToUser() && edit.isFocused());
+    if (!focused) return false; // sin foco → sin teclado → no tocar nada
+  } catch (e) {}
+  try {
+    // 1) API IME de AutoJs6
+    if (input && input.ime) {
+      if (typeof input.ime.hide === "function") {
+        input.ime.hide();
+        sleep(400);
+        return true;
+      }
+      if (typeof input.ime.isOpen === "function" && input.ime.isOpen()) {
+        if (typeof input.ime.close === "function") input.ime.close();
+        sleep(400);
+        return true;
+      }
+    }
+  } catch (e) {}
+  try {
+    // 2) back() nativo (solo llegamos acá si había foco = teclado abierto)
+    back();
+    sleep(500);
+    return true;
+  } catch (e) {}
+  try {
+    // 3) Shizuku: inyectar KEYCODE_BACK (4) directo, no depende del árbol
+    if (shizukuAvailable()) {
+      shizukuCmd("input keyevent 4");
+      sleep(500);
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
 // Borra el texto del buscador de grupos para que reaparezca la lista completa
 // y el botón "Siguiente" (con texto escrito, FB no muestra el botón). Si el
-// teclado virtual queda abierto tapando el botón, lo cierra con back().
+// teclado virtual queda abierto tapando el botón, lo cierra.
 function clearGroupSearchText(timeoutMs) {
   var t = timeoutMs || CONFIG.findTimeoutMs;
   var deadline = Date.now() + t;
@@ -494,15 +535,10 @@ function clearGroupSearchText(timeoutMs) {
     } catch (e) {}
     sleep(500);
   }
-  // Cerrar el teclado virtual si quedó abierto (back() solo navega si hay
-  // teclado; el sheet de selección ya no tiene foco en el EditText).
-  try {
-    if (input && typeof input.isOpen === "function" && input.isOpen()) {
-      back();
-      console.log("[native] teclado cerrado");
-      sleep(rnd(600, 1000));
-    }
-  } catch (e) {}
+  // Cerrar el teclado virtual si quedó abierto (queda tapando "Siguiente").
+  hideKeyboard();
+  console.log("[native] teclado cerrado");
+  sleep(rnd(600, 1000));
 }
 
 // ─── Checkpoint / sesión expirada ─────────────────────────────────────────
