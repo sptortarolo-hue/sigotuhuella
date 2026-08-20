@@ -1173,47 +1173,39 @@ function searchGroupAndPublish(task) {
     console.log("[native] nombre de grupo normalizado: '" + groupName + "' -> '" + searchName + "'");
   }
 
-  // Buscar el row con el nombre completo y, si no aparece, con variantes
-  // (sin puntuación rara / palabra clave). FB filtra por texto y nombres
-  // largos/puntuados pueden dar "No hay resultados" si se tipean completos.
-  var variants = searchNameVariants(searchName);
-  var rowSelected = false;
-  for (var v = 0; v < variants.length && !rowSelected; v++) {
-    var vName = variants[v];
-    if (v > 0) {
-      clearGroupSearchText(5000);
-      console.log("[native] variante de búsqueda '" + vName + "' para '" + searchName + "'");
-    }
-    var ok = typeIntoEditText(vName, t);
-    if (!ok) {
-      sendDebug("no-group-search", url);
-      throw new Error("Group search input not found");
-    }
-    if (!waitEditTextHas(vName, 8000)) {
-      sendDebug("group-search-no-text", url);
-      throw new Error("Group name not typed");
-    }
-    sleep(rnd(2000, 4000));
+  // Buscar el row con el nombre normalizado. NO usar variantes/palabras clave:
+  // tipear una palabra suelta puede devolver OTRO grupo que la contenga y
+  // publicar en el grupo equivocado (más riesgoso que no encontrar el row).
+  var ok = typeIntoEditText(searchName, t);
+  if (!ok) {
+    sendDebug("no-group-search", url);
+    throw new Error("Group search input not found");
+  }
+  if (!waitEditTextHas(searchName, 8000)) {
+    sendDebug("group-search-no-text", url);
+    throw new Error("Group name not typed");
+  }
+  sleep(rnd(2000, 4000));
 
-    // 7) Seleccionar el row del grupo (buscar por nombre normalizado, con
-    //    variantes por si el row muestra un nombre distinto).
-    var rowLabels = [vName, searchName, groupName];
-    ok = clickLabel(rowLabels, t, true);
-    // Verificar que realmente navegó al composer del grupo (el box desapareció).
-    rowSelected = searchBoxGone(6000);
+  // 7) Seleccionar el row del grupo (buscar por nombre normalizado, con
+  //    variantes por si el row muestra un nombre distinto).
+  var rowLabels = [searchName, groupName];
+  if (searchName !== groupName) rowLabels.unshift(groupName);
+  ok = clickLabel(rowLabels, t, true);
+  // Verificar que realmente navegó al composer del grupo (el box desapareció).
+  var rowSelected = searchBoxGone(6000);
 
-    // Fallback posicional: el resultado del buscador aparece justo debajo del
-    // box (a veces el row no expone el texto completo o difiere en mayúsculas).
-    if (!ok || !rowSelected) {
-      console.log("[native] row por nombre no encontrado, probando click debajo del box");
-      var rowNode = clickResultBelowEditText(t);
-      if (rowNode) {
-        // rotar estrategias de tap para aterrizar en el row real
-        for (var rs = 0; rs < 5 && !rowSelected; rs++) {
-          tapStrategy(rowNode, rs);
-          sleep(1200);
-          rowSelected = searchBoxGone(3000);
-        }
+  // Fallback posicional: el resultado del buscador aparece justo debajo del
+  // box (a veces el row no expone el texto completo o difiere en mayúsculas).
+  if (!ok || !rowSelected) {
+    console.log("[native] row por nombre no encontrado, probando click debajo del box");
+    var rowNode = clickResultBelowEditText(t);
+    if (rowNode) {
+      // rotar estrategias de tap para aterrizar en el row real
+      for (var rs = 0; rs < 5 && !rowSelected; rs++) {
+        tapStrategy(rowNode, rs);
+        sleep(1200);
+        rowSelected = searchBoxGone(3000);
       }
     }
   }
@@ -1268,34 +1260,7 @@ function searchGroupAndPublish(task) {
   return true;
 }
 
-// Genera variantes de búsqueda para un nombre de grupo. FB filtra por texto y
-// nombres largos/puntuados tipeados completos pueden no matchear ("No hay
-// resultados"). Se prueban variantes progresivas: primero el nombre completo,
-// luego sin puntuación rara y finalmente la palabra clave más distintiva.
-function searchNameVariants(name) {
-  var out = [];
-  var base = String(name || "").trim();
-  if (base) out.push(base);
-  var stripped = base
-    .replace(/[.,;:()'"¡!¿?/]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (stripped && stripped !== base) out.push(stripped);
-  var words = stripped.split(" ").filter(function (w) { return w.length >= 5; });
-  // Combinación de las 2 palabras más distintivas (p.ej. "parque sicardi")
-  if (words.length >= 2) {
-    var sorted = words.slice().sort(function (a, b) { return b.length - a.length; });
-    var combo = sorted.slice(0, 2).join(" ");
-    if (out.indexOf(combo) < 0) out.push(combo);
-  }
-  // Palabra clave más distintiva (la más larga, p.ej. "garibaldi", "sicardi")
-  var key = null;
-  for (var i = 0; i < words.length; i++) {
-    if (!key || words[i].length > key.length) key = words[i];
-  }
-  if (key && out.indexOf(key) < 0) out.push(key);
-  return out;
-}
+
 
 // Marca el checkbox de un grupo en la pantalla de selección múltiple de la
 // cuenta business (buscador + lista con checkboxes). Escribe el nombre del
@@ -1317,30 +1282,21 @@ function selectGroupCheckbox(groupName, timeoutMs) {
   }
   if (trimmed) searchName = trimmed;
 
-  // 1) Tipear el nombre → filtra la lista. Si el nombre completo no aparece
-  //    ("No hay resultados"), reintentar con variantes (sin puntuación rara,
-  //    palabra clave distintiva) antes de declarar que el grupo no existe.
-  var variants = searchNameVariants(searchName);
-  var row = null;
-  for (var v = 0; v < variants.length && !row; v++) {
-    var vName = variants[v];
-    if (v > 0) {
-      // Limpiar el box del buscador y reintentar con la variante
-      clearGroupSearchText(5000);
-      console.log("[native] variante de búsqueda '" + vName + "' para '" + searchName + "'");
-    }
-    if (!typeIntoEditText(vName, t)) {
-      sendDebug("no-group-checkbox-input", groupName);
-      throw new Error("Group checkbox input not found");
-    }
-    if (!waitEditTextHas(vName, 8000)) {
-      sendDebug("group-checkbox-no-text", groupName);
-      throw new Error("Group checkbox name not typed");
-    }
-    sleep(rnd(2000, 4000));
-
-    row = findGroupRowBelowEditText(vName, t);
+  // 1) Tipear el nombre completo → filtra la lista. NO usar variantes/palabras
+  //    clave: tipear una palabra suelta puede filtrar OTRO grupo que la
+  //    contenga y marcar el checkbox del grupo equivocado. Si no aparece el
+  //    row, declarar el grupo como no encontrado (missing), no arriesgar.
+  if (!typeIntoEditText(searchName, t)) {
+    sendDebug("no-group-checkbox-input", groupName);
+    throw new Error("Group checkbox input not found");
   }
+  if (!waitEditTextHas(searchName, 8000)) {
+    sendDebug("group-checkbox-no-text", groupName);
+    throw new Error("Group checkbox name not typed");
+  }
+  sleep(rnd(2000, 4000));
+
+  var row = findGroupRowBelowEditText(searchName, t);
   if (!row) {
     console.log("[native] grupo '" + searchName + "' no aparece en la lista filtrada");
     sendDebug("group-checkbox-row-missing", groupName);
