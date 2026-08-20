@@ -753,11 +753,13 @@ function sendHeartbeat() {
       locked: false,
       shizukuOk: false,
       battery: null,
+      wakefulness: null,
     };
     try { state.screenOn = !!(device.isScreenOn && device.isScreenOn()); } catch (e) {}
     try { state.locked = isScreenLocked(); } catch (e) {}
     try { state.shizukuOk = shizukuAvailable(); } catch (e) {}
     try { state.battery = readBatteryLevel(); } catch (e) {}
+    try { state.wakefulness = readWakefulness(); } catch (e) {}
     var payload = {
       label: "heartbeat",
       url: "",
@@ -766,7 +768,7 @@ function sendHeartbeat() {
     };
     var res = apiPost("/fb-debug", payload);
     if (res && res.success) {
-      console.log("[native] heartbeat enviado (screen=" + state.screenOn + ", locked=" + state.locked + ", shizuku=" + state.shizukuOk + ", bat=" + state.battery + ")");
+      console.log("[native] heartbeat enviado (screen=" + state.screenOn + ", locked=" + state.locked + ", shizuku=" + state.shizukuOk + ", wf=" + (state.wakefulness || "n/a") + ", bat=" + state.battery + ")");
     }
   } catch (e) {
     // Silencioso: un heartbeat fallido no debe romper el relay
@@ -1496,90 +1498,90 @@ function readWakefulness() {
 }
 
 function wakeScreenIfNeeded() {
-  try {
-    if (device.isScreenOn && device.isScreenOn()) return true;
-  } catch (e) {}
+  if (shizukuAvailable()) {
+    // Shizuku disponible: la fuente de verdad es mWakefulness real, NO
+    // device.isScreenOn(). OJO: con AOD activo, isScreenOn() devuelve true en
+    // Dozing (reloj AOD visible) pero la pantalla NO está en Awake y no hay
+    // keyguard interactivo ni keypad → dismiss-keyguard/swipe/PIN no hacen nada.
+    // Por eso hay que pasar Dozing → Awake con KEYCODE_WAKEUP (224) siempre.
+    for (var attempt = 0; attempt < 8; attempt++) {
+      var wf = readWakefulness();
+      if (wf === "Awake") {
+        console.log("[native] wake: pantalla en Awake");
+        return true;
+      }
+      if (wf === "Asleep") {
+        // Apagado total: WAKEUP (224) enciende directo (no-toggle, a diferencia
+        // de POWER 26 que alterna y puede volver a apagar).
+        console.log("[native] wake: Asleep → KEYCODE_WAKEUP (224) #" + (attempt + 1));
+        shizukuCmd("input keyevent 224");
+        sleep(1500);
+        continue;
+      }
+      if (wf === "Dozing") {
+        // AOD visible (reloj): repetir WAKEUP (224) hasta Awake
+        console.log("[native] wake: Dozing → KEYCODE_WAKEUP (224) #" + (attempt + 1));
+        shizukuCmd("input keyevent 224");
+        sleep(1200);
+        continue;
+      }
+      // wf === null o estado desconocido: intentar isScreenOn como aproximación
+      try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
+      shizukuCmd("input keyevent 224");
+      sleep(1000);
+    }
 
-  if (!shizukuAvailable()) {
-    // Fallback sin Shizuku
-    try { device.wakeUpIfNeeded(); } catch (e) {}
-    sleep(800);
-    try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-    try { device.wakeUp(); } catch (e) {}
-    sleep(800);
-    try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-    try { keyCode(224); } catch (e) {}
-    sleep(800);
-    try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-    try { shell("input keyevent 224", true); } catch (e) {}
-    sleep(800);
+    // Verificación final
+    var wfFinal = readWakefulness();
+    if (wfFinal === "Awake") {
+      console.log("[native] wake: verificación final Awake");
+      return true;
+    }
+    console.log("[native] wake: no se alcanzó Awake (final=" + (wfFinal || "n/a") + "), recovery agresivo...");
+    // Recovery agresivo: el AOD/Dozing puede quedarse en un estado raro tras un
+    // sleep forzado. Dismiss del keyguard + WAKEUP repetido + MENU (desbloquea
+    // keyguard sin PIN) y re-verificar.
     try {
-      if (device.isScreenOn && device.isScreenOn()) return true;
-    } catch (e) {}
+      shizukuCmd("wm dismiss-keyguard");
+      sleep(800);
+    } catch (eR) {}
+    for (var rk = 0; rk < 4 && readWakefulness() !== "Awake"; rk++) {
+      console.log("[native] wake recovery: WAKEUP (224) #" + (rk + 1));
+      shizukuCmd("input keyevent 224");
+      sleep(1000);
+    }
+    if (readWakefulness() !== "Awake") {
+      console.log("[native] wake recovery: MENU (82) para descartar keyguard");
+      shizukuCmd("input keyevent 82");
+      sleep(1000);
+    }
+    var wfR = readWakefulness();
+    if (wfR === "Awake") {
+      console.log("[native] wake: recovery alcanzó Awake");
+      return true;
+    }
+    console.log("[native] wake: recovery falló (final=" + (wfR || "n/a") + ")");
     return false;
   }
 
-  // Shizuku disponible: máquina de estados por mWakefulness real
-  var wf = readWakefulness();
-  console.log("[native] wake: mWakefulness=" + (wf || "n/a"));
-  
-  for (var attempt = 0; attempt < 6; attempt++) {
-    wf = readWakefulness();
-    console.log("[native] wake check " + (attempt + 1) + ": mWakefulness=" + (wf || "n/a"));
-    
-    if (wf === "Awake") {
-      console.log("[native] wake: pantalla en Awake (lockscreen)");
-      return true;
-    }
-    if (wf === "Asleep") {
-      // Apagado total: WAKEUP (224) enciende directo (no-toggle, a diferencia
-      // de POWER 26 que alterna y puede volver a apagar).
-      console.log("[native] wake: Asleep → enviando KEYCODE_WAKEUP (224)");
-      shizukuCmd("input keyevent 224");
-      sleep(1500);
-      continue;
-    }
-    if (wf === "Dozing") {
-      // AOD visible (reloj): repetir WAKEUP (224) hasta Awake
-      console.log("[native] wake: Dozing → enviando KEYCODE_WAKEUP (224)");
-      shizukuCmd("input keyevent 224");
-      sleep(1200);
-      continue;
-    }
-    // wf === null o estado desconocido: fallback cascada
-    break;
-  }
-  
-  // Verificación final
-  wf = readWakefulness();
-  if (wf === "Awake") {
-    console.log("[native] wake: verificación final Awake");
-    return true;
-  }
-  console.log("[native] wake: no se alcanzó Awake (final=" + (wf || "n/a") + "), recovery agresivo...");
-  // Recovery agresivo: el AOD/Dozing puede quedarse en un estado raro tras un
-  // sleep forzado. Dismiss del keyguard + WAKEUP repetido + MENU (desbloquea
-  // keyguard sin PIN) y re-verificar.
+  // Sin Shizuku: fallback cascada con isScreenOn() como aproximación
   try {
-    shizukuCmd("wm dismiss-keyguard");
-    sleep(800);
-  } catch (eR) {}
-  for (var rk = 0; rk < 3 && readWakefulness() !== "Awake"; rk++) {
-    console.log("[native] wake recovery: WAKEUP (224) #" + (rk + 1));
-    shizukuCmd("input keyevent 224");
-    sleep(1000);
-  }
-  if (readWakefulness() !== "Awake") {
-    console.log("[native] wake recovery: MENU (82) para descartar keyguard");
-    shizukuCmd("input keyevent 82");
-    sleep(1000);
-  }
-  wf = readWakefulness();
-  if (wf === "Awake") {
-    console.log("[native] wake: recovery alcanzó Awake");
-    return true;
-  }
-  console.log("[native] wake: recovery falló (final=" + (wf || "n/a") + ")");
+    if (device.isScreenOn && device.isScreenOn()) return true;
+  } catch (e) {}
+  try { device.wakeUpIfNeeded(); } catch (e) {}
+  sleep(800);
+  try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
+  try { device.wakeUp(); } catch (e) {}
+  sleep(800);
+  try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
+  try { keyCode(224); } catch (e) {}
+  sleep(800);
+  try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
+  try { shell("input keyevent 224", true); } catch (e) {}
+  sleep(800);
+  try {
+    if (device.isScreenOn && device.isScreenOn()) return true;
+  } catch (e) {}
   return false;
 }
 
@@ -1624,6 +1626,21 @@ function ensureUnlocked() {
     if (!woken) {
       console.log("[native] no se pudo encender la pantalla");
       sendDebug("screen-wake-fail");
+    }
+    // Confirmar Awake real antes de dismiss-keyguard/swipe/PIN. Con AOD, si el
+    // wake se quedó en Dozing, no hay keyguard interactivo y el swipe/PIN no
+    // harían nada. Si no está Awake, reintentar el wake antes de seguir.
+    if (shizukuAvailable()) {
+      var aw = readWakefulness();
+      var awDeadline = Date.now() + 10000;
+      while (aw !== "Awake" && Date.now() < awDeadline) {
+        console.log("[native] ensureUnlocked: aún " + (aw || "n/a") + ", wake de nuevo...");
+        wakeScreenIfNeeded();
+        sleep(rnd(800, 1500));
+        aw = readWakefulness();
+      }
+      if (aw === "Awake") console.log("[native] ensureUnlocked: pantalla Awake confirmada");
+      else console.log("[native] ensureUnlocked: no se confirmó Awake (final=" + (aw || "n/a") + ")");
     }
     sleep(rnd(1500, 2500));
 
@@ -1792,7 +1809,7 @@ function typePinByText(pin) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
-  console.log("[native] build f52fcec+ (v2.3: lock lo renueva el loop + watchdog mata la zombie + no se mata a si misma + variantes de busqueda)");
+  console.log("[native] build v2.4+ (wake Dozing/AOD arreglado + auto-relaunch sin exit-race + wf en heartbeat)");
   parkConsole();
 
   // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
@@ -1875,24 +1892,24 @@ function mainLoop() {
 
   // Auto-relanzamiento: si el loop terminó (cuelgue, excepción no capturada o
   // interrupción del árbol), levantar una instancia nueva para no dejar el
-  // relay caído. El guard de otherInstanceRunning() evita duplicados si la
-  // nueva instancia alcanza a arrancar antes que salga esta.
+  // relay caído. OJO: no usar threads.start + exit() (exit() mata el thread
+  // antes de que corra el relaunch); el relaunch se hace acá en el thread
+  // principal tras el delay. El guard de otherInstanceRunning() evita
+  // duplicados si otra instancia ya tomó el lock.
   try {
     var sp = files.join(files.cwd(), "fb-native-relay.js");
     if (files.exists(sp)) {
       console.log("[native] mainLoop terminando, auto-relanzando script en " + Math.round(CONFIG.restartDelayMs / 1000) + "s...");
-      threads.start(function () {
-        sleep(CONFIG.restartDelayMs);
-        try {
-          if (otherInstanceRunning()) {
-            console.log("[native] auto-relanzamiento: otra instancia ya corre, omitiendo");
-            return;
-          }
+      sleep(CONFIG.restartDelayMs);
+      try {
+        if (otherInstanceRunning()) {
+          console.log("[native] auto-relanzamiento: otra instancia ya corre, omitiendo");
+        } else {
           engines.execScriptFile(sp);
-        } catch (eR) {
-          console.error("[native] auto-relanzamiento falló: " + eR.message);
         }
-      });
+      } catch (eR) {
+        console.error("[native] auto-relanzamiento falló: " + eR.message);
+      }
     }
   } catch (eRestart) {
     console.error("[native] auto-relanzamiento no disponible: " + eRestart.message);

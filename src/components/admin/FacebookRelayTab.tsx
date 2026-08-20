@@ -22,6 +22,7 @@ interface FbRelayStatus {
     locked?: boolean;
     shizukuOk?: boolean;
     battery?: number | null;
+    wakefulness?: string;
   };
   stats: {
     pending: number;
@@ -114,6 +115,7 @@ function RelayContent() {
     if (status.lastHeartbeat.screenOn != null) parts.push(status.lastHeartbeat.screenOn ? 'pantalla on' : 'pantalla off');
     if (status.lastHeartbeat.locked != null) parts.push(status.lastHeartbeat.locked ? 'bloqueada' : 'desbloqueada');
     if (status.lastHeartbeat.shizukuOk != null) parts.push(status.lastHeartbeat.shizukuOk ? 'shizuku ok' : 'shizuku NO');
+    if (status.lastHeartbeat.wakefulness) parts.push(`wf ${status.lastHeartbeat.wakefulness}`);
     return parts.join(' · ');
   })();
 
