@@ -41,6 +41,8 @@ var CONFIG = {
   // entre publicaciones se vea más espaciado que entre grupos de un mismo post.
   betweenPostsMinDelayMs: 25 * 1000,
   betweenPostsMaxDelayMs: 45 * 1000,
+  // Delay antes de auto-relanzar el script al salir del mainLoop (ms)
+  restartDelayMs: 30 * 1000,
   // Package de la app nativa de Facebook
   fbPackage: "com.facebook.katana",
   // Cuánto esperar cada selector (ms)
@@ -835,7 +837,20 @@ function openPostAndShareGroup(task) {
   //    "Compartir" en cualquier post del home. Con el celular desbloqueado ya,
   //    el deep link abre la vista real del post sobre el estado desbloqueado.
   ensureUnlocked();
-  sleep(rnd(1500, 2500));
+  // El desbloqueo dispara una reconexión del árbol de accesibilidad de AutoJs6;
+  // el sleep que sigue puede lanzar ScriptInterruptedException y si se propaga
+  // con isEngineStopped()==true (falso positivo transitorio) el script se sale
+  // sin hacer nada. Tratar esa interrupción como transitoria y seguir.
+  try {
+    sleep(rnd(1500, 2500));
+  } catch (ePostUnlock) {
+    if (isInterrupted(ePostUnlock)) {
+      console.log("[native] interrupción transitoria tras desbloqueo, continuando");
+      sleep(rnd(1500, 2500));
+    } else {
+      throw ePostUnlock;
+    }
+  }
 
   // 2) Estrategias de apertura del post. La URL https canónica es la #1: FB la
   //    resuelve como app link y abre la vista NATIVA del post (probado). El
@@ -1650,6 +1665,32 @@ function mainLoop() {
   stopHeartbeat();
   stopWatchdog();
   cancelScreenAwake();
+
+  // Auto-relanzamiento: si el loop terminó (cuelgue, excepción no capturada o
+  // interrupción del árbol), levantar una instancia nueva para no dejar el
+  // relay caído. El guard de otherInstanceRunning() evita duplicados si la
+  // nueva instancia alcanza a arrancar antes que salga esta.
+  try {
+    var sp = files.join(files.cwd(), "fb-native-relay.js");
+    if (files.exists(sp)) {
+      console.log("[native] mainLoop terminando, auto-relanzando script en " + Math.round(CONFIG.restartDelayMs / 1000) + "s...");
+      threads.start(function () {
+        sleep(CONFIG.restartDelayMs);
+        try {
+          if (otherInstanceRunning()) {
+            console.log("[native] auto-relanzamiento: otra instancia ya corre, omitiendo");
+            return;
+          }
+          engines.execScriptFile(sp);
+        } catch (eR) {
+          console.error("[native] auto-relanzamiento falló: " + eR.message);
+        }
+      });
+    }
+  } catch (eRestart) {
+    console.error("[native] auto-relanzamiento no disponible: " + eRestart.message);
+  }
+  console.log("[native] mainLoop saliendo (exit)");
   exit();
 }
 
@@ -1674,7 +1715,13 @@ function isInterrupted(e) {
 function isEngineStopped() {
   try {
     var eng = engines.myEngine();
-    if (eng && typeof eng.isStopped === "function") return eng.isStopped();
+    if (!eng || typeof eng.isStopped !== "function") return false;
+    if (!eng.isStopped()) return false;
+    // Reconexión del árbol de accesibilidad puede dar un falso positivo
+    // momentáneo de isStopped(). Confirmar con un segundo chequeo tras una
+    // pausa: si sigue detenido, es un stop real (manual / sistema).
+    sleep(1200);
+    return eng.isStopped();
   } catch (e) {}
   return false;
 }
