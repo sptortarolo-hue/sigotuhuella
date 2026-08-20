@@ -257,6 +257,15 @@ Replica el "compartir a mano" del dueño: cuando se publica una mascota, compart
 5. Correr el script en AutoJs6 (o programarlo con su scheduler)
 6. **La cuenta logueada debe ser miembro de los grupos target** (el share busca el grupo por nombre y lo selecciona)
 
+### Setup crítico 24/7 (relay desatendido con apagado nocturno)
+
+El relay duerme la pantalla al terminar cada post y la despierta a demanda. Para que el proceso **sobreviva la noche** (Doze de Android mata procesos en segundo plano) es OBLIGATORIO:
+
+1. **Exención de batería para AutoJs6**: Ajustes → Batería → Uso de batería → AutoJs6 → "Sin restricciones" (Samsung: Ajustes → Cuidado del dispositivo → Batería → Límites de uso en segundo plano → AutoJs6 → sin límites).
+2. **Shizuku autostart**: darle a Shizuku permisos de ADB wireless y activar "Arrancar con el sistema" (su propio toggle), para que el servicio esté operational tras un reboot.
+3. **El script ya verifica Shizuku al arrancar** (espera hasta 20s). Si Shizuku no está, NO apaga la pantalla (no podría despertarla después) y avisa en el log.
+4. **Heartbeat**: el script POSTea `/fb-debug` con `label:"heartbeat"` cada 5 min (estado screen/locked/shizuku/batería). Ver "Relay vivo" en panel admin → Facebook Relay (verde si < 10 min).
+
 ### Cómo probar
 
 1. Detener `fb-relay.js` en Termux (evita doble ejecución; además el relay web ya excluye `action=share` desde el server)

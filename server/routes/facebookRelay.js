@@ -76,7 +76,12 @@ router.get('/fb/status', requireAdmin, async (req, res) => {
     const hasSessionData = !!(await getSessionData());
     const adoptionSetting = await pool.query("SELECT value FROM settings WHERE key = 'fb_adoption_broadcast_enabled'");
     const adoptionBroadcastEnabled = adoptionSetting.rows[0]?.value === 'true';
-    res.json({ enabled, hasSession, hasProfile, hasSessionData, stats, adoptionBroadcastEnabled });
+    let lastHeartbeat = null;
+    try {
+      const hbRow = await pool.query("SELECT value FROM settings WHERE key = 'fb_relay_last_heartbeat'");
+      if (hbRow.rows[0]?.value) lastHeartbeat = JSON.parse(hbRow.rows[0].value);
+    } catch (e) {}
+    res.json({ enabled, hasSession, hasProfile, hasSessionData, stats, adoptionBroadcastEnabled, lastHeartbeat });
   } catch (err) {
     console.error('[FB Relay] status error:', err.message);
     res.status(500).json({ error: err.message });
@@ -323,6 +328,17 @@ function saveDebug(key, data) {
 router.post('/fb-debug', relayAuth, async (req, res) => {
   try {
     const { screenshot, ariaLabels, lexicalInfo, url, html, label, totalDialogs, dialogTag, dialogRole, items, uiNodes } = req.body;
+    // Heartbeat del relay nativo: no pisar el dump de debug, solo guardar el
+    // timestamp del último heartbeat + estado para mostrarlo en el panel.
+    if (label === 'heartbeat') {
+      const hb = req.body.heartbeat || {};
+      await pool.query(
+        `INSERT INTO settings (key, value) VALUES ('fb_relay_last_heartbeat', $1)
+         ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [JSON.stringify({ timestamp: new Date().toISOString(), ...hb })]
+      );
+      return res.json({ success: true });
+    }
     saveDebug('last', {
       ariaLabels, lexicalInfo, url, html, label,
       diag4: { totalDialogs, dialogTag, dialogRole, items },

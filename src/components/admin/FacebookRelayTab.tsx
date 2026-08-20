@@ -16,6 +16,13 @@ interface FbRelayStatus {
   hasProfile: boolean;
   hasSessionData: boolean;
   adoptionBroadcastEnabled: boolean;
+  lastHeartbeat?: {
+    timestamp?: string;
+    screenOn?: boolean;
+    locked?: boolean;
+    shizukuOk?: boolean;
+    battery?: number | null;
+  };
   stats: {
     pending: number;
     completed: number;
@@ -89,6 +96,26 @@ function RelayContent() {
   const [fbAdoptionHours, setFbAdoptionHours] = useState('');
   const [fbAdoptionHoursSaving, setFbAdoptionHoursSaving] = useState(false);
   const [clearingQueue, setClearingQueue] = useState(false);
+
+  const isRelayAlive = (() => {
+    if (!status?.lastHeartbeat?.timestamp) return false;
+    const diffMs = Date.now() - new Date(status.lastHeartbeat.timestamp).getTime();
+    return diffMs < 10 * 60 * 1000;
+  })();
+
+  const lastHeartbeatLabel = (() => {
+    if (!status?.lastHeartbeat) return '';
+    const ts = status.lastHeartbeat.timestamp;
+    const parts: string[] = [];
+    if (ts) {
+      const diffMin = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+      parts.push(diffMin < 1 ? 'ahora' : `${diffMin} min`);
+    }
+    if (status.lastHeartbeat.screenOn != null) parts.push(status.lastHeartbeat.screenOn ? 'pantalla on' : 'pantalla off');
+    if (status.lastHeartbeat.locked != null) parts.push(status.lastHeartbeat.locked ? 'bloqueada' : 'desbloqueada');
+    if (status.lastHeartbeat.shizukuOk != null) parts.push(status.lastHeartbeat.shizukuOk ? 'shizuku ok' : 'shizuku NO');
+    return parts.join(' · ');
+  })();
 
   async function loadData() {
     let errMsg: string | null = null;
@@ -280,6 +307,11 @@ function RelayContent() {
           <div className={`bg-gray-50 rounded-xl p-4 text-center ${status?.hasSession ? 'text-green-600' : 'text-red-500'}`}>
             <div className="text-2xl font-bold">{status?.hasSession ? '✓' : '✗'}</div>
             <div className="text-xs text-gray-500">Sesión FB</div>
+          </div>
+          <div className={`bg-gray-50 rounded-xl p-4 text-center ${isRelayAlive ? 'text-green-600' : 'text-red-500'}`}>
+            <div className="text-2xl font-bold">{isRelayAlive ? '✓' : '✗'}</div>
+            <div className="text-xs text-gray-500">Relay vivo</div>
+            {lastHeartbeatLabel && <div className="text-[10px] text-gray-400 mt-1">{lastHeartbeatLabel}</div>}
           </div>
         </div>
         <div className="mt-4 flex justify-end">

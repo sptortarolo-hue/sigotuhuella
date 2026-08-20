@@ -597,6 +597,9 @@ function nodeBoundsStr(node) {
 
 function sendDebug(label, url) {
   try {
+    // Mostrar la consola al diagnosticar: si está oculta (tras screenOffAndLock)
+    // el dump no se vería en el celular.
+    try { console.show(); } catch (eC) {}
     var payload = {
       label: "native:" + label,
       url: url || "",
@@ -737,6 +740,61 @@ function stopWatchdog() {
   try { if (watchdogThread) watchdogThread.interrupt(); } catch (e) {}
 }
 
+// ─── Heartbeat al server ──────────────────────────────────────────────────
+// POST periódico a /fb-debug con estado del relay para ver en el panel admin
+// si el celular está vivo (último heartbeat), sin necesidad de tocarlo.
+
+var heartbeatThread = null;
+var HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+
+function readBatteryLevel() {
+  try { return device.getBattery(); } catch (e) { return null; }
+}
+
+function sendHeartbeat() {
+  try {
+    var state = {
+      screenOn: false,
+      locked: false,
+      shizukuOk: false,
+      battery: null,
+    };
+    try { state.screenOn = !!(device.isScreenOn && device.isScreenOn()); } catch (e) {}
+    try { state.locked = isScreenLocked(); } catch (e) {}
+    try { state.shizukuOk = shizukuAvailable(); } catch (e) {}
+    try { state.battery = readBatteryLevel(); } catch (e) {}
+    var payload = {
+      label: "heartbeat",
+      url: "",
+      timestamp: new Date().toISOString(),
+      heartbeat: state,
+    };
+    var res = apiPost("/fb-debug", payload);
+    if (res && res.success) {
+      console.log("[native] heartbeat enviado (screen=" + state.screenOn + ", locked=" + state.locked + ", shizuku=" + state.shizukuOk + ", bat=" + state.battery + ")");
+    }
+  } catch (e) {
+    // Silencioso: un heartbeat fallido no debe romper el relay
+  }
+}
+
+function startHeartbeatThread() {
+  try {
+    heartbeatThread = threads.start(function () {
+      while (true) {
+        sleep(HEARTBEAT_INTERVAL_MS);
+        sendHeartbeat();
+      }
+    });
+  } catch (e) {
+    console.log("[native] heartbeat no disponible: " + e.message);
+  }
+}
+
+function stopHeartbeatThread() {
+  try { if (heartbeatThread) heartbeatThread.interrupt(); } catch (e) {}
+}
+
 // Detecta si hay otra instancia de este mismo script corriendo (más robusto
 // que el lock de archivo, que no frenó los duplicados).
 function otherInstanceRunning() {
@@ -872,7 +930,20 @@ function openPostAndShareGroup(task) {
   //    desbloquear queda el home/feed activo en pantalla → el share buscaría
   //    "Compartir" en cualquier post del home. Con el celular desbloqueado ya,
   //    el deep link abre la vista real del post sobre el estado desbloqueado.
-  ensureUnlocked();
+  // OJO: si el wake/unlock falla (Shizuku caído, AOD en estado raro), NO seguir
+  // ciego: tirar SCREEN_UNLOCK_FAIL para que el poll loop deje las tareas
+  // pendientes y reintente en el próximo ciclo (en vez de marcar failed).
+  var unlockedOk = false;
+  try {
+    unlockedOk = ensureUnlocked();
+  } catch (eUnlock) {
+    console.error("[native] ensureUnlocked lanzó excepción: " + eUnlock.message);
+  }
+  if (!unlockedOk) {
+    sendDebug("screen-unlock-fail", url);
+    console.error("[native] pantalla no desbloqueable → tareas quedan pendientes (reintento en próximo poll)");
+    throw new Error("SCREEN_UNLOCK_FAIL: pantalla no desbloqueable");
+  }
   // El desbloqueo dispara una reconexión del árbol de accesibilidad de AutoJs6;
   // el sleep que sigue puede lanzar ScriptInterruptedException y si se propaga
   // con isEngineStopped()==true (falso positivo transitorio) el script se sale
@@ -1261,23 +1332,41 @@ function cleanupAfterBatch() {
 
 // Apaga y bloquea la pantalla al terminar el post completo (los 7 grupos).
 // Libera el wake lock de AutoJs6 y fuerza el apagado vía Shizuku (keyevent
-// POWER). En Samsung con PIN/patrón, apagar la pantalla la bloquea solo. El
+// SLEEP). En Samsung con PIN/patrón, apagar la pantalla la bloquea solo. El
 // próximo batch la despierta y desbloquea a demanda (wakeScreenIfNeeded +
 // ensureUnlocked ya lo manejan).
 function screenOffAndLock() {
   try {
-    cancelScreenAwake();
-    if (shizukuAvailable()) {
-      // Desactivar cualquier "No dormir" residual de corridas previas con
-      // stayAwakeWhileCharging: true, para que el timeout normal de pantalla
-      // y el apagado forzado de abajo tengan efecto.
-      shizukuCmd("svc power stayon false");
-      sleep(300);
-      shizukuCmd("input keyevent 26"); // KEYCODE_POWER → apagar pantalla + lock
-      console.log("[native] pantalla apagada y bloqueada");
-    } else {
-      console.log("[native] sin Shizuku no se puede apagar forzado; queda la pantalla encendida");
+    if (!shizukuAvailable()) {
+      // Sin Shizuku no hay forma fiable de despertar la pantalla después
+      // (device.wakeUp falla sin root en Samsung). NO apagar: dejamos que el
+      // timeout normal de pantalla la apague sola, pero el keyguard se queda
+      // sin lock forzado. Mejor quedarse encendido que quedar dormido para
+      // siempre.
+      console.log("[native] sin Shizuku no se apaga la pantalla (no se podría despertar luego)");
+      cancelScreenAwake();
+      return;
     }
+    cancelScreenAwake();
+    // Ocultar la consola flotante de AutoJs6: si queda visible sobre el
+    // keyguard intercepta los taps al desbloquear a mano (síntoma "el touch
+    // no anda"). El log sigue escribiendo igual; solo se oculta la ventana.
+    try { console.hide(); } catch (eC) {}
+    // Desactivar cualquier "No dormir" residual de corridas previas con
+    // stayAwakeWhileCharging: true, para que el timeout normal de pantalla
+    // y el apagado forzado de abajo tengan efecto.
+    shizukuCmd("svc power stayon false");
+    sleep(300);
+    shizukuCmd("input keyevent 223"); // KEYCODE_SLEEP → apagar pantalla + lock
+    sleep(800);
+    var wf = readWakefulness();
+    if (wf && wf !== "Asleep") {
+      // Si el SLEEP no apagó (estado raro), reintentar una vez
+      console.log("[native] tras SLEEP quedó " + wf + ", reintentando...");
+      shizukuCmd("input keyevent 223");
+      sleep(800);
+    }
+    console.log("[native] pantalla apagada y bloqueada");
   } catch (e) {
     console.log("[native] screenOffAndLock falló: " + e.message);
   }
@@ -1333,9 +1422,11 @@ function cancelScreenAwake() {
 // Enciende la pantalla si está apagada. En Samsung sin root, device.wakeUp()
 // suele fallar → usar Shizuku (ADB) primero y luego cascada.
 // Estrategia para Samsung con AOD:
-//   Asleep (apagado total) → KEYCODE_POWER (26) → Dozing (AOD/reloj)
+//   Asleep (apagado total) → KEYCODE_WAKEUP (224) → Dozing (AOD/reloj)
 //   Dozing (AOD/reloj)     → repetir KEYCODE_WAKEUP (224) HASTA mWakefulness=Awake (lockscreen)
 //   Awake (lockscreen)     → éxito
+// Se usa WAKEUP (224) y no POWER (26) en todo el flujo: POWER es un toggle que
+// puede volver a apagar la pantalla si se envía en el estado equivocado.
 // Devolver true solo si llega a Awake (lockscreen con keypad).
 
 function readWakefulness() {
@@ -1386,9 +1477,10 @@ function wakeScreenIfNeeded() {
       return true;
     }
     if (wf === "Asleep") {
-      // Apagado total: POWER (26) enciende → Dozing (AOD)
-      console.log("[native] wake: Asleep → enviando KEYCODE_POWER (26)");
-      shizukuCmd("input keyevent 26");
+      // Apagado total: WAKEUP (224) enciende directo (no-toggle, a diferencia
+      // de POWER 26 que alterna y puede volver a apagar).
+      console.log("[native] wake: Asleep → enviando KEYCODE_WAKEUP (224)");
+      shizukuCmd("input keyevent 224");
       sleep(1500);
       continue;
     }
@@ -1409,7 +1501,30 @@ function wakeScreenIfNeeded() {
     console.log("[native] wake: verificación final Awake");
     return true;
   }
-  console.log("[native] wake: no se alcanzó Awake (final=" + (wf || "n/a") + ")");
+  console.log("[native] wake: no se alcanzó Awake (final=" + (wf || "n/a") + "), recovery agresivo...");
+  // Recovery agresivo: el AOD/Dozing puede quedarse en un estado raro tras un
+  // sleep forzado. Dismiss del keyguard + WAKEUP repetido + MENU (desbloquea
+  // keyguard sin PIN) y re-verificar.
+  try {
+    shizukuCmd("wm dismiss-keyguard");
+    sleep(800);
+  } catch (eR) {}
+  for (var rk = 0; rk < 3 && readWakefulness() !== "Awake"; rk++) {
+    console.log("[native] wake recovery: WAKEUP (224) #" + (rk + 1));
+    shizukuCmd("input keyevent 224");
+    sleep(1000);
+  }
+  if (readWakefulness() !== "Awake") {
+    console.log("[native] wake recovery: MENU (82) para descartar keyguard");
+    shizukuCmd("input keyevent 82");
+    sleep(1000);
+  }
+  wf = readWakefulness();
+  if (wf === "Awake") {
+    console.log("[native] wake: recovery alcanzó Awake");
+    return true;
+  }
+  console.log("[native] wake: recovery falló (final=" + (wf || "n/a") + ")");
   return false;
 }
 
@@ -1622,7 +1737,7 @@ function typePinByText(pin) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
-  console.log("[native] build e676c17+ (state machine wake; deep link soporta pageId_postId)");
+  console.log("[native] build e676c17+ (v2.2: wake bulletproof + heartbeat + sin perdida de tareas)");
   parkConsole();
 
   // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
@@ -1670,6 +1785,10 @@ function mainLoop() {
   // con la exención de batería + la tarea de difusión del scheduler.)
   startWatchdog();
 
+  // Heartbeat al server: para ver en el panel admin que el relay está vivo
+  // (último heartbeat) sin necesidad de tocar el celular.
+  startHeartbeatThread();
+
   // NO pedir captura de pantalla acá: en Android eso abre el diálogo
   // "compartir pantalla" (MediaProjection) que hay que tocar a mano en cada
   // inicio y bloquea el arranque automático. La captura solo se pide bajo
@@ -1700,6 +1819,7 @@ function mainLoop() {
   releaseLock();
   stopHeartbeat();
   stopWatchdog();
+  stopHeartbeatThread();
   cancelScreenAwake();
 
   // Auto-relanzamiento: si el loop terminó (cuelgue, excepción no capturada o
@@ -1920,6 +2040,14 @@ function runPollLoop() {
               console.error("[native] interrupción transitoria del árbol de accesibilidad, reintentando...");
               sleep(rnd(3000, 5000));
               continue; // siguiente intento del while interno
+            }
+            if (String(e.message).indexOf("SCREEN_UNLOCK_FAIL") >= 0) {
+              // Pantalla no desbloqueable: NO marcar failed. Dejar las tareas
+              // pendientes y saltar al delay entre posts para que el próximo
+              // poll reintente el desbloqueo (el catch externo del loop ya
+              // espera pollIntervalMs antes de volver a poll).
+              console.error("[native] SCREEN_UNLOCK_FAIL: saltando al delay, tareas siguen pendientes");
+              throw e;
             }
             try { apiPost("/fb/failed", { task_id: batch[0].id, error: e.message }); } catch (e2) {}
             if (String(e.message).indexOf("checkpoint") >= 0) {
