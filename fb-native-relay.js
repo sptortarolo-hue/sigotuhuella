@@ -674,39 +674,28 @@ function releaseLock() {
   try { files.remove(getLockPath()); } catch (e) {}
 }
 
-// Thread heartbeat: renueva el timestamp del lock mientras la instancia vive.
-// Así una instancia viva nunca parece stale, y una muerta libera el lock
-// apenas pasa el stale (5 min) en vez de bloquear 30 min.
-var heartbeatThread = null;
-function startHeartbeat() {
-  try {
-    heartbeatThread = threads.start(function () {
-      while (true) {
-        try {
-          var lockFile = getLockPath();
-          files.write(lockFile, String(Date.now()));
-        } catch (e) {}
-        sleep(60 * 1000);
-      }
-    });
-  } catch (e) {
-    console.log("[native] heartbeat no disponible: " + e.message);
-  }
-}
-
-function stopHeartbeat() {
-  try { if (heartbeatThread) heartbeatThread.interrupt(); } catch (e) {}
-}
+// El lock lo renueva el LOOP PRINCIPAL (markLoopHeartbeat), NO un thread ciego.
+// Antes startHeartbeat() renovaba el timestamp del lock cada 60s sin importar si
+// el loop estaba vivo: si el loop se colgaba, la zombie seguía renovando el lock
+// y el watchdog relanzaba el script pero la instancia nueva no podía tomarlo
+// ("lock ocupado") → el relay quedaba muerto para siempre. Ahora si el loop se
+// cuelga, el lock expira solo en 5 min (stale de acquireLock) y una instancia
+// nueva puede tomarlo.
 
 // Watchdog del loop principal: si el loop no actualiza el heartbeat por más de
 // WATCHDOG_STALE_MS, se relanza este mismo script con engines.execScriptFile
 // para que el relay nunca quede caído tras un cuelgue/excepción interna.
 var watchdogThread = null;
-var WATCHDOG_STALE_MS = 10 * 60 * 1000; // 10 min sin heartbeat del loop
+var WATCHDOG_STALE_MS = 6 * 60 * 1000; // 6 min sin heartbeat del loop
 var lastLoopHeartbeat = Date.now();
 
 function markLoopHeartbeat() {
   lastLoopHeartbeat = Date.now();
+  // Renovar el lock: refleja que el loop está VIVO, no solo que el proceso
+  // existe. Si el loop se cuelga, el lock deja de renovarse y queda stale.
+  try {
+    files.write(getLockPath(), String(Date.now()));
+  } catch (e) {}
 }
 
 function startWatchdog() {
@@ -717,6 +706,11 @@ function startWatchdog() {
         var stale = Date.now() - lastLoopHeartbeat;
         if (stale > WATCHDOG_STALE_MS) {
           console.error("[native] watchdog: loop sin heartbeat " + Math.round(stale / 1000) + "s, relanzando script");
+          // Liberar el lock ANTES de relanzar: la instancia nueva debe poder
+          // tomarlo. Si no, el lock stale (5 min) bloquearía el relanzamiento.
+          releaseLock();
+          stopHeartbeatThread();
+          cancelScreenAwake();
           try {
             var scriptPath = files.join(files.cwd(), "fb-native-relay.js");
             if (files.exists(scriptPath)) {
@@ -727,7 +721,8 @@ function startWatchdog() {
           } catch (e) {
             console.error("[native] watchdog relanzamiento falló: " + e.message);
           }
-          break;
+          sleep(3000);
+          exit();
         }
       }
     });
@@ -806,9 +801,9 @@ function otherInstanceRunning() {
     var count = 0;
     for (var i = 0; i < all.length; i++) {
       try {
+        if (all[i] === me) continue; // soy yo
         var src = String(all[i].getSource());
         if (src.indexOf("fb-native-relay") >= 0) {
-          if (mineSource && src === mineSource) continue; // soy yo
           count++;
         }
       } catch (e2) {}
@@ -817,6 +812,29 @@ function otherInstanceRunning() {
   } catch (e) {
     return false;
   }
+}
+
+// Mata las otras instancias de este script (zombies). Se llama DESPUÉS de
+// adquirir el lock: quien tiene el lock es la autoridad y limpia duplicados.
+function killOtherInstances() {
+  try {
+    var all = engines.all();
+    var me = engines.myEngine();
+    var killed = 0;
+    for (var i = 0; i < all.length; i++) {
+      try {
+        if (all[i] === me) continue; // no me mato a mí
+        var src = String(all[i].getSource());
+        if (src.indexOf("fb-native-relay") >= 0) {
+          console.log("[native] matando instancia zombie/duplicada " + i);
+          if (typeof all[i].forceStop === "function") all[i].forceStop();
+          else if (typeof all[i].stop === "function") all[i].stop();
+          killed++;
+        }
+      } catch (e2) {}
+    }
+    if (killed > 0) console.log("[native] " + killed + " instancia(s) previa(s) terminada(s)");
+  } catch (e) {}
 }
 
 // ─── Abrir el post en la app nativa ───────────────────────────────────────
@@ -1125,36 +1143,48 @@ function searchGroupAndPublish(task) {
     searchName = trimmed;
     console.log("[native] nombre de grupo normalizado: '" + groupName + "' -> '" + searchName + "'");
   }
-  var ok = typeIntoEditText(searchName, t);
-  if (!ok) {
-    sendDebug("no-group-search", url);
-    throw new Error("Group search input not found");
-  }
-  if (!waitEditTextHas(searchName, 8000)) {
-    sendDebug("group-search-no-text", url);
-    throw new Error("Group name not typed");
-  }
-  sleep(rnd(2000, 4000));
 
-  // 7) Seleccionar el row del grupo (buscar por nombre normalizado, con
-  //    variantes por si el row muestra un nombre distinto).
-  var rowLabels = [searchName, groupName];
-  if (searchName !== groupName) rowLabels.unshift(groupName);
-  ok = clickLabel(rowLabels, t, true);
-  // Verificar que realmente navegó al composer del grupo (el box desapareció).
-  var rowSelected = searchBoxGone(6000);
+  // Buscar el row con el nombre completo y, si no aparece, con variantes
+  // (sin puntuación rara / palabra clave). FB filtra por texto y nombres
+  // largos/puntuados pueden dar "No hay resultados" si se tipean completos.
+  var variants = searchNameVariants(searchName);
+  var rowSelected = false;
+  for (var v = 0; v < variants.length && !rowSelected; v++) {
+    var vName = variants[v];
+    if (v > 0) {
+      clearGroupSearchText(5000);
+      console.log("[native] variante de búsqueda '" + vName + "' para '" + searchName + "'");
+    }
+    var ok = typeIntoEditText(vName, t);
+    if (!ok) {
+      sendDebug("no-group-search", url);
+      throw new Error("Group search input not found");
+    }
+    if (!waitEditTextHas(vName, 8000)) {
+      sendDebug("group-search-no-text", url);
+      throw new Error("Group name not typed");
+    }
+    sleep(rnd(2000, 4000));
 
-  // Fallback posicional: el resultado del buscador aparece justo debajo del box
-  // (a veces el row no expone el texto completo o difiere en mayúsculas).
-  if (!ok || !rowSelected) {
-    console.log("[native] row por nombre no encontrado, probando click debajo del box");
-    var rowNode = clickResultBelowEditText(t);
-    if (rowNode) {
-      // rotar estrategias de tap para aterrizar en el row real
-      for (var rs = 0; rs < 5 && !rowSelected; rs++) {
-        tapStrategy(rowNode, rs);
-        sleep(1200);
-        rowSelected = searchBoxGone(3000);
+    // 7) Seleccionar el row del grupo (buscar por nombre normalizado, con
+    //    variantes por si el row muestra un nombre distinto).
+    var rowLabels = [vName, searchName, groupName];
+    ok = clickLabel(rowLabels, t, true);
+    // Verificar que realmente navegó al composer del grupo (el box desapareció).
+    rowSelected = searchBoxGone(6000);
+
+    // Fallback posicional: el resultado del buscador aparece justo debajo del
+    // box (a veces el row no expone el texto completo o difiere en mayúsculas).
+    if (!ok || !rowSelected) {
+      console.log("[native] row por nombre no encontrado, probando click debajo del box");
+      var rowNode = clickResultBelowEditText(t);
+      if (rowNode) {
+        // rotar estrategias de tap para aterrizar en el row real
+        for (var rs = 0; rs < 5 && !rowSelected; rs++) {
+          tapStrategy(rowNode, rs);
+          sleep(1200);
+          rowSelected = searchBoxGone(3000);
+        }
       }
     }
   }
@@ -1209,6 +1239,35 @@ function searchGroupAndPublish(task) {
   return true;
 }
 
+// Genera variantes de búsqueda para un nombre de grupo. FB filtra por texto y
+// nombres largos/puntuados tipeados completos pueden no matchear ("No hay
+// resultados"). Se prueban variantes progresivas: primero el nombre completo,
+// luego sin puntuación rara y finalmente la palabra clave más distintiva.
+function searchNameVariants(name) {
+  var out = [];
+  var base = String(name || "").trim();
+  if (base) out.push(base);
+  var stripped = base
+    .replace(/[.,;:()'"¡!¿?/]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (stripped && stripped !== base) out.push(stripped);
+  var words = stripped.split(" ").filter(function (w) { return w.length >= 5; });
+  // Combinación de las 2 palabras más distintivas (p.ej. "parque sicardi")
+  if (words.length >= 2) {
+    var sorted = words.slice().sort(function (a, b) { return b.length - a.length; });
+    var combo = sorted.slice(0, 2).join(" ");
+    if (out.indexOf(combo) < 0) out.push(combo);
+  }
+  // Palabra clave más distintiva (la más larga, p.ej. "garibaldi", "sicardi")
+  var key = null;
+  for (var i = 0; i < words.length; i++) {
+    if (!key || words[i].length > key.length) key = words[i];
+  }
+  if (key && out.indexOf(key) < 0) out.push(key);
+  return out;
+}
+
 // Marca el checkbox de un grupo en la pantalla de selección múltiple de la
 // cuenta business (buscador + lista con checkboxes). Escribe el nombre del
 // grupo (filtra la lista), ubica el row y toca su checkbox. Devuelve true si
@@ -1229,19 +1288,30 @@ function selectGroupCheckbox(groupName, timeoutMs) {
   }
   if (trimmed) searchName = trimmed;
 
-  // 1) Tipear el nombre → filtra la lista
-  if (!typeIntoEditText(searchName, t)) {
-    sendDebug("no-group-checkbox-input", groupName);
-    throw new Error("Group checkbox input not found");
-  }
-  if (!waitEditTextHas(searchName, 8000)) {
-    sendDebug("group-checkbox-no-text", groupName);
-    throw new Error("Group checkbox name not typed");
-  }
-  sleep(rnd(2000, 4000));
+  // 1) Tipear el nombre → filtra la lista. Si el nombre completo no aparece
+  //    ("No hay resultados"), reintentar con variantes (sin puntuación rara,
+  //    palabra clave distintiva) antes de declarar que el grupo no existe.
+  var variants = searchNameVariants(searchName);
+  var row = null;
+  for (var v = 0; v < variants.length && !row; v++) {
+    var vName = variants[v];
+    if (v > 0) {
+      // Limpiar el box del buscador y reintentar con la variante
+      clearGroupSearchText(5000);
+      console.log("[native] variante de búsqueda '" + vName + "' para '" + searchName + "'");
+    }
+    if (!typeIntoEditText(vName, t)) {
+      sendDebug("no-group-checkbox-input", groupName);
+      throw new Error("Group checkbox input not found");
+    }
+    if (!waitEditTextHas(vName, 8000)) {
+      sendDebug("group-checkbox-no-text", groupName);
+      throw new Error("Group checkbox name not typed");
+    }
+    sleep(rnd(2000, 4000));
 
-  // 2) Encontrar el row por nombre (debajo del box del buscador)
-  var row = findGroupRowBelowEditText(searchName, t);
+    row = findGroupRowBelowEditText(vName, t);
+  }
   if (!row) {
     console.log("[native] grupo '" + searchName + "' no aparece en la lista filtrada");
     sendDebug("group-checkbox-row-missing", groupName);
@@ -1794,17 +1864,14 @@ function mainLoop() {
   // inicio y bloquea el arranque automático. La captura solo se pide bajo
   // demanda dentro de sendDebug() cuando hay un fallo real.
 
-  if (otherInstanceRunning()) {
-    console.error("[native] otra instancia corriendo, saliendo");
-    exit();
-  }
-
+  // El lock es el árbitro único: quien lo adquiere es la autoridad. (No usar
+  // otherInstanceRunning() acá como guard: cuando el watchdog relanza, la
+  // zombie sigue viva unos segundos y el guard haría salir a la instancia nueva.)
   if (!acquireLock()) {
     console.error("[native] lock ocupado, saliendo");
     exit();
   }
-
-  startHeartbeat();
+  killOtherInstances();
 
   console.log("[native] lock adquirido, arrancando loop de polling");
 
@@ -1817,7 +1884,6 @@ function mainLoop() {
   }
 
   releaseLock();
-  stopHeartbeat();
   stopWatchdog();
   stopHeartbeatThread();
   cancelScreenAwake();
@@ -1935,6 +2001,7 @@ function runPollLoop() {
         var maxAttempts = 3;
         var ok = false;
         for (var attempt = 1; attempt <= maxAttempts && !sharePublished; attempt++) {
+          markLoopHeartbeat();
           if (attempt > 1) {
             console.log("[native] reintentando batch (intento " + attempt + ")");
             // FB quedó en estado incierto → arrancar limpio
@@ -1954,6 +2021,7 @@ function runPollLoop() {
             selectedTasks = [];
             missingTasks = [];
             for (var b = 0; b < batch.length; b++) {
+              markLoopHeartbeat();
               var grp = batch[b].group_name || batch[b].fb_group_id;
               var okMark = false;
               try {
@@ -2085,8 +2153,17 @@ function runPollLoop() {
 
     } catch (e) {
       if (isInterrupted(e)) {
-        console.error("[native] script interrumpido, saliendo");
-        return;
+        if (isEngineStopped()) {
+          console.error("[native] script detenido por el usuario, saliendo");
+          return;
+        }
+        // Interrupción transitoria del árbol de accesibilidad (p.ej. al apagar
+        // la pantalla tras un batch): el engine sigue vivo, no es un stop real.
+        // Reintentar en vez de salir: salir sin liberar bien el flujo era lo que
+        // dejaba el relay muerto tras apagar la pantalla.
+        console.error("[native] interrupción transitoria del árbol, reintentando...");
+        sleep(rnd(2000, 4000));
+        continue;
       }
       console.error("[native] error de loop: " + e.message);
       sleep(CONFIG.pollIntervalMs);
