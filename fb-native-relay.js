@@ -471,6 +471,29 @@ function waitEditTextHas(textVal, timeoutMs) {
   return false;
 }
 
+// Borra el texto del buscador de grupos para que reaparezca la lista completa
+// y el botón "Siguiente" (con texto escrito, FB no muestra el botón).
+function clearGroupSearchText(timeoutMs) {
+  var t = timeoutMs || CONFIG.findTimeoutMs;
+  var deadline = Date.now() + t;
+  while (Date.now() < deadline) {
+    try {
+      var edit = className("android.widget.EditText").findOne(1500);
+      if (edit && edit.visibleToUser()) {
+        edit.setText("");
+        sleep(500);
+        var edit2 = className("android.widget.EditText").findOne(1000);
+        if (edit2 && (edit2.text() || "").trim() === "") {
+          console.log("[native] buscador de grupos limpiado");
+          return true;
+        }
+      }
+    } catch (e) {}
+    sleep(500);
+  }
+  return false;
+}
+
 // ─── Checkpoint / sesión expirada ─────────────────────────────────────────
 
 var CHECKPOINT_MARKS = [
@@ -1740,6 +1763,11 @@ function runPollLoop() {
             if (selectedTasks.length === 0) {
               throw new Error("no group selected");
             }
+
+            // Tras marcar todos los grupos, limpiar el buscador: con texto
+            // escrito FB no muestra el botón "Siguiente".
+            clearGroupSearchText(8000);
+            sleep(rnd(1000, 1500));
 
             // 3) Botón "Siguiente" (business) → vista final del post con Publicar
             ok = clickLabel(["Siguiente", "Next", "Continuar"], CONFIG.findTimeoutMs, false);
