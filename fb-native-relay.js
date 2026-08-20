@@ -472,7 +472,8 @@ function waitEditTextHas(textVal, timeoutMs) {
 }
 
 // Borra el texto del buscador de grupos para que reaparezca la lista completa
-// y el botón "Siguiente" (con texto escrito, FB no muestra el botón).
+// y el botón "Siguiente" (con texto escrito, FB no muestra el botón). Si el
+// teclado virtual queda abierto tapando el botón, lo cierra con back().
 function clearGroupSearchText(timeoutMs) {
   var t = timeoutMs || CONFIG.findTimeoutMs;
   var deadline = Date.now() + t;
@@ -485,13 +486,21 @@ function clearGroupSearchText(timeoutMs) {
         var edit2 = className("android.widget.EditText").findOne(1000);
         if (edit2 && (edit2.text() || "").trim() === "") {
           console.log("[native] buscador de grupos limpiado");
-          return true;
+          break;
         }
       }
     } catch (e) {}
     sleep(500);
   }
-  return false;
+  // Cerrar el teclado virtual si quedó abierto (back() solo navega si hay
+  // teclado; el sheet de selección ya no tiene foco en el EditText).
+  try {
+    if (input && typeof input.isOpen === "function" && input.isOpen()) {
+      back();
+      console.log("[native] teclado cerrado");
+      sleep(rnd(600, 1000));
+    }
+  } catch (e) {}
 }
 
 // ─── Checkpoint / sesión expirada ─────────────────────────────────────────
