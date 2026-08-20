@@ -1544,26 +1544,27 @@ function wakeScreenIfNeeded() {
     for (var attempt = 0; attempt < 8; attempt++) {
       var wf = readWakefulness();
       if (wf === "Awake") {
-        console.log("[native] wake: pantalla en Awake");
+        log("[native] wake: pantalla en Awake");
         return true;
       }
       if (wf === "Asleep") {
         // Apagado total: WAKEUP (224) enciende directo (no-toggle, a diferencia
         // de POWER 26 que alterna y puede volver a apagar).
-        console.log("[native] wake: Asleep → KEYCODE_WAKEUP (224) #" + (attempt + 1));
+        log("[native] wake: Asleep → KEYCODE_WAKEUP (224) #" + (attempt + 1));
         shizukuCmd("input keyevent 224");
         sleep(1500);
         continue;
       }
       if (wf === "Dozing") {
         // AOD visible (reloj): repetir WAKEUP (224) hasta Awake
-        console.log("[native] wake: Dozing → KEYCODE_WAKEUP (224) #" + (attempt + 1));
+        log("[native] wake: Dozing → KEYCODE_WAKEUP (224) #" + (attempt + 1));
         shizukuCmd("input keyevent 224");
         sleep(1200);
         continue;
       }
-      // wf === null o estado desconocido: intentar isScreenOn como aproximación
-      try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
+      // wf === null o estado desconocido: NO confiar en isScreenOn() (con AOD
+      // devuelve true en Dozing). Forzar WAKEUP para forzar paso a Awake.
+      log("[native] wake: estado desconocido (" + (wf || "n/a") + "), forzo WAKEUP");
       shizukuCmd("input keyevent 224");
       sleep(1000);
     }
@@ -1571,10 +1572,10 @@ function wakeScreenIfNeeded() {
     // Verificación final
     var wfFinal = readWakefulness();
     if (wfFinal === "Awake") {
-      console.log("[native] wake: verificación final Awake");
+      log("[native] wake: verificación final Awake");
       return true;
     }
-    console.log("[native] wake: no se alcanzó Awake (final=" + (wfFinal || "n/a") + "), recovery agresivo...");
+    log("[native] wake: no se alcanzó Awake (final=" + (wfFinal || "n/a") + "), recovery agresivo...");
     // Recovery agresivo: el AOD/Dozing puede quedarse en un estado raro tras un
     // sleep forzado. Dismiss del keyguard + WAKEUP repetido + MENU (desbloquea
     // keyguard sin PIN) y re-verificar.
@@ -1583,21 +1584,21 @@ function wakeScreenIfNeeded() {
       sleep(800);
     } catch (eR) {}
     for (var rk = 0; rk < 4 && readWakefulness() !== "Awake"; rk++) {
-      console.log("[native] wake recovery: WAKEUP (224) #" + (rk + 1));
+      log("[native] wake recovery: WAKEUP (224) #" + (rk + 1));
       shizukuCmd("input keyevent 224");
       sleep(1000);
     }
     if (readWakefulness() !== "Awake") {
-      console.log("[native] wake recovery: MENU (82) para descartar keyguard");
+      log("[native] wake recovery: MENU (82) para descartar keyguard");
       shizukuCmd("input keyevent 82");
       sleep(1000);
     }
     var wfR = readWakefulness();
     if (wfR === "Awake") {
-      console.log("[native] wake: recovery alcanzó Awake");
+      log("[native] wake: recovery alcanzó Awake");
       return true;
     }
-    console.log("[native] wake: recovery falló (final=" + (wfR || "n/a") + ")");
+    log("[native] wake: recovery falló (final=" + (wfR || "n/a") + ")");
     return false;
   }
 
@@ -1661,7 +1662,7 @@ function ensureUnlocked() {
     keepScreenAwake();
     var woken = wakeScreenIfNeeded();
     if (!woken) {
-      console.log("[native] no se pudo encender la pantalla");
+      log("[native] no se pudo encender la pantalla");
       sendDebug("screen-wake-fail");
     }
     // Confirmar Awake real antes de dismiss-keyguard/swipe/PIN. Con AOD, si el
@@ -1671,13 +1672,13 @@ function ensureUnlocked() {
       var aw = readWakefulness();
       var awDeadline = Date.now() + 10000;
       while (aw !== "Awake" && Date.now() < awDeadline) {
-        console.log("[native] ensureUnlocked: aún " + (aw || "n/a") + ", wake de nuevo...");
+        log("[native] ensureUnlocked: aún " + (aw || "n/a") + ", wake de nuevo...");
         wakeScreenIfNeeded();
         sleep(rnd(800, 1500));
         aw = readWakefulness();
       }
-      if (aw === "Awake") console.log("[native] ensureUnlocked: pantalla Awake confirmada");
-      else console.log("[native] ensureUnlocked: no se confirmó Awake (final=" + (aw || "n/a") + ")");
+      if (aw === "Awake") log("[native] ensureUnlocked: pantalla Awake confirmada");
+      else log("[native] ensureUnlocked: no se confirmó Awake (final=" + (aw || "n/a") + ")");
     }
     sleep(rnd(1500, 2500));
 
@@ -1738,14 +1739,14 @@ function ensureUnlocked() {
             if (!padVisible) sleep(500);
           }
           if (!padVisible) {
-            console.log("[native] intento " + (pass + 1) + ": keypad no visible aún, reintentando swipe...");
+            log("[native] intento " + (pass + 1) + ": keypad no visible aún, reintentando swipe...");
             continue;
           }
         } else {
           // Darle medio segundo al dismiss-keyguard para mostrar el keypad
           sleep(600);
         }
-        console.log("[native] desbloqueando con PIN" + (useKeyevents ? " (keyevents)" : "") + "...");
+        log("[native] desbloqueando con PIN" + (useKeyevents ? " (keyevents)" : "") + "...");
         if (!typePin(pin)) {
           sendDebug("pin-digit-not-found");
           continue;
@@ -1766,14 +1767,14 @@ function ensureUnlocked() {
       }
 
       unlocked = !isScreenLocked();
-      if (!unlocked) console.log("[native] intento " + (pass + 1) + " de desbloqueo sin éxito, reintentando...");
+      if (!unlocked) log("[native] intento " + (pass + 1) + " de desbloqueo sin éxito, reintentando...");
     }
 
-    if (unlocked) console.log("[native] pantalla desbloqueada");
-    else console.log("[native] pantalla aún bloqueada");
+    if (unlocked) log("[native] pantalla desbloqueada");
+    else log("[native] pantalla aún bloqueada");
     return unlocked;
   } catch (e) {
-    console.log("[native] ensureUnlocked falló: " + e.message);
+    log("[native] ensureUnlocked falló: " + e.message);
     return false;
   }
 }
