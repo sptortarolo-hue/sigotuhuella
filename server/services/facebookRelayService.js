@@ -9,6 +9,8 @@ export function applySpintax(text) {
 }
 
 export async function enqueuePublishTask(petId, groupId, fbGroupId, message, imageUrls, pagePostUrl) {
+  const enabled = await isEnabled();
+  if (!enabled) return { disabled: true };
   if (pagePostUrl) {
     const result = await pool.query(
       `INSERT INTO fb_relay_tasks (pet_id, group_id, fb_group_id, message, action, target_url, status)

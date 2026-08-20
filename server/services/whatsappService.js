@@ -566,7 +566,10 @@ export async function broadcastFbAdoptionPets(existingPet = null) {
 
     for (const group of groups.rows) {
       try {
-        await enqueuePublishTask(pet.id, group.id, group.fb_group_id, message, imageUrls);
+        const task = await enqueuePublishTask(pet.id, group.id, group.fb_group_id, message, imageUrls);
+        if (task && task.disabled) {
+          console.log(`[FbAdoptionBroadcast] FB relay desactivado, skip grupo ${group.name}`);
+        }
       } catch (err) {
         console.error(`[FbAdoptionBroadcast] Error enqueuing to ${group.name}:`, err.message);
       }

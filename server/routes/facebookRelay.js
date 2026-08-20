@@ -22,6 +22,7 @@ function relayAuth(req, res, next) {
 
 router.get('/fb/pending', relayAuth, async (req, res) => {
   try {
+    if (!(await isEnabled())) return res.json({ tasks: [], disabled: true });
     const limit = parseInt(req.query.limit) || 5;
     const action = req.query.action ? String(req.query.action).split(',').map(s => s.trim()).filter(Boolean) : undefined;
     const excludeAction = req.query.exclude_action ? String(req.query.exclude_action).split(',').map(s => s.trim()).filter(Boolean) : undefined;

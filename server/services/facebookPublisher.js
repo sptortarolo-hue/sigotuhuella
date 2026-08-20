@@ -306,7 +306,11 @@ export async function publishToGroupsViaScraper(groups, message, imageUrls, petI
     for (const group of groups) {
       try {
         const task = await enqueuePublishTask(petId, group.id, group.fb_group_id, message, imageUrls, pagePostUrl);
-        results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: true, marker: task.marker });
+        if (task && task.disabled) {
+          results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: false, error: 'relay desactivado' });
+        } else {
+          results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: true, marker: task.marker });
+        }
       } catch (err) {
         results.push({ group_id: group.id || group.fb_group_id, group_name: group.name, success: false, error: err.message });
       }
@@ -347,7 +351,7 @@ export async function replicateInstagramToFacebook(instagramPostId) {
 
   const groupsResult = await pool.query(
     `SELECT id, name, fb_group_id, page_is_member FROM facebook_groups
-     WHERE is_active = true AND fb_group_id IS NOT NULL AND fb_group_id != ''
+     WHERE is_active = true AND publish_on_create = true AND fb_group_id IS NOT NULL AND fb_group_id != ''
      ORDER BY name`
   );
 
@@ -489,7 +493,7 @@ export async function retryFailedFacebookPosts(limit = 10) {
     try {
       const groupsResult = await pool.query(
         `SELECT id, name, fb_group_id FROM facebook_groups
-         WHERE is_active = true AND fb_group_id IS NOT NULL AND fb_group_id != ''
+         WHERE is_active = true AND publish_on_create = true AND fb_group_id IS NOT NULL AND fb_group_id != ''
          ORDER BY name`
       );
 

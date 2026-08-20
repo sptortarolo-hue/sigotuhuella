@@ -137,7 +137,12 @@ async function publishToFacebookGroups(news, pagePostUrl) {
   const taskIds = [];
   for (const group of groups.rows) {
     try {
-      const { taskId } = await enqueuePublishTask(null, group.id, group.fb_group_id, caption, [imageUrl], pagePostUrl);
+      const task = await enqueuePublishTask(null, group.id, group.fb_group_id, caption, [imageUrl], pagePostUrl);
+      if (task && task.disabled) {
+        console.warn(`[NewsPublisher] FB relay desactivado, skip grupo ${group.fb_group_id}`);
+        continue;
+      }
+      const { taskId } = task;
       taskIds.push(taskId);
     } catch (err) {
       console.warn(`[NewsPublisher] FB group ${group.fb_group_id} enqueue error:`, err.message);
