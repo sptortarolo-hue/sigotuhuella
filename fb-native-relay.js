@@ -68,6 +68,40 @@ var CONFIG = {
 var API_BASE = CONFIG.apiBase;
 var TOKEN = CONFIG.token;
 
+// ─── Log a archivo ─────────────────────────────────────────────────────────
+// La consola flotante de AutoJs6 se oculta al bloquear la pantalla, y si
+// Android pausa/mata el proceso de AutoJs6 en background, los console.log se
+// pierden. Escribir también a /sdcard/fb-native-relay.log (rota a .log.1 al
+// pasar de 500KB) para poder diagnosticar el relay muertoviles mirando el
+// archivo, aunque la consola no muestre nada.
+var LOG_FILE = (function () {
+  try { return files.join(files.getSdcardPath(), "fb-native-relay.log"); }
+  catch (e) { return files.join(files.cwd(), "fb-native-relay.log"); }
+})();
+function logToFile(msg) {
+  try {
+    var f = LOG_FILE;
+    try {
+      if (files.exists(f) && files.getLength(f) > 500 * 1024) {
+        try { files.rename(f, f + ".1"); } catch (e) {}
+      }
+    } catch (e2) {}
+    var line = new Date().toISOString().substring(11, 23) + " " + msg + "\n";
+    files.append(f, line);
+  } catch (e) {}
+}
+// Envoltorio de console.log que también escribe al archivo
+var _origLog = console.log;
+console.log = function (msg) {
+  try { _origLog.apply(console, arguments); } catch (e) {}
+  try { logToFile(String(msg)); } catch (e) {}
+};
+var _origErr = console.error;
+console.error = function (msg) {
+  try { _origErr.apply(console, arguments); } catch (e) {}
+  try { logToFile("ERR " + String(msg)); } catch (e) {}
+};
+
 // ─── Helpers HTTP ─────────────────────────────────────────────────────────
 
 function apiGet(path) {
@@ -1951,14 +1985,17 @@ function isEngineStopped() {
 }
 
 function runPollLoop() {
+  console.log("[native] runPollLoop iniciado");
   while (true) {
     markLoopHeartbeat();
     try {
       // Traer varias tareas pendientes y agruparlas por post (target_url): las
       // del mismo post se publican juntas en una pasada (marcando el checkbox
       // de cada grupo en la misma pantalla), en vez de reiniciar por grupo.
+      console.log("[native] polling /fb/pending...");
       var data = apiGet("/fb/pending?limit=10&action=share");
       var tasks = data.tasks || [];
+      console.log("[native] poll OK: " + tasks.length + " tarea(s)");
       if (tasks.length === 0) {
         // Sin tareas: la pantalla puede quedar APAGADA y bloqueada. El polling
         // HTTP no necesita pantalla; solo cancelar el wake lock para que el
