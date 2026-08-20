@@ -790,18 +790,47 @@ function stopHeartbeatThread() {
   try { if (heartbeatThread) heartbeatThread.interrupt(); } catch (e) {}
 }
 
+// ¿Es OTRO engine distinto del mío? En AutoJs6 los objetos de engines.all()
+// NO son idénticos a engines.myEngine() aunque representen el mismo engine:
+// el === devuelve false incluso para sí mismo (esto hizo que una instancia se
+// forceStoppe a sí misma y muriese sin liberar el lock). El identificador
+// estable en AutoJs6 es la propiedad .id (ver issue #421: engine.id) o el
+// método getId(). Solo confirmar "otro" cuando difieren; si no hay id
+// disponible, NO matar (más vale una zombie viva que matar el engine propio).
+function engineId(eng) {
+  try {
+    if (!eng) return null;
+    if (eng.id !== undefined && eng.id !== null) return String(eng.id);
+    if (typeof eng.getId === "function") return String(eng.getId());
+    if (eng.getId !== undefined && eng.getId !== null) return String(eng.getId());
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function isOtherEngine(candidate, me) {
+  try {
+    if (candidate === me) return false;
+    var ic = engineId(candidate);
+    var im = engineId(me);
+    if (ic && im) return ic !== im;
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
 // Detecta si hay otra instancia de este mismo script corriendo (más robusto
 // que el lock de archivo, que no frenó los duplicados).
 function otherInstanceRunning() {
   try {
     var all = engines.all();
     var me = engines.myEngine();
-    var mineSource = "";
-    try { mineSource = String(me && me.getSource ? me.getSource() : ""); } catch (e) {}
     var count = 0;
     for (var i = 0; i < all.length; i++) {
       try {
-        if (all[i] === me) continue; // soy yo
+        if (!isOtherEngine(all[i], me)) continue; // soy yo o no distinguible
         var src = String(all[i].getSource());
         if (src.indexOf("fb-native-relay") >= 0) {
           count++;
@@ -823,7 +852,7 @@ function killOtherInstances() {
     var killed = 0;
     for (var i = 0; i < all.length; i++) {
       try {
-        if (all[i] === me) continue; // no me mato a mí
+        if (!isOtherEngine(all[i], me)) continue; // no me mato a mí
         var src = String(all[i].getSource());
         if (src.indexOf("fb-native-relay") >= 0) {
           console.log("[native] matando instancia zombie/duplicada " + i);
@@ -1807,7 +1836,7 @@ function typePinByText(pin) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
-  console.log("[native] build e676c17+ (v2.2: wake bulletproof + heartbeat + sin perdida de tareas)");
+  console.log("[native] build f52fcec+ (v2.3: lock lo renueva el loop + watchdog mata la zombie + no se mata a si misma + variantes de busqueda)");
   parkConsole();
 
   // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
