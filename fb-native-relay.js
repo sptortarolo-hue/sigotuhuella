@@ -1177,6 +1177,7 @@ function openPostAndShareGroup(task) {
     if (cp) throw new Error("checkpoint: " + cp);
 
     // Botón Compartir (icono en app nativa → content-desc)
+    try { console.hide(); } catch (e) {}  // Ocultar log flotante antes de click
     ok = clickLabel(shareLabels, Math.round(t * 0.8), true);
     if (!ok) {
       // Fallback: menú "..." del post → "Compartir"
@@ -1205,6 +1206,7 @@ function openPostAndShareGroup(task) {
     var target = findNode(groupLabels, 3000);
     if (target) {
       console.log("[native] tap directo 'Grupo' intento " + (attempt + 1) + " (estr " + attempt + ")");
+      try { console.hide(); } catch (e) {}
       tapStrategy(target, attempt);
     } else {
       // Cuenta business: el botón "Grupo" está oculto en una fila con scroll
@@ -1223,7 +1225,9 @@ function openPostAndShareGroup(task) {
     console.log("[native] botón directo no navegó, probando ruta Feed → En un grupo");
     var destLabels = ["Feed", "Elige el destino de tu publicación", "Your Feed"];
     var destNode = findNode(destLabels, 8000);
-    if (destNode && tapStrategy(destNode, 3)) {
+    if (destNode) {
+      try { console.hide(); } catch (e) {}
+      if (tapStrategy(destNode, 3)) {
       console.log("[native] selector de destino abierto (doble tap)");
       sleep(rnd(2000, 3000));
     } else {
@@ -1440,6 +1444,7 @@ function selectGroupAndPublish(groupName, timeoutMs) {
 
   // 3) Click en botón Publicar del modal
   log("[native] pulsando Publicar en modal para '" + searchName + "'");
+  try { console.hide(); } catch (e) {}  // Ocultar ventana flotante de log que tapa el botón
   var ok = clickLabel(["Publicar", "Publicar en el grupo", "Publicar en el grupo", "Compartir ahora", "Share Now", "Post"], CONFIG.findTimeoutMs, false);
   if (!ok) {
     log("[native] no se encontró botón Publicar en modal");
