@@ -124,7 +124,16 @@ function shizukuCmd(cmd, timeoutMs) {
       }
     });
     thread.start();
-    thread.join(timeoutMs);
+    try {
+      thread.join(timeoutMs);
+    } catch (e) {
+      // InterruptedException: el thread principal fue interrumpido (watchdog, exit, etc.)
+      // No propagar la excepción; tratar como timeout
+      if (!done) {
+        try { thread.interrupt(); } catch (e) {}
+        return { code: -1, output: "interrupted/timeout (" + timeoutMs + "ms)" };
+      }
+    }
     if (!done) {
       try { thread.interrupt(); } catch (e) {}
       return { code: -1, output: "timeout (" + timeoutMs + "ms)" };
@@ -1845,7 +1854,7 @@ function typePinByText(pin) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
-  console.log("[native] build v2.5+ (shizukuCmd timeout 5s + readWakefulness 3s + wake agresivo sin bloqueos)");
+  console.log("[native] build v2.6.1+ (shizukuCmd anti-interrupt + timeouts 15s + wake robusto)");
   parkConsole();
 
   // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
