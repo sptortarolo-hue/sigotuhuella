@@ -1589,6 +1589,11 @@ function cancelScreenAwake() {
 // puede volver a apagar la pantalla si se envía en el estado equivocado.
 // Devolver true solo si llega a Awake (lockscreen con keypad).
 
+// Verifica si la pantalla está ENCENDIDA (awake), no si está desbloqueada
+function isScreenAwake() {
+  try { return device.isScreenOn && device.isScreenOn(); } catch (e) { return false; }
+}
+
 function wakeScreenIfNeeded() {
   // 1. INTENTO NATIVO (sin Shizuku): device.wakeUp() + wakeUpIfNeeded
   // Es lo más rápido y no depende de ADB/Shizuku
@@ -1598,7 +1603,7 @@ function wakeScreenIfNeeded() {
   try { device.wakeUp(); } catch (e) {}
   sleep(1500);
   
-  if (!isScreenLocked()) {
+  if (isScreenAwake()) {
     log("[native] wake: despertado con device.wakeUp() nativo");
     return true;
   }
@@ -1609,7 +1614,7 @@ function wakeScreenIfNeeded() {
     sleep(1000);
     try { keyCode(224); } catch (e) {}
     sleep(1000);
-    return !isScreenLocked();
+    return isScreenAwake();
   }
 
   // Shizuku disponible: WAKEUP vía ADB + verificación isScreenLocked (rápido)
@@ -1623,28 +1628,28 @@ function wakeScreenIfNeeded() {
     
     sleep(10000); // delay muy largo para dispositivo lento
     
-    if (!isScreenLocked()) {
-      log("[native] wake: pantalla desbloqueada (isScreenLocked=false)");
+if (isScreenAwake()) {
+      log("[native] wake: pantalla encendida (isScreenAwake=true)");
       return true;
     }
   }
-
+  
   // Verificación final
-  if (!isScreenLocked()) {
-    log("[native] wake: pantalla desbloqueada verificada");
+  if (isScreenAwake()) {
+    log("[native] wake: pantalla encendida verificada");
     return true;
   }
-
-  // Recovery conservador: dismiss-keyguard + 1 WAKEUP
+  
+  // Recovery: dismiss-keyguard + 1 WAKEUP
   log("[native] wake: recovery conservador...");
-  var r = shizukuCmd("wm dismiss-keyguard", 60000);
+  var r = shizukuCmd("wm dismiss-keyguard", 120000);
   sleep(10000);
   
-  var r2 = shizukuCmd("input keyevent 224", 60000);
+  var r2 = shizukuCmd("input keyevent 224", 120000);
   sleep(10000);
   
-  if (!isScreenLocked()) {
-    log("[native] wake: recovery alcanzó desbloqueado");
+  if (isScreenAwake()) {
+    log("[native] wake: recovery alcanzó pantalla encendida");
     return true;
   }
   
