@@ -105,44 +105,72 @@ function logError(msg) {
   try { logToFile("ERR " + String(msg)); } catch (e) {}
 }
 
-// ─── Shizuku con timeout ────────────────────────────────────────────────────
+// ─── Shizuku con timeout y reintentos ────────────────────────────────────────
 // shizuku() nativo bloquea indefinidamente si ADB/shizuku se cuelga.
 // Envolvemos la llamada en un Thread con join(timeout) para no colgar el script.
+// Reintenta hasta 3 veces con backoff exponencial si falla (timeout o error).
 function shizukuCmd(cmd, timeoutMs) {
-  timeoutMs = timeoutMs || 5000;
-  try {
-    if (typeof shizuku !== "function") return null;
-    var result = null;
-    var done = false;
-    var thread = new java.lang.Thread(function () {
-      try {
-        result = shizuku(cmd);
-      } catch (e) {
-        result = { code: -1, output: e.toString() };
-      } finally {
-        done = true;
-      }
-    });
-    thread.start();
+  timeoutMs = timeoutMs || 300000; // 5 min default
+  var maxRetries = 3;
+  var baseDelay = 2000;
+
+  for (var attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      thread.join(timeoutMs);
-    } catch (e) {
-      // InterruptedException: el thread principal fue interrumpido (watchdog, exit, etc.)
-      // No propagar la excepción; tratar como timeout
+      if (typeof shizuku !== "function") return null;
+      var result = null;
+      var done = false;
+      var thread = new java.lang.Thread(function () {
+        try {
+          result = shizuku(cmd);
+        } catch (e) {
+          result = { code: -1, output: e.toString() };
+        } finally {
+          done = true;
+        }
+      });
+      thread.start();
+      try {
+        thread.join(timeoutMs);
+      } catch (e) {
+        // InterruptedException: el thread principal fue interrumpido (watchdog, exit, etc.)
+        // No propagar la excepción; tratar como timeout
+        if (!done) {
+          try { thread.interrupt(); } catch (e) {}
+          if (attempt < maxRetries) {
+            sleep(2000 * (attempt + 1));
+            continue;
+          }
+          return { code: -1, output: "interrupted/timeout (" + timeoutMs + "ms)" };
+        }
+      }
       if (!done) {
         try { thread.interrupt(); } catch (e) {}
-        return { code: -1, output: "interrupted/timeout (" + timeoutMs + "ms)" };
+        if (attempt < maxRetries) {
+          sleep(2000 * (attempt + 1));
+          continue;
+        }
+        return { code: -1, output: "timeout (" + timeoutMs + "ms)" };
       }
+      if (result && result.code === 0) {
+        return result;
+      }
+      if (attempt < maxRetries) {
+        log("[native] shizukuCmd reintento " + (attempt + 1) + "/" + maxRetries + " para: " + cmd);
+        sleep(2000 * (attempt + 1));
+        continue;
+      }
+      return result;
+    } catch (e) {
+      if (attempt < maxRetries) {
+        log("[native] shizukuCmd error, reintento: " + e.message);
+        sleep(2000 * (attempt + 1));
+        continue;
+      }
+      log("[native] shizukuCmd falló definitivamente: " + e.message);
+      return { code: -1, output: e.toString() };
     }
-    if (!done) {
-      try { thread.interrupt(); } catch (e) {}
-      return { code: -1, output: "timeout (" + timeoutMs + "ms)" };
-    }
-    return result;
-  } catch (e) {
-    log("[native] shizukuCmd falló: " + e.message);
-    return { code: -1, output: e.toString() };
   }
+  return { code: -1, output: "max retries exceeded" };
 }
 
 // ─── Helpers HTTP ─────────────────────────────────────────────────────────
@@ -1852,7 +1880,7 @@ function typePinByText(pin) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
-  console.log("[native] build v2.6.1+ (shizukuCmd anti-interrupt + timeouts 15s + wake robusto)");
+  console.log("[native] build v2.7+ (shizukuCmd retry 3x + timeouts 5min + wake ultra-robusto)");
   parkConsole();
 
   // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
