@@ -1225,15 +1225,16 @@ function openPostAndShareGroup(task) {
     console.log("[native] botón directo no navegó, probando ruta Feed → En un grupo");
     var destLabels = ["Feed", "Elige el destino de tu publicación", "Your Feed"];
     var destNode = findNode(destLabels, 8000);
-    if (destNode) {
+if (destNode) {
       try { console.hide(); } catch (e) {}
       if (tapStrategy(destNode, 3)) {
-      console.log("[native] selector de destino abierto (doble tap)");
-      sleep(rnd(2000, 3000));
-    } else {
-      sendDebug("no-dest-selector", url);
-      throw new Error("Dest selector not found");
-    }
+        console.log("[native] selector de destino abierto (doble tap)");
+        sleep(rnd(2000, 3000));
+      } else {
+        sendDebug("no-dest-selector", url);
+        throw new Error("Dest selector not found");
+      }
+    } // cierre if (destNode)
 
     // Expandir el sheet de destino con swipe hacia arriba
     try {
