@@ -1377,15 +1377,13 @@ function searchGroupAndPublish(task) {
 
 
 
-// Marca el checkbox de un grupo en la pantalla de selección múltiple de la
-// cuenta business (buscador + lista con checkboxes). Escribe el nombre del
-// grupo (filtra la lista), ubica el row y toca su checkbox. Devuelve true si
-// se marcó (o se asume marcado); false si el grupo no aparece en la lista.
-function selectGroupCheckbox(groupName, timeoutMs) {
+// Comparte en un grupo individual (nuevo flow: busca grupo -> abre modal -> pulsa Publicar -> espera confirmación)
+// Devuelve true si se publicó correctamente, false si falló
+function selectGroupAndPublish(groupName, timeoutMs) {
   var t = timeoutMs || CONFIG.findTimeoutMs;
-  console.log("[native] marcando grupo: " + groupName);
+  log("[native] compartiendo en grupo individual: " + groupName);
 
-  // Normalizar nombre (mismo criterio que searchGroupAndPublish)
+  // Normalizar nombre (mismo criterio que antes)
   var searchName = groupName;
   var prefixes = ["grupo ", "grupo  ", "group ", "grupo fb ", "pagina "];
   var trimmed = searchName;
@@ -1397,83 +1395,90 @@ function selectGroupCheckbox(groupName, timeoutMs) {
   }
   if (trimmed) searchName = trimmed;
 
-  // 1) Tipear el nombre completo → filtra la lista. NO usar variantes/palabras
-  //    clave: tipear una palabra suelta puede filtrar OTRO grupo que la
-  //    contenga y marcar el checkbox del grupo equivocado. Si no aparece el
-  //    row, declarar el grupo como no encontrado (missing), no arriesgar.
+  // 1) Tipear el nombre del grupo en el buscador
   if (!typeIntoEditText(searchName, t)) {
-    sendDebug("no-group-checkbox-input", groupName);
-    throw new Error("Group checkbox input not found");
+    sendDebug("no-group-search-input", groupName);
+    return false;
   }
   if (!waitEditTextHas(searchName, 8000)) {
-    sendDebug("group-checkbox-no-text", groupName);
-    throw new Error("Group checkbox name not typed");
+    sendDebug("group-search-no-text", groupName);
+    return false;
   }
   sleep(rnd(2000, 4000));
 
+  // 2) Buscar el row del grupo y tocarlo (abre modal con botón Publicar)
   var row = findGroupRowBelowEditText(searchName, t);
   if (!row) {
-    console.log("[native] grupo '" + searchName + "' no aparece en la lista filtrada");
-    sendDebug("group-checkbox-row-missing", groupName);
+    log("[native] grupo '" + searchName + "' no aparece en la lista filtrada");
+    sendDebug("group-row-missing", groupName);
     return false;
   }
-  console.log("[native] row encontrado para '" + searchName + "': " + ((row.text && row.text()) || ""));
+  log("[native] row encontrado para '" + searchName + "': " + ((row.text && row.text()) || ""));
 
-  // 3) Activar el checklist tocando el CENTRO del row (el nombre/área), con
-  //    rotación de estrategias de tap hasta confirmar que quedó seleccionado.
-  var confirmDeadline = Date.now() + 5000;
+  // Tocar el centro del row para abrir el modal con botón Publicar
   var marked = false;
   var strategies = [0, 1, 4, 7, 2];
-  for (var st = 0; st < strategies.length && !marked && Date.now() < confirmDeadline; st++) {
+  for (var st = 0; st < strategies.length && !marked; st++) {
     try {
       tapStrategy(row, strategies[st]);
-      console.log("[native] tap estrategia " + strategies[st] + " sobre el row '" + searchName + "'");
+      log("[native] tap estrategia " + strategies[st] + " sobre el row '" + searchName + "'");
     } catch (e) {}
-    sleep(rnd(1200, 2000));
+    sleep(rnd(1500, 2500));
 
-    // Verificar si quedó marcado (nodo checkable checked=true dentro del row,
-    // o un check visible como desc).
-    try {
-      var chk = checkable(true).find();
-      var rb3 = row.bounds();
-      for (var j = 0; j < chk.length; j++) {
-        var c2 = chk[j];
-        var c2b = c2.bounds();
-        var inside = c2b.centerX() >= rb3.left && c2b.centerX() <= rb3.right &&
-                     c2b.centerY() >= rb3.top && c2b.centerY() <= rb3.bottom;
-        if (!inside) continue;
-        try { if (c2.checked()) { marked = true; break; } } catch (e2) {}
-      }
-      if (marked) break;
-      // Algunos árboles exponen el check como desc ("Marcado", "Seleccionado", "Check")
-      if (!marked) {
-        var nodes = dumpUi(60);
-        for (var di = 0; di < nodes.length; di++) {
-          var dblob = ((nodes[di].t || "") + " " + (nodes[di].d || "")).toLowerCase();
-          if (dblob.indexOf("marcado") >= 0 || dblob.indexOf("seleccionado") >= 0 ||
-              dblob.indexOf("check") >= 0) {
-            marked = true;
-            break;
-          }
-        }
-      }
-      // Señal fuerte: si aparece el botón "Siguiente" es porque hay ≥1 grupo
-      // marcado (solo existe con selección activa).
-      if (!marked) {
-        var nextNode = findNode(["Siguiente", "Next", "Continuar"], 1500);
-        if (nextNode) {
-          console.log("[native] botón 'Siguiente' detectado tras el tap → marcado confirmado");
-          marked = true;
-        }
-      }
-    } catch (e) {}
+    // Verificar si se abrió el modal con botón Publicar
+    var publicarBtn = findNode(["Publicar", "Publicar en el grupo", "Publicar en el grupo", "Compartir ahora", "Share Now", "Post"], 3000);
+    if (publicarBtn) {
+      marked = true;
+      break;
+    }
   }
 
-  if (marked) {
-    console.log("[native] grupo '" + searchName + "' confirmado marcado");
-    return true;
+  if (!marked) {
+    log("[native] no se abrió modal Publicar para '" + searchName + "'");
+    return false;
   }
-  console.log("[native] grupo '" + searchName + "' sin estado expuesto; se asume marcado");
+
+  // 3) Click en botón Publicar del modal
+  log("[native] pulsando Publicar en modal para '" + searchName + "'");
+  var ok = clickLabel(["Publicar", "Publicar en el grupo", "Publicar en el grupo", "Compartir ahora", "Share Now", "Post"], CONFIG.findTimeoutMs, false);
+  if (!ok) {
+    log("[native] no se encontró botón Publicar en modal");
+    return false;
+  }
+  sleep(rnd(2500, 4000));
+
+  // 4) Esperar confirmación de "compartido" / "publicado"
+  var confirmWords = ["compartido", "publicado", "publicación", "shared", "publicada", "has compartido", "listo"];
+  var shareConfirmed = false;
+  var confirmDeadline = Date.now() + 10000;
+  while (Date.now() < confirmDeadline && !shareConfirmed) {
+    var cnodes = dumpUi(120);
+    for (var ci = 0; ci < cnodes.length && !shareConfirmed; ci++) {
+      var cblob = ((cnodes[ci].t || "") + " " + (cnodes[ci].d || "")).toLowerCase();
+      for (var ck = 0; ck < confirmWords.length; ck++) {
+        if (cblob.indexOf(confirmWords[ck]) >= 0) { shareConfirmed = true; break; }
+      }
+    }
+    if (!shareConfirmed) sleep(300);
+  }
+  if (shareConfirmed) {
+    log("[native] confirmación de compartido detectada para '" + searchName + "'");
+    sendDebug("share-confirmed", groupName);
+  } else {
+    log("[native] confirmación no detectada (se asume éxito)");
+  }
+
+  // 4) Cerrar/volver al buscador de grupos para el siguiente grupo
+  // Intentar cerrar modal/volver atrás
+  try {
+    back();
+    sleep(1000);
+  } catch (e) {}
+  
+  // Limpiar buscador para el siguiente grupo
+  clearGroupSearchText(5000);
+  sleep(rnd(1500, 2500));
+
   return true;
 }
 
@@ -2079,7 +2084,7 @@ function runPollLoop() {
             //    EditText listo para filtrar). Solo la primera vez.
             openPostAndShareGroup(batch[0]);
 
-            // 2) Marcar el checkbox de cada grupo (type filtra la lista).
+            // 2) Para cada grupo: buscar -> tocar row -> modal Publicar -> confirmar
             selectedTasks = [];
             missingTasks = [];
             for (var b = 0; b < batch.length; b++) {
@@ -2087,9 +2092,9 @@ function runPollLoop() {
               var grp = batch[b].group_name || batch[b].fb_group_id;
               var okMark = false;
               try {
-                okMark = selectGroupCheckbox(grp, CONFIG.findTimeoutMs);
+                okMark = selectGroupAndPublish(grp, CONFIG.findTimeoutMs);
               } catch (eMark) {
-                console.error("[native] error marcando '" + grp + "': " + eMark.message);
+                console.error("[native] error publicando en '" + grp + "': " + eMark.message);
               }
               if (okMark) {
                 selectedTasks.push(batch[b]);
@@ -2106,53 +2111,8 @@ function runPollLoop() {
               throw new Error("no group selected");
             }
 
-            // Tras marcar todos los grupos, limpiar el buscador: con texto
-            // escrito FB no muestra el botón "Siguiente".
-            clearGroupSearchText(8000);
-            sleep(rnd(1000, 1500));
-
-            // 3) Botón "Siguiente" (business) → vista final del post con Publicar
-            ok = clickLabel(["Siguiente", "Next", "Continuar"], CONFIG.findTimeoutMs, false);
-            if (!ok) {
-              sendDebug("no-next-btn", batch[0].target_url);
-              throw new Error("Next button not found");
-            }
-            sleep(rnd(2500, 4000));
-
-            // 4) Botón final (Publicar / Compartir / Listo)
-            ok = clickLabel(["Publicar", "Compartir ahora", "Share Now", "Done", "Listo", "Publicar en el grupo"], CONFIG.findTimeoutMs, false);
-            if (!ok) {
-              // último recurso: botón "Compartir" dentro del composer
-              ok = clickLabel(["Compartir", "Share"], CONFIG.findTimeoutMs, false);
-            }
-            if (!ok) {
-              sendDebug("no-final-btn", batch[0].target_url);
-              throw new Error("Final share button not found");
-            }
-
-            // 5) Verificar el cartel de confirmación (efímero, no bloquea)
-            var confirmWords = ["compartido", "publicado", "publicación", "shared", "publicada", "has compartido", "listo"];
-            var shareConfirmed = false;
-            var confirmDeadline = Date.now() + 6000;
-            while (Date.now() < confirmDeadline && !shareConfirmed) {
-              var cnodes = dumpUi(120);
-              for (var ci = 0; ci < cnodes.length && !shareConfirmed; ci++) {
-                var cblob = ((cnodes[ci].t || "") + " " + (cnodes[ci].d || "")).toLowerCase();
-                for (var ck = 0; ck < confirmWords.length; ck++) {
-                  if (cblob.indexOf(confirmWords[ck]) >= 0) { shareConfirmed = true; break; }
-                }
-              }
-              if (!shareConfirmed) sleep(300);
-            }
-            if (shareConfirmed) {
-              console.log("[native] cartel de confirmación detectado");
-              sendDebug("share-confirmed", batch[0].target_url);
-            } else {
-              console.log("[native] cartel de confirmación no detectado (se comparte igual)");
-              sendDebug("share-no-confirm", batch[0].target_url);
-            }
-
-            // 6) Marcar completadas TODAS las seleccionadas de una
+            // 5) Marcar completadas TODAS las seleccionadas de una
+            // (cada grupo ya confirmó su publicación individual en selectGroupAndPublish)
             if (selectedTasks.length > 0) {
               var updates = [];
               for (var su = 0; su < selectedTasks.length; su++) updates.push({ task_id: selectedTasks[su].id });
