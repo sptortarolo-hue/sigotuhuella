@@ -691,7 +691,7 @@ function sendDebug(label, url) {
       var img = null;
       if (shizukuAvailable()) {
         var shotPath = files.join(files.getSdcardPath() || "/sdcard", "fb-relay-shot.png");
-        var sr = shizukuCmd("screencap -p " + shotPath, 5000);
+        var sr = shizukuCmd("screencap -p " + shotPath, 15000);
         if (sr && sr.code === 0 && files.exists(shotPath)) {
           img = images.read(shotPath);
           files.remove(shotPath);
@@ -1102,7 +1102,7 @@ function openPostAndShareGroup(task) {
       console.log("[native] estrategia " + (si + 1) + "/" + strategies.length + ": arrancando FB limpio");
       try {
         if (shizukuAvailable()) {
-          var r = shizukuCmd("am force-stop com.facebook.katana", 5000);
+          var r = shizukuCmd("am force-stop com.facebook.katana", 15000);
           if (!r || r.code !== 0) log("[native] force-stop falló: " + (r ? r.output : "null"));
         }
       } catch (e9) {}
@@ -1450,7 +1450,7 @@ function cleanupAfterBatch() {
   // (la sesión/cookies persisten). Sin Shizuku, back() a ciegas.
   try {
     if (shizukuAvailable()) {
-      var r = shizukuCmd("am force-stop com.facebook.katana", 5000);
+      var r = shizukuCmd("am force-stop com.facebook.katana", 15000);
       log("[native] FB cerrado tras batch" + (r && r.code === 0 ? " (OK)" : " falló: " + (r ? r.output : "null")));
       sleep(rnd(1500, 2500));
       return;
@@ -1553,7 +1553,7 @@ function cancelScreenAwake() {
 // Devolver true solo si llega a Awake (lockscreen con keypad).
 
 function readWakefulness(timeoutMs) {
-  timeoutMs = timeoutMs || 3000;
+  timeoutMs = timeoutMs || 15000;
   try {
     if (!shizukuAvailable()) return "unavailable";
     var r = shizukuCmd("dumpsys power", timeoutMs);
@@ -1583,9 +1583,10 @@ function wakeScreenIfNeeded() {
     return false;
   }
 
-  // Shizuku disponible: leer wakefulness UNA VEZ con timeout 3s
+  // Shizuku disponible: leer wakefulness UNA VEZ con timeout 15s
+  // Si falla, asumimos que no está Awake y procedemos con wake
   log("[native] wake: shizuku OK, leyendo wakefulness...");
-  var wf = readWakefulness(3000);
+  var wf = readWakefulness(15000);
   log("[native] wake: estado inicial = " + wf);
 
   if (wf === "Awake") {
@@ -1593,56 +1594,48 @@ function wakeScreenIfNeeded() {
     return true;
   }
 
-  // No está Awake: enviar WAKEUP repetidamente SIN volver a leer wakefulness
-  // (evita bloqueos en dumpsys power). Enviamos WAKEUP (224) repetido.
-  var maxAttempts = (wf === "Asleep") ? 4 : 3;
+  // No está Awake: enviar WAKEUP con delays largos
+  // MÁXIMO 3 intentos, delay 3s entre keyevents
+  var maxAttempts = 3;
   for (var attempt = 0; attempt < maxAttempts; attempt++) {
     var reason = (wf === "Asleep") ? "Asleep" : (wf === "Dozing" ? "Dozing/AOD" : "desconocido");
     log("[native] wake: " + reason + " → KEYCODE_WAKEUP (224) #" + (attempt + 1));
-    var r = shizukuCmd("input keyevent 224", 3000);
+    var r = shizukuCmd("input keyevent 224", 10000);
     if (!r || r.code !== 0) log("[native] wake: keyevent falló (code=" + (r ? r.code : "null") + ")");
     
-    // Delay largo entre keyevents para no saturar el sistema
-    sleep(2500);
+    // Delay largo entre keyevents
+    sleep(3000);
     
-    // Verificar cada 2 intentos si ya llegamos a Awake (evita keyevents innecesarios)
-    if ((attempt + 1) % 2 === 0) {
-      var wfCheck = readWakefulness(2000);
-      log("[native] wake: check intermedio = " + wfCheck);
-      if (wfCheck === "Awake") {
-        log("[native] wake: Awake alcanzado en intento #" + (attempt + 1));
-        return true;
-      }
+    // Verificar usando isScreenLocked en lugar de readWakefulness (que falla)
+    // Si ya no está bloqueado, asumimos que despertó
+    if (!isScreenLocked()) {
+      log("[native] wake: pantalla desbloqueada (isScreenLocked=false)");
+      return true;
     }
   }
 
-  // Verificación final con timeout
-  log("[native] wake: verificando estado final...");
-  var wfFinal = readWakefulness(3000);
-  log("[native] wake: estado final = " + wfFinal);
-  if (wfFinal === "Awake") {
-    log("[native] wake: verificación final Awake");
+  // Verificación final: si ya no está bloqueado, OK
+  if (!isScreenLocked()) {
+    log("[native] wake: pantalla desbloqueada verificada");
     return true;
   }
 
-  // Recovery MUY conservador: solo dismiss-keyguard + 1 WAKEUP + verificación
-  // SIN MENU (82) - causa reinicios en Samsung
-  log("[native] wake: no alcanzó Awake (final=" + (wfFinal || "n/a") + "), recovery conservador...");
-  var r = shizukuCmd("wm dismiss-keyguard", 3000);
-  sleep(1500);
+  // Recovery conservador: dismiss-keyguard + 1 WAKEUP
+  log("[native] wake: no alcanzó Awake, recovery conservador...");
+  var r = shizukuCmd("wm dismiss-keyguard", 15000);
+  sleep(2000);
   
-  // Solo 1 WAKEUP extra, con verificación
+  // Solo 1 WAKEUP extra
   log("[native] wake recovery: WAKEUP (224) único");
-  shizukuCmd("input keyevent 224", 3000);
-  sleep(2500);
+  shizukuCmd("input keyevent 224", 10000);
+  sleep(3000);
   
-  var wfR = readWakefulness(3000);
-  if (wfR === "Awake") {
-    log("[native] wake: recovery alcanzó Awake");
+  if (!isScreenLocked()) {
+    log("[native] wake: recovery alcanzó desbloqueado");
     return true;
   }
   
-  log("[native] wake: recovery falló (final=" + (wfR || "n/a") + ")");
+  log("[native] wake: recovery falló");
   return false;
 }
 
@@ -1693,11 +1686,11 @@ function ensureUnlocked() {
 
     // Con Shizuku, "wm dismiss-keyguard" descarta el keyguard directamente
     // (privilegios ADB). Sin PIN deja el celular desbloqueado al toque; con
-    // PIN deja el keypad numérico listo. Timeout 3s.
+    // PIN deja el keypad numérico listo. Timeout 15s.
     if (shizukuAvailable()) {
-      var r = shizukuCmd("wm dismiss-keyguard", 3000);
+      var r = shizukuCmd("wm dismiss-keyguard", 15000);
       if (!r || r.code !== 0) log("[native] wm dismiss-keyguard falló: " + (r ? r.output : "null"));
-      sleep(rnd(1200, 2000));
+      sleep(rnd(2000, 3000));
     }
 
     var unlocked = false;
@@ -1709,20 +1702,20 @@ function ensureUnlocked() {
     for (var pass = 0; pass < 4 && !unlocked; pass++) {
       if (pass > 0) {
         keepScreenAwake();
-        sleep(rnd(800, 1500));
+        sleep(rnd(1500, 2500));
       }
-      // Swipe hacia arriba: pasar el AOD/lockscreen inicial. Timeout 3s en swipe.
+      // Swipe hacia arriba: pasar el AOD/lockscreen inicial. Timeout 10s en swipe.
       try {
         if (shizukuAvailable()) {
           var sx = Math.round(screenWidth() / 2);
           var sy1 = Math.round(screenHeight() * 0.8);
           var sy2 = Math.round(screenHeight() * 0.2);
-          var r = shizukuCmd("input swipe " + sx + " " + sy1 + " " + sx + " " + sy2 + " 400", 3000);
+          var r = shizukuCmd("input swipe " + sx + " " + sy1 + " " + sx + " " + sy2 + " 400", 10000);
           if (!r || r.code !== 0) log("[native] swipe falló: " + (r ? r.output : "null"));
         } else {
           swipe(screenWidth() / 2, screenHeight() * 0.8, screenWidth() / 2, screenHeight() * 0.2, 400);
         }
-        sleep(rnd(1200, 2000));
+        sleep(rnd(2000, 3000));
       } catch (e) {}
 
       if (!isScreenLocked()) {
@@ -1734,7 +1727,7 @@ function ensureUnlocked() {
         var useKeyevents = shizukuAvailable();
         if (!useKeyevents) {
           var padVisible = false;
-          var padDeadline = Date.now() + 7000;
+          var padDeadline = Date.now() + 10000;
           while (Date.now() < padDeadline && !padVisible) {
             padVisible = pinKeypadVisible(pin);
             if (!padVisible) sleep(500);
@@ -1751,19 +1744,19 @@ function ensureUnlocked() {
           sendDebug("pin-digit-not-found");
           continue;
         }
-        sleep(rnd(1200, 2000));
+        sleep(rnd(2000, 3000));
         // Segundo swipe por si tras el PIN pide "siguiente"/confirmar
         try {
           if (shizukuAvailable()) {
             var sx2 = Math.round(screenWidth() / 2);
             var sya = Math.round(screenHeight() * 0.7);
             var syb = Math.round(screenHeight() * 0.3);
-            var r = shizukuCmd("input swipe " + sx2 + " " + sya + " " + sx2 + " " + syb + " 300", 3000);
+            var r = shizukuCmd("input swipe " + sx2 + " " + sya + " " + sx2 + " " + syb + " 300", 10000);
             if (!r || r.code !== 0) log("[native] 2do swipe falló: " + (r ? r.output : "null"));
           } else {
             swipe(screenWidth() / 2, screenHeight() * 0.7, screenWidth() / 2, screenHeight() * 0.3, 300);
           }
-          sleep(rnd(800, 1500));
+          sleep(rnd(2000, 3000));
         } catch (e) {}
       }
 
@@ -1810,12 +1803,12 @@ function typePin(pin) {
     for (var k = 0; k < pin.length; k++) {
       var kc = keycodes[pin.charAt(k)];
       if (kc === undefined) return false;
-      var r = shizukuCmd("input keyevent " + kc, 3000);
+      var r = shizukuCmd("input keyevent " + kc, 10000);
       if (!r || r.code !== 0) {
         log("[native] keyevent del dígito " + pin.charAt(k) + " falló, cayendo a tap por texto");
         return typePinByText(pin);
       }
-      sleep(rnd(500, 900));
+      sleep(rnd(800, 1200));
     }
     return true;
   }
@@ -2055,7 +2048,7 @@ function runPollLoop() {
             // FB quedó en estado incierto → arrancar limpio
             try {
               if (shizukuAvailable()) {
-                var r = shizukuCmd("am force-stop com.facebook.katana", 5000);
+                var r = shizukuCmd("am force-stop com.facebook.katana", 15000);
                 if (!r || r.code !== 0) log("[native] force-stop falló: " + (r ? r.output : "null"));
               }
             } catch (e9) {}
