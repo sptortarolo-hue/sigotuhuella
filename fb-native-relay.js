@@ -1595,13 +1595,25 @@ function wakeScreenIfNeeded() {
 
   // No está Awake: enviar WAKEUP repetidamente SIN volver a leer wakefulness
   // (evita bloqueos en dumpsys power). Enviamos WAKEUP (224) repetido.
-  var maxAttempts = wf === "Asleep" ? 6 : 8;
+  var maxAttempts = (wf === "Asleep") ? 4 : 3;
   for (var attempt = 0; attempt < maxAttempts; attempt++) {
     var reason = (wf === "Asleep") ? "Asleep" : (wf === "Dozing" ? "Dozing/AOD" : "desconocido");
     log("[native] wake: " + reason + " → KEYCODE_WAKEUP (224) #" + (attempt + 1));
     var r = shizukuCmd("input keyevent 224", 3000);
     if (!r || r.code !== 0) log("[native] wake: keyevent falló (code=" + (r ? r.code : "null") + ")");
-    sleep(wf === "Asleep" ? 1500 : 1200);
+    
+    // Delay largo entre keyevents para no saturar el sistema
+    sleep(2500);
+    
+    // Verificar cada 2 intentos si ya llegamos a Awake (evita keyevents innecesarios)
+    if ((attempt + 1) % 2 === 0) {
+      var wfCheck = readWakefulness(2000);
+      log("[native] wake: check intermedio = " + wfCheck);
+      if (wfCheck === "Awake") {
+        log("[native] wake: Awake alcanzado en intento #" + (attempt + 1));
+        return true;
+      }
+    }
   }
 
   // Verificación final con timeout
@@ -1613,26 +1625,23 @@ function wakeScreenIfNeeded() {
     return true;
   }
 
-  // Recovery agresivo: dismiss-keyguard + WAKEUP + MENU
-  log("[native] wake: no alcanzó Awake (final=" + (wfFinal || "n/a") + "), recovery agresivo...");
+  // Recovery MUY conservador: solo dismiss-keyguard + 1 WAKEUP + verificación
+  // SIN MENU (82) - causa reinicios en Samsung
+  log("[native] wake: no alcanzó Awake (final=" + (wfFinal || "n/a") + "), recovery conservador...");
   var r = shizukuCmd("wm dismiss-keyguard", 3000);
-  sleep(800);
-  for (var rk = 0; rk < 4; rk++) {
-    log("[native] wake recovery: WAKEUP (224) #" + (rk + 1));
-    shizukuCmd("input keyevent 224", 3000);
-    sleep(1000);
-  }
+  sleep(1500);
+  
+  // Solo 1 WAKEUP extra, con verificación
+  log("[native] wake recovery: WAKEUP (224) único");
+  shizukuCmd("input keyevent 224", 3000);
+  sleep(2500);
+  
   var wfR = readWakefulness(3000);
-  if (wfR !== "Awake") {
-    log("[native] wake recovery: MENU (82) para descartar keyguard");
-    shizukuCmd("input keyevent 82", 3000);
-    sleep(1000);
-    wfR = readWakefulness(3000);
-  }
   if (wfR === "Awake") {
     log("[native] wake: recovery alcanzó Awake");
     return true;
   }
+  
   log("[native] wake: recovery falló (final=" + (wfR || "n/a") + ")");
   return false;
 }
