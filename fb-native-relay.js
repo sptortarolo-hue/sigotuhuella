@@ -5,10 +5,12 @@
  * Facebook usando el accessibility service de AutoJs6. Corre 100% on-device,
  * sin ADB ni PC. Pollea la misma cola del VPS que usa fb-relay.js.
  *
- * Flujo (cuenta de page business): abre el post, toca Compartir → "Grupo"
- * (con scroll horizontal si el botón está oculto en la fila de destinos),
- * marca el checkbox de cada grupo del batch, toca "Siguiente" → "Publicar"
- * una sola vez. Todos los grupos del mismo post se publican en una pasada.
+ * Flujo dual (detecta automáticamente al inicio del batch):
+ *   - Batch:     abre el post → Compartir → "Grupo" → marca checkboxes de
+ *                 cada grupo → "Siguiente" → "Publicar" una vez para todos.
+ *   - Individual: abre el post → Compartir → "Grupo" → por cada grupo:
+ *                 busca → toca fila → modal "Publicar" → confirmar → siguiente.
+ * Facebook alterna entre ambos flows de forma aleatoria por batch.
  *
  * ─── Setup ───────────────────────────────────────────────────────────────
  * 1. Instalar AutoJs6 (https://github.com/SuperMonster003/AutoJs6 releases)
@@ -1488,6 +1490,204 @@ function selectGroupAndPublish(groupName, timeoutMs) {
   return true;
 }
 
+// Detecta el tipo de flow de compartir DESPUÉS de tocar la fila del grupo.
+// Facebook muestra 2 flows diferentes y cuál aparece es aleatorio pero se
+// mantiene para todo el batch:
+//   - "batch":     aparece checkbox / "Siguiente" → seleccionar todos, publicar una vez
+//   - "individual": aparece modal "Publicar" → publicar por grupo
+// Se llama UNA vez al inicio del batch (después del primer tap en fila) y el
+// resultado se reutiliza para todos los grupos del mismo post.
+function detectFlowType() {
+  sleep(rnd(1500, 2500));
+  // Probe 1: "Siguiente" / "Next" = batch flow (checkboxes)
+  var siguiente = findNode(["Siguiente", "Next"], 1500);
+  if (siguiente) {
+    log("[native] flow detectado: batch (Siguiente encontrado)");
+    return "batch";
+  }
+  // Probe 2: checkbox visible = batch flow
+  try {
+    var cb = className("android.widget.CheckBox").findOne(800);
+    if (cb && cb.visibleToUser()) {
+      log("[native] flow detectado: batch (checkbox encontrado)");
+      return "batch";
+    }
+  } catch (e) {}
+  // Probe 3: "Publicar" directo = modal individual
+  var publicar = findNode(["Publicar", "Publicar en el grupo", "Compartir ahora", "Share Now", "Post"], 1500);
+  if (publicar) {
+    log("[native] flow detectado: individual (Publicar encontrado)");
+    return "individual";
+  }
+  log("[native] flow detectado: desconocido, asumiendo individual");
+  return "individual";
+}
+
+// Flow batch: busca el grupo, toca la fila y marca el checkbox (sin publicar).
+// El search se mantiene abierto para acumular checkboxes de todos los grupos.
+// Al final del batch se llama a publishBatch().
+function selectGroupCheckbox(groupName, timeoutMs) {
+  var t = timeoutMs || CONFIG.findTimeoutMs;
+  log("[native] batch: seleccionando grupo '" + groupName + "'");
+
+  // Normalizar nombre (mismo criterio que selectGroupAndPublish)
+  var searchName = groupName;
+  var prefixes = ["grupo ", "grupo  ", "group ", "grupo fb ", "pagina "];
+  var trimmed = searchName;
+  for (var pi = 0; pi < prefixes.length; pi++) {
+    if (trimmed.toLowerCase().indexOf(prefixes[pi]) === 0) {
+      trimmed = trimmed.substring(prefixes[pi].length).trim();
+      break;
+    }
+  }
+  if (trimmed) searchName = trimmed;
+
+  // 1) Tipear el nombre del grupo en el buscador
+  if (!typeIntoEditText(searchName, t)) {
+    sendDebug("no-group-search-input", groupName);
+    return false;
+  }
+  if (!waitEditTextHas(searchName, 8000)) {
+    sendDebug("group-search-no-text", groupName);
+    return false;
+  }
+  sleep(rnd(2000, 4000));
+
+  // 2) Buscar el row del grupo y tocarlo
+  var row = findGroupRowBelowEditText(searchName, t);
+  if (!row) {
+    log("[native] batch: grupo '" + searchName + "' no aparece en la lista");
+    sendDebug("group-row-missing", groupName);
+    return false;
+  }
+  log("[native] batch: row encontrado '" + searchName + "': " + ((row.text && row.text()) || ""));
+
+  // Tocar el row para activar el checkbox
+  var tapped = false;
+  var strategies = [0, 1, 4, 7, 2];
+  for (var st = 0; st < strategies.length && !tapped; st++) {
+    try {
+      tapStrategy(row, strategies[st]);
+      log("[native] batch: tap estrategia " + strategies[st] + " sobre '" + searchName + "'");
+      tapped = true;
+    } catch (e) {}
+    sleep(rnd(1000, 2000));
+  }
+
+  if (!tapped) {
+    log("[native] batch: no se pudo tocar row de '" + searchName + "'");
+    return false;
+  }
+
+  // 3) Verificar si apareció el checkbox marcado o si hay que buscarlo
+  sleep(rnd(800, 1500));
+  var checkboxMarked = false;
+
+  // Buscar checkbox visible en la zona del row
+  try {
+    var cbs = className("android.widget.CheckBox").find();
+    for (var ci = 0; ci < cbs.length; ci++) {
+      try {
+        if (cbs[ci].visibleToUser() && cbs[ci].checked()) {
+          checkboxMarked = true;
+          break;
+        }
+      } catch (e) {}
+    }
+  } catch (e) {}
+
+  if (checkboxMarked) {
+    log("[native] batch: checkbox ya marcado para '" + searchName + "'");
+    return true;
+  }
+
+  // Si el tap abrió modal individual en vez de checkbox (flow inconsistente),
+  // fallback a selectGroupAndPublish
+  var publicarBtn = findNode(["Publicar", "Publicar en el grupo", "Compartir ahora", "Share Now", "Post"], 2000);
+  if (publicarBtn) {
+    log("[native] batch: apareció modal Publicar para '" + searchName + "' (flow inconsistente, fallback individual)");
+    return false; // Indicar al caller que use selectGroupAndPublish
+  }
+
+  // Reintentar tap si no se marcó el checkbox
+  for (var rt = 0; rt < 3 && !checkboxMarked; rt++) {
+    try {
+      tapStrategy(row, rt);
+      log("[native] batch: re-tap intento " + (rt + 1) + " sobre '" + searchName + "'");
+    } catch (e) {}
+    sleep(rnd(1500, 2500));
+    try {
+      var cbs2 = className("android.widget.CheckBox").find();
+      for (var ci2 = 0; ci2 < cbs2.length; ci2++) {
+        try {
+          if (cbs2[ci2].visibleToUser() && cbs2[ci2].checked()) {
+            checkboxMarked = true;
+            break;
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
+
+  if (checkboxMarked) {
+    log("[native] batch: checkbox marcado para '" + searchName + "' tras reintentos");
+    return true;
+  }
+
+  log("[native] batch: no se pudo marcar checkbox para '" + searchName + "'");
+  sendDebug("batch-checkbox-miss", groupName);
+  return false;
+}
+
+// Flow batch: toca "Siguiente" / "Next" y luego "Publicar" una sola vez para
+// todos los grupos seleccionados con checkbox. Se llama al final del batch.
+function publishBatch() {
+  log("[native] batch: tocando Siguiente");
+  try { console.hide(); } catch (e) {}
+
+  // 1) Tocar "Siguiente" / "Next"
+  var ok = clickLabel(["Siguiente", "Next"], CONFIG.findTimeoutMs, false);
+  if (!ok) {
+    log("[native] batch: botón Siguiente no encontrado");
+    sendDebug("batch-no-siguiente");
+    return false;
+  }
+  sleep(rnd(2000, 4000));
+
+  // 2) Tocar "Publicar" / "Post"
+  log("[native] batch: tocando Publicar");
+  try { console.hide(); } catch (e) {}
+  ok = clickLabel(["Publicar", "Publicar en el grupo", "Compartir ahora", "Share Now", "Post"], CONFIG.findTimeoutMs, false);
+  if (!ok) {
+    log("[native] batch: botón Publicar no encontrado tras Siguiente");
+    sendDebug("batch-no-publish");
+    return false;
+  }
+  sleep(rnd(2500, 4000));
+
+  // 3) Esperar confirmación
+  var confirmWords = ["compartido", "publicado", "publicación", "shared", "publicada", "has compartido", "listo"];
+  var shareConfirmed = false;
+  var confirmDeadline = Date.now() + 12000;
+  while (Date.now() < confirmDeadline && !shareConfirmed) {
+    var cnodes = dumpUi(120);
+    for (var ci = 0; ci < cnodes.length && !shareConfirmed; ci++) {
+      var cblob = ((cnodes[ci].t || "") + " " + (cnodes[ci].d || "")).toLowerCase();
+      for (var ck = 0; ck < confirmWords.length; ck++) {
+        if (cblob.indexOf(confirmWords[ck]) >= 0) { shareConfirmed = true; break; }
+      }
+    }
+    if (!shareConfirmed) sleep(300);
+  }
+  if (shareConfirmed) {
+    log("[native] batch: confirmación de compartido detectada");
+    sendDebug("batch-share-confirmed");
+  } else {
+    log("[native] batch: confirmación no detectada (se asume éxito)");
+  }
+  return true;
+}
+
 // Cierra el sheet de confirmación y el buscador de grupos tras el ÚLTIMO grupo
 // de un batch, para que el próximo share arranque desde el feed limpio. Entre
 // grupos del mismo batch NO se llama: se reutiliza el buscador abierto.
@@ -2062,9 +2262,9 @@ function runPollLoop() {
         var batch = groups[order[g]];
         console.log("[native] batch de " + batch.length + " grupo(s) para el post " + (batch[0].target_url || batch[0].id));
 
-        // Flujo cuenta business: abrir el post UNA vez, marcar el checkbox de
-        // cada grupo, tocar "Siguiente" y "Publicar" una sola vez para todo el
-        // batch. Todos los grupos del mismo post se marcan en la misma pantalla.
+        // Flujo share: abrir el post UNA vez, detectar el tipo de flow
+        // (batch-checkboxes o individual-modal) y ejecutar el camino
+        // correspondiente para todos los grupos del mismo post.
         var selectedTasks = [];
         var missingTasks = [];
         var sharePublished = false;
@@ -2090,7 +2290,18 @@ function runPollLoop() {
             //    EditText listo para filtrar). Solo la primera vez.
             openPostAndShareGroup(batch[0]);
 
-            // 2) Para cada grupo: buscar -> tocar row -> modal Publicar -> confirmar
+            // 2) Detectar tipo de flow UNA VEZ (batch-checkboxes o individual-modal)
+            //    Se determina después del primer tap en la fila del grupo y se
+            //    mantiene para todo el batch.
+            var flowType = "individual"; // default
+            try {
+              flowType = detectFlowType();
+              console.log("[native] flow detectado para este batch: " + flowType);
+            } catch (eFlow) {
+              console.error("[native] error detectando flow, asumiendo individual: " + eFlow.message);
+            }
+
+            // 3) Para cada grupo: según el flow, seleccionar checkbox o publicar individual
             selectedTasks = [];
             missingTasks = [];
             for (var b = 0; b < batch.length; b++) {
@@ -2098,7 +2309,17 @@ function runPollLoop() {
               var grp = batch[b].group_name || batch[b].fb_group_id;
               var okMark = false;
               try {
-                okMark = selectGroupAndPublish(grp, CONFIG.findTimeoutMs);
+                if (flowType === "batch") {
+                  okMark = selectGroupCheckbox(grp, CONFIG.findTimeoutMs);
+                  // Fallback: si el checkbox no funcionó (apareció modal individual),
+                  // usar selectGroupAndPublish para este grupo
+                  if (!okMark) {
+                    console.log("[native] batch: checkbox falló para '" + grp + "', fallback a individual");
+                    okMark = selectGroupAndPublish(grp, CONFIG.findTimeoutMs);
+                  }
+                } else {
+                  okMark = selectGroupAndPublish(grp, CONFIG.findTimeoutMs);
+                }
               } catch (eMark) {
                 console.error("[native] error publicando en '" + grp + "': " + eMark.message);
               }
@@ -2113,12 +2334,24 @@ function runPollLoop() {
               sleep(delay);
             }
 
+            // 4) Si flow batch: tocar Siguiente → Publicar UNA vez para todos
+            if (flowType === "batch" && selectedTasks.length > 0) {
+              console.log("[native] batch: publicando " + selectedTasks.length + " grupo(s) en una pasada");
+              var batchOk = publishBatch();
+              if (!batchOk) {
+                console.error("[native] batch: falló publishBatch, marcando como failed");
+                for (var mf = 0; mf < selectedTasks.length; mf++) {
+                  try { apiPost("/fb/failed", { task_id: selectedTasks[mf].id, error: "publishBatch failed" }); } catch (e2) {}
+                }
+                selectedTasks = [];
+              }
+            }
+
             if (selectedTasks.length === 0) {
               throw new Error("no group selected");
             }
 
             // 5) Marcar completadas TODAS las seleccionadas de una
-            // (cada grupo ya confirmó su publicación individual en selectGroupAndPublish)
             if (selectedTasks.length > 0) {
               var updates = [];
               for (var su = 0; su < selectedTasks.length; su++) updates.push({ task_id: selectedTasks[su].id });
