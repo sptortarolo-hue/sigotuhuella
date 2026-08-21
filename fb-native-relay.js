@@ -869,7 +869,7 @@ function sendHeartbeat() {
     try { state.locked = isScreenLocked(); } catch (e) {}
     try { state.shizukuOk = shizukuAvailable(); } catch (e) {}
     try { state.battery = readBatteryLevel(); } catch (e) {}
-    try { state.wakefulness = readWakefulness(); } catch (e) {}
+    try { state.wakefulness = isScreenLocked() ? "locked" : "unlocked"; } catch (e) {}
     var payload = {
       label: "heartbeat",
       url: "",
@@ -1526,20 +1526,20 @@ function screenOffAndLock() {
     // stayAwakeWhileCharging: true, para que el timeout normal de pantalla
     // y el apagado forzado de abajo tengan efecto.
     shizukuCmd("svc power stayon false", 3000);
-    sleep(300);
+sleep(300);
     shizukuCmd("input keyevent 223", 3000); // KEYCODE_SLEEP → apagar pantalla + lock
-    sleep(800);
-    var wf = readWakefulness(3000);
-    if (wf && wf !== "Asleep") {
-      // Si el SLEEP no apagó (estado raro), reintentar una vez
-      log("[native] tras SLEEP quedó " + wf + ", reintentando...");
+    sleep(1500);
+    // Verificar con isScreenLocked en lugar de readWakefulness (que falla)
+    if (isScreenLocked()) {
+      // Si el SLEEP no apagó, reintentar una vez
+      log("[native] tras SLEEP aún bloqueado, reintentando...");
       shizukuCmd("input keyevent 223", 3000);
-      sleep(800);
+      sleep(1500);
     }
     log("[native] pantalla apagada y bloqueada");
   } catch (e) {
     log("[native] screenOffAndLock falló: " + e.message);
-}
+  }
 
 }
 // ─── Loop principal ───────────────────────────────────────────────────────
@@ -1589,59 +1589,39 @@ function cancelScreenAwake() {
 // puede volver a apagar la pantalla si se envía en el estado equivocado.
 // Devolver true solo si llega a Awake (lockscreen con keypad).
 
-function readWakefulness(timeoutMs) {
-  timeoutMs = timeoutMs || 60000;
-  try {
-    if (!shizukuAvailable()) return "unavailable";
-    var r = shizukuCmd("dumpsys power", timeoutMs);
-    if (!r || r.code !== 0) return "error";
-    var out = String(r.output || "");
-    var m = /mWakefulness=(\w+)/.exec(out);
-    return m ? m[1] : "unknown";
-  } catch (e) { return "error"; }
-}
-
 function wakeScreenIfNeeded() {
-  if (!shizukuAvailable()) {
-    // Sin Shizuku: fallback cascada con isScreenOn() como aproximación
-    try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-    try { device.wakeUpIfNeeded(); } catch (e) {}
-    sleep(800);
-    try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-    try { device.wakeUp(); } catch (e) {}
-    sleep(800);
-    try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-    try { keyCode(224); } catch (e) {}
-    sleep(800);
-    try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-    try { shell("input keyevent 224", true); } catch (e) {}
-    sleep(800);
-    try { if (device.isScreenOn && device.isScreenOn()) return true; } catch (e) {}
-    return false;
-  }
-
-  // Shizuku disponible: leer wakefulness UNA VEZ con timeout 30s
-  // Si falla, asumimos que no está Awake y procedemos con wake
-  log("[native] wake: shizuku OK, leyendo wakefulness...");
-  var wf = readWakefulness(30000);
-  log("[native] wake: estado inicial = " + wf);
-
-  if (wf === "Awake") {
-    log("[native] wake: ya en Awake");
+  // 1. INTENTO NATIVO (sin Shizuku): device.wakeUp() + wakeUpIfNeeded
+  // Es lo más rápido y no depende de ADB/Shizuku
+  log("[native] wake: intento nativo device.wakeUp()...");
+  try { device.wakeUpIfNeeded(); } catch (e) {}
+  sleep(1000);
+  try { device.wakeUp(); } catch (e) {}
+  sleep(1500);
+  
+  if (!isScreenLocked()) {
+    log("[native] wake: despertado con device.wakeUp() nativo");
     return true;
   }
 
-  // No está Awake: enviar WAKEUP con delays MUY largos
-  // MÁXIMO 2 intentos, delay 30s entre keyevents (menos es más, pero con tiempo)
-  var maxAttempts = 2;
-  for (var attempt = 0; attempt < maxAttempts; attempt++) {
-    var reason = (wf === "Asleep") ? "Asleep" : (wf === "Dozing" ? "Dozing/AOD" : "desconocido");
-    log("[native] wake: " + reason + " → KEYCODE_WAKEUP (224) #" + (attempt + 1));
+  if (!shizukuAvailable()) {
+    // Sin Shizuku: fallback nativo
+    try { device.wakeUp(); } catch (e) {}
+    sleep(1000);
+    try { keyCode(224); } catch (e) {}
+    sleep(1000);
+    return !isScreenLocked();
+  }
+
+  // Shizuku disponible: WAKEUP vía ADB + verificación isScreenLocked (rápido)
+  log("[native] wake: shizuku OK, enviando WAKEUP (224)...");
+  
+  // MÁXIMO 2 intentos WAKEUP con delay 30s (dispositivo muy lento)
+  for (var attempt = 0; attempt < 2; attempt++) {
+    log("[native] wake: KEYCODE_WAKEUP (224) #" + (attempt + 1));
     var r = shizukuCmd("input keyevent 224", 120000);
     if (!r || r.code !== 0) log("[native] wake: keyevent falló (code=" + (r ? r.code : "null") + ")");
     
-    // Delay MUY largo entre keyevents - dar tiempo al sistema
-    sleep(30000);
+    sleep(10000); // delay muy largo para dispositivo lento
     
     if (!isScreenLocked()) {
       log("[native] wake: pantalla desbloqueada (isScreenLocked=false)");
@@ -1649,21 +1629,19 @@ function wakeScreenIfNeeded() {
     }
   }
 
-  // Verificación final: si ya no está bloqueado, OK
+  // Verificación final
   if (!isScreenLocked()) {
     log("[native] wake: pantalla desbloqueada verificada");
     return true;
   }
 
-  // Recovery: dismiss-keyguard + 1 WAKEUP
-  log("[native] wake: no alcanzó Awake, recovery...");
-  var r = shizukuCmd("wm dismiss-keyguard", 120000);
-  sleep(15000);
+  // Recovery conservador: dismiss-keyguard + 1 WAKEUP
+  log("[native] wake: recovery conservador...");
+  var r = shizukuCmd("wm dismiss-keyguard", 60000);
+  sleep(10000);
   
-  // Solo 1 WAKEUP extra
-  log("[native] wake recovery: WAKEUP (224) único");
-  shizukuCmd("input keyevent 224", 120000);
-  sleep(15000);
+  var r2 = shizukuCmd("input keyevent 224", 60000);
+  sleep(10000);
   
   if (!isScreenLocked()) {
     log("[native] wake: recovery alcanzó desbloqueado");
@@ -1880,7 +1858,7 @@ function typePinByText(pin) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
-  console.log("[native] build v2.7+ (shizukuCmd retry 3x + timeouts 5min + wake ultra-robusto)");
+  console.log("[native] build v2.7.1+ (readWakefulness eliminado + wake solo isScreenLocked + timeouts 15s)");
   parkConsole();
 
   // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
