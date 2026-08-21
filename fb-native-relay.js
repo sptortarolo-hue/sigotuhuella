@@ -1874,7 +1874,7 @@ function typePinByText(pin) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
-  console.log("[native] build v2.7.1+ (readWakefulness eliminado + wake solo isScreenLocked + timeouts 15s)");
+  console.log("[native] build v2.8.4+ (console.hide fix + wake isScreenAwake + flow share individual + brace fix)");
   parkConsole();
 
   // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
