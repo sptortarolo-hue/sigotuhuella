@@ -29,6 +29,7 @@ export default function BackupTab() {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
+  const [disk, setDisk] = useState<{ total: string; used: string; available: string; percent: number } | null>(null);
 
   const fetchBackups = useCallback(async () => {
     try {
@@ -37,6 +38,7 @@ export default function BackupTab() {
       const data = await api.backup.list();
       setBackups(data.backups || []);
       setDir(data.dir || '');
+      setDisk(data.disk || null);
     } catch (err: any) {
       setError(err.message || 'Error al listar backups');
     } finally {
@@ -119,9 +121,24 @@ export default function BackupTab() {
           <p className="text-xs text-gray-500 font-bold">Último verificado</p>
         </div>
         <div className="bg-brand-bg/50 rounded-2xl p-4">
-          <HardDrive className="w-5 h-5 text-gray-500 mb-1" />
-          <p className="text-xs text-gray-500 font-bold truncate">{dir || '—'}</p>
-          <p className="text-xs text-gray-400">Directorio</p>
+          <HardDrive className="w-5 h-5 text-brand-primary mb-1" />
+          {disk ? (
+            <>
+              <p className="text-sm font-bold">{disk.used} / {disk.total}</p>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-1.5 mb-1">
+                <div
+                  className={cn('h-2 rounded-full transition-all', disk.percent >= 90 ? 'bg-red-500' : disk.percent >= 70 ? 'bg-amber-500' : 'bg-green-500')}
+                  style={{ width: `${Math.min(disk.percent, 100)}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-gray-500 font-bold">{disk.percent}% usado · {disk.available} libre</p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-bold">—</p>
+              <p className="text-xs text-gray-500 font-bold">Disco del VPS</p>
+            </>
+          )}
         </div>
       </div>
 

@@ -44,7 +44,18 @@ router.get('/list', requireAdmin, async (_req, res) => {
       }
     } catch {}
     entries.sort((a, b) => b.file.localeCompare(a.file));
-    res.json({ backups: entries, dir: BACKUP_DIR });
+
+    let disk = null;
+    try {
+      const { stdout } = await execFileAsync('df', ['-h', '--output=size,used,avail,pcent', BACKUP_DIR]);
+      const lines = stdout.trim().split('\n');
+      if (lines.length === 2) {
+        const parts = lines[1].trim().split(/\s+/);
+        disk = { total: parts[0], used: parts[1], available: parts[2], percent: parseInt(parts[3]) || 0 };
+      }
+    } catch {}
+
+    res.json({ backups: entries, dir: BACKUP_DIR, disk });
   } catch (err) {
     console.error('GET /api/backup/list error:', err);
     res.status(500).json({ error: 'Error al listar backups' });
