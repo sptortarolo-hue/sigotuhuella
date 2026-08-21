@@ -1562,7 +1562,7 @@ function cancelScreenAwake() {
 // Devolver true solo si llega a Awake (lockscreen con keypad).
 
 function readWakefulness(timeoutMs) {
-  timeoutMs = timeoutMs || 15000;
+  timeoutMs = timeoutMs || 60000;
   try {
     if (!shizukuAvailable()) return "unavailable";
     var r = shizukuCmd("dumpsys power", timeoutMs);
@@ -1592,10 +1592,10 @@ function wakeScreenIfNeeded() {
     return false;
   }
 
-  // Shizuku disponible: leer wakefulness UNA VEZ con timeout 15s
+  // Shizuku disponible: leer wakefulness UNA VEZ con timeout 30s
   // Si falla, asumimos que no está Awake y procedemos con wake
   log("[native] wake: shizuku OK, leyendo wakefulness...");
-  var wf = readWakefulness(15000);
+  var wf = readWakefulness(30000);
   log("[native] wake: estado inicial = " + wf);
 
   if (wf === "Awake") {
@@ -1603,20 +1603,18 @@ function wakeScreenIfNeeded() {
     return true;
   }
 
-  // No está Awake: enviar WAKEUP con delays largos
-  // MÁXIMO 3 intentos, delay 3s entre keyevents
-  var maxAttempts = 3;
+  // No está Awake: enviar WAKEUP con delays MUY largos
+  // MÁXIMO 2 intentos, delay 30s entre keyevents (menos es más, pero con tiempo)
+  var maxAttempts = 2;
   for (var attempt = 0; attempt < maxAttempts; attempt++) {
     var reason = (wf === "Asleep") ? "Asleep" : (wf === "Dozing" ? "Dozing/AOD" : "desconocido");
     log("[native] wake: " + reason + " → KEYCODE_WAKEUP (224) #" + (attempt + 1));
-    var r = shizukuCmd("input keyevent 224", 10000);
+    var r = shizukuCmd("input keyevent 224", 120000);
     if (!r || r.code !== 0) log("[native] wake: keyevent falló (code=" + (r ? r.code : "null") + ")");
     
-    // Delay largo entre keyevents
-    sleep(3000);
+    // Delay MUY largo entre keyevents - dar tiempo al sistema
+    sleep(30000);
     
-    // Verificar usando isScreenLocked en lugar de readWakefulness (que falla)
-    // Si ya no está bloqueado, asumimos que despertó
     if (!isScreenLocked()) {
       log("[native] wake: pantalla desbloqueada (isScreenLocked=false)");
       return true;
@@ -1629,15 +1627,15 @@ function wakeScreenIfNeeded() {
     return true;
   }
 
-  // Recovery conservador: dismiss-keyguard + 1 WAKEUP
-  log("[native] wake: no alcanzó Awake, recovery conservador...");
-  var r = shizukuCmd("wm dismiss-keyguard", 15000);
-  sleep(2000);
+  // Recovery: dismiss-keyguard + 1 WAKEUP
+  log("[native] wake: no alcanzó Awake, recovery...");
+  var r = shizukuCmd("wm dismiss-keyguard", 120000);
+  sleep(15000);
   
   // Solo 1 WAKEUP extra
   log("[native] wake recovery: WAKEUP (224) único");
-  shizukuCmd("input keyevent 224", 10000);
-  sleep(3000);
+  shizukuCmd("input keyevent 224", 120000);
+  sleep(15000);
   
   if (!isScreenLocked()) {
     log("[native] wake: recovery alcanzó desbloqueado");
