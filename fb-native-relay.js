@@ -1541,6 +1541,7 @@ function wakeScreenIfNeeded() {
     // Dozing (reloj AOD visible) pero la pantalla NO está en Awake y no hay
     // keyguard interactivo ni keypad → dismiss-keyguard/swipe/PIN no hacen nada.
     // Por eso hay que pasar Dozing → Awake con KEYCODE_WAKEUP (224) siempre.
+    log("[native] wake: shizuku OK, readWakefulness()...");
     for (var attempt = 0; attempt < 8; attempt++) {
       var wf = readWakefulness();
       if (wf === "Awake") {
@@ -1847,7 +1848,7 @@ function typePinByText(pin) {
 function mainLoop() {
   console.show();
   console.log("[native] fb-native-relay iniciado");
-  console.log("[native] build v2.4+ (wake Dozing/AOD arreglado + auto-relaunch sin exit-race + wf en heartbeat)");
+  console.log("[native] build v2.4.2+ (wake log inicial + diagnóstico readWakefulness)");
   parkConsole();
 
   // Delay inicial configurable: tiempo para bloquear la pantalla a mano y
