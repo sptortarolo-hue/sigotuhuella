@@ -1840,8 +1840,8 @@ export async function initDb() {
 
     await migrate(client, `
       INSERT INTO agrupaciones (name, description, is_active)
-      VALUES ('SiHuella', 'Agrupación principal - voluntarios generales de la red SiHuella', TRUE)
-      ON CONFLICT DO NOTHING;
+      SELECT 'SiHuella', 'Agrupación principal - voluntarios generales de la red SiHuella', TRUE
+      WHERE NOT EXISTS (SELECT 1 FROM agrupaciones WHERE name = 'SiHuella');
     `, 'agrupaciones_seed');
 
     await migrate(client, `

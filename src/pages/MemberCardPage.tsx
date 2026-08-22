@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/lib/api';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Upload, Loader2, CheckCircle2, AlertCircle, PawPrint, TrendingUp } from 'lucide-react';
+import { Camera, Upload, Loader2, CheckCircle2, AlertCircle, PawPrint, TrendingUp, Plus, X, Share2, Search, Home, Truck, Heart } from 'lucide-react';
 import { motion } from 'motion/react';
 import MemberCard, { BADGE_CONFIG } from '@/src/components/MemberCard';
 import ImageCropper from '@/src/components/ImageCropper';
 import { fileToBase64 } from '@/src/lib/storageService';
 import { pickPhoto } from '@/src/lib/cameraService';
 import { isNative } from '@/src/lib/platform';
+import { getMySubscriptions, getCategories, getAgrupaciones, subscribe, unsubscribe } from '@/src/lib/volunteerService';
 
 export default function MemberCardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -23,6 +24,15 @@ export default function MemberCardPage() {
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [allCategories, setAllCategories] = useState<any[]>([]);
+  const [allAgrupaciones, setAllAgrupaciones] = useState<any[]>([]);
+  const [selectedAgrupacion, setSelectedAgrupacion] = useState('');
+  const [selectedNewCategories, setSelectedNewCategories] = useState<string[]>([]);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [categorySuccess, setCategorySuccess] = useState(false);
+
   useEffect(() => {
     if (authLoading) return;
     if (!user) { navigate('/login'); return; }
@@ -31,22 +41,82 @@ export default function MemberCardPage() {
 
   const fetchAll = async () => {
     try {
-      const [memberRes, statsRes] = await Promise.allSettled([
+      const [memberRes, statsRes, subsRes] = await Promise.allSettled([
         api.members.me(),
         user ? api.users.stats(user.id) : Promise.reject(),
+        getMySubscriptions(),
       ]);
       if (memberRes.status === 'fulfilled') setMemberData(memberRes.value.user);
       if (statsRes.status === 'fulfilled') {
         setStatsData(statsRes.value);
-        // Merge auto badges from stats into memberData if they were updated
         if (statsRes.value.badges && memberRes.status === 'fulfilled') {
           setMemberData(prev => prev ? { ...prev, badges: statsRes.value.badges } : prev);
         }
       }
+      if (subsRes.status === 'fulfilled') setSubscriptions(subsRes.value || []);
     } catch (err: any) {
       setError(err.message || 'Error al obtener datos');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getCategoryIcon = (code: string) => {
+    switch (code) {
+      case 'difusion': return <Share2 className="w-5 h-5" />;
+      case 'busqueda': return <Search className="w-5 h-5" />;
+      case 'hogar_transito': return <Home className="w-5 h-5" />;
+      case 'traslado': return <Truck className="w-5 h-5" />;
+      case 'donante': return <Heart className="w-5 h-5" />;
+      default: return <Plus className="w-5 h-5" />;
+    }
+  };
+
+  const openAddCategory = async () => {
+    try {
+      const [cats, ags] = await Promise.all([getCategories(), getAgrupaciones()]);
+      setAllCategories(cats || []);
+      setAllAgrupaciones(ags || []);
+      setShowAddCategory(true);
+      setCategorySuccess(false);
+      setSelectedNewCategories([]);
+      setSelectedAgrupacion('');
+    } catch {
+      setError('No se pudieron cargar las categorías');
+    }
+  };
+
+  const toggleNewCategory = (catId: string) => {
+    setSelectedNewCategories(prev =>
+      prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]
+    );
+  };
+
+  const handleAddCategories = async () => {
+    if (!selectedAgrupacion || selectedNewCategories.length === 0) return;
+    setSavingCategory(true);
+    try {
+      for (const catId of selectedNewCategories) {
+        await subscribe(selectedAgrupacion, catId);
+      }
+      const subs = await getMySubscriptions();
+      setSubscriptions(subs || []);
+      setCategorySuccess(true);
+      setTimeout(() => setShowAddCategory(false), 1500);
+    } catch {
+      setError('Error al guardar las categorías');
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleRemoveCategory = async (agrupacionId: string, category: string) => {
+    try {
+      await unsubscribe(agrupacionId, category);
+      const subs = await getMySubscriptions();
+      setSubscriptions(subs || []);
+    } catch {
+      setError('Error al quitar la categoría');
     }
   };
 
@@ -214,6 +284,50 @@ export default function MemberCardPage() {
         </motion.div>
       )}
 
+      {/* Mis Categorías / Suscripciones */}
+      {isMember && !isSuspended && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.10 }} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-brand-primary/10 text-brand-primary rounded-2xl flex items-center justify-center"><Heart className="w-6 h-6" /></div>
+              <div>
+                <h2 className="text-xl font-serif font-bold text-brand-primary">Mis Categorías</h2>
+                <p className="text-xs text-gray-500">En qué colaborás</p>
+              </div>
+            </div>
+            <button
+              onClick={openAddCategory}
+              className="px-4 py-2 bg-brand-primary/10 text-brand-primary rounded-xl text-sm font-bold flex items-center gap-1.5 hover:bg-brand-primary/20 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Agregar
+            </button>
+          </div>
+          {subscriptions.length > 0 ? (
+            <div className="space-y-2">
+              {subscriptions.map((sub: any) => (
+                <div key={`${sub.agrupacion_name}-${sub.category}`} className="flex items-center gap-3 p-3 bg-brand-bg rounded-xl">
+                  <span className="text-brand-primary">{getCategoryIcon(sub.category)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-800">{sub.category_name}</p>
+                    <p className="text-xs text-gray-400 truncate">{sub.agrupacion_name}</p>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveCategory(sub.agrupacion_id, sub.category)}
+                    className="w-8 h-8 rounded-full bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 flex items-center justify-center transition-colors shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 bg-brand-bg rounded-2xl border-2 border-dashed border-brand-accent">
+              <p className="text-gray-400 font-medium text-sm">Todavía no tenés categorías asignadas</p>
+            </div>
+          )}
+        </motion.div>
+      )}
+
       {/* Avatar upload */}
       {isMember && !isSuspended && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-brand-accent shadow-xl">
@@ -239,6 +353,87 @@ export default function MemberCardPage() {
 
       {cropFile && (
         <ImageCropper file={cropFile} aspect={1} onCropComplete={handleCropComplete} onCancel={handleCropCancel} />
+      )}
+
+      {/* Add Category Modal */}
+      {showAddCategory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={() => setShowAddCategory(false)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-xl p-6 sm:p-8 max-h-[85vh] overflow-y-auto"
+          >
+            {categorySuccess ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-10 h-10" />
+                </div>
+                <h3 className="text-xl font-serif font-bold text-brand-primary mb-2">¡Categorías agregadas!</h3>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-serif font-bold text-brand-primary">Agregar categorías</h3>
+                  <button onClick={() => setShowAddCategory(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 block">Agrupación</label>
+                    <select
+                      value={selectedAgrupacion}
+                      onChange={e => setSelectedAgrupacion(e.target.value)}
+                      className="w-full px-4 py-3 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
+                    >
+                      <option value="">Elegí una agrupación</option>
+                      {allAgrupaciones.map((ag: any) => (
+                        <option key={ag.id} value={ag.id}>{ag.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 block">Categorías</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {allCategories.map((cat: any) => {
+                        const isSelected = selectedNewCategories.includes(cat.id);
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => toggleNewCategory(cat.id)}
+                            className={`p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${
+                              isSelected
+                                ? 'bg-brand-primary/10 border-brand-primary/30'
+                                : 'bg-brand-bg border-brand-accent hover:border-brand-primary/20'
+                            }`}
+                          >
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                              isSelected ? 'bg-brand-primary text-white' : 'bg-brand-accent text-brand-primary'
+                            }`}>
+                              {getCategoryIcon(cat.id)}
+                            </div>
+                            <span className="text-sm font-bold text-brand-primary">{cat.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleAddCategories}
+                  disabled={!selectedAgrupacion || selectedNewCategories.length === 0 || savingCategory}
+                  className="w-full mt-6 px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingCategory ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                  Agregar
+                </button>
+              </>
+            )}
+          </motion.div>
+        </div>
       )}
     </div>
   );
