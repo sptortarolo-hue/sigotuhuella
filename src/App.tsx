@@ -36,6 +36,7 @@ const LostPetReport = lazy(() => import('@/src/pages/LostPetReport'));
 const CompleteRegistration = lazy(() => import('@/src/pages/CompleteRegistration'));
 const MyPetsPortal = lazy(() => import('@/src/pages/MyPetsPortal'));
 const MyPetDetail = lazy(() => import('@/src/pages/MyPetDetail'));
+const MiPortal = lazy(() => import('@/src/pages/MiPortal'));
 const PublicPetProfile = lazy(() => import('@/src/pages/PublicPetProfile'));
 const VetPetProfile = lazy(() => import('@/src/pages/VetPetProfile'));
 const Feed = lazy(() => import('@/src/pages/Feed'));
@@ -152,6 +153,7 @@ export default function App() {
               }
             >
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/mi-portal" element={<MiPortal />} />
               <Route path="/mi-mascota" element={<MyPetsPortal />} />
               <Route path="/mi-mascota/:id" element={<MyPetDetail />} />
               <Route path="/mis-publicaciones" element={<MyPets />} />

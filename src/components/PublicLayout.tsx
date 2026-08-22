@@ -21,7 +21,7 @@ export default function PublicLayout() {
   return (
     <>
       <PublicMobileTopBar />
-      <Sidebar onReportClick={user ? () => navigate('/reportar') : undefined} />
+      <Sidebar />
       <main className="pt-14 lg:pt-0 pb-16 lg:pb-0 lg:ml-64">
         <Outlet />
       </main>

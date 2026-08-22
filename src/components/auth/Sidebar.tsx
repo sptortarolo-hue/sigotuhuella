@@ -38,7 +38,7 @@ const moreBase = [
 
 const rifaItem = { label: 'Rifas', icon: Ticket, path: '/rifas' };
 
-export default function Sidebar({ onReportClick }: { onReportClick?: () => void }) {
+export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, isAdmin } = useAuth();
@@ -187,14 +187,6 @@ export default function Sidebar({ onReportClick }: { onReportClick?: () => void 
       <div className="p-4 border-t border-brand-accent">
         {user ? (
           <>
-            {onReportClick && (
-              <button
-                onClick={onReportClick}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg hover:-translate-y-0.5 transition-all"
-              >
-                <Plus className="w-5 h-5" /> Reportar
-              </button>
-            )}
             <div className="flex items-center gap-3 mt-4 px-2">
               <div className="w-8 h-8 rounded-full overflow-hidden bg-brand-primary/10 shrink-0">
                 {user.avatar_type === 'photo' && user.avatar_data ? (
