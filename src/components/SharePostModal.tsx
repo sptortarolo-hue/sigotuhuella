@@ -524,6 +524,7 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl max-h-[90vh] flex flex-col"
       >
+        <canvas ref={canvasRef} className="hidden" />
         <AnimatePresence mode="wait">
           {selectedPlatforms.length === 0 ? (
             <PlatformSelection key="selection-screen" onSelect={togglePlatform} />
