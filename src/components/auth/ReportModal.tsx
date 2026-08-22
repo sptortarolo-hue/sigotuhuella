@@ -27,6 +27,11 @@ export default function ReportModal({ open, onClose, onLostPetClick }: ReportMod
     navigate('/reportar-rapido');
   };
 
+  const handlePerdida = () => {
+    onClose();
+    navigate('/perdi-mi-mascota');
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') onClose();
   };
@@ -75,10 +80,7 @@ export default function ReportModal({ open, onClose, onLostPetClick }: ReportMod
 
               <div className="space-y-3">
                 <button
-                  onClick={() => {
-                    onClose();
-                    onLostPetClick();
-                  }}
+                  onClick={handlePerdida}
                   className={cn(
                     "w-full flex items-center gap-4 px-5 py-4 rounded-xl border border-brand-accent",
                     "bg-white hover:bg-brand-primary/5 transition-all",
@@ -90,7 +92,7 @@ export default function ReportModal({ open, onClose, onLostPetClick }: ReportMod
                   </div>
                   <div className="flex-1 text-left">
                     <p className="font-bold text-gray-900">Perdí mi mascota</p>
-                    <p className="text-sm text-gray-500">Seleccioná una de tus mascotas o reportá una nueva</p>
+                    <p className="text-sm text-gray-500">Completá el formulario para publicar el aviso</p>
                   </div>
                   <PawPrint className="w-5 h-5 text-brand-primary/50" />
                 </button>

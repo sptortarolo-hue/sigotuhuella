@@ -14,7 +14,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import ReportModal from '@/src/components/auth/ReportModal';
-import LostPetSelectorModal from '@/src/components/auth/LostPetSelectorModal';
 
 const formatRelativeTime = (iso: string) => {
   if (!iso) return '';
@@ -68,7 +67,6 @@ export default function MiPortal() {
   const [shareStatsLoading, setShareStatsLoading] = useState(true);
 
   const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [lostPetSelectorOpen, setLostPetSelectorOpen] = useState(false);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
@@ -252,10 +250,6 @@ const fetchInvites = async () => {
   ];
 
   const openReportModal = () => setReportModalOpen(true);
-  const handleLostPetClick = () => {
-    setReportModalOpen(false);
-    setLostPetSelectorOpen(true);
-  };
 
   const getSpeciesIcon = (species?: string) => {
     if (species === 'cat') return <Cat className="w-5 h-5" />;
@@ -685,13 +679,6 @@ const fetchInvites = async () => {
       <ReportModal
         open={reportModalOpen}
         onClose={() => setReportModalOpen(false)}
-        onLostPetClick={() => setLostPetSelectorOpen(true)}
-      />
-
-      <LostPetSelectorModal
-        open={lostPetSelectorOpen}
-        onClose={() => setLostPetSelectorOpen(false)}
-        pets={myPets}
       />
     </div>
   );
