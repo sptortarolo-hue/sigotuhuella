@@ -5,7 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Pet, getPetImageUrl, getPetCoordinates, getPublicContact } from '@/src/lib/petService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
-import { MapPin, Mail } from 'lucide-react';
+import { MapPin, Mail, Dog, Cat, PawPrint } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { LinkifiedText } from '@/src/lib/linkify';
 
@@ -14,12 +14,34 @@ interface PetMapProps {
   center: { lat: number; lng: number };
 }
 
-const createCustomIcon = (status: string) => {
-  const colorClass = status === 'lost' ? 'text-red-500' : 'text-emerald-500';
+const statusColors: Record<string, string> = {
+  lost: 'text-red-500',
+  retained: 'text-blue-500',
+  sighted: 'text-amber-500',
+  accidented: 'text-purple-500',
+  needs_attention: 'text-amber-600',
+  for_adoption: 'text-pink-500',
+  for_adoption_simple: 'text-orange-500',
+  adopted: 'text-green-500',
+  reunited: 'text-amber-500',
+  transitada: 'text-teal-500',
+};
+
+const SpeciesIcon = ({ species, className }: { species?: string; className?: string }) => {
+  if (species === 'cat') return <Cat className={className} />;
+  if (species === 'dog') return <Dog className={className} />;
+  return <PawPrint className={className} />;
+};
+
+const createCustomIcon = (status: string, species?: string) => {
+  const color = statusColors[status] || 'text-emerald-500';
   return L.divIcon({
     html: renderToStaticMarkup(
-      <div className={colorClass}>
+      <div className={`${color} relative`}>
         <MapPin className="w-8 h-8 fill-white stroke-[2.5px]" />
+        <div className="absolute inset-0 flex items-center justify-center pt-0.5">
+          <SpeciesIcon species={species} className="w-[11px] h-[11px] fill-current" />
+        </div>
       </div>
     ),
     iconSize: [32, 32],
@@ -28,10 +50,10 @@ const createCustomIcon = (status: string) => {
   });
 };
 
-const approximateIcon = L.divIcon({
+const createApproximateIcon = (species?: string) => L.divIcon({
   html: renderToStaticMarkup(
     <div className="w-8 h-8 rounded-full border-2 border-dashed border-amber-500 bg-amber-100/80 flex items-center justify-center shadow-sm">
-      <MapPin className="w-4 h-4 text-amber-600" />
+      <SpeciesIcon species={species} className="w-4 h-4 text-amber-600" />
     </div>
   ),
   iconSize: [32, 32],
@@ -123,7 +145,7 @@ export default function PetMap({ pets, center }: PetMapProps) {
               <Marker
                 key={pet.id}
                 position={[coords.lat, coords.lng]}
-                icon={createCustomIcon(pet.status)}
+                icon={createCustomIcon(pet.status, pet.species)}
               >
                 <Popup>
                   <div className="p-1 max-w-[200px]">
@@ -172,7 +194,7 @@ export default function PetMap({ pets, center }: PetMapProps) {
               />
               <Marker
                 position={[approx.lat, approx.lng]}
-                icon={approximateIcon}
+                icon={createApproximateIcon(pet.species)}
               >
                 <Popup>
                   <div className="p-1 max-w-[200px]">
