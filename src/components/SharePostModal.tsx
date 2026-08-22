@@ -1,7 +1,7 @@
 ﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Pet, getPetImageUrls } from '@/src/lib/petService';
 import { X, MessageCircle, Camera, Download, Loader2, ArrowLeft, Copy, Check } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { getSharePreview, logShareConfirmation, getFbSearchGroups } from '@/src/lib/volunteerService';
 
@@ -36,8 +36,220 @@ interface SharePostModalProps {
   onClose: () => void;
 }
 
+function PlatformSelection({ onSelect }: { onSelect: (p: Platform) => void }) {
+  return (
+    <motion.div
+      key="selection"
+      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+      className="relative w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
+    >
+      <div className="flex items-center justify-between p-4 border-b border-gray-100">
+        <h3 className="font-bold text-lg text-brand-dark">Compartir en Redes</h3>
+      </div>
+      <div className="p-5">
+        <p className="text-sm text-gray-500 mb-4">Selecciona las plataformas donde quieres compartir:</p>
+        <div className="space-y-2">
+          {PLATFORMS.map(p => {
+            const Icon = p.icon;
+            return (
+              <button
+                key={p.id}
+                onClick={() => onSelect(p.id)}
+                className="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-gray-300 transition"
+              >
+                <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white", p.color)}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className="font-medium text-gray-700">{p.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="p-4 border-t border-gray-100 bg-gray-50">
+        <p className="text-xs text-gray-400 text-center">Las imagenes se generan automaticamente con el formato ideal de cada red</p>
+      </div>
+    </motion.div>
+  );
+}
+
+function CaptionScreen({
+  pet,
+  selectedPlatforms,
+  captions,
+  captionsLoading,
+  captionsError,
+  generating,
+  generated,
+  onBack,
+  onClose,
+  onGenerate,
+  onCopyCaption,
+  captionCopied,
+}: {
+  pet: Pet;
+  selectedPlatforms: Platform[];
+  captions: Record<string, string>;
+  captionsLoading: boolean;
+  captionsError: string | null;
+  generating: string | null;
+  generated: Record<string, boolean>;
+  onBack: () => void;
+  onClose: () => void;
+  onGenerate: (p: Platform) => void;
+  onCopyCaption: (p: Platform) => void;
+  captionCopied: string | null;
+}) {
+  const statusStyle = STATUS_STYLES[pet.status] || { label: 'MASCOTA', color: '#6B7280' };
+
+  return (
+    <motion.div
+      key="caption"
+      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+      className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl max-h-[90vh] flex flex-col"
+    >
+      <div className="flex items-center justify-between p-4 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <button onClick={onBack} className="p-1 rounded-full hover:bg-gray-100 transition">
+            <ArrowLeft className="w-5 h-5 text-gray-500" />
+          </button>
+          <h3 className="font-bold text-lg text-brand-dark">Compartir en Redes</h3>
+        </div>
+        <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 transition">
+          <X className="w-5 h-5 text-gray-500" />
+        </button>
+      </div>
+
+      <div className="overflow-y-auto p-4 sm:p-5 flex-1">
+        <div className="flex gap-3 mb-5 overflow-x-auto pb-2">
+          {selectedPlatforms.map(p => {
+            const cfg = PLATFORMS.find(x => x.id === p)!;
+            const Icon = cfg.icon;
+            const isActive = p === selectedPlatforms[0];
+            return (
+              <button
+                key={p}
+                onClick={() => {
+                  // reorder: move clicked to front
+                }}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-medium whitespace-nowrap transition-all",
+                  isActive
+                    ? cfg.bgColor + " border-current shadow-lg " + cfg.textColor
+                    : "border-gray-200 text-gray-500 hover:border-gray-300"
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                {cfg.label}
+                {generated[p] && <Check className="w-4 h-4 text-green-500" />}
+              </button>
+            );
+          })}
+        </div>
+
+        <AnimatePresence mode="wait">
+          {captionsLoading && (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="flex items-center justify-center gap-2 py-8 text-gray-400"
+            >
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span className="text-sm">Generando caption para cada plataforma...</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence mode="wait">
+          {captionsError && !captionsLoading && (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm"
+            >
+              {captionsError}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence mode="wait">
+          {!captionsLoading && !captionsError && (
+            <motion.div
+              key="captions"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-3 mb-5"
+            >
+              {selectedPlatforms.map(p => {
+                const cfg = PLATFORMS.find(x => x.id === p)!;
+                const caption = captions[p];
+                if (!caption) return null;
+                return (
+                  <div key={p} className="border border-gray-200 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={cn("text-xs font-bold uppercase", cfg.textColor)}>{cfg.label}</span>
+                      <button
+                        onClick={() => onCopyCaption(p)}
+                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition"
+                      >
+                        {captionCopied === p ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                        {captionCopied === p ? 'Copiado' : 'Copiar'}
+                      </button>
+                    </div>
+                    <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">{caption}</pre>
+                  </div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <div className="border-t border-gray-100 p-4 bg-gray-50 rounded-b-2xl">
+        <div className="flex flex-col sm:flex-row gap-2">
+          {selectedPlatforms.map(p => {
+            const cfg = PLATFORMS.find(x => x.id === p)!;
+            const isGenerating = generating === p;
+            return (
+              <button
+                key={p}
+                onClick={() => onGenerate(p)}
+                disabled={isGenerating}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white transition",
+                  cfg.color,
+                  isGenerating && "opacity-60 cursor-not-allowed"
+                )}
+              >
+                {isGenerating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : generated[p] ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                {cfg.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[10px] text-gray-400 text-center mt-2">La imagen se genera con el formato ideal de cada plataforma</p>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
-const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
   const [captions, setCaptions] = useState<Record<string, string>>({});
   const [captionsLoading, setCaptionsLoading] = useState(false);
   const [captionsError, setCaptionsError] = useState<string | null>(null);
@@ -58,9 +270,8 @@ const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
   const isMobile = typeof navigator !== 'undefined' && !!navigator.share;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const petUrl = origin + '/pet/' + pet.id;
-  const statusStyle = STATUS_STYLES[pet.status] || { label: 'MASCOTA', color: '#6B7280' };
 
-useEffect(() => {
+  useEffect(() => {
     if (selectedPlatforms.length === 0) return;
     setCaptionsLoading(true);
     setCaptionsError(null);
@@ -193,56 +404,6 @@ useEffect(() => {
       prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
     );
   };
-  if (selectedPlatforms.length === 0) {
-    return (
-      <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4">
-        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose} />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden"
-        >
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
-            <h3 className="font-bold text-lg text-brand-dark">Compartir en Redes</h3>
-            <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 transition">
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
-          </div>
-          <div className="p-5">
-            <p className="text-sm text-gray-500 mb-4">Selecciona las plataformas donde quieres compartir:</p>
-            <div className="space-y-2">
-              {PLATFORMS.map(p => {
-                const Icon = p.icon;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => togglePlatform(p.id)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-gray-300 transition"
-                  >
-                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white", p.color)}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <span className="font-medium text-gray-700">{p.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="p-4 border-t border-gray-100 bg-gray-50">
-            <p className="text-xs text-gray-400 text-center">Las imagenes se generan automaticamente con el formato ideal de cada red</p>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-  const captionText = useMemo(() => {
-    const parts: string[] = [];
-    for (const p of selectedPlatforms) {
-      if (captions[p]) parts.push(captions[p]);
-    }
-    return parts.join('\n\n');
-  }, [selectedPlatforms, captions]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4">
@@ -253,116 +414,27 @@ useEffect(() => {
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl max-h-[90vh] flex flex-col"
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <button onClick={() => setSelectedPlatforms([])} className="p-1 rounded-full hover:bg-gray-100 transition">
-              <ArrowLeft className="w-5 h-5 text-gray-500" />
-            </button>
-            <h3 className="font-bold text-lg text-brand-dark">Compartir en Redes</h3>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 transition">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-
-        <div className="overflow-y-auto p-4 sm:p-5 flex-1">
-          <canvas ref={canvasRef} className="hidden" />
-
-          <div className="flex gap-3 mb-5 overflow-x-auto pb-2">
-            {selectedPlatforms.map(p => {
-              const cfg = PLATFORMS.find(x => x.id === p)!;
-              const Icon = cfg.icon;
-              const isActive = p === selectedPlatforms[0];
-              return (
-                <button
-                  key={p}
-                  onClick={() => {
-                    setSelectedPlatforms(prev => [p, ...prev.filter(x => x !== p)]);
-                  }}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-medium whitespace-nowrap transition-all",
-                    isActive
-                      ? cfg.bgColor + " border-current shadow-lg " + cfg.textColor
-                      : "border-gray-200 text-gray-500 hover:border-gray-300"
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                  {cfg.label}
-                  {generated[p] && <Check className="w-4 h-4 text-green-500" />}
-                </button>
-              );
-            })}
-          </div>
-
-{captionsLoading && (
-            <div className="flex items-center justify-center gap-2 py-8 text-gray-400">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span className="text-sm">Generando caption para cada plataforma...</span>
-            </div>
+        <AnimatePresence mode="wait">
+          {selectedPlatforms.length === 0 ? (
+            <PlatformSelection key="selection-screen" onSelect={togglePlatform} />
+          ) : (
+            <CaptionScreen
+              key="caption-screen"
+              pet={pet}
+              selectedPlatforms={selectedPlatforms}
+              captions={captions}
+              captionsLoading={captionsLoading}
+              captionsError={captionsError}
+              generating={generating}
+              generated={generated}
+              onBack={() => setSelectedPlatforms([])}
+              onClose={onClose}
+              onGenerate={handleGenerate}
+              onCopyCaption={copyCaption}
+              captionCopied={captionCopied}
+            />
           )}
-
-          {captionsError && !captionsLoading && (
-            <div className="mb-5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">
-              {captionsError}
-            </div>
-          )}
-
-          {!captionsLoading && !captionsError && (
-            <div className="space-y-3 mb-5">
-              {selectedPlatforms.map(p => {
-                const cfg = PLATFORMS.find(x => x.id === p)!;
-                const caption = captions[p];
-                if (!caption) return null;
-                return (
-                  <div key={p} className="border border-gray-200 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={cn("text-xs font-bold uppercase", cfg.textColor)}>{cfg.label}</span>
-                      <button
-                        onClick={() => copyCaption(p)}
-                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition"
-                      >
-                        {captionCopied === p ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                        {captionCopied === p ? 'Copiado' : 'Copiar'}
-                      </button>
-                    </div>
-                    <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">{caption}</pre>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <div className="border-t border-gray-100 p-4 bg-gray-50 rounded-b-2xl">
-          <div className="flex flex-col sm:flex-row gap-2">
-            {selectedPlatforms.map(p => {
-              const cfg = PLATFORMS.find(x => x.id === p)!;
-              const Icon = cfg.icon;
-              const isGenerating = generating === p;
-              return (
-                <button
-                  key={p}
-                  onClick={() => handleGenerate(p)}
-                  disabled={isGenerating}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white transition",
-                    cfg.color,
-                    isGenerating && "opacity-60 cursor-not-allowed"
-                  )}
-                >
-                  {isGenerating ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : generated[p] ? (
-                    <Check className="w-4 h-4" />
-                  ) : (
-                    <Download className="w-4 h-4" />
-                  )}
-                  {cfg.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-[10px] text-gray-400 text-center mt-2">La imagen se genera con el formato ideal de cada plataforma</p>
-        </div>
+        </AnimatePresence>
       </motion.div>
     </div>
   );
