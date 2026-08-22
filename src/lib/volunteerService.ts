@@ -62,6 +62,16 @@ export async function deleteAgrupacion(id: string) {
   return volRequest(`/agrupaciones/${id}`, { method: 'DELETE' });
 }
 
+export async function getUsersForAgrupacion() {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${apiUrl('/api/users')}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch users');
+  const data = await res.json();
+  return data.users;
+}
+
 // ── Categorías ───────────────────────────────────────────────────
 
 export async function getCategories() {

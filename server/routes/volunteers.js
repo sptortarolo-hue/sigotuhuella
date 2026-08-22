@@ -273,7 +273,13 @@ router.get('/agrupaciones', requireAuth, async (req, res) => {
 router.get('/agrupaciones/all', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM agrupaciones ORDER BY name'
+      `SELECT a.*,
+        au.email as admin_email, au.display_name as admin_name,
+        cu.email as coordinator_email, cu.display_name as coordinator_name
+       FROM agrupaciones a
+       LEFT JOIN users au ON au.id = a.admin_user_id
+       LEFT JOIN users cu ON cu.id = a.coordinator_user_id
+       ORDER BY a.name`
     );
     res.json({ agrupaciones: result.rows });
   } catch (err) {
@@ -283,13 +289,13 @@ router.get('/agrupaciones/all', requireAdmin, async (req, res) => {
 });
 
 router.post('/agrupaciones', requireAdmin, async (req, res) => {
-  const { name, description, neighborhoods, contact_whatsapp, contact_email, logo_url } = req.body;
+  const { name, description, neighborhoods, contact_whatsapp, contact_email, logo_url, admin_user_id, coordinator_user_id } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
     const result = await pool.query(
-      `INSERT INTO agrupaciones (name, description, neighborhoods, contact_whatsapp, contact_email, logo_url)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [name, description || null, JSON.stringify(neighborhoods || []), contact_whatsapp || null, contact_email || null, logo_url || null]
+      `INSERT INTO agrupaciones (name, description, neighborhoods, contact_whatsapp, contact_email, logo_url, admin_user_id, coordinator_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [name, description || null, JSON.stringify(neighborhoods || []), contact_whatsapp || null, contact_email || null, logo_url || null, admin_user_id || null, coordinator_user_id || null]
     );
     res.status(201).json({ agrupacion: result.rows[0] });
   } catch (err) {
@@ -299,7 +305,7 @@ router.post('/agrupaciones', requireAdmin, async (req, res) => {
 });
 
 router.put('/agrupaciones/:id', requireAdmin, async (req, res) => {
-  const { name, description, neighborhoods, contact_whatsapp, contact_email, logo_url, is_active } = req.body;
+  const { name, description, neighborhoods, contact_whatsapp, contact_email, logo_url, is_active, admin_user_id, coordinator_user_id } = req.body;
   try {
     const result = await pool.query(
       `UPDATE agrupaciones SET
@@ -309,9 +315,11 @@ router.put('/agrupaciones/:id', requireAdmin, async (req, res) => {
         contact_whatsapp = COALESCE($4, contact_whatsapp),
         contact_email = COALESCE($5, contact_email),
         logo_url = COALESCE($6, logo_url),
-        is_active = COALESCE($7, is_active)
-       WHERE id = $8 RETURNING *`,
-      [name, description, neighborhoods ? JSON.stringify(neighborhoods) : null, contact_whatsapp, contact_email, logo_url, is_active, req.params.id]
+        is_active = COALESCE($7, is_active),
+        admin_user_id = $8,
+        coordinator_user_id = $9
+       WHERE id = $10 RETURNING *`,
+      [name, description, neighborhoods ? JSON.stringify(neighborhoods) : null, contact_whatsapp, contact_email, logo_url, is_active, admin_user_id || null, coordinator_user_id || null, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Agrupacion not found' });
     res.json({ agrupacion: result.rows[0] });
@@ -673,12 +681,17 @@ router.get('/dashboard', requireAuth, async (req, res) => {
       petsInZone = await pool.query(
         `SELECT id, name, species, status, location, neighborhoods, created_at
          FROM pets
-         WHERE neighborhoods && $1::text[]
+         WHERE neighborhoods IS NOT NULL
+           AND neighborhoods != '[]'
+           AND EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(neighborhoods::jsonb) elem
+             WHERE elem = ANY($1::text[])
+           )
            AND status IN ('LOST', 'SIGHTED', 'ACCIDENTED')
            AND is_hidden = FALSE
          ORDER BY created_at DESC
          LIMIT 20`,
-        [JSON.stringify(allNeighborhoods)]
+        [allNeighborhoods]
       );
     }
 

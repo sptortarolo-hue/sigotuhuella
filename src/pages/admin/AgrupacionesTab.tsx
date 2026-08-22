@@ -2,7 +2,7 @@
 import {
   getAllAgrupaciones, createAgrupacion, updateAgrupacion, deleteAgrupacion,
   getPendingFbSearchGroups, approveFbSearchGroup, deleteFbSearchGroup,
-  getFbSearchGroups,
+  getFbSearchGroups, getUsersForAgrupacion,
 } from '@/src/lib/volunteerService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import {

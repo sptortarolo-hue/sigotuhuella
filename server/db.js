@@ -1840,8 +1840,8 @@ export async function initDb() {
 
     await migrate(client, `
       INSERT INTO agrupaciones (name, description, is_active)
-      SELECT 'SiHuella', 'Agrupación principal - voluntarios generales de la red SiHuella', TRUE
-      WHERE NOT EXISTS (SELECT 1 FROM agrupaciones WHERE name = 'SiHuella');
+      SELECT 'Sigo Tu Huella', 'Agrupación principal - voluntarios generales de la red Sigo Tu Huella', TRUE
+      WHERE NOT EXISTS (SELECT 1 FROM agrupaciones WHERE name = 'Sigo Tu Huella');
     `, 'agrupaciones_seed');
 
     await migrate(client, `
@@ -1885,7 +1885,7 @@ export async function initDb() {
       FROM users u
       CROSS JOIN agrupaciones a
       WHERE u.volunteer_status = 'active'
-        AND a.name = 'SiHuella'
+        AND a.name = 'Sigo Tu Huella'
         AND NOT EXISTS (
           SELECT 1 FROM volunteer_subscriptions vs
           WHERE vs.user_id = u.id AND vs.agrupacion_id = a.id AND vs.category = 'difusion'
@@ -1955,6 +1955,11 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_volunteer_findings_pet ON volunteer_findings(pet_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_volunteer_findings_user ON volunteer_findings(user_id, created_at);
     `, 'volunteer_findings');
+
+    await migrate(client, `
+      ALTER TABLE agrupaciones ADD COLUMN IF NOT EXISTS admin_user_id UUID REFERENCES users(id) ON DELETE SET NULL;
+      ALTER TABLE agrupaciones ADD COLUMN IF NOT EXISTS coordinator_user_id UUID REFERENCES users(id) ON DELETE SET NULL;
+    `, 'agrupaciones_admin_coordinator');
 
     console.log('Database migrations complete');
   } finally {
