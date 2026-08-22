@@ -102,6 +102,19 @@ export async function recordPublicationEvent(petId, eventType, payload) {
   return createCaseEvent(result.rows[0].id, eventType, payload);
 }
 
+// Registra que un voluntario compartió en un grupo específico (timeline del caso)
+export async function recordSocialShare(petId, userId, { platform, group_name, group_url, share_log_id }) {
+  const caseRes = await pool.query('SELECT id FROM pet_cases WHERE pet_id = $1 LIMIT 1', [petId]);
+  if (caseRes.rows.length === 0) return null;
+  return createCaseEvent(caseRes.rows[0].id, 'social_shared', {
+    platform: platform || 'facebook',
+    group_name: group_name || null,
+    group_url: group_url || null,
+    share_log_id: share_log_id || null,
+    status: 'shared',
+  }, userId);
+}
+
 // Sincroniza el caso cuando cambia pets.status (cerrar en reunited/adopted, reactivar si vuelve a estar perdido)
 export async function syncCaseStatus(petId, newStatus, fromStatus = null) {
   try {
@@ -680,6 +693,25 @@ export async function getCaseShares(caseId) {
     shares.push({
       platform: 'whatsapp',
       group_name: p.group_name || 'Grupo de WhatsApp',
+      date: r.created_at,
+    });
+  });
+
+  // Shares manuales de voluntarios (social_shared)
+  const volRes = await pool.query(
+    `SELECT ce.payload, ce.created_at, u.display_name FROM case_events ce
+     LEFT JOIN users u ON u.id = ce.user_id
+     WHERE ce.case_id = $1 AND ce.event_type = 'social_shared'
+     ORDER BY ce.created_at DESC`,
+    [caseId]
+  );
+  volRes.rows.forEach(r => {
+    const p = r.payload || {};
+    shares.push({
+      platform: p.platform || 'facebook',
+      url: p.url || p.group_url || null,
+      group_name: p.group_name || null,
+      volunteer: r.display_name || null,
       date: r.created_at,
     });
   });

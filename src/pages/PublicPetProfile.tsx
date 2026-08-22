@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import FoundReportModal from '@/src/components/FoundReportModal';
+import SocialShareModal from '@/src/components/SocialShareModal';
 import { getCurrentPosition } from '@/src/lib/geolocation';
 import { Helmet } from 'react-helmet-async';
 
@@ -33,6 +34,7 @@ export default function PublicPetProfile() {
   const [showFoundModal, setShowFoundModal] = useState(false);
   const [foundSuccess, setFoundSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [scanSent, setScanSent] = useState(false);
   const [sendingScan, setSendingScan] = useState(false);
 
@@ -68,10 +70,14 @@ export default function PublicPetProfile() {
     }
   };
 
-  const shareWhatsApp = () => {
-    const pet = data?.pet;
-    const text = `🐾 Conocé a ${pet?.name || 'esta mascota'} — tiene identificación digital con Sigo Tu Huella\n\n${profileUrl}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  const handleShare = () => {
+    if (navigator.share && data?.pet) {
+      const pet = data.pet;
+      const text = `🐾 Conocé a ${pet.name || 'esta mascota'} — tiene identificación digital con Sigo Tu Huella\n\n${profileUrl}`;
+      navigator.share({ title: pet.name || 'Mascota', text, url: profileUrl }).catch(() => {});
+    } else {
+      setShowShareModal(true);
+    }
   };
 
   const copyLink = async () => {
@@ -239,7 +245,7 @@ export default function PublicPetProfile() {
                 {genderIcon} {genderLabel}{pet.age ? ` · ${pet.age}` : ''}
               </p>
               <div className="flex items-center justify-center sm:justify-start gap-2 mt-3">
-                <button onClick={shareWhatsApp} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-xl text-white text-xs font-medium transition-all">
+                <button onClick={handleShare} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-xl text-white text-xs font-medium transition-all">
                   <Share2 className="w-3.5 h-3.5" /> Compartir
                 </button>
                 <button onClick={copyLink} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-xl text-white text-xs font-medium transition-all">
@@ -448,6 +454,10 @@ export default function PublicPetProfile() {
           />
         )}
       </AnimatePresence>
+
+      {showShareModal && data?.pet && (
+        <SocialShareModal pet={data.pet} onClose={() => setShowShareModal(false)} />
+      )}
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, PawPrint, User, Plus, Sparkles, Share2, Camera, HandCoins, LogOut, Heart, Search, LogIn, LayoutDashboard, Bell, BellOff, Settings, Ticket, FolderOpen } from 'lucide-react';
+import { Home, PawPrint, User, Plus, Sparkles, Share2, Camera, HandCoins, LogOut, Heart, Search, LogIn, LayoutDashboard, Bell, BellOff, Settings, Ticket, FolderOpen, Megaphone } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pushService';
 import { api } from '@/src/lib/api';
 import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
+import NotificationBell from '@/src/components/NotificationBell';
 const publicBase = [
   { label: 'Inicio', icon: Home, path: '/' },
   { label: 'Mascotas Reportadas', icon: Search, path: '/perdidos' },
@@ -21,6 +22,7 @@ const portalItems = [
   { label: 'Mi Portal', icon: LayoutDashboard, path: '/dashboard' },
   { label: 'Mis Mascotas', icon: PawPrint, path: '/mi-mascota' },
   { label: 'Mis Casos', icon: FolderOpen, path: '/mis-casos' },
+  { label: 'Voluntario', icon: Megaphone, path: '/voluntario' },
   { label: 'Mi Perfil', icon: User, path: '/perfil' },
 ];
 
@@ -93,7 +95,7 @@ export default function Sidebar({ onReportClick }: { onReportClick?: () => void 
         {pushEnabled !== null && (
           <button
             onClick={handleBellClick}
-            title={pushEnabled ? 'Desactivar notificaciones' : 'Activar notificaciones'}
+            title={pushEnabled ? 'Desactivar notificaciones push' : 'Activar notificaciones push'}
             className={cn(
               "p-2 rounded-full transition-colors shrink-0",
               pushEnabled ? "text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20" : "text-gray-400 hover:text-brand-primary hover:bg-brand-primary/10"
@@ -102,6 +104,7 @@ export default function Sidebar({ onReportClick }: { onReportClick?: () => void 
             {pushEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
           </button>
         )}
+        {user && <NotificationBell />}
         {!IS_PLAY_BUILD && isAdmin && (
           <button
             onClick={() => navigate('/admin')}

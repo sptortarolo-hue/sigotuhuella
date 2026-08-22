@@ -35,6 +35,7 @@ import RafflesTab from '@/src/components/admin/RafflesTab';
 import BackupTab from '@/src/components/admin/BackupTab';
 import ModerationTab from '@/src/components/admin/ModerationTab';
 import CasesTab from '@/src/components/admin/CasesTab';
+import AgrupacionesTab from '@/src/pages/admin/AgrupacionesTab';
 import {
   Plus, X, Loader2, Save, AlertCircle, Camera, FileText, Download, Activity,
   CreditCard, Users, LayoutDashboard, Trash2, Flag,
@@ -73,7 +74,7 @@ const PERSONALITY_TAGS = [
 
 export default function Admin() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles' | 'backup' | 'moderation' | 'blacklist' | 'cases'>('pets');
+  const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles' | 'backup' | 'moderation' | 'blacklist' | 'cases' | 'agrupaciones'>('pets');
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['pets']));
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(['pets', 'users']));
 
@@ -1156,6 +1157,7 @@ export default function Admin() {
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'backup', label: 'Backup', icon: HardDrive },
   { id: 'cases', label: 'Casos', icon: FolderOpen },
+  { id: 'agrupaciones', label: 'Agrupaciones', icon: Users },
         ].map(tab => (
           <button
             key={tab.id}
@@ -2362,6 +2364,9 @@ export default function Admin() {
 
           {/* ====== CASOS ====== */}
           {mountedTabs.has('cases') && <div className={activeTab === 'cases' ? '' : 'hidden'}><CasesTab /></div>}
+
+          {/* ====== AGRUPACIONES ====== */}
+          {mountedTabs.has('agrupaciones') && <div className={activeTab === 'agrupaciones' ? '' : 'hidden'}><AgrupacionesTab /></div>}
 
             {/* ====== VIDEOS ====== */}
             {mountedTabs.has('videos') && <div className={activeTab === 'videos' ? '' : 'hidden'}><VideoGeneratorTab /></div>}

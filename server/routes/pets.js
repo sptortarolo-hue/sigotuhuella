@@ -6,6 +6,7 @@ import { createPetCase, generateCaseNumber } from '../services/caseService.js';
 import { celebrateStatusChange } from '../services/reunionCelebration.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { notifyPetPublication } from '../services/petPublicationNotification.js';
+import { notifyVolunteersOfNewPet } from '../services/volunteerNotificationService.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import { replyToComment } from '../services/instagramService.js';
@@ -310,6 +311,7 @@ router.post('/', requireAuth, async (req, res) => {
     if (cnt === 15) await awardBadgeIfMissing(req.user.id, 'reporter_15');
 
     notifyPetPublication(pet.id, req.user.phone).catch(e => console.error('Publication notify error:', e));
+    notifyVolunteersOfNewPet(pet).catch(e => console.error('Volunteer notify error:', e));
     matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
     matchWhatsAppToPets(pet.id).catch(e => console.error('WhatsApp matching error:', e));
     matchPetToPets(pet).catch(e => console.error('Pet↔pet matching error:', e));
@@ -1516,6 +1518,7 @@ router.post('/public', async (req, res) => {
         matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
         matchWhatsAppToPets(pet.id).catch(e => console.error('Matching WhatsApp->pets error:', e));
         matchPetToPets(pet).catch(e => console.error('Pet↔pet matching error:', e));
+        notifyVolunteersOfNewPet(pet).catch(e => console.error('Volunteer notify error:', e));
         await createPetCase(pet, { source: 'app_anon' });
 
         // Auto-broadcast to WhatsApp groups for active statuses

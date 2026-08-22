@@ -1,4 +1,4 @@
-import { FilePlus2, Instagram, Facebook, MessageCircle, Users, MapPin, Radar, HandHeart, PartyPopper, Lock, Info, BellRing, QrCode, RefreshCw, Copy, Layers, SplitSquareHorizontal, FolderOpen } from 'lucide-react';
+import { FilePlus2, Instagram, Facebook, MessageCircle, Users, MapPin, Radar, HandHeart, PartyPopper, Lock, Info, BellRing, QrCode, RefreshCw, Copy, Layers, SplitSquareHorizontal, FolderOpen, Search, BadgeCheck } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { openExternalLink } from '@/src/lib/utils';
 
@@ -27,6 +27,8 @@ const EVENT_ICONS: Record<string, any> = {
   case_reopened: FolderOpen,
   ig_comment_received: Instagram,
   fb_comment_received: Facebook,
+  volunteer_finding: Search,
+  finding_confirmed: BadgeCheck,
 };
 
 const EVENT_STYLES: Record<string, string> = {
@@ -54,6 +56,8 @@ const EVENT_STYLES: Record<string, string> = {
   case_reopened: 'bg-emerald-500/10 text-emerald-600',
   ig_comment_received: 'bg-pink-500/10 text-pink-600',
   fb_comment_received: 'bg-blue-500/10 text-blue-600',
+  volunteer_finding: 'bg-amber-500/10 text-amber-600',
+  finding_confirmed: 'bg-emerald-500/10 text-emerald-600',
 };
 
 function eventLabel(type: string, payload: any) {
@@ -88,6 +92,8 @@ function eventLabel(type: string, payload: any) {
     case 'case_reopened': return 'Caso reabierto';
     case 'ig_comment_received': return 'Nuevo comentario en Instagram';
     case 'fb_comment_received': return 'Nuevo comentario en Facebook';
+    case 'volunteer_finding': return 'Hallazgo del buscador';
+    case 'finding_confirmed': return 'Confirmado por el reportante';
     default: return type;
   }
 }
@@ -114,9 +120,11 @@ function eventDetail(type: string, payload: any) {
       return payload?.message || 'Se envió la publicación al reportante por WhatsApp';
     case 'neighborhood_alert_sent':
       return payload?.recipients ? `${payload.recipients} vecinos notificados en un radio de ${payload.radius_km ?? 5}km` : null;
-    case 'social_shared':
-      if (payload?.platform) return payload.platform;
-      return null;
+    case 'social_shared': {
+      const parts = [payload?.platform || 'redes'];
+      if (payload?.group_name) parts.push(`"${payload.group_name}"`);
+      return parts.join(' · ') || null;
+    }
     case 'match_confirmed':
       return payload?.matched_pet_id ? 'Se encontró una coincidencia visual con otra publicación.' : null;
     case 'sighting_reported':
@@ -158,6 +166,12 @@ return `El caso queda activo hasta el ${d.toLocaleDateString('es-AR', { day: '2-
       return payload?.username ? `@${payload.username}` : null;
     case 'fb_comment_received':
       return payload?.author_name || null;
+    case 'volunteer_finding': {
+      const parts = [];
+      if (payload?.group_name) parts.push(`Grupo "${payload.group_name}"`);
+      if (payload?.description) parts.push(payload.description);
+      return parts.length ? parts.join(' · ') : null;
+    }
     default: return null;
   }
 }
@@ -167,10 +181,23 @@ function formatDate(iso: string) {
   return d.toLocaleString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export default function CaseTimeline({ events }: { events: any[] }) {
+interface CaseTimelineProps {
+  events: any[];
+  pet?: { id: string; status: string; name?: string } | null;
+  isOwner?: boolean;
+  onConfirmFinding?: (findingId: string) => void;
+  onReuniteFromFinding?: (findingId: string) => void;
+  confirmingId?: string | null;
+}
+
+export default function CaseTimeline({ events, pet, isOwner, onConfirmFinding, onReuniteFromFinding, confirmingId }: CaseTimelineProps) {
   if (!events || events.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-8">Todavía no hay eventos registrados en el caso.</p>;
   }
+
+  const isLost = pet?.status === 'lost';
+  const isRetained = pet?.status === 'retained';
+  const canConfirm = isOwner && (isLost || isRetained);
 
   return (
     <ol className="relative space-y-4 border-l-2 border-brand-accent ml-3">
@@ -206,6 +233,45 @@ export default function CaseTimeline({ events }: { events: any[] }) {
               )}
               {ev.event_type === 'facebook_replica' && ev.payload?.fb_post_url && (
                 <button onClick={() => openExternalLink(ev.payload.fb_post_url)} className="text-xs text-brand-primary underline mt-1 inline-block">Ver post en Facebook</button>
+              )}
+              {ev.event_type === 'social_shared' && ev.payload?.group_url && (
+                <button onClick={() => openExternalLink(ev.payload.group_url)} className="text-xs text-brand-primary underline mt-1 inline-block">Ver grupo en Facebook</button>
+              )}
+              {ev.event_type === 'social_shared' && ev.payload?.url && (
+                <button onClick={() => openExternalLink(ev.payload.url)} className="text-xs text-brand-primary underline mt-1 inline-block">Ver post en Facebook</button>
+              )}
+              {ev.event_type === 'volunteer_finding' && ev.payload?.fb_url && (
+                <button onClick={() => openExternalLink(ev.payload.fb_url)} className="text-xs text-brand-primary underline mt-1 inline-block">Ver post en Facebook</button>
+              )}
+              {ev.event_type === 'volunteer_finding' && canConfirm && !ev.payload?.confirmed_by_owner && onConfirmFinding && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => onConfirmFinding(ev.payload?.finding_id || ev.id)}
+                    disabled={confirmingId === ev.id}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                  >
+                    {confirmingId === ev.id ? 'Confirmando...' : (isLost ? '¿Es tu mascota?' : '¿Es esta mascota?')}
+                  </button>
+                </div>
+              )}
+              {ev.event_type === 'volunteer_finding' && canConfirm && ev.payload?.confirmed_by_owner && onReuniteFromFinding && (
+                <div className="mt-2 space-y-2">
+                  <p className="text-xs text-emerald-600 font-bold flex items-center gap-1">
+                    <BadgeCheck className="w-3.5 h-3.5" /> Confirmado por el reportante
+                  </p>
+                  <button
+                    onClick={() => onReuniteFromFinding(ev.payload?.finding_id || ev.id)}
+                    disabled={confirmingId === ev.id}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-brand-primary text-white hover:bg-brand-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {confirmingId === ev.id ? 'Procesando...' : (isLost ? '¿Lograste el reencuentro?' : '¿Se la llevaron?')}
+                  </button>
+                </div>
+              )}
+              {ev.event_type === 'finding_confirmed' && (
+                <p className="text-xs text-emerald-600 font-bold flex items-center gap-1 mt-1">
+                  <BadgeCheck className="w-3.5 h-3.5" /> El reportante verificó que es la mascota
+                </p>
               )}
               {ev.user_name && !(ev.user_role === 'admin' && (ev.event_type === 'reunited' || ev.event_type === 'reunion_announced')) && !(ev.event_type === 'case_created' && ['lost_report', 'backfill'].includes(ev.payload?.source)) && <p className="text-xs text-gray-400 mt-1.5">por {ev.user_name}</p>}
             </div>

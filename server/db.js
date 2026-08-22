@@ -1823,6 +1823,116 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_pet_group_history_member ON pet_group_history(member_pet_id);
     `, 'pet_group_history');
 
+    // ── Voluntarios digitales y agrupaciones ──────────────────────────
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS agrupaciones (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        neighborhoods JSONB DEFAULT '[]'::jsonb,
+        contact_whatsapp VARCHAR(100),
+        contact_email VARCHAR(255),
+        logo_url TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `, 'agrupaciones');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS volunteer_categories (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        icon VARCHAR(50),
+        is_active BOOLEAN DEFAULT TRUE
+      );
+    `, 'volunteer_categories');
+
+    await migrate(client, `
+      INSERT INTO volunteer_categories (id, name, description, icon) VALUES
+        ('difusion', 'Difusión en Redes', 'Comparte mascotas perdidas en tus redes sociales para aumentar el alcance', 'Share2'),
+        ('busqueda', 'Búsqueda en Redes', 'Investiga en grupos de Facebook y redes sociales para encontrar pistas de mascotas perdidas', 'Search')
+      ON CONFLICT (id) DO NOTHING;
+    `, 'volunteer_categories_seed');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS volunteer_subscriptions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        agrupacion_id UUID NOT NULL REFERENCES agrupaciones(id) ON DELETE CASCADE,
+        category VARCHAR(50) NOT NULL REFERENCES volunteer_categories(id),
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, agrupacion_id, category)
+      );
+      CREATE INDEX IF NOT EXISTS idx_volunteer_sub_user ON volunteer_subscriptions(user_id, status);
+      CREATE INDEX IF NOT EXISTS idx_volunteer_sub_agrupacion ON volunteer_subscriptions(agrupacion_id, category, status);
+    `, 'volunteer_subscriptions');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS share_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        platform VARCHAR(50) NOT NULL,
+        share_type VARCHAR(20) DEFAULT 'link',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_share_logs_pet ON share_logs(pet_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_share_logs_user ON share_logs(user_id, created_at);
+    `, 'share_logs');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS notifications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        body TEXT NOT NULL,
+        data JSONB DEFAULT '{}'::jsonb,
+        read_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read_at, created_at DESC);
+    `, 'notifications');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS fb_search_groups (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        agrupacion_id UUID REFERENCES agrupaciones(id) ON DELETE CASCADE,
+        group_name VARCHAR(255) NOT NULL,
+        group_url TEXT NOT NULL,
+        zone VARCHAR(255),
+        approved BOOLEAN DEFAULT FALSE,
+        approved_by UUID REFERENCES users(id),
+        approved_at TIMESTAMP,
+        requested_by UUID REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_fb_search_groups_agrupacion ON fb_search_groups(agrupacion_id, zone, approved);
+    `, 'fb_search_groups');
+
+    await migrate(client, `
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_channels JSONB DEFAULT '{"push":true,"email":true,"whatsapp":true,"in_app":true}'::jsonb;
+    `, 'users_notification_channels');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS volunteer_findings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        pet_id UUID NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        case_event_id UUID REFERENCES case_events(id) ON DELETE SET NULL,
+        fb_url TEXT NOT NULL,
+        description TEXT,
+        group_name VARCHAR(255),
+        confirmed_by_owner BOOLEAN DEFAULT FALSE,
+        confirmed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_volunteer_findings_pet ON volunteer_findings(pet_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_volunteer_findings_user ON volunteer_findings(user_id, created_at);
+    `, 'volunteer_findings');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

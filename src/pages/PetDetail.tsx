@@ -9,8 +9,6 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn, formatDateOnly } from '@/src/lib/utils';
 import { formatDate, formatDateTime } from '@/src/lib/formatDate';
-import { shareOnWhatsApp } from '@/src/lib/whatsappShare';
-import { shareOnFacebook } from '@/src/lib/facebookShare';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import PetImage from '@/src/components/PetImage';
 import { LinkifiedText } from '@/src/lib/linkify';
@@ -84,6 +82,7 @@ export default function PetDetail() {
   const [alertMsg, setAlertMsg] = useState('');
   const [renewing, setRenewing] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
+  const [confirmingFindingId, setConfirmingFindingId] = useState<string | null>(null);
 
   const handleSharePhoneChange = (value: string, e164?: string) => {
     setSharePhone(value);
@@ -235,6 +234,35 @@ export default function PetDetail() {
     } else {
       navigator.clipboard?.writeText(url).then(() => { setCaseCopied(true); setTimeout(() => setCaseCopied(false), 2000); });
     }
+  };
+
+  const handleConfirmFinding = async (findingId: string) => {
+    if (!confirm('¿Confirmás que es la mascota?')) return;
+    setConfirmingFindingId(findingId);
+    try {
+      const { confirmFinding } = await import('@/src/lib/volunteerService');
+      await confirmFinding(findingId);
+      await refreshCase();
+    } catch (e: any) {
+      alert(e.message || 'Error al confirmar');
+    }
+    setConfirmingFindingId(null);
+  };
+
+  const handleReuniteFromFinding = async (findingId: string) => {
+    const confirmMsg = pet.status === 'lost'
+      ? '¿Confirmás que la mascota volvió a casa? Se cerrará el caso.'
+      : '¿Confirmás que se la llevaron? Se cerrará el caso.';
+    if (!confirm(confirmMsg)) return;
+    setConfirmingFindingId(findingId);
+    try {
+      const { reuniteFromFinding } = await import('@/src/lib/volunteerService');
+      await reuniteFromFinding(findingId);
+      await refreshCase();
+    } catch (e: any) {
+      alert(e.message || 'Error al confirmar la reunión');
+    }
+    setConfirmingFindingId(null);
   };
 
   const petImagesToUrls = (petId: string, images: any[]) =>
@@ -619,22 +647,8 @@ Me gustaría obtener más información.`;
               onClick={() => setShowImageModal(true)}
               className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-lg"
             >
-              <MessageCircle className="w-5 h-5" />
-              Generar cartel
-            </button>
-            <button
-              onClick={() => shareOnWhatsApp(pet)}
-              className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-lg hover:from-green-600 hover:to-emerald-700"
-            >
               <Share2 className="w-5 h-5" />
-              WhatsApp
-            </button>
-            <button
-              onClick={() => shareOnFacebook(pet)}
-              className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-blue-600 text-white hover:shadow-lg hover:bg-blue-700"
-            >
-              <Share2 className="w-5 h-5" />
-              Facebook
+              Compartir
             </button>
             <button
               onClick={() => { if (!user) { navigate('/login'); return; } setShowReportModal(true); }}
@@ -791,7 +805,14 @@ Me gustaría obtener más información.`;
                   {caseData.events?.length > 0 && (
                     <div>
                       <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-3">Trazabilidad del caso</p>
-                      <CaseTimeline events={caseData.events} />
+                      <CaseTimeline
+                        events={caseData.events}
+                        pet={pet}
+                        isOwner={!!user && user.id === pet.created_by}
+                        onConfirmFinding={handleConfirmFinding}
+                        onReuniteFromFinding={handleReuniteFromFinding}
+                        confirmingId={confirmingFindingId}
+                      />
                     </div>
                   )}
                 </div>

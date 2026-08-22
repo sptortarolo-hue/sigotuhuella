@@ -48,6 +48,8 @@ const ManualChapita = lazy(() => import('@/src/pages/ManualChapita'));
 const VerifyEmail = lazy(() => import('@/src/pages/VerifyEmail'));
 const FlyerPage = lazy(() => import('@/src/pages/FlyerPage'));
 const MyCases = lazy(() => import('@/src/pages/MyCases'));
+const VolunteerDashboard = lazy(() => import('@/src/pages/VolunteerDashboard'));
+const NotificationCenter = lazy(() => import('@/src/components/NotificationCenter'));
 const IS_PLAY_BUILD = import.meta.env.VITE_PLAY_BUILD === 'true';
 
 function CaseRedirect() {
@@ -159,6 +161,8 @@ export default function App() {
               <Route path="/concursos" element={<Contests />} />
               <Route path="/perfil" element={<Profile />} />
               <Route path="/mi-carnet" element={<MemberCardPage />} />
+              <Route path="/voluntario" element={<VolunteerDashboard />} />
+              <Route path="/notificaciones" element={<NotificationCenter />} />
               {!IS_PLAY_BUILD && (
                 <Route
                   path="/admin"

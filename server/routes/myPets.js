@@ -3,6 +3,7 @@ import pool from '../db.js';
 import { requireAuth, requireAdmin, sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import { matchPetToPosts } from '../services/geminiMatching.js';
+import { notifyVolunteersOfNewPet } from '../services/volunteerNotificationService.js';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
@@ -1178,6 +1179,7 @@ router.post('/:id/report-lost', requireAuth, async (req, res) => {
 
     // Run matching in background
     matchPetToPosts(pet).catch(err => console.error('matching error:', err));
+    notifyVolunteersOfNewPet(pet).catch(e => console.error('Volunteer notify error:', e));
 
     res.status(201).json({ pet });
   } catch (err) {
