@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { api, apiUrl } from '@/src/lib/api';
+import { api } from '@/src/lib/api';
 import { getPetImageUrl } from '@/src/lib/petService';
 import { getNewsImageUrl } from '@/src/lib/newsService';
 import {
@@ -147,13 +147,9 @@ export default function MiPortal() {
       }
     };
 
-    const fetchInvites = async () => {
+const fetchInvites = async () => {
       try {
-        const data = await safeFetch(async () => {
-          const res = await fetch(apiUrl('/api/invites/pending'), { credentials: 'include' });
-          if (!res.ok) throw new Error(res.status === 401 ? 'UNAUTHORIZED' : 'Failed');
-          return res.json();
-        });
+        const data = await safeFetch(() => api.users.invites.pending());
         if (data) setPendingInvites(data);
       } catch (e) { console.error(e); }
       finally { setInvitesLoading(false); }
@@ -161,24 +157,16 @@ export default function MiPortal() {
     
     const fetchShared = async () => {
       try {
-        const data = await safeFetch(async () => {
-          const res = await fetch(apiUrl('/api/my-pets/shared/with-me'), { credentials: 'include' });
-          if (!res.ok) throw new Error(res.status === 401 ? 'UNAUTHORIZED' : 'Failed');
-          return res.json();
-        });
+        const data = await safeFetch(() => api.myPets.sharedWithMe());
         if (data) setSharedPets(data);
       } catch (e) { console.error(e); }
       finally { setSharedPetsLoading(false); }
     };
-
+    
     // Volunteer data
     const fetchVolunteerSubscriptions = async () => {
       try {
-        const data = await safeFetch(async () => {
-          const res = await fetch(apiUrl('/api/volunteers/my-subscriptions'), { credentials: 'include' });
-          if (!res.ok) throw new Error(res.status === 401 ? 'UNAUTHORIZED' : 'Failed');
-          return res.json();
-        });
+        const data = await safeFetch(() => api.volunteers.mySubscriptions());
         if (data) setVolunteerSubscriptions(data.subscriptions || data || []);
       } catch (e) { console.error('Error fetching volunteer subscriptions:', e); }
       finally { setVolunteerSubsLoading(false); }
@@ -188,11 +176,7 @@ export default function MiPortal() {
       try {
         const neighborhoods = myPets.flatMap(p => p.neighborhoods || []).filter(Boolean);
         if (neighborhoods.length === 0) { setZonePets([]); return; }
-        const data = await safeFetch(async () => {
-          const res = await fetch(apiUrl(`/api/pets?neighborhoods=${encodeURIComponent(JSON.stringify(neighborhoods))}&status=lost,sighted&limit=10`), { credentials: 'include' });
-          if (!res.ok) throw new Error(res.status === 401 ? 'UNAUTHORIZED' : 'Failed');
-          return res.json();
-        });
+        const data = await safeFetch(() => api.pets.byNeighborhoods(neighborhoods, 'lost,sighted', 10));
         if (data) setZonePets(data.pets || []);
       } catch (e) { console.error('Error fetching zone pets:', e); }
       finally { setZonePetsLoading(false); }
@@ -238,16 +222,14 @@ export default function MiPortal() {
 
   const handleAcceptInvite = async (token: string) => {
     try {
-      const res = await fetch(apiUrl(`/api/invites/${token}/accept`), { method: 'POST', credentials: 'include' });
-      if (res.ok) {
-        setPendingInvites(prev => prev.filter(i => i.token !== token));
-      }
+      await api.users.invites.accept(token);
+      setPendingInvites(prev => prev.filter(i => i.token !== token));
     } catch (e) { console.error(e); }
   };
 
   const handleRejectInvite = async (token: string) => {
     try {
-      await fetch(apiUrl(`/api/invites/${token}/reject`), { method: 'POST', credentials: 'include' });
+      await api.users.invites.reject(token);
       setPendingInvites(prev => prev.filter(i => i.token !== token));
     } catch (e) { console.error(e); }
   };

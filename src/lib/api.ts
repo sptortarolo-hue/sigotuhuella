@@ -137,6 +137,50 @@ export const api = {
     linkGoogle: (credential: string, password: string) =>
       request('/auth/link-google', { method: 'POST', body: JSON.stringify({ credential, password }) }),
   },
+  },
+  export const api = {
+  ...(IS_PLAY_BUILD
+    ? {}
+    : {
+        whatsappRelay: {
+          status: () => request('/relay/admin-status'),
+          toggle: () => request('/relay/admin-toggle', { method: 'POST' }),
+          send: (to: string, text: string, image_url?: string) => request('/relay/send', { method: 'POST', body: JSON.stringify({ to, text, image_url }) }),
+          groupsBroadcast: (text: string, image_url?: string) => request('/relay/groups-broadcast', { method: 'POST', body: JSON.stringify({ text, image_url }) }),
+          testBroadcast: (petId: string, to: string) => request('/relay/test-broadcast', { method: 'POST', body: JSON.stringify({ petId: petId || undefined, to }) }),
+          pets: (category: string, search?: string) => request(`/relay/pets?category=${category}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
+          broadcastPet: (petId: string, groupIds: string[]) => request('/relay/broadcast-pet', { method: 'POST', body: JSON.stringify({ petId, groupIds }) }),
+          failedMessages: () => request('/relay/relay-failed'),
+          broadcastAdoptions: () => request('/relay/broadcast-adoptions', { method: 'POST' }),
+          clearQueue: () => request('/relay/clear-queue', { method: 'POST' }),
+          pendingMessages: () => request('/relay/pending-list'),
+          recentSent: () => request('/relay/recent-sent'),
+          deleteMessage: (id: string) => request(`/relay/message/${id}`, { method: 'DELETE' }),
+        },
+      }),
+  get: (path: string) => request(path),
+  post: (path: string, body?: any) => request(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  put: (path: string, body?: any) => request(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
+  delete: (path: string) => request(path, { method: 'DELETE' }),
+  auth: {
+    login: (email: string, password: string) =>
+      request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    register: (email: string, password: string, displayName?: string, phone?: string, notification_preference?: string) =>
+      request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, displayName, phone, notification_preference }) }),
+    me: () => request('/auth/me'),
+    deleteAccount: () => request('/auth/me', { method: 'DELETE' }),
+    forgotPassword: (email: string) =>
+      request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+    resetPassword: (token: string, newPassword: string) =>
+      request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
+    verifyEmail: (token: string) => request(`/auth/verify-email/${token}`),
+    resendVerification: (email: string) =>
+      request('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) }),
+    googleLogin: (credential: string) =>
+      request('/auth/google', { method: 'POST', body: JSON.stringify({ credential }) }),
+    linkGoogle: (credential: string, password: string) =>
+      request('/auth/link-google', { method: 'POST', body: JSON.stringify({ credential, password }) }),
+  },
   pets: {
     list: (status?: string, includeHidden?: boolean) => request(`/pets${status ? `?status=${status}` : ''}${includeHidden ? `${status ? '&' : '?'}include_hidden=true` : ''}${status || includeHidden ? '&lite=1' : '?lite=1'}`),
     listFull: (status?: string, includeHidden?: boolean) => request(`/pets${status ? `?status=${status}` : ''}${includeHidden ? `${status ? '&' : '?'}include_hidden=true` : ''}${status || includeHidden ? '&lite=0' : '?lite=0'}`),
@@ -167,6 +211,13 @@ export const api = {
     publish: (id: string, platforms: string[]) => request('/pets/' + id + '/publish', { method: 'POST', body: JSON.stringify({ platforms }) }),
     verify: (id: string, verified: boolean) =>
       request(`/pets/${id}/verify`, { method: 'PUT', body: JSON.stringify({ verified }) }),
+    byNeighborhoods: (neighborhoods: string[], status?: string, limit?: number) => {
+      const params = new URLSearchParams();
+      params.set('neighborhoods', JSON.stringify(neighborhoods));
+      if (status) params.set('status', status);
+      if (limit) params.set('limit', String(limit));
+      return request(`/pets?${params.toString()}`);
+    },
     ownerData: (id: string) => request(`/pets/${id}/owner-data`),
     records: {
       list: (petId: string) => request(`/pets/${petId}/records`),
@@ -242,6 +293,8 @@ export const api = {
     updateStatus: (id: string, status: string) =>
       request(`/volunteers/${id}`, { method: 'PUT', body: JSON.stringify({ status }) }),
     delete: (id: string) => request(`/volunteers/${id}`, { method: 'DELETE' }),
+    mySubscriptions: () => request('/volunteers/my-subscriptions'),
+    shareStats: () => request('/volunteers/share-stats'),
   },
   users: {
     list: () => request('/users'),
@@ -260,6 +313,11 @@ export const api = {
       request(`/users/${id}/member`, { method: 'PUT', body: JSON.stringify(data) }),
     setPassword: (id: string, password: string) =>
       request(`/users/${id}/set-password`, { method: 'PUT', body: JSON.stringify({ password }) }),
+    invites: {
+      pending: () => request('/invites/pending'),
+      accept: (token: string) => request(`/invites/${token}/accept`, { method: 'POST' }),
+      reject: (token: string) => request(`/invites/${token}/reject`, { method: 'POST' }),
+    },
   },
   members: {
     me: () => request('/members/me'),
@@ -440,6 +498,7 @@ export const api = {
     requestQr: (id: string) => request(`/my-pets/${id}/request-qr`, { method: 'POST' }),
     vetShare: (id: string, enabled: boolean) => request(`/my-pets/${id}/vet-share`, { method: 'POST', body: JSON.stringify({ enabled }) }),
     featured: () => request('/my-pets/featured'),
+    sharedWithMe: () => request('/my-pets/shared/with-me'),
     photos: {
       list: (petId: string) => request(`/my-pets/${petId}/photos`),
       create: (petId: string, data: any) => request(`/my-pets/${petId}/photos`, { method: 'POST', body: JSON.stringify(data) }),
