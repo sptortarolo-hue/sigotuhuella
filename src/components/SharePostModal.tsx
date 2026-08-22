@@ -1,6 +1,6 @@
 ﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Pet, getPetImageUrls } from '@/src/lib/petService';
-import { X, MessageCircle, Camera, Download, Loader2, ArrowLeft, Copy, Check } from 'lucide-react';
+import { X, MessageCircle, Camera, Download, Loader2, ArrowLeft, Copy, Check, Share2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { getSharePreview, logShareConfirmation, getFbSearchGroups } from '@/src/lib/volunteerService';
@@ -34,6 +34,13 @@ function getFormatForPlatform(p: Platform) {
 interface SharePostModalProps {
   pet: Pet;
   onClose: () => void;
+}
+
+interface PreviewData {
+  platform: Platform;
+  blob: Blob;
+  url: string;
+  caption: string;
 }
 
 function PlatformSelection({ onSelect }: { onSelect: (p: Platform) => void }) {
@@ -83,9 +90,12 @@ function CaptionScreen({
   captionsError,
   generating,
   generated,
+  preview,
   onBack,
   onClose,
   onGenerate,
+  onShare,
+  onCancelPreview,
   onCopyCaption,
   captionCopied,
   statusStyle,
@@ -97,13 +107,76 @@ function CaptionScreen({
   captionsError: string | null;
   generating: string | null;
   generated: Record<string, boolean>;
+  preview: PreviewData | null;
   onBack: () => void;
   onClose: () => void;
   onGenerate: (p: Platform) => void;
+  onShare: (p: Platform) => void;
+  onCancelPreview: () => void;
   onCopyCaption: (p: Platform) => void;
   captionCopied: string | null;
   statusStyle: { label: string; color: string };
 }) {
+  if (preview) {
+    return (
+      <motion.div
+        key="preview"
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl max-h-[90vh] flex flex-col"
+      >
+        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+          <h3 className="font-bold text-lg text-brand-dark">Vista previa - {PLATFORMS.find(p => p.id === preview.platform)?.label}</h3>
+          <button onClick={onCancelPreview} className="p-1 rounded-full hover:bg-gray-100 transition">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-4 sm:p-5 flex-1">
+          <div className="flex flex-col items-center gap-4 mb-5">
+            <img src={preview.url} alt="Preview" className="max-w-full max-h-[50vh] rounded-xl shadow-lg" />
+            <div className="w-full max-w-md">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold uppercase text-brand-dark">{PLATFORMS.find(p => p.id === preview.platform)?.label}</span>
+                <button
+                  onClick={() => onCopyCaption(preview.platform)}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition"
+                >
+                  {captionCopied === preview.platform ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  {captionCopied === preview.platform ? 'Copiado' : 'Copiar caption'}
+                </button>
+              </div>
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed bg-gray-50 p-3 rounded-xl">{preview.caption}</pre>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => onShare(preview.platform)}
+              disabled={generating === preview.platform}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition disabled:opacity-60"
+            >
+              {generating === preview.platform ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+              Compartir
+            </button>
+            <button
+              onClick={() => {
+                const link = document.createElement('a');
+                link.download = (pet.name || 'mascota') + '-' + preview.platform + '-post.jpg';
+                link.href = preview.url;
+                link.click();
+              }}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 transition"
+            >
+              <Download className="w-4 h-4" />
+              Descargar
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -241,7 +314,7 @@ function CaptionScreen({
             );
           })}
         </div>
-        <p className="text-[10px] text-gray-400 text-center mt-2">La imagen se genera con el formato ideal de cada plataforma</p>
+        <p className="text-[10px] text-gray-400 text-center mt-2">Genera la imagen para ver vista previa y compartir</p>
       </div>
     </motion.div>
   );
@@ -254,6 +327,7 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
   const [captionsError, setCaptionsError] = useState<string | null>(null);
   const [generating, setGenerating] = useState<string | null>(null);
   const [generated, setGenerated] = useState<Record<string, boolean>>({});
+  const [preview, setPreview] = useState<PreviewData | null>(null);
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const [captionCopied, setCaptionCopied] = useState<string | null>(null);
   const [showGroupSelector, setShowGroupSelector] = useState<Platform | null>(null);
@@ -296,6 +370,12 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
       getFbSearchGroups().then(groups => setSuggestedGroups(groups || [])).catch(() => {});
     }
   }, [showGroupSelector]);
+
+  useEffect(() => {
+    return () => {
+      if (preview?.url) URL.revokeObjectURL(preview.url);
+    };
+  }, [preview]);
 
   const loadMainImage = async (): Promise<HTMLImageElement> => {
     if (imgRef.current) return imgRef.current;
@@ -352,51 +432,66 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
   const handleGenerate = async (platform: Platform) => {
     if (!canvasRef.current) return;
     setGenerating(platform);
-    let popup: Window | null = null;
     try {
       const { w, h } = getFormatForPlatform(platform);
       await drawPostImage(canvasRef.current, w, h);
       const blob = await new Promise<Blob | null>(resolve => canvasRef.current!.toBlob(resolve, 'image/jpeg', 0.9));
       if (!blob) throw new Error('No se pudo generar la imagen');
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.download = (pet.name || 'mascota') + '-' + pet.status + '-' + platform + '-post.jpg';
-      link.href = url;
-      link.click();
-      if (isMobile && navigator.canShare) {
-        try {
-          const file = new File([blob], link.download, { type: 'image/jpeg' });
-          if (navigator.canShare?.({ files: [file] })) {
-            await navigator.share({ files: [file], title: (pet.name || 'Mascota') + ' - ' + statusStyle.label, text: captions[platform] || petUrl });
-          }
-        } catch (shareErr) {
-          if ((shareErr as any)?.name === 'AbortError') return;
-          console.error('Share error:', shareErr);
-        }
-      } else {
-        // Desktop: open popup SYNCHRONOUSLY before any async work
-        if (platform === 'whatsapp') {
-          popup = window.open('', '_blank', 'noopener,noreferrer');
-          popup?.location.assign('https://wa.me/?text=' + encodeURIComponent(captions[platform] || petUrl));
-        } else if (platform === 'facebook') {
-          popup = window.open('', '_blank', 'noopener,noreferrer');
-          popup?.location.assign('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(petUrl) + '&quote=' + encodeURIComponent(captions[platform] || ''));
-        } else if (platform === 'instagram') {
-          // Instagram: no web share API -> copy caption + download image + open instagram.com
-          await navigator.clipboard.writeText(captions[platform] || petUrl);
-          alert('Caption copiado al portapapeles. La imagen se descargó. Abrí Instagram y pegá el texto.');
-          window.open('https://www.instagram.com', '_blank', 'noopener,noreferrer');
-        }
-      }
-      URL.revokeObjectURL(url);
+      setPreview({
+        platform,
+        blob,
+        url,
+        caption: captions[platform] || petUrl,
+      });
       setGenerated(prev => ({ ...prev, [platform]: true }));
-      if (platform === 'facebook') setShowGroupSelector('facebook');
     } catch (e) {
       console.error('Error generando imagen:', e);
       alert('Error al generar la imagen. Proba de nuevo.');
     } finally {
       setGenerating(null);
     }
+  };
+
+  const handleShare = async (platform: Platform) => {
+    if (!preview || preview.platform !== platform) return;
+    setGenerating(platform);
+    try {
+      const file = new File([preview.blob], (pet.name || 'mascota') + '-' + platform + '-post.jpg', { type: 'image/jpeg' });
+      const shareData = {
+        title: (pet.name || 'Mascota') + ' - ' + statusStyle.label,
+        text: preview.caption,
+        url: petUrl,
+        files: [file],
+      };
+
+      if (isMobile && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        // Desktop fallback
+        if (platform === 'whatsapp') {
+          window.open('https://wa.me/?text=' + encodeURIComponent(preview.caption + '\n\n' + petUrl), '_blank');
+        } else if (platform === 'facebook') {
+          window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(petUrl) + '&quote=' + encodeURIComponent(preview.caption), '_blank');
+        } else if (platform === 'instagram') {
+          await navigator.clipboard.writeText(preview.caption);
+          alert('Caption copiado. La imagen está lista. Abrí Instagram, creá post nuevo, pegá el texto y subí la imagen.');
+          window.open('https://www.instagram.com', '_blank', 'noopener,noreferrer');
+        }
+      }
+      if (platform === 'facebook') setShowGroupSelector('facebook');
+    } catch (e) {
+      if ((e as any)?.name !== 'AbortError') {
+        console.error('Share error:', e);
+      }
+    } finally {
+      setGenerating(null);
+    }
+  };
+
+  const cancelPreview = () => {
+    if (preview?.url) URL.revokeObjectURL(preview.url);
+    setPreview(null);
   };
 
   const copyCaption = async (platform: Platform) => {
@@ -435,9 +530,12 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
               captionsError={captionsError}
               generating={generating}
               generated={generated}
+              preview={preview}
               onBack={() => setSelectedPlatforms([])}
               onClose={onClose}
               onGenerate={handleGenerate}
+              onShare={handleShare}
+              onCancelPreview={cancelPreview}
               onCopyCaption={copyCaption}
               captionCopied={captionCopied}
               statusStyle={statusStyle}
