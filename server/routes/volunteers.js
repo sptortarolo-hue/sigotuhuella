@@ -361,9 +361,9 @@ router.get('/my-subscriptions', requireAuth, async (req, res) => {
       `SELECT vs.*, a.name as agrupacion_name, a.neighborhoods as agrupacion_neighborhoods,
               vc.name as category_name, vc.description as category_description, vc.icon as category_icon
        FROM volunteer_subscriptions vs
-       JOIN agrupaciones a ON a.id = vs.agrupacion_id
-       JOIN volunteer_categories vc ON vc.id = vs.category
-       WHERE vs.user_id = $1
+       JOIN agrupaciones a ON a.id = vs.agrupacion_id AND a.is_active = TRUE
+       JOIN volunteer_categories vc ON vc.id = vs.category AND vc.is_active = TRUE
+       WHERE vs.user_id = $1 AND vs.status = 'active'
        ORDER BY a.name, vs.category`,
       [req.user.id]
     );
