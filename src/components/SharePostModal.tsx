@@ -37,9 +37,10 @@ interface SharePostModalProps {
 }
 
 export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
-  const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
+const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
   const [captions, setCaptions] = useState<Record<string, string>>({});
   const [captionsLoading, setCaptionsLoading] = useState(false);
+  const [captionsError, setCaptionsError] = useState<string | null>(null);
   const [generating, setGenerating] = useState<string | null>(null);
   const [generated, setGenerated] = useState<Record<string, boolean>>({});
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
@@ -59,12 +60,16 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
   const petUrl = origin + '/pet/' + pet.id;
   const statusStyle = STATUS_STYLES[pet.status] || { label: 'MASCOTA', color: '#6B7280' };
 
-  useEffect(() => {
+useEffect(() => {
     if (selectedPlatforms.length === 0) return;
     setCaptionsLoading(true);
+    setCaptionsError(null);
     getSharePreview(pet.id)
       .then(data => setCaptions(data))
-      .catch(e => console.error('Share preview error:', e))
+      .catch(e => {
+        console.error('Share preview error:', e);
+        setCaptionsError('No se pudieron cargar los textos. Podés generar la imagen igual.');
+      })
       .finally(() => setCaptionsLoading(false));
   }, [pet.id, selectedPlatforms.length]);
 
@@ -289,14 +294,20 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
             })}
           </div>
 
-          {captionsLoading && (
+{captionsLoading && (
             <div className="flex items-center justify-center gap-2 py-8 text-gray-400">
               <Loader2 className="w-5 h-5 animate-spin" />
               <span className="text-sm">Generando caption para cada plataforma...</span>
             </div>
           )}
 
-          {!captionsLoading && (
+          {captionsError && !captionsLoading && (
+            <div className="mb-5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+              {captionsError}
+            </div>
+          )}
+
+          {!captionsLoading && !captionsError && (
             <div className="space-y-3 mb-5">
               {selectedPlatforms.map(p => {
                 const cfg = PLATFORMS.find(x => x.id === p)!;
