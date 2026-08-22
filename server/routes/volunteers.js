@@ -371,12 +371,12 @@ router.post('/subscribe', requireAuth, async (req, res) => {
   if (!agrupacion_id || !category) {
     return res.status(400).json({ error: 'agrupacion_id and category are required' });
   }
-  if (!['difusion', 'busqueda'].includes(category)) {
-    return res.status(400).json({ error: 'Invalid category' });
-  }
   try {
     const agrupacion = await pool.query('SELECT id FROM agrupaciones WHERE id = $1 AND is_active = TRUE', [agrupacion_id]);
     if (agrupacion.rows.length === 0) return res.status(404).json({ error: 'Agrupacion not found' });
+
+    const catCheck = await pool.query('SELECT id FROM volunteer_categories WHERE id = $1 AND is_active = TRUE', [category]);
+    if (catCheck.rows.length === 0) return res.status(400).json({ error: 'Invalid or inactive category' });
 
     const result = await pool.query(
       `INSERT INTO volunteer_subscriptions (user_id, agrupacion_id, category, status)

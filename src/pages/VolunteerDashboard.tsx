@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Loader2, Share2, Search, MapPin, Bell, Heart, ArrowRight } from 'lucide-react';
-import { getVolunteerDashboard } from '@/src/lib/volunteerService';
+import { Loader2, Share2, Search, MapPin, Bell, Heart, ArrowRight, Home, Truck, Plus, CheckCircle2 } from 'lucide-react';
+import { getVolunteerDashboard, getCategories, getAgrupaciones, subscribe } from '@/src/lib/volunteerService';
 
 interface Subscription {
   agrupacion_name: string;
@@ -73,6 +73,62 @@ export default function VolunteerDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [allCategories, setAllCategories] = useState<any[]>([]);
+  const [allAgrupaciones, setAllAgrupaciones] = useState<any[]>([]);
+  const [selectedAgrupacion, setSelectedAgrupacion] = useState('');
+  const [selectedNewCategories, setSelectedNewCategories] = useState<string[]>([]);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [categorySuccess, setCategorySuccess] = useState(false);
+
+  const openAddCategory = async () => {
+    try {
+      const [cats, ags] = await Promise.all([getCategories(), getAgrupaciones()]);
+      setAllCategories(cats || []);
+      setAllAgrupaciones(ags || []);
+      setShowAddCategory(true);
+      setCategorySuccess(false);
+      setSelectedNewCategories([]);
+    } catch {
+      setError('No se pudieron cargar las categorías');
+    }
+  };
+
+  const toggleNewCategory = (catId: string) => {
+    setSelectedNewCategories(prev =>
+      prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]
+    );
+  };
+
+  const handleAddCategories = async () => {
+    if (!selectedAgrupacion || selectedNewCategories.length === 0) return;
+    setSavingCategory(true);
+    try {
+      for (const catId of selectedNewCategories) {
+        await subscribe(selectedAgrupacion, catId);
+      }
+      const result = await getVolunteerDashboard();
+      setData(result);
+      setCategorySuccess(true);
+      setTimeout(() => setShowAddCategory(false), 1500);
+    } catch {
+      setError('Error al guardar las categorías');
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const getCategoryIcon = (code: string) => {
+    switch (code) {
+      case 'difusion': return <Share2 className="w-5 h-5" />;
+      case 'busqueda': return <Search className="w-5 h-5" />;
+      case 'hogar_transito': return <Home className="w-5 h-5" />;
+      case 'traslado': return <Truck className="w-5 h-5" />;
+      case 'donante': return <Heart className="w-5 h-5" />;
+      default: return <Plus className="w-5 h-5" />;
+    }
+  };
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -231,6 +287,12 @@ export default function VolunteerDashboard() {
               </Link>
             </div>
           )}
+          <button
+            onClick={openAddCategory}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 bg-brand-primary/10 text-brand-primary rounded-xl text-sm font-bold hover:bg-brand-primary/20 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Agregar categoría
+          </button>
         </motion.section>
 
         {/* Pets in Zone */}
@@ -294,6 +356,87 @@ export default function VolunteerDashboard() {
         </motion.section>
 
       </div>
+
+      {/* Add Category Modal */}
+      {showAddCategory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={() => setShowAddCategory(false)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-lg bg-white rounded-[2.5rem] shadow-xl p-6 sm:p-8 max-h-[85vh] overflow-y-auto"
+          >
+            {categorySuccess ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-10 h-10" />
+                </div>
+                <h3 className="text-xl font-serif font-bold text-brand-primary mb-2">¡Categorías agregadas!</h3>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-serif font-bold text-brand-primary">Agregar categorías</h3>
+                  <button onClick={() => setShowAddCategory(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 block">Agrupación</label>
+                    <select
+                      value={selectedAgrupacion}
+                      onChange={e => setSelectedAgrupacion(e.target.value)}
+                      className="w-full px-4 py-3 bg-brand-bg rounded-2xl border border-brand-accent outline-none"
+                    >
+                      <option value="">Elegí una agrupación</option>
+                      {allAgrupaciones.map((ag: any) => (
+                        <option key={ag.id} value={ag.id}>{ag.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 block">Categorías</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {allCategories.map((cat: any) => {
+                        const isSelected = selectedNewCategories.includes(cat.id);
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => toggleNewCategory(cat.id)}
+                            className={`p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${
+                              isSelected
+                                ? 'bg-brand-primary/10 border-brand-primary/30'
+                                : 'bg-brand-bg border-brand-accent hover:border-brand-primary/20'
+                            }`}
+                          >
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                              isSelected ? 'bg-brand-primary text-white' : 'bg-brand-accent text-brand-primary'
+                            }`}>
+                              {getCategoryIcon(cat.id)}
+                            </div>
+                            <span className="text-sm font-bold text-brand-primary">{cat.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleAddCategories}
+                  disabled={!selectedAgrupacion || selectedNewCategories.length === 0 || savingCategory}
+                  className="w-full mt-6 px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingCategory ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                  Agregar
+                </button>
+              </>
+            )}
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

@@ -17,6 +17,10 @@ import {
   Clock,
   Share2,
   Search,
+  Home,
+  Truck,
+  Heart,
+  Plus,
   ArrowLeft,
   ArrowRight,
 } from 'lucide-react';
@@ -55,7 +59,7 @@ export default function Join() {
   const [agrupaciones, setAgrupaciones] = useState<Agrupacion[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedAgrupaciones, setSelectedAgrupaciones] = useState<string[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<Record<string, string>>({});
+  const [selectedCategories, setSelectedCategories] = useState<Record<string, string[]>>({});
   const [loadingData, setLoadingData] = useState(true);
 
   const [formData, setFormData] = useState({
@@ -114,11 +118,17 @@ export default function Join() {
     });
   };
 
-  const setCategoryForAgrupacion = (agrupacionId: string, categoryId: string) => {
-    setSelectedCategories(prev => ({ ...prev, [agrupacionId]: categoryId }));
+  const toggleCategoryForAgrupacion = (agrupacionId: string, categoryId: string) => {
+    setSelectedCategories(prev => {
+      const current = prev[agrupacionId] || [];
+      const next = current.includes(categoryId)
+        ? current.filter(c => c !== categoryId)
+        : [...current, categoryId];
+      return { ...prev, [agrupacionId]: next };
+    });
   };
 
-  const canAdvanceStep2 = selectedAgrupaciones.every(id => selectedCategories[id]);
+  const canAdvanceStep2 = selectedAgrupaciones.every(id => selectedCategories[id]?.length > 0);
 
   const handleSubmit = async () => {
     if (!user) return;
@@ -130,8 +140,8 @@ export default function Join() {
     setError('');
     try {
       for (const agrupacionId of selectedAgrupaciones) {
-        const categoryId = selectedCategories[agrupacionId];
-        if (categoryId) {
+        const categoryIds = selectedCategories[agrupacionId] || [];
+        for (const categoryId of categoryIds) {
           await subscribe(agrupacionId, categoryId);
         }
       }
@@ -151,6 +161,14 @@ export default function Join() {
         return <Share2 className="w-8 h-8" />;
       case 'busqueda':
         return <Search className="w-8 h-8" />;
+      case 'hogar_transito':
+        return <Home className="w-8 h-8" />;
+      case 'traslado':
+        return <Truck className="w-8 h-8" />;
+      case 'donante':
+        return <Heart className="w-8 h-8" />;
+      case 'otra':
+        return <Plus className="w-8 h-8" />;
       default:
         return <Users className="w-8 h-8" />;
     }
@@ -219,7 +237,7 @@ export default function Join() {
                 Sumate a la red de vecinos
               </h1>
               <p className="text-xl text-gray-600 leading-relaxed mb-8">
-                Elegí cómo querés ayudar: difundiendo mascotas perdidas o colaborando activamente en la búsqueda.
+                Elegí cómo querés ayudar: difundiendo, buscando, albergando o colaborando de otras formas.
               </p>
               <div className="space-y-4">
                 <div className="p-4 bg-brand-primary/5 rounded-2xl border border-brand-primary/10 flex items-start gap-4">
@@ -227,9 +245,9 @@ export default function Join() {
                     <Share2 className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-brand-primary font-serif text-lg">Difusor</h3>
+                    <h3 className="font-bold text-brand-primary font-serif text-lg">Difusor en Redes</h3>
                     <p className="text-sm text-gray-600">
-                      Ayudá compartiendo publicaciones de mascotas perdidas en tus redes y grupos de WhatsApp.
+                      Compartí publicaciones de mascotas perdidas en tus redes sociales y grupos de WhatsApp.
                     </p>
                   </div>
                 </div>
@@ -238,9 +256,20 @@ export default function Join() {
                     <Search className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-brand-primary font-serif text-lg">Buscador</h3>
+                    <h3 className="font-bold text-brand-primary font-serif text-lg">Buscador Activo</h3>
                     <p className="text-sm text-gray-600">
-                      Recorré tu zona, preguntá a vecinos y ayudá a encontrar mascotas perdidas de forma directa.
+                      Investiguá en grupos de Facebook y redes sociales para encontrar pistas de mascotas perdidas.
+                    </p>
+                  </div>
+                </div>
+                <div className="p-4 bg-brand-primary/5 rounded-2xl border border-brand-primary/10 flex items-start gap-4">
+                  <div className="w-12 h-12 bg-brand-primary text-white rounded-xl flex items-center justify-center shrink-0">
+                    <Home className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-brand-primary font-serif text-lg">Hogar de Tránsito</h3>
+                    <p className="text-sm text-gray-600">
+                      Ofrecé tu hogar temporalmente para albergar mascotas rescatadas.
                     </p>
                   </div>
                 </div>
@@ -321,7 +350,7 @@ export default function Join() {
             </h2>
             <p className="text-gray-500 text-center text-sm mb-8">
               {step === 1 && 'Podés seleccionar más de una agrupación.'}
-              {step === 2 && 'Para cada agrupación elegí si querés difundir, buscar, o ambos.'}
+              {step === 2 && 'Elegí en qué querés ayudar. Podés seleccionar varias categorías.'}
               {step === 3 && 'Completá tus datos para que podamos coordinar con vos.'}
             </p>
 
@@ -387,12 +416,13 @@ export default function Join() {
               </div>
             )}
 
-            {/* Step 2: For EACH selected agrupación, select category */}
+            {/* Step 2: For EACH selected agrupación, select categories */}
             {!loadingData && step === 2 && (
               <div className="space-y-6">
                 {selectedAgrupaciones.map(agId => {
                   const ag = agrupaciones.find(a => a.id === agId);
                   if (!ag) return null;
+                  const selectedForAg = selectedCategories[agId] || [];
                   return (
                     <div key={agId}>
                       <h3 className="font-bold text-brand-primary font-serif mb-3 flex items-center gap-2">
@@ -401,12 +431,12 @@ export default function Join() {
                       </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {categories.map(cat => {
-                          const isSelected = selectedCategories[agId] === cat.id;
+                          const isSelected = selectedForAg.includes(cat.id);
                           return (
                             <button
                               key={cat.id}
                               type="button"
-                              onClick={() => setCategoryForAgrupacion(agId, cat.id)}
+                              onClick={() => toggleCategoryForAgrupacion(agId, cat.id)}
                               className={`p-4 sm:p-5 rounded-2xl border text-left transition-all flex items-center gap-4 ${
                                 isSelected
                                   ? 'bg-brand-primary/10 border-brand-primary/30 shadow-sm'
@@ -420,9 +450,9 @@ export default function Join() {
                                     : 'bg-brand-accent text-brand-primary'
                                 }`}
                               >
-                                {getCategoryIcon(cat.code)}
+                                {getCategoryIcon(cat.id)}
                               </div>
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
                                 <span className="font-bold text-brand-primary text-sm block">
                                   {cat.name}
                                 </span>
@@ -432,6 +462,9 @@ export default function Join() {
                                   </span>
                                 )}
                               </div>
+                              {isSelected && (
+                                <CheckCircle2 className="w-5 h-5 text-brand-primary shrink-0" />
+                              )}
                             </button>
                           );
                         })}
@@ -544,7 +577,7 @@ export default function Join() {
                         return;
                       }
                       if (step === 2 && !canAdvanceStep2) {
-                        setError('Elegí una categoría para cada agrupación.');
+                        setError('Elegí al menos una categoría para cada agrupación.');
                         return;
                       }
                       setStep(s => s + 1);

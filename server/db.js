@@ -1839,6 +1839,12 @@ export async function initDb() {
     `, 'agrupaciones');
 
     await migrate(client, `
+      INSERT INTO agrupaciones (name, description, is_active)
+      VALUES ('SiHuella', 'Agrupación principal - voluntarios generales de la red SiHuella', TRUE)
+      ON CONFLICT DO NOTHING;
+    `, 'agrupaciones_seed');
+
+    await migrate(client, `
       CREATE TABLE IF NOT EXISTS volunteer_categories (
         id VARCHAR(50) PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
@@ -1851,7 +1857,11 @@ export async function initDb() {
     await migrate(client, `
       INSERT INTO volunteer_categories (id, name, description, icon) VALUES
         ('difusion', 'Difusión en Redes', 'Comparte mascotas perdidas en tus redes sociales para aumentar el alcance', 'Share2'),
-        ('busqueda', 'Búsqueda en Redes', 'Investiga en grupos de Facebook y redes sociales para encontrar pistas de mascotas perdidas', 'Search')
+        ('busqueda', 'Búsqueda en Redes', 'Investiga en grupos de Facebook y redes sociales para encontrar pistas de mascotas perdidas', 'Search'),
+        ('hogar_transito', 'Hogar de Tránsito', 'Ofrece tu hogar temporalmente para albergar mascotas rescatadas mientras se reencuentran con su familia', 'Home'),
+        ('traslado', 'Ayuda en Traslados', 'Colabora con movilización de mascotas entre puntos (veterinaria, hogar temporal, encuentro con el dueño)', 'Truck'),
+        ('donante', 'Donante Frecuente', 'Aporta económicamente de forma recurrente para cubrir gastos de veterinaria, alimento y operativos', 'Heart'),
+        ('otra', 'Otra Colaboración', 'Otras formas de ayuda no listadas anteriormente', 'Plus')
       ON CONFLICT (id) DO NOTHING;
     `, 'volunteer_categories_seed');
 
@@ -1868,6 +1878,19 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_volunteer_sub_user ON volunteer_subscriptions(user_id, status);
       CREATE INDEX IF NOT EXISTS idx_volunteer_sub_agrupacion ON volunteer_subscriptions(agrupacion_id, category, status);
     `, 'volunteer_subscriptions');
+
+    await migrate(client, `
+      INSERT INTO volunteer_subscriptions (user_id, agrupacion_id, category, status)
+      SELECT u.id, a.id, 'difusion', 'active'
+      FROM users u
+      CROSS JOIN agrupaciones a
+      WHERE u.volunteer_status = 'active'
+        AND a.name = 'SiHuella'
+        AND NOT EXISTS (
+          SELECT 1 FROM volunteer_subscriptions vs
+          WHERE vs.user_id = u.id AND vs.agrupacion_id = a.id AND vs.category = 'difusion'
+        );
+    `, 'migrate_active_volunteers_to_difusion');
 
     await migrate(client, `
       CREATE TABLE IF NOT EXISTS share_logs (
