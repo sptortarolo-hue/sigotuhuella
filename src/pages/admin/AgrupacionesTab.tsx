@@ -29,7 +29,7 @@ interface FbSearchGroup {
   group_url: string;
   zone?: string;
   agrupacion_id?: string;
-  status: string;
+  approved: boolean;
   requested_by?: string;
   created_at: string;
 }
@@ -72,7 +72,7 @@ export default function AgrupacionesTab() {
         getFbSearchGroups(),
       ]);
       setPendingGroups(pending || []);
-      setApprovedGroups((approved || []).filter((g: FbSearchGroup) => g.status === 'approved'));
+      setApprovedGroups((approved || []).filter((g: FbSearchGroup) => g.approved === true));
     } catch (e) { console.error(e); }
     setGroupsLoading(false);
   };
