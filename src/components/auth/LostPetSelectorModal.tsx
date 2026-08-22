@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { X, Plus, Dog, Cat, PawPrint, ArrowRight } from 'lucide-react';
+import { X, Plus, Dog, Cat, PawPrint, ArrowRight, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -69,7 +69,14 @@ export default function LostPetSelectorModal({ open, onClose, pets }: LostPetSel
           >
             <div className="p-6 lg:p-8 flex flex-col flex-1 overflow-hidden">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-serif font-bold text-brand-primary">Perdí mi mascota</h2>
+                <button
+                  onClick={onClose}
+                  className="p-2 text-gray-400 hover:text-brand-primary rounded-xl hover:bg-brand-bg transition-all lg:flex"
+                  aria-label="Volver"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <h2 className="text-xl font-serif font-bold text-brand-primary flex-1 text-center">Perdí mi mascota</h2>
                 <button
                   onClick={onClose}
                   className="p-2 text-gray-400 hover:text-brand-primary rounded-xl hover:bg-brand-bg transition-all lg:hidden"

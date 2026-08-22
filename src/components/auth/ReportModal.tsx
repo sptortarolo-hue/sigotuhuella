@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { X, Dog, Search, PawPrint, MapPin } from 'lucide-react';
+import { X, Dog, Search, PawPrint, MapPin, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -56,7 +56,14 @@ export default function ReportModal({ open, onClose, onLostPetClick }: ReportMod
           >
             <div className="p-6 lg:p-8">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-serif font-bold text-brand-primary">Reportar</h2>
+                <button
+                  onClick={onClose}
+                  className="p-2 text-gray-400 hover:text-brand-primary rounded-xl hover:bg-brand-bg transition-all lg:flex"
+                  aria-label="Volver"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <h2 className="text-xl font-serif font-bold text-brand-primary flex-1 text-center">Reportar</h2>
                 <button
                   onClick={onClose}
                   className="p-2 text-gray-400 hover:text-brand-primary rounded-xl hover:bg-brand-bg transition-all lg:hidden"

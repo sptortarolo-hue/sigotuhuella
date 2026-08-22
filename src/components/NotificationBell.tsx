@@ -4,6 +4,7 @@ import { Bell, BellOff, Heart, PawPrint, MessageCircle, Share2, AlertTriangle, C
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { getNotifications, markAllNotificationsRead } from '@/src/lib/volunteerService';
+import VolunteerActionCenter from '@/src/components/VolunteerActionCenter';
 
 interface Notification {
   id: string;
@@ -44,6 +45,7 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [actionCenterPetId, setActionCenterPetId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,6 +79,11 @@ export default function NotificationBell() {
   };
 
   const handleNotificationClick = (n: Notification) => {
+    if (n.type === 'new_pet_in_zone' && n.data?.pet_id) {
+      setActionCenterPetId(n.data.pet_id);
+      setOpen(false);
+      return;
+    }
     if (n.data?.url) navigate(n.data.url);
     setOpen(false);
   };
@@ -161,5 +168,13 @@ export default function NotificationBell() {
         )}
       </AnimatePresence>
     </div>
+
+    {actionCenterPetId && (
+      <VolunteerActionCenter
+        petId={actionCenterPetId}
+        onClose={() => setActionCenterPetId(null)}
+        onNavigate={(url) => { navigate(url); setActionCenterPetId(null); }}
+      />
+    )}
   );
 }

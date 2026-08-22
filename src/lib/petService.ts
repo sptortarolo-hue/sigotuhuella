@@ -71,9 +71,13 @@ export interface Pet {
 export function getPetImageUrl(pet: Pet): string | undefined {
   if (!pet.images?.[0]) return undefined;
   const img = pet.images[0];
-  if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
-  if (img.external_url) return img.external_url;
+  // Priorizar endpoint optimizado (thumb 200x200) para thumbnails
   if (img.has_image) return apiUrl(`/api/images/pet-thumb/${pet.id}/0`);
+  // Fallback: external_url
+  if (img.external_url) return img.external_url;
+  // Último: base64 (solo si es pequeño)
+  if (img.image_data && img.image_data.length < 50000)
+    return `data:${img.mime_type};base64,${img.image_data}`;
   return undefined;
 }
 

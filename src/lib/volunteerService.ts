@@ -227,3 +227,61 @@ export async function confirmFinding(finding_id: string) {
 export async function reuniteFromFinding(finding_id: string) {
   return volRequest(`/findings/${finding_id}/reunite`, { method: 'PUT' });
 }
+
+// ── Volunteer Action Center ───────────────────────────────────────
+
+export interface ActionCenterPet {
+  id: string;
+  name: string;
+  species: string;
+  breed?: string;
+  gender?: string;
+  age?: string;
+  color?: string;
+  status: string;
+  location?: string;
+  neighborhoods?: string[];
+  description?: string;
+  contact_info?: string;
+  case_number?: string;
+  created_at: string;
+  reporter_name?: string;
+  reporter_phone?: string;
+}
+
+export interface ActionCenterPublications {
+  facebook?: {
+    pagePostUrl: string;
+    groupPosts: { groupId: string; groupName: string; fbGroupId: string; postUrl: string }[];
+  };
+  instagram?: {
+    permalink: string;
+    igMediaId: string;
+  };
+}
+
+export interface SharePreview {
+  facebook: string;
+  instagram: string;
+  whatsapp: string;
+}
+
+export interface FbSearchGroup {
+  id: string;
+  group_name: string;
+  group_url: string;
+}
+
+export interface ActionCenterData {
+  pet: ActionCenterPet;
+  volunteerCategories: string[];
+  relevantAgrupacionIds: string[];
+  publications: ActionCenterPublications;
+  sharePreview: SharePreview;
+  fbSearchGroups: FbSearchGroup[];
+}
+
+export async function getActionCenterData(petId: string): Promise<ActionCenterData> {
+  const data = await volRequest(`/pet-action-center/${petId}`);
+  return data;
+}
