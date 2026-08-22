@@ -352,6 +352,7 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
   const handleGenerate = async (platform: Platform) => {
     if (!canvasRef.current) return;
     setGenerating(platform);
+    let popup: Window | null = null;
     try {
       const { w, h } = getFormatForPlatform(platform);
       await drawPostImage(canvasRef.current, w, h);
@@ -372,12 +373,19 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
           if ((shareErr as any)?.name === 'AbortError') return;
           console.error('Share error:', shareErr);
         }
-      }
-      if (!isMobile) {
+      } else {
+        // Desktop: open popup SYNCHRONOUSLY before any async work
         if (platform === 'whatsapp') {
-          window.open('https://wa.me/?text=' + encodeURIComponent(captions[platform] || petUrl), '_blank');
+          popup = window.open('', '_blank', 'noopener,noreferrer');
+          popup?.location.assign('https://wa.me/?text=' + encodeURIComponent(captions[platform] || petUrl));
         } else if (platform === 'facebook') {
-          window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(petUrl) + '&quote=' + encodeURIComponent(captions[platform] || ''), '_blank');
+          popup = window.open('', '_blank', 'noopener,noreferrer');
+          popup?.location.assign('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(petUrl) + '&quote=' + encodeURIComponent(captions[platform] || ''));
+        } else if (platform === 'instagram') {
+          // Instagram: no web share API -> copy caption + download image + open instagram.com
+          await navigator.clipboard.writeText(captions[platform] || petUrl);
+          alert('Caption copiado al portapapeles. La imagen se descargó. Abrí Instagram y pegá el texto.');
+          window.open('https://www.instagram.com', '_blank', 'noopener,noreferrer');
         }
       }
       URL.revokeObjectURL(url);
