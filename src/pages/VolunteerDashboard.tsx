@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Loader2, Share2, Search, MapPin, Bell, Heart, ArrowRight, Home, Truck, Plus, CheckCircle2 } from 'lucide-react';
+import { Loader2, Share2, Search, MapPin, Bell, Heart, ArrowRight, Home, Truck, Plus, CheckCircle2, ExternalLink } from 'lucide-react';
 import { getVolunteerDashboard, getCategories, getAgrupaciones, subscribe } from '@/src/lib/volunteerService';
+import VolunteerActionCenter from '@/src/components/VolunteerActionCenter';
 
 interface Subscription {
   agrupacion_name: string;
@@ -81,6 +82,7 @@ export default function VolunteerDashboard() {
   const [selectedNewCategories, setSelectedNewCategories] = useState<string[]>([]);
   const [savingCategory, setSavingCategory] = useState(false);
   const [categorySuccess, setCategorySuccess] = useState(false);
+  const [actionCenterPetId, setActionCenterPetId] = useState<string | null>(null);
 
   const openAddCategory = async () => {
     try {
@@ -337,13 +339,13 @@ export default function VolunteerDashboard() {
                         </p>
                       )}
                     </div>
-                    <Link
-                      to={`/pet/${pet.id}`}
+                    <button
+                      onClick={() => setActionCenterPetId(pet.id)}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-xs sm:text-sm font-bold hover:bg-brand-primary/90 transition-colors shrink-0"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      Compartir
-                    </Link>
+                      Acciones
+                    </button>
                   </div>
                 </motion.div>
               ))}
@@ -436,6 +438,15 @@ export default function VolunteerDashboard() {
             )}
           </motion.div>
         </div>
+      )}
+
+      {/* Volunteer Action Center Modal */}
+      {actionCenterPetId && (
+        <VolunteerActionCenter
+          petId={actionCenterPetId}
+          onClose={() => setActionCenterPetId(null)}
+          onNavigate={(url) => window.location.href = url}
+        />
       )}
     </div>
   );

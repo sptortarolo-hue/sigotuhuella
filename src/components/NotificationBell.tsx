@@ -89,7 +89,8 @@ export default function NotificationBell() {
   };
 
   return (
-    <div className="relative" ref={panelRef}>
+    <>
+      <div className="relative" ref={panelRef}>
       <button
         onClick={() => setOpen(!open)}
         className="relative p-2 rounded-full transition-colors hover:bg-brand-primary/10 text-gray-600 hover:text-brand-primary"
@@ -176,5 +177,6 @@ export default function NotificationBell() {
         onNavigate={(url) => { navigate(url); setActionCenterPetId(null); }}
       />
     )}
+    </>
   );
 }
