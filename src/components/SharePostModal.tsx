@@ -97,6 +97,7 @@ function CaptionScreen({
   onShare,
   onCancelPreview,
   onCopyCaption,
+  onReorderPlatform,
   captionCopied,
   statusStyle,
 }: {
@@ -114,6 +115,7 @@ function CaptionScreen({
   onShare: (p: Platform) => void;
   onCancelPreview: () => void;
   onCopyCaption: (p: Platform) => void;
+  onReorderPlatform: (p: Platform) => void;
   captionCopied: string | null;
   statusStyle: { label: string; color: string };
 }) {
@@ -200,14 +202,14 @@ function CaptionScreen({
 
       <div className="overflow-y-auto p-4 sm:p-5 flex-1">
         <div className="flex gap-3 mb-5 overflow-x-auto pb-2">
-          {selectedPlatforms.map((p, idx) => {
+          {Array.from(new Set(selectedPlatforms)).map((p, idx) => {
             const cfg = PLATFORMS.find(x => x.id === p)!;
             const Icon = cfg.icon;
             const isActive = idx === 0;
             return (
               <button
                 key={p}
-                onClick={() => idx > 0 && setSelectedPlatforms(prev => [p, ...prev.filter(x => x !== p)])}
+                onClick={() => idx > 0 && onReorderPlatform(p)}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-medium whitespace-nowrap transition-all",
                   isActive
@@ -430,13 +432,16 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
   };
 
   const handleGenerate = async (platform: Platform) => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current) {
+      alert('Canvas no listo. Intentá de nuevo en un momento.');
+      return;
+    }
     setGenerating(platform);
     try {
       const { w, h } = getFormatForPlatform(platform);
       await drawPostImage(canvasRef.current, w, h);
       const blob = await new Promise<Blob | null>(resolve => canvasRef.current!.toBlob(resolve, 'image/jpeg', 0.9));
-      if (!blob) throw new Error('No se pudo generar la imagen');
+      if (!blob) throw new Error('No se pudo generar la imagen (blob null)');
       const url = URL.createObjectURL(blob);
       setPreview({
         platform,
@@ -447,7 +452,7 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
       setGenerated(prev => ({ ...prev, [platform]: true }));
     } catch (e) {
       console.error('Error generando imagen:', e);
-      alert('Error al generar la imagen. Proba de nuevo.');
+      alert('Error al generar la imagen: ' + (e as Error).message);
     } finally {
       setGenerating(null);
     }
@@ -503,9 +508,11 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
   };
 
   const togglePlatform = (p: Platform) => {
-    setSelectedPlatforms(prev =>
-      prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
-    );
+    setSelectedPlatforms(prev => {
+      const next = prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p];
+      // dedupe por si acaso
+      return [...new Set(next)];
+    });
   };
 
   return (
@@ -537,6 +544,7 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
               onShare={handleShare}
               onCancelPreview={cancelPreview}
               onCopyCaption={copyCaption}
+              onReorderPlatform={p => setSelectedPlatforms(prev => [p, ...prev.filter(x => x !== p)])}
               captionCopied={captionCopied}
               statusStyle={statusStyle}
             />
