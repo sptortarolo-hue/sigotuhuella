@@ -23,8 +23,8 @@ const statusColors: Record<string, string> = {
   for_adoption: 'text-pink-500',
   for_adoption_simple: 'text-orange-500',
   adopted: 'text-green-500',
-  reunited: 'text-amber-500',
-  found: 'text-amber-500',
+  reunited: 'text-green-500',
+  found: 'text-green-500',
   transitada: 'text-teal-500',
 };
 
