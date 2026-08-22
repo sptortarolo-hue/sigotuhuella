@@ -39,7 +39,7 @@ const statusLabels = {
 const speciesLabel = { dog: 'Perro', cat: 'Gato', other: 'Otra mascota' };
 const genderLabel = { male: 'Macho', female: 'Hembra', unknown: '' };
 
-function buildPetCaption(pet, hashtags) {
+export function buildPetCaption(pet, hashtags) {
   const statusTag = statusLabels[pet.status] || '🐾 MASCOTA';
   return [
     `${statusTag}`,

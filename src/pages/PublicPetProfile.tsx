@@ -10,6 +10,7 @@ import {
 import { AnimatePresence } from 'motion/react';
 import FoundReportModal from '@/src/components/FoundReportModal';
 import SocialShareModal from '@/src/components/SocialShareModal';
+import SharePostModal from '@/src/components/SharePostModal';
 import { getCurrentPosition } from '@/src/lib/geolocation';
 import { Helmet } from 'react-helmet-async';
 
@@ -35,6 +36,7 @@ export default function PublicPetProfile() {
   const [foundSuccess, setFoundSuccess] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showPostModal, setShowPostModal] = useState(false);
   const [scanSent, setScanSent] = useState(false);
   const [sendingScan, setSendingScan] = useState(false);
 
@@ -245,8 +247,11 @@ export default function PublicPetProfile() {
                 {genderIcon} {genderLabel}{pet.age ? ` · ${pet.age}` : ''}
               </p>
               <div className="flex items-center justify-center sm:justify-start gap-2 mt-3">
+                <button onClick={() => setShowPostModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-xl text-white text-xs font-medium transition-all">
+                  <Share2 className="w-3.5 h-3.5" /> Compartir en Redes
+                </button>
                 <button onClick={handleShare} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-xl text-white text-xs font-medium transition-all">
-                  <Share2 className="w-3.5 h-3.5" /> Compartir
+                  <Share2 className="w-3.5 h-3.5" /> Flyer
                 </button>
                 <button onClick={copyLink} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/15 hover:bg-white/25 rounded-xl text-white text-xs font-medium transition-all">
                   {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -457,6 +462,10 @@ export default function PublicPetProfile() {
 
       {showShareModal && data?.pet && (
         <SocialShareModal pet={data.pet} onClose={() => setShowShareModal(false)} />
+      )}
+
+      {showPostModal && data?.pet && (
+        <SharePostModal pet={data.pet} onClose={() => setShowPostModal(false)} />
       )}
     </div>
   );

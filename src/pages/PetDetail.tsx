@@ -4,7 +4,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import { Pet, PetStatus, getPetImageUrls, formatPetDate, getPetCoordinates, getPublicContact } from '@/src/lib/petService';
 import { api, apiUrl } from '@/src/lib/api';
-import { MapPin, Calendar, Phone, Mail, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock, Flag, BadgeCheck, Star, BellRing, ExternalLink, Eye, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { MapPin, Calendar, Phone, Mail, MessageCircle, Share2, ArrowLeft, Info, Loader2, X, ShieldCheck, Clock, Flag, BadgeCheck, Star, BellRing, ExternalLink, Eye, AlertTriangle, ShieldAlert, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn, formatDateOnly } from '@/src/lib/utils';
@@ -17,6 +17,7 @@ import { Helmet } from 'react-helmet-async';
 import { PhoneInput } from '@/src/components/PhoneInput';
 import ReportModal from '@/src/components/ReportModal';
 import SocialShareModal from '@/src/components/SocialShareModal';
+import SharePostModal from '@/src/components/SharePostModal';
 import CaseMap from '@/src/components/CaseMap';
 import CaseTimeline from '@/src/components/CaseTimeline';
 import CaseActions from '@/src/components/CaseActions';
@@ -67,6 +68,7 @@ export default function PetDetail() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showPostModal, setShowPostModal] = useState(false);
   const [shareEmail, setShareEmail] = useState('');
   const [sharePhone, setSharePhone] = useState('');
   const [shareMsg, setShareMsg] = useState('');
@@ -642,13 +644,20 @@ Me gustaría obtener más información.`;
             })()}
           </div>
 
-          <div className="border-t border-brand-accent pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="border-t border-brand-accent pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
-              onClick={() => setShowImageModal(true)}
+              onClick={() => setShowPostModal(true)}
               className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white hover:shadow-lg"
             >
               <Share2 className="w-5 h-5" />
-              Compartir
+              Compartir en Redes
+            </button>
+            <button
+              onClick={() => setShowImageModal(true)}
+              className="w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-md bg-brand-primary text-white hover:shadow-lg"
+            >
+              <Download className="w-5 h-5" />
+              Flyer
             </button>
             <button
               onClick={() => { if (!user) { navigate('/login'); return; } setShowReportModal(true); }}
@@ -1048,6 +1057,10 @@ Me gustaría obtener más información.`;
 
       {showImageModal && pet && (
         <SocialShareModal pet={pet} onClose={() => setShowImageModal(false)} />
+      )}
+
+      {showPostModal && pet && (
+        <SharePostModal pet={pet} onClose={() => setShowPostModal(false)} />
       )}
     </div>
   );

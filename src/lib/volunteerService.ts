@@ -192,6 +192,13 @@ export async function deleteFbSearchGroup(id: string) {
   return volRequest(`/fb-search-groups/${id}`, { method: 'DELETE' });
 }
 
+// ── Share Preview ────────────────────────────────────────────────
+
+export async function getSharePreview(petId: string) {
+  const data = await volRequest(`/share-preview/${petId}`);
+  return data as { facebook: string; instagram: string; whatsapp: string };
+}
+
 // ── Dashboard ───────────────────────────────────────────────────
 
 export async function getVolunteerDashboard() {

@@ -2,6 +2,9 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, sendMemberApprovalEmail, sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins, sendPushToUser } from '../services/pushService.js';
+import { buildPetMessage } from '../services/facebookPublisher.js';
+import { buildPetCaption } from '../services/instagramPublisher.js';
+import { buildPetBroadcastCaption } from '../services/whatsappService.js';
 
 const router = Router();
 
@@ -487,6 +490,39 @@ router.put('/share-log/:id/url', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Update share URL error:', err);
     res.status(500).json({ error: 'Failed to update URL' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+//  SHARE PREVIEW — captions por plataforma (mismos que auto-publishers)
+// ══════════════════════════════════════════════════════════════════════
+
+router.get('/share-preview/:petId', requireAuth, async (req, res) => {
+  try {
+    const petRes = await pool.query(
+      `SELECT p.*, u.display_name as author_name
+       FROM pets p
+       LEFT JOIN users u ON u.id = p.created_by
+       WHERE p.id = $1`,
+      [req.params.petId]
+    );
+    if (petRes.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
+    const pet = petRes.rows[0];
+
+    const hashtagsRes = await pool.query("SELECT value FROM settings WHERE key = 'instagram_default_hashtags'");
+    const hashtags = hashtagsRes.rows[0]?.value || '#SigoTuHuella #MascotasPerdidas #AdoptaNoCompres';
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+    const originalUrl = null;
+
+    const facebook = buildPetMessage(pet, hashtags, originalUrl, pet.author_name || null);
+    const instagram = buildPetCaption(pet, hashtags);
+    const whatsapp = await buildPetBroadcastCaption(pet);
+
+    res.json({ facebook, instagram, whatsapp });
+  } catch (err) {
+    console.error('Share preview error:', err);
+    res.status(500).json({ error: 'Failed to generate preview' });
   }
 });
 

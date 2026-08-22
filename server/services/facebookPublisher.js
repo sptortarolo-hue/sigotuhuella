@@ -56,7 +56,7 @@ async function getPageId() {
   return null;
 }
 
-function buildPetMessage(pet, hashtags, originalUrl, authorName) {
+export function buildPetMessage(pet, hashtags, originalUrl, authorName) {
   const statusTag = statusLabels[pet.status] || '🐾 MASCOTA';
   const species = speciesLabel[pet.species] || 'Mascota';
   const gender = genderLabel[pet.gender] || '';
