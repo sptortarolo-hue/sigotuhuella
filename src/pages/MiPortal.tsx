@@ -149,15 +149,23 @@ export default function MiPortal() {
 
     const fetchInvites = async () => {
       try {
-        const res = await safeFetch(() => fetch(apiUrl('/api/invites/pending'), { credentials: 'include' }).then(r => r.ok ? r.json() : null));
-        if (res) setPendingInvites(res);
+        const data = await safeFetch(async () => {
+          const res = await fetch(apiUrl('/api/invites/pending'), { credentials: 'include' });
+          if (!res.ok) throw new Error(res.status === 401 ? 'UNAUTHORIZED' : 'Failed');
+          return res.json();
+        });
+        if (data) setPendingInvites(data);
       } catch (e) { console.error(e); }
       finally { setInvitesLoading(false); }
     };
     
     const fetchShared = async () => {
       try {
-        const data = await safeFetch(() => fetch(apiUrl('/api/my-pets/shared/with-me'), { credentials: 'include' }).then(r => r.ok ? r.json() : null));
+        const data = await safeFetch(async () => {
+          const res = await fetch(apiUrl('/api/my-pets/shared/with-me'), { credentials: 'include' });
+          if (!res.ok) throw new Error(res.status === 401 ? 'UNAUTHORIZED' : 'Failed');
+          return res.json();
+        });
         if (data) setSharedPets(data);
       } catch (e) { console.error(e); }
       finally { setSharedPetsLoading(false); }
@@ -166,9 +174,11 @@ export default function MiPortal() {
     // Volunteer data
     const fetchVolunteerSubscriptions = async () => {
       try {
-        const data = await safeFetch(() => 
-          fetch(apiUrl('/api/volunteers/my-subscriptions'), { credentials: 'include' }).then(r => r.ok ? r.json() : null)
-        );
+        const data = await safeFetch(async () => {
+          const res = await fetch(apiUrl('/api/volunteers/my-subscriptions'), { credentials: 'include' });
+          if (!res.ok) throw new Error(res.status === 401 ? 'UNAUTHORIZED' : 'Failed');
+          return res.json();
+        });
         if (data) setVolunteerSubscriptions(data.subscriptions || data || []);
       } catch (e) { console.error('Error fetching volunteer subscriptions:', e); }
       finally { setVolunteerSubsLoading(false); }
@@ -178,10 +188,11 @@ export default function MiPortal() {
       try {
         const neighborhoods = myPets.flatMap(p => p.neighborhoods || []).filter(Boolean);
         if (neighborhoods.length === 0) { setZonePets([]); return; }
-        const data = await safeFetch(() => 
-          fetch(apiUrl(`/api/pets?neighborhoods=${encodeURIComponent(JSON.stringify(neighborhoods))}&status=lost,sighted&limit=10`), { credentials: 'include' })
-            .then(r => r.ok ? r.json() : null)
-        );
+        const data = await safeFetch(async () => {
+          const res = await fetch(apiUrl(`/api/pets?neighborhoods=${encodeURIComponent(JSON.stringify(neighborhoods))}&status=lost,sighted&limit=10`), { credentials: 'include' });
+          if (!res.ok) throw new Error(res.status === 401 ? 'UNAUTHORIZED' : 'Failed');
+          return res.json();
+        });
         if (data) setZonePets(data.pets || []);
       } catch (e) { console.error('Error fetching zone pets:', e); }
       finally { setZonePetsLoading(false); }
@@ -189,9 +200,11 @@ export default function MiPortal() {
 
     const fetchShareStats = async () => {
       try {
-        const data = await safeFetch(() => 
-          fetch(apiUrl('/api/volunteers/share-stats'), { credentials: 'include' }).then(r => r.ok ? r.json() : null)
-        );
+        const data = await safeFetch(async () => {
+          const res = await fetch(apiUrl('/api/volunteers/share-stats'), { credentials: 'include' });
+          if (!res.ok) throw new Error(res.status === 401 ? 'UNAUTHORIZED' : 'Failed');
+          return res.json();
+        });
         if (data) setShareStats(data);
       } catch (e) { console.error('Error fetching share stats:', e); }
       finally { setShareStatsLoading(false); }
