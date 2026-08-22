@@ -7,7 +7,7 @@ import {
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import {
   Loader2, Plus, X, Trash2, Edit2, Save, Check, Globe, Users, Phone, Mail,
-  ChevronDown, ChevronUp, ExternalLink, Clock,
+  ChevronDown, ChevronUp, ExternalLink, Clock, ShieldCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
