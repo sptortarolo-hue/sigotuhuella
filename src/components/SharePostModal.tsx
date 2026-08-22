@@ -88,6 +88,7 @@ function CaptionScreen({
   onGenerate,
   onCopyCaption,
   captionCopied,
+  statusStyle,
 }: {
   pet: Pet;
   selectedPlatforms: Platform[];
@@ -101,8 +102,8 @@ function CaptionScreen({
   onGenerate: (p: Platform) => void;
   onCopyCaption: (p: Platform) => void;
   captionCopied: string | null;
+  statusStyle: { label: string; color: string };
 }) {
-  const statusStyle = STATUS_STYLES[pet.status] || { label: 'MASCOTA', color: '#6B7280' };
 
   return (
     <motion.div
@@ -126,16 +127,14 @@ function CaptionScreen({
 
       <div className="overflow-y-auto p-4 sm:p-5 flex-1">
         <div className="flex gap-3 mb-5 overflow-x-auto pb-2">
-          {selectedPlatforms.map(p => {
+          {selectedPlatforms.map((p, idx) => {
             const cfg = PLATFORMS.find(x => x.id === p)!;
             const Icon = cfg.icon;
-            const isActive = p === selectedPlatforms[0];
+            const isActive = idx === 0;
             return (
               <button
                 key={p}
-                onClick={() => {
-                  // reorder: move clicked to front
-                }}
+                onClick={() => idx > 0 && setSelectedPlatforms(prev => [p, ...prev.filter(x => x !== p)])}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-medium whitespace-nowrap transition-all",
                   isActive
@@ -270,6 +269,7 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
   const isMobile = typeof navigator !== 'undefined' && !!navigator.share;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const petUrl = origin + '/pet/' + pet.id;
+  const statusStyle = STATUS_STYLES[pet.status] || { label: 'MASCOTA', color: '#6B7280' };
 
   useEffect(() => {
     if (selectedPlatforms.length === 0) return;
@@ -432,6 +432,7 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
               onGenerate={handleGenerate}
               onCopyCaption={copyCaption}
               captionCopied={captionCopied}
+              statusStyle={statusStyle}
             />
           )}
         </AnimatePresence>
