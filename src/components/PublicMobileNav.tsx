@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Search, Heart, HandCoins, Sparkles, X, PawPrint, Users, User, Share2, Camera, LogIn, LogOut, Ticket, BookOpen, FolderOpen } from 'lucide-react';
+import { Home, Search, Heart, HandCoins, Sparkles, X, PawPrint, Users, User, Share2, Camera, LogIn, LogOut, Ticket, BookOpen, FolderOpen, Megaphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { useAuth } from '@/src/hooks/useAuth';
@@ -36,6 +36,7 @@ const publicMoreBase = [
 const authMorePortal = [
   { label: 'Mis Mascotas', icon: PawPrint, path: '/mi-mascota' },
   { label: 'Mis Casos', icon: FolderOpen, path: '/mis-casos' },
+  { label: 'Voluntario', icon: Megaphone, path: '/voluntario' },
   { label: 'Mi Perfil', icon: User, path: '/perfil' },
   { label: 'Mi Portal', icon: Home, path: '/dashboard' },
 ];
