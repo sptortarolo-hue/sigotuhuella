@@ -10,9 +10,12 @@ interface AuthGateProps {
   description: string;
   icon?: React.ReactNode;
   onSuccess?: () => void;
+  variant?: 'inline' | 'modal';
+  open?: boolean;
+  onClose?: () => void;
 }
 
-export default function AuthGate({ title, description, icon, onSuccess }: AuthGateProps) {
+export default function AuthGate({ title, description, icon, onSuccess, variant = 'inline', open = true, onClose }: AuthGateProps) {
   const { login } = useAuth();
   const [mode, setMode] = useState<'login' | 'register' | null>(null);
   const [loading, setLoading] = useState(false);
@@ -81,14 +84,13 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
     }
   };
 
-  return (
-    <div className="max-w-2xl mx-auto px-4 py-20">
-      <div className="bg-white p-12 rounded-[3rem] border border-brand-accent shadow-xl">
-        <div className="text-center mb-10">
-          {icon || <AlertCircle className="w-16 h-16 text-brand-secondary mx-auto mb-6" />}
-          <h1 className="text-3xl font-serif font-bold text-brand-primary mb-4">{title}</h1>
-          <p className="text-gray-500">{description}</p>
-        </div>
+  const content = (
+    <div className="bg-white p-6 sm:p-8 md:p-12 rounded-[3rem] border border-brand-accent shadow-xl max-h-[85vh] overflow-y-auto">
+      <div className="text-center mb-8 sm:mb-10">
+        {icon || <AlertCircle className="w-16 h-16 text-brand-secondary mx-auto mb-6" />}
+        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-brand-primary mb-4">{title}</h1>
+        <p className="text-gray-500 text-sm sm:text-base">{description}</p>
+      </div>
 
         {!mode && (
           <div className="grid md:grid-cols-2 gap-6">
@@ -314,6 +316,26 @@ export default function AuthGate({ title, description, icon, onSuccess }: AuthGa
           )}
         </AnimatePresence>
       </div>
+  );
+
+  if (variant === 'modal') {
+    if (!open) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-brand-primary/20 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative w-full max-w-lg">
+          {onClose && (
+            <button onClick={onClose} className="absolute -top-3 -right-3 z-10 w-8 h-8 bg-white rounded-full shadow-md flex items-center justify-center text-gray-400 hover:text-gray-600 text-sm">✕</button>
+          )}
+          {content}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-20">
+      {content}
     </div>
   );
 }

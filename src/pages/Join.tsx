@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/src/hooks/useAuth';
 import {
   getAgrupaciones,
@@ -68,6 +68,10 @@ export default function Join() {
     whatsapp: '',
   });
   const [phoneValid, setPhoneValid] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
+  const location = useLocation();
+  const pendingCatFromNav = (location.state as any)?.pendingCategoryId as string | undefined;
 
   useEffect(() => {
     if (user && !prefilled.current) {
@@ -79,6 +83,17 @@ export default function Join() {
       });
       setPhoneValid(!!toE164(whatsapp));
       prefilled.current = true;
+
+      const catId = pendingCatFromNav;
+      if (catId) {
+        getAgrupaciones().then(ags => {
+          if (ags && ags.length > 0) {
+            setSelectedAgrupaciones([ags[0].id]);
+            setSelectedCategories({ [ags[0].id]: [catId] });
+            setStep(2);
+          }
+        });
+      }
     }
   }, [user]);
 
@@ -240,47 +255,47 @@ export default function Join() {
                 Elegí cómo querés ayudar: difundiendo, buscando, albergando o colaborando de otras formas.
               </p>
               <div className="space-y-4">
-                <div className="p-4 bg-brand-primary/5 rounded-2xl border border-brand-primary/10 flex items-start gap-4">
-                  <div className="w-12 h-12 bg-brand-primary text-white rounded-xl flex items-center justify-center shrink-0">
-                    <Share2 className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-brand-primary font-serif text-lg">Difusor en Redes</h3>
-                    <p className="text-sm text-gray-600">
-                      Compartí publicaciones de mascotas perdidas en tus redes sociales y grupos de WhatsApp.
-                    </p>
-                  </div>
-                </div>
-                <div className="p-4 bg-brand-primary/5 rounded-2xl border border-brand-primary/10 flex items-start gap-4">
-                  <div className="w-12 h-12 bg-brand-primary text-white rounded-xl flex items-center justify-center shrink-0">
-                    <Search className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-brand-primary font-serif text-lg">Buscador Activo</h3>
-                    <p className="text-sm text-gray-600">
-                      Investiguá en grupos de Facebook y redes sociales para encontrar pistas de mascotas perdidas.
-                    </p>
-                  </div>
-                </div>
-                <div className="p-4 bg-brand-primary/5 rounded-2xl border border-brand-primary/10 flex items-start gap-4">
-                  <div className="w-12 h-12 bg-brand-primary text-white rounded-xl flex items-center justify-center shrink-0">
-                    <Home className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-brand-primary font-serif text-lg">Hogar de Tránsito</h3>
-                    <p className="text-sm text-gray-600">
-                      Ofrecé tu hogar temporalmente para albergar mascotas rescatadas.
-                    </p>
-                  </div>
-                </div>
+                {[
+                  { id: 'difusion', icon: Share2, title: 'Difusor en Redes', desc: 'Compartí publicaciones de mascotas perdidas en tus redes sociales y grupos de WhatsApp.' },
+                  { id: 'busqueda', icon: Search, title: 'Buscador Activo', desc: 'Investiguá en grupos de Facebook y redes sociales para encontrar pistas de mascotas perdidas.' },
+                  { id: 'hogar_transito', icon: Home, title: 'Hogar de Tránsito', desc: 'Ofrecé tu hogar temporalmente para albergar mascotas rescatadas.' },
+                ].map(card => (
+                  <button
+                    key={card.id}
+                    type="button"
+                    onClick={() => {
+                      setPendingCategoryId(card.id);
+                      setAuthModalOpen(true);
+                    }}
+                    className="w-full p-4 bg-brand-primary/5 rounded-2xl border border-brand-primary/10 flex items-start gap-4 text-left hover:border-brand-primary/40 hover:shadow-md hover:bg-brand-primary/10 transition-all cursor-pointer group"
+                  >
+                    <div className="w-12 h-12 bg-brand-primary text-white rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                      <card.icon className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-brand-primary font-serif text-lg">{card.title}</h3>
+                      <p className="text-sm text-gray-600">
+                        {card.desc}
+                      </p>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-brand-primary/40 group-hover:text-brand-primary ml-auto shrink-0 mt-1 transition-colors" />
+                  </button>
+                ))}
               </div>
             </motion.div>
           </div>
         </div>
         <AuthGate
+          variant="modal"
+          open={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
           title="Empezá aquí"
           description="Debés iniciar sesión para solicitar unirte."
           icon={<Users className="w-16 h-16 text-brand-primary mx-auto mb-6" />}
+          onSuccess={() => {
+            setAuthModalOpen(false);
+            navigate('/sumate', { state: { pendingCategoryId }, replace: true });
+          }}
         />
       </>
     );
