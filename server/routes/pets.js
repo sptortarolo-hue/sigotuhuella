@@ -2,11 +2,12 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
 import { matchPetToPosts, matchWhatsAppToPets, matchPetToPets } from '../services/geminiMatching.js';
-import { createPetCase, generateCaseNumber } from '../services/caseService.js';
+import { createPetCase, generateCaseNumber, computeExpiry } from '../services/caseService.js';
 import { celebrateStatusChange } from '../services/reunionCelebration.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { notifyPetPublication } from '../services/petPublicationNotification.js';
 import { notifyVolunteersOfNewPet } from '../services/volunteerNotificationService.js';
+import { extractNeighborhoods } from '../services/geocoding.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import { replyToComment } from '../services/instagramService.js';
@@ -78,6 +79,12 @@ router.get('/', async (req, res) => {
         (SELECT json_build_object('post_id', fp.page_post_id, 'likes', fp.like_count, 'comments', fp.comment_count, 'shares', fp.share_count)
          FROM facebook_page_posts fp WHERE fp.pet_id = p.id AND fp.status = 'published' AND fp.is_celebration = FALSE
          ORDER BY fp.published_at DESC NULLS LAST LIMIT 1) as fb_impact,
+        (SELECT json_build_object('status', pc.status,
+                                  'expired', pc.status = 'active' AND pc.active_until IS NOT NULL AND pc.active_until < NOW(),
+                                  'days_left', CASE WHEN pc.status = 'active' AND pc.active_until IS NOT NULL
+                                                    THEN FLOOR(EXTRACT(EPOCH FROM (pc.active_until - NOW())) / 86400.0)::int
+                                                    ELSE NULL END)
+         FROM pet_cases pc WHERE pc.pet_id = p.id ORDER BY pc.created_at DESC LIMIT 1) as case_vigencia,
         p.case_number as case_number
       FROM pets p
       LEFT JOIN pet_images pi ON pi.pet_id = p.id
@@ -95,6 +102,8 @@ router.get('/', async (req, res) => {
     if (isPublic === 'true') {
       conditions.push(`p.created_by IS NULL`);
     }
+    // Los avistajes son señales efímeras: dejan de listarse a los 14 días
+    conditions.push(`(p.status <> 'sighted' OR p.created_at > NOW() - INTERVAL '14 days')`);
     if (conditions.length > 0) {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
@@ -174,6 +183,14 @@ router.get('/:id', async (req, res) => {
       myPetPhotos = photosRes.rows;
     }
 
+    // Vigencia del caso (banner de publicación vencida en la ficha)
+    const caseExpRes = await pool.query(
+      'SELECT status as case_status, active_until FROM pet_cases WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [pet.id]
+    );
+    const petCaseRow = caseExpRes.rows[0] || null;
+    const expiryInfo = computeExpiry(petCaseRow?.case_status, petCaseRow?.active_until);
+
     res.json({
       pet,
       group_members: groupMembersRes.rows,
@@ -181,6 +198,10 @@ router.get('/:id', async (req, res) => {
       my_pet_events: myPetEvents,
       my_pet_records: myPetRecords,
       my_pet_photos: myPetPhotos,
+      case_status: petCaseRow?.case_status || null,
+      active_until: petCaseRow?.active_until || null,
+      expired: expiryInfo.expired,
+      days_left: expiryInfo.days_left,
     });
 
     // Track pet view (fire-and-forget)
@@ -1966,6 +1987,35 @@ case 'facebook_groups': {
   } catch (err) {
     console.error('Publish pet error:', err);
     res.status(500).json({ error: 'Error al publicar mascota' });
+  }
+});
+
+// POST /admin/backfill-neighborhoods - completa barrios faltantes desde location (idempotente)
+// Body opcional: { dry: true } para previsualizar sin escribir.
+router.post('/admin/backfill-neighborhoods', requireAdmin, async (req, res) => {
+  try {
+    const dry = req.body?.dry === true;
+    const pending = await pool.query(
+      `SELECT id, name, location FROM pets
+       WHERE neighborhoods IS NULL OR neighborhoods = '[]'
+       ORDER BY created_at ASC`
+    );
+    let updated = 0, skipped = 0;
+    for (const pet of pending.rows) {
+      const nbs = extractNeighborhoods(pet.location || '');
+      if (nbs.length === 0) { skipped++; continue; }
+      if (!dry) {
+        await pool.query('UPDATE pets SET neighborhoods = $1 WHERE id = $2', [
+          JSON.stringify(nbs),
+          pet.id,
+        ]);
+      }
+      updated++;
+    }
+    res.json({ scanned: pending.rows.length, updated, skipped, dry });
+  } catch (err) {
+    console.error('backfill neighborhoods error:', err);
+    res.status(500).json({ error: 'Error al hacer backfill de barrios' });
   }
 });
 

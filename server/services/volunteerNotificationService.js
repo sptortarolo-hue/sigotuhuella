@@ -2,13 +2,18 @@ import pool from '../db.js';
 import { sendPushToUser } from './pushService.js';
 import { enqueue } from './phoneRelayService.js';
 import { sendAdminNotificationEmail } from '../auth.js';
+import { nbNormSql } from './neighborhoodUtils.js';
 
 const STATUS_LABELS = {
   lost: 'perdido/a',
+  found: 'rescatado/a',
   sighted: 'avistado/a',
   accidented: 'accidentado/a',
   retained: 'retenido/a',
+  transitada: 'en tránsito',
+  needs_attention: 'que necesita ayuda',
   for_adoption: 'en adopción',
+  for_adoption_simple: 'en adopción',
   reunited: 'reunificado/a',
 };
 
@@ -22,7 +27,14 @@ export async function notifyVolunteersOfNewPet(pet) {
 
   try {
     const agrupaciones = await pool.query(
-      `SELECT id, name FROM agrupaciones WHERE is_active = TRUE AND neighborhoods && $1::jsonb`,
+      `SELECT id, name FROM agrupaciones
+       WHERE is_active = TRUE
+         AND EXISTS (
+           SELECT 1
+           FROM jsonb_array_elements_text(neighborhoods) ag_nb
+           JOIN jsonb_array_elements_text($1::jsonb) pt_nb
+             ON ${nbNormSql('ag_nb')} = ${nbNormSql('pt_nb')}
+         )`,
       [JSON.stringify(pet.neighborhoods)]
     );
     if (agrupaciones.rows.length === 0) {

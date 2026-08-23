@@ -44,6 +44,7 @@ const CASE_STATUS_LABELS: Record<string, string> = {
   active: 'En búsqueda',
   closed: 'Cerrado',
   pause: 'Pausado',
+  archived: 'Archivado',
 };
 
 const CASE_TYPE_LABELS: Record<string, string> = {
@@ -702,7 +703,17 @@ Me gustaría obtener más información.`;
                 </div>
               </div>
 
-              {caseData.status === 'active' && typeof caseData.days_left === 'number' && caseData.days_left <= 3 && (
+              {caseData.status === 'archived' ? (
+                <div className="mb-4 bg-orange-50 border border-orange-200 rounded-2xl p-4">
+                  <p className="text-sm font-bold text-orange-800 mb-1 flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Publicación archivada
+                  </p>
+                  <p className="text-xs text-orange-700">
+                    El caso venció hace más de 30 días sin renovarse y ya no se difunde. Si tu mascota sigue perdida, reactivá la publicación.
+                  </p>
+                </div>
+              ) : (caseData.status === 'active' && typeof caseData.days_left === 'number' && caseData.days_left <= 3 && (
                 <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4">
                   <p className="text-sm font-bold text-amber-800 mb-1 flex items-center gap-2">
                     <Clock className="w-4 h-4" />
@@ -714,7 +725,7 @@ Me gustaría obtener más información.`;
                       : `Quedan ${caseData.days_left} día(s) de publicación.`}
                   </p>
                 </div>
-              )}
+              ))}
 
               <div className="flex flex-wrap items-center gap-2 mb-5">
                 {(caseData.sightings?.length > 0) && (
@@ -761,14 +772,14 @@ Me gustaría obtener más información.`;
                     {sendingAlert ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
                     {sendingAlert ? 'Enviando...' : 'Alerta vecinal'}
                   </button>
-                  {(caseData.expired || (typeof caseData.days_left === 'number' && caseData.days_left <= 7)) && (
+                  {(caseData.status === 'archived' || caseData.expired || (typeof caseData.days_left === 'number' && caseData.days_left <= 7)) && (
                     <button
                       onClick={handleRenew}
                       disabled={renewing}
                       className="flex-1 px-4 py-3 bg-indigo-500 text-white rounded-xl font-bold text-sm hover:bg-indigo-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {renewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
-                      {renewing ? 'Renovando...' : 'Renovar caso (45 días)'}
+                      {renewing ? 'Procesando...' : caseData.status === 'archived' ? 'Reactivar publicación (45 días)' : 'Renovar caso (45 días)'}
                     </button>
                   )}
                 </div>

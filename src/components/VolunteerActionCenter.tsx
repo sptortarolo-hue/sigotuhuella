@@ -935,6 +935,15 @@ export default function VolunteerActionCenter({ petId, onClose, onNavigate }: Vo
                 <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-bold', statusStyle.bg)}>
                   {statusStyle.label}
                 </span>
+                {data?.expired ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
+                    Publicación vencida
+                  </span>
+                ) : typeof data?.days_left === 'number' && data.days_left >= 0 && data.days_left <= 7 ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
+                    Vence en {data.days_left}d
+                  </span>
+                ) : null}
               </div>
               <p className="text-xs text-gray-500 truncate">{pet.location || 'Sin ubicación'}</p>
             </div>

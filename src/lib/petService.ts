@@ -66,6 +66,7 @@ export interface Pet {
   ig_impact?: { permalink: string; likes: number; comments: number; shares: number } | null;
   fb_impact?: { post_id: string; likes: number; comments: number; shares: number } | null;
   case_number?: string | null;
+  case_vigencia?: { status: string | null; expired: boolean; days_left: number | null } | null;
 }
 
 export function getPetImageUrl(pet: Pet): string | undefined {

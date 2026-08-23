@@ -542,6 +542,13 @@ export async function matchPetToPets(pet, opts = {}) {
          AND id != $2
          AND group_id IS NULL
          AND status = ANY($3::text[])
+         AND COALESCE((
+           SELECT pc.status = 'active' AND (pc.active_until IS NULL OR pc.active_until >= NOW())
+           FROM pet_cases pc
+           WHERE pc.pet_id = pets.id
+           ORDER BY pc.created_at DESC
+           LIMIT 1
+         ), FALSE)
          AND 1 - (embedding <=> $1::vector) > 0.70
        ORDER BY embedding <=> $1::vector
        LIMIT 20`,

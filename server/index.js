@@ -52,6 +52,7 @@ import { verifyToken } from './auth.js';
 import { sendPushToUser } from './services/pushService.js';
 import { runEngagementSync, syncRecentIgComments } from './services/metaEngagement.js';
 import { runReplicaDetection } from './services/replicaDetectionService.js';
+import { runLifecycleCycle } from './services/lifecycleJob.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -722,6 +723,14 @@ async function start() {
   // Invite reminders: every hour
   setInterval(processInviteReminders, 60 * 60 * 1000);
   processInviteReminders();
+
+  // Ciclo de vida de casos: recordatorios de renovación + auto-archive (diario)
+  setInterval(() => {
+    runLifecycleCycle().catch(err => console.error('[LifecycleJob] Error:', err.message));
+  }, 24 * 60 * 60 * 1000);
+  setTimeout(() => {
+    runLifecycleCycle().catch(err => console.error('[LifecycleJob] Error:', err.message));
+  }, 15 * 1000);
 
   // Instagram publisher: check every minute
   setInterval(async () => {

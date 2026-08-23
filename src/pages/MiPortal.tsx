@@ -280,6 +280,17 @@ const fetchInvites = async () => {
     </button>
   );
 
+  const expiringLostReports = myPets
+    .filter((p: any) => p.lost_report_id && p.lost_case_vigencia)
+    .map((p: any) => {
+      const v = p.lost_case_vigencia;
+      if (v.status === 'archived') return { pet: p, kind: 'archived' as const, days: null };
+      if (v.expired) return { pet: p, kind: 'expired' as const, days: null };
+      if (typeof v.days_left === 'number' && v.days_left <= 7) return { pet: p, kind: 'soon' as const, days: v.days_left };
+      return null;
+    })
+    .filter(Boolean) as { pet: any; kind: 'archived' | 'expired' | 'soon'; days: number | null }[];
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       {/* HEADER */}
@@ -411,6 +422,35 @@ const fetchInvites = async () => {
             </div>
           )}
         </section>
+
+        {/* AVISO DE PUBLICACIONES POR VENCER / VENCIDAS */}
+        {expiringLostReports.length > 0 && (
+          <section className="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5">
+            <h2 className="text-xs sm:text-sm font-bold uppercase tracking-widest text-amber-700 mb-2 flex items-center gap-2">
+              <Clock className="w-4 h-4" /> Publicaciones de pérdida
+            </h2>
+            <div className="space-y-2">
+              {expiringLostReports.map(({ pet, kind, days }) => (
+                <div key={pet.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <p className="text-sm text-amber-900 flex-1">
+                    <span className="font-bold">{pet.name}</span>{' '}
+                    {kind === 'archived'
+                      ? 'tiene la publicación archivada: ya no se difunde.'
+                      : kind === 'expired'
+                      ? 'tiene la publicación vencida.'
+                      : `la publicación vence en ${days} día${days === 1 ? '' : 's'}.`}
+                  </p>
+                  <button
+                    onClick={() => navigate(`/pet/${pet.lost_report_id}`)}
+                    className="shrink-0 px-4 py-2 bg-brand-primary text-white rounded-xl text-xs font-bold hover:bg-brand-primary/90 transition-colors"
+                  >
+                    {kind === 'soon' ? 'Ver publicación' : 'Renovar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* 2. TU IMPACTO - STATS */}
         <section className="bg-white rounded-2xl shadow-sm p-4 sm:p-5 lg:p-6">

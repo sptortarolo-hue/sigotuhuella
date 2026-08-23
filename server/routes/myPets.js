@@ -4,6 +4,7 @@ import { requireAuth, requireAdmin, sendAdminNotificationEmail } from '../auth.j
 import { sendPushToAdmins } from '../services/pushService.js';
 import { matchPetToPosts } from '../services/geminiMatching.js';
 import { notifyVolunteersOfNewPet } from '../services/volunteerNotificationService.js';
+import { extractNeighborhoods } from '../services/geocoding.js';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 import PDFDocument from 'pdfkit';
@@ -78,7 +79,15 @@ router.get('/', requireAuth, async (req, res) => {
         (SELECT count(*) FROM my_pet_events WHERE my_pet_id = mp.id) as event_count,
         (SELECT count(*) FROM pet_records WHERE my_pet_id = mp.id) as record_count,
         EXISTS(SELECT 1 FROM adoption_assignments aa JOIN pets p ON p.id = aa.pet_id
-               WHERE p.my_pet_id = mp.id AND aa.status = 'pending_adopter') as has_pending_adoption
+               WHERE p.my_pet_id = mp.id AND aa.status = 'pending_adopter') as has_pending_adoption,
+        CASE WHEN mp.lost_report_id IS NULL THEN NULL ELSE (
+          SELECT json_build_object('status', pc.status,
+                                   'expired', pc.status = 'active' AND pc.active_until IS NOT NULL AND pc.active_until < NOW(),
+                                   'days_left', CASE WHEN pc.status = 'active' AND pc.active_until IS NOT NULL
+                                                     THEN FLOOR(EXTRACT(EPOCH FROM (pc.active_until - NOW())) / 86400.0)::int
+                                                     ELSE NULL END)
+          FROM pet_cases pc WHERE pc.pet_id = mp.lost_report_id ORDER BY pc.created_at DESC LIMIT 1
+        ) END as lost_case_vigencia
        FROM my_pets mp
        LEFT JOIN my_pet_shares ms ON ms.pet_id = mp.id AND ms.user_id = $1
        WHERE (mp.user_id = $1 OR ms.user_id IS NOT NULL) AND mp.transferred_at IS NULL
@@ -1112,14 +1121,15 @@ router.post('/:id/report-lost', requireAuth, async (req, res) => {
     }
 
     const petResult = await client.query(
-      `INSERT INTO pets (species, name, breed, color, gender, age, description, location, contact_info, status, created_by, is_admin_verified, is_vaccinated, is_sterilized, is_dewormed)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'lost',$10,false,$11,$12,$13)
+      `INSERT INTO pets (species, name, breed, color, gender, age, description, location, contact_info, status, created_by, is_admin_verified, is_vaccinated, is_sterilized, is_dewormed, neighborhoods)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'lost',$10,false,$11,$12,$13,$14)
        RETURNING *`,
       [
         mp.species, mp.name, mp.breed || null, mp.color || null,
         mp.gender || 'unknown', age, description, location,
         phone || req.user.phone || '', req.user.id,
         mp.is_vaccinated || false, mp.is_sterilized || false, mp.is_dewormed || false,
+        JSON.stringify(extractNeighborhoods(location)),
       ]
     );
     const pet = petResult.rows[0];

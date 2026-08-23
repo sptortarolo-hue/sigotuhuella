@@ -122,6 +122,11 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
         )}>
           {statusLabels[displayStatus]}
         </div>
+        {pet.case_vigencia?.expired && (
+          <div className="absolute top-12 left-4 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md bg-red-600/90 text-white">
+            Publicación vencida
+          </div>
+        )}
         {pet.status === PetStatus.FOR_ADOPTION && pet.my_pet_id && (
           <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md bg-brand-primary/90 text-white border border-brand-primary">
             Perfil en la app

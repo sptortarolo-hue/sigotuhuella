@@ -287,6 +287,10 @@ export interface RecentFinding {
 export interface ActionCenterData {
   pet: ActionCenterPet;
   case_id: string | null;
+  case_status?: string | null;
+  active_until?: string | null;
+  expired?: boolean;
+  days_left?: number | null;
   timeline_url: string | null;
   volunteerCategories: string[];
   publications: ActionCenterPublications;
@@ -298,4 +302,35 @@ export interface ActionCenterData {
 export async function getActionCenterData(petId: string): Promise<ActionCenterData> {
   const data = await volRequest(`/pet-action-center/${petId}`);
   return data;
+}
+
+// ── Cola de difusión ──────────────────────────────────────────────
+
+export interface DiffusionQueuePet {
+  id: string;
+  name: string;
+  species: string;
+  status: string;
+  location?: string;
+  neighborhoods?: string[];
+  created_at: string;
+  case_id: string | null;
+  days_left: number | null;
+  my_last_share_at: string | null;
+  my_share_count: number;
+}
+
+export interface DiffusionQueueData {
+  buckets: {
+    nuevos: DiffusionQueuePet[];
+    repostear: DiffusionQueuePet[];
+    al_dia: DiffusionQueuePet[];
+    pausados: DiffusionQueuePet[];
+  };
+  counts: { nuevos: number; repostear: number; al_dia: number; pausados: number };
+  window_days: number;
+}
+
+export async function getDiffusionQueue(): Promise<DiffusionQueueData> {
+  return volRequest('/diffusion-queue');
 }

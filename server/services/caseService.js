@@ -115,6 +115,10 @@ export async function recordSocialShare(petId, userId, { platform, group_name, g
   }, userId);
 }
 
+export const CASE_ACTIVE_DAYS = 45;
+export const ARCHIVE_AFTER_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 // Sincroniza el caso cuando cambia pets.status (cerrar en reunited/adopted, reactivar si vuelve a estar perdido)
 export async function syncCaseStatus(petId, newStatus, fromStatus = null) {
   try {
@@ -144,10 +148,23 @@ export async function syncCaseStatus(petId, newStatus, fromStatus = null) {
     } else if (!isClosedStatus(newStatus)) {
       const mapping = petCaseMapping(newStatus);
       if (mapping && petCase.status !== mapping.caseStatus) {
-        await pool.query(
-          `UPDATE pet_cases SET status = $1, updated_at = NOW() WHERE id = $2`,
-          [mapping.caseStatus, petCase.id]
-        );
+        const wasArchived = petCase.status === 'archived';
+        const newUntil = wasArchived ? new Date(Date.now() + CASE_ACTIVE_DAYS * DAY_MS) : null;
+        if (wasArchived) {
+          await pool.query(
+            `UPDATE pet_cases SET status = $1, active_until = $3, updated_at = NOW() WHERE id = $2`,
+            [mapping.caseStatus, petCase.id, newUntil]
+          );
+          await createCaseEvent(petCase.id, 'case_reactivated', {
+            pet_status: newStatus,
+            active_until: newUntil.toISOString(),
+          });
+        } else {
+          await pool.query(
+            `UPDATE pet_cases SET status = $1, updated_at = NOW() WHERE id = $2`,
+            [mapping.caseStatus, petCase.id]
+          );
+        }
       }
     }
     return petCase;
@@ -889,16 +906,28 @@ export async function renewCase(caseId, userId) {
   if (caseRes.rows.length === 0) return { error: 'Caso no encontrado' };
   const petCase = caseRes.rows[0];
   if (petCase.status === 'closed') return { error: 'El caso está cerrado. No se puede renovar.' };
-  const newUntil = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000);
-  await pool.query(
-    `UPDATE pet_cases SET active_until = $1, updated_at = NOW() WHERE id = $2`,
-    [newUntil, caseId]
-  );
-  await createCaseEvent(caseId, 'case_renewed', {
-    renewed_by: userId,
-    active_until: newUntil.toISOString(),
-  }, userId);
-  return { success: true, active_until: newUntil };
+  const newUntil = new Date(Date.now() + CASE_ACTIVE_DAYS * DAY_MS);
+  const wasArchived = petCase.status === 'archived';
+  if (wasArchived) {
+    await pool.query(
+      `UPDATE pet_cases SET active_until = $1, status = 'active', updated_at = NOW() WHERE id = $2`,
+      [newUntil, caseId]
+    );
+    await createCaseEvent(caseId, 'case_reactivated', {
+      renewed_by: userId,
+      active_until: newUntil.toISOString(),
+    }, userId);
+  } else {
+    await pool.query(
+      `UPDATE pet_cases SET active_until = $1, updated_at = NOW() WHERE id = $2`,
+      [newUntil, caseId]
+    );
+    await createCaseEvent(caseId, 'case_renewed', {
+      renewed_by: userId,
+      active_until: newUntil.toISOString(),
+    }, userId);
+  }
+  return { success: true, active_until: newUntil, reactivated: wasArchived };
 }
 
 // Calcula expired/days_left para un caso (no muta la DB).

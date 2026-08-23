@@ -1,5 +1,11 @@
 # Manual de reglas de desarrollo - SiHuella
 
+## Ciclo de vida del caso
+
+Documentación completa del ciclo de una publicación (reporte → difusión con voluntarios → resolución o vencimiento/archivo), con diagramas, matrices y referencia técnica: **[docs/Ciclo-de-Vida.md](docs/Ciclo-de-Vida.md)**.
+
+Resumen: casos activos 45 días → recordatorios D-7/D-1 → vencido visible con banner (pausado en cola de voluntarios) → auto-archive a +30 días → reactivable renovando. Cola de difusión por voluntario (Nuevos/Repostear 5d/Al día/Pausados). Avistajes caducan a 14 días. Adopciones fuera de este ciclo.
+
 ## Responsive Design Rules
 
 Mobile-first approach usando Tailwind CSS v4 con breakpoints default.

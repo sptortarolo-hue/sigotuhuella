@@ -5,7 +5,8 @@ import { sendPushToAdmins, sendPushToUser } from '../services/pushService.js';
 import { buildPetMessage } from '../services/facebookPublisher.js';
 import { buildPetCaption } from '../services/instagramPublisher.js';
 import { buildPetBroadcastCaption } from '../services/whatsappService.js';
-import { getCaseShares } from '../services/caseService.js';
+import { getCaseShares, computeExpiry } from '../services/caseService.js';
+import { nbOverlapSql } from '../services/neighborhoodUtils.js';
 
 const router = Router();
 
@@ -582,12 +583,14 @@ router.get('/pet-action-center/:petId', requireAuth, requireActiveVolunteer, asy
     if (petRes.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
     const pet = petRes.rows[0];
 
-    // Caso más reciente de la mascota (para publicaciones y timeline)
+    // Caso más reciente de la mascota (para publicaciones, timeline y vigencia)
     const caseRes = await pool.query(
-      'SELECT id FROM pet_cases WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 1',
+      'SELECT id, status as case_status, active_until FROM pet_cases WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 1',
       [petId]
     );
-    const caseId = caseRes.rows[0]?.id || null;
+    const petCase = caseRes.rows[0] || null;
+    const caseId = petCase?.id || null;
+    const expiry = computeExpiry(petCase?.case_status, petCase?.active_until);
 
     // Publicaciones reales: IG permalinks + posts de página/grupos FB (getCaseShares)
     let publications = { facebook: null, instagram: null };
@@ -656,6 +659,10 @@ router.get('/pet-action-center/:petId', requireAuth, requireActiveVolunteer, asy
     res.json({
       pet,
       case_id: caseId,
+      case_status: petCase?.case_status || null,
+      active_until: petCase?.active_until || null,
+      expired: expiry.expired,
+      days_left: expiry.days_left,
       timeline_url: caseId ? `${frontendUrl}/case/${caseId}` : null,
       publications,
       sharePreview,
@@ -666,6 +673,101 @@ router.get('/pet-action-center/:petId', requireAuth, requireActiveVolunteer, asy
   } catch (err) {
     console.error('Action center error:', err);
     res.status(500).json({ error: 'Failed to fetch action center data' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+//  COLA DE DIFUSIÓN
+// ══════════════════════════════════════════════════════════════════════
+
+const REPOST_WINDOW_DAYS = 5;
+
+router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, res) => {
+  try {
+    const subsRes = await pool.query(
+      `SELECT DISTINCT a.neighborhoods
+       FROM volunteer_subscriptions vs
+       JOIN agrupaciones a ON a.id = vs.agrupacion_id
+       WHERE vs.user_id = $1 AND vs.status = 'active'`,
+      [req.user.id]
+    );
+    const allNeighborhoods = [...new Set(subsRes.rows.flatMap(r => r.neighborhoods || []))];
+
+    const emptyBuckets = { nuevos: [], repostear: [], al_dia: [], pausados: [] };
+    if (allNeighborhoods.length === 0) {
+      return res.json({
+        buckets: emptyBuckets,
+        counts: { nuevos: 0, repostear: 0, al_dia: 0, pausados: 0 },
+        window_days: REPOST_WINDOW_DAYS,
+      });
+    }
+
+    const petsRes = await pool.query(
+      `SELECT p.id, p.name, p.species, p.status, p.location, p.neighborhoods, p.created_at,
+              pc.id as case_id, pc.status as case_status, pc.active_until,
+              sl.last_share_at,
+              (SELECT COUNT(*) FROM share_logs s2 WHERE s2.pet_id = p.id AND s2.user_id = $2) as my_share_count
+       FROM pets p
+       JOIN pet_cases pc ON pc.id = (
+         SELECT id FROM pet_cases WHERE pet_id = p.id ORDER BY created_at DESC LIMIT 1
+       )
+       LEFT JOIN LATERAL (
+         SELECT MAX(created_at) as last_share_at
+         FROM share_logs WHERE pet_id = p.id AND user_id = $2
+       ) sl ON TRUE
+       WHERE p.status IN ('lost', 'transitada', 'found', 'retained', 'accidented', 'needs_attention')
+         AND ${nbOverlapSql('$1', '(p.neighborhoods)::jsonb')}
+         AND p.is_hidden = FALSE
+       ORDER BY CASE WHEN p.status IN ('accidented', 'needs_attention') THEN 0 ELSE 1 END,
+                p.created_at DESC
+       LIMIT 200`,
+      [allNeighborhoods, req.user.id]
+    );
+
+    const now = Date.now();
+    const cutoffMs = REPOST_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const buckets = { nuevos: [], repostear: [], al_dia: [], pausados: [] };
+
+    for (const row of petsRes.rows) {
+      const expiry = computeExpiry(row.case_status, row.active_until);
+      if (row.case_status === 'archived') continue;
+      const item = {
+        id: row.id,
+        name: row.name,
+        species: row.species,
+        status: row.status,
+        location: row.location,
+        neighborhoods: row.neighborhoods,
+        created_at: row.created_at,
+        case_id: row.case_id,
+        days_left: expiry.days_left,
+        my_last_share_at: row.last_share_at || null,
+        my_share_count: parseInt(row.my_share_count, 10) || 0,
+      };
+      if (expiry.expired) {
+        buckets.pausados.push(item);
+      } else if (!row.last_share_at) {
+        buckets.nuevos.push(item);
+      } else if (now - new Date(row.last_share_at).getTime() > cutoffMs) {
+        buckets.repostear.push(item);
+      } else {
+        buckets.al_dia.push(item);
+      }
+    }
+
+    res.json({
+      buckets,
+      counts: {
+        nuevos: buckets.nuevos.length,
+        repostear: buckets.repostear.length,
+        al_dia: buckets.al_dia.length,
+        pausados: buckets.pausados.length,
+      },
+      window_days: REPOST_WINDOW_DAYS,
+    });
+  } catch (err) {
+    console.error('Diffusion queue error:', err);
+    res.status(500).json({ error: 'Failed to fetch diffusion queue' });
   }
 });
 
@@ -865,11 +967,9 @@ router.get('/dashboard', requireAuth, async (req, res) => {
          FROM pets
          WHERE neighborhoods IS NOT NULL
            AND neighborhoods != '[]'
-           AND EXISTS (
-             SELECT 1 FROM jsonb_array_elements_text(neighborhoods::jsonb) elem
-             WHERE elem = ANY($1::text[])
-           )
-            AND status IN ('lost', 'sighted', 'accidented')
+           AND ${nbOverlapSql('$1')}
+           AND status NOT IN ('adopted', 'reunited')
+           AND (status <> 'sighted' OR created_at > NOW() - INTERVAL '14 days')
            AND is_hidden = FALSE
          ORDER BY created_at DESC
          LIMIT $2 OFFSET $3`,
