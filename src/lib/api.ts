@@ -167,6 +167,13 @@ export const api = {
     publish: (id: string, platforms: string[]) => request('/pets/' + id + '/publish', { method: 'POST', body: JSON.stringify({ platforms }) }),
     verify: (id: string, verified: boolean) =>
       request(`/pets/${id}/verify`, { method: 'PUT', body: JSON.stringify({ verified }) }),
+    byNeighborhoods: (neighborhoods: string[], status?: string, limit?: number) => {
+      const params = new URLSearchParams();
+      params.set('neighborhoods', JSON.stringify(neighborhoods));
+      if (status) params.set('status', status);
+      if (limit) params.set('limit', String(limit));
+      return request(`/pets?${params.toString()}`);
+    },
     ownerData: (id: string) => request(`/pets/${id}/owner-data`),
     records: {
       list: (petId: string) => request(`/pets/${petId}/records`),
@@ -242,6 +249,8 @@ export const api = {
     updateStatus: (id: string, status: string) =>
       request(`/volunteers/${id}`, { method: 'PUT', body: JSON.stringify({ status }) }),
     delete: (id: string) => request(`/volunteers/${id}`, { method: 'DELETE' }),
+    mySubscriptions: () => request('/volunteers/my-subscriptions'),
+    shareStats: () => request('/volunteers/share-stats'),
   },
   users: {
     list: () => request('/users'),
@@ -260,6 +269,11 @@ export const api = {
       request(`/users/${id}/member`, { method: 'PUT', body: JSON.stringify(data) }),
     setPassword: (id: string, password: string) =>
       request(`/users/${id}/set-password`, { method: 'PUT', body: JSON.stringify({ password }) }),
+    invites: {
+      pending: () => request('/invites/pending'),
+      accept: (token: string) => request(`/invites/${token}/accept`, { method: 'POST' }),
+      reject: (token: string) => request(`/invites/${token}/reject`, { method: 'POST' }),
+    },
   },
   members: {
     me: () => request('/members/me'),
@@ -440,6 +454,7 @@ export const api = {
     requestQr: (id: string) => request(`/my-pets/${id}/request-qr`, { method: 'POST' }),
     vetShare: (id: string, enabled: boolean) => request(`/my-pets/${id}/vet-share`, { method: 'POST', body: JSON.stringify({ enabled }) }),
     featured: () => request('/my-pets/featured'),
+    sharedWithMe: () => request('/my-pets/shared/with-me'),
     photos: {
       list: (petId: string) => request(`/my-pets/${petId}/photos`),
       create: (petId: string, data: any) => request(`/my-pets/${petId}/photos`, { method: 'POST', body: JSON.stringify(data) }),
