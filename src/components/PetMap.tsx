@@ -101,9 +101,13 @@ const statusLabel = (s: string) => {
     case 'sighted': return 'Avistado';
     case 'accidented': return 'Accidentado';
     case 'needs_attention': return 'Necesita Atención';
+    case 'for_adoption': return 'En Adopción';
     case 'for_adoption_simple': return 'Adopción (Difusión)';
+    case 'adopted': return 'Adoptado';
+    case 'reunited': return 'Reencuentro';
+    case 'adoption_trial': return 'Período de Prueba';
     case 'transitada': return 'En Tránsito';
-    default: return 'En Adopción';
+    default: return 'Reporte';
   }
 };
 

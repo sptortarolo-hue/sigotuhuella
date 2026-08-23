@@ -363,6 +363,7 @@ Me gustaría obtener más información.`;
     [PetStatus.NEEDS_ATTENTION]: 'Necesita Atención',
     [PetStatus.FOR_ADOPTION]: 'En Adopción',
     [PetStatus.FOR_ADOPTION_SIMPLE]: 'En adopción (solo difusión)',
+    [PetStatus.ADOPTED]: 'Adoptado',
     [PetStatus.REUNITED]: 'Reencuentro',
     [PetStatus.TRANSITADA]: 'En Tránsito',
   };
