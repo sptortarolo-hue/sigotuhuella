@@ -5,8 +5,30 @@ import { sendPushToAdmins, sendPushToUser } from '../services/pushService.js';
 import { buildPetMessage } from '../services/facebookPublisher.js';
 import { buildPetCaption } from '../services/instagramPublisher.js';
 import { buildPetBroadcastCaption } from '../services/whatsappService.js';
+import { getCaseShares } from '../services/caseService.js';
 
 const router = Router();
+
+// ─── Helpers de autorización y validación ──────────────────────────────
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const validUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
+
+// Exige que el usuario tenga al menos una suscripción de voluntario activa
+const requireActiveVolunteer = async (req, res, next) => {
+  try {
+    const r = await pool.query(
+      "SELECT 1 FROM volunteer_subscriptions WHERE user_id = $1 AND status = 'active' LIMIT 1",
+      [req.user.id]
+    );
+    if (r.rows.length === 0) {
+      return res.status(403).json({ error: 'Se requiere ser voluntario activo' });
+    }
+    next();
+  } catch (err) {
+    console.error('Active volunteer check error:', err);
+    res.status(500).json({ error: 'Authorization check failed' });
+  }
+};
 
 router.get('/', requireAdmin, async (req, res) => {
   try {
@@ -427,21 +449,31 @@ router.post('/share-log', requireAuth, async (req, res) => {
   if (!pet_id || !platform) {
     return res.status(400).json({ error: 'pet_id and platform are required' });
   }
+  if (!validUuid(pet_id)) {
+    return res.status(400).json({ error: 'Invalid pet id' });
+  }
+  if (groups !== undefined && !Array.isArray(groups)) {
+    return res.status(400).json({ error: 'groups must be an array' });
+  }
   try {
+    const petCheck = await pool.query('SELECT id FROM pets WHERE id = $1', [pet_id]);
+    if (petCheck.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
+
     const result = await pool.query(
       'INSERT INTO share_logs (pet_id, user_id, platform, share_type) VALUES ($1, $2, $3, $4) RETURNING *',
-      [pet_id, req.user.id, platform, share_type || 'link']
+      [pet_id, req.user.id, String(platform).slice(0, 50), typeof share_type === 'string' ? share_type.slice(0, 20) : 'link']
     );
 
     // Si el voluntario seleccionó grupos, registrar cada uno en el timeline del caso
     const caseEvents = [];
     if (Array.isArray(groups) && groups.length > 0) {
       const { recordSocialShare } = await import('../services/caseService.js');
-      for (const group of groups) {
+      for (const group of groups.slice(0, 20)) {
+        if (!group || typeof group.name !== 'string') continue;
         const evt = await recordSocialShare(pet_id, req.user.id, {
           platform: platform || 'facebook',
-          group_name: group.name || null,
-          group_url: group.url || null,
+          group_name: group.name.slice(0, 255),
+          group_url: typeof group.url === 'string' ? group.url : null,
           share_log_id: result.rows[0].id,
         });
         if (evt) caseEvents.push(evt);
@@ -497,7 +529,8 @@ router.put('/share-log/:id/url', requireAdmin, async (req, res) => {
 //  SHARE PREVIEW — captions por plataforma (mismos que auto-publishers)
 // ══════════════════════════════════════════════════════════════════════
 
-router.get('/share-preview/:petId', requireAuth, async (req, res) => {
+router.get('/share-preview/:petId', requireAuth, requireActiveVolunteer, async (req, res) => {
+  if (!validUuid(req.params.petId)) return res.status(400).json({ error: 'Invalid pet id' });
   try {
     const petRes = await pool.query(
       `SELECT p.*, u.display_name as author_name
@@ -523,6 +556,115 @@ router.get('/share-preview/:petId', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Share preview error:', err);
     res.status(500).json({ error: 'Failed to generate preview' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+//  PET ACTION CENTER — datos completos para que el voluntario actúe
+//  (publicaciones FB/IG + captions + grupos + categorías del voluntario)
+// ══════════════════════════════════════════════════════════════════════
+
+router.get('/pet-action-center/:petId', requireAuth, requireActiveVolunteer, async (req, res) => {
+  const petId = req.params.petId;
+  if (!validUuid(petId)) return res.status(400).json({ error: 'Invalid pet id' });
+  try {
+    // Mascota + contacto del reportante (solo visibles para voluntarios activos)
+    const petRes = await pool.query(
+      `SELECT p.id, p.name, p.species, p.breed, p.color, p.gender, p.age, p.status,
+              p.location, p.neighborhoods, p.description, p.created_at, p.is_hidden,
+              u.display_name as reporter_name, u.phone as reporter_phone
+       FROM pets p
+       LEFT JOIN users u ON u.id = p.created_by
+       WHERE p.id = $1`,
+      [petId]
+    );
+    if (petRes.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
+    const pet = petRes.rows[0];
+
+    // Caso más reciente de la mascota (para publicaciones y timeline)
+    const caseRes = await pool.query(
+      'SELECT id FROM pet_cases WHERE pet_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [petId]
+    );
+    const caseId = caseRes.rows[0]?.id || null;
+
+    // Publicaciones reales: IG permalinks + posts de página/grupos FB (getCaseShares)
+    let publications = { facebook: null, instagram: null };
+    if (caseId) {
+      try {
+        const shares = await getCaseShares(caseId);
+        const fbPost = shares.find(s => s.platform === 'facebook' && s.url);
+        const igPost = shares.find(s => s.platform === 'instagram' && s.url);
+        if (fbPost) {
+          publications.facebook = { url: fbPost.url, group_count: fbPost.group_count || 0, date: fbPost.date };
+        }
+        if (igPost) {
+          publications.instagram = { permalink: igPost.url, date: igPost.date };
+        }
+      } catch (sharesErr) {
+        console.error('Action center shares error:', sharesErr);
+        // Degradar sin publicaciones en vez de fallar todo el endpoint
+      }
+    }
+
+    // Captions por plataforma (mismos builders que los auto-publishers)
+    let sharePreview = { facebook: '', instagram: '', whatsapp: '' };
+    try {
+      const fullPetRes = await pool.query(
+        `SELECT p.*, u.display_name as author_name FROM pets p
+         LEFT JOIN users u ON u.id = p.created_by WHERE p.id = $1`,
+        [petId]
+      );
+      const hashtagsRes = await pool.query("SELECT value FROM settings WHERE key = 'instagram_default_hashtags'");
+      const hashtags = hashtagsRes.rows[0]?.value || '#SigoTuHuella #MascotasPerdidas #AdoptaNoCompres';
+      const fp = fullPetRes.rows[0];
+      sharePreview = {
+        facebook: buildPetMessage(fp, hashtags, null, fp.author_name || null),
+        instagram: buildPetCaption(fp, hashtags),
+        whatsapp: await buildPetBroadcastCaption(fp),
+      };
+    } catch (capErr) {
+      console.error('Action center captions error:', capErr);
+    }
+
+    // Categorías activas de ESTE voluntario (definen las tabs)
+    const catsRes = await pool.query(
+      `SELECT DISTINCT vc.name
+       FROM volunteer_subscriptions vs
+       JOIN volunteer_categories vc ON vc.id = vs.category
+       WHERE vs.user_id = $1 AND vs.status = 'active'`,
+      [req.user.id]
+    );
+    const volunteerCategories = catsRes.rows.map(r => r.name);
+
+    // Grupos FB aprobados para búsqueda/difusión
+    const groupsRes = await pool.query(
+      'SELECT group_name, group_url, zone FROM fb_search_groups WHERE approved = TRUE ORDER BY group_name'
+    );
+
+    // Hallazgos previos de esta mascota (para no duplicar avistamientos)
+    const findingsRes = await pool.query(
+      `SELECT vf.id, vf.fb_url, vf.description, vf.group_name, vf.confirmed_by_owner, vf.created_at,
+              u.display_name as volunteer_name
+       FROM volunteer_findings vf LEFT JOIN users u ON u.id = vf.user_id
+       WHERE vf.pet_id = $1 ORDER BY vf.created_at DESC LIMIT 10`,
+      [petId]
+    );
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
+    res.json({
+      pet,
+      case_id: caseId,
+      timeline_url: caseId ? `${frontendUrl}/case/${caseId}` : null,
+      publications,
+      sharePreview,
+      volunteerCategories,
+      fbSearchGroups: groupsRes.rows,
+      recentFindings: findingsRes.rows,
+    });
+  } catch (err) {
+    console.error('Action center error:', err);
+    res.status(500).json({ error: 'Failed to fetch action center data' });
   }
 });
 

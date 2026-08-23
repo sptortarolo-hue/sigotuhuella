@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { api, apiUrl } from '@/src/lib/api';
+import { api } from '@/src/lib/api';
 import { getPetImageUrl } from '@/src/lib/petService';
 import { getNewsImageUrl } from '@/src/lib/newsService';
 import {
@@ -182,11 +182,7 @@ const fetchInvites = async () => {
 
     const fetchShareStats = async () => {
       try {
-        const data = await safeFetch(async () => {
-          const res = await fetch(apiUrl('/api/volunteers/share-stats'), { credentials: 'include' });
-          if (!res.ok) throw new Error(res.status === 401 ? 'UNAUTHORIZED' : 'Failed');
-          return res.json();
-        });
+        const data = await safeFetch(() => api.volunteers.shareStats());
         if (data) setShareStats(data);
       } catch (e) { console.error('Error fetching share stats:', e); }
       finally { setShareStatsLoading(false); }
@@ -390,7 +386,7 @@ const fetchInvites = async () => {
                   <div className="w-20 sm:w-24 h-20 sm:h-24 rounded-2xl overflow-hidden bg-brand-bg border border-brand-accent group-hover:border-brand-primary/50 transition-all shadow-sm group-hover:shadow-md">
                     {pet.avatar_image ? (
                       <img
-                        src={apiUrl(`/my-pet-avatar/${pet.id}`)}
+                        src={`/my-pet-avatar/${pet.id}`}
                         alt={pet.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
@@ -597,7 +593,7 @@ const fetchInvites = async () => {
                   className="shrink-0 snap-start group">
                   <div className="w-20 sm:w-24 h-20 sm:h-24 rounded-2xl overflow-hidden bg-brand-bg border border-brand-accent group-hover:border-brand-primary/50 transition-all shadow-sm">
                     {pet.avatar_image ? (
-                      <img src={apiUrl(`/my-pet-avatar/${pet.id}`)} alt={pet.name}
+                      <img src={`/my-pet-avatar/${pet.id}`} alt={pet.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
