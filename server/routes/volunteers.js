@@ -854,6 +854,41 @@ router.put('/notification-channels', requireAuth, async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════
+//  COBERTURA DE GRUPOS (anti-duplicados entre voluntarios)
+// ══════════════════════════════════════════════════════════════════════
+
+const COVERAGE_WINDOW_DAYS = 5; // mismo ciclo que REPOST_WINDOW_DAYS
+
+router.get('/pet-coverage/:petId', requireAuth, async (req, res) => {
+  try {
+    const { petId } = req.params;
+    if (!/^[0-9a-f-]{36}$/i.test(petId)) {
+      return res.status(400).json({ error: 'petId inválido' });
+    }
+    const result = await pool.query(
+      `SELECT DISTINCT ON (lower(ce.payload->>'group_name'))
+             ce.payload->>'group_name' AS group_name,
+             ce.payload->>'group_url' AS group_url,
+             u.display_name AS volunteer,
+             ce.created_at AS date
+       FROM case_events ce
+       JOIN pet_cases pc ON pc.id = ce.case_id
+       LEFT JOIN users u ON u.id = ce.user_id
+       WHERE pc.pet_id = $1
+         AND ce.event_type = 'social_shared'
+         AND ce.payload->>'group_name' IS NOT NULL
+         AND ce.created_at > NOW() - make_interval(days => $2)
+       ORDER BY lower(ce.payload->>'group_name'), ce.created_at DESC`,
+      [petId, COVERAGE_WINDOW_DAYS]
+    );
+    res.json({ coverage: result.rows, window_days: COVERAGE_WINDOW_DAYS });
+  } catch (err) {
+    console.error('Get pet coverage error:', err);
+    res.status(500).json({ error: 'Failed to fetch coverage' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
 //  GRUPOS DE FB PARA BÚSQUEDA
 // ══════════════════════════════════════════════════════════════════════
 

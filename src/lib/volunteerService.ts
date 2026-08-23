@@ -117,6 +117,18 @@ export async function logShareConfirmation(pet_id: string, platform: string, gro
   });
 }
 
+export interface PetGroupCoverageEntry {
+  group_name: string;
+  group_url: string | null;
+  volunteer: string | null;
+  date: string;
+}
+
+export async function getPetCoverage(pet_id: string): Promise<PetGroupCoverageEntry[]> {
+  const data = await volRequest(`/pet-coverage/${pet_id}`);
+  return data.coverage;
+}
+
 export async function getShareStats() {
   const data = await volRequest('/share-stats');
   return data;
