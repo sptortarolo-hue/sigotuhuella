@@ -44,7 +44,8 @@ export function nbNormSql(expr) {
 
 // Overlap tolerante entre el array jsonb de una columna y un param jsonb ($1::jsonb).
 // petCol puede requerir cast explícito cuando la columna es TEXT (ej: pets.neighborhoods).
-export function nbOverlapSql(param, petCol = '(neighborhoods)::jsonb') {
+// NULLIF protege contra strings vacíos en columnas TEXT (''::jsonb es JSON inválido).
+export function nbOverlapSql(param, petCol = "(NULLIF(neighborhoods, '')::jsonb)") {
   return `EXISTS (
     SELECT 1
     FROM jsonb_array_elements_text(${petCol}) pet_nb

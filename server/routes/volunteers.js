@@ -716,12 +716,12 @@ router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, 
          FROM share_logs WHERE pet_id = p.id AND user_id = $2
        ) sl ON TRUE
        WHERE p.status IN ('lost', 'transitada', 'found', 'retained', 'accidented', 'needs_attention')
-         AND ${nbOverlapSql('$1', '(p.neighborhoods)::jsonb')}
+         AND ${nbOverlapSql('$1', "(NULLIF(p.neighborhoods, '')::jsonb)")}
          AND p.is_hidden = FALSE
        ORDER BY CASE WHEN p.status IN ('accidented', 'needs_attention') THEN 0 ELSE 1 END,
                 p.created_at DESC
        LIMIT 200`,
-      [allNeighborhoods, req.user.id]
+      [JSON.stringify(allNeighborhoods), req.user.id]
     );
 
     const now = Date.now();
@@ -973,7 +973,7 @@ router.get('/dashboard', requireAuth, async (req, res) => {
            AND is_hidden = FALSE
          ORDER BY created_at DESC
          LIMIT $2 OFFSET $3`,
-        [allNeighborhoods, limit, offset]
+        [JSON.stringify(allNeighborhoods), limit, offset]
       );
     }
 
