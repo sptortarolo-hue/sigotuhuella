@@ -4,7 +4,7 @@ import { matchWhatsAppToPets, matchPetToPosts, matchPetToPets, processImageCapti
 import { classifyPost } from './geminiClassifier.js';
 import { sendWhatsAppRegistrationEmail } from '../auth.js';
 import { fetchFbPost } from './fbPostFetcher.js';
-import { geocodeAddress, extractNeighborhoods, isInInfluenceZone } from './geocoding.js';
+import { geocodeAddress, geocodeAddressDetailed, extractNeighborhoods, isInInfluenceZone } from './geocoding.js';
 import { notifyPetPublication } from './petPublicationNotification.js';
 import { createPetCase } from './caseService.js';
 import axios from 'axios';
@@ -30,6 +30,52 @@ async function setFlow(conv, flow, contextUpdates = {}) {
   );
   conv.flow = flow;
   conv.context = ctx;
+}
+
+// --- Ubicación de reportes: resolución con nivel de confianza ----------------
+// Resuelve texto o GPS compartido a coordenadas + barrios, distinguiendo:
+// - precisa: calle/cruce resuelto (grid/Overpass/Nominatim) o GPS compartido
+// - aproximada: centro de un barrio mencionado en el texto
+// - sin resolución (ok=false): nada reconocible → pedir más especificidad
+async function resolveWaLocation(text, gpsLat, gpsLng) {
+  const barrios = extractNeighborhoods(text || '');
+  if (gpsLat != null && gpsLng != null) {
+    return { ok: true, precisa: true, lat: gpsLat, lng: gpsLng, barrios };
+  }
+  const detailed = await geocodeAddressDetailed(text).catch(() => null);
+  if (detailed?.origen === 'calle') {
+    return { ok: true, precisa: true, lat: detailed.lat, lng: detailed.lng, barrios };
+  }
+  if (barrios.length > 0 && detailed?.origen === 'barrio') {
+    return { ok: true, precisa: false, lat: detailed.lat, lng: detailed.lng, barrios };
+  }
+  return { ok: false, precisa: false, lat: null, lng: null, barrios };
+}
+
+// Aplica el resultado de resolveWaLocation al contexto del flujo.
+function applyWaLocation(ctx, res) {
+  ctx.neighborhoods = res.barrios;
+  ctx.location_precisa = res.precisa;
+  ctx.latitude = res.ok ? res.lat : null;
+  ctx.longitude = res.ok ? res.lng : null;
+  return ctx;
+}
+
+// Coordenadas que vale la pena persistir: precisas o al menos ancladas a un
+// barrio mencionado. Nunca el default centro-La Plata inventado.
+function waCoordsToSave(ctx) {
+  const hasBarrios = Array.isArray(ctx.neighborhoods) && ctx.neighborhoods.length > 0;
+  if (!ctx.location_precisa && !hasBarrios) return { latitude: null, longitude: null };
+  return { latitude: ctx.latitude ?? null, longitude: ctx.longitude ?? null };
+}
+
+// Etiqueta de zona para los mensajes de confirmación.
+function waZonaLabel(ctx) {
+  const base = ctx.location || 'Compartida';
+  if (Array.isArray(ctx.neighborhoods) && ctx.neighborhoods.length > 0) {
+    return `${base}\n🗺️ *Zona:* ${ctx.neighborhoods.join(', ')}`;
+  }
+  return `${base} · _zona no detectada_`;
 }
 
 function detectIntent(parsed) {
@@ -761,9 +807,8 @@ async function rlPhoto(conv, parsed) {
     if (extracted.name) ctx.pet_name = extracted.name;
     if (extracted.location) {
       ctx.location = extracted.location;
-      const coords = await geocodeAddress(extracted.location).catch(() => null);
-      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
-      else { ctx.latitude = null; ctx.longitude = null; }
+      const res = await resolveWaLocation(extracted.location, null, null);
+      applyWaLocation(ctx, res);
     }
     if (extracted.phone) ctx.contact = extracted.phone;
     if (extracted.phone2) ctx.contact2 = extracted.phone2;
@@ -771,7 +816,7 @@ async function rlPhoto(conv, parsed) {
     if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
       await setFlow(conv, 'report_lost.confirm', ctx);
       const speciesLabel = { dog: 'Perro 🐕', cat: 'Gato 🐈', other: 'Otro 🐾' };
-      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos:\n\n🐾 *Especie:* ${speciesLabel[ctx.species] || ctx.species}\n📍 *Ubicación:* ${ctx.location}\n📞 *Contacto:* ${ctx.contact}\n\n🔒 Al confirmar, publicamos estos datos en la red para buscar a tu mascota, según nuestras *políticas de privacidad*.\n\n¿Está todo correcto?`);
+      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos:\n\n🐾 *Especie:* ${speciesLabel[ctx.species] || ctx.species}\n📍 *Ubicación:* ${waZonaLabel(ctx)}\n📞 *Contacto:* ${ctx.contact}\n\n🔒 Al confirmar, publicamos estos datos en la red para buscar a tu mascota, según nuestras *políticas de privacidad*.\n\n¿Está todo correcto?`);
       await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
         { id: 'confirm_yes', title: '✅ Sí, reportar' },
         { id: 'confirm_no', title: '❌ Cancelar' },
@@ -808,12 +853,20 @@ async function rlLocation(conv, parsed) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Decime dónde se perdió o compartí tu ubicación 📍`);
     return;
   }
-  if (!lat && location) {
-    const coords = await geocodeAddress(location);
-    if (coords) { lat = coords.lat; lng = coords.lng; }
+  const res = await resolveWaLocation(location, lat, lng);
+  let ctx = applyWaLocation({ ...conv.context, location }, res);
+  if (!res.ok) {
+    if (!conv.context.loc_retry_done) {
+      await sendMessage(conv.wa_from, `${conv.bot_name}: No pudimos ubicar "${location}". ¿Podés ser más específico? Ej: "calle 12 entre 52 y 53", o decime tu barrio (ej: Los Hornos).`);
+      await setFlow(conv, 'report_lost.location', { ...ctx, loc_retry_done: true });
+      return;
+    }
+    ctx.location_unresolved = true;
+  } else if (!res.precisa) {
+    await sendMessage(conv.wa_from, `📍 Te ubico en *${res.barrios.join(', ')}* (aproximado).`);
   }
   await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Un *teléfono de contacto* para que quien la encuentre pueda contactarte? 📞`);
-  await setFlow(conv, 'report_lost.contact', { ...conv.context, location, latitude: lat, longitude: lng });
+  await setFlow(conv, 'report_lost.contact', ctx);
 }
 
 async function rlContact(conv, parsed) {
@@ -848,7 +901,7 @@ async function rlDescription(conv, parsed) {
   await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos:
 
 🐾 *Especie:* ${speciesLabels[ctx.species] || ctx.species}
-📍 *Ubicación:* ${ctx.location || 'Compartida'}
+📍 *Ubicación:* ${waZonaLabel(ctx)}
 📞 *Contacto:* ${ctx.contact}
 ${ctx.pet_name ? `🏷️ *Nombre:* ${ctx.pet_name}` : ''}
 ${description ? `📝 *Descripción:* ${description}` : ''}
@@ -865,16 +918,13 @@ ${description ? `📝 *Descripción:* ${description}` : ''}
 async function rlConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
-    if ((!ctx.latitude || !isInInfluenceZone(ctx.latitude, ctx.longitude)) && ctx.location) {
-      const coords = await geocodeAddress(ctx.location).catch(() => null);
-      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
-    }
-    const neighborhoods = extractNeighborhoods(ctx.location);
+    const neighborhoods = Array.isArray(ctx.neighborhoods) ? ctx.neighborhoods : [];
+    const { latitude, longitude } = waCoordsToSave(ctx);
     const petResult = await pool.query(
       `INSERT INTO pets (name, species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type, neighborhoods)
        VALUES ($1, $2, 'lost', $3, $4, $5, $6, $7, $8, $9, $10, $11, 'whatsapp', $12)
        RETURNING id`,
-      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.description || 'Reportado por WhatsApp como perdida', ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
+      [ctx.pet_name || null, ctx.species || 'dog', ctx.location || '', latitude, longitude, ctx.contact || '', ctx.contact2 || null, ctx.description || 'Reportado por WhatsApp como perdida', ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
     await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
@@ -979,16 +1029,15 @@ async function rsSpecies(conv, parsed) {
     if (extracted.breed) ctx.breed = extracted.breed;
     if (extracted.color) ctx.color = extracted.color;
     if (extracted.name) ctx.pet_name = extracted.name;
-    const coords = await geocodeAddress(extracted.location).catch(() => null);
-    if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
-    else { ctx.latitude = null; ctx.longitude = null; }
+    const resS = await resolveWaLocation(extracted.location, null, null);
+    applyWaLocation(ctx, resS);
     if (extracted.description) ctx.details = extracted.description;
     if (extracted.phone) ctx.contact = extracted.phone;
     if (extracted.phone2) ctx.contact2 = extracted.phone2;
     if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
       await setFlow(conv, 'report_sighted.confirm', ctx);
       const speciesLabel = { dog: '🐕 Perro', cat: '🐈 Gato', other: '🐾 Otro', unknown: '?' };
-      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás el reporte de avistaje?\n  🐾 *Especie:* ${speciesLabel[species] || '?'}\n  📍 *Ubicación:* ${ctx.location}\n  ${ctx.details ? `📝 *Detalles:* ${ctx.details}\n  ` : ''}${ctx.contact ? `📞 *Contacto:* ${ctx.contact}` : ''}\n\n  🔒 Al confirmar publicamos estos datos en la red, según nuestras *políticas de privacidad*.`);
+      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás el reporte de avistaje?\n  🐾 *Especie:* ${speciesLabel[species] || '?'}\n  📍 *Ubicación:* ${waZonaLabel(ctx)}\n  ${ctx.details ? `📝 *Detalles:* ${ctx.details}\n  ` : ''}${ctx.contact ? `📞 *Contacto:* ${ctx.contact}` : ''}\n\n  🔒 Al confirmar publicamos estos datos en la red, según nuestras *políticas de privacidad*.`);
       await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
         { id: 'confirm_yes', title: '✅ Sí, reportar' },
         { id: 'confirm_no', title: '❌ Cancelar' },
@@ -1023,14 +1072,22 @@ async function rsLocation(conv, parsed) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: ${pregunta918} o compartí tu ubicación 📍`);
     return;
   }
-  if (!lat && location) {
-    const coords = await geocodeAddress(location);
-    if (coords) { lat = coords.lat; lng = coords.lng; }
+  const res = await resolveWaLocation(location, lat, lng);
+  let ctx = applyWaLocation({ ...conv.context, location }, res);
+  if (!res.ok) {
+    if (!conv.context.loc_retry_done) {
+      await sendMessage(conv.wa_from, `${conv.bot_name}: No pudimos ubicar "${location}". ¿Podés ser más específico? Ej: "calle 12 entre 52 y 53", o decime tu barrio (ej: Los Hornos).`);
+      await setFlow(conv, 'report_sighted.location', { ...ctx, loc_retry_done: true });
+      return;
+    }
+    ctx.location_unresolved = true;
+  } else if (!res.precisa) {
+    await sendMessage(conv.wa_from, `📍 Te ubico en *${res.barrios.join(', ')}* (aproximado).`);
   }
   await sendInteractiveButtons(conv.wa_from, `${conv.bot_name}: ¿Algún detalle adicional? (color, tamaño, estado físico — opcional)`, [
     { id: 'skip', title: '⏭ Saltar' },
   ]);
-  await setFlow(conv, 'report_sighted.details', { ...conv.context, location, latitude: lat, longitude: lng });
+  await setFlow(conv, 'report_sighted.details', ctx);
 }
 
 async function rsDetails(conv, parsed) {
@@ -1049,7 +1106,7 @@ async function rsContact(conv, parsed) {
   const speciesLabel = { dog: '🐕 Perro', cat: '🐈 Gato', other: '🐾 Otro', unknown: '?' }[conv.context.species || 'unknown'];
   await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás el reporte de avistaje?
   🐾 *Especie:* ${speciesLabel}
-  📍 *Ubicación:* ${conv.context.location || 'Compartida'}
+  📍 *Ubicación:* ${waZonaLabel(conv.context)}
   ${conv.context.details ? `📝 *Detalles:* ${conv.context.details}` : ''}
   ${contact ? `📞 *Contacto:* ${contact}` : ''}
   
@@ -1063,19 +1120,13 @@ async function rsContact(conv, parsed) {
 async function rsConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
-    if (ctx.location) {
-      const coords = await geocodeAddress(ctx.location).catch(() => null);
-      if (coords) {
-        ctx.latitude = coords.lat;
-        ctx.longitude = coords.lng;
-      }
-    }
-    const neighborhoods = extractNeighborhoods(ctx.location);
+    const neighborhoods = Array.isArray(ctx.neighborhoods) ? ctx.neighborhoods : [];
+    const { latitude, longitude } = waCoordsToSave(ctx);
     const species = ctx.species || 'dog';
     const petResult = await pool.query(
       `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type, neighborhoods)
        VALUES ($1, 'sighted', $2, $3, $4, $5, $6, $7, $8, $9, $10, 'whatsapp', $11) RETURNING id`,
-      [species, ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje', ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
+      [species, ctx.location || '', latitude, longitude, ctx.contact || '', ctx.contact2 || null, ctx.details ? `Avistaje: ${ctx.details}` : 'Reportado por WhatsApp como avistaje', ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
     await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
@@ -1145,9 +1196,8 @@ async function rfPhoto(conv, parsed) {
     if (extracted.name) ctx.pet_name = extracted.name;
     if (extracted.location) {
       ctx.location = extracted.location;
-      const coords = await geocodeAddress(extracted.location).catch(() => null);
-      if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
-      else { ctx.latitude = null; ctx.longitude = null; }
+      const resFE = await resolveWaLocation(extracted.location, null, null);
+      applyWaLocation(ctx, resFE);
     }
     if (extracted.phone) ctx.contact = extracted.phone;
     if (extracted.phone2) ctx.contact2 = extracted.phone2;
@@ -1185,9 +1235,8 @@ async function rfPhoto(conv, parsed) {
       if (result.name) ctx.pet_name = result.name;
       if (result.location) {
         ctx.location = result.location;
-        const coords = await geocodeAddress(result.location).catch(() => null);
-        if (coords) { ctx.latitude = coords.lat; ctx.longitude = coords.lng; }
-        else { ctx.latitude = null; ctx.longitude = null; }
+        const resFC = await resolveWaLocation(result.location, null, null);
+        applyWaLocation(ctx, resFC);
       }
       if (result.phone) ctx.contact = result.phone;
       if (result.phone2) ctx.contact2 = result.phone2;
@@ -1236,12 +1285,20 @@ async function rfLocation(conv, parsed) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Decime dónde está la mascota o compartí tu ubicación 📍`);
     return;
   }
-  if (!lat && location) {
-    const coords = await geocodeAddress(location);
-    if (coords) { lat = coords.lat; lng = coords.lng; }
+  const res = await resolveWaLocation(location, lat, lng);
+  let ctx = applyWaLocation({ ...conv.context, location }, res);
+  if (!res.ok) {
+    if (!conv.context.loc_retry_done) {
+      await sendMessage(conv.wa_from, `${conv.bot_name}: No pudimos ubicar "${location}". ¿Podés ser más específico? Ej: "calle 12 entre 52 y 53", o decime tu barrio (ej: Los Hornos).`);
+      await setFlow(conv, 'report_found.location', { ...ctx, loc_retry_done: true });
+      return;
+    }
+    ctx.location_unresolved = true;
+  } else if (!res.precisa) {
+    await sendMessage(conv.wa_from, `📍 Te ubico en *${res.barrios.join(', ')}* (aproximado).`);
   }
   await sendMessage(conv.wa_from, `${conv.bot_name}: Dejame un *teléfono de contacto* para que el dueño pueda comunicarse 📞`);
-  await setFlow(conv, 'report_found.contact', { ...conv.context, location, latitude: lat, longitude: lng });
+  await setFlow(conv, 'report_found.contact', ctx);
 }
 
 async function rfContact(conv, parsed) {
@@ -1257,7 +1314,7 @@ async function rfContact(conv, parsed) {
 async function rfShowConfirm(conv) {
   const ctx = conv.context;
   await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás que encontraste esta mascota?
-📍 *Ubicación:* ${ctx.location || 'Compartida'}
+📍 *Ubicación:* ${waZonaLabel(ctx)}
 📞 *Contacto:* ${ctx.contact || 'No especificado'}${ctx.description ? `\n📝 *Notas:* ${ctx.description}` : ''}
 
 🔒 Al confirmar publicamos estos datos en la red para encontrar a su dueño, según nuestras *políticas de privacidad*.`);
@@ -1271,20 +1328,14 @@ async function rfShowConfirm(conv) {
 async function rfConfirm(conv, parsed, intent) {
   if (intent === 'confirm') {
     const ctx = conv.context;
-    if (ctx.location) {
-      const coords = await geocodeAddress(ctx.location).catch(() => null);
-      if (coords) {
-        ctx.latitude = coords.lat;
-        ctx.longitude = coords.lng;
-      }
-    }
-    const neighborhoods = extractNeighborhoods(ctx.location);
+    const neighborhoods = Array.isArray(ctx.neighborhoods) ? ctx.neighborhoods : [];
+    const { latitude, longitude } = waCoordsToSave(ctx);
     const species = ctx.species || 'dog';
     const description = ctx.description || 'Reportado por WhatsApp como encontrada';
     const petResult = await pool.query(
       `INSERT INTO pets (species, status, location, latitude, longitude, contact_info, contact_info_2, description, gender, breed, color, source_type, neighborhoods)
        VALUES ($1, 'retained', $2, $3, $4, $5, $6, $7, $8, $9, $10, 'whatsapp', $11) RETURNING id`,
-      [species, ctx.location || '', ctx.latitude, ctx.longitude, ctx.contact || '', ctx.contact2 || null, description, ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
+      [species, ctx.location || '', latitude, longitude, ctx.contact || '', ctx.contact2 || null, description, ctx.gender || null, ctx.breed || null, ctx.color || null, JSON.stringify(neighborhoods)]
     );
     const petId = petResult.rows[0].id;
     await pool.query(`UPDATE whatsapp_conversations SET privacy_notice_at = NOW() WHERE id = $1`, [conv.id]);
@@ -1360,13 +1411,12 @@ async function rfEditLocation(conv, parsed) {
     await sendMessage(conv.wa_from, `${conv.bot_name}: Por favor escribí la ubicación 📍`);
     return;
   }
-  const coords = await geocodeAddress(location).catch(() => null);
-  await setFlow(conv, 'report_found.confirm', {
-    ...conv.context,
-    location,
-    latitude: coords?.lat || null,
-    longitude: coords?.lng || null,
-  });
+  const res = await resolveWaLocation(location, null, null);
+  const editCtx = applyWaLocation({ ...conv.context, location }, res);
+  if (res.ok && !res.precisa) {
+    await sendMessage(conv.wa_from, `📍 Te ubico en *${res.barrios.join(', ')}* (aproximado).`);
+  }
+  await setFlow(conv, 'report_found.confirm', editCtx);
   return rfShowConfirm(conv);
 }
 
@@ -2331,8 +2381,8 @@ async function fbAskLocation(conv, parsed) {
     return;
   }
   if (!lat && location) {
-    const coords = await geocodeAddress(location);
-    if (coords) { lat = coords.lat; lng = coords.lng; }
+    const resFb = await resolveWaLocation(location, null, null);
+    if (resFb.ok) { lat = resFb.lat; lng = resFb.lng; }
   }
   await setFlow(conv, 'report_from_fb.lookup', {
     ...conv.context,
@@ -2424,8 +2474,12 @@ async function fbConfirm(conv, parsed, intent) {
   let fbLat = ctx.fbLatitude || null;
   let fbLng = ctx.fbLongitude || null;
   if ((!fbLat || !isInInfluenceZone(fbLat, fbLng)) && location && location !== 'Sin ubicación') {
-    const coords = await geocodeAddress(location).catch(() => null);
-    if (coords) { fbLat = coords.lat; fbLng = coords.lng; }
+    // Solo guardar coordenadas con resolución real o barrio mencionado;
+    // el default centro-La Plata es un pin inventado y se descarta.
+    const detailed = await geocodeAddressDetailed(location).catch(() => null);
+    if (detailed && (detailed.origen === 'calle' || detailed.origen === 'barrio')) {
+      fbLat = detailed.lat; fbLng = detailed.lng;
+    }
   }
   const neighborhoods = extractNeighborhoods(location);
 

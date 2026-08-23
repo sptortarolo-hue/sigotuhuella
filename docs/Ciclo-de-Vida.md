@@ -170,7 +170,7 @@ Mientras está vencido (activo expirado):
 1. **Ciclo uniforme**: los 6 estados con caso comparten exactamente el mismo tratamiento (45 días + recordatorios + 30 días de gracia). La única diferencia es la prioridad en la cola.
 2. **Avistajes efímeros**: `sighted` no tiene caso ni renovación; deja de listarse a los 14 días de creado (filtro en queries).
 3. **Adopciones fuera**: `for_adoption` / `for_adoption_simple` tienen su propio ciclo (assignments/rifas) y nunca entran a este sistema.
-4. **Matching tolerante de barrios**: todas las comparaciones mascota ↔ agrupación ↔ suscripción usan normalización lowercase + trim + sin acentos (`neighborhoodUtils.js`, misma lógica en JS y SQL).
+4. **Matching tolerante de barrios**: todas las comparaciones mascota ↔ agrupación ↔ suscripción usan normalización lowercase + trim + guiones/guiones bajos → espacios (ids del frontend `villa_elisa` == extracción server `villa elisa`) + sin acentos + aliases entre catálogos (`altos san lorenzo` == `altos de san lorenzo`, `arturo segui` == `segui`, `olmos` == `lisandro olmos`). Implementado en `neighborhoodUtils.js` con la misma cadena de reemplazos en JS y SQL.
 5. **Matching del scraper solo contra casos vigentes**: una novedad de FB/IG nunca sugiere matches contra casos vencidos o archivados.
 6. **Sin difusión automática externa**: la re-difusión depende exclusivamente de voluntarios; renovar = volver arriba en la cola.
 

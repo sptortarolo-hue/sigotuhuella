@@ -200,3 +200,26 @@ export function neighborhoodAt(lat: number, lng: number): Neighborhood | null {
     n => lat >= n.bounds.south && lat <= n.bounds.north && lng >= n.bounds.west && lng <= n.bounds.east
   ) || null;
 }
+
+// Distancia en grados desde el punto al borde del rectángulo (0 si está adentro).
+function distanceToBounds(lat: number, lng: number, b: NeighborhoodBounds): number {
+  return Math.max(b.south - lat, lat - b.north, b.west - lng, lng - b.east, 0);
+}
+
+/**
+ * Todas las zonas asociadas a un punto:
+ * - las que contienen el punto (los rects pueden solaparse),
+ * - más las cuyo borde queda a <= toleranceDeg (~300m default) para capturar
+ *   puntos en el límite entre dos barrios (ej: Villa Elisa / La Plata) o caídos
+ *   en huecos entre rectángulos.
+ */
+export function neighborhoodsAt(lat: number, lng: number, toleranceDeg = 0.003): Neighborhood[] {
+  const inside: Neighborhood[] = [];
+  const near: Neighborhood[] = [];
+  for (const n of NEIGHBORHOODS) {
+    const d = distanceToBounds(lat, lng, n.bounds);
+    if (d === 0) inside.push(n);
+    else if (d <= toleranceDeg) near.push(n);
+  }
+  return [...inside, ...near];
+}

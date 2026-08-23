@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { MapPin, X, ChevronDown, ChevronUp, Crosshair } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { NEIGHBORHOODS, Neighborhood, neighborhoodAt } from '@/src/lib/neighborhoods';
+import { NEIGHBORHOODS, Neighborhood, neighborhoodsAt } from '@/src/lib/neighborhoods';
 import { buildAddress, addressToLocation } from '@/src/lib/grid';
 import { api } from '@/src/lib/api';
 import { fetchEntreCalles } from '@/src/lib/overpass';
@@ -70,14 +70,15 @@ export default function LocationInput({
   const [showRest, setShowRest] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [lookupFailed, setLookupFailed] = useState(false);
   const debounceRef = useRef<number | null>(null);
   const latestQueryRef = useRef('');
 
   const activeMode = exactOnly ? 'exacta' : mode;
 
   const setNeighborhoodFromCoords = (latlng: { lat: number; lng: number }) => {
-    const n = neighborhoodAt(latlng.lat, latlng.lng);
-    onNeighborhoodsChange(n ? [n.id] : []);
+    const zones = neighborhoodsAt(latlng.lat, latlng.lng);
+    onNeighborhoodsChange(zones.map(z => z.id));
   };
 
   const toggleNeighborhood = (id: string) => {
@@ -127,7 +128,7 @@ export default function LocationInput({
 
   const handlePin = (latlng: { lat: number; lng: number }) => {
     onCoordinatesChange(latlng);
-    if (exactOnly) setNeighborhoodFromCoords(latlng);
+    setNeighborhoodFromCoords(latlng);
     reverseGeocode(latlng);
   };
 
@@ -136,7 +137,7 @@ export default function LocationInput({
       const position = await getCurrentPosition({ enableHighAccuracy: true, timeout: 15000 });
       const c = { lat: position.coords.latitude, lng: position.coords.longitude };
       onCoordinatesChange(c);
-      if (exactOnly) setNeighborhoodFromCoords(c);
+      setNeighborhoodFromCoords(c);
       reverseGeocode(c);
     } catch {
       alert('No se pudo obtener la ubicación. Marcá el punto en el mapa.');
@@ -147,7 +148,7 @@ export default function LocationInput({
   // devuelve null fuera de él); para el resto se usa el geocoding del server.
   const applyAddressCoords = (c: { lat: number; lng: number }) => {
     onCoordinatesChange(c);
-    if (exactOnly) setNeighborhoodFromCoords(c);
+    setNeighborhoodFromCoords(c);
   };
 
   const lookupAddress = async (v: string) => {
@@ -155,12 +156,14 @@ export default function LocationInput({
     latestQueryRef.current = trimmed;
     if (trimmed.length === 0) {
       onCoordinatesChange(null);
-      if (exactOnly) onNeighborhoodsChange([]);
+      onNeighborhoodsChange([]);
+      setLookupFailed(false);
       return;
     }
     const loc = addressToLocation(v);
     if (loc) {
       applyAddressCoords({ lat: loc.lat, lng: loc.lng });
+      setLookupFailed(false);
       return;
     }
     if (trimmed.length < 4) return;
@@ -171,9 +174,13 @@ export default function LocationInput({
       const coords = res?.coordinates;
       if (coords && coords.lat != null && coords.lng != null) {
         applyAddressCoords({ lat: coords.lat, lng: coords.lng });
+        setLookupFailed(false);
+      } else {
+        setLookupFailed(true);
       }
     } catch {
       // Sin cambios: se conserva el texto sin pin (nunca un pin inventado).
+      setLookupFailed(latestQueryRef.current === trimmed);
     } finally {
       if (latestQueryRef.current === trimmed) setSearching(false);
     }
@@ -202,7 +209,9 @@ export default function LocationInput({
     return null;
   })();
 
-  const detectedNeighborhood = exactOnly && coordinates ? neighborhoodAt(coordinates.lat, coordinates.lng) : null;
+  const detectedZoneNames = exactOnly && coordinates
+    ? neighborhoodsAt(coordinates.lat, coordinates.lng).map(n => n.name)
+    : [];
 
   const mapCenter = coordinates || (selectedNeighborhoods.length > 0 ? centroidOf(selectedNeighborhoods) : null) || initialCenter;
 
@@ -399,20 +408,25 @@ export default function LocationInput({
             {searching && (
               <p className="text-xs text-gray-400 mt-1.5">Buscando ubicación...</p>
             )}
+            {!searching && lookupFailed && (
+              <p className="text-xs text-amber-600 mt-1.5">
+                No pudimos ubicar esa dirección. Marcá el punto en el mapa o elegí tu zona.
+              </p>
+            )}
           </div>
 
           {exactOnly && coordinates && (
             <div
               className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border-2"
               style={{
-                borderColor: detectedNeighborhood ? detectedNeighborhood.color : '#9CA3AF',
-                color: detectedNeighborhood ? detectedNeighborhood.color : '#6B7280',
-                backgroundColor: detectedNeighborhood ? `${detectedNeighborhood.color}14` : '#F3F4F6',
+                borderColor: detectedZoneNames.length > 0 ? '#10B981' : '#9CA3AF',
+                color: detectedZoneNames.length > 0 ? '#059669' : '#6B7280',
+                backgroundColor: detectedZoneNames.length > 0 ? '#10B98114' : '#F3F4F6',
               }}
             >
               <MapPin className="w-3.5 h-3.5 shrink-0" />
-              {detectedNeighborhood
-                ? `Barrio: ${detectedNeighborhood.name}`
+              {detectedZoneNames.length > 0
+                ? `Zona${detectedZoneNames.length > 1 ? 's' : ''}: ${detectedZoneNames.join(' + ')}`
                 : 'Fuera de la zona de cobertura'}
             </div>
           )}

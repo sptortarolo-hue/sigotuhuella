@@ -29,6 +29,14 @@ async function canEditPet(userId, petId) {
   return row.created_by === userId || row.is_shared;
 }
 
+// Barrios a guardar: los explícitos del body; si no hay, deducirlos del texto
+// de ubicación (evita mascotas sin barrios, que quedan invisibles para voluntarios).
+function resolveNeighborhoods(bodyNeighborhoods, location) {
+  const arr = Array.isArray(bodyNeighborhoods) ? bodyNeighborhoods.filter(Boolean) : [];
+  if (arr.length > 0 || !location) return arr;
+  return extractNeighborhoods(location);
+}
+
 async function processImage(imageData, mimeType, size = 800) {
   try {
     const buffer = Buffer.from(imageData, 'base64');
@@ -298,10 +306,10 @@ router.post('/', requireAuth, async (req, res) => {
       `INSERT INTO pets (name, species, breed, color, status, gender, age, size, is_vaccinated, is_sterilized, is_dewormed, description, location, latitude, longitude, contact_info, created_by, is_admin_verified, neighborhoods, privacy_notice_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
       RETURNING *`,
-      [name || null, species, breed || null, color || null, effectiveStatus, gender || 'unknown',
-       age || null, size || null, isVaccinated || false, isSterilized || false, req.body.isDewormed || false,
-       description || null, location, latitude || null, longitude || null,
-       contactInfo || null, req.user.id, false, JSON.stringify(neighborhoods || [])]
+       [name || null, species, breed || null, color || null, effectiveStatus, gender || 'unknown',
+        age || null, size || null, isVaccinated || false, isSterilized || false, req.body.isDewormed || false,
+        description || null, location, latitude || null, longitude || null,
+        contactInfo || null, req.user.id, false, JSON.stringify(resolveNeighborhoods(neighborhoods, location))]
     );
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
@@ -383,6 +391,14 @@ router.put('/:id', requireAuth, async (req, res) => {
     if (req.body.neighborhoods !== undefined) {
       updates.push(`neighborhoods = $${idx++}`);
       values.push(JSON.stringify(req.body.neighborhoods));
+    } else if (req.body.location !== undefined) {
+      // Cambió la ubicación sin barrios explícitos: recalcular del texto nuevo.
+      // Solo sobreescribe si se detecta al menos uno (mejor dato viejo que quedar invisible).
+      const hoods = resolveNeighborhoods(undefined, req.body.location);
+      if (hoods.length > 0) {
+        updates.push(`neighborhoods = $${idx++}`);
+        values.push(JSON.stringify(hoods));
+      }
     }
     if (updates.length === 0 && !req.body.images && !req.body.newImages && req.body.imagesToKeep === undefined) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -1490,7 +1506,7 @@ router.post('/public', async (req, res) => {
       `INSERT INTO pets (species, description, location, latitude, longitude, contact_info, status, created_by, is_admin_verified, neighborhoods, name, instagram, case_number, privacy_notice_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
        RETURNING *`,
-       [species, description, location, latitude || null, longitude || null, contact_info || null, status || 'sighted', null, false, JSON.stringify(neighborhoods || []), name || null, instagram || null, caseNumber]
+       [species, description, location, latitude || null, longitude || null, contact_info || null, status || 'sighted', null, false, JSON.stringify(resolveNeighborhoods(neighborhoods, location)), name || null, instagram || null, caseNumber]
     );
     const pet = petResult.rows[0];
     if (images && images.length > 0) {
@@ -1611,7 +1627,7 @@ router.post('/lost-report', async (req, res) => {
       `INSERT INTO pets (species, name, breed, color, gender, age, size, description, location, latitude, longitude, contact_info, owner_email, contact_visible, status, created_by, is_admin_verified, neighborhoods, privacy_notice_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
        RETURNING *`,
-      [species, name || null, breed || null, color || null, gender || 'unknown', age || null, size || null, description, location, latitude || null, longitude || null, phone, email, contact_visible !== false, 'lost', userId, false, JSON.stringify(neighborhoods || [])]
+      [species, name || null, breed || null, color || null, gender || 'unknown', age || null, size || null, description, location, latitude || null, longitude || null, phone, email, contact_visible !== false, 'lost', userId, false, JSON.stringify(resolveNeighborhoods(neighborhoods, location))]
     );
     const pet = petResult.rows[0];
 

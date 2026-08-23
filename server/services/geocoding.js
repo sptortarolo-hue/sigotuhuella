@@ -537,7 +537,14 @@ const geocodeCache = new Map();
 const GEOCODE_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 días para éxitos
 const NEGATIVE_CACHE_TTL = 5 * 60 * 1000; // 5 min para fallos: no re-quemar Overpass
 
-export async function geocodeAddress(address) {
+/**
+ * Igual que geocodeAddress pero informa el ORIGEN del resultado:
+ * - 'calle': resolución real (grid del casco, dataset local, Overpass o Nominatim)
+ * - 'barrio': centro aproximado de un barrio mencionado en el texto
+ * - 'default': centro de La Plata por descarte (¡no es info del usuario!)
+ * - null si no se pudo ubicar.
+ */
+export async function geocodeAddressDetailed(address) {
   if (!address || address.trim().length < 3) return null;
   const key = address.trim().toLowerCase();
   const cached = geocodeCache.get(key);
@@ -548,6 +555,7 @@ export async function geocodeAddress(address) {
   }
   const lp = parseLaPlataAddress(address);
   let result = null;
+  let origen = null;
   try {
     if (lp) {
       const roadNum = parseInt(lp.road);
@@ -561,26 +569,35 @@ export async function geocodeAddress(address) {
         // Casco (1-122): el grid es exacto e instantáneo. Overpass geométrico no
         // encuentra estos cruces (OSM fragmentado) y solo agrega latencia.
         const grid = gridFallback(lp);
-        result = grid && isInInfluenceZone(grid.lat, grid.lng) ? grid : null;
+        if (grid && isInInfluenceZone(grid.lat, grid.lng)) {
+          result = grid;
+          origen = 'calle';
+        }
       } else {
         // Numeración externa: primero el dataset local de calles (Georef, offline
         // y confiable), luego Overpass como fallback.
         const local = await localLPCoords(lp, address);
         if (local && isInInfluenceZone(local.lat, local.lng)) {
           result = local;
+          origen = 'calle';
         } else {
           const overpass = await overpassLPCoords(lp, address);
           if (overpass && isInInfluenceZone(overpass.lat, overpass.lng)) {
             result = overpass;
+            origen = 'calle';
           }
         }
       }
       // No inventar pines: si se mencionó un barrio, su centro; si no, null.
-      if (!result) result = matchNeighborhoodCenter(address) || null;
+      if (!result) {
+        const nbCenter = matchNeighborhoodCenter(address);
+        if (nbCenter) { result = nbCenter; origen = 'barrio'; }
+      }
     } else if (looksLikeLpAddress(address)) {
       // Dirección LP que el parser no reconoció (diagonal, calle con nombre):
       // no inventar un pin con Nominatim/centro de La Plata.
-      result = matchNeighborhoodCenter(address) || null;
+      const nbCenter = matchNeighborhoodCenter(address);
+      if (nbCenter) { result = nbCenter; origen = 'barrio'; }
     } else {
       // No es dirección estilo La Plata: Nominatim con variantes de contexto.
       const variants = [
@@ -591,18 +608,35 @@ export async function geocodeAddress(address) {
       ];
       for (const v of variants) {
         const coords = await tryGeocode(v);
-        if (coords) { result = coords; break; }
+        if (coords) {
+          result = coords;
+          origen = 'calle';
+          break;
+        }
       }
       // Texto libre sin coordenadas: barrio mencionado o centro de La Plata.
-      if (!result) result = matchNeighborhoodCenter(address) || LA_PLATA_CENTER;
+      if (!result) {
+        const nbCenter = matchNeighborhoodCenter(address);
+        if (nbCenter) { result = nbCenter; origen = 'barrio'; }
+        else { result = LA_PLATA_CENTER; origen = 'default'; }
+      }
     }
   } catch {
-    result = lp
-      ? (matchNeighborhoodCenter(address) || null)
-      : (matchNeighborhoodCenter(address) || LA_PLATA_CENTER);
+    if (!result) {
+      const nbCenter = matchNeighborhoodCenter(address);
+      if (nbCenter) { result = nbCenter; origen = 'barrio'; }
+      else if (!lp) { result = LA_PLATA_CENTER; origen = 'default'; }
+    }
   }
-  geocodeCache.set(key, { ts: Date.now(), value: result });
-  return result;
+  const value = result ? { lat: result.lat, lng: result.lng, origen } : null;
+  geocodeCache.set(key, { ts: Date.now(), value });
+  return value;
+}
+
+// Compatibilidad con los callers existentes: solo coordenadas.
+export async function geocodeAddress(address) {
+  const detailed = await geocodeAddressDetailed(address);
+  return detailed ? { lat: detailed.lat, lng: detailed.lng } : null;
 }
 
 export function extractNeighborhoods(text) {
