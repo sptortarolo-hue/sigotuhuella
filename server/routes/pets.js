@@ -110,8 +110,10 @@ router.get('/', async (req, res) => {
     if (isPublic === 'true') {
       conditions.push(`p.created_by IS NULL`);
     }
-    // Los avistajes son señales efímeras: dejan de listarse a los 14 días
-    conditions.push(`(p.status <> 'sighted' OR p.created_at > NOW() - INTERVAL '14 days')`);
+    // Los avistajes son señales efímeras: dejan de listarse a los 14 días (admin ve todos)
+    if (include_hidden !== 'true') {
+      conditions.push(`(p.status <> 'sighted' OR p.created_at > NOW() - INTERVAL '14 days')`);
+    }
     if (conditions.length > 0) {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
