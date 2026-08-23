@@ -1,7 +1,5 @@
 /// <reference lib="webworker" />
-import { precacheAndRoute } from 'workbox-precaching';
-import { registerRoute } from 'workbox-routing';
-import { StaleWhileRevalidate } from 'workbox-strategies';
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -10,12 +8,10 @@ self.addEventListener('activate', () => {
   self.clients.claim();
 });
 
+// El precache cubre TODOS los assets de dist/ (incluye chunks lazy).
+// No agregar rutas runtime para scripts: sirven chunks viejos tras un deploy.
 precacheAndRoute(self.__WB_MANIFEST);
-
-registerRoute(
-  ({ request }) => ['style', 'script', 'worker'].includes(request.destination),
-  new StaleWhileRevalidate(),
-);
+cleanupOutdatedCaches();
 
 self.addEventListener('push', (event) => {
   let data: { title?: string; body?: string; url?: string } = {};
