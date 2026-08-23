@@ -43,7 +43,7 @@ const statusColors: Record<string, string> = {
   lost: 'bg-red-100 text-red-700',
   sighted: 'bg-amber-100 text-amber-700',
   retained: 'bg-blue-100 text-blue-700',
-  accided: 'bg-orange-100 text-orange-700',
+  accidented: 'bg-orange-100 text-orange-700',
   needs_attention: 'bg-purple-100 text-purple-700',
   for_adoption: 'bg-emerald-100 text-emerald-700',
   for_adoption_simple: 'bg-teal-100 text-teal-700',
@@ -54,7 +54,7 @@ const statusLabel: Record<string, string> = {
   lost: 'Perdido',
   sighted: 'Avistado',
   retained: 'Retenido',
-  accided: 'Accidentado',
+  accidented: 'Accidentado',
   needs_attention: 'Necesita Atención',
   for_adoption: 'En Adopción',
   for_adoption_simple: 'Adopción Simple',
@@ -74,6 +74,9 @@ export default function VolunteerDashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [zonePets, setZonePets] = useState<PetInZone[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [allCategories, setAllCategories] = useState<any[]>([]);
@@ -137,6 +140,7 @@ export default function VolunteerDashboard() {
       try {
         const result = await getVolunteerDashboard();
         setData(result);
+        setZonePets(result.pets_in_zone || []);
       } catch (e: any) {
         setError(e.message || 'Error al cargar el dashboard');
       } finally {
@@ -145,6 +149,35 @@ export default function VolunteerDashboard() {
     };
     fetchDashboard();
   }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const result = await getVolunteerDashboard();
+      setData(result);
+      setZonePets(result.pets_in_zone || []);
+    } catch {
+      // silencioso: el botón solo refresca
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const result = await getVolunteerDashboard(zonePets.length);
+      const more = result.pets_in_zone || [];
+      setZonePets(prev => {
+        const seen = new Set(prev.map(p => p.id));
+        return [...prev, ...more.filter((p: PetInZone) => !seen.has(p.id))];
+      });
+    } catch {
+      // silencioso
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -169,7 +202,7 @@ export default function VolunteerDashboard() {
 
   const stats = [
     { label: 'Compartidos', value: data.total_shares, icon: Share2, color: 'bg-brand-primary/10 text-brand-primary' },
-    { label: 'Mascotas en zona', value: data.pets_in_zone.length, icon: Search, color: 'bg-amber-100 text-amber-600' },
+    { label: 'Mascotas en zona', value: zonePets.length, icon: Search, color: 'bg-amber-100 text-amber-600' },
     { label: 'Barrios', value: data.neighborhoods_count, icon: MapPin, color: 'bg-emerald-100 text-emerald-600' },
     { label: 'Notificaciones', value: data.unread_notifications, icon: Bell, color: 'bg-red-100 text-red-600' },
   ];
@@ -307,15 +340,28 @@ export default function VolunteerDashboard() {
             <h2 className="text-xl sm:text-2xl font-serif font-bold text-brand-primary">
               Mascotas en mi zona
             </h2>
-            {data.pets_in_zone.length > 0 && (
-              <Link to="/feed" className="text-xs sm:text-sm text-brand-primary font-bold hover:underline flex items-center gap-1">
-                Ver todas <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
-              </Link>
-            )}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                aria-label="Actualizar lista"
+                title="Actualizar"
+                className="text-xs sm:text-sm text-gray-400 hover:text-brand-primary font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
+              >
+                {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Actualizar
+              </button>
+              {zonePets.length > 0 && (
+                <Link to="/feed" className="text-xs sm:text-sm text-brand-primary font-bold hover:underline flex items-center gap-1">
+                  Ver todas <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                </Link>
+              )}
+            </div>
           </div>
-          {data.pets_in_zone.length > 0 ? (
+          {zonePets.length > 0 ? (
+            <>
             <div className="space-y-3">
-              {data.pets_in_zone.map((pet, i) => (
+              {zonePets.map((pet, i) => (
                 <motion.div
                   key={pet.id}
                   initial={{ opacity: 0, y: 10 }}
@@ -350,6 +396,17 @@ export default function VolunteerDashboard() {
                 </motion.div>
               ))}
             </div>
+            {zonePets.length >= 20 && (
+              <button
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="w-full mt-4 py-3 bg-white border border-brand-accent text-brand-primary rounded-xl font-bold text-sm hover:bg-brand-bg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {loadingMore ? 'Cargando...' : 'Ver más'}
+              </button>
+            )}
+            </>
           ) : (
             <div className="bg-white rounded-[2rem] p-8 border border-dashed border-brand-accent text-center">
               <p className="text-gray-500">No hay mascotas reportadas en tu zona</p>

@@ -201,8 +201,8 @@ export async function getSharePreview(petId: string) {
 
 // ── Dashboard ───────────────────────────────────────────────────
 
-export async function getVolunteerDashboard() {
-  const data = await volRequest('/dashboard');
+export async function getVolunteerDashboard(offset = 0) {
+  const data = await volRequest(`/dashboard${offset > 0 ? `?offset=${offset}` : ''}`);
   return data;
 }
 
@@ -251,12 +251,13 @@ export interface ActionCenterPet {
 
 export interface ActionCenterPublications {
   facebook?: {
-    pagePostUrl: string;
-    groupPosts: { groupId: string; groupName: string; fbGroupId: string; postUrl: string }[];
+    url: string;
+    group_count: number;
+    date: string | null;
   };
   instagram?: {
     permalink: string;
-    igMediaId: string;
+    date: string | null;
   };
 }
 
@@ -270,15 +271,28 @@ export interface FbSearchGroup {
   id: string;
   group_name: string;
   group_url: string;
+  zone?: string | null;
+}
+
+export interface RecentFinding {
+  id: string;
+  fb_url: string;
+  group_name: string | null;
+  description: string | null;
+  status: string;
+  created_at: string;
+  reporter_name?: string | null;
 }
 
 export interface ActionCenterData {
   pet: ActionCenterPet;
+  case_id: string | null;
+  timeline_url: string | null;
   volunteerCategories: string[];
-  relevantAgrupacionIds: string[];
   publications: ActionCenterPublications;
   sharePreview: SharePreview;
   fbSearchGroups: FbSearchGroup[];
+  recentFindings: RecentFinding[];
 }
 
 export async function getActionCenterData(petId: string): Promise<ActionCenterData> {

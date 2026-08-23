@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, BellOff, Heart, PawPrint, MessageCircle, Share2, AlertTriangle, CheckCircle, Info, ChevronRight } from 'lucide-react';
+import { Bell, BellOff, Heart, PawPrint, MessageCircle, Share2, AlertTriangle, CheckCircle, Info, ChevronRight, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/src/hooks/useAuth';
-import { getNotifications, markAllNotificationsRead } from '@/src/lib/volunteerService';
+import { getNotifications, markAllNotificationsRead, markNotificationRead } from '@/src/lib/volunteerService';
 import VolunteerActionCenter from '@/src/components/VolunteerActionCenter';
 
 interface Notification {
@@ -11,10 +11,12 @@ interface Notification {
   type: string;
   title: string;
   body: string;
-  read: boolean;
-  data?: { url?: string };
+  read_at?: string | null;
+  data?: { url?: string; pet_id?: string };
   created_at: string;
 }
+
+const isUnread = (n: Notification) => !n.read_at;
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -35,6 +37,9 @@ function typeIcon(type: string) {
     case 'found': return <CheckCircle className="w-4 h-4 text-green-500" />;
     case 'alert': return <AlertTriangle className="w-4 h-4 text-amber-500" />;
     case 'volunteer': return <Heart className="w-4 h-4 text-red-500" />;
+    case 'volunteer_finding': return <Search className="w-4 h-4 text-emerald-500" />;
+    case 'finding_confirmed':
+    case 'reunion_from_finding': return <CheckCircle className="w-4 h-4 text-green-500" />;
     default: return <Info className="w-4 h-4 text-gray-500" />;
   }
 }
@@ -48,16 +53,26 @@ export default function NotificationBell() {
   const [actionCenterPetId, setActionCenterPetId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const fetchNotifications = () => {
     if (!user) return;
     getNotifications()
       .then((data) => {
-        const list = (data.notifications || []).slice(0, 20);
-        setNotifications(list);
-        setUnreadCount(list.filter((n: Notification) => !n.read).length);
+        setNotifications((data.notifications || []).slice(0, 50));
+        if (typeof data.unread === 'number') {
+          setUnreadCount(data.unread);
+        } else {
+          setUnreadCount((data.notifications || []).filter(isUnread).length);
+        }
       })
       .catch(() => {});
-  }, [user, open]);
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    // Polling cada 60s para mantener el badge fresco
+    const interval = setInterval(fetchNotifications, 60_000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   useEffect(() => {
     if (!open) return;
@@ -73,18 +88,28 @@ export default function NotificationBell() {
   const handleMarkAllRead = async () => {
     try {
       await markAllNotificationsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
       setUnreadCount(0);
     } catch {}
   };
 
+  const markReadLocally = (id: string) => {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n)));
+    setUnreadCount((c) => Math.max(0, c - 1));
+  };
+
   const handleNotificationClick = (n: Notification) => {
+    // Abrir Action Center para nuevas mascotas en zona (voluntarios)
     if (n.type === 'new_pet_in_zone' && n.data?.pet_id) {
+      if (isUnread(n)) { markReadLocally(n.id); markNotificationRead(n.id).catch(() => {}); }
       setActionCenterPetId(n.data.pet_id);
       setOpen(false);
       return;
     }
-    if (n.data?.url) navigate(n.data.url);
+    // Navegación genérica: url explícita, si no → ficha de la mascota
+    const target = n.data?.url || (n.data?.pet_id ? `/pet/${n.data.pet_id}` : null);
+    if (isUnread(n)) { markReadLocally(n.id); markNotificationRead(n.id).catch(() => {}); }
+    if (target) navigate(target);
     setOpen(false);
   };
 
@@ -137,7 +162,7 @@ export default function NotificationBell() {
                     key={n.id}
                     onClick={() => handleNotificationClick(n)}
                     className={`w-full flex items-start gap-3 px-5 py-3.5 text-left transition-colors hover:bg-brand-bg/60 border-b border-brand-accent/50 last:border-b-0 ${
-                      !n.read ? 'bg-brand-primary/5' : ''
+                      isUnread(n) ? 'bg-brand-primary/5' : ''
                     }`}
                   >
                     <div className="mt-0.5 shrink-0 w-8 h-8 rounded-full bg-brand-bg flex items-center justify-center">
@@ -145,15 +170,15 @@ export default function NotificationBell() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className={`text-sm font-medium truncate ${!n.read ? 'text-brand-primary font-bold' : 'text-gray-700'}`}>
+                        <p className={`text-sm font-medium truncate ${isUnread(n) ? 'text-brand-primary font-bold' : 'text-gray-700'}`}>
                           {n.title}
                         </p>
-                        {!n.read && <span className="w-2 h-2 rounded-full bg-brand-primary shrink-0" />}
+                        {isUnread(n) && <span className="w-2 h-2 rounded-full bg-brand-primary shrink-0" />}
                       </div>
                       <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{n.body}</p>
                       <span className="text-[10px] text-gray-400 mt-1 block">{timeAgo(n.created_at)}</span>
                     </div>
-                    {n.data?.url && <ChevronRight className="w-4 h-4 text-gray-300 mt-1 shrink-0" />}
+                    {(n.data?.url || n.data?.pet_id) && <ChevronRight className="w-4 h-4 text-gray-300 mt-1 shrink-0" />}
                   </button>
                 ))
               )}

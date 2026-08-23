@@ -1,9 +1,9 @@
 ﻿import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Pet, getPetImageUrls } from '@/src/lib/petService';
-import { X, MessageCircle, Camera, Download, Loader2, ArrowLeft, Copy, Check, Share2, Trash2 } from 'lucide-react';
+import { Pet, getPetCanvasImageUrls } from '@/src/lib/petService';
+import { X, MessageCircle, Camera, Download, Loader2, ArrowLeft, Copy, Check, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
-import { getSharePreview, logShareConfirmation, getFbSearchGroups } from '@/src/lib/volunteerService';
+import { getSharePreview } from '@/src/lib/volunteerService';
 
 type Platform = 'whatsapp' | 'facebook' | 'instagram';
 
@@ -15,6 +15,7 @@ const STATUS_STYLES: Record<string, { label: string; color: string }> = {
   needs_attention: { label: 'NECESITA ATENCION', color: '#D97706' },
   for_adoption: { label: 'EN ADOPCION', color: '#8B5CF6' },
   for_adoption_simple: { label: 'EN ADOPCION', color: '#F97316' },
+  adoption_trial: { label: 'EN PRUEBA', color: '#14B8A6' },
   adopted: { label: 'ADOPTADO', color: '#10B981' },
   reunited: { label: 'REENCUENTRO', color: '#10B981' },
   transitada: { label: 'EN TRANSITO', color: '#0D9488' },
@@ -43,7 +44,7 @@ interface PreviewData {
   caption: string;
 }
 
-function PlatformSelection({ onSelect }: { onSelect: (p: Platform) => void }) {
+function PlatformSelection({ onSelect, hasImages, onClose }: { onSelect: (p: Platform) => void; hasImages: boolean; onClose: () => void }) {
   return (
     <motion.div
       key="selection"
@@ -54,8 +55,16 @@ function PlatformSelection({ onSelect }: { onSelect: (p: Platform) => void }) {
     >
       <div className="flex items-center justify-between p-4 border-b border-gray-100">
         <h3 className="font-bold text-lg text-brand-dark">Compartir en Redes</h3>
+        <button onClick={onClose} aria-label="Cerrar" className="p-1 rounded-full hover:bg-gray-100 transition lg:hidden">
+          <X className="w-5 h-5 text-gray-500" />
+        </button>
       </div>
       <div className="p-5">
+        {!hasImages && (
+          <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+            Esta mascota no tiene fotos cargadas. Agregale al menos una foto para poder generar la imagen del post.
+          </div>
+        )}
         <p className="text-sm text-gray-500 mb-4">Selecciona las plataformas donde quieres compartir:</p>
         <div className="space-y-2">
           {PLATFORMS.map(p => {
@@ -91,6 +100,7 @@ function CaptionScreen({
   generating,
   generated,
   preview,
+  hasImages,
   onBack,
   onClose,
   onGenerate,
@@ -109,6 +119,7 @@ function CaptionScreen({
   generating: string | null;
   generated: Record<string, boolean>;
   preview: PreviewData | null;
+  hasImages: boolean;
   onBack: () => void;
   onClose: () => void;
   onGenerate: (p: Platform) => void;
@@ -119,6 +130,7 @@ function CaptionScreen({
   captionCopied: string | null;
   statusStyle: { label: string; color: string };
 }) {
+  const anyBusy = !!generating || captionsLoading;
   if (preview) {
     return (
       <motion.div
@@ -156,7 +168,7 @@ function CaptionScreen({
           <div className="flex gap-3">
             <button
               onClick={() => onShare(preview.platform)}
-              disabled={generating === preview.platform}
+              disabled={!!generating}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white bg-emerald-500 hover:bg-emerald-600 transition disabled:opacity-60"
             >
               {generating === preview.platform ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
@@ -190,17 +202,22 @@ function CaptionScreen({
     >
       <div className="flex items-center justify-between p-4 border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <button onClick={onBack} className="p-1 rounded-full hover:bg-gray-100 transition">
+          <button onClick={onBack} aria-label="Volver" className="p-1 rounded-full hover:bg-gray-100 transition">
             <ArrowLeft className="w-5 h-5 text-gray-500" />
           </button>
           <h3 className="font-bold text-lg text-brand-dark">Compartir en Redes</h3>
         </div>
-        <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 transition">
+        <button onClick={onClose} aria-label="Cerrar" className="p-1 rounded-full hover:bg-gray-100 transition">
           <X className="w-5 h-5 text-gray-500" />
         </button>
       </div>
 
       <div className="overflow-y-auto p-4 sm:p-5 flex-1">
+        {!hasImages && (
+          <div className="mb-5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+            Esta mascota no tiene fotos cargadas: no se puede generar la imagen.
+          </div>
+        )}
         <div className="flex gap-3 mb-5 overflow-x-auto pb-2">
           {Array.from(new Set(selectedPlatforms)).map((p, idx) => {
             const cfg = PLATFORMS.find(x => x.id === p)!;
@@ -293,15 +310,17 @@ function CaptionScreen({
           {selectedPlatforms.map(p => {
             const cfg = PLATFORMS.find(x => x.id === p)!;
             const isGenerating = generating === p;
+            const disabled = !hasImages || anyBusy;
             return (
               <button
                 key={p}
                 onClick={() => onGenerate(p)}
-                disabled={isGenerating}
+                disabled={disabled}
+                aria-label={'Generar imagen para ' + cfg.label}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-white transition",
                   cfg.color,
-                  isGenerating && "opacity-60 cursor-not-allowed"
+                  disabled && "opacity-60 cursor-not-allowed"
                 )}
               >
                 {isGenerating ? (
@@ -316,7 +335,13 @@ function CaptionScreen({
             );
           })}
         </div>
-        <p className="text-[10px] text-gray-400 text-center mt-2">Genera la imagen para ver vista previa y compartir</p>
+        <p className="text-[10px] text-gray-400 text-center mt-2">
+          {!hasImages
+            ? 'Sin fotos no se puede generar la imagen'
+            : generating
+              ? 'Generando imagen...'
+              : 'Genera la imagen para ver vista previa y compartir'}
+        </p>
       </div>
     </motion.div>
   );
@@ -332,20 +357,20 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const [captionCopied, setCaptionCopied] = useState<string | null>(null);
-  const [showGroupSelector, setShowGroupSelector] = useState<Platform | null>(null);
-  const [suggestedGroups, setSuggestedGroups] = useState<{ id: string; group_name: string; group_url: string }[]>([]);
-  const [selectedGroups, setSelectedGroups] = useState<{ name: string; url?: string }[]>([]);
-  const [customGroupName, setCustomGroupName] = useState('');
-  const [shareSaved, setShareSaved] = useState(false);
-  const [shareSaving, setShareSaving] = useState(false);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
-  const images = getPetImageUrls(pet);
+  const images = getPetCanvasImageUrls(pet);
   const mainImage = images[0] || null;
   const isMobile = typeof navigator !== 'undefined' && !!navigator.share;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const petUrl = origin + '/pet/' + pet.id;
-  const statusStyle = STATUS_STYLES[pet.status] || { label: 'MASCOTA', color: '#6B7280' };
+  const statusStyle = STATUS_STYLES[(pet.status || '').toLowerCase()] || { label: 'MASCOTA', color: '#6B7280' };
+
+  const showNotice = (msg: string) => {
+    setShareNotice(msg);
+    setTimeout(() => setShareNotice(null), 4000);
+  };
 
   useEffect(() => {
     if (selectedPlatforms.length === 0) return;
@@ -368,25 +393,29 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
   }, []);
 
   useEffect(() => {
-    if (showGroupSelector === 'facebook') {
-      getFbSearchGroups().then(groups => setSuggestedGroups(groups || [])).catch(() => {});
-    }
-  }, [showGroupSelector]);
-
-  useEffect(() => {
     return () => {
       if (preview?.url) URL.revokeObjectURL(preview.url);
     };
   }, [preview]);
 
+  // Cerrar con Escape (accesibilidad)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const loadMainImage = async (): Promise<HTMLImageElement> => {
     if (imgRef.current) return imgRef.current;
-    if (!mainImage) throw new Error('No hay imagen disponible');
+    if (!mainImage) throw new Error('Esta mascota no tiene fotos para compartir');
     return new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      img.onload = () => { imgRef.current = img; resolve(img); };
-      img.onerror = () => reject(new Error('No se pudo cargar la imagen'));
+      const timer = setTimeout(() => reject(new Error('La imagen tardó demasiado en cargar')), 15000);
+      img.onload = () => { clearTimeout(timer); imgRef.current = img; resolve(img); };
+      img.onerror = () => { clearTimeout(timer); reject(new Error('No se pudo cargar la imagen')); };
       img.src = mainImage;
     });
   };
@@ -432,6 +461,8 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
   };
 
   const handleGenerate = async (platform: Platform) => {
+    // Single-flight: el canvas es único, no permitir generaciones concurrentes
+    if (generating) return;
     if (!canvasRef.current) {
       alert('Canvas no listo. Intentá de nuevo en un momento.');
       return;
@@ -472,6 +503,7 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
 
       if (isMobile && navigator.canShare && navigator.canShare(shareData)) {
         await navigator.share(shareData);
+        showNotice('¡Compartido! 🎉');
       } else {
         // Desktop fallback
         if (platform === 'whatsapp') {
@@ -479,15 +511,27 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
         } else if (platform === 'facebook') {
           window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(petUrl) + '&quote=' + encodeURIComponent(preview.caption), '_blank');
         } else if (platform === 'instagram') {
-          await navigator.clipboard.writeText(preview.caption);
-          alert('Caption copiado. La imagen está lista. Abrí Instagram, creá post nuevo, pegá el texto y subí la imagen.');
+          let copied = false;
+          try {
+            await navigator.clipboard.writeText(preview.caption);
+            copied = true;
+          } catch {
+            // Sin permiso de clipboard: el usuario puede copiar desde la vista previa
+          }
+          alert(
+            (copied ? 'Caption copiado al portapapeles.\n\n' : 'No se pudo copiar el caption automáticamente: copialo desde el cuadro de texto de esta vista.\n\n') +
+            'La imagen ya se generó: tocá "Descargar" para guardarla, y en Instagram creá un post nuevo y subila' +
+            (copied ? ' pegando el texto.' : '.')
+          );
           window.open('https://www.instagram.com', '_blank', 'noopener,noreferrer');
         }
       }
-      if (platform === 'facebook') setShowGroupSelector('facebook');
     } catch (e) {
-      if ((e as any)?.name !== 'AbortError') {
+      if ((e as any)?.name === 'AbortError') {
+        showNotice('Compartir cancelado');
+      } else {
         console.error('Share error:', e);
+        showNotice('No se pudo compartir. Probá de nuevo o descargá la imagen.');
       }
     } finally {
       setGenerating(null);
@@ -522,12 +566,20 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={'Compartir publicación de ' + (pet.name || 'mascota')}
         className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl max-h-[90vh] flex flex-col"
       >
         <canvas ref={canvasRef} className="hidden" />
+        {shareNotice && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 px-4 py-2 rounded-full bg-gray-900/85 text-white text-xs font-medium shadow-lg whitespace-nowrap">
+            {shareNotice}
+          </div>
+        )}
         <AnimatePresence mode="wait">
           {selectedPlatforms.length === 0 ? (
-            <PlatformSelection key="selection-screen" onSelect={togglePlatform} />
+            <PlatformSelection key="selection-screen" onSelect={togglePlatform} hasImages={!!mainImage} onClose={onClose} />
           ) : (
             <CaptionScreen
               key="caption-screen"
@@ -539,6 +591,7 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
               generating={generating}
               generated={generated}
               preview={preview}
+              hasImages={!!mainImage}
               onBack={() => setSelectedPlatforms([])}
               onClose={onClose}
               onGenerate={handleGenerate}

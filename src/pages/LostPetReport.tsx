@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Camera, Loader2, CheckCircle2, AlertCircle, PawPrint, Mail, Share2, User, X, Plus } from 'lucide-react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -39,6 +39,7 @@ const DEFAULT_CENTER = { lat: -34.9507, lng: -57.9583 };
 
 export default function LostPetReport() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
 
   const [species, setSpecies] = useState('');
@@ -69,10 +70,14 @@ export default function LostPetReport() {
   const [showPetSelector, setShowPetSelector] = useState(false);
   const [userPets, setUserPets] = useState<any[]>([]);
   const [loadingPets, setLoadingPets] = useState(true);
+  const [selectedPet, setSelectedPet] = useState<any | null>(null);
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const isValid = species && description.trim().length >= 10 && location.trim().length >= 3 &&
-    emailRegex.test(email) && phoneValid && images.length >= 1 && reporterName.trim().length >= 2;
+  // Con mascota registrada el submit va por /my-pets/:id/report-lost: solo ubicación + teléfono
+  const isValid = selectedPet
+    ? location.trim().length >= 3 && phoneValid
+    : species && description.trim().length >= 10 && location.trim().length >= 3 &&
+      emailRegex.test(email) && phoneValid && images.length >= 1 && reporterName.trim().length >= 2;
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFiles = e.target.files;
@@ -140,6 +145,18 @@ export default function LostPetReport() {
     setPageStatus('submitting');
     setErrorMsg('');
     try {
+      // Mascota registrada: vincular el reporte a su perfil (lost_report_id)
+      // y notificar voluntarios vía /my-pets/:id/report-lost
+      if (selectedPet) {
+        const data = await api.myPets.reportLost(selectedPet.id, {
+          location,
+          phone: phone || undefined,
+        });
+        setCreatedId(data.pet.id);
+        setPageStatus('success');
+        return;
+      }
+
       const body: any = {
         species, description, location, email,
         status: 'lost',
@@ -173,6 +190,7 @@ export default function LostPetReport() {
     setGender(''); setAge(''); setSize(''); setDescription('');
     setLocation(''); setCoordinates(null); setEmail(''); setPhone(''); setPhoneValid(false); setContactVisible(true);
     setSelectedNeighborhoods([]); setImages([]); setImageMimeTypes([]);
+    setSelectedPet(null);
     setPageStatus('idle'); setErrorMsg(''); setCreatedId('');
   };
 
@@ -183,6 +201,15 @@ export default function LostPetReport() {
         .then(data => {
           const pets = data.myPets || [];
           setUserPets(pets);
+
+          // Deep-link ?petId=X: auto-seleccionar esa mascota sin abrir el selector
+          const petIdParam = searchParams.get('petId');
+          const deepLinked = petIdParam ? pets.find(p => p.id === petIdParam) : null;
+          if (deepLinked) {
+            selectPet(deepLinked);
+            return;
+          }
+
           if (pets.length > 0) {
             setShowPetSelector(true);
           } else {
@@ -207,6 +234,7 @@ export default function LostPetReport() {
   }, [user, authLoading]);
 
   const selectPet = (pet: any) => {
+    setSelectedPet(pet);
     setName(pet.name || '');
     const speciesMap: Record<string, string> = { dog: 'perro', cat: 'gato', other: 'otro' };
     setSpecies(speciesMap[pet.species] || '');
@@ -245,6 +273,7 @@ export default function LostPetReport() {
   };
 
   const skipPetSelection = () => {
+    setSelectedPet(null);
     if (user) {
       setReporterName(user.display_name || '');
       setEmail(user.email || '');
@@ -263,17 +292,25 @@ export default function LostPetReport() {
             <CheckCircle2 className="w-10 h-10 text-green-600" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-brand-primary mb-3">¡Reporte enviado!</h1>
-          <p className="text-gray-600 mb-4">
-            Recibimos tu reporte. Te enviamos un email con el resumen y las instrucciones para completar tu registro.
-          </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 text-left text-sm text-blue-800">
-            <p className="font-bold mb-2">📧 Revisá tu casilla de email</p>
-            <ul className="space-y-2 text-blue-700">
-              <li>• Resumen de tu reporte</li>
-              <li>• Notificaciones automáticas de mascotas similares encontradas</li>
-              <li>• Invitación a crear tu contraseña para gestionar tu publicación</li>
-            </ul>
-          </div>
+          {selectedPet ? (
+            <p className="text-gray-600 mb-4">
+              Vinculamos el reporte a <strong>{selectedPet.name}</strong> y notificamos a los voluntarios de la zona.
+            </p>
+          ) : (
+            <p className="text-gray-600 mb-4">
+              Recibimos tu reporte. Te enviamos un email con el resumen y las instrucciones para completar tu registro.
+            </p>
+          )}
+          {!user && !selectedPet && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 text-left text-sm text-blue-800">
+              <p className="font-bold mb-2">📧 Revisá tu casilla de email</p>
+              <ul className="space-y-2 text-blue-700">
+                <li>• Resumen de tu reporte</li>
+                <li>• Notificaciones automáticas de mascotas similares encontradas</li>
+                <li>• Invitación a crear tu contraseña para gestionar tu publicación</li>
+              </ul>
+            </div>
+          )}
 
           <div className="bg-brand-primary/5 border border-brand-primary/20 rounded-2xl p-5 mb-6 text-left">
             <div className="flex items-center gap-3 mb-2">
@@ -291,7 +328,12 @@ export default function LostPetReport() {
             </a>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button onClick={handleReset} className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
+            {createdId && (
+              <button onClick={() => navigate(`/pet/${createdId}`)} className="px-6 py-3 bg-brand-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
+                Ver publicación
+              </button>
+            )}
+            <button onClick={handleReset} className="px-6 py-3 border border-brand-accent text-gray-600 rounded-xl font-bold hover:bg-brand-bg transition-all">
               Reportar otra mascota
             </button>
             <button onClick={() => navigate('/')} className="px-6 py-3 border border-brand-accent text-gray-600 rounded-xl font-bold hover:bg-brand-bg transition-all">
@@ -336,6 +378,27 @@ export default function LostPetReport() {
         </AnimatePresence>
 
         <div className="space-y-6">
+          {/* Mascota registrada: banner con datos que se tomarán del perfil */}
+          {selectedPet && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+              {selectedPet.avatar_image ? (
+                <img src={`data:${selectedPet.avatar_mime_type || 'image/jpeg'};base64,${selectedPet.avatar_image}`} alt={selectedPet.name}
+                  className="w-12 h-12 rounded-xl object-cover shrink-0" />
+              ) : (
+                <PawPrint className="w-6 h-6 text-brand-primary shrink-0 mt-1" />
+              )}
+              <div className="text-sm text-blue-800">
+                <p className="font-bold">Vas a reportar la pérdida de {selectedPet.name || 'tu mascota'}</p>
+                <p className="mt-1 text-blue-700">Usaremos los datos de su perfil registrado (foto, raza, descripción). Solo indicá dónde se perdió y un teléfono de contacto.</p>
+                {!selectedPet.avatar_image && (
+                  <p className="mt-1 text-amber-700 font-medium">⚠️ Tu mascota no tiene foto de perfil: el aviso se publicará sin foto. Podés agregarla desde Mi Portal.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!selectedPet && (
+          <>
           {/* Species */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">Especie *</label>
@@ -410,6 +473,8 @@ export default function LostPetReport() {
               className="w-full p-4 border border-brand-accent rounded-xl resize-none text-sm focus:outline-none focus:border-brand-primary transition-colors" rows={3} />
             <p className="text-xs text-gray-400 mt-1">{description.length} caracteres (mín. 10)</p>
           </div>
+          </>
+          )}
 
           {/* Location */}
           <div>
@@ -425,6 +490,8 @@ export default function LostPetReport() {
             />
           </div>
 
+          {!selectedPet && (
+          <>
           {/* Tu nombre */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">Tu nombre *</label>
@@ -454,6 +521,8 @@ export default function LostPetReport() {
               <p className="text-xs text-red-500 mt-1">Formato de email inválido</p>
             )}
           </div>
+          </>
+          )}
 
           {/* Phone */}
           <div>
@@ -465,17 +534,24 @@ export default function LostPetReport() {
               className="w-full"
             />
             <div className="mt-3 flex items-start gap-2.5">
-              <input
-                id="contact-visible"
-                type="checkbox"
-                checked={contactVisible}
-                onChange={e => setContactVisible(e.target.checked)}
-                className="mt-0.5 w-4 h-4 shrink-0 accent-brand-primary"
-              />
-              <label htmlFor="contact-visible" className="text-xs text-gray-500 cursor-pointer select-none">
-                Mostrar mi teléfono en el aviso público para que puedan contactarme.
-                <span className="block text-gray-400">Si lo desactivás, se mostrará tu email como contacto.</span>
-              </label>
+              {!selectedPet && (
+                <>
+                  <input
+                    id="contact-visible"
+                    type="checkbox"
+                    checked={contactVisible}
+                    onChange={e => setContactVisible(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 shrink-0 accent-brand-primary"
+                  />
+                  <label htmlFor="contact-visible" className="text-xs text-gray-500 cursor-pointer select-none">
+                    Mostrar mi teléfono en el aviso público para que puedan contactarme.
+                    <span className="block text-gray-400">Si lo desactivás, se mostrará tu email como contacto.</span>
+                  </label>
+                </>
+              )}
+              {selectedPet && (
+                <p className="text-xs text-gray-500">Este teléfono llegará a quien encuentre a {selectedPet.name || 'tu mascota'}.</p>
+              )}
             </div>
           </div>
 
@@ -485,6 +561,8 @@ export default function LostPetReport() {
             <p className="text-sm text-gray-600">Al publicar tu aviso, la ubicación quedará visible y el contacto (teléfono o email) estará disponible para que la comunidad pueda ayudarte.</p>
           </div>
 
+          {!selectedPet && (
+          <>
           {/* Photos */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">
@@ -517,6 +595,8 @@ export default function LostPetReport() {
             {images.length === 0 && <p className="text-xs text-red-500 mt-1">Necesitás al menos 1 foto</p>}
             {images.length > 0 && <p className="text-xs text-gray-400 mt-1">{images.length}/3 fotos cargadas</p>}
           </div>
+          </>
+          )}
 
           {/* Submit */}
           <button onClick={handleSubmit} disabled={!isValid || pageStatus === 'submitting'}

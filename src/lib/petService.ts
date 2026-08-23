@@ -90,6 +90,21 @@ export function getPetImageUrls(pet: Pet): string[] {
   }).filter(Boolean) || [];
 }
 
+/**
+ * URLs aptas para dibujar en <canvas> (toBlob/toDataURL).
+ * Prioriza orígenes same-origin / data: porque los CDN externos (Facebook)
+ * no mandan CORS headers y envenenan el canvas.
+ */
+export function getPetCanvasImageUrls(pet: Pet): string[] {
+  return pet.images?.map((img, idx) => {
+    if (img.has_image) return apiUrl(`/api/images/pet-thumb/${pet.id}/${idx}`);
+    if (img.image_data) return `data:${img.mime_type};base64,${img.image_data}`;
+    // Último recurso: external_url (puede fallar por CORS al exportar el canvas)
+    if (img.external_url) return img.external_url;
+    return '';
+  }).filter(Boolean) || [];
+}
+
 export function getPetOriginalImageUrl(pet: Pet): string | undefined {
   if (!pet.images?.[0]) return undefined;
   const img = pet.images[0];

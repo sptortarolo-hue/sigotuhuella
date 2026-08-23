@@ -7,10 +7,9 @@ import { useNavigate } from 'react-router-dom';
 interface ReportModalProps {
   open: boolean;
   onClose: () => void;
-  onLostPetClick: () => void;
 }
 
-export default function ReportModal({ open, onClose, onLostPetClick }: ReportModalProps) {
+export default function ReportModal({ open, onClose }: ReportModalProps) {
   const navigate = useNavigate();
 
   useEffect(() => {

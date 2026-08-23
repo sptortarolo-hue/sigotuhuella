@@ -508,6 +508,7 @@ router.get('/share-stats', requireAuth, async (req, res) => {
 router.put('/share-log/:id/url', requireAdmin, async (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'url is required' });
+  if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Share log not found' });
   try {
     const logRes = await pool.query('UPDATE share_logs SET url = $1 WHERE id = $2 RETURNING *', [url, req.params.id]);
     if (logRes.rows.length === 0) return res.status(404).json({ error: 'Share log not found' });
@@ -703,6 +704,7 @@ router.put('/notifications/read-all', requireAuth, async (req, res) => {
 });
 
 router.put('/notifications/:id/read', requireAuth, async (req, res) => {
+  if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Notification not found' });
   try {
     await pool.query(
       "UPDATE notifications SET read_at = NOW() WHERE id = $1 AND user_id = $2",
@@ -856,6 +858,8 @@ router.get('/dashboard', requireAuth, async (req, res) => {
 
     let petsInZone = { rows: [] };
     if (allNeighborhoods.length > 0) {
+      const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+      const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
       petsInZone = await pool.query(
         `SELECT id, name, species, status, location, neighborhoods, created_at
          FROM pets
@@ -868,8 +872,8 @@ router.get('/dashboard', requireAuth, async (req, res) => {
             AND status IN ('lost', 'sighted', 'accidented')
            AND is_hidden = FALSE
          ORDER BY created_at DESC
-         LIMIT 20`,
-        [allNeighborhoods]
+         LIMIT $2 OFFSET $3`,
+        [allNeighborhoods, limit, offset]
       );
     }
 
@@ -905,10 +909,16 @@ router.get('/dashboard', requireAuth, async (req, res) => {
 //  HALLAZGOS DEL BUSCADOR (van directo al timeline)
 // ══════════════════════════════════════════════════════════════════════
 
-router.post('/findings', requireAuth, async (req, res) => {
+router.post('/findings', requireAuth, requireActiveVolunteer, async (req, res) => {
   const { pet_id, fb_url, description, group_name } = req.body;
   if (!pet_id || !fb_url) {
     return res.status(400).json({ error: 'pet_id and fb_url are required' });
+  }
+  if (!validUuid(pet_id)) {
+    return res.status(400).json({ error: 'Invalid pet id' });
+  }
+  if (typeof fb_url !== 'string' || fb_url.length > 2000 || !/^https?:\/\//i.test(fb_url)) {
+    return res.status(400).json({ error: 'fb_url debe ser una URL válida' });
   }
   try {
     // Buscar el caso del pet y el dueño
@@ -954,11 +964,11 @@ router.post('/findings', requireAuth, async (req, res) => {
         ? `${volunteerName} encontró un post en "${group_name}": ${description || fb_url}`
         : `${volunteerName} encontró un post en Facebook: ${description || fb_url}`;
 
-      // Notificación in-app
+      // Notificación in-app (con url para que la campanita navegue al hacer click)
       await pool.query(
         `INSERT INTO notifications (user_id, type, title, body, data)
          VALUES ($1, 'volunteer_finding', $2, $3, $4)`,
-        [pet.created_by, title, body, JSON.stringify({ pet_id, finding_id: result.rows[0].id, fb_url })]
+        [pet.created_by, title, body, JSON.stringify({ pet_id, finding_id: result.rows[0].id, fb_url, url: petUrl })]
       );
 
       // Push notification
@@ -984,7 +994,8 @@ router.post('/findings', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/findings/:petId', requireAuth, async (req, res) => {
+router.get('/findings/:petId', requireAuth, requireActiveVolunteer, async (req, res) => {
+  if (!validUuid(req.params.petId)) return res.status(400).json({ error: 'Invalid pet id' });
   try {
     const result = await pool.query(
       `SELECT vf.*, u.display_name as volunteer_name
@@ -1003,6 +1014,7 @@ router.get('/findings/:petId', requireAuth, async (req, res) => {
 
 // Confirmar hallazgo — el reportante (created_by) verifica que es la mascota
 router.put('/findings/:id/confirm', requireAuth, async (req, res) => {
+  if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Hallazgo no encontrado' });
   try {
     const findingRes = await pool.query(
       'SELECT vf.*, p.created_by, p.name as pet_name FROM volunteer_findings vf JOIN pets p ON p.id = vf.pet_id WHERE vf.id = $1',
@@ -1051,7 +1063,7 @@ router.put('/findings/:id/confirm', requireAuth, async (req, res) => {
     await pool.query(
       `INSERT INTO notifications (user_id, type, title, body, data)
        VALUES ($1, 'finding_confirmed', $2, $3, $4)`,
-      [finding.user_id, title, body, JSON.stringify({ pet_id: finding.pet_id, finding_id: finding.id })]
+      [finding.user_id, title, body, JSON.stringify({ pet_id: finding.pet_id, finding_id: finding.id, url: petUrl })]
     );
 
     res.json({ confirmed: true, case_event: caseEvent });
@@ -1063,6 +1075,7 @@ router.put('/findings/:id/confirm', requireAuth, async (req, res) => {
 
 // Reunión desde hallazgo — el reportante cierra el caso
 router.put('/findings/:id/reunite', requireAuth, async (req, res) => {
+  if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Hallazgo no encontrado' });
   try {
     const findingRes = await pool.query(
       'SELECT vf.*, p.created_by, p.name as pet_name FROM volunteer_findings vf JOIN pets p ON p.id = vf.pet_id WHERE vf.id = $1',
@@ -1097,7 +1110,7 @@ router.put('/findings/:id/reunite', requireAuth, async (req, res) => {
     await pool.query(
       `INSERT INTO notifications (user_id, type, title, body, data)
        VALUES ($1, 'reunion_from_finding', $2, $3, $4)`,
-      [finding.user_id, title, body, JSON.stringify({ pet_id: finding.pet_id, finding_id: finding.id })]
+      [finding.user_id, title, body, JSON.stringify({ pet_id: finding.pet_id, finding_id: finding.id, url: petUrl })]
     );
 
     res.json({ reunited: true });

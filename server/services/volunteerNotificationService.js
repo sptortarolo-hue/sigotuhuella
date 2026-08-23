@@ -13,7 +13,11 @@ const STATUS_LABELS = {
 };
 
 export async function notifyVolunteersOfNewPet(pet) {
-  if (!pet.neighborhoods || pet.neighborhoods.length === 0) return;
+  if (!pet?.id) return;
+  if (!pet.neighborhoods || pet.neighborhoods.length === 0) {
+    console.info(`[volunteer-notify] pet ${pet.id} sin barrios: no se notifica a voluntarios`);
+    return;
+  }
   if (['reunited', 'adopted'].includes(pet.status)) return;
 
   try {
@@ -21,7 +25,10 @@ export async function notifyVolunteersOfNewPet(pet) {
       `SELECT id, name FROM agrupaciones WHERE is_active = TRUE AND neighborhoods && $1::jsonb`,
       [JSON.stringify(pet.neighborhoods)]
     );
-    if (agrupaciones.rows.length === 0) return;
+    if (agrupaciones.rows.length === 0) {
+      console.info(`[volunteer-notify] pet ${pet.id}: ninguna agrupación activa cubre sus barrios (${(pet.neighborhoods || []).join(', ')})`);
+      return;
+    }
 
     const agrupacionIds = agrupaciones.rows.map(a => a.id);
 
@@ -33,7 +40,10 @@ export async function notifyVolunteersOfNewPet(pet) {
          AND vs.status = 'active'`,
       [agrupacionIds]
     );
-    if (volunteers.rows.length === 0) return;
+    if (volunteers.rows.length === 0) {
+      console.info(`[volunteer-notify] pet ${pet.id}: no hay voluntarios activos en ${agrupaciones.rows.length} agrupaciones`);
+      return;
+    }
 
     const statusLabel = STATUS_LABELS[pet.status] || pet.status.toLowerCase();
     const petUrl = `https://sigotuhuella.com.ar/pet/${pet.id}`;
@@ -45,7 +55,7 @@ export async function notifyVolunteersOfNewPet(pet) {
       if (notified.has(`${vol.user_id}-${vol.category}`)) continue;
       notified.add(`${vol.user_id}-${vol.category}`);
 
-      const channels = vol.notification_channels || { push: true, email: true, whatsapp: true, in_app: true };
+      const channels = vol.notification_channels || { push: true, whatsapp: true, in_app: true };
 
       let title, body;
       if (vol.category === 'difusion') {
@@ -62,6 +72,7 @@ export async function notifyVolunteersOfNewPet(pet) {
            VALUES ($1, 'new_pet_in_zone', $2, $3, $4)`,
           [vol.user_id, title, body, JSON.stringify({
             pet_id: pet.id,
+            url: petUrl,
             category: vol.category,
             agrupacion_ids: agrupacionIds,
             neighborhoods: pet.neighborhoods,

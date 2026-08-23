@@ -675,7 +675,6 @@ const fetchInvites = async () => {
       <ReportModal
         open={reportModalOpen}
         onClose={() => setReportModalOpen(false)}
-        onLostPetClick={() => {}}
       />
     </div>
   );
