@@ -4,17 +4,17 @@ import { enqueue } from './phoneRelayService.js';
 import { sendAdminNotificationEmail } from '../auth.js';
 
 const STATUS_LABELS = {
-  LOST: 'perdido/a',
-  SIGHTED: 'avistado/a',
-  ACCIDENTED: 'accidentado/a',
-  RETAINED: 'retenido/a',
-  FOR_ADOPTION: 'en adopción',
-  REUNITED: 'reunificado/a',
+  lost: 'perdido/a',
+  sighted: 'avistado/a',
+  accidented: 'accidentado/a',
+  retained: 'retenido/a',
+  for_adoption: 'en adopción',
+  reunited: 'reunificado/a',
 };
 
 export async function notifyVolunteersOfNewPet(pet) {
   if (!pet.neighborhoods || pet.neighborhoods.length === 0) return;
-  if (['REUNITED', 'ADOPTED'].includes(pet.status)) return;
+  if (['reunited', 'adopted'].includes(pet.status)) return;
 
   try {
     const agrupaciones = await pool.query(

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-import { api } from '@/src/lib/api';
+import { api, apiUrl } from '@/src/lib/api';
 import { getPetImageUrl } from '@/src/lib/petService';
 import { getNewsImageUrl } from '@/src/lib/newsService';
 import {
@@ -679,6 +679,7 @@ const fetchInvites = async () => {
       <ReportModal
         open={reportModalOpen}
         onClose={() => setReportModalOpen(false)}
+        onLostPetClick={() => {}}
       />
     </div>
   );

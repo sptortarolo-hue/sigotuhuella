@@ -723,7 +723,7 @@ router.get('/dashboard', requireAuth, async (req, res) => {
              SELECT 1 FROM jsonb_array_elements_text(neighborhoods::jsonb) elem
              WHERE elem = ANY($1::text[])
            )
-           AND status IN ('LOST', 'SIGHTED', 'ACCIDENTED')
+            AND status IN ('lost', 'sighted', 'accidented')
            AND is_hidden = FALSE
          ORDER BY created_at DESC
          LIMIT 20`,
