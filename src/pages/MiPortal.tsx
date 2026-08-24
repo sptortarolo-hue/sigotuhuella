@@ -183,7 +183,12 @@ const fetchInvites = async () => {
     const fetchShareStats = async () => {
       try {
         const data = await safeFetch(() => api.volunteers.shareStats());
-        if (data) setShareStats(data);
+        if (data?.stats) {
+          const map: Record<string, number> = {};
+          for (const s of data.stats) map[s.platform] = s.count;
+          map['total'] = data.total ?? 0;
+          setShareStats(map);
+        }
       } catch (e) { console.error('Error fetching share stats:', e); }
       finally { setShareStatsLoading(false); }
     };
@@ -201,13 +206,11 @@ const fetchInvites = async () => {
         fetchInvites(),
         fetchShared(),
         fetchVolunteerSubscriptions(),
+        fetchShareStats(),
       ]);
 
       if (myPets.length > 0) {
-        await Promise.all([
-          fetchZonePets(),
-          fetchShareStats(),
-        ]);
+        await fetchZonePets();
       }
     };
 
