@@ -106,6 +106,24 @@ export function requireAdmin(req, res, next) {
   });
 }
 
+export function requireCoordinator(req, res, next) {
+  requireAuth(req, res, async () => {
+    if (req.user.role === 'admin') return next();
+    try {
+      const r = await pool.query(
+        `SELECT 1 FROM agrupaciones WHERE coordinator_user_id = $1 AND is_active = TRUE LIMIT 1`,
+        [req.user.id]
+      );
+      if (r.rows.length === 0) {
+        return res.status(403).json({ error: 'Coordinator access required' });
+      }
+      next();
+    } catch {
+      return res.status(500).json({ error: 'Auth check failed' });
+    }
+  });
+}
+
 export async function hashPassword(password) {
   return bcrypt.hash(password, 10);
 }

@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
+import { useAuth } from '@/src/hooks/useAuth';
 import {
   getAllAgrupaciones, createAgrupacion, updateAgrupacion, deleteAgrupacion,
   getPendingFbSearchGroups, approveFbSearchGroup, deleteFbSearchGroup,
@@ -49,6 +50,7 @@ interface FbSearchGroup {
 }
 
 export default function AgrupacionesTab() {
+  const { isAdmin } = useAuth();
   const [agrupaciones, setAgrupaciones] = useState<Agrupacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -56,7 +58,7 @@ export default function AgrupacionesTab() {
   const [form, setForm] = useState({
     name: '', description: '', neighborhoods: [] as string[],
     contact_whatsapp: '', contact_email: '',
-    admin_user_id: '', coordinator_user_id: '',
+    coordinator_user_id: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -140,7 +142,7 @@ export default function AgrupacionesTab() {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ name: '', description: '', neighborhoods: [], contact_whatsapp: '', contact_email: '', admin_user_id: '', coordinator_user_id: '' });
+    setForm({ name: '', description: '', neighborhoods: [], contact_whatsapp: '', contact_email: '', coordinator_user_id: '' });
     setShowForm(true);
   };
 
@@ -150,7 +152,7 @@ export default function AgrupacionesTab() {
       name: a.name, description: a.description || '',
       neighborhoods: a.neighborhoods || [],
       contact_whatsapp: a.contact_whatsapp || '', contact_email: a.contact_email || '',
-      admin_user_id: a.admin_user_id || '', coordinator_user_id: a.coordinator_user_id || '',
+      coordinator_user_id: a.coordinator_user_id || '',
     });
     setShowForm(true);
   };
@@ -217,10 +219,12 @@ export default function AgrupacionesTab() {
           <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
             <Users className="w-6 h-6" /> Agrupaciones
           </h2>
-          <button onClick={openNew}
-            className="px-4 py-2 bg-brand-primary text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all flex items-center gap-2">
-            <Plus className="w-4 h-4" /> Crear agrupacion
-          </button>
+          {isAdmin && (
+            <button onClick={openNew}
+              className="px-4 py-2 bg-brand-primary text-white text-sm font-bold rounded-xl hover:shadow-lg transition-all flex items-center gap-2">
+              <Plus className="w-4 h-4" /> Crear agrupacion
+            </button>
+          )}
         </div>
 
         {agrupaciones.length === 0 ? (
@@ -248,9 +252,6 @@ export default function AgrupacionesTab() {
                     )}
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                    {a.admin_name && (
-                      <span className="flex items-center gap-1"><Users className="w-3 h-3 text-blue-500" />Admin: {a.admin_name}</span>
-                    )}
                     {a.coordinator_name && (
                       <span className="flex items-center gap-1"><Users className="w-3 h-3 text-emerald-500" />Coord: {a.coordinator_name}</span>
                     )}
@@ -261,10 +262,12 @@ export default function AgrupacionesTab() {
                     className="p-2 rounded-xl bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Editar">
                     <Edit2 className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleDelete(a.id)}
-                    className="p-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {isAdmin && (
+                    <button onClick={() => handleDelete(a.id)}
+                      className="p-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -316,27 +319,15 @@ export default function AgrupacionesTab() {
                       className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm focus:border-brand-primary" />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1 block">Admin de la agrupaci&oacute;n</label>
-                    <select value={form.admin_user_id} onChange={e => setForm(prev => ({ ...prev, admin_user_id: e.target.value }))}
-                      className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm focus:border-brand-primary">
-                      <option value="">Sin asignar</option>
-                      {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.display_name || u.email}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1 block">Coordinador de la agrupaci&oacute;n</label>
-                    <select value={form.coordinator_user_id} onChange={e => setForm(prev => ({ ...prev, coordinator_user_id: e.target.value }))}
-                      className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm focus:border-brand-primary">
-                      <option value="">Sin asignar</option>
-                      {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.display_name || u.email}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1 block">Coordinador de la agrupaci&oacute;n</label>
+                  <select value={form.coordinator_user_id} onChange={e => setForm(prev => ({ ...prev, coordinator_user_id: e.target.value }))}
+                    className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none text-sm focus:border-brand-primary">
+                    <option value="">Sin asignar</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.display_name || u.email}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 block">Barrios</label>

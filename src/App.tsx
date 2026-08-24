@@ -169,7 +169,7 @@ export default function App() {
                 <Route
                   path="/admin"
                   element={
-                    <ProtectedRoute isAdmin>
+                    <ProtectedRoute isCoordinator>
                       <Admin />
                     </ProtectedRoute>
                   }

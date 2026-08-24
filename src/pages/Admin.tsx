@@ -73,7 +73,7 @@ const PERSONALITY_TAGS = [
 ];
 
 export default function Admin() {
-  const { user } = useAuth();
+  const { user, isAdmin, isCoordinator } = useAuth();
   const [activeTab, setActiveTab] = useState<'pets' | 'adoption' | 'collab' | 'volunteers' | 'users' | 'highlights' | 'news' | 'whatsapp' | 'relay-whatsapp' | 'fb-relay' | 'public' | 'videos' | 'qr' | 'facebook' | 'instagram' | 'dashboard' | 'analytics' | 'sponsors' | 'scraper' | 'raffles' | 'backup' | 'moderation' | 'blacklist' | 'cases' | 'agrupaciones'>('pets');
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['pets']));
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(['pets', 'users']));
@@ -1158,7 +1158,11 @@ export default function Admin() {
   { id: 'backup', label: 'Backup', icon: HardDrive },
   { id: 'cases', label: 'Casos', icon: FolderOpen },
   { id: 'agrupaciones', label: 'Agrupaciones', icon: Users },
-        ].map(tab => (
+        ].filter(tab => {
+          if (isAdmin) return true;
+          const COORDINATOR_TABS = ['dashboard', 'pets', 'cases', 'agrupaciones', 'moderation'];
+          return COORDINATOR_TABS.includes(tab.id);
+        }).map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}

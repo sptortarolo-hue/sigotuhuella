@@ -18,6 +18,7 @@ export interface AuthUser {
   notification_preference?: string;
   notify_case_updates?: boolean;
   neighborhoods?: string[];
+  coordinator_of?: Array<{ id: string; name: string }>;
 }
 
 export interface Badge {
@@ -28,6 +29,8 @@ export interface Badge {
 interface AuthContextType {
   user: AuthUser | null;
   isAdmin: boolean;
+  isCoordinator: boolean;
+  coordinatorOf: Array<{ id: string; name: string }>;
   loading: boolean;
   login: (token: string, userData: AuthUser) => void;
   logout: () => void;
@@ -73,6 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isAdmin = user?.role === 'admin';
+  const coordinatorOf = user?.coordinator_of || [];
+  const isCoordinator = coordinatorOf.length > 0;
 
   const login = useCallback((token: string, userData: AuthUser) => {
     localStorage.setItem('token', token);
@@ -96,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, isAdmin, isCoordinator, coordinatorOf, loading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

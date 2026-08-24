@@ -226,7 +226,13 @@ router.get('/me', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     const user = result.rows[0];
-    res.json({ user: { ...user, badges: user.badges || [] } });
+
+    const coordResult = await pool.query(
+      `SELECT id, name FROM agrupaciones WHERE coordinator_user_id = $1 AND is_active = TRUE`,
+      [req.user.id]
+    );
+
+    res.json({ user: { ...user, badges: user.badges || [], coordinator_of: coordResult.rows } });
   } catch (err) {
     console.error('Get user error:', err);
     res.status(500).json({ error: 'Failed to get user' });

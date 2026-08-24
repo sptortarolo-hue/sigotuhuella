@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth, requireAdmin, sendMemberApprovalEmail, sendAdminNotificationEmail } from '../auth.js';
+import { requireAuth, requireAdmin, requireCoordinator, sendMemberApprovalEmail, sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins, sendPushToUser } from '../services/pushService.js';
 import { buildPetMessage } from '../services/facebookPublisher.js';
 import { buildPetCaption } from '../services/instagramPublisher.js';
@@ -296,17 +296,21 @@ router.get('/agrupaciones', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/agrupaciones/all', requireAdmin, async (req, res) => {
+router.get('/agrupaciones/all', requireCoordinator, async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT a.*,
-        au.email as admin_email, au.display_name as admin_name,
+    let query = `SELECT a.*,
         cu.email as coordinator_email, cu.display_name as coordinator_name
        FROM agrupaciones a
-       LEFT JOIN users au ON au.id = a.admin_user_id
-       LEFT JOIN users cu ON cu.id = a.coordinator_user_id
-       ORDER BY a.name`
-    );
+       LEFT JOIN users cu ON cu.id = a.coordinator_user_id`;
+    const params = [];
+
+    if (req.user.role !== 'admin') {
+      params.push(req.user.id);
+      query += ` WHERE a.coordinator_user_id = $${params.length} AND a.is_active = TRUE`;
+    }
+    query += ` ORDER BY a.name`;
+
+    const result = await pool.query(query, params);
     res.json({ agrupaciones: result.rows });
   } catch (err) {
     console.error('Get all agrupaciones error:', err);
@@ -330,9 +334,18 @@ router.post('/agrupaciones', requireAdmin, async (req, res) => {
   }
 });
 
-router.put('/agrupaciones/:id', requireAdmin, async (req, res) => {
-  const { name, description, neighborhoods, contact_whatsapp, contact_email, logo_url, is_active, admin_user_id, coordinator_user_id } = req.body;
+router.put('/agrupaciones/:id', requireCoordinator, async (req, res) => {
+  const { name, description, neighborhoods, contact_whatsapp, contact_email, logo_url, is_active, coordinator_user_id } = req.body;
   try {
+    if (req.user.role !== 'admin') {
+      const ownership = await pool.query(
+        'SELECT 1 FROM agrupaciones WHERE id = $1 AND coordinator_user_id = $2',
+        [req.params.id, req.user.id]
+      );
+      if (ownership.rows.length === 0) {
+        return res.status(403).json({ error: 'No tenés acceso a esta agrupación' });
+      }
+    }
     const result = await pool.query(
       `UPDATE agrupaciones SET
         name = COALESCE($1, name),
@@ -342,10 +355,9 @@ router.put('/agrupaciones/:id', requireAdmin, async (req, res) => {
         contact_email = COALESCE($5, contact_email),
         logo_url = COALESCE($6, logo_url),
         is_active = COALESCE($7, is_active),
-        admin_user_id = $8,
-        coordinator_user_id = $9
-       WHERE id = $10 RETURNING *`,
-      [name, description, neighborhoods ? JSON.stringify(neighborhoods) : null, contact_whatsapp, contact_email, logo_url, is_active, admin_user_id || null, coordinator_user_id || null, req.params.id]
+        coordinator_user_id = $8
+       WHERE id = $9 RETURNING *`,
+      [name, description, neighborhoods ? JSON.stringify(neighborhoods) : null, contact_whatsapp, contact_email, logo_url, is_active, coordinator_user_id || null, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Agrupacion not found' });
     res.json({ agrupacion: result.rows[0] });
@@ -624,7 +636,7 @@ router.put('/volunteer-group-memberships/:groupId', requireAuth, requireActiveVo
 //  ADMIN: STATS DE DIFUSIÓN POR AGRUPACIÓN Y VOLUNTARIO
 // ══════════════════════════════════════════════════════════════════════
 
-router.get('/admin/diffusion-stats', requireAdmin, async (req, res) => {
+router.get('/admin/diffusion-stats', requireCoordinator, async (req, res) => {
   try {
     const { agrupacion_id } = req.query;
     let query = `
@@ -645,6 +657,10 @@ router.get('/admin/diffusion-stats', requireAdmin, async (req, res) => {
       params.push(agrupacion_id);
       query += ` AND a.id = $${params.length}`;
     }
+    if (req.user.role !== 'admin') {
+      params.push(req.user.id);
+      query += ` AND a.coordinator_user_id = $${params.length}`;
+    }
     query += ` GROUP BY a.id, a.name, u.id, u.display_name ORDER BY a.name, total_shares DESC`;
 
     const result = await pool.query(query, params);
@@ -659,7 +675,7 @@ router.get('/admin/diffusion-stats', requireAdmin, async (req, res) => {
 //  ADMIN: GESTIÓN DE MEMBRESÍA DE GRUPOS
 // ══════════════════════════════════════════════════════════════════════
 
-router.get('/admin/group-memberships', requireAdmin, async (req, res) => {
+router.get('/admin/group-memberships', requireCoordinator, async (req, res) => {
   try {
     const { user_id, agrupacion_id } = req.query;
 
@@ -673,6 +689,11 @@ router.get('/admin/group-memberships', requireAdmin, async (req, res) => {
     `;
     const params = [];
     const conditions = [];
+
+    if (req.user.role !== 'admin') {
+      params.push(req.user.id);
+      conditions.push(`fg.agrupacion_id IN (SELECT id FROM agrupaciones WHERE coordinator_user_id = $${params.length})`);
+    }
 
     if (user_id && validUuid(user_id)) {
       params.push(user_id);
@@ -1208,16 +1229,20 @@ router.get('/fb-search-groups', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/fb-search-groups/pending', requireAdmin, async (req, res) => {
+router.get('/fb-search-groups/pending', requireCoordinator, async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT fsg.*, a.name as agrupacion_name, u.display_name as requested_by_name
+    let query = `SELECT fsg.*, a.name as agrupacion_name, u.display_name as requested_by_name
        FROM fb_search_groups fsg
        LEFT JOIN agrupaciones a ON a.id = fsg.agrupacion_id
        LEFT JOIN users u ON u.id = fsg.requested_by
-       WHERE fsg.approved = FALSE
-       ORDER BY fsg.created_at DESC`
-    );
+       WHERE fsg.approved = FALSE`;
+    const params = [];
+    if (req.user.role !== 'admin') {
+      params.push(req.user.id);
+      query += ` AND fsg.agrupacion_id IN (SELECT id FROM agrupaciones WHERE coordinator_user_id = $${params.length})`;
+    }
+    query += ` ORDER BY fsg.created_at DESC`;
+    const result = await pool.query(query, params);
     res.json({ groups: result.rows });
   } catch (err) {
     console.error('Get pending fb groups error:', err);
@@ -1243,8 +1268,18 @@ router.post('/fb-search-groups', requireAuth, async (req, res) => {
   }
 });
 
-router.put('/fb-search-groups/:id/approve', requireAdmin, async (req, res) => {
+router.put('/fb-search-groups/:id/approve', requireCoordinator, async (req, res) => {
   try {
+    if (req.user.role !== 'admin') {
+      const ownership = await pool.query(
+        `SELECT 1 FROM fb_search_groups WHERE id = $1
+         AND agrupacion_id IN (SELECT id FROM agrupaciones WHERE coordinator_user_id = $2)`,
+        [req.params.id, req.user.id]
+      );
+      if (ownership.rows.length === 0) {
+        return res.status(403).json({ error: 'No tenés acceso a este grupo' });
+      }
+    }
     const result = await pool.query(
       "UPDATE fb_search_groups SET approved = TRUE, approved_by = $1, approved_at = NOW() WHERE id = $2 RETURNING *",
       [req.user.id, req.params.id]
