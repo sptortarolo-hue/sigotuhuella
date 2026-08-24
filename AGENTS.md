@@ -296,6 +296,69 @@ El relay duerme la pantalla al terminar cada post y la despierta a demanda. Para
 - Si FB muestra checkpoint/captcha, el script lo detecta, marca la tarea como failed y **frena** (no sigue arriesgando).
 - No automatizar en volumen (15+ grupos/hora) aunque sea nativo: FB limita por patrón igual.
 
+## Difusión colaborativa (voluntarios)
+
+Sistema para que los voluntarios compartan publicaciones de mascotas en grupos de Facebook, con tracking de cobertura y cola inteligente.
+
+### Flujo guiado (ShareGroupStepper)
+
+1. El voluntario abre la página de un caso → pestaña "Difusión".
+2. **Bloque 1**: Stepper paso-a-paso — muestra 1 grupo a la vez con barra de progreso:
+   - Clickea "Abrir publicación" para ir al post de FB y compartir en el grupo.
+   - Vuelve a la app, pega la URL del share (opcional), clickea "Listo".
+   - Siguiente grupo (los ya cubiertos por otros se saltan automáticamente).
+   - Si todos los grupos están cubiertos → se muestra resumen y el caso desaparece de la cola.
+3. **Bloque 2**: Publicar en redes — SharePreviewCards para crear post propio (FB/IG/WA) con captions.
+4. El registro se guarda en `share_logs` (con `agrupacion_id` del voluntario) y como case_event en `case_events` (tipo `social_shared`).
+
+### Filtros de la cola (diffusion queue)
+
+- Los casos con **todos los grupos cubiertos** (por share manual O replica auto-detectada) se excluyen de la cola.
+- `groups_covered` / `groups_total` se calcula por cada caso y voluntario:
+  - `groups_covered`: shares (social_shared en 5d) + réplicas (facebook_replica en 5d) del mismo caso en los grupos de la agrupación del voluntario.
+  - `groups_total`: cantidad de grupos aprobados de las agrupaciones del voluntario.
+
+### Cobertura unificada
+
+`GET /pet-coverage` devuelve la unión de:
+- `social_shared` events (shares manuales de voluntarios)
+- `facebook_replica` events (réplicas detectadas por el scraper)
+
+Se usa tanto en el ShareGroupStepper (para marcar grupos como cubiertos) como en la UI de cobertura.
+
+### Detección de réplicas (replicaDetectionService)
+
+El scraper (AutoJs6, cada ~4h) busca posts en grupos de FB que contengan el número STH o la URL de la mascota. Si los encuentra → inserta `facebook_replicas` + case_event `facebook_replica`. Activado/desactivado por `replica_detection_enabled` en settings.
+
+### Agrupaciones
+
+Las `fb_search_groups` se filtran por `agrupacion_id`. Cada voluntario tiene `volunteer_subscriptions` con sus agrupaciones activas. La cola y el stepper solo muestran grupos de las agrupaciones del voluntario.
+
+### Endpoints clave
+
+| Endpoint | Auth | Descripción |
+|----------|------|-------------|
+| `GET /pet-action-center/:petId` | vol | Datos del caso + cola + agrupacionIds del voluntario |
+| `POST /share-log` | vol | Registra shares por grupo (con agrupacion_id + post_url) |
+| `GET /pet-coverage/:petId` | vol | Cobertura unificada (shares + réplicas) |
+| `GET /diffusion-queue` | vol | Cola con groups_covered/groups_total, excluye cubiertos |
+| `GET /admin/diffusion-stats` | admin | Stats por agrupación/voluntario (30d) |
+| `GET /admin/group-memberships` | admin | Membresías de grupos por voluntario |
+| `PUT /admin/group-memberships/:groupId` | admin | Toggle membresía de un voluntario en un grupo |
+
+### Archivos clave
+
+| Archivo | Descripción |
+|---------|-------------|
+| `src/components/ShareGroupStepper.tsx` | Stepper guiado 1-a-1 para difusión a grupos |
+| `src/components/ShareGroupsPicker.tsx` | Picker simple (usado en modales de share) |
+| `src/components/VolunteerActionCenter.tsx` | DiffusionTab con stepper + publicar en redes |
+| `src/pages/VolunteerDashboard.tsx` | Cola de difusión con progreso groups_covered/groups_total |
+| `src/pages/admin/AgrupacionesTab.tsx` | Stats de difusión + membresías de grupos |
+| `src/lib/volunteerService.ts` | API client: types + funciones para todos los endpoints |
+| `server/routes/volunteers.js` | Todos los endpoints de difusión (vol + admin) |
+| `server/services/replicaDetectionService.js` | Auto-detección de réplicas en grupos |
+
 ## PostgreSQL (VPS)
 
 - **Host:** localhost:5432
@@ -366,6 +429,44 @@ kill -9 $(lsof -ti :3000)
 ### Columnas de coordenadas en `pets`
 - `latitude` (double precision)
 - `longitude` (double precision)
+```
+
+## Página de caída (Cloudflare Worker)
+
+Cuando el VPS no responde, un **Cloudflare Worker** (plan Free) sirve una página con branding SiHuella en vez del error gris de Cloudflare. El Worker pasa todo el tráfico al origen **sin usar caché del borde** (`cacheTtl: -1`): si el server está caído, nadie recibe contenido viejo, todos ven la página de caída.
+
+- Los errores 520–527 (origin unreachable/down) y excepciones de red disparan la página de caída.
+- Los 500 generados por la app pasan intactos (no se enmascaran bugs).
+- `/api/*` recibe JSON 503 (`service_unavailable`) cuando el origen está caído.
+
+### Archivos
+
+| Archivo | Descripción |
+|---------|-------------|
+| `cloudflare/worker.js` | Worker: fetch al origen sin caché; si falla o devuelve 520–527, sirve la página de caída |
+| `cloudflare/wrangler.jsonc` | Config: rutas `sigotuhuella.com.ar/*` y `www.*`, assets embebidos |
+| `cloudflare/assets/custom-5xx.html` | Página que se muestra con el VPS caído (logo inline base64, responsive) |
+
+### Deploy (manual, desde la PC local)
+
+```bash
+cd cloudflare
+npx wrangler login    # solo la primera vez (abre el navegador)
+npx wrangler deploy
+```
+
+El deploy crea solo las rutas; no toca DNS ni el resto de la config de Cloudflare.
+
+### Editar la página de caída
+
+Modificar `cloudflare/assets/custom-5xx.html` y volver a correr `npx wrangler deploy`. El logo va inlineado en base64 (NO referenciar `/sigotuhuella.jpg` porque está en el mismo VPS caído).
+
+### Probar
+
+```bash
+# En el VPS
+systemctl stop sihuella   # entrar al dominio → debe verse la página de caída
+systemctl start sihuella  # verificar que vuelve todo normal
 ```
 
 ## Checklist al agregar una nueva página/componente
