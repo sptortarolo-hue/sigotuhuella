@@ -110,7 +110,7 @@ export async function logShare(pet_id: string, platform: string, share_type?: st
   });
 }
 
-export async function logShareConfirmation(pet_id: string, platform: string, groups: { name: string; url?: string }[]) {
+export async function logShareConfirmation(pet_id: string, platform: string, groups: { name: string; url?: string; post_url?: string }[]) {
   return volRequest('/share-log', {
     method: 'POST',
     body: JSON.stringify({ pet_id, platform, share_type: 'group', groups }),
@@ -284,6 +284,7 @@ export interface FbSearchGroup {
   group_name: string;
   group_url: string;
   zone?: string | null;
+  agrupacion_id?: string | null;
 }
 
 export interface RecentFinding {
@@ -305,6 +306,7 @@ export interface ActionCenterData {
   days_left?: number | null;
   timeline_url: string | null;
   volunteerCategories: string[];
+  agrupacionIds: string[];
   publications: ActionCenterPublications;
   sharePreview: SharePreview;
   fbSearchGroups: FbSearchGroup[];
@@ -330,6 +332,8 @@ export interface DiffusionQueuePet {
   days_left: number | null;
   my_last_share_at: string | null;
   my_share_count: number;
+  groups_covered: number;
+  groups_total: number;
 }
 
 export interface DiffusionQueueData {
@@ -345,4 +349,69 @@ export interface DiffusionQueueData {
 
 export async function getDiffusionQueue(): Promise<DiffusionQueueData> {
   return volRequest('/diffusion-queue');
+}
+
+// ── Membresía de grupos ─────────────────────────────────────────
+
+export interface GroupMembership {
+  group_id: string;
+  group_name: string;
+  group_url: string;
+  agrupacion_id: string;
+  is_member: boolean;
+}
+
+export async function getVolunteerGroupMemberships(): Promise<GroupMembership[]> {
+  const data = await volRequest('/volunteer-group-memberships');
+  return data.memberships;
+}
+
+export async function putVolunteerGroupMembership(groupId: string, isMember: boolean): Promise<void> {
+  return volRequest(`/volunteer-group-memberships/${groupId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ is_member: isMember }),
+  });
+}
+
+// ── Admin: stats de difusión ────────────────────────────────────
+
+export interface DiffusionStat {
+  agrupacion_id: string;
+  agrupacion_name: string;
+  user_id: string;
+  display_name: string;
+  total_shares: number;
+  last_share_at: string | null;
+}
+
+export async function getDiffusionStats(agrupacionId?: string): Promise<DiffusionStat[]> {
+  const qs = agrupacionId ? `?agrupacion_id=${agrupacionId}` : '';
+  const data = await volRequest(`/admin/diffusion-stats${qs}`);
+  return data.stats;
+}
+
+// ── Admin: membresía de grupos ─────────────────────────────────────
+
+export interface AdminGroupMembership {
+  group_id: string;
+  group_name: string;
+  group_url: string | null;
+  agrupacion_id: string | null;
+  memberships: Array<{ user_id: string; is_member: boolean }>;
+}
+
+export async function getAdminGroupMemberships(filters?: { user_id?: string; agrupacion_id?: string }): Promise<AdminGroupMembership[]> {
+  const params = new URLSearchParams();
+  if (filters?.user_id) params.set('user_id', filters.user_id);
+  if (filters?.agrupacion_id) params.set('agrupacion_id', filters.agrupacion_id);
+  const qs = params.toString();
+  const data = await volRequest(`/admin/group-memberships${qs ? `?${qs}` : ''}`);
+  return data.groups;
+}
+
+export async function toggleAdminGroupMembership(groupId: string, userId: string, isMember: boolean): Promise<void> {
+  return volRequest(`/admin/group-memberships/${groupId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ user_id: userId, is_member: isMember }),
+  });
 }

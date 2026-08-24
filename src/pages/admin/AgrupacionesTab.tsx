@@ -3,11 +3,13 @@ import {
   getAllAgrupaciones, createAgrupacion, updateAgrupacion, deleteAgrupacion,
   getPendingFbSearchGroups, approveFbSearchGroup, deleteFbSearchGroup,
   getFbSearchGroups, getUsersForAgrupacion,
+  getDiffusionStats, getAdminGroupMemberships, toggleAdminGroupMembership,
+  type DiffusionStat, type AdminGroupMembership,
 } from '@/src/lib/volunteerService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import {
   Loader2, Plus, X, Trash2, Edit2, Save, Check, Globe, Users, Phone, Mail,
-  ChevronDown, ChevronUp, ExternalLink, Clock, ShieldCheck,
+  ChevronDown, ChevronUp, ExternalLink, Clock, ShieldCheck, BarChart3, UserCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
@@ -65,12 +67,30 @@ export default function AgrupacionesTab() {
   const [showApproved, setShowApproved] = useState(true);
   const [users, setUsers] = useState<UserOption[]>([]);
 
+  const [diffusionStats, setDiffusionStats] = useState<DiffusionStat[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsAgrupacionFilter, setStatsAgrupacionFilter] = useState<string>('');
+  const [showStats, setShowStats] = useState(false);
+
+  const [groupMemberships, setGroupMemberships] = useState<AdminGroupMembership[]>([]);
+  const [membershipsLoading, setMembershipsLoading] = useState(true);
+  const [showMemberships, setShowMemberships] = useState(false);
+  const [membershipsAgrupacionFilter, setMembershipsAgrupacionFilter] = useState<string>('');
+
   useEffect(() => {
     (async () => {
       await Promise.all([fetchAgrupaciones(), fetchGroups(), fetchUsers()]);
       setLoading(false);
     })();
   }, []);
+
+  useEffect(() => {
+    if (showStats) fetchStats();
+  }, [statsAgrupacionFilter, showStats]);
+
+  useEffect(() => {
+    if (showMemberships) fetchMemberships();
+  }, [membershipsAgrupacionFilter, showMemberships]);
 
   const fetchAgrupaciones = async () => {
     try {
@@ -96,6 +116,26 @@ export default function AgrupacionesTab() {
       const data = await getUsersForAgrupacion();
       setUsers(data || []);
     } catch (e) { console.error(e); }
+  };
+
+  const fetchStats = async () => {
+    setStatsLoading(true);
+    try {
+      const data = await getDiffusionStats(statsAgrupacionFilter || undefined);
+      setDiffusionStats(data || []);
+    } catch (e) { console.error(e); }
+    setStatsLoading(false);
+  };
+
+  const fetchMemberships = async () => {
+    setMembershipsLoading(true);
+    try {
+      const data = await getAdminGroupMemberships(
+        membershipsAgrupacionFilter ? { agrupacion_id: membershipsAgrupacionFilter } : undefined
+      );
+      setGroupMemberships(data || []);
+    } catch (e) { console.error(e); }
+    setMembershipsLoading(false);
   };
 
   const openNew = () => {
@@ -442,6 +482,134 @@ export default function AgrupacionesTab() {
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* STATS DE DIFUSIÓN */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <button onClick={() => setShowStats(v => !v)}
+          className="w-full flex items-center justify-between">
+          <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+            <BarChart3 className="w-6 h-6" /> Estadísticas de difusión
+          </h2>
+          {showStats ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+        </button>
+        <AnimatePresence>
+          {showStats && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden">
+              <div className="mt-4">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Agrupación:</label>
+                  <select value={statsAgrupacionFilter} onChange={e => setStatsAgrupacionFilter(e.target.value)}
+                    className="px-3 py-1.5 bg-white rounded-xl border border-brand-accent text-xs focus:border-brand-primary outline-none">
+                    <option value="">Todas</option>
+                    {agrupaciones.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {statsLoading ? (
+                  <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-brand-primary" /></div>
+                ) : diffusionStats.length === 0 ? (
+                  <p className="text-center text-gray-400 py-6 text-sm">No hay datos de difusión.</p>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-brand-accent">
+                    <table className="w-full text-left text-xs min-w-max">
+                      <thead>
+                        <tr className="border-b border-brand-accent bg-brand-bg/50">
+                          <th className="py-2 px-3 font-bold text-gray-500">Agrupación</th>
+                          <th className="py-2 px-3 font-bold text-gray-500">Voluntario</th>
+                          <th className="py-2 px-3 font-bold text-gray-500 text-right">Shares (30d)</th>
+                          <th className="py-2 px-3 font-bold text-gray-500">Último share</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {diffusionStats.map((s, i) => (
+                          <tr key={`${s.agrupacion_id}-${s.user_id}-${i}`} className="border-b border-brand-accent/50 hover:bg-brand-bg/30">
+                            <td className="py-2 px-3 text-gray-800 font-medium">{s.agrupacion_name}</td>
+                            <td className="py-2 px-3 text-gray-600">{s.display_name || '—'}</td>
+                            <td className="py-2 px-3 text-right font-bold text-brand-primary">{s.total_shares}</td>
+                            <td className="py-2 px-3 text-gray-400">{s.last_share_at ? new Date(s.last_share_at).toLocaleDateString('es-AR') : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* MEMBRESÍA DE GRUPOS (admin) */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
+        <button onClick={() => setShowMemberships(v => !v)}
+          className="w-full flex items-center justify-between">
+          <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+            <UserCheck className="w-6 h-6" /> Membresía de grupos
+            {groupMemberships.length > 0 && (
+              <span className="ml-2 px-2.5 py-0.5 text-xs font-bold bg-blue-100 text-blue-700 rounded-full">
+                {groupMemberships.length}
+              </span>
+            )}
+          </h2>
+          {showMemberships ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+        </button>
+        <AnimatePresence>
+          {showMemberships && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden">
+              <div className="mt-4">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Agrupación:</label>
+                  <select value={membershipsAgrupacionFilter} onChange={e => setMembershipsAgrupacionFilter(e.target.value)}
+                    className="px-3 py-1.5 bg-white rounded-xl border border-brand-accent text-xs focus:border-brand-primary outline-none">
+                    <option value="">Todas</option>
+                    {agrupaciones.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {membershipsLoading ? (
+                  <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-brand-primary" /></div>
+                ) : groupMemberships.length === 0 ? (
+                  <p className="text-center text-gray-400 py-6 text-sm">No hay grupos.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {groupMemberships.map(g => (
+                      <div key={g.group_id} className="flex items-center justify-between p-3 bg-brand-bg/50 rounded-xl border border-brand-accent">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-gray-800 truncate">{g.group_name}</span>
+                            {g.agrupacion_id && (
+                              <span className="px-1.5 py-0.5 bg-brand-primary/10 text-brand-primary text-[10px] font-bold rounded">
+                                {agrupaciones.find(a => a.id === g.agrupacion_id)?.name || '—'}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {g.memberships.length > 0 ? `${g.memberships.filter(m => m.is_member).length} miembro(s) de ${g.memberships.length} voluntario(s)` : 'Sin miembros registrados'}
+                          </p>
+                        </div>
+                        {g.group_url && (
+                          <a href={g.group_url} target="_blank" rel="noopener noreferrer"
+                            className="p-2 rounded-xl bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Abrir en Facebook">
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        )}
                       </div>
                     ))}
                   </div>

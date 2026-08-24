@@ -460,9 +460,17 @@ router.post('/share-log', requireAuth, async (req, res) => {
     const petCheck = await pool.query('SELECT id FROM pets WHERE id = $1', [pet_id]);
     if (petCheck.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
 
+    // Resolver agrupacion_id del voluntario (primera suscripción activa)
+    let agrupacionId = null;
+    const subRes = await pool.query(
+      'SELECT agrupacion_id FROM volunteer_subscriptions WHERE user_id = $1 AND status = \'active\' LIMIT 1',
+      [req.user.id]
+    );
+    if (subRes.rows.length > 0) agrupacionId = subRes.rows[0].agrupacion_id;
+
     const result = await pool.query(
-      'INSERT INTO share_logs (pet_id, user_id, platform, share_type) VALUES ($1, $2, $3, $4) RETURNING *',
-      [pet_id, req.user.id, String(platform).slice(0, 50), typeof share_type === 'string' ? share_type.slice(0, 20) : 'link']
+      'INSERT INTO share_logs (pet_id, user_id, platform, share_type, agrupacion_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [pet_id, req.user.id, String(platform).slice(0, 50), typeof share_type === 'string' ? share_type.slice(0, 20) : 'link', agrupacionId]
     );
 
     // Si el voluntario seleccionó grupos, registrar cada uno en el timeline del caso
@@ -475,6 +483,7 @@ router.post('/share-log', requireAuth, async (req, res) => {
           platform: platform || 'facebook',
           group_name: group.name.slice(0, 255),
           group_url: typeof group.url === 'string' ? group.url : null,
+          post_url: typeof group.post_url === 'string' && group.post_url.trim() ? group.post_url.trim() : null,
           share_log_id: result.rows[0].id,
         });
         if (evt) caseEvents.push(evt);
@@ -506,6 +515,10 @@ router.post('/share-log', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Failed to log share' });
   }
 });
+
+// ══════════════════════════════════════════════════════════════════════
+//  SHARE STATS
+// ══════════════════════════════════════════════════════════════════════
 
 router.get('/share-stats', requireAuth, async (req, res) => {
   try {
@@ -543,6 +556,192 @@ router.put('/share-log/:id/url', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Update share URL error:', err);
     res.status(500).json({ error: 'Failed to update URL' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+//  MEMBRESÍA DE GRUPOS — el voluntario dice en cuáles es miembro
+// ══════════════════════════════════════════════════════════════════════
+
+router.get('/volunteer-group-memberships', requireAuth, requireActiveVolunteer, async (req, res) => {
+  try {
+    const subsRes = await pool.query(
+      'SELECT agrupacion_id FROM volunteer_subscriptions WHERE user_id = $1 AND status = \'active\'',
+      [req.user.id]
+    );
+    const agrupacionIds = subsRes.rows.map(r => r.agrupacion_id);
+    if (agrupacionIds.length === 0) return res.json({ memberships: [] });
+
+    const placeholders = agrupacionIds.map((_, i) => '$' + (i + 1)).join(',');
+    const groupsRes = await pool.query(
+      `SELECT fsg.id, fsg.group_name, fsg.group_url, fsg.agrupacion_id
+       FROM fb_search_groups fsg
+       WHERE fsg.approved = TRUE AND fsg.agrupacion_id IN (${placeholders})
+       ORDER BY fsg.group_name`,
+      agrupacionIds
+    );
+
+    const membershipRes = await pool.query(
+      `SELECT group_id, is_member FROM volunteer_group_memberships WHERE user_id = $1`,
+      [req.user.id]
+    );
+    const membershipMap = new Map(membershipRes.rows.map(r => [String(r.group_id), r.is_member]));
+
+    const memberships = groupsRes.rows.map(g => ({
+      group_id: g.id,
+      group_name: g.group_name,
+      group_url: g.group_url,
+      agrupacion_id: g.agrupacion_id,
+      is_member: membershipMap.get(String(g.id)) ?? false,
+    }));
+
+    res.json({ memberships });
+  } catch (err) {
+    console.error('Get memberships error:', err);
+    res.status(500).json({ error: 'Failed to fetch memberships' });
+  }
+});
+
+router.put('/volunteer-group-memberships/:groupId', requireAuth, requireActiveVolunteer, async (req, res) => {
+  const { is_member } = req.body;
+  if (typeof is_member !== 'boolean') return res.status(400).json({ error: 'is_member must be boolean' });
+  if (!validUuid(req.params.groupId)) return res.status(400).json({ error: 'Invalid group id' });
+  try {
+    await pool.query(
+      `INSERT INTO volunteer_group_memberships (user_id, group_id, is_member, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id, group_id) DO UPDATE SET is_member = $3, updated_at = NOW()`,
+      [req.user.id, req.params.groupId, is_member]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Update membership error:', err);
+    res.status(500).json({ error: 'Failed to update membership' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+//  ADMIN: STATS DE DIFUSIÓN POR AGRUPACIÓN Y VOLUNTARIO
+// ══════════════════════════════════════════════════════════════════════
+
+router.get('/admin/diffusion-stats', requireAdmin, async (req, res) => {
+  try {
+    const { agrupacion_id } = req.query;
+    let query = `
+      SELECT
+        a.id AS agrupacion_id, a.name AS agrupacion_name,
+        u.id AS user_id, u.display_name,
+        COUNT(sl.id) AS total_shares,
+        MAX(sl.created_at) AS last_share_at
+      FROM agrupaciones a
+      JOIN volunteer_subscriptions vs ON vs.agrupacion_id = a.id AND vs.status = 'active'
+      JOIN users u ON u.id = vs.user_id
+      LEFT JOIN share_logs sl ON sl.user_id = u.id AND sl.agrupacion_id = a.id
+        AND sl.created_at > NOW() - INTERVAL '30 days'
+      WHERE a.is_active = TRUE
+    `;
+    const params = [];
+    if (agrupacion_id && validUuid(agrupacion_id)) {
+      params.push(agrupacion_id);
+      query += ` AND a.id = $${params.length}`;
+    }
+    query += ` GROUP BY a.id, a.name, u.id, u.display_name ORDER BY a.name, total_shares DESC`;
+
+    const result = await pool.query(query, params);
+    res.json({ stats: result.rows });
+  } catch (err) {
+    console.error('Diffusion stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch diffusion stats' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+//  ADMIN: GESTIÓN DE MEMBRESÍA DE GRUPOS
+// ══════════════════════════════════════════════════════════════════════
+
+router.get('/admin/group-memberships', requireAdmin, async (req, res) => {
+  try {
+    const { user_id, agrupacion_id } = req.query;
+
+    let query = `
+      SELECT
+        fg.id AS group_id, fg.group_name, fg.group_url, fg.agrupacion_id,
+        COALESCE(vgm.user_id, NULL) AS user_id,
+        COALESCE(vgm.is_member, FALSE) AS is_member
+      FROM fb_search_groups fg
+      LEFT JOIN volunteer_group_memberships vgm ON vgm.group_id = fg.id
+    `;
+    const params = [];
+    const conditions = [];
+
+    if (user_id && validUuid(user_id)) {
+      params.push(user_id);
+      conditions.push(`(vgm.user_id = $${params.length} OR vgm.user_id IS NULL)`);
+    }
+    if (agrupacion_id && validUuid(agrupacion_id)) {
+      params.push(agrupacion_id);
+      conditions.push(`fg.agrupacion_id = $${params.length}`);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+    query += ` ORDER BY fg.group_name, fg.agrupacion_id`;
+
+    const result = await pool.query(query, params);
+
+    // Group by group_id, each with array of user memberships
+    const groupsMap = new Map();
+    for (const row of result.rows) {
+      if (!groupsMap.has(row.group_id)) {
+        groupsMap.set(row.group_id, {
+          group_id: row.group_id,
+          group_name: row.group_name,
+          group_url: row.group_url,
+          agrupacion_id: row.agrupacion_id,
+          memberships: [],
+        });
+      }
+      if (row.user_id) {
+        groupsMap.get(row.group_id).memberships.push({
+          user_id: row.user_id,
+          is_member: row.is_member,
+        });
+      }
+    }
+
+    res.json({ groups: Array.from(groupsMap.values()) });
+  } catch (err) {
+    console.error('Admin group memberships error:', err);
+    res.status(500).json({ error: 'Failed to fetch group memberships' });
+  }
+});
+
+router.put('/admin/group-memberships/:groupId', requireAdmin, async (req, res) => {
+  if (!validUuid(req.params.groupId)) return res.status(400).json({ error: 'Invalid group id' });
+  const { user_id, is_member } = req.body;
+  if (!user_id || !validUuid(user_id)) return res.status(400).json({ error: 'Invalid user_id' });
+
+  try {
+    if (is_member) {
+      await pool.query(
+        `INSERT INTO volunteer_group_memberships (user_id, group_id, is_member, updated_at)
+         VALUES ($1, $2, TRUE, NOW())
+         ON CONFLICT (user_id, group_id)
+         DO UPDATE SET is_member = TRUE, updated_at = NOW()`,
+        [user_id, req.params.groupId]
+      );
+    } else {
+      await pool.query(
+        `DELETE FROM volunteer_group_memberships
+         WHERE user_id = $1 AND group_id = $2`,
+        [user_id, req.params.groupId]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Admin group membership toggle error:', err);
+    res.status(500).json({ error: 'Failed to toggle membership' });
   }
 });
 
@@ -660,10 +859,28 @@ router.get('/pet-action-center/:petId', requireAuth, requireActiveVolunteer, asy
     );
     const volunteerCategories = catsRes.rows.map(r => r.name);
 
-    // Grupos FB aprobados para búsqueda/difusión
-    const groupsRes = await pool.query(
-      'SELECT group_name, group_url, zone FROM fb_search_groups WHERE approved = TRUE ORDER BY group_name'
+    // Agrupaciones activas del voluntario
+    const subsRes = await pool.query(
+      `SELECT agrupacion_id FROM volunteer_subscriptions WHERE user_id = $1 AND status = 'active'`,
+      [req.user.id]
     );
+    const agrupacionIds = subsRes.rows.map(r => r.agrupacion_id);
+
+    // Grupos FB aprobados: filtrados por agrupaciones del voluntario + globales (sin agrupacion)
+    let groupsRes;
+    if (agrupacionIds.length > 0) {
+      const placeholders = agrupacionIds.map((_, i) => '$' + (i + 1)).join(',');
+      groupsRes = await pool.query(
+        `SELECT group_name, group_url, zone, agrupacion_id FROM fb_search_groups
+         WHERE approved = TRUE AND (agrupacion_id IS NULL OR agrupacion_id IN (${placeholders}))
+         ORDER BY group_name`,
+        agrupacionIds
+      );
+    } else {
+      groupsRes = await pool.query(
+        'SELECT group_name, group_url, zone, agrupacion_id FROM fb_search_groups WHERE approved = TRUE AND agrupacion_id IS NULL ORDER BY group_name'
+      );
+    }
 
     // Hallazgos previos de esta mascota (para no duplicar avistamientos)
     const findingsRes = await pool.query(
@@ -686,6 +903,7 @@ router.get('/pet-action-center/:petId', requireAuth, requireActiveVolunteer, asy
       publications,
       sharePreview,
       volunteerCategories,
+      agrupacionIds,
       fbSearchGroups: groupsRes.rows,
       recentFindings: findingsRes.rows,
     });
@@ -745,11 +963,52 @@ router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, 
 
     const now = Date.now();
     const cutoffMs = REPOST_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+    // Calcular cobertura: cuántos grupos de las agrupaciones del voluntario están cubiertos por caso
+    const petIds = petsRes.rows.map(r => r.id);
+    let coverageMap = new Map(); // pet_id -> Set<group_name>
+    let totalGroups = 0;
+
+    if (petIds.length > 0 && agrupacionIds.length > 0) {
+      // Total de grupos de las agrupaciones del voluntario
+      const grpPlaceholders = agrupacionIds.map((_, i) => '$' + (i + 1)).join(',');
+      const totalGrpRes = await pool.query(
+        `SELECT COUNT(*) as cnt FROM fb_search_groups
+         WHERE approved = TRUE AND agrupacion_id IN (${grpPlaceholders})`,
+        agrupacionIds
+      );
+      totalGroups = parseInt(totalGrpRes.rows[0].cnt, 10) || 0;
+
+      // Grupos cubiertos por caso (social_shared + facebook_replica en ventana)
+      if (totalGroups > 0) {
+        const petPlaceholders = petIds.map((_, i) => '$' + (i + 2)).join(',');
+        const covRes = await pool.query(
+          `SELECT pc.pet_id, ce.payload->>'group_name' AS group_name
+           FROM case_events ce
+           JOIN pet_cases pc ON pc.id = ce.case_id
+           WHERE pc.pet_id IN (${petPlaceholders})
+             AND ce.event_type IN ('social_shared', 'facebook_replica')
+             AND ce.payload->>'group_name' IS NOT NULL
+             AND ce.created_at > NOW() - make_interval(days => $1)`,
+          [REPOST_WINDOW_DAYS, ...petIds]
+        );
+        for (const row of covRes.rows) {
+          if (!coverageMap.has(row.pet_id)) coverageMap.set(row.pet_id, new Set());
+          coverageMap.get(row.pet_id).add(row.group_name.toLowerCase().trim());
+        }
+      }
+    }
+
     const buckets = { nuevos: [], repostear: [], al_dia: [], pausados: [] };
 
     for (const row of petsRes.rows) {
       const expiry = computeExpiry(row.case_status, row.active_until);
       if (row.case_status === 'archived') continue;
+
+      const covered = coverageMap.get(row.id)?.size || 0;
+      // Si todos los grupos están cubiertos, excluir de la cola
+      if (totalGroups > 0 && covered >= totalGroups) continue;
+
       const item = {
         id: row.id,
         name: row.name,
@@ -762,6 +1021,8 @@ router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, 
         days_left: expiry.days_left,
         my_last_share_at: row.last_share_at || null,
         my_share_count: parseInt(row.my_share_count, 10) || 0,
+        groups_covered: covered,
+        groups_total: totalGroups,
       };
       if (expiry.expired) {
         buckets.pausados.push(item);

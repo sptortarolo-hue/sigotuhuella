@@ -1966,6 +1966,23 @@ export async function initDb() {
       ALTER TABLE agrupaciones ADD COLUMN IF NOT EXISTS coordinator_user_id UUID REFERENCES users(id) ON DELETE SET NULL;
     `, 'agrupaciones_admin_coordinator');
 
+    await migrate(client, `
+      ALTER TABLE share_logs ADD COLUMN IF NOT EXISTS agrupacion_id UUID REFERENCES agrupaciones(id);
+    `, 'share_logs_agrupacion_id');
+
+    await migrate(client, `
+      CREATE TABLE IF NOT EXISTS volunteer_group_memberships (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        group_id UUID NOT NULL REFERENCES fb_search_groups(id) ON DELETE CASCADE,
+        is_member BOOLEAN DEFAULT FALSE,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, group_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_vgm_user ON volunteer_group_memberships(user_id);
+      CREATE INDEX IF NOT EXISTS idx_vgm_group ON volunteer_group_memberships(group_id);
+    `, 'volunteer_group_memberships');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

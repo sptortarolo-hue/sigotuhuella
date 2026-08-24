@@ -342,6 +342,12 @@ export default function VolunteerDashboard() {
                           <span>{shareAgeLabel(pet)}</span>
                           {pet.my_share_count > 0 && <span aria-hidden>·</span>}
                           {pet.my_share_count > 0 && <span>{pet.my_share_count} share{pet.my_share_count !== 1 ? 's' : ''}</span>}
+                          {pet.groups_total > 0 && (
+                            <>
+                              <span aria-hidden>·</span>
+                              <span className="text-brand-primary font-bold">{pet.groups_covered}/{pet.groups_total} grupos</span>
+                            </>
+                          )}
                         </p>
                       </div>
                       <button

@@ -23,10 +23,6 @@ interface ShareGroupsPickerProps {
   onChange: (groups: SelectedShareGroup[]) => void;
 }
 
-// Selector de grupos FB para registrar una difusión manual.
-// Muestra los grupos aprobados del catálogo + permite agregar uno custom
-// (que queda como sugerencia pendiente para el admin) y marca cobertura:
-// grupos ya compartidos por otros voluntarios en los últimos días.
 export default function ShareGroupsPicker({ petId, selected, onChange }: ShareGroupsPickerProps) {
   const [suggestedGroups, setSuggestedGroups] = useState<SuggestedGroup[]>([]);
   const [coverage, setCoverage] = useState<PetGroupCoverageEntry[]>([]);
