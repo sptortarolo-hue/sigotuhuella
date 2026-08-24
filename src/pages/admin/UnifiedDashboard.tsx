@@ -116,6 +116,7 @@ function PublisherConfig({ settings, onChange }: { settings: Record<string, stri
           className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm font-mono" placeholder="ej: 123456789012345" />
       </Field>
       <Toggle checked={settings.facebook_page_publisher_enabled === 'true'} onChange={v => onChange('facebook_page_publisher_enabled', String(v))} label="Activar replicación Instagram → Facebook" id="d_fb_publisher_enabled" />
+      <Toggle checked={settings.replica_detection_enabled === 'true'} onChange={v => onChange('replica_detection_enabled', String(v))} label="Detectar automáticamente shares en grupos de FB (réplicas del scraper)" id="d_replica_detection" />
       <Field label="Intervalo (minutos)" hint="Cada cuántos minutos revisa posts nuevos de Instagram.">
         <input type="number" value={settings.facebook_publisher_interval || '30'} onChange={e => onChange('facebook_publisher_interval', e.target.value)}
           className="w-full px-4 py-3 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary text-sm" min="5" max="1440" />
