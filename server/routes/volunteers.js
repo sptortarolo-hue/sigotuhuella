@@ -479,6 +479,25 @@ router.post('/share-log', requireAuth, async (req, res) => {
         });
         if (evt) caseEvents.push(evt);
       }
+      // Auto-proponer al catálogo los grupos que aún no existen (pendientes de aprobación admin)
+      try {
+        const norm = (s) => String(s).toLowerCase().trim().replace(/\s+/g, ' ');
+        const existRes = await pool.query('SELECT group_name FROM fb_search_groups');
+        const known = new Set(existRes.rows.map(r => norm(r.group_name)));
+        for (const group of groups.slice(0, 20)) {
+          if (!group || typeof group.name !== 'string') continue;
+          const name = norm(group.name);
+          if (!name || known.has(name)) continue;
+          await pool.query(
+            `INSERT INTO fb_search_groups (group_name, group_url, requested_by, approved)
+             VALUES ($1, $2, $3, FALSE)`,
+            [group.name.trim().slice(0, 255), typeof group.url === 'string' && group.url.trim() ? group.url.trim() : null, req.user.id]
+          );
+          known.add(name);
+        }
+      } catch (proposeErr) {
+        console.error('Auto-propose fb groups error:', proposeErr);
+      }
     }
 
     res.status(201).json({ log: result.rows[0], case_events: caseEvents });

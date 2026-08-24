@@ -3,7 +3,8 @@ import { Pet, getPetCanvasImageUrls } from '@/src/lib/petService';
 import { X, MessageCircle, Camera, Download, Loader2, ArrowLeft, Copy, Check, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/src/lib/utils';
-import { getSharePreview } from '@/src/lib/volunteerService';
+import { getSharePreview, logShare, logShareConfirmation } from '@/src/lib/volunteerService';
+import ShareGroupsPicker, { type SelectedShareGroup } from '@/src/components/ShareGroupsPicker';
 
 type Platform = 'whatsapp' | 'facebook' | 'instagram';
 
@@ -110,6 +111,7 @@ function CaptionScreen({
   onReorderPlatform,
   captionCopied,
   statusStyle,
+  previewFooter,
 }: {
   pet: Pet;
   selectedPlatforms: Platform[];
@@ -129,6 +131,7 @@ function CaptionScreen({
   onReorderPlatform: (p: Platform) => void;
   captionCopied: string | null;
   statusStyle: { label: string; color: string };
+  previewFooter?: React.ReactNode;
 }) {
   const anyBusy = !!generating || captionsLoading;
   if (preview) {
@@ -187,6 +190,8 @@ function CaptionScreen({
               Descargar
             </button>
           </div>
+
+          {previewFooter}
         </div>
       </motion.div>
     );
@@ -358,6 +363,9 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const [captionCopied, setCaptionCopied] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [selectedGroups, setSelectedGroups] = useState<SelectedShareGroup[]>([]);
+  const [groupsSaving, setGroupsSaving] = useState(false);
+  const [groupsSaved, setGroupsSaved] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const images = getPetCanvasImageUrls(pet);
@@ -504,12 +512,15 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
       if (isMobile && navigator.canShare && navigator.canShare(shareData)) {
         await navigator.share(shareData);
         showNotice('¡Compartido! 🎉');
+        logShare(pet.id, platform, 'post').catch(() => {});
       } else {
         // Desktop fallback
         if (platform === 'whatsapp') {
           window.open('https://wa.me/?text=' + encodeURIComponent(preview.caption + '\n\n' + petUrl), '_blank');
+          logShare(pet.id, platform, 'post').catch(() => {});
         } else if (platform === 'facebook') {
           window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(petUrl) + '&quote=' + encodeURIComponent(preview.caption), '_blank');
+          logShare(pet.id, platform, 'post').catch(() => {});
         } else if (platform === 'instagram') {
           let copied = false;
           try {
@@ -524,6 +535,7 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
             (copied ? ' pegando el texto.' : '.')
           );
           window.open('https://www.instagram.com', '_blank', 'noopener,noreferrer');
+          logShare(pet.id, platform, 'post').catch(() => {});
         }
       }
     } catch (e) {
@@ -542,6 +554,45 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
     if (preview?.url) URL.revokeObjectURL(preview.url);
     setPreview(null);
   };
+
+  const handleConfirmGroups = async () => {
+    if (groupsSaving || groupsSaved) return;
+    setGroupsSaving(true);
+    try {
+      await logShareConfirmation(pet.id, 'facebook', selectedGroups);
+      setGroupsSaved(true);
+    } catch { }
+    setGroupsSaving(false);
+  };
+
+  const hasVolunteerAuth = typeof window !== 'undefined' && !!localStorage.getItem('token');
+  const previewFooter =
+    preview?.platform === ('facebook' as Platform) && hasVolunteerAuth ? (
+      <div className="mt-4">
+        <ShareGroupsPicker
+          petId={pet.id}
+          selected={selectedGroups}
+          onChange={setSelectedGroups}
+        />
+        {groupsSaved ? (
+          <p className="mt-3 w-full py-2.5 rounded-xl font-bold text-sm text-center bg-green-100 text-green-700 flex items-center justify-center gap-2">
+            <Check className="w-4 h-4" /> Difusión registrada
+          </p>
+        ) : (
+          <button
+            onClick={handleConfirmGroups}
+            disabled={groupsSaving}
+            className="mt-3 w-full py-2.5 rounded-xl font-bold text-sm transition-all bg-brand-primary text-white hover:bg-brand-primary/90 disabled:opacity-50"
+          >
+            {groupsSaving ? (
+              <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</span>
+            ) : (
+              <span className="flex items-center justify-center gap-2"><Check className="w-4 h-4" /> Ya compartí</span>
+            )}
+          </button>
+        )}
+      </div>
+    ) : undefined;
 
   const copyCaption = async (platform: Platform) => {
     try {
@@ -601,6 +652,7 @@ export default function SharePostModal({ pet, onClose }: SharePostModalProps) {
               onReorderPlatform={p => setSelectedPlatforms(prev => [p, ...prev.filter(x => x !== p)])}
               captionCopied={captionCopied}
               statusStyle={statusStyle}
+              previewFooter={previewFooter}
             />
           )}
         </AnimatePresence>

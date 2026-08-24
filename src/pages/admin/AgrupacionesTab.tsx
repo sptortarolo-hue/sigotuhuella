@@ -38,7 +38,7 @@ interface UserOption {
 interface FbSearchGroup {
   id: string;
   group_name: string;
-  group_url: string;
+  group_url: string | null;
   zone?: string;
   agrupacion_id?: string;
   approved: boolean;
@@ -365,15 +365,17 @@ export default function AgrupacionesTab() {
                             <span className="font-bold text-sm text-gray-800 truncate">{g.group_name}</span>
                           </div>
                           <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                            <span className="truncate">{g.group_url}</span>
+                            <span className="truncate">{g.group_url || 'Sin URL todavia'}</span>
                             {g.zone && <span className="px-1.5 py-0.5 bg-brand-bg rounded text-[10px]">{g.zone}</span>}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 ml-4">
-                          <a href={g.group_url} target="_blank" rel="noopener noreferrer"
-                            className="p-2 rounded-xl bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Abrir en Facebook">
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
+                          {g.group_url && (
+                            <a href={g.group_url} target="_blank" rel="noopener noreferrer"
+                              className="p-2 rounded-xl bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Abrir en Facebook">
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          )}
                           <button onClick={() => handleApproveGroup(g.id)}
                             className="p-2 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Aprobar">
                             <Check className="w-4 h-4" />

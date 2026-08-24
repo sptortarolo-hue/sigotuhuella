@@ -1935,6 +1935,11 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_fb_search_groups_agrupacion ON fb_search_groups(agrupacion_id, zone, approved);
     `, 'fb_search_groups');
 
+    // Los grupos auto-sugeridos desde shares de voluntarios pueden no tener URL todavía
+    await migrate(client, `
+      ALTER TABLE fb_search_groups ALTER COLUMN group_url DROP NOT NULL;
+    `, 'fb_search_groups_url_nullable');
+
     await migrate(client, `
       ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_channels JSONB DEFAULT '{"push":true,"email":true,"whatsapp":true,"in_app":true}'::jsonb;
     `, 'users_notification_channels');

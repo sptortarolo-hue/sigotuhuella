@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Pet, getPetImageUrls, getPublicContact } from '@/src/lib/petService';
-import { X, MessageCircle, Camera, Download, Loader2, ImageIcon, ArrowLeft, Copy, Check, Users, Plus, Trash2, UserCheck } from 'lucide-react';
+import { X, MessageCircle, Camera, Download, Loader2, ImageIcon, ArrowLeft, Copy, Check } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '@/src/lib/utils';
 import { statusDesigns, drawFlyer } from '@/src/lib/flyerRenderer';
-import { logShare, logShareConfirmation, getFbSearchGroups, getPetCoverage, type PetGroupCoverageEntry } from '@/src/lib/volunteerService';
+import { logShareConfirmation } from '@/src/lib/volunteerService';
+import ShareGroupsPicker, { type SelectedShareGroup } from '@/src/components/ShareGroupsPicker';
 
 type Platform = 'whatsapp' | 'facebook' | 'instagram' | null;
 type UseType = 'story' | 'post' | null;
@@ -106,13 +107,9 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
   const [generated, setGenerated] = useState(false);
   const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
   const [captionCopied, setCaptionCopied] = useState(false);
-  const [showGroupSelector, setShowGroupSelector] = useState(false);
-  const [suggestedGroups, setSuggestedGroups] = useState<{ id: string; group_name: string; group_url: string }[]>([]);
-  const [selectedGroups, setSelectedGroups] = useState<{ name: string; url?: string }[]>([]);
-  const [customGroupName, setCustomGroupName] = useState('');
-  const [shareSaved, setShareSaved] = useState(false);
+  const [selectedGroups, setSelectedGroups] = useState<SelectedShareGroup[]>([]);
   const [shareSaving, setShareSaving] = useState(false);
-  const [coverage, setCoverage] = useState<PetGroupCoverageEntry[]>([]);
+  const [shareSaved, setShareSaved] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -154,43 +151,6 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
     img.onerror = () => setLogoImg(null);
     img.src = '/sigotuhuella.jpg';
   }, []);
-
-  // Load suggested FB groups from volunteer subscriptions
-  useEffect(() => {
-    let alive = true;
-    getFbSearchGroups().then(groups => {
-      if (alive) setSuggestedGroups(groups || []);
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-
-  // Load group coverage (shares recientes de otros voluntarios, anti-duplicados)
-  useEffect(() => {
-    let alive = true;
-    getPetCoverage(pet.id).then(cov => {
-      if (alive) setCoverage(cov || []);
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, [pet.id]);
-
-  const normGroupName = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ');
-  const coverageMap = useMemo(() => {
-    const m = new Map<string, PetGroupCoverageEntry>();
-    coverage.forEach(c => m.set(normGroupName(c.group_name), c));
-    return m;
-  }, [coverage]);
-  const daysAgo = (d: string) => Math.max(0, Math.floor((Date.now() - new Date(d).getTime()) / 86400000));
-  const coverageFor = (name?: string | null): PetGroupCoverageEntry | undefined =>
-    name ? coverageMap.get(normGroupName(name)) : undefined;
-
-  const addCustomGroup = () => {
-    const name = customGroupName.trim();
-    if (!name) return;
-    setSelectedGroups(prev =>
-      prev.some(s => normGroupName(s.name) === normGroupName(name)) ? prev : [...prev, { name }]
-    );
-    setCustomGroupName('');
-  };
 
   // Load image and draw on canvas
   const drawOnCanvas = useCallback((canvas: HTMLCanvasElement, img: HTMLImageElement | null) => {
@@ -455,108 +415,11 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                   </div>
 
                   {/* Selector de grupos */}
-                  <div className="bg-brand-bg rounded-2xl p-4 border border-brand-accent">
-                    <p className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2">
-                      <Users className="w-3.5 h-3.5" /> ¿En qué grupo compartiste?
-                    </p>
-                    <p className="text-[11px] text-gray-400 mb-3">Seleccioná los grupos donde publicaste (opcional)</p>
-
-                    {coverage.length > 0 && (
-                      <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3 flex items-start gap-1.5">
-                        <UserCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        Los grupos marcados ya fueron compartidos recientemente por otros voluntarios.
-                      </p>
-                    )}
-
-                    {suggestedGroups.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {suggestedGroups.map(g => {
-                          const isSelected = selectedGroups.some(s => s.name === g.group_name);
-                          const cov = coverageFor(g.group_name);
-                          const isCovered = !!cov && !isSelected;
-                          return (
-                            <button
-                              key={g.id}
-                              onClick={() => {
-                                if (isSelected) {
-                                  setSelectedGroups(prev => prev.filter(s => s.name !== g.group_name));
-                                } else {
-                                  setSelectedGroups(prev => [...prev, { name: g.group_name, url: g.group_url }]);
-                                }
-                              }}
-                              className={cn(
-                                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all border",
-                                isSelected
-                                  ? "bg-brand-primary text-white border-brand-primary"
-                                  : isCovered
-                                    ? "bg-amber-50 text-amber-700 border-amber-300 hover:border-amber-500"
-                                    : "bg-white text-gray-600 border-brand-accent hover:border-brand-primary"
-                              )}
-                            >
-                              {isSelected ? (
-                                <Check className="w-3 h-3" />
-                              ) : cov ? (
-                                <UserCheck className="w-3 h-3 shrink-0" />
-                              ) : null}
-                              <span className="flex flex-col items-start leading-tight">
-                                <span>{g.group_name}</span>
-                                {isCovered && (
-                                  <span className="text-[9px] font-semibold opacity-80 whitespace-nowrap">
-                                    Cubierto por {cov!.volunteer || 'otro voluntario'} · hace {daysAgo(cov!.date)}d
-                                  </span>
-                                )}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={customGroupName}
-                        onChange={e => setCustomGroupName(e.target.value)}
-                        placeholder="Grupo personalizado..."
-                        className="flex-1 px-3 py-2 rounded-xl text-xs border border-brand-accent focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 outline-none"
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' && customGroupName.trim()) {
-                            e.preventDefault();
-                            addCustomGroup();
-                          }
-                        }}
-                      />
-                      <button
-                        onClick={addCustomGroup}
-                        disabled={!customGroupName.trim()}
-                        className="px-3 py-2 rounded-xl text-xs font-bold bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20 transition-colors disabled:opacity-40"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {(() => {
-                      const cov = coverageFor(customGroupName.trim() || null);
-                      return cov && customGroupName.trim() ? (
-                        <p className="mt-1.5 text-[11px] text-amber-700 flex items-center gap-1">
-                          <UserCheck className="w-3 h-3 shrink-0" />
-                          Ya compartido por {cov.volunteer || 'otro voluntario'} · hace {daysAgo(cov.date)}d
-                        </p>
-                      ) : null;
-                    })()}
-
-                    {selectedGroups.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {selectedGroups.map((g, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-primary/10 text-brand-primary text-[11px] font-bold">
-                            {g.name}
-                            <button onClick={() => setSelectedGroups(prev => prev.filter((_, j) => j !== i))} className="hover:text-red-500">
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                  <ShareGroupsPicker
+                    petId={pet.id}
+                    selected={selectedGroups}
+                    onChange={setSelectedGroups}
+                  />
 
                     <button
                       onClick={async () => {
@@ -584,8 +447,7 @@ export default function SocialShareModal({ pet, onClose }: SocialShareModalProps
                       )}
                     </button>
                   </div>
-                </div>
-              )}
+                )}
 
               {platform === 'whatsapp' && (
                 <p className="text-xs text-center text-gray-400">
