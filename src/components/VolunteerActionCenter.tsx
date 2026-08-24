@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Share2, MessageCircle, Camera, Search, Heart, Home, Truck, Plus, CheckCircle2, AlertTriangle, Copy, ExternalLink, Clock, Users, Loader2, Globe, Bell } from 'lucide-react';
+import { X, Share2, MessageCircle, Camera, Search, Heart, Home, Truck, Plus, CheckCircle2, Check, AlertTriangle, Copy, ExternalLink, Clock, Users, Loader2, Globe, Bell } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { apiUrl } from '@/src/lib/api';
-import { getActionCenterData, createFinding, logShare, ActionCenterData } from '@/src/lib/volunteerService';
+import { getActionCenterData, createFinding, logShare, logShareConfirmation, ActionCenterData } from '@/src/lib/volunteerService';
+import ShareGroupsPicker, { type SelectedShareGroup } from '@/src/components/ShareGroupsPicker';
 import { getCollaborationAccounts, CollaborationAccount } from '@/src/lib/collaborationService';
 
 const STATUS_STYLES: Record<string, { label: string; color: string; bg: string }> = {
@@ -170,6 +171,19 @@ function DiffusionTab({ data, onShare, onLogShare, copiedCaptions, setCopiedCapt
   generatingShare: string | null;
 }) {
   const { publications, sharePreview, fbSearchGroups } = data;
+  const [selectedGroups, setSelectedGroups] = useState<SelectedShareGroup[]>([]);
+  const [groupsSaving, setGroupsSaving] = useState(false);
+  const [groupsSaved, setGroupsSaved] = useState(false);
+
+  const handleConfirmGroups = async () => {
+    if (groupsSaving || groupsSaved || selectedGroups.length === 0) return;
+    setGroupsSaving(true);
+    try {
+      await logShareConfirmation(data.pet.id, 'facebook', selectedGroups);
+      setGroupsSaved(true);
+    } catch { }
+    setGroupsSaving(false);
+  };
 
   const handlePlatformShare = async (platform: 'facebook' | 'instagram' | 'whatsapp') => {
     const ok = await onShare(platform);
@@ -276,6 +290,37 @@ function DiffusionTab({ data, onShare, onLogShare, copiedCaptions, setCopiedCapt
             icon={<MessageCircle className="w-4 h-4" />}
           />
         </div>
+      </div>
+
+      {/* Registro de difusión en grupos */}
+      <div>
+        <h4 className="text-xs font-bold uppercase text-gray-500 mb-3 flex items-center gap-2">
+          <Users className="w-3.5 h-3.5" /> ¿Ya compartiste en grupos?
+        </h4>
+        {groupsSaved ? (
+          <p className="flex items-center gap-2 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-sm font-bold text-green-700">
+            <CheckCircle2 className="w-5 h-5 shrink-0" /> Difusión registrada. ¡Gracias!
+          </p>
+        ) : (
+          <>
+            <ShareGroupsPicker
+              petId={data.pet.id}
+              selected={selectedGroups}
+              onChange={setSelectedGroups}
+            />
+            <button
+              onClick={handleConfirmGroups}
+              disabled={groupsSaving || selectedGroups.length === 0}
+              className="mt-3 w-full py-2.5 rounded-xl font-bold text-sm transition-all bg-brand-primary text-white hover:bg-brand-primary/90 disabled:opacity-50"
+            >
+              {groupsSaving ? (
+                <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Guardando...</span>
+              ) : (
+                <span className="flex items-center justify-center gap-2"><Check className="w-4 h-4" /> Ya compartí{selectedGroups.length > 0 ? ` (${selectedGroups.length})` : ''}</span>
+              )}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Grupos sugeridos */}
@@ -976,6 +1021,7 @@ export default function VolunteerActionCenter({ petId, onClose, onNavigate }: Vo
                 exit={{ opacity: 0, y: -10 }}
               >
                 <DiffusionTab
+                  key={data.pet.id}
                   data={data}
                   onShare={handleShare}
                   onLogShare={handleLogShare}
