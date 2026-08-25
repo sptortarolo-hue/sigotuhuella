@@ -8,6 +8,8 @@ import {
   type DiffusionStat, type AdminGroupMembership,
 } from '@/src/lib/volunteerService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
+import ZonePolygonPicker from '@/src/components/admin/ZonePolygonPicker';
+import { Map as MapIcon } from 'lucide-react';
 import {
   Loader2, Plus, X, Trash2, Edit2, Save, Check, Globe, Users, Phone, Mail,
   ChevronDown, ChevronUp, ExternalLink, Clock, ShieldCheck, BarChart3, UserCheck,
@@ -20,6 +22,7 @@ interface Agrupacion {
   name: string;
   description?: string;
   neighborhoods?: string[];
+  zone_polygon?: [number, number][] | null;
   contact_whatsapp?: string;
   contact_email?: string;
   logo_url?: string;
@@ -57,6 +60,7 @@ export default function AgrupacionesTab() {
   const [editing, setEditing] = useState<Agrupacion | null>(null);
   const [form, setForm] = useState({
     name: '', description: '', neighborhoods: [] as string[],
+    zone_polygon: null as [number, number][] | null,
     contact_whatsapp: '', contact_email: '',
     coordinator_user_id: '',
   });
@@ -142,15 +146,21 @@ export default function AgrupacionesTab() {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ name: '', description: '', neighborhoods: [], contact_whatsapp: '', contact_email: '', coordinator_user_id: '' });
+    setForm({ name: '', description: '', neighborhoods: [], zone_polygon: null, contact_whatsapp: '', contact_email: '', coordinator_user_id: '' });
     setShowForm(true);
   };
 
   const openEdit = (a: Agrupacion) => {
     setEditing(a);
+    let poly: [number, number][] | null = null;
+    if (Array.isArray(a.zone_polygon) && a.zone_polygon.length >= 3) {
+      poly = a.zone_polygon.map(p => Array.isArray(p) ? [Number(p[0]), Number(p[1])] as [number, number] : null).filter(Boolean) as [number, number][];
+      if (poly.length < 3) poly = null;
+    }
     setForm({
       name: a.name, description: a.description || '',
       neighborhoods: a.neighborhoods || [],
+      zone_polygon: poly,
       contact_whatsapp: a.contact_whatsapp || '', contact_email: a.contact_email || '',
       coordinator_user_id: a.coordinator_user_id || '',
     });
@@ -239,6 +249,11 @@ export default function AgrupacionesTab() {
                     <span className="text-xs text-gray-400">
                       {(a.neighborhoods || []).length} barrio{(a.neighborhoods || []).length !== 1 ? 's' : ''}
                     </span>
+                    {Array.isArray(a.zone_polygon) && a.zone_polygon.length >= 3 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full flex items-center gap-1">
+                        <MapIcon className="w-3 h-3" /> Zona con pol&iacute;gono
+                      </span>
+                    )}
                   </div>
                   {a.description && (
                     <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{a.description}</p>
@@ -345,6 +360,18 @@ export default function AgrupacionesTab() {
                       );
                     })}
                   </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 block flex items-center gap-1.5">
+                    <MapIcon className="w-3.5 h-3.5" /> Zona en el mapa (opcional)
+                  </label>
+                  <p className="text-xs text-gray-400 mb-2">
+                    Dibuj&aacute; el pol&iacute;gono de cobertura: las mascotas cuyo pin caiga dentro se asignan a esta agrupaci&oacute;n.
+                  </p>
+                  <ZonePolygonPicker
+                    value={form.zone_polygon}
+                    onChange={v => setForm(prev => ({ ...prev, zone_polygon: v }))}
+                  />
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button onClick={handleSave} disabled={saving || !form.name.trim()}

@@ -7,6 +7,7 @@ import { buildPetCaption } from '../services/instagramPublisher.js';
 import { buildPetBroadcastCaption } from '../services/whatsappService.js';
 import { getCaseShares, computeExpiry } from '../services/caseService.js';
 import { nbOverlapSql } from '../services/neighborhoodUtils.js';
+import { getCoordinatorZones, zonesAreEmpty, petInZones, coarseZoneSql } from '../services/coordinatorScope.js';
 
 const router = Router();
 
@@ -318,14 +319,98 @@ router.get('/agrupaciones/all', requireCoordinator, async (req, res) => {
   }
 });
 
+function validateZonePolygon(raw) {
+  if (raw === undefined || raw === null) return { ok: true, value: null };
+  if (!Array.isArray(raw) || raw.length < 3 || raw.length > 300) return { ok: false };
+  const ring = raw.map(p => Array.isArray(p) ? [Number(p[0]), Number(p[1])] : [Number(p?.lat), Number(p?.lng)]);
+  if (ring.some(p => !Number.isFinite(p[0]) || !Number.isFinite(p[1]))) return { ok: false };
+  return { ok: true, value: ring };
+}
+
+// GET /api/volunteers/my-zone-feed — Tablero del coordinador: último post FB/IG
+// e historial de publicaciones de mascotas dentro de su zona (barrios o polígono)
+router.get('/my-zone-feed', requireCoordinator, async (req, res) => {
+  try {
+    if (req.user.role === 'admin') {
+      return res.status(400).json({ error: 'Endpoint solo para coordinadores' });
+    }
+    const zones = await getCoordinatorZones(pool, req.user.id);
+    if (zonesAreEmpty(zones)) return res.json({ instagram: null, facebook: null, history: [] });
+
+    const params = [JSON.stringify(zones.neighborhoodIds)];
+    const zoneCond = coarseZoneSql(params.length, zones.polygons.length > 0);
+
+    const igRes = await pool.query(
+      `SELECT ip.id, ip.pet_id, ip.ig_permalink, ip.caption, ip.published_at,
+              p.name AS pet_name, p.neighborhoods AS pet_neighborhoods,
+              p.latitude AS pet_latitude, p.longitude AS pet_longitude
+       FROM instagram_posts ip
+       JOIN pets p ON p.id = ip.pet_id
+       WHERE ip.status = 'published' AND ip.ig_permalink IS NOT NULL AND ${zoneCond}
+       ORDER BY ip.published_at DESC NULLS LAST LIMIT 50`,
+      params
+    );
+    const fbRes = await pool.query(
+      `SELECT fpp.id, fpp.pet_id, fpp.page_post_id, fpp.message, fpp.published_at,
+              p.name AS pet_name, p.neighborhoods AS pet_neighborhoods,
+              p.latitude AS pet_latitude, p.longitude AS pet_longitude
+       FROM facebook_page_posts fpp
+       JOIN pets p ON p.id = fpp.pet_id
+       WHERE fpp.status = 'published' AND fpp.page_post_id IS NOT NULL AND ${zoneCond}
+       ORDER BY fpp.published_at DESC NULLS LAST LIMIT 50`,
+      params
+    );
+
+    const inZone = r => petInZones(
+      { neighborhoods: r.pet_neighborhoods, latitude: r.pet_latitude, longitude: r.pet_longitude },
+      zones
+    );
+
+    const igMatches = igRes.rows.filter(inZone);
+    const fbMatches = fbRes.rows.filter(inZone);
+
+    const shape = (r, platform) => ({
+      pet_id: r.pet_id,
+      pet_name: r.pet_name,
+      image_url: `/api/images/pet/${r.pet_id}/cover`,
+      permalink: platform === 'instagram' ? r.ig_permalink : `https://www.facebook.com/${r.page_post_id}`,
+      caption: r.caption || r.message || '',
+      published_at: r.published_at,
+      platform,
+    });
+
+    const history = [
+      ...igMatches.map(r => shape(r, 'instagram')),
+      ...fbMatches.map(r => shape(r, 'facebook')),
+    ]
+      .sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0))
+      .slice(0, 30);
+
+    res.json({
+      instagram: igMatches.length > 0 ? shape(igMatches[0], 'instagram') : null,
+      facebook: fbMatches.length > 0 ? shape(fbMatches[0], 'facebook') : null,
+      history,
+    });
+  } catch (err) {
+    console.error('my-zone-feed error:', err);
+    res.status(500).json({ error: 'Error al obtener el feed de la zona' });
+  }
+});
+
 router.post('/agrupaciones', requireAdmin, async (req, res) => {
-  const { name, description, neighborhoods, contact_whatsapp, contact_email, logo_url, admin_user_id, coordinator_user_id } = req.body;
+  const { name, description, neighborhoods, zone_polygon, contact_whatsapp, contact_email, logo_url, admin_user_id, coordinator_user_id } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
+  let polyValue = null;
+  if (zone_polygon !== undefined && zone_polygon !== null && (!Array.isArray(zone_polygon) || zone_polygon.length > 0)) {
+    const poly = validateZonePolygon(zone_polygon);
+    if (!poly.ok) return res.status(400).json({ error: 'Polígono de zona inválido (mínimo 3 puntos)' });
+    polyValue = JSON.stringify(poly.value);
+  }
   try {
     const result = await pool.query(
-      `INSERT INTO agrupaciones (name, description, neighborhoods, contact_whatsapp, contact_email, logo_url, admin_user_id, coordinator_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [name, description || null, JSON.stringify(neighborhoods || []), contact_whatsapp || null, contact_email || null, logo_url || null, admin_user_id || null, coordinator_user_id || null]
+      `INSERT INTO agrupaciones (name, description, neighborhoods, zone_polygon, contact_whatsapp, contact_email, logo_url, admin_user_id, coordinator_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [name, description || null, JSON.stringify(neighborhoods || []), polyValue, contact_whatsapp || null, contact_email || null, logo_url || null, admin_user_id || null, coordinator_user_id || null]
     );
     res.status(201).json({ agrupacion: result.rows[0] });
   } catch (err) {
@@ -335,7 +420,15 @@ router.post('/agrupaciones', requireAdmin, async (req, res) => {
 });
 
 router.put('/agrupaciones/:id', requireCoordinator, async (req, res) => {
-  const { name, description, neighborhoods, contact_whatsapp, contact_email, logo_url, is_active, coordinator_user_id } = req.body;
+  const { name, description, neighborhoods, zone_polygon, contact_whatsapp, contact_email, logo_url, is_active, coordinator_user_id } = req.body;
+  const polyProvided = zone_polygon !== undefined;
+  const poly = validateZonePolygon(zone_polygon);
+  // undefined = no tocar; [] = limpiar; array válido = reemplazar
+  if (!poly.ok && !(polyProvided && zone_polygon !== null && (zone_polygon.length === 0))) {
+    return res.status(400).json({ error: 'Polígono de zona inválido (mínimo 3 puntos)' });
+  }
+  const polyValue = !polyProvided ? null
+    : (Array.isArray(poly.value) ? JSON.stringify(poly.value) : null);
   try {
     if (req.user.role !== 'admin') {
       const ownership = await pool.query(
@@ -351,13 +444,14 @@ router.put('/agrupaciones/:id', requireCoordinator, async (req, res) => {
         name = COALESCE($1, name),
         description = COALESCE($2, description),
         neighborhoods = COALESCE($3, neighborhoods),
-        contact_whatsapp = COALESCE($4, contact_whatsapp),
-        contact_email = COALESCE($5, contact_email),
-        logo_url = COALESCE($6, logo_url),
-        is_active = COALESCE($7, is_active),
-        coordinator_user_id = $8
-       WHERE id = $9 RETURNING *`,
-      [name, description, neighborhoods ? JSON.stringify(neighborhoods) : null, contact_whatsapp, contact_email, logo_url, is_active, coordinator_user_id || null, req.params.id]
+        zone_polygon = CASE WHEN $11 THEN COALESCE($4, zone_polygon) ELSE $4 END,
+        contact_whatsapp = COALESCE($5, contact_whatsapp),
+        contact_email = COALESCE($6, contact_email),
+        logo_url = COALESCE($7, logo_url),
+        is_active = COALESCE($8, is_active),
+        coordinator_user_id = $9
+       WHERE id = $10 RETURNING *`,
+      [name, description, neighborhoods ? JSON.stringify(neighborhoods) : null, polyValue, contact_whatsapp, contact_email, logo_url, is_active, coordinator_user_id || null, req.params.id, !polyProvided]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Agrupacion not found' });
     res.json({ agrupacion: result.rows[0] });

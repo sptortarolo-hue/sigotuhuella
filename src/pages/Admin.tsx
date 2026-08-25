@@ -30,6 +30,7 @@ import FacebookRelayTab from '@/src/components/admin/FacebookRelayTab';
 import ChapitaEditor from '@/src/components/ChapitaEditor';
 import { formatDate, formatDateTime, formatDateShort } from '@/src/lib/formatDate';
 import UnifiedDashboard from '@/src/pages/admin/UnifiedDashboard';
+import CoordinatorZoneDashboard from '@/src/pages/admin/CoordinatorZoneDashboard';
 import AnalyticsTab from '@/src/pages/admin/AnalyticsTab';
 import RafflesTab from '@/src/components/admin/RafflesTab';
 import BackupTab from '@/src/components/admin/BackupTab';
@@ -2294,7 +2295,7 @@ export default function Admin() {
           {mountedTabs.has('whatsapp') && <div className={activeTab === 'whatsapp' ? '' : 'hidden'}><WhatsAppTab /></div>}
 
           {/* ====== DASHBOARD ====== */}
-          {mountedTabs.has('dashboard') && <div className={activeTab === 'dashboard' ? '' : 'hidden'}><UnifiedDashboard /></div>}
+          {mountedTabs.has('dashboard') && <div className={activeTab === 'dashboard' ? '' : 'hidden'}>{isCoordinator && !isAdmin ? <CoordinatorZoneDashboard /> : <UnifiedDashboard />}</div>}
 
           {/* ====== ANALYTICS ====== */}
           {mountedTabs.has('analytics') && <div className={activeTab === 'analytics' ? '' : 'hidden'}><AnalyticsTab /></div>}

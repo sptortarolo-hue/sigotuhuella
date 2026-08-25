@@ -8,7 +8,7 @@ import { normalizePhone } from '../services/phoneUtils.js';
 import { notifyPetPublication } from '../services/petPublicationNotification.js';
 import { notifyVolunteersOfNewPet } from '../services/volunteerNotificationService.js';
 import { extractNeighborhoods } from '../services/geocoding.js';
-import { nbOverlapSql } from '../services/neighborhoodUtils.js';
+import { getCoordinatorZones, zonesAreEmpty, petInZones, coarseZoneSql } from '../services/coordinatorScope.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import { replyToComment } from '../services/instagramService.js';
@@ -165,15 +165,15 @@ router.get('/admin-list', requireCoordinator, async (req, res) => {
 
     const conditions = [];
     const params = [];
+    let coordZones = null;
 
     if (req.user.role !== 'admin') {
-      params.push(req.user.id);
-      const coordNbSql = `(SELECT COALESCE(json_agg(DISTINCT nb), '[]'::json) FROM (
-        SELECT jsonb_array_elements_text(a.neighborhoods) AS nb
-        FROM agrupaciones a
-        WHERE a.coordinator_user_id = $${params.length} AND a.is_active = TRUE
-      ) sub)`;
-      conditions.push(nbOverlapSql(coordNbSql, "(NULLIF(p.neighborhoods, '')::jsonb)"));
+      coordZones = await getCoordinatorZones(pool, req.user.id);
+      if (zonesAreEmpty(coordZones)) {
+        return res.json({ pets: [] });
+      }
+      params.push(JSON.stringify(coordZones.neighborhoodIds));
+      conditions.push(coarseZoneSql(params.length, coordZones.polygons.length > 0));
     }
 
     if (status) {
@@ -196,7 +196,8 @@ router.get('/admin-list', requireCoordinator, async (req, res) => {
     }
 
     const result = await pool.query(query, params);
-    res.json({ pets: result.rows });
+    const pets = coordZones ? result.rows.filter(p => petInZones(p, coordZones)) : result.rows;
+    res.json({ pets });
   } catch (err) {
     console.error('Admin list pets error:', err);
     res.status(500).json({ error: 'Failed to fetch pets' });
@@ -1162,13 +1163,8 @@ router.get('/:id/relations', requireCoordinator, async (req, res) => {
     pet.neighborhoods = typeof pet.neighborhoods === 'string' ? JSON.parse(pet.neighborhoods) : pet.neighborhoods;
 
     if (req.user.role !== 'admin') {
-      const nbCheck = await pool.query(
-        `SELECT 1 FROM agrupaciones
-         WHERE coordinator_user_id = $1 AND is_active = TRUE
-           AND ${nbOverlapSql('neighborhoods', "(NULLIF($2::text, '')::jsonb)")}`,
-        [req.user.id, JSON.stringify(pet.neighborhoods || [])]
-      );
-      if (nbCheck.rows.length === 0) {
+      const zones = await getCoordinatorZones(pool, req.user.id);
+      if (!petInZones(pet, zones)) {
         return res.status(403).json({ error: 'No tenés acceso a esta mascota' });
       }
     }

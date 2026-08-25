@@ -39,6 +39,7 @@ export async function createAgrupacion(agrupacion: {
   name: string;
   description?: string;
   neighborhoods?: string[];
+  zone_polygon?: [number, number][] | null;
   contact_whatsapp?: string;
   contact_email?: string;
   logo_url?: string;
@@ -60,6 +61,28 @@ export async function updateAgrupacion(id: string, updates: Record<string, any>)
 
 export async function deleteAgrupacion(id: string) {
   return volRequest(`/agrupaciones/${id}`, { method: 'DELETE' });
+}
+
+// ── Tablero coordinador (últimos posts de la zona) ────────────────
+
+export interface ZoneFeedPost {
+  pet_id: string;
+  pet_name: string;
+  image_url: string;
+  permalink: string;
+  caption: string;
+  published_at: string | null;
+  platform: 'instagram' | 'facebook';
+}
+
+export interface ZoneFeed {
+  instagram: ZoneFeedPost | null;
+  facebook: ZoneFeedPost | null;
+  history: ZoneFeedPost[];
+}
+
+export async function getMyZoneFeed(): Promise<ZoneFeed> {
+  return volRequest('/my-zone-feed');
 }
 
 export async function getUsersForAgrupacion() {

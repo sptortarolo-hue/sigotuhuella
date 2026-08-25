@@ -1964,6 +1964,7 @@ export async function initDb() {
     await migrate(client, `
       ALTER TABLE agrupaciones ADD COLUMN IF NOT EXISTS admin_user_id UUID REFERENCES users(id) ON DELETE SET NULL;
       ALTER TABLE agrupaciones ADD COLUMN IF NOT EXISTS coordinator_user_id UUID REFERENCES users(id) ON DELETE SET NULL;
+      ALTER TABLE agrupaciones ADD COLUMN IF NOT EXISTS zone_polygon JSONB;
     `, 'agrupaciones_admin_coordinator');
 
     await migrate(client, `

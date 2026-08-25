@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, requireCoordinator } from '../auth.js';
-import { nbOverlapSql } from '../services/neighborhoodUtils.js';
+import { getCoordinatorZones, zonesAreEmpty, petInZones, coarseZoneSql } from '../services/coordinatorScope.js';
 import { getCaseDashboard, getCasesForUser, canManageCase, createCaseEvent, addSighting, getSightings, setSightingHidden, addSearchArea, getSearchAreas, getCaseShares, sendNeighborhoodAlert, proposeMeeting, confirmReunion, closeCase, followCase, unfollowCase, getFollowedCases, isFollowing, countFollowers, renewCase } from '../services/caseService.js';
 import { sendPushToUser } from '../services/pushService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
@@ -162,27 +162,28 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// GET /api/cases — listado admin (admin: todos; coordinador: solo barrios de su agrupación)
+// GET /api/cases — listado admin (admin: todos; coordinador: solo su zona — barrios o polígono)
 router.get('/', requireCoordinator, async (req, res) => {
   try {
     const status = req.query.status;
     const conditions = [];
     const params = [];
+    let coordZones = null;
     if (status) {
       params.push(status);
       conditions.push(`pc.status = $${params.length}`);
     }
     if (req.user.role !== 'admin') {
-      params.push(req.user.id);
-      const coordNbSql = `(SELECT COALESCE(json_agg(DISTINCT nb), '[]'::json) FROM (
-        SELECT jsonb_array_elements_text(a.neighborhoods) AS nb
-        FROM agrupaciones a
-        WHERE a.coordinator_user_id = $${params.length} AND a.is_active = TRUE
-      ) sub)`;
-      conditions.push(nbOverlapSql(coordNbSql, "(NULLIF(p.neighborhoods, '')::jsonb)"));
+      coordZones = await getCoordinatorZones(pool, req.user.id);
+      if (zonesAreEmpty(coordZones)) {
+        return res.json({ cases: [] });
+      }
+      params.push(JSON.stringify(coordZones.neighborhoodIds));
+      conditions.push(coarseZoneSql(params.length, coordZones.polygons.length > 0));
     }
     const result = await pool.query(
       `SELECT pc.*, p.name AS pet_name, p.species AS pet_species, p.status AS pet_status,
+              p.neighborhoods AS pet_neighborhoods, p.latitude AS pet_latitude, p.longitude AS pet_longitude,
               u.display_name AS reporter_name,
               (SELECT COUNT(*) FROM case_events ce WHERE ce.case_id = pc.id) AS event_count,
               (SELECT COUNT(*) FROM case_sightings cs WHERE cs.case_id = pc.id) AS sighting_count
@@ -193,7 +194,14 @@ router.get('/', requireCoordinator, async (req, res) => {
        ORDER BY pc.created_at DESC`,
       params
     );
-    res.json({ cases: result.rows });
+    const cases = coordZones
+      ? result.rows.filter(c => petInZones(
+          { neighborhoods: c.pet_neighborhoods, latitude: c.pet_latitude, longitude: c.pet_longitude },
+          coordZones
+        ))
+      : result.rows;
+    for (const c of cases) { delete c.pet_neighborhoods; delete c.pet_latitude; delete c.pet_longitude; }
+    res.json({ cases });
   } catch (err) {
     console.error('list cases error:', err);
     res.status(500).json({ error: 'Error al listar casos' });
