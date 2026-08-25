@@ -349,27 +349,10 @@ const fetchInvites = async () => {
           <HandCoins className="w-5 h-5 lg:w-6 lg:h-6" />
         </div>
         <div className="text-left">
-          <p className="text-sm lg:text-base font-bold text-gray-700">Colaborar con el rescate</p>
+          <p className="text-sm lg:text-base font-bold text-gray-700">Colaborar / Donar</p>
           <p className="text-xs text-gray-500">Tu ayuda transforma vidas</p>
         </div>
       </button>
-
-      {/* BOTÓN COLABORAR - FULL WIDTH MOBILE, AUTO DESKTOP */}
-      <motion.button
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        onClick={() => navigate('/colaborar')}
-        className="w-full sm:w-auto bg-emerald-50 border border-emerald-200 rounded-2xl p-4 sm:p-5 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all mb-6 lg:mb-8 touch-target"
-      >
-        <div className="p-3 rounded-xl bg-emerald-100 text-emerald-600">
-          <HandCoins className="w-6 h-6" />
-        </div>
-        <div className="text-left">
-          <p className="text-base font-bold text-gray-700">Colaborar / Donar</p>
-          <p className="text-sm text-gray-500">Tu ayuda transforma vidas</p>
-        </div>
-      </motion.button>
 
       {/* CONTENIDO PRINCIPAL - REORDENADO */}
       <div className="space-y-6 lg:space-y-8">
