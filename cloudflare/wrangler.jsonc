@@ -1,0 +1,14 @@
+{
+  "name": "sihuella-fallback",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": false,
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./assets"
+  },
+  "routes": [
+    { "pattern": "sigotuhuella.com.ar/*", "zone_name": "sigotuhuella.com.ar" },
+    { "pattern": "www.sigotuhuella.com.ar/*", "zone_name": "sigotuhuella.com.ar" }
+  ]
+}

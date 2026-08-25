@@ -19,7 +19,6 @@ const Collaborate = lazy(() => import('@/src/pages/Collaborate'));
 const Join = lazy(() => import('@/src/pages/Join'));
 const Profile = lazy(() => import('@/src/pages/Profile'));
 const MyPets = lazy(() => import('@/src/pages/MyPets'));
-const Dashboard = lazy(() => import('@/src/pages/Dashboard'));
 
 const PetDetail = lazy(() => import('@/src/pages/PetDetail'));
 const Novedades = lazy(() => import('@/src/pages/Novedades'));
@@ -152,7 +151,7 @@ export default function App() {
                 </ProtectedRoute>
               }
             >
-              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/dashboard" element={<Navigate to="/mi-portal" replace />} />
               <Route path="/mi-portal" element={<MiPortal />} />
               <Route path="/mi-mascota" element={<MyPetsPortal />} />
               <Route path="/mi-mascota/:id" element={<MyPetDetail />} />

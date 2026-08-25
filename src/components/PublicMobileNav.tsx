@@ -18,7 +18,7 @@ const publicTabBase = [
 
 const authTabs = [
   { label: 'Inicio', icon: Home, path: '/' },
-  { label: 'Mi Portal', icon: PawPrint, path: '/dashboard' },
+  { label: 'Mi Portal', icon: PawPrint, path: '/mi-portal' },
   { label: 'Reportados', icon: Search, path: '/perdidos' },
   { label: 'Adopción', icon: Heart, path: '/adopcion' },
   { label: 'Más', icon: Sparkles, path: null },
@@ -38,7 +38,7 @@ const authMorePortal = [
   { label: 'Mis Casos', icon: FolderOpen, path: '/mis-casos' },
   { label: 'Voluntario', icon: Megaphone, path: '/voluntario' },
   { label: 'Mi Perfil', icon: User, path: '/perfil' },
-  { label: 'Mi Portal', icon: Home, path: '/dashboard' },
+  { label: 'Mi Portal', icon: Home, path: '/mi-portal' },
 ];
 
 const rifaTabItem = { label: 'Rifas', icon: Ticket, path: '/rifas' };
@@ -67,7 +67,7 @@ export default function PublicMobileNav() {
   const isActive = (path: string | null) => {
     if (!path) return false;
     if (path === '/') return location.pathname === '/';
-    if (path === '/dashboard') return location.pathname === '/dashboard';
+    if (path === '/mi-portal') return location.pathname === '/mi-portal';
     return location.pathname.startsWith(path);
   };
 

@@ -29,7 +29,7 @@ const PAGES = [
   { label: 'flyer', path: '/flyer', auth: false },
   { label: 'diffusion', path: '/difusion', auth: false },
   { label: 'qr-profile', path: null, auth: false, dynamic: true, query: "SELECT share_token FROM pets WHERE share_token IS NOT NULL ORDER BY updated_at DESC LIMIT 1" },
-  { label: 'dashboard', path: '/dashboard', auth: true },
+        { label: 'mi-portal', path: '/mi-portal', auth: true },
   { label: 'my-pets', path: '/mi-mascota', auth: true },
   { label: 'feed', path: '/feed', auth: true },
 ];

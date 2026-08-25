@@ -296,7 +296,7 @@ export async function sendMemberApprovalEmail(email, displayName, memberNumber) 
             </p>
           </div>
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${frontendUrl}/dashboard" 
+            <a href="${frontendUrl}/mi-portal" 
                style="background-color: #10b981; color: white; padding: 14px 28px; 
                       text-decoration: none; border-radius: 12px; font-weight: bold; 
                       display: inline-block; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.15);">

@@ -76,9 +76,9 @@ export default function PublicMobileTopBar() {
               <LogOut className="w-4 h-4" />
             </button>
             <Link
-              to="/dashboard"
+              to="/mi-portal"
               className="w-8 h-8 rounded-full overflow-hidden border-2 border-brand-accent"
-              title="Ir al dashboard"
+              title="Ir a Mi Portal"
             >
               {user.avatar_type === 'photo' && user.avatar_data ? (
                 <img

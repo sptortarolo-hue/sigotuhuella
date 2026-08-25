@@ -19,7 +19,7 @@ const publicBase = [
 
 const portalItems = [
   { label: 'Inicio', icon: Home, path: '/' },
-  { label: 'Mi Portal', icon: LayoutDashboard, path: '/dashboard' },
+  { label: 'Mi Portal', icon: LayoutDashboard, path: '/mi-portal' },
   { label: 'Mis Mascotas', icon: PawPrint, path: '/mi-mascota' },
   { label: 'Mis Casos', icon: FolderOpen, path: '/mis-casos' },
   { label: 'Voluntario', icon: Megaphone, path: '/voluntario' },
@@ -71,7 +71,7 @@ export default function Sidebar() {
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
-    if (path === '/dashboard') return location.pathname === '/dashboard';
+    if (path === '/mi-portal') return location.pathname === '/mi-portal' || location.pathname === '/dashboard';
     if (path === '/perfil') return location.pathname === '/perfil';
     if (path === '/sumate') return location.pathname === '/sumate';
     if (path === '/colaborar') return location.pathname === '/colaborar';

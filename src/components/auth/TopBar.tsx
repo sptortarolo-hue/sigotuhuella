@@ -36,7 +36,7 @@ export default function TopBar() {
 
   return (
     <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-14 px-4 border-b border-brand-accent bg-white lg:hidden">
-      <Link to="/dashboard" className="flex items-center gap-2">
+      <Link to="/mi-portal" className="flex items-center gap-2">
         <div className="w-7 h-7 rounded-xl overflow-hidden shrink-0 ring-1 ring-brand-primary/20">
           <img src="/sigotuhuella.jpg" alt="Sigo tu huella" className="w-full h-full object-cover" />
         </div>

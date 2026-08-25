@@ -178,7 +178,7 @@ export default function Navbar() {
             <Settings className="w-4 h-4 text-brand-primary animate-pulse" /> Panel Admin
           </button>
         )}
-        <button onClick={() => handleNavClick('/dashboard')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+        <button onClick={() => handleNavClick('/mi-portal')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
           <PawPrint className="w-4 h-4 text-brand-primary" /> Mi Panel
         </button>
         <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
@@ -270,7 +270,7 @@ export default function Navbar() {
                             <Settings className="w-4 h-4 text-brand-primary animate-pulse" /> Panel Admin
                           </button>
                         )}
-                        <button onClick={() => handleNavClick('/dashboard')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
+                        <button onClick={() => handleNavClick('/mi-portal')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
                           <PawPrint className="w-4 h-4 text-brand-primary" /> Mi Panel
                         </button>
         <button onClick={() => handleNavClick('/mis-publicaciones')} className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-brand-bg transition-colors">
@@ -403,7 +403,7 @@ export default function Navbar() {
                     <Settings className="w-5 h-5 shrink-0" /> Panel Admin
                   </Link>
                 )}
-                <Link to="/dashboard" onClick={() => handleNavClick('/dashboard')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
+                <Link to="/mi-portal" onClick={() => handleNavClick('/mi-portal')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
                   <PawPrint className="w-5 h-5 shrink-0" /> Mi Panel
                 </Link>
                 <Link to="/mis-publicaciones" onClick={() => handleNavClick('/mis-publicaciones')} className="flex items-center gap-3 text-base font-medium p-3 rounded-lg text-gray-600 hover:bg-brand-bg">
