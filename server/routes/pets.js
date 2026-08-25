@@ -168,12 +168,12 @@ router.get('/admin-list', requireCoordinator, async (req, res) => {
 
     if (req.user.role !== 'admin') {
       params.push(req.user.id);
-      params.push(`(SELECT json_agg(DISTINCT nb) FROM (
+      const coordNbSql = `(SELECT COALESCE(json_agg(DISTINCT nb), '[]'::json) FROM (
         SELECT jsonb_array_elements_text(a.neighborhoods) AS nb
         FROM agrupaciones a
-        WHERE a.coordinator_user_id = $1 AND a.is_active = TRUE
-      ) sub)`);
-      conditions.push(nbOverlapSql(`$${params.length}`, "(NULLIF(p.neighborhoods, '')::jsonb)"));
+        WHERE a.coordinator_user_id = $${params.length} AND a.is_active = TRUE
+      ) sub)`;
+      conditions.push(nbOverlapSql(coordNbSql, "(NULLIF(p.neighborhoods, '')::jsonb)"));
     }
 
     if (status) {
