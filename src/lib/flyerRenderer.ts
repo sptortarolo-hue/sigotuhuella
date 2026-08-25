@@ -254,36 +254,79 @@ function drawCardFlyer(
   img: HTMLImageElement | null
 ) {
   const layoutType = getLayoutType(w, h);
-  let badgeH: number, photoTop: number, photoH: number,
-      photoW: number, photoRadius: number,
+  let badgeH: number, photoW: number, photoRadius: number,
       maxDescLines: number, descFontSize: number,
       infoFontSize: number, detailsFontSize: number,
       nameFontSize: number, brandH: number;
   const hasName = name && name !== 'Sin nombre';
   const descText = description && description.length > 150 ? description.slice(0, 150) + '…' : description;
   if (layoutType === 'story') {
-    badgeH = h * 0.17; photoTop = h * 0.22; photoH = h * 0.38;
+    badgeH = h * 0.17;
     photoW = w * 0.84; photoRadius = w * 0.025;
     maxDescLines = 99; descFontSize = hasName ? w * 0.044 : w * 0.058;
     infoFontSize = w * 0.048; detailsFontSize = hasName ? w * 0.028 : w * 0.034;
     nameFontSize = w * 0.065; brandH = h * 0.055;
   } else if (layoutType === 'portrait') {
-    badgeH = h * 0.16; photoTop = h * 0.19; photoH = h * 0.38;
+    badgeH = h * 0.16;
     photoW = w * 0.84; photoRadius = w * 0.025;
     maxDescLines = 99; descFontSize = hasName ? w * 0.038 : w * 0.048;
     infoFontSize = w * 0.044; detailsFontSize = hasName ? w * 0.026 : w * 0.032;
     nameFontSize = w * 0.06; brandH = h * 0.055;
   } else {
-    badgeH = h * 0.16; photoTop = h * 0.19; photoH = h * 0.32;
+    badgeH = h * 0.16;
     photoW = w * 0.84; photoRadius = w * 0.025;
     maxDescLines = 99; descFontSize = hasName ? w * 0.036 : w * 0.046;
     infoFontSize = w * 0.042; detailsFontSize = hasName ? w * 0.024 : w * 0.030;
     nameFontSize = w * 0.055; brandH = h * 0.055;
   }
-  const photoX = (w - photoW) / 2;
-  const photoY = photoTop;
   const brandY = h - brandH - h * 0.01;
   const badgePad = h * 0.015;
+
+  // ── Medir contenido primero para que la foto ocupe el espacio restante ──
+  const infoItems: string[] = [];
+  if (location) infoItems.push(`📍 ${location}`);
+  if (contactInfo) infoItems.push(`📞 ${contactInfo}`);
+  if (instagram) infoItems.push(instagram);
+
+  let descLineCount = 0;
+  if (descText) {
+    const descInnerW = w * 0.80;
+    ctx.font = `italic 500 ${descFontSize}px system-ui, -apple-system, sans-serif`;
+    const words = descText.split(' ');
+    let line = '';
+    for (const word of words) {
+      if (descLineCount >= maxDescLines) break;
+      const testLine = line + word + ' ';
+      if (ctx.measureText(testLine).width > descInnerW && line) {
+        descLineCount++;
+        line = word + ' ';
+      } else {
+        line = testLine;
+      }
+    }
+    if (line.trim() && descLineCount < maxDescLines) descLineCount++;
+  }
+
+  const descLineH = descFontSize * 1.35;
+  const infoLineH = infoFontSize * 1.35;
+  const hasDesc = descLineCount > 0;
+  const gapDescInfo = infoFontSize * 0.25;
+  const boxPadY = infoFontSize * 0.3;
+  const descSectionH = hasDesc ? descLineCount * descLineH : 0;
+  const infoSectionH = infoItems.length * infoLineH;
+  const extraGap = hasDesc && infoItems.length > 0 ? gapDescInfo : 0;
+  const computedBoxH = descSectionH + infoSectionH + boxPadY * 2 + extraGap;
+  const boxBottom = brandY - h * 0.01;
+
+  // Foto ajustada al espacio disponible entre badge y recuadro de texto
+  const gapBadgePhoto = h * 0.015;
+  const photoY = badgePad + badgeH + gapBadgePhoto;
+  const reserveBelow = petDetails ? h * 0.035 : 0;
+  const availableForPhoto = boxBottom - computedBoxH - reserveBelow - photoY;
+  const photoH = Math.max(h * 0.22, Math.min(h * 0.60, availableForPhoto));
+  const photoX = (w - photoW) / 2;
+
+  // Badge superior
   const maxBadgeTextW = w * 0.78;
   ctx.font = `800 ${badgeH * 0.55}px system-ui, -apple-system, sans-serif`;
   let badgeFs = badgeH * 0.55;
@@ -300,6 +343,7 @@ function drawCardFlyer(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(design.label, w / 2, badgePad + (badgeH - badgePad) / 2);
+
   drawRectPhoto(ctx, photoX, photoY, photoW, photoH, img, photoRadius);
 
   // Pill badge — name over bottom-left of photo
@@ -343,55 +387,14 @@ function drawCardFlyer(
     ctx.fillText(petDetails, detailsX, photoY + photoH + h * 0.008);
   }
 
-  // Pre-calculate description wrapped lines
-  const infoItems: string[] = [];
-  if (location) infoItems.push(`📍 ${location}`);
-  if (contactInfo) infoItems.push(`📞 ${contactInfo}`);
-  if (instagram) infoItems.push(instagram);
-
-  let descLineCount = 0;
-  if (descText) {
-    const descInnerW = w * 0.80;
-    ctx.font = `italic 500 ${descFontSize}px system-ui, -apple-system, sans-serif`;
-    const words = descText.split(' ');
-    let line = '';
-    for (const word of words) {
-      if (descLineCount >= maxDescLines) break;
-      const testLine = line + word + ' ';
-      if (ctx.measureText(testLine).width > descInnerW && line) {
-        descLineCount++;
-        line = word + ' ';
-      } else {
-        line = testLine;
-      }
-    }
-    if (line.trim() && descLineCount < maxDescLines) descLineCount++;
-  }
-
   // White box — description + info items (black text)
-  const descLineH = descFontSize * 1.35;
-  const infoLineH = infoFontSize * 1.35;
-  const hasDesc = descLineCount > 0;
-  const gapDescInfo = infoFontSize * 0.25;
-  const totalLines = (hasDesc ? descLineCount : 0) + infoItems.length;
-
-  let infoBoxTop = brandY;
-  if (totalLines > 0) {
+  if (hasDesc || infoItems.length > 0) {
     const boxPadX = w * 0.04;
-    const boxPadY = infoFontSize * 0.3;
     const boxRadius = w * 0.015;
     const boxW = w * 0.88;
     const boxX = (w - boxW) / 2;
-    const descSectionH = hasDesc ? descLineCount * descLineH : 0;
-    const infoSectionH = infoItems.length * infoLineH;
-    const extraGap = hasDesc && infoItems.length > 0 ? gapDescInfo : 0;
-    const gapBadgePhoto = photoTop - badgeH;
-    const computedBoxH = descSectionH + infoSectionH + boxPadY * 2 + extraGap;
-    const boxBottom = brandY - h * 0.01;
-    const computedInfoBoxTop = boxBottom - computedBoxH;
-    const desiredBoxTop = photoY + photoH + gapBadgePhoto;
-    infoBoxTop = Math.min(computedInfoBoxTop, desiredBoxTop);
-    const boxH = boxBottom - infoBoxTop;
+    const infoBoxTop = photoY + photoH + reserveBelow;
+    const boxH = Math.max(computedBoxH, boxBottom - infoBoxTop);
     const extraBoxPad = Math.max(0, (boxH - computedBoxH) / 2);
 
     ctx.save();
@@ -405,7 +408,7 @@ function drawCardFlyer(
 
     let textY = infoBoxTop + boxPadY + extraBoxPad;
     if (hasDesc) {
-      textY = drawWrappedText(ctx, descText, boxX + boxPadX, textY, boxW - boxPadX * 2, descFontSize, descLineCount, 'italic 500', '#000000', 1.35, 'justify');
+      textY = drawWrappedText(ctx, descText!, boxX + boxPadX, textY, boxW - boxPadX * 2, descFontSize, descLineCount, 'italic 500', '#000000', 1.35, 'justify');
       textY += extraGap;
     }
     if (infoItems.length > 0) {

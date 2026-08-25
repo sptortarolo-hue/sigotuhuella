@@ -8,6 +8,7 @@ import {
   type DiffusionStat, type AdminGroupMembership,
 } from '@/src/lib/volunteerService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
+import { neighborhoodsInPolygon } from '@/src/lib/zoneUtils';
 import ZonePolygonPicker from '@/src/components/admin/ZonePolygonPicker';
 import { Map as MapIcon } from 'lucide-react';
 import {
@@ -214,6 +215,19 @@ export default function AgrupacionesTab() {
     }));
   };
 
+  // El polígono define la lista EXACTA de barrios: reemplaza la selección manual.
+  // Sin polígono (o con <3 vértices), los barrios quedan como están.
+  const handleZoneChange = (v: [number, number][] | null) => {
+    const poly = v && v.length >= 3 ? v : null;
+    setForm(prev => ({
+      ...prev,
+      zone_polygon: v,
+      neighborhoods: poly ? neighborhoodsInPolygon(poly) : prev.neighborhoods,
+    }));
+  };
+
+  const zoneLocked = !!form.zone_polygon && form.zone_polygon.length >= 3;
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -346,14 +360,20 @@ export default function AgrupacionesTab() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 block">Barrios</label>
+                  {zoneLocked && (
+                    <p className="text-[11px] text-violet-600 mb-2">
+                      Definidos por el pol&iacute;gono &mdash; borralo para editar a mano.
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {NEIGHBORHOODS.map(n => {
                       const active = form.neighborhoods.includes(n.id);
                       return (
-                        <button key={n.id} type="button" onClick={() => toggleNeighborhood(n.id)}
+                        <button key={n.id} type="button" disabled={zoneLocked} onClick={() => toggleNeighborhood(n.id)}
                           className={cn(
                             "px-3 py-2 rounded-xl text-xs font-bold border transition-all",
-                            active ? "bg-brand-primary/15 text-brand-primary border-brand-primary" : "bg-white border-brand-accent text-gray-500 hover:border-brand-primary"
+                            active ? "bg-brand-primary/15 text-brand-primary border-brand-primary" : "bg-white border-brand-accent text-gray-500 hover:border-brand-primary",
+                            zoneLocked && "cursor-not-allowed opacity-70 hover:border-brand-accent"
                           )}>
                           {n.name}
                         </button>
@@ -363,15 +383,20 @@ export default function AgrupacionesTab() {
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 block flex items-center gap-1.5">
-                    <MapIcon className="w-3.5 h-3.5" /> Zona en el mapa (opcional)
+                    <MapIcon className="w-3.5 h-3.5" /> Zona en el mapa
                   </label>
                   <p className="text-xs text-gray-400 mb-2">
-                    Dibuj&aacute; el pol&iacute;gono de cobertura: las mascotas cuyo pin caiga dentro se asignan a esta agrupaci&oacute;n.
+                    Dibuj&aacute; el pol&iacute;gono de cobertura: define los barrios de la agrupaci&oacute;n y captura las mascotas cuyo pin caiga adentro.
                   </p>
                   <ZonePolygonPicker
                     value={form.zone_polygon}
-                    onChange={v => setForm(prev => ({ ...prev, zone_polygon: v }))}
+                    onChange={handleZoneChange}
                   />
+                  {zoneLocked && (
+                    <p className="text-xs font-bold text-violet-600 mt-2">
+                      {form.neighborhoods.length} barrio{form.neighborhoods.length !== 1 ? 's' : ''} detectado{form.neighborhoods.length !== 1 ? 's' : ''} dentro del pol&iacute;gono.
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button onClick={handleSave} disabled={saving || !form.name.trim()}
