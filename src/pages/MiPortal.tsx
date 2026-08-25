@@ -256,30 +256,32 @@ const fetchInvites = async () => {
     return <PawPrint className="w-5 h-5" />;
   };
 
-  const SecondaryButton = ({ icon: Icon, label, onClick, disabled = false }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void; disabled?: boolean }) => (
+  const SecondaryButton = ({ icon: Icon, label, onClick, color = 'bg-brand-primary/10', iconBg = 'bg-brand-primary text-white', disabled = false }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void; color?: string; iconBg?: string; disabled?: boolean }) => (
     <button
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex flex-col items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm transition-all",
-        "bg-brand-primary/10 text-brand-primary border border-brand-primary/20",
-        "hover:bg-brand-primary/20 hover:border-brand-primary",
+        `${color} border border-brand-accent rounded-2xl p-4 flex flex-col items-center gap-2 hover:shadow-md hover:-translate-y-0.5 transition-all`,
         "min-w-[80px] lg:min-w-[120px] touch-target",
         disabled && "opacity-50 cursor-not-allowed"
       )}
     >
-      <Icon className="w-5 h-5" />
-      <span>{label}</span>
+      <div className={`p-2.5 rounded-xl ${iconBg}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <span className="text-xs font-bold text-gray-700">{label}</span>
     </button>
   );
 
   const PrimaryButton = ({ icon: Icon, label, onClick }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void }) => (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-2 px-4 py-3 bg-brand-primary text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all min-w-[80px] lg:min-w-[120px] touch-target"
+      className="bg-brand-primary/10 border border-brand-accent rounded-2xl p-4 flex flex-col items-center gap-2 hover:shadow-md hover:-translate-y-0.5 transition-all min-w-[80px] lg:min-w-[120px] touch-target"
     >
-      <Icon className="w-5 h-5" />
-      <span>{label}</span>
+      <div className="p-2.5 rounded-xl bg-brand-primary text-white">
+        <Icon className="w-5 h-5" />
+      </div>
+      <span className="text-xs font-bold text-gray-700">{label}</span>
     </button>
   );
 
@@ -312,21 +314,29 @@ const fetchInvites = async () => {
           icon={User}
           label="Mi Perfil"
           onClick={() => navigate('/perfil')}
+          color="bg-brand-primary/10"
+          iconBg="bg-brand-primary text-white"
         />
         <SecondaryButton
           icon={isMember ? Megaphone : HeartHandshake}
           label={isMember ? 'Voluntario' : 'Ser voluntario'}
           onClick={() => navigate(isMember ? '/voluntario' : '/sumate')}
+          color="bg-emerald-50"
+          iconBg="bg-emerald-100 text-emerald-600"
         />
         <SecondaryButton
           icon={FolderOpen}
           label="Mis Casos"
           onClick={() => navigate('/mis-casos')}
+          color="bg-amber-50"
+          iconBg="bg-amber-100 text-amber-700"
         />
         <SecondaryButton
           icon={PawPrint}
           label="Mis Mascotas"
           onClick={() => navigate('/mi-mascota')}
+          color="bg-red-50"
+          iconBg="bg-red-100 text-red-500"
         />
         <PrimaryButton
           icon={Plus}
