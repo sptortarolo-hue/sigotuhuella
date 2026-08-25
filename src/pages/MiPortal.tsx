@@ -256,35 +256,6 @@ const fetchInvites = async () => {
     return <PawPrint className="w-5 h-5" />;
   };
 
-  const SecondaryButton = ({ icon: Icon, label, onClick, color = 'bg-brand-primary/10', iconBg = 'bg-brand-primary text-white', disabled = false }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void; color?: string; iconBg?: string; disabled?: boolean }) => (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        `${color} border border-brand-accent rounded-2xl p-4 flex flex-col items-center gap-2 hover:shadow-md hover:-translate-y-0.5 transition-all`,
-        "min-w-[80px] lg:min-w-[120px] touch-target",
-        disabled && "opacity-50 cursor-not-allowed"
-      )}
-    >
-      <div className={`p-2.5 rounded-xl ${iconBg}`}>
-        <Icon className="w-5 h-5" />
-      </div>
-      <span className="text-xs font-bold text-gray-700">{label}</span>
-    </button>
-  );
-
-  const PrimaryButton = ({ icon: Icon, label, onClick }: { icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void }) => (
-    <button
-      onClick={onClick}
-      className="bg-brand-primary/10 border border-brand-accent rounded-2xl p-4 flex flex-col items-center gap-2 hover:shadow-md hover:-translate-y-0.5 transition-all min-w-[80px] lg:min-w-[120px] touch-target"
-    >
-      <div className="p-2.5 rounded-xl bg-brand-primary text-white">
-        <Icon className="w-5 h-5" />
-      </div>
-      <span className="text-xs font-bold text-gray-700">{label}</span>
-    </button>
-  );
-
   const expiringLostReports = myPets
     .filter((p: any) => p.lost_report_id && p.lost_case_vigencia)
     .map((p: any) => {
@@ -298,52 +269,90 @@ const fetchInvites = async () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      {/* HEADER */}
-      <header className="flex items-center justify-between mb-6 lg:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-brand-primary">Mi Portal</h1>
+      {/* HEADER - Saludo Dashboard */}
+      <div className="flex items-center justify-between mb-6 lg:mb-8">
+        <div>
+          <h1 className="text-xl font-bold text-brand-primary">
+            ¡Hola, {user.display_name || 'Usuario'}!
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5">¿Qué vas a hacer hoy?</p>
+        </div>
         {isMember && (
           <span className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[10px] font-bold shrink-0">
             ★ Socio
           </span>
         )}
-      </header>
-
-      {/* BOTONERA PRINCIPAL - 5 BOTONES */}
-      <div className="flex gap-2 overflow-x-auto pb-4 lg:flex-wrap lg:overflow-visible lg:pb-6 lg:gap-3 mb-6 lg:mb-8 touch-scroll">
-        <SecondaryButton
-          icon={User}
-          label="Mi Perfil"
-          onClick={() => navigate('/perfil')}
-          color="bg-brand-primary/10"
-          iconBg="bg-brand-primary text-white"
-        />
-        <SecondaryButton
-          icon={isMember ? Megaphone : HeartHandshake}
-          label={isMember ? 'Voluntario' : 'Ser voluntario'}
-          onClick={() => navigate(isMember ? '/voluntario' : '/sumate')}
-          color="bg-emerald-50"
-          iconBg="bg-emerald-100 text-emerald-600"
-        />
-        <SecondaryButton
-          icon={FolderOpen}
-          label="Mis Casos"
-          onClick={() => navigate('/mis-casos')}
-          color="bg-amber-50"
-          iconBg="bg-amber-100 text-amber-700"
-        />
-        <SecondaryButton
-          icon={PawPrint}
-          label="Mis Mascotas"
-          onClick={() => navigate('/mi-mascota')}
-          color="bg-red-50"
-          iconBg="bg-red-100 text-red-500"
-        />
-        <PrimaryButton
-          icon={Plus}
-          label="Reportar"
-          onClick={() => setReportModalOpen(true)}
-        />
       </div>
+
+      {/* 4 BOTONES — grid 2x2 */}
+      <section className="bg-white rounded-2xl shadow-sm p-4 sm:p-5 lg:p-6 mb-4">
+        <div className="grid grid-cols-2 gap-3 lg:gap-4">
+          <button
+            onClick={() => navigate('/perfil')}
+            className="bg-brand-primary/10 border border-brand-accent rounded-2xl p-4 lg:p-6 flex flex-col items-center gap-2 lg:gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all"
+          >
+            <div className="p-2.5 lg:p-3 rounded-xl bg-brand-primary text-white">
+              <User className="w-5 h-5 lg:w-6 lg:h-6" />
+            </div>
+            <span className="text-xs lg:text-sm font-bold text-gray-700">Mi Perfil</span>
+          </button>
+
+          <button
+            onClick={() => navigate(isMember ? '/voluntario' : '/sumate')}
+            className="bg-emerald-50 border border-brand-accent rounded-2xl p-4 lg:p-6 flex flex-col items-center gap-2 lg:gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all"
+          >
+            <div className="p-2.5 lg:p-3 rounded-xl bg-emerald-100 text-emerald-600">
+              {isMember ? <Megaphone className="w-5 h-5 lg:w-6 lg:h-6" /> : <HeartHandshake className="w-5 h-5 lg:w-6 lg:h-6" />}
+            </div>
+            <span className="text-xs lg:text-sm font-bold text-gray-700">{isMember ? 'Voluntario' : 'Ser voluntario'}</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/mis-casos')}
+            className="bg-amber-50 border border-brand-accent rounded-2xl p-4 lg:p-6 flex flex-col items-center gap-2 lg:gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all"
+          >
+            <div className="p-2.5 lg:p-3 rounded-xl bg-amber-100 text-amber-700">
+              <FolderOpen className="w-5 h-5 lg:w-6 lg:h-6" />
+            </div>
+            <span className="text-xs lg:text-sm font-bold text-gray-700">Mis Casos</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/mi-mascota')}
+            className="bg-red-50 border border-brand-accent rounded-2xl p-4 lg:p-6 flex flex-col items-center gap-2 lg:gap-3 hover:shadow-md hover:-translate-y-0.5 transition-all"
+          >
+            <div className="p-2.5 lg:p-3 rounded-xl bg-red-100 text-red-500">
+              <PawPrint className="w-5 h-5 lg:w-6 lg:h-6" />
+            </div>
+            <span className="text-xs lg:text-sm font-bold text-gray-700">Mis Mascotas</span>
+          </button>
+        </div>
+      </section>
+
+      {/* REPORTAR — full-width rojo */}
+      <button
+        onClick={() => setReportModalOpen(true)}
+        className="w-full bg-red-50 border border-red-200 rounded-2xl p-4 lg:p-6 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all mb-4"
+      >
+        <div className="p-2.5 lg:p-3 rounded-xl bg-red-500 text-white">
+          <Plus className="w-5 h-5 lg:w-6 lg:h-6" />
+        </div>
+        <span className="text-sm lg:text-base font-bold text-gray-700">Reportar</span>
+      </button>
+
+      {/* COLABORAR — full-width verde */}
+      <button
+        onClick={() => navigate('/colaborar')}
+        className="w-full bg-emerald-50 border border-emerald-200 rounded-2xl p-4 lg:p-6 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all mb-6 lg:mb-8"
+      >
+        <div className="p-2.5 lg:p-3 rounded-xl bg-emerald-100 text-emerald-600">
+          <HandCoins className="w-5 h-5 lg:w-6 lg:h-6" />
+        </div>
+        <div className="text-left">
+          <p className="text-sm lg:text-base font-bold text-gray-700">Colaborar con el rescate</p>
+          <p className="text-xs text-gray-500">Tu ayuda transforma vidas</p>
+        </div>
+      </button>
 
       {/* BOTÓN COLABORAR - FULL WIDTH MOBILE, AUTO DESKTOP */}
       <motion.button
