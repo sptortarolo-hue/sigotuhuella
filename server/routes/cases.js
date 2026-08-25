@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth, requireAdmin } from '../auth.js';
+import { requireAuth, requireAdmin, requireCoordinator } from '../auth.js';
+import { nbOverlapSql } from '../services/neighborhoodUtils.js';
 import { getCaseDashboard, getCasesForUser, canManageCase, createCaseEvent, addSighting, getSightings, setSightingHidden, addSearchArea, getSearchAreas, getCaseShares, sendNeighborhoodAlert, proposeMeeting, confirmReunion, closeCase, followCase, unfollowCase, getFollowedCases, isFollowing, countFollowers, renewCase } from '../services/caseService.js';
 import { sendPushToUser } from '../services/pushService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
@@ -161,10 +162,25 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// GET /api/cases — listado admin
-router.get('/', requireAdmin, async (req, res) => {
+// GET /api/cases — listado admin (admin: todos; coordinador: solo barrios de su agrupación)
+router.get('/', requireCoordinator, async (req, res) => {
   try {
     const status = req.query.status;
+    const conditions = [];
+    const params = [];
+    if (status) {
+      params.push(status);
+      conditions.push(`pc.status = $${params.length}`);
+    }
+    if (req.user.role !== 'admin') {
+      params.push(req.user.id);
+      const coordNbSql = `(SELECT COALESCE(json_agg(DISTINCT nb), '[]'::json) FROM (
+        SELECT jsonb_array_elements_text(a.neighborhoods) AS nb
+        FROM agrupaciones a
+        WHERE a.coordinator_user_id = $${params.length} AND a.is_active = TRUE
+      ) sub)`;
+      conditions.push(nbOverlapSql(coordNbSql, "(NULLIF(p.neighborhoods, '')::jsonb)"));
+    }
     const result = await pool.query(
       `SELECT pc.*, p.name AS pet_name, p.species AS pet_species, p.status AS pet_status,
               u.display_name AS reporter_name,
@@ -173,9 +189,9 @@ router.get('/', requireAdmin, async (req, res) => {
        FROM pet_cases pc
        JOIN pets p ON p.id = pc.pet_id
        LEFT JOIN users u ON u.id = pc.reporter_id
-       ${status ? 'WHERE pc.status = $1' : ''}
+       ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}
        ORDER BY pc.created_at DESC`,
-      status ? [status] : []
+      params
     );
     res.json({ cases: result.rows });
   } catch (err) {
