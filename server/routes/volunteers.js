@@ -1351,16 +1351,73 @@ router.post('/fb-search-groups', requireAuth, async (req, res) => {
   if (!group_name || !group_url) {
     return res.status(400).json({ error: 'group_name and group_url are required' });
   }
+
+  let autoApproved = false;
+  let approvedBy = null;
+  if (req.user.role === 'admin') {
+    autoApproved = true;
+    approvedBy = req.user.id;
+  } else if (agrupacion_id) {
+    const coordCheck = await pool.query(
+      'SELECT 1 FROM agrupaciones WHERE id = $1 AND coordinator_user_id = $2',
+      [agrupacion_id, req.user.id]
+    );
+    if (coordCheck.rows.length > 0) {
+      autoApproved = true;
+      approvedBy = req.user.id;
+    }
+  }
+
   try {
     const result = await pool.query(
-      `INSERT INTO fb_search_groups (agrupacion_id, group_name, group_url, zone, requested_by)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [agrupacion_id || null, group_name, group_url, zone || null, req.user.id]
+      `INSERT INTO fb_search_groups (agrupacion_id, group_name, group_url, zone, requested_by, approved, approved_by, approved_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, ${autoApproved ? 'NOW()' : 'NULL'})
+       RETURNING *`,
+      [agrupacion_id || null, group_name, group_url, zone || null, req.user.id, autoApproved, approvedBy]
     );
     res.status(201).json({ group: result.rows[0] });
   } catch (err) {
     console.error('Create fb search group error:', err);
     res.status(500).json({ error: 'Failed to create group' });
+  }
+});
+
+router.put('/fb-search-groups/:id', requireCoordinator, async (req, res) => {
+  const { group_name, group_url, zone, agrupacion_id } = req.body;
+  if (!group_name || !group_url) {
+    return res.status(400).json({ error: 'group_name and group_url are required' });
+  }
+  try {
+    if (req.user.role !== 'admin') {
+      const targetAgrupacion = agrupacion_id || null;
+      let scopeCheck;
+      if (targetAgrupacion) {
+        scopeCheck = await pool.query(
+          'SELECT 1 FROM agrupaciones WHERE id = $1 AND coordinator_user_id = $2',
+          [targetAgrupacion, req.user.id]
+        );
+      } else {
+        scopeCheck = await pool.query(
+          `SELECT 1 FROM fb_search_groups WHERE id = $1
+           AND agrupacion_id IN (SELECT id FROM agrupaciones WHERE coordinator_user_id = $2)`,
+          [req.params.id, req.user.id]
+        );
+      }
+      if (scopeCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'No tenés acceso a este grupo' });
+      }
+    }
+    const result = await pool.query(
+      `UPDATE fb_search_groups
+       SET group_name = $1, group_url = $2, zone = $3, agrupacion_id = $4
+       WHERE id = $5 RETURNING *`,
+      [group_name, group_url, zone || null, agrupacion_id || null, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
+    res.json({ group: result.rows[0] });
+  } catch (err) {
+    console.error('Update fb group error:', err);
+    res.status(500).json({ error: 'Failed to update group' });
   }
 });
 
@@ -1388,8 +1445,18 @@ router.put('/fb-search-groups/:id/approve', requireCoordinator, async (req, res)
   }
 });
 
-router.delete('/fb-search-groups/:id', requireAdmin, async (req, res) => {
+router.delete('/fb-search-groups/:id', requireCoordinator, async (req, res) => {
   try {
+    if (req.user.role !== 'admin') {
+      const ownership = await pool.query(
+        `SELECT 1 FROM fb_search_groups WHERE id = $1
+         AND agrupacion_id IN (SELECT id FROM agrupaciones WHERE coordinator_user_id = $2)`,
+        [req.params.id, req.user.id]
+      );
+      if (ownership.rows.length === 0) {
+        return res.status(403).json({ error: 'No tenés acceso a este grupo' });
+      }
+    }
     await pool.query('DELETE FROM fb_search_groups WHERE id = $1', [req.params.id]);
     res.json({ message: 'Group deleted' });
   } catch (err) {

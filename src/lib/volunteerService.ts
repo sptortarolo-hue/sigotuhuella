@@ -227,6 +227,18 @@ export async function deleteFbSearchGroup(id: string) {
   return volRequest(`/fb-search-groups/${id}`, { method: 'DELETE' });
 }
 
+export async function updateFbSearchGroup(id: string, data: {
+  group_name: string;
+  group_url: string;
+  zone?: string;
+  agrupacion_id?: string | null;
+}) {
+  return volRequest(`/fb-search-groups/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
 // ── Share Preview ────────────────────────────────────────────────
 
 export async function getSharePreview(petId: string) {

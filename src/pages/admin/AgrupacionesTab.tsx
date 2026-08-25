@@ -3,12 +3,13 @@ import { useAuth } from '@/src/hooks/useAuth';
 import {
   getAllAgrupaciones, createAgrupacion, updateAgrupacion, deleteAgrupacion,
   getPendingFbSearchGroups, approveFbSearchGroup, deleteFbSearchGroup,
-  getFbSearchGroups, getUsersForAgrupacion,
+  getFbSearchGroups, getUsersForAgrupacion, requestFbSearchGroup, updateFbSearchGroup,
   getDiffusionStats, getAdminGroupMemberships, toggleAdminGroupMembership,
   type DiffusionStat, type AdminGroupMembership,
 } from '@/src/lib/volunteerService';
 import { NEIGHBORHOODS } from '@/src/lib/neighborhoods';
 import { neighborhoodsInPolygon } from '@/src/lib/zoneUtils';
+import { parseFbGroupUrl, prettifyFbGroupName } from '@/src/lib/fbGroupUrl';
 import ZonePolygonPicker from '@/src/components/admin/ZonePolygonPicker';
 import { Map as MapIcon } from 'lucide-react';
 import {
@@ -83,6 +84,18 @@ export default function AgrupacionesTab() {
   const [membershipsLoading, setMembershipsLoading] = useState(true);
   const [showMemberships, setShowMemberships] = useState(false);
   const [membershipsAgrupacionFilter, setMembershipsAgrupacionFilter] = useState<string>('');
+
+  const [showNewGroupForm, setShowNewGroupForm] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupUrl, setNewGroupUrl] = useState('');
+  const [newGroupZone, setNewGroupZone] = useState('');
+  const [newGroupAgrupacionId, setNewGroupAgrupacionId] = useState('');
+  const [savingGroup, setSavingGroup] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editUrl, setEditUrl] = useState('');
+  const [editZone, setEditZone] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -204,6 +217,59 @@ export default function AgrupacionesTab() {
       await deleteFbSearchGroup(id);
       await fetchGroups();
     } catch (e: any) { alert(e.message || 'Error al eliminar'); }
+  };
+
+  const handleCreateGroupUrlChange = (value: string) => {
+    setNewGroupUrl(value);
+    const info = parseFbGroupUrl(value);
+    if (info && !info.isNumeric && newGroupName.trim() === '') {
+      setNewGroupName(prettifyFbGroupName(info.groupId));
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    const info = parseFbGroupUrl(newGroupUrl);
+    if (!info || !newGroupName.trim()) return;
+    setSavingGroup(true);
+    try {
+      await requestFbSearchGroup({
+        group_name: newGroupName.trim(),
+        group_url: info.normalizedUrl,
+        zone: newGroupZone.trim() || undefined,
+        agrupacion_id: newGroupAgrupacionId || undefined,
+      });
+      setShowNewGroupForm(false);
+      setNewGroupName('');
+      setNewGroupUrl('');
+      setNewGroupZone('');
+      setNewGroupAgrupacionId('');
+      await fetchGroups();
+    } catch (e: any) { alert(e.message || 'Error al crear grupo'); }
+    finally { setSavingGroup(false); }
+  };
+
+  const handleStartEdit = (g: FbSearchGroup) => {
+    setEditingGroupId(g.id);
+    setEditName(g.group_name);
+    setEditUrl(g.group_url || '');
+    setEditZone(g.zone || '');
+  };
+
+  const handleSaveEdit = async (g: FbSearchGroup) => {
+    const info = parseFbGroupUrl(editUrl);
+    if (!info || !editName.trim()) return;
+    setEditSaving(true);
+    try {
+      await updateFbSearchGroup(g.id, {
+        group_name: editName.trim(),
+        group_url: info.normalizedUrl,
+        zone: editZone.trim() || undefined,
+        agrupacion_id: g.agrupacion_id || undefined,
+      });
+      setEditingGroupId(null);
+      await fetchGroups();
+    } catch (e: any) { alert(e.message || 'Error al guardar'); }
+    finally { setEditSaving(false); }
   };
 
   const toggleNeighborhood = (id: string) => {
@@ -441,34 +507,59 @@ export default function AgrupacionesTab() {
                 ) : (
                   <div className="space-y-3">
                     {pendingGroups.map(g => (
-                      <div key={g.id} className="flex items-center justify-between p-4 bg-amber-50/50 rounded-2xl border border-amber-200">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-amber-500 shrink-0" />
-                            <span className="font-bold text-sm text-gray-800 truncate">{g.group_name}</span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                            <span className="truncate">{g.group_url || 'Sin URL todavia'}</span>
-                            {g.zone && <span className="px-1.5 py-0.5 bg-brand-bg rounded text-[10px]">{g.zone}</span>}
+                      editingGroupId === g.id ? (
+                        <div key={g.id} className="p-4 bg-amber-50/50 rounded-2xl border border-amber-200 space-y-3">
+                          <input type="url" value={editUrl} onChange={e => setEditUrl(e.target.value)}
+                            placeholder="URL del grupo" className="w-full px-3 py-2 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm break-words" />
+                          <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                            placeholder="Nombre" className="w-full px-3 py-2 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm" />
+                          <input type="text" value={editZone} onChange={e => setEditZone(e.target.value)}
+                            placeholder="Zona (opcional)" className="w-full px-3 py-2 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm" />
+                          <div className="flex gap-2">
+                            <button onClick={() => handleSaveEdit(g)} disabled={editSaving || !editName.trim() || !parseFbGroupUrl(editUrl)}
+                              className="flex-1 px-3 py-2 bg-brand-primary text-white rounded-xl text-xs font-bold hover:bg-brand-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                              {editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Guardar
+                            </button>
+                            <button onClick={() => setEditingGroupId(null)}
+                              className="px-3 py-2 bg-white border border-brand-accent text-gray-500 rounded-xl text-xs font-bold hover:text-gray-700 transition-colors">
+                              Cancelar
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          {g.group_url && (
-                            <a href={g.group_url} target="_blank" rel="noopener noreferrer"
-                              className="p-2 rounded-xl bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Abrir en Facebook">
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          )}
-                          <button onClick={() => handleApproveGroup(g.id)}
-                            className="p-2 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Aprobar">
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDeleteGroup(g.id)}
-                            className="p-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Rechazar">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                      ) : (
+                        <div key={g.id} className="flex items-center justify-between p-4 bg-amber-50/50 rounded-2xl border border-amber-200">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+                              <span className="font-bold text-sm text-gray-800 truncate">{g.group_name}</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                              <span className="truncate">{g.group_url || 'Sin URL todavia'}</span>
+                              {g.zone && <span className="px-1.5 py-0.5 bg-brand-bg rounded text-[10px]">{g.zone}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            {g.group_url && (
+                              <a href={g.group_url} target="_blank" rel="noopener noreferrer"
+                                className="p-2 rounded-xl bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Abrir en Facebook">
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            )}
+                            <button onClick={() => handleStartEdit(g)}
+                              className="p-2 rounded-xl bg-blue-50 text-blue-500 hover:bg-blue-100 transition-colors" title="Editar">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleApproveGroup(g.id)}
+                              className="p-2 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Aprobar">
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDeleteGroup(g.id)}
+                              className="p-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Rechazar">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      )
                     ))}
                   </div>
                 )}
@@ -479,18 +570,89 @@ export default function AgrupacionesTab() {
       </div>
 
       <div className="bg-white rounded-[2.5rem] border border-brand-accent p-6 sm:p-8">
-        <button onClick={() => setShowApproved(v => !v)}
-          className="w-full flex items-center justify-between">
-          <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
-            <ShieldCheck className="w-6 h-6" /> Grupos FB aprobados
-            {approvedGroups.length > 0 && (
-              <span className="ml-2 px-2.5 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full">
-                {approvedGroups.length}
-              </span>
-            )}
-          </h2>
-          {showApproved ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-        </button>
+        <div className="flex items-center justify-between">
+          <button onClick={() => setShowApproved(v => !v)}
+            className="flex-1 flex items-center justify-between">
+            <h2 className="text-xl font-serif font-bold text-brand-primary flex items-center gap-3">
+              <ShieldCheck className="w-6 h-6" /> Grupos FB aprobados
+              {approvedGroups.length > 0 && (
+                <span className="ml-2 px-2.5 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full">
+                  {approvedGroups.length}
+                </span>
+              )}
+            </h2>
+            {showApproved ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+          </button>
+          {!showNewGroupForm && (
+            <button
+              onClick={() => setShowNewGroupForm(true)}
+              className="ml-3 inline-flex items-center gap-1.5 px-3 py-2 bg-brand-primary/10 text-brand-primary rounded-xl text-xs sm:text-sm font-bold hover:bg-brand-primary/20 transition-colors whitespace-nowrap shrink-0"
+            >
+              <Plus className="w-4 h-4" /> Nuevo grupo
+            </button>
+          )}
+        </div>
+
+        {showNewGroupForm && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 p-5 bg-brand-bg rounded-2xl border border-brand-accent"
+          >
+            <h3 className="font-bold text-sm text-brand-primary mb-3">Nuevo grupo de difusión</h3>
+            <div className="space-y-3">
+              <input
+                type="url"
+                value={newGroupUrl}
+                onChange={e => handleCreateGroupUrlChange(e.target.value)}
+                placeholder="https://www.facebook.com/groups/..."
+                className="w-full px-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm break-words"
+              />
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={e => setNewGroupName(e.target.value)}
+                placeholder="Nombre del grupo"
+                className="w-full px-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <select
+                  value={newGroupAgrupacionId}
+                  onChange={e => setNewGroupAgrupacionId(e.target.value)}
+                  className="w-full px-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm"
+                >
+                  <option value="">Sin agrupación</option>
+                  {agrupaciones.map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={newGroupZone}
+                  onChange={e => setNewGroupZone(e.target.value)}
+                  placeholder="Zona (opcional)"
+                  className="w-full px-4 py-3 bg-white rounded-2xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row gap-2 mt-4">
+              <button
+                onClick={() => setShowNewGroupForm(false)}
+                className="w-full sm:w-auto px-5 py-2.5 bg-white border border-brand-accent text-gray-500 rounded-xl text-sm font-bold hover:text-gray-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateGroup}
+                disabled={!newGroupName.trim() || !parseFbGroupUrl(newGroupUrl) || savingGroup}
+                className="w-full sm:flex-1 px-5 py-2.5 bg-brand-primary text-white rounded-xl text-sm font-bold hover:bg-brand-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {savingGroup ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Crear grupo
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         <AnimatePresence>
           {showApproved && (
@@ -504,28 +666,53 @@ export default function AgrupacionesTab() {
                 ) : (
                   <div className="space-y-3">
                     {approvedGroups.map(g => (
-                      <div key={g.id} className="flex items-center justify-between p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                            <span className="font-bold text-sm text-gray-800 truncate">{g.group_name}</span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                            <span className="truncate">{g.group_url}</span>
-                            {g.zone && <span className="px-1.5 py-0.5 bg-brand-bg rounded text-[10px]">{g.zone}</span>}
+                      editingGroupId === g.id ? (
+                        <div key={g.id} className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-3">
+                          <input type="url" value={editUrl} onChange={e => setEditUrl(e.target.value)}
+                            placeholder="URL del grupo" className="w-full px-3 py-2 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm break-words" />
+                          <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                            placeholder="Nombre" className="w-full px-3 py-2 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm" />
+                          <input type="text" value={editZone} onChange={e => setEditZone(e.target.value)}
+                            placeholder="Zona (opcional)" className="w-full px-3 py-2 bg-white rounded-xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm" />
+                          <div className="flex gap-2">
+                            <button onClick={() => handleSaveEdit(g)} disabled={editSaving || !editName.trim() || !parseFbGroupUrl(editUrl)}
+                              className="flex-1 px-3 py-2 bg-brand-primary text-white rounded-xl text-xs font-bold hover:bg-brand-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                              {editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Guardar
+                            </button>
+                            <button onClick={() => setEditingGroupId(null)}
+                              className="px-3 py-2 bg-white border border-brand-accent text-gray-500 rounded-xl text-xs font-bold hover:text-gray-700 transition-colors">
+                              Cancelar
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          <a href={g.group_url} target="_blank" rel="noopener noreferrer"
-                            className="p-2 rounded-xl bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Abrir en Facebook">
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                          <button onClick={() => handleDeleteGroup(g.id)}
-                            className="p-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                      ) : (
+                        <div key={g.id} className="flex items-center justify-between p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                              <span className="font-bold text-sm text-gray-800 truncate">{g.group_name}</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                              <span className="truncate">{g.group_url}</span>
+                              {g.zone && <span className="px-1.5 py-0.5 bg-brand-bg rounded text-[10px]">{g.zone}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <a href={g.group_url} target="_blank" rel="noopener noreferrer"
+                              className="p-2 rounded-xl bg-brand-bg text-brand-primary hover:bg-brand-accent transition-colors" title="Abrir en Facebook">
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                            <button onClick={() => handleStartEdit(g)}
+                              className="p-2 rounded-xl bg-blue-50 text-blue-500 hover:bg-blue-100 transition-colors" title="Editar">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDeleteGroup(g.id)}
+                              className="p-2 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition-colors" title="Eliminar">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      )
                     ))}
                   </div>
                 )}
