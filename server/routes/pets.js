@@ -4,6 +4,7 @@ import { requireAuth, requireAdmin, requireCoordinator, verifyToken, sendAdminNo
 import { matchPetToPosts, matchWhatsAppToPets, matchPetToPets } from '../services/geminiMatching.js';
 import { createPetCase, generateCaseNumber, computeExpiry } from '../services/caseService.js';
 import { celebrateStatusChange } from '../services/reunionCelebration.js';
+import { broadcastPetToGroups } from '../services/whatsappService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
 import { notifyPetPublication } from '../services/petPublicationNotification.js';
 import { notifyVolunteersOfNewPet } from '../services/volunteerNotificationService.js';
@@ -421,6 +422,11 @@ router.post('/', requireAuth, async (req, res) => {
     matchWhatsAppToPets(pet.id).catch(e => console.error('WhatsApp matching error:', e));
     matchPetToPets(pet).catch(e => console.error('Pet↔pet matching error:', e));
     createPetCase(pet, { source: 'app_auth' });
+
+    const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];
+    if (broadcastStatuses.includes(pet.status)) {
+      broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
+    }
 
     res.status(201).json({ pet });
   } catch (err) {

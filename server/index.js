@@ -44,7 +44,7 @@ import geocodeRoutes from './routes/geocode.js';
 import { startScreenshotScheduler } from './services/autoScreenshots.js';
 import { renderAdoptionOg } from './services/adoptionOgRenderer.js';
 import { autoQueueForAdoption, processQueue } from './services/instagramPublisher.js';
-import { replicateLatestInstagramPosts, retryFailedFacebookPosts } from './services/facebookPublisher.js';
+import { replicateLatestInstagramPosts, retryFailedFacebookPosts, publishUnpublishedPetsToFacebook } from './services/facebookPublisher.js';
 import { checkWhatsAppTimeouts } from './services/whatsappScheduler.js';
 import { broadcastNextAdoptionPet, broadcastFbAdoptionPets, broadcastAdoptionPet } from './services/whatsappService.js';
 import { processInviteReminders } from './services/reminderService.js';
@@ -766,6 +766,8 @@ async function start() {
       if (results.length > 0) console.log(`[Facebook Publisher] Replicated ${ok}/${results.length} posts`);
       const retried = await retryFailedFacebookPosts(5);
       if (retried.length > 0) console.log(`[Facebook Publisher] Retried ${retried.length} failed posts`);
+      const standalone = await publishUnpublishedPetsToFacebook(3);
+      if (standalone.length > 0) console.log(`[Facebook Publisher] Standalone: ${standalone.length} pets published without IG`);
     } catch (err) {
       console.error('[Facebook Publisher] Error:', err.message);
     }
@@ -778,6 +780,7 @@ async function start() {
         console.log('[Facebook Publisher] Running initial replication...');
         await replicateLatestInstagramPosts(3);
         await retryFailedFacebookPosts(5);
+        await publishUnpublishedPetsToFacebook(3);
       }
     } catch (err) {
       console.error('[Facebook Publisher Startup] Error:', err.message);

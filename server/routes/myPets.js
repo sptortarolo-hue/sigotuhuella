@@ -2,8 +2,11 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { requireAuth, requireAdmin, sendAdminNotificationEmail } from '../auth.js';
 import { sendPushToAdmins } from '../services/pushService.js';
-import { matchPetToPosts } from '../services/geminiMatching.js';
+import { matchPetToPosts, matchWhatsAppToPets, matchPetToPets } from '../services/geminiMatching.js';
 import { notifyVolunteersOfNewPet } from '../services/volunteerNotificationService.js';
+import { broadcastPetToGroups } from '../services/whatsappService.js';
+import { notifyPetPublication } from '../services/petPublicationNotification.js';
+import { createPetCase } from '../services/caseService.js';
 import { extractNeighborhoods } from '../services/geocoding.js';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
@@ -1189,7 +1192,12 @@ router.post('/:id/report-lost', requireAuth, async (req, res) => {
 
     // Run matching in background
     matchPetToPosts(pet).catch(err => console.error('matching error:', err));
+    matchWhatsAppToPets(pet.id).catch(e => console.error('WhatsApp matching error:', e));
+    matchPetToPets(pet).catch(e => console.error('Pet↔pet matching error:', e));
     notifyVolunteersOfNewPet(pet).catch(e => console.error('Volunteer notify error:', e));
+    broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
+    notifyPetPublication(pet.id, phone || req.user.phone || '').catch(e => console.error('Publication notify error:', e));
+    createPetCase(pet, { source: 'lost_report' });
 
     res.status(201).json({ pet });
   } catch (err) {

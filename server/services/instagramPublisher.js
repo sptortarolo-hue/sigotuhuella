@@ -220,6 +220,23 @@ export async function autoQueueForAdoption() {
   if (!connected) return;
   const enabled = await getSetting('instagram_publisher_enabled');
   if (enabled !== 'true') return;
+  const failedPets = await pool.query(`
+    SELECT ip.id FROM instagram_posts ip
+    JOIN pets p ON p.id = ip.pet_id
+    WHERE ip.status = 'failed' AND COALESCE(ip.retry_count, 0) < 3
+      AND p.status IN ('for_adoption', 'lost', 'sighted', 'retained', 'adopted', 'reunited', 'accidented', 'needs_attention')
+      AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
+      AND NOT EXISTS (SELECT 1 FROM instagram_posts ip2 WHERE ip2.pet_id = p.id AND ip2.status = 'queued')
+    ORDER BY ip.created_at DESC
+    LIMIT 10
+  `);
+  for (const row of failedPets.rows) {
+    await pool.query(
+      `UPDATE instagram_posts SET status = 'queued', error_message = NULL, updated_at = NOW() WHERE id = $1`,
+      [row.id]
+    );
+  }
+
   const newPets = await pool.query(`
     SELECT p.id FROM pets p
     WHERE p.status IN ('for_adoption', 'lost', 'sighted', 'retained', 'adopted', 'reunited', 'accidented', 'needs_attention')
@@ -237,6 +254,10 @@ export async function autoQueueForAdoption() {
        ON CONFLICT DO NOTHING`,
       [pet.id]
     );
+  }
+  const totalQueued = failedPets.rows.length + newPets.rows.length;
+  if (totalQueued > 0) {
+    console.log(`[Instagram Publisher] Auto-queued ${failedPets.rows.length} retries + ${newPets.rows.length} new pets`);
   }
   if (newPets.rows.length > 0) {
     console.log(`[Instagram Publisher] Auto-queued ${newPets.rows.length} pets`);
