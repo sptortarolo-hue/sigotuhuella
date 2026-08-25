@@ -7,7 +7,7 @@ import { cn } from '@/src/lib/utils';
 import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 export default function TopBar() {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isCoordinator } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -55,7 +55,7 @@ export default function TopBar() {
             {pushEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
           </button>
         )}
-        {!IS_PLAY_BUILD && isAdmin && (
+        {!IS_PLAY_BUILD && (isAdmin || isCoordinator) && (
           <Link
             to="/admin"
             className="p-2 rounded-full text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors"

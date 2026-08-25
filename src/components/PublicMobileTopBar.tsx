@@ -7,7 +7,7 @@ import { subscribe, unsubscribe, isSubscribed, isSupported } from '@/src/lib/pus
 import { IS_PLAY_BUILD } from '@/src/lib/buildConfig';
 
 export default function PublicMobileTopBar() {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isCoordinator } = useAuth();
   const navigate = useNavigate();
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
 
@@ -59,7 +59,7 @@ export default function PublicMobileTopBar() {
 
         {user ? (
           <div className="flex items-center gap-1">
-            {!IS_PLAY_BUILD && isAdmin && (
+            {!IS_PLAY_BUILD && (isAdmin || isCoordinator) && (
               <Link
                 to="/admin"
                 className="p-2 rounded-full text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors"

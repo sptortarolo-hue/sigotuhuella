@@ -41,7 +41,7 @@ const rifaItem = { label: 'Rifas', icon: Ticket, path: '/rifas' };
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isCoordinator } = useAuth();
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
   const [rafflesVisible, setRafflesVisible] = useState(true);
 
@@ -105,7 +105,7 @@ export default function Sidebar() {
           </button>
         )}
         {user && <NotificationBell />}
-        {!IS_PLAY_BUILD && isAdmin && (
+        {!IS_PLAY_BUILD && (isAdmin || isCoordinator) && (
           <button
             onClick={() => navigate('/admin')}
             className="p-2 rounded-full text-brand-primary bg-brand-primary/10 hover:bg-brand-primary/20 transition-colors shrink-0"
