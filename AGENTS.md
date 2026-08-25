@@ -359,6 +359,55 @@ Las `fb_search_groups` se filtran por `agrupacion_id`. Cada voluntario tiene `vo
 | `server/routes/volunteers.js` | Todos los endpoints de difusión (vol + admin) |
 | `server/services/replicaDetectionService.js` | Auto-detección de réplicas en grupos |
 
+## Rol Coordinador
+
+Rol intermedio entre admin y user. El coordinador es un usuario asignado como `coordinator_user_id` en una agrupación. Acceso restringido al panel admin (5 tabs).
+
+### Cómo se asigna
+En panel admin → Agrupaciones → campo "Coordinador de la agrupación" (select de usuario). El campo `admin_user_id` fue eliminado del form.
+
+### Tabs del coordinador
+Tablero, Mascotas, Casos, Agrupaciones, Moderación. El admin ve las 26 tabs.
+
+### Permisos del coordinador
+| Acción | Admin | Coordinador |
+|--------|-------|-------------|
+| Ver panel admin | ✅ | ✅ (5 tabs) |
+| Ver mascotas | Todas | Solo sus barrios (`/pets/admin-list`) |
+| Editar agrupación | Todas | Solo la suya |
+| Crear/eliminar agrupación | ✅ | ❌ |
+| Aprobar grupos FB pendientes | Todos | Solo los de su agrupación |
+| Stats de difusión | Todas | Solo su agrupación |
+| Membresías de grupos | Todas | Solo su agrupación |
+
+### Cómo funciona el filtrado por zona
+1. Se buscan las agrupaciones donde `coordinator_user_id = user.id`
+2. Se extraen los `neighborhoods` (JSON array de IDs como `"la_plata"`, `"tolosa"`)
+3. Se usa `nbOverlapSql` para filtrar mascotas cuyos barrios coincidan
+4. El endpoint `/pets/admin-list` aplica este filtro automáticamente
+
+### Endpoints del coordinador
+| Endpoint | Descripción |
+|----------|-------------|
+| `GET /pets/admin-list` | Mascotas scoped por barrios del coordinador |
+| `GET /pets/:id/relations` | Detalle de mascota (con check de barrio) |
+| `GET /agrupaciones/all` | Solo sus agrupaciones |
+| `PUT /agrupaciones/:id` | Editar su agrupación |
+| `GET /admin/diffusion-stats` | Stats de su agrupación |
+| `GET /admin/group-memberships` | Membresías de su agrupación |
+| `GET /fb-search-groups/pending` | Grupos pendientes de su agrupación |
+| `PUT /fb-search-groups/:id/approve` | Aprobar grupo de su agrupación |
+
+### Archivos clave
+| Archivo | Descripción |
+|---------|-------------|
+| `server/auth.js` | `requireCoordinator` middleware (checa `agrupaciones.coordinator_user_id`) |
+| `server/routes/pets.js` | `GET /admin-list` + `/:id/relations` con neighborhood scoping |
+| `src/hooks/AuthProvider.tsx` | `isCoordinator` + `coordinatorOf` en contexto |
+| `src/components/auth/ProtectedRoute.tsx` | Prop `isCoordinator` |
+| `src/pages/Admin.tsx` | Filtrado de tabs por rol |
+| `src/pages/admin/AgrupacionesTab.tsx` | Vista restringida (sin crear/eliminar) |
+
 ## PostgreSQL (VPS)
 
 - **Host:** localhost:5432
