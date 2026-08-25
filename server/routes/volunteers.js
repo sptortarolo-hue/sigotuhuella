@@ -680,8 +680,9 @@ router.get('/volunteer-group-memberships', requireAuth, requireActiveVolunteer, 
 
     const placeholders = agrupacionIds.map((_, i) => '$' + (i + 1)).join(',');
     const groupsRes = await pool.query(
-      `SELECT fsg.id, fsg.group_name, fsg.group_url, fsg.agrupacion_id
+      `SELECT fsg.id, fsg.group_name, fsg.group_url, fsg.agrupacion_id, a.name AS agrupacion_name
        FROM fb_search_groups fsg
+       LEFT JOIN agrupaciones a ON a.id = fsg.agrupacion_id
        WHERE fsg.approved = TRUE AND fsg.agrupacion_id IN (${placeholders})
        ORDER BY fsg.group_name`,
       agrupacionIds
@@ -698,6 +699,7 @@ router.get('/volunteer-group-memberships', requireAuth, requireActiveVolunteer, 
       group_name: g.group_name,
       group_url: g.group_url,
       agrupacion_id: g.agrupacion_id,
+      agrupacion_name: g.agrupacion_name || null,
       is_member: membershipMap.get(String(g.id)) ?? false,
     }));
 

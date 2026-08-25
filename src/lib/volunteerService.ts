@@ -381,6 +381,7 @@ export interface GroupMembership {
   group_name: string;
   group_url: string;
   agrupacion_id: string;
+  agrupacion_name?: string | null;
   is_member: boolean;
 }
 

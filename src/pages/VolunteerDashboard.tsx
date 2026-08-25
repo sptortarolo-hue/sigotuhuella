@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Loader2, Share2, Search, MapPin, Bell, Heart, ArrowRight, Home, Truck, Plus, CheckCircle2, ExternalLink, Sparkles, Repeat, PauseCircle } from 'lucide-react';
-import { getVolunteerDashboard, getDiffusionQueue, getCategories, getAgrupaciones, subscribe, type DiffusionQueueData, type DiffusionQueuePet } from '@/src/lib/volunteerService';
+import { Loader2, Share2, Search, MapPin, Bell, Heart, ArrowRight, Home, Truck, Plus, CheckCircle2, ExternalLink, Sparkles, Repeat, PauseCircle, Facebook } from 'lucide-react';
+import { getVolunteerDashboard, getDiffusionQueue, getCategories, getAgrupaciones, subscribe, getVolunteerGroupMemberships, putVolunteerGroupMembership, requestFbSearchGroup, type DiffusionQueueData, type DiffusionQueuePet, type GroupMembership } from '@/src/lib/volunteerService';
+import { parseFbGroupUrl, prettifyFbGroupName } from '@/src/lib/fbGroupUrl';
 
 type BucketKey = 'nuevos' | 'repostear' | 'al_dia' | 'pausados';
 import VolunteerActionCenter from '@/src/components/VolunteerActionCenter';
@@ -105,6 +106,19 @@ export default function VolunteerDashboard() {
   const [categorySuccess, setCategorySuccess] = useState(false);
   const [actionCenterPetId, setActionCenterPetId] = useState<string | null>(null);
 
+  const [memberships, setMemberships] = useState<GroupMembership[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(true);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [showSuggestForm, setShowSuggestForm] = useState(false);
+  const [suggestName, setSuggestName] = useState('');
+  const [suggestUrl, setSuggestUrl] = useState('');
+  const [suggestAgrupacionId, setSuggestAgrupacionId] = useState('');
+  const [myAgrupaciones, setMyAgrupaciones] = useState<any[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestOk, setSuggestOk] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+  const [urlError, setUrlError] = useState<string | null>(null);
+
   const openAddCategory = async () => {
     try {
       const [cats, ags] = await Promise.all([getCategories(), getAgrupaciones()]);
@@ -160,6 +174,10 @@ export default function VolunteerDashboard() {
         setData(result);
         setZonePets(result.pets_in_zone || []);
         getDiffusionQueue().then(setQueue).catch(() => {});
+        getVolunteerGroupMemberships()
+          .then(list => setMemberships(list || []))
+          .catch(() => {})
+          .finally(() => setGroupsLoading(false));
       } catch (e: any) {
         setError(e.message || 'Error al cargar el dashboard');
       } finally {
@@ -196,6 +214,73 @@ export default function VolunteerDashboard() {
       // silencioso
     } finally {
       setLoadingMore(false);
+    }
+  };
+
+  const handleToggleMembership = async (group: GroupMembership) => {
+    const next = !group.is_member;
+    setTogglingId(group.group_id);
+    setMemberships(prev => prev.map(m => (m.group_id === group.group_id ? { ...m, is_member: next } : m)));
+    try {
+      await putVolunteerGroupMembership(group.group_id, next);
+    } catch {
+      setMemberships(prev => prev.map(m => (m.group_id === group.group_id ? { ...m, is_member: !next } : m)));
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const openSuggestForm = async () => {
+    setShowSuggestForm(true);
+    setSuggestOk(false);
+    setSuggestError(null);
+    setUrlError(null);
+    if (myAgrupaciones.length === 0) {
+      try {
+        const ags = await getAgrupaciones();
+        setMyAgrupaciones(ags || []);
+      } catch {
+        // el select simplemente queda vacío
+      }
+    }
+  };
+
+  const handleSuggestUrlChange = (value: string) => {
+    setSuggestUrl(value);
+    setUrlError(null);
+    const info = parseFbGroupUrl(value);
+    if (info && !info.isNumeric && suggestName.trim() === '') {
+      setSuggestName(prettifyFbGroupName(info.groupId));
+    }
+  };
+
+  const handleSuggestSubmit = async () => {
+    const info = parseFbGroupUrl(suggestUrl);
+    if (!info) {
+      setUrlError('URL inválida: pegá el link del grupo (facebook.com/groups/...)');
+      return;
+    }
+    if (!suggestName.trim()) return;
+    setSuggesting(true);
+    setSuggestError(null);
+    try {
+      await requestFbSearchGroup({
+        agrupacion_id: suggestAgrupacionId || undefined,
+        group_name: suggestName.trim(),
+        group_url: info.normalizedUrl,
+      });
+      setSuggestOk(true);
+      setSuggestName('');
+      setSuggestUrl('');
+      setSuggestAgrupacionId('');
+      setTimeout(() => {
+        setShowSuggestForm(false);
+        setSuggestOk(false);
+      }, 3000);
+    } catch {
+      setSuggestError('No se pudo enviar la sugerencia. Intentá de nuevo.');
+    } finally {
+      setSuggesting(false);
     }
   };
 
@@ -450,6 +535,179 @@ export default function VolunteerDashboard() {
           >
             <Plus className="w-4 h-4" /> Agregar categoría
           </button>
+        </motion.section>
+
+        {/* Grupos FB de difusión */}
+        <motion.section
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.45 }}
+          className="mb-8 sm:mb-12"
+        >
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="text-xl sm:text-2xl font-serif font-bold text-brand-primary flex items-center gap-2">
+              <Facebook className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 text-[#1877F2]" />
+              Grupos FB de difusión
+            </h2>
+            {!showSuggestForm && (
+              <button
+                onClick={openSuggestForm}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-brand-primary/10 text-brand-primary rounded-xl text-xs sm:text-sm font-bold hover:bg-brand-primary/20 transition-colors whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" /> Sugerir grupo
+              </button>
+            )}
+          </div>
+
+          {showSuggestForm && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-[2rem] p-5 sm:p-6 border border-brand-accent shadow-sm mb-4"
+            >
+              {suggestOk ? (
+                <div className="text-center py-4">
+                  <div className="w-14 h-14 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle2 className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-lg font-serif font-bold text-brand-primary mb-1">¡Sugerencia enviada!</h3>
+                  <p className="text-sm text-gray-500">Quedó pendiente de aprobación del coordinador</p>
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-lg font-serif font-bold text-brand-primary mb-1">Sugerir grupo de Facebook</h3>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-4">
+                    Pegá el link del grupo: el nombre se completa solo si está en la URL. Queda sujeto a aprobación.
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <input
+                        type="url"
+                        value={suggestUrl}
+                        onChange={e => handleSuggestUrlChange(e.target.value)}
+                        placeholder="https://www.facebook.com/groups/..."
+                        className="w-full px-4 py-3 bg-brand-bg rounded-2xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm break-words"
+                      />
+                      {urlError && <p className="text-xs text-red-500 mt-1.5">{urlError}</p>}
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 block">Nombre del grupo</label>
+                      <input
+                        type="text"
+                        value={suggestName}
+                        onChange={e => setSuggestName(e.target.value)}
+                        placeholder="Ej: Adoptá La Plata"
+                        className="w-full px-4 py-3 bg-brand-bg rounded-2xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm"
+                      />
+                    </div>
+                    {myAgrupaciones.length > 0 && (
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 block">
+                          Agrupación (opcional)
+                        </label>
+                        <select
+                          value={suggestAgrupacionId}
+                          onChange={e => setSuggestAgrupacionId(e.target.value)}
+                          className="w-full px-4 py-3 bg-brand-bg rounded-2xl border border-brand-accent outline-none focus:border-brand-primary/40 text-sm"
+                        >
+                          <option value="">Sin asignar</option>
+                          {myAgrupaciones.map((ag: any) => (
+                            <option key={ag.id} value={ag.id}>{ag.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  {suggestError && <p className="text-xs text-red-500 mt-3">{suggestError}</p>}
+                  <div className="flex flex-col-reverse sm:flex-row gap-2 mt-5">
+                    <button
+                      onClick={() => setShowSuggestForm(false)}
+                      className="w-full sm:w-auto px-6 py-3 bg-brand-bg border border-brand-accent text-gray-500 rounded-2xl font-bold text-sm hover:text-gray-700 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSuggestSubmit}
+                      disabled={!suggestName.trim() || suggesting || !parseFbGroupUrl(suggestUrl)}
+                      className="w-full sm:flex-1 px-6 py-3 bg-brand-primary text-white rounded-2xl font-bold text-sm hover:bg-brand-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {suggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Facebook className="w-4 h-4" />}
+                      Enviar sugerencia
+                    </button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+
+          {groupsLoading ? (
+            <div className="bg-white rounded-[2rem] p-8 border border-dashed border-brand-accent flex flex-col items-center justify-center text-center">
+              <Loader2 className="w-6 h-6 animate-spin text-brand-primary mb-2" />
+              <p className="text-sm text-gray-400">Cargando grupos...</p>
+            </div>
+          ) : memberships.length > 0 ? (
+            <div className="space-y-3">
+              {memberships.map((group, i) => (
+                <motion.div
+                  key={group.group_id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(0.45 + i * 0.04, 0.7) }}
+                  className="bg-white rounded-2xl p-4 sm:p-5 border border-brand-accent shadow-sm flex flex-col sm:flex-row sm:items-center gap-3"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-800 truncate">{group.group_name}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 min-w-0">
+                      {group.agrupacion_name && (
+                        <span className="truncate">{group.agrupacion_name}</span>
+                      )}
+                      <a
+                        href={group.group_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-brand-primary font-bold hover:underline whitespace-nowrap"
+                      >
+                        Ver grupo <ExternalLink className="w-3 h-3 shrink-0" />
+                      </a>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleToggleMembership(group)}
+                    disabled={togglingId === group.group_id}
+                    aria-pressed={group.is_member}
+                    className={`w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-colors shrink-0 disabled:opacity-60 ${
+                      group.is_member
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-brand-bg border border-brand-accent text-gray-500 hover:border-brand-primary/30 hover:text-brand-primary'
+                    }`}
+                  >
+                    {togglingId === group.group_id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : group.is_member ? (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    ) : (
+                      <Plus className="w-3.5 h-3.5" />
+                    )}
+                    {group.is_member ? 'Soy miembro' : 'No soy miembro'}
+                  </button>
+                </motion.div>
+              ))}
+            </div>
+          ) : data.subscriptions.length > 0 ? (
+            <div className="bg-white rounded-[2rem] p-8 border border-dashed border-brand-accent text-center">
+              <p className="text-gray-500">Todavía no hay grupos FB aprobados para tus agrupaciones</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-[2rem] p-8 border border-dashed border-brand-accent text-center">
+              <p className="text-gray-500 mb-4">Suscribite a una agrupación para ver sus grupos de difusión</p>
+              <Link
+                to="/sumate"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-xl text-sm font-bold hover:bg-brand-primary/90 transition-colors"
+              >
+                Suscribirme <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
         </motion.section>
 
         {/* Pets in Zone */}
