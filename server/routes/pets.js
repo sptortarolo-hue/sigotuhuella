@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { requireAuth, requireAdmin, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
+import { requireAuth, requireAdmin, requireCoordinator, verifyToken, sendAdminNotificationEmail, sendLostPetConfirmationEmail } from '../auth.js';
 import { matchPetToPosts, matchWhatsAppToPets, matchPetToPets } from '../services/geminiMatching.js';
 import { createPetCase, generateCaseNumber, computeExpiry } from '../services/caseService.js';
 import { celebrateStatusChange } from '../services/reunionCelebration.js';
@@ -8,6 +8,7 @@ import { normalizePhone } from '../services/phoneUtils.js';
 import { notifyPetPublication } from '../services/petPublicationNotification.js';
 import { notifyVolunteersOfNewPet } from '../services/volunteerNotificationService.js';
 import { extractNeighborhoods } from '../services/geocoding.js';
+import { nbOverlapSql } from '../services/neighborhoodUtils.js';
 import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import { replyToComment } from '../services/instagramService.js';
@@ -126,6 +127,78 @@ router.get('/', async (req, res) => {
     res.json({ pets: result.rows });
   } catch (err) {
     console.error('Get pets error:', err);
+    res.status(500).json({ error: 'Failed to fetch pets' });
+  }
+});
+
+// ── Admin/Coordinator: mascotas scoped por barrios ────────────────────────
+router.get('/admin-list', requireCoordinator, async (req, res) => {
+  try {
+    const { status, include_hidden, limit } = req.query;
+    const lite = req.query.lite !== '0';
+    const imageFields = lite
+      ? `json_build_object('id', pi.id, 'has_image', pi.image_data IS NOT NULL, 'mime_type', pi.mime_type, 'external_url', pi.external_url)`
+      : `json_build_object('id', pi.id, 'image_data', pi.image_data, 'mime_type', pi.mime_type, 'external_url', pi.external_url, 'has_original', pi.original_image_data IS NOT NULL)`;
+
+    let query = `
+      SELECT p.*,
+        COALESCE(json_agg(${imageFields} ORDER BY pi.created_at) FILTER (WHERE pi.id IS NOT NULL), '[]') as images,
+        EXISTS(SELECT 1 FROM adoption_assignments aa
+               WHERE aa.pet_id = p.id
+                 AND (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))) as has_pending_adoption,
+        (SELECT json_build_object('permalink', ip.ig_permalink, 'likes', ip.like_count, 'comments', ip.comment_count, 'shares', ip.share_count)
+         FROM instagram_posts ip WHERE ip.pet_id = p.id AND ip.status = 'published' AND ip.is_celebration = FALSE
+         ORDER BY ip.published_at DESC NULLS LAST LIMIT 1) as ig_impact,
+        (SELECT json_build_object('post_id', fp.page_post_id, 'likes', fp.like_count, 'comments', fp.comment_count, 'shares', fp.share_count)
+         FROM facebook_page_posts fp WHERE fp.pet_id = p.id AND fp.status = 'published' AND fp.is_celebration = FALSE
+         ORDER BY fp.published_at DESC NULLS LAST LIMIT 1) as fb_impact,
+        (SELECT json_build_object('status', pc.status,
+                                  'expired', pc.status = 'active' AND pc.active_until IS NOT NULL AND pc.active_until < NOW(),
+                                  'days_left', CASE WHEN pc.status = 'active' AND pc.active_until IS NOT NULL
+                                                    THEN FLOOR(EXTRACT(EPOCH FROM (pc.active_until - NOW())) / 86400.0)::int
+                                                    ELSE NULL END)
+         FROM pet_cases pc WHERE pc.pet_id = p.id ORDER BY pc.created_at DESC LIMIT 1) as case_vigencia,
+        p.case_number as case_number
+      FROM pets p
+      LEFT JOIN pet_images pi ON pi.pet_id = p.id
+    `;
+
+    const conditions = [];
+    const params = [];
+
+    if (req.user.role !== 'admin') {
+      params.push(req.user.id);
+      params.push(`(SELECT json_agg(DISTINCT nb) FROM (
+        SELECT jsonb_array_elements_text(a.neighborhoods) AS nb
+        FROM agrupaciones a
+        WHERE a.coordinator_user_id = $1 AND a.is_active = TRUE
+      ) sub)`);
+      conditions.push(nbOverlapSql(`$${params.length}`, "(NULLIF(p.neighborhoods, '')::jsonb)"));
+    }
+
+    if (status) {
+      params.push(status);
+      conditions.push(`p.status = $${params.length}`);
+    }
+    if (include_hidden !== 'true') {
+      conditions.push(`(p.is_hidden = FALSE OR p.is_hidden IS NULL)`);
+      conditions.push(`p.group_id IS NULL`);
+      conditions.push(`(p.status <> 'sighted' OR p.created_at > NOW() - INTERVAL '14 days')`);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+    query += ` GROUP BY p.id ORDER BY p.created_at DESC`;
+    if (limit) {
+      params.push(parseInt(limit));
+      query += ` LIMIT $${params.length}`;
+    }
+
+    const result = await pool.query(query, params);
+    res.json({ pets: result.rows });
+  } catch (err) {
+    console.error('Admin list pets error:', err);
     res.status(500).json({ error: 'Failed to fetch pets' });
   }
 });
@@ -1071,7 +1144,7 @@ router.get('/:id/history', requireAuth, async (req, res) => {
 });
 
 // ── Admin: get pet with all relations ──────────────────────────────────────────
-router.get('/:id/relations', requireAdmin, async (req, res) => {
+router.get('/:id/relations', requireCoordinator, async (req, res) => {
   try {
     const petId = req.params.id;
 
@@ -1087,6 +1160,18 @@ router.get('/:id/relations', requireAdmin, async (req, res) => {
     if (petRes.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
     const pet = petRes.rows[0];
     pet.neighborhoods = typeof pet.neighborhoods === 'string' ? JSON.parse(pet.neighborhoods) : pet.neighborhoods;
+
+    if (req.user.role !== 'admin') {
+      const nbCheck = await pool.query(
+        `SELECT 1 FROM agrupaciones
+         WHERE coordinator_user_id = $1 AND is_active = TRUE
+           AND ${nbOverlapSql('neighborhoods', "(NULLIF($2::text, '')::jsonb)")}`,
+        [req.user.id, JSON.stringify(pet.neighborhoods || [])]
+      );
+      if (nbCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'No tenés acceso a esta mascota' });
+      }
+    }
 
     let createdBy = null;
     if (pet.created_by) {

@@ -707,7 +707,9 @@ export default function Admin() {
 
   const fetchPets = async () => {
     try {
-      const data = await api.pets.list(undefined, true);
+      const data = isCoordinator && !isAdmin
+        ? await api.pets.adminList(undefined, true)
+        : await api.pets.list(undefined, true);
       setPets(data.pets || []);
     } catch (e) { console.error(e); }
   };

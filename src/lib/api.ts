@@ -140,6 +140,7 @@ export const api = {
   pets: {
     list: (status?: string, includeHidden?: boolean) => request(`/pets${status ? `?status=${status}` : ''}${includeHidden ? `${status ? '&' : '?'}include_hidden=true` : ''}${status || includeHidden ? '&lite=1' : '?lite=1'}`),
     listFull: (status?: string, includeHidden?: boolean) => request(`/pets${status ? `?status=${status}` : ''}${includeHidden ? `${status ? '&' : '?'}include_hidden=true` : ''}${status || includeHidden ? '&lite=0' : '?lite=0'}`),
+    adminList: (status?: string, includeHidden?: boolean) => request(`/pets/admin-list${status ? `?status=${status}` : ''}${includeHidden ? `${status ? '&' : '?'}include_hidden=true` : ''}${status || includeHidden ? '&lite=1' : '?lite=1'}`),
     listPublic: () => request('/pets?public=true&lite=1'),
     get: (id: string) => request(`/pets/${id}`),
     create: (data: any) => request('/pets', { method: 'POST', body: JSON.stringify(data) }),
