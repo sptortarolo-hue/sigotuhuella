@@ -382,9 +382,14 @@ Tablero, Mascotas, Casos, Agrupaciones, Moderación. El admin ve las 26 tabs.
 
 ### Cómo funciona el filtrado por zona
 1. Se buscan las agrupaciones donde `coordinator_user_id = user.id`
-2. Se extraen los `neighborhoods` (JSON array de IDs como `"la_plata"`, `"tolosa"`)
-3. Se usa `nbOverlapSql` para filtrar mascotas cuyos barrios coincidan
-4. El endpoint `/pets/admin-list` aplica este filtro automáticamente
+2. Cada agrupación puede tener dos mecanismos de zona:
+   - `neighborhoods`: JSON array de IDs como `"la_plata"`, `"tolosa"`
+   - `zone_polygon`: JSONB con polígono dibujado en el mapa (`[[lat,lng],...]`, mínimo 3 vértices) — se edita con ZonePolygonPicker en Agrupaciones
+3. Una mascota pertenece al alcance si sus barrios coinciden O su pin (lat/lng) cae dentro de algún polígono (ray-casting en `server/services/coordinatorScope.js`)
+4. Los endpoints `/pets/admin-list`, `/cases` y `/pets/:id/relations` aplican el filtro automáticamente (pre-filtro SQL generoso + filtrado exacto en JS)
+
+### Tablero del coordinador
+El tab "Tablero" muestra para coordinadores `CoordinatorZoneDashboard` (no el dashboard admin): último posteo en IG y FB + historial de publicaciones de mascotas de su zona (`GET /volunteers/my-zone-feed`).
 
 ### Endpoints del coordinador
 | Endpoint | Descripción |
@@ -402,6 +407,9 @@ Tablero, Mascotas, Casos, Agrupaciones, Moderación. El admin ve las 26 tabs.
 | Archivo | Descripción |
 |---------|-------------|
 | `server/auth.js` | `requireCoordinator` middleware (checa `agrupaciones.coordinator_user_id`) |
+| `server/services/coordinatorScope.js` | Zonas del coordinador: barrios + polígonos, ray-casting point-in-polygon |
+| `src/components/admin/ZonePolygonPicker.tsx` | Editor de polígono en el mapa (click para vértices) |
+| `src/pages/admin/CoordinatorZoneDashboard.tsx` | Tablero informativo del coordinador (últimos posts + historial) |
 | `server/routes/pets.js` | `GET /admin-list` + `/:id/relations` con neighborhood scoping |
 | `src/hooks/AuthProvider.tsx` | `isCoordinator` + `coordinatorOf` en contexto |
 | `src/components/auth/ProtectedRoute.tsx` | Prop `isCoordinator` |
