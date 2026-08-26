@@ -1984,6 +1984,10 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_vgm_group ON volunteer_group_memberships(group_id);
     `, 'volunteer_group_memberships');
 
+    await migrate(client, `
+      CREATE INDEX IF NOT EXISTS idx_agrupaciones_coordinator ON agrupaciones(coordinator_user_id, is_active);
+    `, 'idx_agrupaciones_coordinator');
+
     console.log('Database migrations complete');
   } finally {
     client.release();

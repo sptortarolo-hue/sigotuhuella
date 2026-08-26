@@ -421,6 +421,7 @@ router.post('/agrupaciones', requireAdmin, async (req, res) => {
 
 router.put('/agrupaciones/:id', requireCoordinator, async (req, res) => {
   const { name, description, neighborhoods, zone_polygon, contact_whatsapp, contact_email, logo_url, is_active, coordinator_user_id } = req.body;
+  const isAdmin = req.user.role === 'admin';
   const polyProvided = zone_polygon !== undefined;
   const poly = validateZonePolygon(zone_polygon);
   // undefined = no tocar; [] = limpiar; array válido = reemplazar
@@ -430,7 +431,7 @@ router.put('/agrupaciones/:id', requireCoordinator, async (req, res) => {
   const polyValue = !polyProvided ? null
     : (Array.isArray(poly.value) ? JSON.stringify(poly.value) : null);
   try {
-    if (req.user.role !== 'admin') {
+    if (!isAdmin) {
       const ownership = await pool.query(
         'SELECT 1 FROM agrupaciones WHERE id = $1 AND coordinator_user_id = $2',
         [req.params.id, req.user.id]
@@ -439,6 +440,9 @@ router.put('/agrupaciones/:id', requireCoordinator, async (req, res) => {
         return res.status(403).json({ error: 'No tenés acceso a esta agrupación' });
       }
     }
+    // Solo admin puede reasignar coordinador o desactivar agrupación
+    const safeCoordinator = isAdmin ? (coordinator_user_id || null) : undefined;
+    const safeIsActive = isAdmin ? is_active : undefined;
     const result = await pool.query(
       `UPDATE agrupaciones SET
         name = COALESCE($1, name),
@@ -448,10 +452,10 @@ router.put('/agrupaciones/:id', requireCoordinator, async (req, res) => {
         contact_whatsapp = COALESCE($5, contact_whatsapp),
         contact_email = COALESCE($6, contact_email),
         logo_url = COALESCE($7, logo_url),
-        is_active = COALESCE($8, is_active),
-        coordinator_user_id = $9
+        is_active = CASE WHEN $12 IS NOT NULL THEN $12 ELSE is_active END,
+        coordinator_user_id = CASE WHEN $13 IS NOT NULL THEN $13 ELSE coordinator_user_id END
        WHERE id = $10 RETURNING *`,
-      [name, description, neighborhoods ? JSON.stringify(neighborhoods) : null, polyValue, contact_whatsapp, contact_email, logo_url, is_active, coordinator_user_id || null, req.params.id, !polyProvided]
+      [name, description, neighborhoods ? JSON.stringify(neighborhoods) : null, polyValue, contact_whatsapp, contact_email, logo_url, is_active, coordinator_user_id || null, req.params.id, !polyProvided, safeIsActive, safeCoordinator]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Agrupacion not found' });
     res.json({ agrupacion: result.rows[0] });
@@ -463,7 +467,8 @@ router.put('/agrupaciones/:id', requireCoordinator, async (req, res) => {
 
 router.delete('/agrupaciones/:id', requireAdmin, async (req, res) => {
   try {
-    await pool.query('UPDATE agrupaciones SET is_active = FALSE WHERE id = $1', [req.params.id]);
+    const result = await pool.query('UPDATE agrupaciones SET is_active = FALSE WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Agrupacion not found' });
     res.json({ message: 'Agrupacion deactivated' });
   } catch (err) {
     console.error('Delete agrupacion error:', err);
@@ -672,7 +677,9 @@ router.put('/share-log/:id/url', requireAdmin, async (req, res) => {
 router.get('/volunteer-group-memberships', requireAuth, requireActiveVolunteer, async (req, res) => {
   try {
     const subsRes = await pool.query(
-      'SELECT agrupacion_id FROM volunteer_subscriptions WHERE user_id = $1 AND status = \'active\'',
+      `SELECT agrupacion_id FROM volunteer_subscriptions vs
+       JOIN agrupaciones a ON a.id = vs.agrupacion_id AND a.is_active = TRUE
+       WHERE vs.user_id = $1 AND vs.status = 'active'`,
       [req.user.id]
     );
     const agrupacionIds = subsRes.rows.map(r => r.agrupacion_id);
@@ -680,7 +687,7 @@ router.get('/volunteer-group-memberships', requireAuth, requireActiveVolunteer, 
 
     const placeholders = agrupacionIds.map((_, i) => '$' + (i + 1)).join(',');
     const groupsRes = await pool.query(
-      `SELECT fsg.id, fsg.group_name, fsg.group_url, fsg.agrupacion_id, a.name AS agrupacion_name
+      `       SELECT fsg.id, fsg.group_name, fsg.group_url, fsg.agrupacion_id, a.name AS agrupacion_name
        FROM fb_search_groups fsg
        LEFT JOIN agrupaciones a ON a.id = fsg.agrupacion_id
        WHERE fsg.approved = TRUE AND fsg.agrupacion_id IN (${placeholders})
@@ -788,7 +795,7 @@ router.get('/admin/group-memberships', requireCoordinator, async (req, res) => {
 
     if (req.user.role !== 'admin') {
       params.push(req.user.id);
-      conditions.push(`fg.agrupacion_id IN (SELECT id FROM agrupaciones WHERE coordinator_user_id = $${params.length})`);
+      conditions.push(`fg.agrupacion_id IN (SELECT id FROM agrupaciones WHERE coordinator_user_id = $${params.length} AND is_active = TRUE)`);
     }
 
     if (user_id && validUuid(user_id)) {
@@ -908,7 +915,7 @@ router.get('/pet-action-center/:petId', requireAuth, requireActiveVolunteer, asy
     // Mascota + contacto del reportante (solo visibles para voluntarios activos)
     const petRes = await pool.query(
       `SELECT p.id, p.name, p.species, p.breed, p.color, p.gender, p.age, p.status,
-              p.location, p.neighborhoods, p.description, p.created_at, p.is_hidden,
+              p.location, p.neighborhoods, p.latitude, p.longitude, p.description, p.created_at, p.is_hidden,
               u.display_name as reporter_name, u.phone as reporter_phone
        FROM pets p
        LEFT JOIN users u ON u.id = p.created_by
@@ -917,6 +924,36 @@ router.get('/pet-action-center/:petId', requireAuth, requireActiveVolunteer, asy
     );
     if (petRes.rows.length === 0) return res.status(404).json({ error: 'Pet not found' });
     const pet = petRes.rows[0];
+
+    // Verificar que la mascota esté en la zona del voluntario
+    const volZones = await getCoordinatorZones(pool, req.user.id);
+    const volSubs = await pool.query(
+      `SELECT DISTINCT a.neighborhoods, a.zone_polygon FROM volunteer_subscriptions vs
+       JOIN agrupaciones a ON a.id = vs.agrupacion_id AND a.is_active = TRUE
+       WHERE vs.user_id = $1 AND vs.status = 'active'`, [req.user.id]
+    );
+    const parseNbAct = (raw) => {
+      if (Array.isArray(raw)) return raw.filter(Boolean).map(String);
+      if (typeof raw === 'string' && raw.trim()) { try { return JSON.parse(raw).filter(Boolean).map(String); } catch { return []; } }
+      return [];
+    };
+    const parseRingAct = (raw) => {
+      if (!raw) return null;
+      let p = raw; if (typeof p === 'string') { try { p = JSON.parse(p); } catch { return null; } }
+      if (!Array.isArray(p) || p.length < 3) return null;
+      const ring = p.map(v => Array.isArray(v) ? [Number(v[0]), Number(v[1])] : [Number(v?.lat), Number(v?.lng)])
+        .filter(v => Number.isFinite(v[0]) && Number.isFinite(v[1]));
+      return ring.length >= 3 ? ring : null;
+    };
+    const subNb = volSubs.rows.flatMap(r => parseNbAct(r.neighborhoods));
+    const subPolygons = volSubs.rows.map(r => parseRingAct(r.zone_polygon)).filter(Boolean);
+    const volunteerZones = {
+      neighborhoodIds: [...new Set([...volZones.neighborhoodIds, ...subNb])],
+      polygons: [...volZones.polygons, ...subPolygons],
+    };
+    if (!zonesAreEmpty(volunteerZones) && !petInZones({ neighborhoods: pet.neighborhoods, latitude: pet.latitude, longitude: pet.longitude }, volunteerZones)) {
+      return res.status(403).json({ error: 'Esta mascota no está en tu zona' });
+    }
 
     // Caso más reciente de la mascota (para publicaciones, timeline y vigencia)
     const caseRes = await pool.query(
@@ -1041,7 +1078,7 @@ router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, 
     const subsRes = await pool.query(
       `SELECT DISTINCT a.id AS agrupacion_id, a.neighborhoods, a.zone_polygon
        FROM volunteer_subscriptions vs
-       JOIN agrupaciones a ON a.id = vs.agrupacion_id
+       JOIN agrupaciones a ON a.id = vs.agrupacion_id AND a.is_active = TRUE
        WHERE vs.user_id = $1 AND vs.status = 'active'`,
       [req.user.id]
     );
@@ -1405,13 +1442,16 @@ router.post('/fb-search-groups', requireAuth, async (req, res) => {
     autoApproved = true;
     approvedBy = req.user.id;
   } else if (agrupacion_id) {
+    // Solo admin o coordinador de esa agrupación puede crear grupos asociados
     const coordCheck = await pool.query(
-      'SELECT 1 FROM agrupaciones WHERE id = $1 AND coordinator_user_id = $2',
+      'SELECT 1 FROM agrupaciones WHERE id = $1 AND coordinator_user_id = $2 AND is_active = TRUE',
       [agrupacion_id, req.user.id]
     );
     if (coordCheck.rows.length > 0) {
       autoApproved = true;
       approvedBy = req.user.id;
+    } else {
+      return res.status(403).json({ error: 'No sos coordinador de esta agrupación' });
     }
   }
 

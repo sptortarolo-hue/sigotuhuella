@@ -4,7 +4,7 @@
 import { normalizeNb, nbOverlapSql } from './neighborhoodUtils.js';
 
 export function pointInPolygon(lat, lng, ring) {
-  if (!lat || !lng || !Array.isArray(ring) || ring.length < 3) return false;
+  if (lat == null || lng == null || !Array.isArray(ring) || ring.length < 3) return false;
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const [yi, xi] = ring[i];

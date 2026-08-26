@@ -881,7 +881,7 @@ export default function VolunteerDashboard() {
       {actionCenterPetId && (
         <VolunteerActionCenter
           petId={actionCenterPetId}
-          onClose={() => setActionCenterPetId(null)}
+          onClose={() => { setActionCenterPetId(null); getDiffusionQueue().then(q => setQueue(q)).catch(() => {}); }}
           onNavigate={(url) => window.location.href = url}
         />
       )}

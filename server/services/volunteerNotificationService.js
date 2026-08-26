@@ -2,7 +2,7 @@ import pool from '../db.js';
 import { sendPushToUser } from './pushService.js';
 import { enqueue } from './phoneRelayService.js';
 import { sendAdminNotificationEmail } from '../auth.js';
-import { nbNormSql } from './neighborhoodUtils.js';
+import { nbNormSql, normalizeNb } from './neighborhoodUtils.js';
 import { pointInPolygon } from './coordinatorScope.js';
 
 const STATUS_LABELS = {
@@ -35,8 +35,9 @@ export async function notifyVolunteersOfNewPet(pet) {
 
     const matchingAgrupaciones = allAgrupaciones.rows.filter(a => {
       const agNb = Array.isArray(a.neighborhoods) ? a.neighborhoods : [];
+      const petNbNorm = new Set(neighborhoods.map(normalizeNb));
       const nbMatch = neighborhoods.length > 0 && agNb.length > 0 &&
-        agNb.some(ag => neighborhoods.includes(ag));
+        agNb.some(ag => petNbNorm.has(normalizeNb(ag)));
       if (nbMatch) return true;
       if (hasCoords && a.zone_polygon) {
         let ring = a.zone_polygon;

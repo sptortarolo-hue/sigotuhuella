@@ -25,6 +25,7 @@ export default function ShareGroupsPicker({ petId, groups, pageUrl, onComplete }
   const [currentPostUrl, setCurrentPostUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -52,14 +53,15 @@ export default function ShareGroupsPicker({ petId, groups, pageUrl, onComplete }
     [groups, coverageMap]
   );
 
-  const totalOriginal = groups.length;
-  const totalRemaining = remainingGroups.length;
+  const totalOriginal = remainingGroups.length;
+
   const currentGroup = remainingGroups[currentIndex];
-  const isLast = currentIndex >= totalRemaining - 1;
+  const isLast = currentIndex >= totalOriginal - 1;
 
   const handleConfirm = async () => {
     if (!currentGroup || saving) return;
     setSaving(true);
+    setError(null);
     const entry = {
       name: currentGroup.group_name,
       url: currentGroup.group_url || undefined,
@@ -67,18 +69,21 @@ export default function ShareGroupsPicker({ petId, groups, pageUrl, onComplete }
     };
     try {
       await logShareConfirmation(petId, 'facebook', [entry]);
-    } catch { }
-    const newCompleted = [...completed, entry];
-    setCompleted(newCompleted);
-    setCurrentPostUrl('');
+      const newCompleted = [...completed, entry];
+      setCompleted(newCompleted);
+      setCurrentPostUrl('');
 
-    if (isLast) {
-      setDone(true);
-      onComplete();
-    } else {
-      setCurrentIndex(currentIndex + 1);
+      if (isLast) {
+        setDone(true);
+        onComplete();
+      } else {
+        setCurrentIndex(currentIndex + 1);
+      }
+    } catch (e) {
+      setError('Error al registrar el share. Intentá de nuevo.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleSkip = () => {
@@ -98,7 +103,7 @@ export default function ShareGroupsPicker({ petId, groups, pageUrl, onComplete }
     );
   }
 
-  if (totalRemaining === 0 || done) {
+  if (totalOriginal === 0 || done) {
     return (
       <div className="bg-green-50 rounded-2xl p-4 border border-green-200 text-center">
         <p className="text-sm font-bold text-green-700">
@@ -127,7 +132,7 @@ export default function ShareGroupsPicker({ petId, groups, pageUrl, onComplete }
           Compartir en grupos
         </p>
         <span className="text-[10px] font-bold text-gray-400 bg-white px-2 py-0.5 rounded-full">
-          Quedan {totalRemaining - currentIndex} de {totalOriginal}
+          Quedan {totalOriginal - currentIndex} de {totalOriginal}
         </span>
       </div>
 
@@ -181,6 +186,9 @@ export default function ShareGroupsPicker({ petId, groups, pageUrl, onComplete }
         </div>
 
         {/* Botones */}
+        {error && (
+          <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-xl">{error}</p>
+        )}
         <div className="flex gap-2">
           <button
             onClick={handleConfirm}
