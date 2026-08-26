@@ -2014,7 +2014,8 @@ router.post('/:id/publish', requireAdmin, async (req, res) => {
       try {
         let result;
         switch (platform) {
-          case 'facebook_page': {
+          case 'facebook_page':
+          case 'facebook_groups': {
             const { publishToPage, publishPetToGroups } = await import('../services/facebookPublisher.js');
             const pageResult = await publishToPage(req.params.id);
             if (pageResult.error) throw new Error(pageResult.error);
@@ -2029,27 +2030,9 @@ router.post('/:id/publish', requireAdmin, async (req, res) => {
                 [req.params.id, pageResult.pagePostId, pageResult.message || '']
               );
             }
+            // Encolar a grupos UNA sola vez (dedup en enqueuePublishTask previene duplicados)
             publishPetToGroups(req.params.id, { skipPagePublish: true, pagePostUrl }).catch(e => console.error('[Publish] FB groups error:', e));
-            result = { platform, status: 'published' };
-            break;
-          }
-case 'facebook_groups': {
-            const { publishToPage, publishPetToGroups } = await import('../services/facebookPublisher.js');
-            const pageResult = await publishToPage(req.params.id);
-            if (pageResult.error) throw new Error(pageResult.error);
-            let pagePostUrl = null;
-            if (pageResult.pagePostId && pageResult.pageId) {
-              const cleanPostId = pageResult.pagePostId.includes('_')
-                ? pageResult.pagePostId.split('_')[1]
-                : pageResult.pagePostId;
-              pagePostUrl = 'https://www.facebook.com/' + pageResult.pageId + '/posts/' + cleanPostId;
-              await pool.query(
-                "INSERT INTO facebook_page_posts (pet_id, page_post_id, message, status, published_at) VALUES ($1, $2, $3, 'published', NOW())",
-                [req.params.id, pageResult.pagePostId, pageResult.message || '']
-              );
-            }
-            publishPetToGroups(req.params.id, { skipPagePublish: true, pagePostUrl }).catch(e => console.error('[Publish] FB groups error:', e));
-            result = { platform, status: 'published' };
+            result = { platform: 'facebook', status: 'published' };
             break;
           }
           case 'instagram': {

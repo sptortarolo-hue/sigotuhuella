@@ -540,13 +540,19 @@ export async function retryFailedFacebookPosts(limit = 10) {
 export async function publishPetToGroups(petId, options = {}) {
   const { skipPagePublish = false, pagePostUrl: externalPagePostUrl = null, isCelebration = false } = options;
 
-  if (!skipPagePublish) {
-    const dupCheck = await pool.query(
-      'SELECT 1 FROM facebook_page_posts WHERE pet_id = $1 AND status = $2 AND group_post_ids IS NOT NULL AND array_length(group_post_ids, 1) > 0',
-      [petId, 'published']
-    );
-    if (dupCheck.rows.length > 0) return { alreadyPublished: true, petId };
-  }
+  // Dedup 1: si ya existe un post publicado con group_post_ids, no re-encolar
+  const dupCheck = await pool.query(
+    'SELECT 1 FROM facebook_page_posts WHERE pet_id = $1 AND status = $2 AND group_post_ids IS NOT NULL AND array_length(group_post_ids, 1) > 0',
+    [petId, 'published']
+  );
+  if (dupCheck.rows.length > 0) return { alreadyPublished: true, petId };
+
+  // Dedup 2: si ya hay tareas relay pendientes para esta mascota, no duplicar
+  const pendingCheck = await pool.query(
+    "SELECT 1 FROM fb_relay_tasks WHERE pet_id = $1 AND status = 'pending' LIMIT 1",
+    [petId]
+  );
+  if (pendingCheck.rows.length > 0) return { alreadyPublished: true, petId, reason: 'pending_tasks_exist' };
 
   const petResult = await pool.query(
     `SELECT p.*,

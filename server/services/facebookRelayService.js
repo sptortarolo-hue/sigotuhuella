@@ -11,6 +11,14 @@ export function applySpintax(text) {
 export async function enqueuePublishTask(petId, groupId, fbGroupId, message, imageUrls, pagePostUrl) {
   const enabled = await isEnabled();
   if (!enabled) return { disabled: true };
+
+  // Dedup: no crear tarea si ya existe una pendiente o completada para este pet+group
+  const existing = await pool.query(
+    "SELECT id FROM fb_relay_tasks WHERE pet_id = $1 AND group_id = $2 AND status IN ('pending', 'completed') LIMIT 1",
+    [petId, groupId]
+  );
+  if (existing.rows.length > 0) return { skipped: true, reason: 'duplicate', existingTaskId: existing.rows[0].id };
+
   if (pagePostUrl) {
     const result = await pool.query(
       `INSERT INTO fb_relay_tasks (pet_id, group_id, fb_group_id, message, action, target_url, status)
