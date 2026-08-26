@@ -444,17 +444,37 @@ export async function replicateInstagramToFacebook(instagramPostId) {
 }
 
 export async function replicateLatestInstagramPosts(limit = 5) {
-  const posts = await pool.query(
-    `SELECT ip.id FROM instagram_posts ip
-     WHERE ip.status = 'published'
-       AND NOT EXISTS (
-         SELECT 1 FROM facebook_page_posts fpp
-         WHERE fpp.instagram_post_id = ip.id AND fpp.status = 'published'
-       )
-     ORDER BY ip.published_at DESC NULLS LAST
-     LIMIT $1`,
-    [limit]
-  );
+  const fbAdoptionEnabled = (await getSetting('fb_adoption_broadcast_enabled')) === 'true';
+
+  let query;
+  let params;
+  if (fbAdoptionEnabled) {
+    query = `
+      SELECT ip.id FROM instagram_posts ip
+      WHERE ip.status = 'published'
+        AND NOT EXISTS (
+          SELECT 1 FROM facebook_page_posts fpp
+          WHERE fpp.instagram_post_id = ip.id AND fpp.status = 'published'
+        )
+      ORDER BY ip.published_at DESC NULLS LAST
+      LIMIT $1`;
+    params = [limit];
+  } else {
+    query = `
+      SELECT ip.id FROM instagram_posts ip
+      JOIN pets p ON p.id = ip.pet_id
+      WHERE ip.status = 'published'
+        AND p.status NOT IN ('for_adoption', 'for_adoption_simple')
+        AND NOT EXISTS (
+          SELECT 1 FROM facebook_page_posts fpp
+          WHERE fpp.instagram_post_id = ip.id AND fpp.status = 'published'
+        )
+      ORDER BY ip.published_at DESC NULLS LAST
+      LIMIT $1`;
+    params = [limit];
+  }
+
+  const posts = await pool.query(query, params);
 
   const results = [];
   for (const post of posts.rows) {
@@ -667,9 +687,19 @@ export async function publishPetToGroups(petId, options = {}) {
 }
 
 export async function publishUnpublishedPetsToFacebook(limit = 5) {
+  const adoptionToggle = await getSetting('fb_adoption_broadcast_enabled');
+  const adoptionEnabled = adoptionToggle === 'true';
+
+  let statusFilter;
+  if (adoptionEnabled) {
+    statusFilter = `('lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'needs_attention', 'accidented')`;
+  } else {
+    statusFilter = `('lost', 'sighted', 'retained', 'needs_attention', 'accidented')`;
+  }
+
   const pets = await pool.query(`
     SELECT p.id FROM pets p
-    WHERE p.status IN ('lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'needs_attention', 'accidented')
+    WHERE p.status IN ${statusFilter}
       AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
       AND EXISTS (SELECT 1 FROM pet_images pi WHERE pi.pet_id = p.id)
       AND NOT EXISTS (

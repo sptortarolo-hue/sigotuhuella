@@ -65,7 +65,7 @@ export async function getStatus() {
     "SELECT COUNT(*) FROM relay_messages WHERE status = 'pending'"
   )).rows[0].count);
 
-  const enabled = map.relay_enabled === 'true';
+  const enabled = map.relay_enabled !== 'false';
   const lastPollAt = map.relay_last_poll_at || null;
   const qrAvailable = !!map.relay_qr_image;
 

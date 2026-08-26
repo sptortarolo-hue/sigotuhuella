@@ -811,7 +811,7 @@ export default function InstagramTab({ initialError = '' }: { initialError?: str
               <label className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-gray-700">Stories automáticas</p>
-                  <p className="text-sm text-gray-400">Publicar Stories para perdidos/adoptados/reunidos</p>
+                  <p className="text-sm text-gray-400">Publicar Stories para mascotas reportadas</p>
                 </div>
                 <button
                   onClick={() => setStoriesEnabled(!storiesEnabled)}

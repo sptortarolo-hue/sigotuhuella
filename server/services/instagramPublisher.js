@@ -220,16 +220,22 @@ export async function autoQueueForAdoption() {
   if (!connected) return;
   const enabled = await getSetting('instagram_publisher_enabled');
   if (enabled !== 'true') return;
+
+  const fbAdoptionEnabled = (await getSetting('fb_adoption_broadcast_enabled')) === 'true';
+  const adoptionStatuses = fbAdoptionEnabled
+    ? ['for_adoption', 'lost', 'sighted', 'retained', 'adopted', 'reunited', 'accidented', 'needs_attention']
+    : ['lost', 'sighted', 'retained', 'adopted', 'reunited', 'accidented', 'needs_attention'];
+
   const failedPets = await pool.query(`
     SELECT ip.id FROM instagram_posts ip
     JOIN pets p ON p.id = ip.pet_id
     WHERE ip.status = 'failed' AND COALESCE(ip.retry_count, 0) < 3
-      AND p.status IN ('for_adoption', 'lost', 'sighted', 'retained', 'adopted', 'reunited', 'accidented', 'needs_attention')
+      AND p.status IN (${adoptionStatuses.map((_, i) => '$' + (i + 1)).join(',')})
       AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
       AND NOT EXISTS (SELECT 1 FROM instagram_posts ip2 WHERE ip2.pet_id = p.id AND ip2.status = 'queued')
     ORDER BY ip.created_at DESC
     LIMIT 10
-  `);
+  `, adoptionStatuses);
   for (const row of failedPets.rows) {
     await pool.query(
       `UPDATE instagram_posts SET status = 'queued', error_message = NULL, updated_at = NOW() WHERE id = $1`,
@@ -239,14 +245,14 @@ export async function autoQueueForAdoption() {
 
   const newPets = await pool.query(`
     SELECT p.id FROM pets p
-    WHERE p.status IN ('for_adoption', 'lost', 'sighted', 'retained', 'adopted', 'reunited', 'accidented', 'needs_attention')
+    WHERE p.status IN (${adoptionStatuses.map((_, i) => '$' + (i + 1)).join(',')})
     AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
     AND p.instagram IS NULL
     AND EXISTS (SELECT 1 FROM pet_images pi WHERE pi.pet_id = p.id)
     AND NOT EXISTS (SELECT 1 FROM instagram_posts ip WHERE ip.pet_id = p.id)
     ORDER BY p.created_at DESC
     LIMIT 10
-  `);
+  `, adoptionStatuses);
   for (const pet of newPets.rows) {
     await pool.query(
       `INSERT INTO instagram_posts (pet_id, media_type, status, created_at)
