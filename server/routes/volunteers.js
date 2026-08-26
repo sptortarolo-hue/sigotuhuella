@@ -5,7 +5,7 @@ import { sendPushToAdmins, sendPushToUser } from '../services/pushService.js';
 import { buildPetMessage } from '../services/facebookPublisher.js';
 import { buildPetCaption } from '../services/instagramPublisher.js';
 import { buildPetBroadcastCaption } from '../services/whatsappService.js';
-import { getCaseShares, computeExpiry } from '../services/caseService.js';
+import { getCaseShares, computeExpiry, createPetCase } from '../services/caseService.js';
 import { nbOverlapSql } from '../services/neighborhoodUtils.js';
 import { getCoordinatorZones, zonesAreEmpty, petInZones, coarseZoneSql } from '../services/coordinatorScope.js';
 
@@ -1039,17 +1039,35 @@ const REPOST_WINDOW_DAYS = 5;
 router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, res) => {
   try {
     const subsRes = await pool.query(
-      `SELECT DISTINCT a.id AS agrupacion_id, a.neighborhoods
+      `SELECT DISTINCT a.id AS agrupacion_id, a.neighborhoods, a.zone_polygon
        FROM volunteer_subscriptions vs
        JOIN agrupaciones a ON a.id = vs.agrupacion_id
        WHERE vs.user_id = $1 AND vs.status = 'active'`,
       [req.user.id]
     );
-    const allNeighborhoods = [...new Set(subsRes.rows.flatMap(r => r.neighborhoods || []))];
+
+    const parseNb = (raw) => {
+      if (Array.isArray(raw)) return raw.filter(Boolean).map(String);
+      if (typeof raw === 'string' && raw.trim()) { try { return JSON.parse(raw).filter(Boolean).map(String); } catch { return []; } }
+      return [];
+    };
+    const parseRing = (raw) => {
+      if (!raw) return null;
+      let p = raw; if (typeof p === 'string') { try { p = JSON.parse(p); } catch { return null; } }
+      if (!Array.isArray(p) || p.length < 3) return null;
+      const ring = p.map(v => Array.isArray(v) ? [Number(v[0]), Number(v[1])] : [Number(v?.lat), Number(v?.lng)])
+        .filter(v => Number.isFinite(v[0]) && Number.isFinite(v[1]));
+      return ring.length >= 3 ? ring : null;
+    };
+
+    const allNeighborhoods = [...new Set(subsRes.rows.flatMap(r => parseNb(r.neighborhoods)))];
+    const agrupacionPolygons = subsRes.rows.map(r => parseRing(r.zone_polygon)).filter(Boolean);
     const agrupacionIds = subsRes.rows.map(r => r.agrupacion_id);
+    const hasPolygons = agrupacionPolygons.length > 0;
+    const zones = { neighborhoodIds: allNeighborhoods, polygons: agrupacionPolygons };
 
     const emptyBuckets = { nuevos: [], repostear: [], al_dia: [], pausados: [] };
-    if (allNeighborhoods.length === 0) {
+    if (allNeighborhoods.length === 0 && !hasPolygons) {
       return res.json({
         buckets: emptyBuckets,
         counts: { nuevos: 0, repostear: 0, al_dia: 0, pausados: 0 },
@@ -1057,13 +1075,17 @@ router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, 
       });
     }
 
+    const zoneFilter = allNeighborhoods.length > 0
+      ? coarseZoneSql(1, hasPolygons)
+      : `(p.latitude IS NOT NULL AND p.longitude IS NOT NULL)`;
+
     const petsRes = await pool.query(
-      `SELECT p.id, p.name, p.species, p.status, p.location, p.neighborhoods, p.created_at,
+      `SELECT p.id, p.name, p.species, p.status, p.location, p.neighborhoods, p.latitude, p.longitude, p.created_at,
               pc.id as case_id, pc.status as case_status, pc.active_until,
               sl.last_share_at,
               (SELECT COUNT(*) FROM share_logs s2 WHERE s2.pet_id = p.id AND s2.user_id = $2) as my_share_count
        FROM pets p
-       JOIN pet_cases pc ON pc.id = (
+       LEFT JOIN pet_cases pc ON pc.id = (
          SELECT id FROM pet_cases WHERE pet_id = p.id ORDER BY created_at DESC LIMIT 1
        )
        LEFT JOIN LATERAL (
@@ -1071,7 +1093,7 @@ router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, 
          FROM share_logs WHERE pet_id = p.id AND user_id = $2
        ) sl ON TRUE
        WHERE p.status IN ('lost', 'transitada', 'found', 'retained', 'accidented', 'needs_attention')
-         AND ${nbOverlapSql('$1', "(NULLIF(p.neighborhoods, '')::jsonb)")}
+         AND ${zoneFilter}
          AND p.is_hidden = FALSE
        ORDER BY CASE WHEN p.status IN ('accidented', 'needs_attention') THEN 0 ELSE 1 END,
                 p.created_at DESC
@@ -1079,11 +1101,35 @@ router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, 
       [JSON.stringify(allNeighborhoods), req.user.id]
     );
 
+    // Filtrado JS preciso: polygon point-in-polygon (pre-filtro SQL es generoso)
+    const matchedRows = hasPolygons
+      ? petsRes.rows.filter(row => petInZones({ neighborhoods: row.neighborhoods, latitude: row.latitude, longitude: row.longitude }, zones))
+      : petsRes.rows;
+
+    // Crear pet_cases faltantes: mascotas sin caso no pueden trackear difusión
+    const missingCaseRows = matchedRows.filter(r => !r.case_id);
+    for (const row of missingCaseRows) {
+      try {
+        const fullPetRes = await pool.query('SELECT * FROM pets WHERE id = $1', [row.id]);
+        const fullPet = fullPetRes.rows[0];
+        if (fullPet) {
+          const created = await createPetCase(fullPet, { source: 'diffusion_queue_autocreate' });
+          if (created) {
+            row.case_id = created.id;
+            row.case_status = created.status;
+            row.active_until = created.active_until;
+          }
+        }
+      } catch (caseErr) {
+        console.error('Auto-create case error for pet', row.id, caseErr);
+      }
+    }
+
     const now = Date.now();
     const cutoffMs = REPOST_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
     // Calcular cobertura: cuántos grupos de las agrupaciones del voluntario están cubiertos por caso
-    const petIds = petsRes.rows.map(r => r.id);
+    const petIds = matchedRows.map(r => r.id);
     let coverageMap = new Map(); // pet_id -> Set<group_name>
     let totalGroups = 0;
 
@@ -1119,7 +1165,7 @@ router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, 
 
     const buckets = { nuevos: [], repostear: [], al_dia: [], pausados: [] };
 
-    for (const row of petsRes.rows) {
+    for (const row of matchedRows) {
       const expiry = computeExpiry(row.case_status, row.active_until);
       if (row.case_status === 'archived') continue;
 
@@ -1144,7 +1190,7 @@ router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, 
       };
       if (expiry.expired) {
         buckets.pausados.push(item);
-      } else if (!row.last_share_at) {
+      } else if (!row.case_id || !row.last_share_at) {
         buckets.nuevos.push(item);
       } else if (now - new Date(row.last_share_at).getTime() > cutoffMs) {
         buckets.repostear.push(item);
@@ -1473,7 +1519,7 @@ router.delete('/fb-search-groups/:id', requireCoordinator, async (req, res) => {
 router.get('/dashboard', requireAuth, async (req, res) => {
   try {
     const subs = await pool.query(
-      `SELECT vs.*, a.name as agrupacion_name, a.neighborhoods as agrupacion_neighborhoods,
+      `SELECT vs.*, a.name as agrupacion_name, a.neighborhoods as agrupacion_neighborhoods, a.zone_polygon as agrupacion_zone_polygon,
               vc.name as category_name, vc.icon as category_icon
        FROM volunteer_subscriptions vs
        JOIN agrupaciones a ON a.id = vs.agrupacion_id
@@ -1484,18 +1530,36 @@ router.get('/dashboard', requireAuth, async (req, res) => {
 
     const agrupacionIds = subs.rows.map(s => s.agrupacion_id);
     const categories = [...new Set(subs.rows.map(s => s.category))];
-    const allNeighborhoods = [...new Set(subs.rows.flatMap(s => s.agrupacion_neighborhoods || []))];
+
+    const parseNbDash = (raw) => {
+      if (Array.isArray(raw)) return raw.filter(Boolean).map(String);
+      if (typeof raw === 'string' && raw.trim()) { try { return JSON.parse(raw).filter(Boolean).map(String); } catch { return []; } }
+      return [];
+    };
+    const parseRingDash = (raw) => {
+      if (!raw) return null;
+      let p = raw; if (typeof p === 'string') { try { p = JSON.parse(p); } catch { return null; } }
+      if (!Array.isArray(p) || p.length < 3) return null;
+      const ring = p.map(v => Array.isArray(v) ? [Number(v[0]), Number(v[1])] : [Number(v?.lat), Number(v?.lng)])
+        .filter(v => Number.isFinite(v[0]) && Number.isFinite(v[1]));
+      return ring.length >= 3 ? ring : null;
+    };
+
+    const allNeighborhoods = [...new Set(subs.rows.flatMap(s => parseNbDash(s.agrupacion_neighborhoods)))];
+    const dashPolygons = subs.rows.map(s => parseRingDash(s.agrupacion_zone_polygon)).filter(Boolean);
+    const hasDashPolygons = dashPolygons.length > 0;
 
     let petsInZone = { rows: [] };
-    if (allNeighborhoods.length > 0) {
+    if (allNeighborhoods.length > 0 || hasDashPolygons) {
       const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
       const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
-      petsInZone = await pool.query(
-        `SELECT id, name, species, status, location, neighborhoods, created_at
-         FROM pets
-         WHERE neighborhoods IS NOT NULL
-           AND neighborhoods != '[]'
-           AND ${nbOverlapSql('$1')}
+      const zoneFilterDash = allNeighborhoods.length > 0
+        ? coarseZoneSql(1, hasDashPolygons)
+        : `(p.latitude IS NOT NULL AND p.longitude IS NOT NULL)`;
+      const rawRes = await pool.query(
+        `SELECT id, name, species, status, location, neighborhoods, latitude, longitude, created_at
+         FROM pets p
+         WHERE ${zoneFilterDash}
            AND status NOT IN ('adopted', 'reunited')
            AND (status <> 'sighted' OR created_at > NOW() - INTERVAL '14 days')
            AND is_hidden = FALSE
@@ -1503,6 +1567,12 @@ router.get('/dashboard', requireAuth, async (req, res) => {
          LIMIT $2 OFFSET $3`,
         [JSON.stringify(allNeighborhoods), limit, offset]
       );
+      if (hasDashPolygons) {
+        const dashZones = { neighborhoodIds: allNeighborhoods, polygons: dashPolygons };
+        petsInZone = { rows: rawRes.rows.filter(r => petInZones({ neighborhoods: r.neighborhoods, latitude: r.latitude, longitude: r.longitude }, dashZones)) };
+      } else {
+        petsInZone = rawRes;
+      }
     }
 
     const shareStats = await pool.query(
