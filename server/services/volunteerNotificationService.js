@@ -3,6 +3,7 @@ import { sendPushToUser } from './pushService.js';
 import { enqueue } from './phoneRelayService.js';
 import { sendAdminNotificationEmail } from '../auth.js';
 import { nbNormSql } from './neighborhoodUtils.js';
+import { pointInPolygon } from './coordinatorScope.js';
 
 const STATUS_LABELS = {
   lost: 'perdido/a',
@@ -19,30 +20,42 @@ const STATUS_LABELS = {
 
 export async function notifyVolunteersOfNewPet(pet) {
   if (!pet?.id) return;
-  if (!pet.neighborhoods || pet.neighborhoods.length === 0) {
-    console.info(`[volunteer-notify] pet ${pet.id} sin barrios: no se notifica a voluntarios`);
+  const neighborhoods = pet.neighborhoods || [];
+  const hasCoords = pet.latitude != null && pet.longitude != null;
+  if (neighborhoods.length === 0 && !hasCoords) {
+    console.info(`[volunteer-notify] pet ${pet.id} sin barrios ni coordenadas: no se notifica`);
     return;
   }
   if (['reunited', 'adopted'].includes(pet.status)) return;
 
   try {
-    const agrupaciones = await pool.query(
-      `SELECT id, name FROM agrupaciones
-       WHERE is_active = TRUE
-         AND EXISTS (
-           SELECT 1
-           FROM jsonb_array_elements_text(neighborhoods) ag_nb
-           JOIN jsonb_array_elements_text($1::jsonb) pt_nb
-             ON ${nbNormSql('ag_nb')} = ${nbNormSql('pt_nb')}
-         )`,
-      [JSON.stringify(pet.neighborhoods)]
+    const allAgrupaciones = await pool.query(
+      `SELECT id, name, neighborhoods, zone_polygon FROM agrupaciones WHERE is_active = TRUE`
     );
-    if (agrupaciones.rows.length === 0) {
-      console.info(`[volunteer-notify] pet ${pet.id}: ninguna agrupación activa cubre sus barrios (${(pet.neighborhoods || []).join(', ')})`);
+
+    const matchingAgrupaciones = allAgrupaciones.rows.filter(a => {
+      const agNb = Array.isArray(a.neighborhoods) ? a.neighborhoods : [];
+      const nbMatch = neighborhoods.length > 0 && agNb.length > 0 &&
+        agNb.some(ag => neighborhoods.includes(ag));
+      if (nbMatch) return true;
+      if (hasCoords && a.zone_polygon) {
+        let ring = a.zone_polygon;
+        if (typeof ring === 'string') {
+          try { ring = JSON.parse(ring); } catch { return false; }
+        }
+        if (Array.isArray(ring) && ring.length >= 3) {
+          return pointInPolygon(pet.latitude, pet.longitude, ring);
+        }
+      }
+      return false;
+    });
+
+    if (matchingAgrupaciones.length === 0) {
+      console.info(`[volunteer-notify] pet ${pet.id}: ninguna agrupación cubre sus barrios/coordenadas`);
       return;
     }
 
-    const agrupacionIds = agrupaciones.rows.map(a => a.id);
+    const agrupacionIds = matchingAgrupaciones.map(a => a.id);
 
     const volunteers = await pool.query(
       `SELECT DISTINCT vs.user_id, vs.category, u.notification_channels, u.display_name
@@ -53,7 +66,7 @@ export async function notifyVolunteersOfNewPet(pet) {
       [agrupacionIds]
     );
     if (volunteers.rows.length === 0) {
-      console.info(`[volunteer-notify] pet ${pet.id}: no hay voluntarios activos en ${agrupaciones.rows.length} agrupaciones`);
+      console.info(`[volunteer-notify] pet ${pet.id}: no hay voluntarios activos en ${matchingAgrupaciones.length} agrupaciones`);
       return;
     }
 

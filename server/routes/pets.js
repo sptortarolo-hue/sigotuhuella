@@ -421,7 +421,7 @@ router.post('/', requireAuth, async (req, res) => {
     matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
     matchWhatsAppToPets(pet.id).catch(e => console.error('WhatsApp matching error:', e));
     matchPetToPets(pet).catch(e => console.error('Pet↔pet matching error:', e));
-    createPetCase(pet, { source: 'app_auth' });
+    createPetCase(pet, { source: 'app_auth' }).catch(e => console.error('createPetCase error:', e));
 
     const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];
     if (broadcastStatuses.includes(pet.status)) {
@@ -1779,6 +1779,7 @@ router.post('/lost-report', async (req, res) => {
           broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
         }
 
+        notifyVolunteersOfNewPet(pet).catch(e => console.error('Volunteer notify error:', e));
         notifyPetPublication(pet.id, phone).catch(e => console.error('Publication notify error:', e));
 
         res.status(201).json({ pet, registrationPending: !!registrationToken });

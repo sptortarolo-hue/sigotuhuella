@@ -1197,7 +1197,7 @@ router.post('/:id/report-lost', requireAuth, async (req, res) => {
     notifyVolunteersOfNewPet(pet).catch(e => console.error('Volunteer notify error:', e));
     broadcastPetToGroups(pet.id).catch(e => console.error('Broadcast error:', e));
     notifyPetPublication(pet.id, phone || req.user.phone || '').catch(e => console.error('Publication notify error:', e));
-    createPetCase(pet, { source: 'lost_report' });
+    createPetCase(pet, { source: 'lost_report' }).catch(e => console.error('createPetCase error:', e));
 
     res.status(201).json({ pet });
   } catch (err) {

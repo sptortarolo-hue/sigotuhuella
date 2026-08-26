@@ -1039,13 +1039,14 @@ const REPOST_WINDOW_DAYS = 5;
 router.get('/diffusion-queue', requireAuth, requireActiveVolunteer, async (req, res) => {
   try {
     const subsRes = await pool.query(
-      `SELECT DISTINCT a.neighborhoods
+      `SELECT DISTINCT a.id AS agrupacion_id, a.neighborhoods
        FROM volunteer_subscriptions vs
        JOIN agrupaciones a ON a.id = vs.agrupacion_id
        WHERE vs.user_id = $1 AND vs.status = 'active'`,
       [req.user.id]
     );
     const allNeighborhoods = [...new Set(subsRes.rows.flatMap(r => r.neighborhoods || []))];
+    const agrupacionIds = subsRes.rows.map(r => r.agrupacion_id);
 
     const emptyBuckets = { nuevos: [], repostear: [], al_dia: [], pausados: [] };
     if (allNeighborhoods.length === 0) {
