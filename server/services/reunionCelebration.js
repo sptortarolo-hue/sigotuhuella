@@ -312,7 +312,7 @@ export async function celebrateStatusChange({ petId, userId, fromStatus, toStatu
   // 8. Broadcast + relay (fire-and-forget)
   broadcastPetToGroups(petId, isRetainedToAdopted ? generateAdoptionClosureText(pet) : null).catch(e => console.error('Broadcast reunion/adoption error:', e));
   if (!isRetainedToAdopted) {
-    publishPetToGroups(petId, { isCelebration: true }).catch(e => console.error('[FB Relay] publishPetToGroups error:', e));
+    publishPetToGroups(petId, { isCelebration: true, skipPagePublish: true }).catch(e => console.error('[FB Relay] publishPetToGroups error:', e));
     enqueueFbGroupComment(pet, newsType).catch(e => console.error('[FB Relay] enqueueFbGroupComment error:', e));
   }
 

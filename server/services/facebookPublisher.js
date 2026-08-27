@@ -686,49 +686,6 @@ export async function publishPetToGroups(petId, options = {}) {
   return results;
 }
 
-export async function publishUnpublishedPetsToFacebook(limit = 5) {
-  const adoptionToggle = await getSetting('fb_adoption_broadcast_enabled');
-  const adoptionEnabled = adoptionToggle === 'true';
-
-  let statusFilter;
-  if (adoptionEnabled) {
-    statusFilter = `('lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'needs_attention', 'accidented')`;
-  } else {
-    statusFilter = `('lost', 'sighted', 'retained', 'needs_attention', 'accidented')`;
-  }
-
-  const pets = await pool.query(`
-    SELECT p.id FROM pets p
-    WHERE p.status IN ${statusFilter}
-      AND (p.is_hidden = FALSE OR p.is_hidden IS NULL)
-      AND EXISTS (SELECT 1 FROM pet_images pi WHERE pi.pet_id = p.id)
-      AND NOT EXISTS (
-        SELECT 1 FROM facebook_page_posts fpp
-        WHERE fpp.pet_id = p.id AND fpp.status = 'published'
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM instagram_posts ip
-        WHERE ip.pet_id = p.id AND ip.status IN ('queued', 'published')
-      )
-    ORDER BY p.created_at DESC
-    LIMIT $1
-  `, [limit]);
-
-  const results = [];
-  for (const row of pets.rows) {
-    try {
-      const result = await publishPetToGroups(row.id);
-      results.push({ petId: row.id, result });
-    } catch (err) {
-      results.push({ petId: row.id, result: { error: err.message } });
-    }
-  }
-  if (results.length > 0) {
-    console.log(`[FB Publisher] Standalone: published ${results.length} pets not covered by IG`);
-  }
-  return results;
-}
-
 export async function commentOnPagePost(pagePostId, message) {
   const token = await getPageToken();
   if (!token) throw new Error('Facebook Page no conectada');
