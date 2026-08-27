@@ -123,7 +123,8 @@ function detectIntent(parsed) {
     if (/face|fb\./i.test(text)) return 'report_from_fb';
     if (/humano/i.test(text)) return 'human';
     if (/s[ií]|confirmar|dale|end_yes/i.test(text)) return 'confirm';
-    if (/^no$|no |cancelar|end_no/i.test(text)) return 'cancel';
+    // Cancel solo como keyword corta explícita (un title de lista puede traer "no" dentro de una frase)
+    if (/^(no\.?|cancelar?|end_no)$/i.test(text) || /^cancelar\b/i.test(text)) return 'cancel';
     if (/saltar|skip|omitir/i.test(text)) return 'skip';
   }
   if (/perdi|perdido|perd[ií]/.test(text)) return 'report_lost';
@@ -138,7 +139,9 @@ function detectIntent(parsed) {
   if (/humano|persona|hablar/.test(text)) return 'human';
   if (/(?:numero\s+de\s+)?rifa|sorteo|quiero.*numer|participar|comprar.*numer|reserv[aeio].*\d+|dame.*\d+|quiero.*\d+/i.test(text)) return 'raffle';
   if (/s[ií]|confirmar|dale|end_yes/.test(text)) return 'confirm';
-  if (/^no$|no |cancelar|end_no/.test(text)) return 'cancel';
+  // Cancel solo como comando corto explícito: "no"/"no." solos, o "cancelar",
+  // nunca un "no " dentro de una oración larga (ej: "no está castrada, nunca tuvo crías").
+  if (/^(no\.?|cancelar?|end_no)$/i.test(text) || /^cancelar\b/.test(text)) return 'cancel';
   if (/saltar|omitir/.test(text)) return 'skip';
   return null;
 }
@@ -254,10 +257,30 @@ async function routeFlow(conv, parsed) {
     return;
   }
 
-  // Don't intercept cancel when already in end_flow or image_confirm — those flows handle it
+  // Don't intercept cancel when already in end_flow or image_confirm — those flows handle it.
+  // En pasos que esperan texto libre (descripciones, notas, nombres), un "no" dentro de la
+  // oración es contenido, no un comando (ej: "no está castrada, nunca tuvo crías").
+  // En esos pasos solo cancela un comando explícito: botón o "cancelar"/"cancel" exacto.
+  const FREE_TEXT_STEPS = new Set([
+    'report_lost.description',
+    'report_sighted.details',
+    'report_found.edit_description',
+    'adopt_post.description',
+    'human.message', 'human.name', 'human.motive',
+    'volunteer.name', 'volunteer.zone', 'volunteer.phone',
+    'register.name', 'register.email',
+    'chapita.pet_name', 'chapita.breed', 'chapita.color',
+    'raffle.name', 'raffle.numbers',
+  ]);
   if (flow !== 'menu' && flow !== 'end_flow' && !flow.startsWith('image_confirm_') && intent === 'cancel') {
-    await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
-    return endFlow(conv);
+    const isButtonCancel = parsed.buttonId === 'end_no' || parsed.buttonId === 'confirm_no' || parsed.buttonId === 'raffle_no';
+    const isExplicitCancelCmd = /^(cancelar?|end_no)$/i.test((parsed.textBody || '').trim());
+    if (FREE_TEXT_STEPS.has(flow) && !isButtonCancel && !isExplicitCancelCmd) {
+      // Texto libre protegido: se deja pasar al handler del paso (p.ej. "no" = skip descripción)
+    } else {
+      await sendMessage(conv.wa_from, `${conv.bot_name}: OK, cancelado.`);
+      return endFlow(conv);
+    }
   }
 
   // Intercept images at welcome/menu level (user sends photo as first message)
