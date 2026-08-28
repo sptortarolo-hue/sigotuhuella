@@ -353,7 +353,14 @@ router.get('/my-zone-feed', requireCoordinator, async (req, res) => {
     const fbRes = await pool.query(
       `SELECT fpp.id, fpp.pet_id, fpp.page_post_id, fpp.message, fpp.published_at,
               p.name AS pet_name, p.neighborhoods AS pet_neighborhoods,
-              p.latitude AS pet_latitude, p.longitude AS pet_longitude
+              p.latitude AS pet_latitude, p.longitude AS pet_longitude,
+              CASE
+                WHEN position('_' in fpp.page_post_id) > 0
+                  THEN 'https://www.facebook.com/' || split_part(fpp.page_post_id, '_', 1) || '/posts/' || split_part(fpp.page_post_id, '_', 2)
+                WHEN NULLIF((SELECT value FROM settings WHERE key = 'facebook_page_id'), '') IS NOT NULL
+                  THEN 'https://www.facebook.com/' || (SELECT value FROM settings WHERE key = 'facebook_page_id') || '/posts/' || fpp.page_post_id
+                ELSE 'https://www.facebook.com/' || fpp.page_post_id
+              END AS page_post_url
        FROM facebook_page_posts fpp
        JOIN pets p ON p.id = fpp.pet_id
        WHERE fpp.status = 'published' AND fpp.page_post_id IS NOT NULL AND ${zoneCond}
@@ -373,7 +380,7 @@ router.get('/my-zone-feed', requireCoordinator, async (req, res) => {
       pet_id: r.pet_id,
       pet_name: r.pet_name,
       image_url: `/api/images/pet/${r.pet_id}/cover`,
-      permalink: platform === 'instagram' ? r.ig_permalink : `https://www.facebook.com/${r.page_post_id}`,
+      permalink: platform === 'instagram' ? r.ig_permalink : (r.page_post_url || `https://www.facebook.com/${r.page_post_id}`),
       caption: r.caption || r.message || '',
       published_at: r.published_at,
       platform,

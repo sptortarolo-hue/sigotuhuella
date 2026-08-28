@@ -27,6 +27,7 @@ type Impact = {
   } | null;
   facebook?: {
     page_post_id?: string | null;
+    post_url?: string | null;
     like_count?: number;
     comment_count?: number;
     share_count?: number;
@@ -279,7 +280,7 @@ export default function CaseImpact({ caseId, impact, canReply }: { caseId: strin
             </a>
           )}
           {fb?.page_post_id && (
-            <button onClick={() => openExternalLink(buildFBPostUrl(fb.page_post_id))} className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 rounded-xl"
+            <button onClick={() => openExternalLink(fb.post_url || buildFBPostUrl(fb.page_post_id))} className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 rounded-xl"
             >
               <Facebook className="w-4 h-4" /> Ver en Facebook <ExternalLink className="w-3.5 h-3.5" />
             </button>

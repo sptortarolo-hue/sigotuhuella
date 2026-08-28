@@ -63,8 +63,8 @@ export interface Pet {
   transit_caregiver_id?: string | null;
   transit_assigned_at?: string | null;
   view_count?: number;
-  ig_impact?: { permalink: string; likes: number; comments: number; shares: number } | null;
-  fb_impact?: { post_id: string; likes: number; comments: number; shares: number } | null;
+  ig_impact?: { permalink: string; post_url?: string | null; likes: number; comments: number; shares: number } | null;
+  fb_impact?: { post_id: string; post_url?: string | null; likes: number; comments: number; shares: number } | null;
   case_number?: string | null;
   case_vigencia?: { status: string | null; expired: boolean; days_left: number | null } | null;
 }

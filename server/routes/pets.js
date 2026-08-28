@@ -86,7 +86,16 @@ router.get('/', async (req, res) => {
         (SELECT json_build_object('permalink', ip.ig_permalink, 'likes', ip.like_count, 'comments', ip.comment_count, 'shares', ip.share_count)
          FROM instagram_posts ip WHERE ip.pet_id = p.id AND ip.status = 'published' AND ip.is_celebration = FALSE
          ORDER BY ip.published_at DESC NULLS LAST LIMIT 1) as ig_impact,
-        (SELECT json_build_object('post_id', fp.page_post_id, 'likes', fp.like_count, 'comments', fp.comment_count, 'shares', fp.share_count)
+        (SELECT json_build_object('post_id', fp.page_post_id,
+          'post_url',
+          CASE
+            WHEN position('_' in fp.page_post_id) > 0
+              THEN 'https://www.facebook.com/' || split_part(fp.page_post_id, '_', 1) || '/posts/' || split_part(fp.page_post_id, '_', 2)
+            WHEN NULLIF((SELECT value FROM settings WHERE key = 'facebook_page_id'), '') IS NOT NULL
+              THEN 'https://www.facebook.com/' || (SELECT value FROM settings WHERE key = 'facebook_page_id') || '/posts/' || fp.page_post_id
+            ELSE 'https://www.facebook.com/' || fp.page_post_id
+          END,
+          'likes', fp.like_count, 'comments', fp.comment_count, 'shares', fp.share_count)
          FROM facebook_page_posts fp WHERE fp.pet_id = p.id AND fp.status = 'published' AND fp.is_celebration = FALSE
          ORDER BY fp.published_at DESC NULLS LAST LIMIT 1) as fb_impact,
         (SELECT json_build_object('status', pc.status,
@@ -150,7 +159,16 @@ router.get('/admin-list', requireCoordinator, async (req, res) => {
         (SELECT json_build_object('permalink', ip.ig_permalink, 'likes', ip.like_count, 'comments', ip.comment_count, 'shares', ip.share_count)
          FROM instagram_posts ip WHERE ip.pet_id = p.id AND ip.status = 'published' AND ip.is_celebration = FALSE
          ORDER BY ip.published_at DESC NULLS LAST LIMIT 1) as ig_impact,
-        (SELECT json_build_object('post_id', fp.page_post_id, 'likes', fp.like_count, 'comments', fp.comment_count, 'shares', fp.share_count)
+        (SELECT json_build_object('post_id', fp.page_post_id,
+          'post_url',
+          CASE
+            WHEN position('_' in fp.page_post_id) > 0
+              THEN 'https://www.facebook.com/' || split_part(fp.page_post_id, '_', 1) || '/posts/' || split_part(fp.page_post_id, '_', 2)
+            WHEN NULLIF((SELECT value FROM settings WHERE key = 'facebook_page_id'), '') IS NOT NULL
+              THEN 'https://www.facebook.com/' || (SELECT value FROM settings WHERE key = 'facebook_page_id') || '/posts/' || fp.page_post_id
+            ELSE 'https://www.facebook.com/' || fp.page_post_id
+          END,
+          'likes', fp.like_count, 'comments', fp.comment_count, 'shares', fp.share_count)
          FROM facebook_page_posts fp WHERE fp.pet_id = p.id AND fp.status = 'published' AND fp.is_celebration = FALSE
          ORDER BY fp.published_at DESC NULLS LAST LIMIT 1) as fb_impact,
         (SELECT json_build_object('status', pc.status,

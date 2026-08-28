@@ -249,7 +249,7 @@ export default function PetCard({ pet, showAdminActions, onEdit, onDelete }: Pet
                   </a>
                 )}
                 {pet.fb_impact?.post_id && (
-                  <button onClick={(e) => { e.stopPropagation(); openExternalLink(buildFBPostUrl(pet.fb_impact.post_id)); }}
+                  <button onClick={(e) => { e.stopPropagation(); openExternalLink(pet.fb_impact.post_url || buildFBPostUrl(pet.fb_impact.post_id)); }}
                     className="flex items-center justify-center gap-2 px-3 py-2 text-xs sm:text-sm font-bold text-white bg-blue-600 rounded-xl">
                     <Facebook className="w-4 h-4" /> Ver en Facebook <ExternalLink className="w-3 h-3" />
                   </button>

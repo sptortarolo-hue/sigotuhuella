@@ -146,7 +146,7 @@ export async function publishToPage(petId, instagramPostId) {
         },
         timeout: 30000,
       });
-      const postId = data.id;
+      const postId = data.id.includes('_') ? data.id : `${pageId}_${data.id}`;
       return { success: true, pagePostId: postId, type: 'photo', pageId };
     }
 
@@ -178,7 +178,8 @@ export async function publishToPage(petId, instagramPostId) {
       timeout: 30000,
     });
     console.log(`[FB Publisher] Post publicado con ${stagedMedia.length} foto(s), id=${data.id}`);
-    return { success: true, pagePostId: data.id, type: 'feed', pageId };
+    const feedPostId = data.id.includes('_') ? data.id : `${pageId}_${data.id}`;
+    return { success: true, pagePostId: feedPostId, type: 'feed', pageId };
   } catch (err) {
     const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
     return { error: `Error al publicar en Page: ${detail}` };
@@ -434,7 +435,7 @@ export async function replicateInstagramToFacebook(instagramPostId) {
     await recordPublicationEvent(post.pet_id, 'facebook_published', {
       page_post_id: pagePostId || null,
       page_post_url: pagePostId && pageResult.pageId
-        ? `https://www.facebook.com/${pageResult.pageId}/posts/${pagePostId}`
+        ? `https://www.facebook.com/${pageResult.pageId}/posts/${pagePostId.includes('_') ? pagePostId.split('_')[1] : pagePostId}`
         : null,
       group_post_ids: groupPostIds,
     }).catch(e => console.error(`[FB Publisher] replicate recordPublicationEvent error: ${e.message}`));
@@ -597,7 +598,8 @@ export async function publishPetToGroups(petId, options = {}) {
     results.page = pageResult;
 
     if (pageResult.pagePostId && pageResult.pageId) {
-      pagePostUrl = `https://www.facebook.com/${pageResult.pageId}/posts/${pageResult.pagePostId}`;
+      const cleanPostId = pageResult.pagePostId.includes('_') ? pageResult.pagePostId.split('_')[1] : pageResult.pagePostId;
+      pagePostUrl = `https://www.facebook.com/${pageResult.pageId}/posts/${cleanPostId}`;
     }
   }
 

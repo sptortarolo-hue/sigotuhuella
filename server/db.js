@@ -494,6 +494,21 @@ ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS reach INT DEFAULT 0;
 ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS metrics_updated_at TIMESTAMP;
 ALTER TABLE facebook_page_posts ADD COLUMN IF NOT EXISTS is_celebration BOOLEAN DEFAULT FALSE;
 
+-- Sembrar facebook_page_id desde un page_post_id scoped existente si el setting está vacío.
+-- Corre en cada boot; ON CONFLICT DO NOTHING no aplica a UPDATE, así que se protege con WHERE.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM settings WHERE key = 'facebook_page_id' AND value <> '') THEN
+    INSERT INTO settings (key, value)
+    SELECT 'facebook_page_id', split_part(page_post_id, '_', 1)
+    FROM facebook_page_posts
+    WHERE page_post_id LIKE '%\_%'
+    ORDER BY published_at DESC NULLS LAST
+    LIMIT 1
+    ON CONFLICT (key) DO NOTHING;
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS instagram_posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pet_id UUID REFERENCES pets(id) ON DELETE SET NULL,

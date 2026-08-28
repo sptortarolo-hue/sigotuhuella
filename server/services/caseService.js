@@ -278,7 +278,15 @@ export async function getCaseImpact(caseId, petId) {
       [petId]
     ),
     pool.query(
-      `SELECT fp.page_post_id, fp.like_count, fp.comment_count, fp.share_count, fp.reach,
+      `SELECT fp.page_post_id,
+              CASE
+                WHEN position('_' in fp.page_post_id) > 0
+                  THEN 'https://www.facebook.com/' || split_part(fp.page_post_id, '_', 1) || '/posts/' || split_part(fp.page_post_id, '_', 2)
+                WHEN NULLIF((SELECT value FROM settings WHERE key = 'facebook_page_id'), '') IS NOT NULL
+                  THEN 'https://www.facebook.com/' || (SELECT value FROM settings WHERE key = 'facebook_page_id') || '/posts/' || fp.page_post_id
+                ELSE 'https://www.facebook.com/' || fp.page_post_id
+              END AS post_url,
+              fp.like_count, fp.comment_count, fp.share_count, fp.reach,
               fp.metrics_updated_at, fp.message
        FROM facebook_page_posts fp
        WHERE fp.pet_id = $1 AND fp.status = 'published' AND fp.is_celebration = FALSE
@@ -366,6 +374,7 @@ export async function getCaseImpact(caseId, petId) {
     facebook: fb
       ? {
           page_post_id: fb.page_post_id,
+          post_url: fb.post_url,
           like_count: fb.like_count,
           comment_count: fb.comment_count,
           share_count: fb.share_count,
