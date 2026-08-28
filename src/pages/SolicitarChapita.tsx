@@ -674,7 +674,7 @@ hover:border-brand-primary bg-brand-bg flex items-center justify-center overflow
           </div>
 
           <div className="border-t border-brand-accent pt-8">
-            {['own', 'foster', 'adoption'].includes(pet.pet_type) && (
+            {['foster', 'adoption'].includes(pet.pet_type) && (
               <>
                 <div className="mb-6 p-4 bg-amber-50 rounded-2xl border border-amber-200">
                   <label className="flex items-start gap-3 cursor-pointer">
