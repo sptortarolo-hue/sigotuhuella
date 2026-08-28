@@ -5,51 +5,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { notifyUser } from '../services/notificationService.js';
 import { enqueue } from '../services/phoneRelayService.js';
 import { normalizePhone } from '../services/phoneUtils.js';
+import { transferToAdopter } from '../services/adoptionTransfer.js';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sigotuhuella.com.ar';
 
 const router = Router();
-
-async function transferToAdopter(client, assignment, adopterUserId) {
-  let inheritedQrRequested = false;
-  if (assignment.my_pet_id) {
-    const origRes = await client.query(
-      'SELECT qr_requested FROM my_pets WHERE id = $1',
-      [assignment.my_pet_id]
-    );
-    inheritedQrRequested = !!(origRes.rows[0]?.qr_requested);
-  }
-  const myPetResult = await client.query(
-    `INSERT INTO my_pets (user_id, name, species, breed, color, gender, qr_requested)
-     VALUES ($1, $2, $3, $4, $5, 'unknown', $6)
-     RETURNING *`,
-    [adopterUserId, assignment.pet_name, assignment.species, assignment.breed || null, assignment.color || null, inheritedQrRequested]
-  );
-  const myPet = myPetResult.rows[0];
-  if (assignment.qr_id) {
-    // Desvincular el QR de cualquier dueño anterior antes de transferirlo
-    await client.query(
-      'UPDATE my_pets SET qr_id = NULL WHERE qr_id = $1',
-      [assignment.qr_id]
-    );
-    await client.query(
-      'UPDATE qr_identifiers SET my_pet_id = $1, assigned_at = NOW() WHERE id = $2',
-      [myPet.id, assignment.qr_id]
-    );
-    await client.query(
-      'UPDATE my_pets SET qr_id = $1 WHERE id = $2',
-      [assignment.qr_id, myPet.id]
-    );
-  }
-  // La solicitud de chapita pendiente ahora pertenece a la mascota del adoptante
-  if (assignment.my_pet_id) {
-    await client.query(
-      'UPDATE my_pets SET qr_requested = false, transferred_at = NOW() WHERE id = $1 AND transferred_at IS NULL',
-      [assignment.my_pet_id]
-    );
-  }
-  return myPet;
-}
 
 router.post('/return/:token', requireAuth, async (req, res) => {
   const client = await pool.connect();
@@ -253,8 +213,8 @@ router.post('/confirm/:token', requireAuth, async (req, res) => {
       );
     }
 
-    // La mascota ya no es del dueño anterior: ocultarla de su portal
-    if (assignment.my_pet_id) {
+    // Sin cuenta del adoptante: ocultar la mascota del portal del dueño anterior
+    if (assignment.my_pet_id && !adopter) {
       await client.query(
         'UPDATE my_pets SET transferred_at = NOW() WHERE id = $1 AND transferred_at IS NULL',
         [assignment.my_pet_id]

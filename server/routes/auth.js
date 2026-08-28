@@ -4,6 +4,7 @@ import { generateToken, hashPassword, comparePassword, requireAuth, sendPassword
 import crypto from 'crypto';
 import { sendPushToAdmins } from '../services/pushService.js';
 import { notifyUser } from '../services/notificationService.js';
+import { transferToAdopter } from '../services/adoptionTransfer.js';
 import { OAuth2Client } from 'google-auth-library';
 
 const router = Router();
@@ -67,35 +68,7 @@ router.post('/register', async (req, res) => {
         [email, normalizedPhone]
       );
       for (const ass of pendingAdoptions.rows) {
-        let inheritedQrRequested = false;
-        if (ass.my_pet_id) {
-          const origRes = await pool.query(
-            'SELECT qr_requested FROM my_pets WHERE id = $1',
-            [ass.my_pet_id]
-          );
-          inheritedQrRequested = !!(origRes.rows[0]?.qr_requested);
-        }
-        const myPetResult = await pool.query(
-          `INSERT INTO my_pets (user_id, name, species, breed, color, gender, qr_requested)
-           VALUES ($1, $2, $3, $4, $5, 'unknown', $6)
-           RETURNING *`,
-          [user.id, ass.pet_name, ass.species, ass.breed || null, ass.color || null, inheritedQrRequested]
-        );
-        const myPetId = myPetResult.rows[0].id;
-
-        if (ass.qr_id) {
-          await pool.query('UPDATE my_pets SET qr_id = NULL WHERE qr_id = $1', [ass.qr_id]);
-          await pool.query('UPDATE qr_identifiers SET my_pet_id = $1, assigned_at = NOW() WHERE id = $2', [myPetId, ass.qr_id]);
-          await pool.query('UPDATE my_pets SET qr_id = $1 WHERE id = $2', [ass.qr_id, myPetId]);
-        }
-
-        // La solicitud de chapita pendiente ahora pertenece a la mascota del adoptante
-        if (ass.my_pet_id) {
-          await pool.query(
-            'UPDATE my_pets SET qr_requested = false, transferred_at = NOW() WHERE id = $1 AND transferred_at IS NULL',
-            [ass.my_pet_id]
-          );
-        }
+        const myPet = await transferToAdopter(pool, ass, user.id);
 
         await pool.query(
           `UPDATE adoption_assignments SET status = 'completed', adopter_id = $1, completed_at = NOW() WHERE id = $2`,

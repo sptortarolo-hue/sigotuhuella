@@ -1597,6 +1597,48 @@ export async function initDb() {
         )
     `, 'my_pets backfill transferred_at para adopciones completadas');
 
+    // ─── Fix: pets duplicados por requestChapita (created_by distinto) ──
+    // requestChapita buscaba la fila pública existente por (my_pet_id, created_by).
+    // Si la fila original la creó otra persona, no la encontraba y creaba una
+    // NUEVA fila pets (sin fotos/historial), dejando el adoption_assignment
+    // apuntando al duplicado. Repuntamos el assignment a la fila original
+    // (la que tiene más pet_images) y borramos el duplicado. El token no cambia,
+    // así el link de reclamación ya enviado sigue funcionando.
+    await migrate(client, `
+      DO $$
+      DECLARE
+        r RECORD;
+        orig UUID;
+      BEGIN
+        FOR r IN
+          SELECT aa.id AS assign_id, aa.pet_id AS dup_pet_id, pd.my_pet_id AS gid
+          FROM adoption_assignments aa
+          JOIN pets pd ON pd.id = aa.pet_id
+          WHERE (aa.status = 'pending_adopter' OR (aa.status = 'completed' AND aa.adopter_id IS NULL))
+            AND pd.my_pet_id IS NOT NULL
+        LOOP
+          SELECT p3.id INTO orig
+          FROM pets p3
+          LEFT JOIN LATERAL (
+            SELECT COUNT(*) AS c FROM pet_images pi WHERE pi.pet_id = p3.id
+          ) im ON TRUE
+          WHERE p3.my_pet_id = r.gid
+          ORDER BY im.c DESC, p3.created_at ASC
+          LIMIT 1;
+
+          IF orig IS NOT NULL AND orig <> r.dup_pet_id THEN
+            UPDATE adoption_assignments SET pet_id = orig WHERE id = r.assign_id;
+            UPDATE pets SET status = 'for_adoption', adoption_assignment_id = r.assign_id,
+              transit_caregiver_id = NULL, transit_assigned_at = NULL,
+              transit_caregiver_name = NULL, transit_caregiver_phone = NULL,
+              transit_caregiver_email = NULL, updated_at = NOW()
+              WHERE id = orig;
+            DELETE FROM pets WHERE id = r.dup_pet_id;
+          END IF;
+        END LOOP;
+      END $$;
+    `, 'fix pets duplicados requestChapita: reapuntar assignment + borrar duplicado');
+
     // Fix: mark tickets as paid if receipt is already confirmed (admin manual assign bug)
     await migrate(client, `
       UPDATE raffle_tickets t

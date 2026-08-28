@@ -124,9 +124,10 @@ router.post('/', async (req, res) => {
           `SELECT p.*, aa.status as assignment_status
            FROM pets p
            LEFT JOIN adoption_assignments aa ON aa.pet_id = p.id AND aa.status = 'pending_adopter'
-           WHERE p.my_pet_id = $1 AND p.created_by = $2
+           WHERE p.my_pet_id = $1
+           ORDER BY p.created_at ASC
            LIMIT 1`,
-          [my_pet_id, userId]
+          [my_pet_id]
         );
         const existing = existingRes.rows[0];
         if (existing) {
@@ -139,7 +140,10 @@ router.post('/', async (req, res) => {
             `UPDATE pets SET name=$1, species=$2, breed=$3, color=$4, gender=$5,
                status='for_adoption', description=$6, location=$7,
                is_vaccinated=$8, is_sterilized=$9, is_dewormed=$10,
-               contact_info=$11, adoption_assignment_id=NULL, updated_at=NOW()
+               contact_info=$11, adoption_assignment_id=NULL,
+               transit_caregiver_id=NULL, transit_assigned_at=NULL,
+               transit_caregiver_name=NULL, transit_caregiver_phone=NULL,
+               transit_caregiver_email=NULL, updated_at=NOW()
              WHERE id=$12 RETURNING *`,
             [pet.name, pet.species, pet.breed || null, pet.color || null, pet.gender || 'unknown',
              pet.bio || null, pet.location || '', pet.is_vaccinated || false, pet.is_sterilized || false,
