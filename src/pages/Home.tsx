@@ -127,6 +127,20 @@ export default function Home() {
               ¿Cómo funciona la adopción? Ver la guía paso a paso →
             </Link>
 
+            <Link to="/buscar"
+              className="mt-4 w-full bg-white border border-brand-secondary/40 rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-3 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-secondary/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                  <Search className="w-5 h-5 text-brand-secondary" />
+                </div>
+                <div className="text-left">
+                  <div className="font-bold text-brand-primary text-sm">Buscador de perros y gatos</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Filtrá por especie, raza, tamaño, color y más.</div>
+                </div>
+              </div>
+              <span className="shrink-0 text-brand-secondary font-bold text-sm group-hover:translate-x-1 transition-transform">→</span>
+            </Link>
+
             <Link to="/colaborar"
               className="w-full bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border border-brand-secondary/30 rounded-2xl p-4 sm:p-5 md:p-6 mt-6 md:mt-8 flex items-center gap-4 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-brand-primary to-brand-secondary/80 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">

@@ -175,6 +175,15 @@ export const api = {
       if (limit) params.set('limit', String(limit));
       return request(`/pets?${params.toString()}`);
     },
+    search: (filters: Record<string, string>) => {
+      const params = new URLSearchParams();
+      for (const [k, v] of Object.entries(filters)) {
+        if (v && v !== 'all') params.set(k, v);
+      }
+      params.set('lite', '1');
+      return request(`/pets?${params.toString()}`);
+    },
+    taxonomy: () => request('/pets/taxonomy'),
     ownerData: (id: string) => request(`/pets/${id}/owner-data`),
     records: {
       list: (petId: string) => request(`/pets/${petId}/records`),

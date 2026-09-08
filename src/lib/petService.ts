@@ -147,6 +147,39 @@ export const getPets = async (status?: PetStatus, includeHidden?: boolean): Prom
   return data.pets || [];
 };
 
+export interface PetTaxonomy {
+  breeds: { dog: string[]; cat: string[]; other: string[] };
+  sizes: string[];
+  colors: string[];
+  coat_lengths: string[];
+  age_groups: string[];
+}
+
+export const getPetTaxonomy = async (): Promise<PetTaxonomy> => {
+  const data = await api.pets.taxonomy();
+  return {
+    breeds: { dog: data.breeds?.dog || [], cat: data.breeds?.cat || [], other: data.breeds?.other || [] },
+    sizes: data.sizes || [],
+    colors: data.colors || [],
+    coat_lengths: data.coat_lengths || [],
+    age_groups: data.age_groups || [],
+  };
+};
+
+export interface PetSearchFilters {
+  species?: string;
+  breed?: string;
+  size?: string;
+  color?: string;
+  age_group?: string;
+  coat?: string;
+}
+
+export const searchPets = async (filters: PetSearchFilters): Promise<Pet[]> => {
+  const data = await api.pets.search(filters as Record<string, string>);
+  return data.pets || [];
+};
+
 export const createPet = async (petData: any): Promise<any> => {
   const data = await api.pets.create(petData);
   return data.pet;

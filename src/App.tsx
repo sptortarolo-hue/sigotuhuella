@@ -48,6 +48,7 @@ const ManualChapita = lazy(() => import('@/src/pages/ManualChapita'));
 const VerifyEmail = lazy(() => import('@/src/pages/VerifyEmail'));
 const FlyerPage = lazy(() => import('@/src/pages/FlyerPage'));
 const MyCases = lazy(() => import('@/src/pages/MyCases'));
+const BuscarMascotas = lazy(() => import('@/src/pages/BuscarMascotas'));
 const VolunteerDashboard = lazy(() => import('@/src/pages/VolunteerDashboard'));
 const NotificationCenter = lazy(() => import('@/src/components/NotificationCenter'));
 const IS_PLAY_BUILD = import.meta.env.VITE_PLAY_BUILD === 'true';
@@ -106,6 +107,7 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/perdidos" element={<PetGallery type="lost" />} />
               <Route path="/adopcion" element={<PetGallery type="adoption" />} />
+              <Route path="/buscar" element={<BuscarMascotas />} />
               <Route path="/pet/:id" element={<PetDetail />} />
               <Route path="/novedades" element={<Novedades />} />
               <Route path="/novedad/:id" element={<NovedadDetail />} />
