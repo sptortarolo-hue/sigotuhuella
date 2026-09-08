@@ -14,6 +14,7 @@ import { sendPushToAdmins } from '../services/pushService.js';
 import sharp from 'sharp';
 import { replyToComment } from '../services/instagramService.js';
 import { addPetHistory, awardBadgeIfMissing } from '../services/reunionCelebration.js';
+import { applyPetTaxonomy, getTaxonomy } from '../services/taxonomy.js';
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
@@ -72,7 +73,7 @@ const router = Router();
 
 router.get('/', async (req, res) => {
   try {
-    const { status, isPublic, limit, include_hidden } = req.query;
+    const { status, isPublic, limit, include_hidden, species, breed, size, color, age_group, coat } = req.query;
     const lite = req.query.lite !== '0';
     const imageFields = lite
       ? `json_build_object('id', pi.id, 'has_image', pi.image_data IS NOT NULL, 'mime_type', pi.mime_type, 'external_url', pi.external_url)`
@@ -114,6 +115,22 @@ router.get('/', async (req, res) => {
       params.push(status);
       conditions.push(`p.status = $${params.length}`);
     }
+    // Filtros facetados del buscador (especie, raza, tamaño, color, edad, pelo)
+    const facetFilters = {
+      species: 'p.species',
+      breed: 'p.breed_normalized',
+      size: 'p.size_normalized',
+      color: 'p.color_normalized',
+      age_group: 'p.age_group',
+      coat: 'p.coat_length',
+    };
+    for (const [key, col] of Object.entries(facetFilters)) {
+      const value = req.query[key];
+      if (value && value !== 'all') {
+        params.push(value);
+        conditions.push(`${col} = $${params.length}`);
+      }
+    }
     if (include_hidden !== 'true') {
       conditions.push(`(p.is_hidden = FALSE OR p.is_hidden IS NULL)`);
       conditions.push(`p.group_id IS NULL`);
@@ -144,7 +161,7 @@ router.get('/', async (req, res) => {
 // ── Admin/Coordinator: mascotas scoped por barrios ────────────────────────
 router.get('/admin-list', requireCoordinator, async (req, res) => {
   try {
-    const { status, include_hidden, limit } = req.query;
+    const { status, include_hidden, limit, species, breed, size, color, age_group, coat } = req.query;
     const lite = req.query.lite !== '0';
     const imageFields = lite
       ? `json_build_object('id', pi.id, 'has_image', pi.image_data IS NOT NULL, 'mime_type', pi.mime_type, 'external_url', pi.external_url)`
@@ -199,6 +216,22 @@ router.get('/admin-list', requireCoordinator, async (req, res) => {
       params.push(status);
       conditions.push(`p.status = $${params.length}`);
     }
+    // Filtros facetados del buscador (especie, raza, tamaño, color, edad, pelo)
+    const facetFilters = {
+      species: 'p.species',
+      breed: 'p.breed_normalized',
+      size: 'p.size_normalized',
+      color: 'p.color_normalized',
+      age_group: 'p.age_group',
+      coat: 'p.coat_length',
+    };
+    for (const [key, col] of Object.entries(facetFilters)) {
+      const value = req.query[key];
+      if (value && value !== 'all') {
+        params.push(value);
+        conditions.push(`${col} = $${params.length}`);
+      }
+    }
     if (include_hidden !== 'true') {
       conditions.push(`(p.is_hidden = FALSE OR p.is_hidden IS NULL)`);
       conditions.push(`p.group_id IS NULL`);
@@ -220,6 +253,17 @@ router.get('/admin-list', requireCoordinator, async (req, res) => {
   } catch (err) {
     console.error('Admin list pets error:', err);
     res.status(500).json({ error: 'Failed to fetch pets' });
+  }
+});
+
+// ── Taxonomía para el buscador perros/gatos ─────────────────────────────
+router.get('/taxonomy', async (_req, res) => {
+  try {
+    const taxonomy = await getTaxonomy();
+    res.json(taxonomy);
+  } catch (err) {
+    console.error('Get taxonomy error:', err);
+    res.status(500).json({ error: 'Failed to fetch taxonomy' });
   }
 });
 
@@ -439,6 +483,7 @@ router.post('/', requireAuth, async (req, res) => {
     matchPetToPosts(pet).catch(err => console.error('Matching FB error:', err));
     matchWhatsAppToPets(pet.id).catch(e => console.error('WhatsApp matching error:', e));
     matchPetToPets(pet).catch(e => console.error('Pet↔pet matching error:', e));
+    applyPetTaxonomy(pet.id).catch(e => console.error('Taxonomy normalize error:', e));
     createPetCase(pet, { source: 'app_auth' }).catch(e => console.error('createPetCase error:', e));
 
     const broadcastStatuses = ['lost', 'for_adoption', 'for_adoption_simple', 'sighted', 'retained', 'accidented', 'needs_attention', 'transitada'];
@@ -563,6 +608,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       GROUP BY p.id`,
       [petId]
     );
+    applyPetTaxonomy(petId).catch(e => console.error('Taxonomy normalize error:', e));
     res.json({ pet: updated.rows[0] });
   } catch (err) {
     console.error('Update pet error:', err);

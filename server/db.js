@@ -719,6 +719,95 @@ CREATE TABLE IF NOT EXISTS pet_history (
   created_at TIMESTAMP DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_pet_history_pet ON pet_history(pet_id, created_at);
+
+-- ── Taxonomía para el buscador perros/gatos ─────────────────────────────
+CREATE TABLE IF NOT EXISTS breeds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  species VARCHAR(20) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  aliases TEXT[] DEFAULT '{}',
+  UNIQUE (species, name)
+);
+CREATE TABLE IF NOT EXISTS pet_sizes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(30) NOT NULL UNIQUE
+);
+CREATE TABLE IF NOT EXISTS pet_colors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(30) NOT NULL UNIQUE
+);
+CREATE TABLE IF NOT EXISTS pet_coat_lengths (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(30) NOT NULL UNIQUE
+);
+CREATE TABLE IF NOT EXISTS pet_age_groups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(30) NOT NULL UNIQUE
+);
+
+INSERT INTO pet_sizes (name) VALUES
+  ('pequeño'), ('mediano'), ('grande'), ('desconocido')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO pet_coat_lengths (name) VALUES
+  ('corto'), ('medio'), ('largo'), ('desconocido')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO pet_age_groups (name) VALUES
+  ('cachorro'), ('adulto'), ('senior'), ('desconocido')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO pet_colors (name) VALUES
+  ('negro'), ('blanco'), ('marrón'), ('gris'), ('dorado'), ('crema'),
+  ('atigrado'), ('bicolor'), ('tricolor'), ('naranja'), ('manchado'), ('desconocido')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO breeds (species, name, aliases) VALUES
+  ('dog', 'Mestizo', ARRAY['mestizo','criollo','cruza','mix','mezcla','callejero','sin raza']),
+  ('dog', 'Desconocido', ARRAY['desconocido','no se','desconozco','no se sabe']),
+  ('dog', 'Labrador Retriever', ARRAY['labrador','labrador retriever','lab']),
+  ('dog', 'Golden Retriever', ARRAY['golden','golden retriever']),
+  ('dog', 'Pastor Alemán', ARRAY['pastor aleman','ovejero','pastor','aleman']),
+  ('dog', 'Bulldog', ARRAY['bulldog','bulldog frances','bulldog ingles','french bulldog']),
+  ('dog', 'Poodle', ARRAY['poodle','caniche','poodle toy']),
+  ('dog', 'Beagle', ARRAY['beagle']),
+  ('dog', 'Rottweiler', ARRAY['rottweiler','rotweiler','rochi']),
+  ('dog', 'Yorkshire Terrier', ARRAY['yorkshire','yorkshire terrier','yorki']),
+  ('dog', 'Dachshund', ARRAY['dachshund','salchicha','teckel','perro salchicha']),
+  ('dog', 'Husky Siberiano', ARRAY['husky','husky siberiano']),
+  ('dog', 'Doberman', ARRAY['doberman','dobermann']),
+  ('dog', 'Shih Tzu', ARRAY['shih tzu','shitzu','chitzu']),
+  ('dog', 'Pitbull', ARRAY['pitbull','pit bull','american bully','bully','pitti']),
+  ('dog', 'Border Collie', ARRAY['border collie','collie']),
+  ('dog', 'Cocker', ARRAY['cocker','cocker spaniel','cocker ingles','cocker americano']),
+  ('dog', 'Bóxer', ARRAY['boxer','boxer aleman']),
+  ('dog', 'Dogo', ARRAY['dogo','dogo argentino']),
+  ('dog', 'Galgo', ARRAY['galgo','galgo espanol','galga']),
+  ('dog', 'Otro', ARRAY['otro','otra raza','sin especificar']),
+  ('cat', 'Mestizo', ARRAY['mestizo','criollo','cruza','mix','mezcla','callejero','comun europeo','sin raza']),
+  ('cat', 'Desconocido', ARRAY['desconocido','no se','desconozco','no se sabe']),
+  ('cat', 'Siames', ARRAY['siames','siamese','siamés']),
+  ('cat', 'Persa', ARRAY['persa','persian']),
+  ('cat', 'Maine Coon', ARRAY['maine coon','maine']),
+  ('cat', 'Bengala', ARRAY['bengala','bengali','bengal']),
+  ('cat', 'British Shorthair', ARRAY['british shorthair','british','britanico']),
+  ('cat', 'Sphynx', ARRAY['sphynx','esfinge']),
+  ('cat', 'Fold Escocés', ARRAY['fold escoces','scottish fold','fold']),
+  ('cat', 'Otro', ARRAY['otro','otra raza','sin especificar'])
+ON CONFLICT (species, name) DO NOTHING;
+
+-- Columnas normalizadas (aditivas) para buscador y matching
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS animal_species VARCHAR(50);
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS animal_confidence REAL;
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS breed_normalized VARCHAR(100);
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS color_normalized VARCHAR(30);
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS size_normalized VARCHAR(20);
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS coat_length VARCHAR(20);
+ALTER TABLE pets ADD COLUMN IF NOT EXISTS age_group VARCHAR(20);
+CREATE INDEX IF NOT EXISTS idx_pets_animal_species ON pets(animal_species);
+CREATE INDEX IF NOT EXISTS idx_pets_breed_normalized ON pets(breed_normalized);
+CREATE INDEX IF NOT EXISTS idx_pets_size_normalized ON pets(size_normalized);
+CREATE INDEX IF NOT EXISTS idx_pets_color_normalized ON pets(color_normalized);
 `;
 
 async function migrate(client, sql, label) {
