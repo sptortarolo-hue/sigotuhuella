@@ -532,6 +532,7 @@ ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS metrics_updated_at TIMESTAM
 ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS embed_html TEXT;
 ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS retry_count INT DEFAULT 0;
 ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS is_celebration BOOLEAN DEFAULT FALSE;
+ALTER TABLE instagram_posts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
 
 CREATE TABLE IF NOT EXISTS instagram_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
