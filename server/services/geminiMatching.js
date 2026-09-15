@@ -303,7 +303,7 @@ export async function classifyTextIntent(text) {
   }
 }
 
-const PROCESS_IMAGE_CAPTION_PROMPT = `Analizá el siguiente mensaje de WhatsApp sobre una mascota y determiná:
+const PROCESS_IMAGE_CAPTION_PROMPT = `Analizá el siguiente mensaje de WhatsApp sobre una mascota y determiná. Respondé SIEMPRE en español rioplatense.
 
 1. INTENCIÓN: si la persona:
    - "found": encontró una mascota
@@ -318,23 +318,35 @@ const PROCESS_IMAGE_CAPTION_PROMPT = `Analizá el siguiente mensaje de WhatsApp 
    - color: ej "negro", "blanco y marrón", null
    - nombre: si se ve una chapita con nombre, null si no
    - ubicación: barrio, ciudad, dirección, punto de referencia
-    - teléfono de contacto (phone): solo números, sin + ni guiones, ej 2215551234
-    - teléfono secundario (phone2): si hay OTRO número de contacto distinto en el mismo mensaje/imagen, solo números, ej 2215555678. Si solo hay un número, poner null
-    - descripción: tamaño, estado físico, señas particulares
+   - teléfono de contacto (phone): solo números, sin +, espacios ni guiones. IMPORTANTE: NUNCA inventes números de teléfono. Extraé un número SOLO si está escrito en el texto del mensaje o visible en la imagen (por ejemplo en un cartel, volante o tarjeta). Si no hay ningún teléfono, pon null.
+   - teléfono secundario (phone2): si hay OTRO número de contacto distinto en el mismo mensaje/imagen, solo números. Si solo hay un número, pon null. Aplican las mismas reglas de no inventar.
+   - descripción: tamaño, estado físico, señas particulares. Escribila en español.
+
+Los campos de texto libre (breed, color, location, description) deben escribirse en ESPAÑOL rioplatense.
 
 Respondé SOLO un JSON:
 {
   "intent": "found" | "lost" | "sighted" | "unclear",
   "species": "dog" | "cat" | "other" | null,
   "gender": "male" | "female" | null,
-  "breed": "texto" | null,
-  "color": "texto" | null,
+  "breed": "texto en español" | null,
+  "color": "texto en español" | null,
   "name": "texto" | null,
-  "location": "texto" | null,
-  "phone": "texto solo números" | null,
-  "phone2": "texto solo números" | null,
-  "description": "texto" | null
+  "location": "texto en español" | null,
+  "phone": "solo dígitos" | null,
+  "phone2": "solo dígitos" | null,
+  "description": "texto en español" | null
 }`;
+
+// Normaliza y valida un teléfono extraído por IA. Devuelve solo dígitos si es plausible (7-14 dígitos),
+// o null si el valor es inválido / no parece un número de contacto real.
+function sanitizePhone(value) {
+  if (!value) return null;
+  const digits = String(value).replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 14) return null;
+  if (/^(\d)\1{6,}$/.test(digits)) return null; // repetido (1111111) improbable
+  return digits;
+}
 
 export async function processImageCaption(caption, imageData, imageMime) {
   if (!caption && !imageData) {
@@ -367,8 +379,8 @@ export async function processImageCaption(caption, imageData, imageMime) {
       color: parsed.color || null,
       name: parsed.name || null,
       location: parsed.location || null,
-      phone: parsed.phone || null,
-      phone2: parsed.phone2 || null,
+      phone: sanitizePhone(parsed.phone),
+      phone2: sanitizePhone(parsed.phone2),
       description: parsed.description || null,
     };
   } catch (err) {
@@ -380,7 +392,7 @@ export async function processImageCaption(caption, imageData, imageMime) {
       else if (/encontr[eé]|encontrada|hall[ae]|rescata[dr]|recog[ií]|lo?[s]? encontr[eé]/.test(lower)) intent = 'found';
       else if (/avist[ae]?|vist[ao]?|l[oae] vi\b|la vi\b|lo vi\b|vi a\b|and[aaiu] suelto?|and[aaiu] perdid/.test(lower)) intent = 'sighted';
       const phoneMatch = caption.match(/(\d{7,15})/);
-      const phone = phoneMatch ? phoneMatch[1] : null;
+      const phone = sanitizePhone(phoneMatch ? phoneMatch[1] : null);
       const species = /gato|felino|mich|minino|felix/.test(lower) ? 'cat' : /perr[oai]|can|canino|cachorr|perrito/.test(lower) ? 'dog' : null;
       return { intent, species, gender: null, breed: null, color: null, name: null, location: null, phone, phone2: null, description: caption.substring(0, 200) };
     }

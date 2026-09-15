@@ -271,6 +271,7 @@ async function routeFlow(conv, parsed) {
     'register.name', 'register.email',
     'chapita.pet_name', 'chapita.breed', 'chapita.color',
     'raffle.name', 'raffle.numbers',
+    'phone_confirm',
   ]);
   if (flow !== 'menu' && flow !== 'end_flow' && !flow.startsWith('image_confirm_') && intent === 'cancel') {
     const isButtonCancel = parsed.buttonId === 'end_no' || parsed.buttonId === 'confirm_no' || parsed.buttonId === 'raffle_no';
@@ -338,6 +339,7 @@ async function routeFlow(conv, parsed) {
     case 'report_found.edit_location': return rfEditLocation(conv, parsed);
     case 'report_found.edit_contact': return rfEditContact(conv, parsed);
     case 'report_found.edit_description': return rfEditDescription(conv, parsed);
+    case 'phone_confirm': return phoneConfirm(conv, parsed);
     case 'image_choice': return handleImageChoice(conv, parsed, intent);
     case 'image_confirm_found': return handleImageConfirm(conv, parsed, intent);
     case 'image_confirm_lost': return handleImageConfirm(conv, parsed, intent);
@@ -811,6 +813,62 @@ async function rlSpecies(conv, parsed) {
   await setFlow(conv, 'report_lost.photo', { species });
 }
 
+// Pregunta al usuario si el teléfono detectado por IA es correcto, antes de
+// auto-avanzar al confirm final. Evita guardar números que nadie escribió.
+async function promptPhoneConfirm(conv, ctx, targetFlow) {
+  const number = ctx.contact;
+  await setFlow(conv, 'phone_confirm', { ...ctx, _after_phone: targetFlow });
+  await sendMessage(conv.wa_from, `📞 Detecté este número como *teléfono de contacto*: *${number}*\n\n¿Es correcto? Respondé *Sí* para confirmarlo, o escribí el número correcto.`);
+  await sendInteractiveButtons(conv.wa_from, 'Contacto:', [
+    { id: 'phone_yes', title: '✅ Sí, es correcto' },
+    { id: 'phone_no', title: '❌ No, otro número' },
+  ]);
+}
+
+async function phoneConfirm(conv, parsed) {
+  const ctx = { ...conv.context };
+  const target = ctx._after_phone || 'report_lost.confirm';
+  const text = (parsed.textBody || '').trim();
+  const digits = text.replace(/\D/g, '');
+  let contact = ctx.contact || null;
+
+  if (parsed.buttonId === 'phone_yes' || /^(s[ií]|si|confirmo|correcto|es correcto)$/i.test(text)) {
+    // se mantiene el número detectado
+  } else if (digits.length >= 7 && digits.length <= 14) {
+    contact = digits; // el usuario escribió el número correcto
+  } else if (parsed.buttonId === 'phone_no' || /^(no\.?|otro|nop)$/i.test(text)) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Escribí el *teléfono de contacto* correcto 📞 (solo números)`);
+    await setFlow(conv, 'phone_confirm', { ...ctx, contact: null });
+    return;
+  } else if (!contact) {
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Escribí el *teléfono de contacto* 📞 (solo números)`);
+    return;
+  }
+
+  ctx.contact = contact;
+  delete ctx._after_phone;
+  await setFlow(conv, target, ctx);
+
+  if (target === 'report_found.confirm') return rfShowConfirm(conv);
+
+  if (target === 'report_sighted.confirm') {
+    const speciesLabel = { dog: '🐕 Perro', cat: '🐈 Gato', other: '🐾 Otro', unknown: '?' }[ctx.species || 'unknown'];
+    await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás el reporte de avistaje?\n  🐾 *Especie:* ${speciesLabel}\n  📍 *Ubicación:* ${waZonaLabel(ctx)}\n  ${ctx.details ? `📝 *Detalles:* ${ctx.details}\n  ` : ''}${contact ? `📞 *Contacto:* ${contact}` : ''}\n\n  🔒 Al confirmar publicamos estos datos en la red, según nuestras *políticas de privacidad*.`);
+    await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
+      { id: 'confirm_yes', title: '✅ Sí, reportar' },
+      { id: 'confirm_no', title: '❌ Cancelar' },
+    ]);
+    return;
+  }
+
+  const speciesLabels = { dog: 'Perro 🐕', cat: 'Gato 🐈', other: 'Otro 🐾' };
+  await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos:\n\n🐾 *Especie:* ${speciesLabels[ctx.species] || ctx.species}\n📍 *Ubicación:* ${waZonaLabel(ctx)}\n📞 *Contacto:* ${contact}\n${ctx.pet_name ? `🏷️ *Nombre:* ${ctx.pet_name}` : ''}${ctx.description ? `\n📝 *Descripción:* ${ctx.description}` : ''}\n\n🔒 Al confirmar, publicamos estos datos en la red para buscar a tu mascota, según nuestras *políticas de privacidad*.\n\n¿Está todo correcto?`);
+  await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
+    { id: 'confirm_yes', title: '✅ Sí, reportar' },
+    { id: 'confirm_no', title: '❌ Cancelar' },
+  ]);
+}
+
 async function rlPhoto(conv, parsed) {
   const photoData = parsed.imageData || conv.context?.photo_data;
   const photoMime = parsed.imageMime || conv.context?.photo_mime;
@@ -837,14 +895,7 @@ async function rlPhoto(conv, parsed) {
     if (extracted.phone2) ctx.contact2 = extracted.phone2;
     await sendMessage(conv.wa_from, `✅ Foto recibida.`);
     if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
-      await setFlow(conv, 'report_lost.confirm', ctx);
-      const speciesLabel = { dog: 'Perro 🐕', cat: 'Gato 🐈', other: 'Otro 🐾' };
-      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmá los datos:\n\n🐾 *Especie:* ${speciesLabel[ctx.species] || ctx.species}\n📍 *Ubicación:* ${waZonaLabel(ctx)}\n📞 *Contacto:* ${ctx.contact}\n\n🔒 Al confirmar, publicamos estos datos en la red para buscar a tu mascota, según nuestras *políticas de privacidad*.\n\n¿Está todo correcto?`);
-      await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
-        { id: 'confirm_yes', title: '✅ Sí, reportar' },
-        { id: 'confirm_no', title: '❌ Cancelar' },
-      ]);
-      return;
+      return promptPhoneConfirm(conv, ctx, 'report_lost.confirm');
     }
     if (!ctx.location) {
       await sendMessage(conv.wa_from, `${conv.bot_name}: ¿Dónde se perdió? Podés escribir la dirección o compartir tu *ubicación* 📍`);
@@ -1058,14 +1109,7 @@ async function rsSpecies(conv, parsed) {
     if (extracted.phone) ctx.contact = extracted.phone;
     if (extracted.phone2) ctx.contact2 = extracted.phone2;
     if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
-      await setFlow(conv, 'report_sighted.confirm', ctx);
-      const speciesLabel = { dog: '🐕 Perro', cat: '🐈 Gato', other: '🐾 Otro', unknown: '?' };
-      await sendMessage(conv.wa_from, `${conv.bot_name}: Confirmás el reporte de avistaje?\n  🐾 *Especie:* ${speciesLabel[species] || '?'}\n  📍 *Ubicación:* ${waZonaLabel(ctx)}\n  ${ctx.details ? `📝 *Detalles:* ${ctx.details}\n  ` : ''}${ctx.contact ? `📞 *Contacto:* ${ctx.contact}` : ''}\n\n  🔒 Al confirmar publicamos estos datos en la red, según nuestras *políticas de privacidad*.`);
-      await sendInteractiveButtons(conv.wa_from, 'Confirmar:', [
-        { id: 'confirm_yes', title: '✅ Sí, reportar' },
-        { id: 'confirm_no', title: '❌ Cancelar' },
-      ]);
-      return;
+      return promptPhoneConfirm(conv, ctx, 'report_sighted.confirm');
     }
     if (ctx.contact && ctx.latitude == null) {
       await sendMessage(conv.wa_from, `📍 Encontré la ubicación: *${ctx.location}*.\n${conv.bot_name}: No pude determinar las coordenadas exactas. ¿Podés compartir tu *ubicación actual* o escribir una dirección más específica? 📍`);
@@ -1227,8 +1271,7 @@ async function rfPhoto(conv, parsed) {
     if (extracted.description) ctx.description = extracted.description;
 
     if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
-      await setFlow(conv, 'report_found.confirm', ctx);
-      return rfShowConfirm(conv);
+      return promptPhoneConfirm(conv, ctx, 'report_found.confirm');
     }
     await setFlow(conv, 'report_found.location', ctx);
     if (!ctx.location) {
@@ -1266,8 +1309,7 @@ async function rfPhoto(conv, parsed) {
       if (result.description) ctx.description = result.description;
 
       if (ctx.latitude != null && ctx.longitude != null && ctx.contact) {
-        await setFlow(conv, 'report_found.confirm', ctx);
-        return rfShowConfirm(conv);
+        return promptPhoneConfirm(conv, ctx, 'report_found.confirm');
       }
       if (!ctx.location && !ctx.contact) {
         await setFlow(conv, 'report_found.location', ctx);
